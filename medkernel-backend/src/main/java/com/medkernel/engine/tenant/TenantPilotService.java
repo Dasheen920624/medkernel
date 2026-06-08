@@ -17,6 +17,8 @@ import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
 import com.medkernel.engine.pkg.ReleasePlanStatus;
 import com.medkernel.engine.pkg.ReleaseStrategy;
+import com.medkernel.engine.pkg.TenantPackageReferenceRepository;
+import com.medkernel.engine.pkg.TenantPackageReferenceStatus;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.shared.api.error.ApiException;
@@ -44,6 +46,7 @@ public class TenantPilotService {
     private final UserRoleAssignmentRepository roleAssignmentRepository;
     private final IntegrationAdapterRepository adapterRepository;
     private final KnowledgePackageRepository packageRepository;
+    private final TenantPackageReferenceRepository packageReferenceRepository;
     private final ReleasePlanRepository releasePlanRepository;
 
     public TenantPilotService(BrandingRepository brandingRepository,
@@ -54,6 +57,7 @@ public class TenantPilotService {
                               UserRoleAssignmentRepository roleAssignmentRepository,
                               IntegrationAdapterRepository adapterRepository,
                               KnowledgePackageRepository packageRepository,
+                              TenantPackageReferenceRepository packageReferenceRepository,
                               ReleasePlanRepository releasePlanRepository) {
         this.brandingRepository = brandingRepository;
         this.successPlanRepository = successPlanRepository;
@@ -63,6 +67,7 @@ public class TenantPilotService {
         this.roleAssignmentRepository = roleAssignmentRepository;
         this.adapterRepository = adapterRepository;
         this.packageRepository = packageRepository;
+        this.packageReferenceRepository = packageReferenceRepository;
         this.releasePlanRepository = releasePlanRepository;
     }
 
@@ -325,13 +330,21 @@ public class TenantPilotService {
     }
 
     private ImplementationStep assetsStep(String tenantId) {
+        boolean hasActiveReference = packageReferenceRepository
+            .findByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, TenantPackageReferenceStatus.ACTIVE)
+            .stream()
+            .findAny()
+            .isPresent();
         boolean hasReleasedAssets = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId)
             .stream()
             .anyMatch(this::releasedPackage);
-        if (hasReleasedAssets) {
-            return done("ASSETS", "资产", "/config/packages", "已存在发布或启用的配置资产包");
+        if (hasActiveReference) {
+            return done("ASSETS", "资产", "/config/packages", "已引用平台配置资产包");
         }
-        return blocked("ASSETS", "资产", "/config/packages", "资产未发布或未启用");
+        if (hasReleasedAssets) {
+            return done("ASSETS", "资产", "/config/packages", "已存在发布或启用的租户配置资产包");
+        }
+        return blocked("ASSETS", "资产", "/config/packages", "尚未引用平台配置资产包");
     }
 
     private ImplementationStep grayscaleStep(String tenantId) {

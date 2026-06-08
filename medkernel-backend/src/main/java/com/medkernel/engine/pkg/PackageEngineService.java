@@ -9,6 +9,9 @@ import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.InheritanceOverride;
+import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
+import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
@@ -140,6 +143,8 @@ public class PackageEngineService {
     private final TermMappingRepository terminologyMappingRepository;
     private final PilotPackageTemplateRepository pilotTemplateRepository;
     private final PilotPackageTemplateItemRepository pilotTemplateItemRepository;
+    private final TenantPackageReferenceRepository packageReferenceRepository;
+    private final InheritanceOverrideService inheritanceOverrideService;
 
     private final PackageSyncPort syncPort;
     private final EffectiveKnowledgePackageResolver effectivePackageResolver;
@@ -172,6 +177,8 @@ public class PackageEngineService {
             TermMappingRepository terminologyMappingRepository,
             PilotPackageTemplateRepository pilotTemplateRepository,
             PilotPackageTemplateItemRepository pilotTemplateItemRepository,
+            TenantPackageReferenceRepository packageReferenceRepository,
+            InheritanceOverrideService inheritanceOverrideService,
             PackageSyncPort syncPort,
             EffectiveKnowledgePackageResolver effectivePackageResolver,
             AuditRecorder auditRecorder,
@@ -201,6 +208,8 @@ public class PackageEngineService {
         this.terminologyMappingRepository = terminologyMappingRepository;
         this.pilotTemplateRepository = pilotTemplateRepository;
         this.pilotTemplateItemRepository = pilotTemplateItemRepository;
+        this.packageReferenceRepository = packageReferenceRepository;
+        this.inheritanceOverrideService = inheritanceOverrideService;
         this.syncPort = syncPort;
         this.effectivePackageResolver = effectivePackageResolver;
         this.auditRecorder = auditRecorder;
@@ -341,109 +350,63 @@ public class PackageEngineService {
     }
 
     /**
-     * 将试点首发模板实例化为配置包草稿，并按模板资产项自动组包。
+     * 应用试点首发模板的推荐平台包引用，不为租户复制平台包或资产条目。
      */
     @Transactional
-    public PilotPackageInstantiationResponse instantiatePilotTemplate(
+    public PilotPackageTemplateApplyResponse applyPilotTemplateReferences(
             String templateCode,
-            PilotPackageTemplateInstantiateRequest request) {
+            PilotPackageTemplateApplyRequest request) {
         String tenantId = currentTenantId();
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
-        PilotPackageTemplateInstantiateRequest instantiateRequest = requireInstantiateRequest(request);
+        PilotPackageTemplateApplyRequest applyRequest = requireApplyRequest(request);
+        String targetOrgUnitId = requireTargetOrgUnitId(applyRequest.targetOrgUnitId());
         PilotPackageTemplate template = resolvePilotTemplate(tenantId, templateCode);
         List<PilotPackageTemplateItem> templateItems = pilotTemplateItemRepository
             .findByTenantIdAndTemplateIdOrderBySortOrderAsc(template.tenantId(), template.templateId());
         if (templateItems.isEmpty()) {
             throw new ApiException(
                 ErrorCode.PACKAGE_DEPENDENCY_MISSING,
-                "首发模板未配置任何资产项: " + template.templateCode()
+                "首发模板未配置任何平台包引用: " + template.templateCode()
             );
         }
 
-        String packageCode = firstNonBlank(instantiateRequest.packageCode(), template.packageCodePrefix());
-        String packageVersion = firstNonBlank(instantiateRequest.packageVersion(), template.defaultPackageVersion());
-        String packageName = firstNonBlank(instantiateRequest.name(), template.name());
-        String packageDescription = firstNonBlank(instantiateRequest.description(), template.description());
-        requirePackageIdentity(packageCode, packageVersion, packageName);
-
-        if (packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
-                tenantId, packageCode, packageVersion).isPresent()) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_004, "知识包版本在该租户内已存在: " + packageVersion);
-        }
-
-        List<PilotPackageTemplateItem> validItems = new ArrayList<>();
+        List<TenantPackageReferenceResponse> references = new ArrayList<>();
         List<String> blockers = new ArrayList<>();
+        Instant now = Instant.now();
         for (PilotPackageTemplateItem item : templateItems) {
+            if (item.assetType() != VersionedAssetType.PACKAGE) {
+                if (item.required()) {
+                    blockers.add(item.assetType() + ":" + item.assetId() + " 不是平台包引用");
+                }
+                continue;
+            }
             try {
-                validateAssetStatus(tenantId, item.assetType(), item.assetId(), item.assetVersion());
-                validItems.add(item);
+                KnowledgePackage platformPackage = requirePlatformPackage(item.assetId(), item.assetVersion());
+                TenantPackageReference reference = referenceFor(
+                    tenantId, template.templateCode(), targetOrgUnitId, platformPackage, actor, traceId, now);
+                references.add(TenantPackageReferenceResponse.from(reference));
             } catch (ApiException ex) {
                 if (item.required()) {
-                    blockers.add(item.assetType() + ":" + item.assetId() + "@" + item.assetVersion()
-                        + "：" + ex.getMessage());
+                    blockers.add(item.assetId() + "@" + item.assetVersion() + "：" + ex.getMessage());
                 }
             }
         }
         if (!blockers.isEmpty()) {
             throw new ApiException(
                 ErrorCode.PACKAGE_DEPENDENCY_MISSING,
-                "首发模板依赖资产缺失或未发布: " + String.join("；", blockers)
+                "首发模板依赖平台包缺失或未发布: " + String.join("；", blockers)
             );
         }
-        if (validItems.isEmpty()) {
+        if (references.isEmpty()) {
             throw new ApiException(
                 ErrorCode.PACKAGE_DEPENDENCY_MISSING,
-                "首发模板未命中可入包资产: " + template.templateCode()
+                "首发模板未命中可引用平台包: " + template.templateCode()
             );
         }
-
-        Instant now = Instant.now();
-        KnowledgePackage pack = new KnowledgePackage(
-            null,
-            UUID.randomUUID().toString(),
-            tenantId,
-            packageCode,
-            packageVersion,
-            packageName,
-            packageDescription,
-            KnowledgePackageStatus.DRAFT,
-            now,
-            actor,
-            now,
-            actor,
-            traceId
-        );
-        KnowledgePackage savedPackage = packageRepository.save(pack);
-        List<PackageItem> savedItemEntities = validItems.stream()
-            .map(item -> itemRepository.save(new PackageItem(
-                null,
-                UUID.randomUUID().toString(),
-                tenantId,
-                savedPackage.packageId(),
-                item.assetType(),
-                item.assetId(),
-                item.assetVersion(),
-                now,
-                actor,
-                now,
-                actor,
-                traceId
-            )))
-            .toList();
-        registerPackageDraft(savedPackage, savedItemEntities, actor, traceId);
-        List<PackageItemResponse> savedItems = savedItemEntities.stream()
-            .map(PackageItemResponse::from)
-            .toList();
-
-        auditRecorder.record(AuditAction.CREATE, "knowledge_package", savedPackage.packageId(),
-            "由首发模板实例化配置包草稿: " + template.templateCode()
-                + "，资产条目数: " + savedItems.size());
-        return new PilotPackageInstantiationResponse(
-            template.templateCode(),
-            PackageResponse.from(savedPackage),
-            savedItems
-        );
+        List<PilotPackageInitialOverrideResponse> initialOverrides =
+            registerInitialOverrides(tenantId, actor, traceId, applyRequest.initialOverrides());
+        return new PilotPackageTemplateApplyResponse(template.templateCode(), references, initialOverrides);
     }
 
     /**
@@ -463,11 +426,17 @@ public class PackageEngineService {
         long activeCount = packages.stream()
             .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
             .count();
+        List<TenantPackageReference> activeReferences = packageReferenceRepository
+            .findByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, TenantPackageReferenceStatus.ACTIVE);
+        long activeReferenceCount = activeReferences.size();
         String readyPackageId = packages.stream()
             .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
             .findFirst()
             .or(() -> packages.stream().filter(pack -> pack.status() == KnowledgePackageStatus.PUBLISHED).findFirst())
             .map(KnowledgePackage::packageId)
+            .or(() -> activeReferences.stream()
+                .findFirst()
+                .map(TenantPackageReference::platformPackageId))
             .orElse(null);
         boolean grayscaleReady = planRepository.findByTenantIdOrderByCreatedAtDesc(tenantId).stream()
             .anyMatch(plan -> plan.strategy() == ReleaseStrategy.GRAYSCALE
@@ -477,8 +446,8 @@ public class PackageEngineService {
         if (templateCount == 0) {
             blockers.add("未配置可用的试点首发模板");
         }
-        if (releasedCount == 0) {
-            blockers.add("配置包尚未灰度发布或启用");
+        if (releasedCount == 0 && activeReferenceCount == 0) {
+            blockers.add("尚未引用平台配置资产包");
         }
         if (!grayscaleReady) {
             blockers.add("灰度发布尚未成功");
@@ -490,6 +459,7 @@ public class PackageEngineService {
             draftCount,
             releasedCount,
             activeCount,
+            activeReferenceCount,
             grayscaleReady,
             readyPackageId,
             blockers,
@@ -3729,29 +3699,112 @@ public class PackageEngineService {
             ));
     }
 
-    private PilotPackageTemplateInstantiateRequest requireInstantiateRequest(
-            PilotPackageTemplateInstantiateRequest request) {
+    private PilotPackageTemplateApplyRequest requireApplyRequest(PilotPackageTemplateApplyRequest request) {
         if (request == null) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "首发模板实例化请求不能为空");
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "首发模板引用请求不能为空");
         }
         return request;
     }
 
-    private String firstNonBlank(String candidate, String fallback) {
-        String normalizedCandidate = normalizedText(candidate);
-        return normalizedCandidate == null ? normalizedText(fallback) : normalizedCandidate;
+    private String requireTargetOrgUnitId(String targetOrgUnitId) {
+        String normalized = normalizedText(targetOrgUnitId);
+        if (normalized == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "首发模板引用缺少目标组织");
+        }
+        return normalized;
     }
 
-    private void requirePackageIdentity(String packageCode, String packageVersion, String name) {
-        if (packageCode == null || packageCode.isBlank()) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包编码");
+    private KnowledgePackage requirePlatformPackage(String packageCode, String packageVersion) {
+        String normalizedCode = normalizedText(packageCode);
+        String normalizedVersion = normalizedText(packageVersion);
+        if (normalizedCode == null || normalizedVersion == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "平台包引用缺少包编码或版本");
         }
-        if (packageVersion == null || packageVersion.isBlank()) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包版本");
+        KnowledgePackage platformPackage = packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, normalizedCode, normalizedVersion)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                "平台知识包不存在: " + normalizedCode + "@" + normalizedVersion));
+        if (!releasedPackage(platformPackage)) {
+            throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "只允许引用 PUBLISHED 或 ACTIVE 状态的平台知识包, 当前: " + platformPackage.status()
+            );
         }
-        if (name == null || name.isBlank()) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包名称");
+        return platformPackage;
+    }
+
+    private TenantPackageReference referenceFor(
+            String tenantId,
+            String templateCode,
+            String targetOrgUnitId,
+            KnowledgePackage platformPackage,
+            String actor,
+            String traceId,
+            Instant now) {
+        Optional<TenantPackageReference> existing =
+            packageReferenceRepository.findByTenantIdAndPackageCodeAndPackageVersionAndTargetOrgUnitId(
+                tenantId, platformPackage.packageCode(), platformPackage.packageVersion(), targetOrgUnitId);
+        if (existing.isPresent()) {
+            return existing.get();
         }
+        TenantPackageReference reference = new TenantPackageReference(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            PlatformTenant.ID,
+            platformPackage.packageId(),
+            platformPackage.packageCode(),
+            platformPackage.packageVersion(),
+            targetOrgUnitId,
+            templateCode,
+            TenantPackageReferenceStatus.ACTIVE,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        );
+        TenantPackageReference saved = packageReferenceRepository.save(reference);
+        auditRecorder.record(
+            AuditAction.CREATE,
+            "tenant_package_reference",
+            saved.referenceId(),
+            "应用首发模板引用平台知识包: " + platformPackage.packageCode() + "@" + platformPackage.packageVersion()
+        );
+        return saved;
+    }
+
+    private List<PilotPackageInitialOverrideResponse> registerInitialOverrides(
+            String tenantId,
+            String actor,
+            String traceId,
+            List<PilotPackageInitialOverrideRequest> requests) {
+        List<PilotPackageInitialOverrideResponse> responses = new ArrayList<>();
+        for (PilotPackageInitialOverrideRequest request : requests) {
+            if (request == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "初始覆盖请求不能为空");
+            }
+            InheritanceOverride override = inheritanceOverrideService.registerOverride(
+                new InheritanceOverrideRegisterCommand(
+                    tenantId,
+                    request.assetType(),
+                    request.assetIdentity(),
+                    request.inheritedVersionId(),
+                    request.overrideVersionId(),
+                    request.targetOrgUnitId(),
+                    request.applicableScope(),
+                    request.overrideMode(),
+                    request.diffSummary(),
+                    request.overrideReason(),
+                    request.impactScope(),
+                    actor,
+                    traceId,
+                    request.propagation()
+                ));
+            responses.add(PilotPackageInitialOverrideResponse.from(override));
+        }
+        return responses;
     }
 
     private boolean releasedPackage(KnowledgePackage knowledgePackage) {

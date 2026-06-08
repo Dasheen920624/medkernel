@@ -4,12 +4,10 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import jakarta.validation.constraints.Size;
-
 /**
- * 首发模板实例化请求。
+ * 应用首发模板推荐引用请求。
  */
-public record PilotPackageTemplateInstantiateRequest(
+public record PilotPackageTemplateApplyRequest(
     @JsonProperty("request_id") String requestId,
     @JsonProperty("trace_id") String traceId,
     @JsonProperty("tenant_id") String tenantId,
@@ -22,29 +20,19 @@ public record PilotPackageTemplateInstantiateRequest(
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String contextPackageVersion,
-
-    @Size(max = 128, message = "包编码长度不能超过128")
-    String packageCode,
-
-    @Size(max = 64, message = "包版本长度不能超过64")
-    String packageVersion,
-
-    @Size(max = 256, message = "包名称长度不能超过256")
-    String name,
-
-    String description
+    @JsonProperty("target_org_unit_id") String targetOrgUnitId,
+    @JsonProperty("initial_overrides") List<PilotPackageInitialOverrideRequest> initialOverrides
 ) implements PackageContextRequest {
-    public PilotPackageTemplateInstantiateRequest {
+    public PilotPackageTemplateApplyRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        initialOverrides = initialOverrides == null ? List.of() : List.copyOf(initialOverrides);
     }
 
-    public PilotPackageTemplateInstantiateRequest(
-            String packageCode,
-            String packageVersion,
-            String name,
-            String description) {
+    public PilotPackageTemplateApplyRequest(
+            String targetOrgUnitId,
+            List<PilotPackageInitialOverrideRequest> initialOverrides) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            packageCode, packageVersion, name, description);
+            targetOrgUnitId, initialOverrides);
     }
 
     public PackageApiContext apiContext() {

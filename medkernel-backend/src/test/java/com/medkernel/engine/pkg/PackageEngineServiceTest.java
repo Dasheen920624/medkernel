@@ -7,6 +7,11 @@ import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.InheritanceOverride;
+import com.medkernel.engine.versioning.InheritanceOverrideMode;
+import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
+import com.medkernel.engine.versioning.InheritanceOverrideService;
+import com.medkernel.engine.versioning.InheritancePropagation;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -97,6 +102,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,6 +143,8 @@ class PackageEngineServiceTest {
     private TermMappingRepository terminologyMappingRepository;
     private PilotPackageTemplateRepository pilotTemplateRepository;
     private PilotPackageTemplateItemRepository pilotTemplateItemRepository;
+    private TenantPackageReferenceRepository packageReferenceRepository;
+    private InheritanceOverrideService inheritanceOverrideService;
 
     private PackageSyncPort syncPort;
     private EffectiveKnowledgePackageResolver effectivePackageResolver;
@@ -172,6 +180,8 @@ class PackageEngineServiceTest {
         terminologyMappingRepository = mock(TermMappingRepository.class);
         pilotTemplateRepository = mock(PilotPackageTemplateRepository.class);
         pilotTemplateItemRepository = mock(PilotPackageTemplateItemRepository.class);
+        packageReferenceRepository = mock(TenantPackageReferenceRepository.class);
+        inheritanceOverrideService = mock(InheritanceOverrideService.class);
 
         syncPort = mock(PackageSyncPort.class);
         effectivePackageResolver = mock(EffectiveKnowledgePackageResolver.class);
@@ -205,7 +215,8 @@ class PackageEngineServiceTest {
             evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
             terminologyPackageRepository, terminologyPackageItemRepository, terminologyMappingRepository,
-            pilotTemplateRepository, pilotTemplateItemRepository,
+            pilotTemplateRepository, pilotTemplateItemRepository, packageReferenceRepository,
+            inheritanceOverrideService,
             syncPort, effectivePackageResolver, auditRecorder,
             transactionTemplate, versionedAssets, assetVersions, releasePort
         );
@@ -671,14 +682,12 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void instantiatePilotTemplateCreatesDraftPackageWithAllRequiredAssetTypes() {
+    void applyPilotTemplateReferencesCreatesReferencesWithoutDraftPackageCopies() {
         PilotPackageTemplate template = activePilotTemplate(
             "t-1", "tpl-first-run", "TPL.FIRST_RUN", "试点首发最小可运行集");
         List<PilotPackageTemplateItem> templateItems = List.of(
-            pilotTemplateItem("tpl-first-run", 10, VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
-            pilotTemplateItem("tpl-first-run", 20, VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06"),
-            pilotTemplateItem("tpl-first-run", 30, VersionedAssetType.RULE, "rule-stable", "2"),
-            pilotTemplateItem("tpl-first-run", 40, VersionedAssetType.PATHWAY, "pathway-stable", "1")
+            pilotTemplateItem("tpl-first-run", 10, VersionedAssetType.PACKAGE, "PKG.CKD", "2026.06"),
+            pilotTemplateItem("tpl-first-run", 20, VersionedAssetType.PACKAGE, "PKG.VTE", "2026.06")
         );
         when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
                 "tenant-A", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
@@ -689,61 +698,123 @@ class PackageEngineServiceTest {
         when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("t-1", "tpl-first-run"))
             .thenReturn(templateItems);
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
-                "tenant-A", "PKG.FIRST.RUN", "2026.06.03"))
+                PlatformTenant.ID, "PKG.CKD", "2026.06"))
+            .thenReturn(Optional.of(packageVersionForTenant(
+                "pkg-platform-ckd", PlatformTenant.ID, "PKG.CKD", "2026.06", KnowledgePackageStatus.ACTIVE)));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.VTE", "2026.06"))
+            .thenReturn(Optional.of(packageVersionForTenant(
+                "pkg-platform-vte", PlatformTenant.ID, "PKG.VTE", "2026.06", KnowledgePackageStatus.PUBLISHED)));
+        when(packageReferenceRepository.findByTenantIdAndPackageCodeAndPackageVersionAndTargetOrgUnitId(
+                "tenant-A", "PKG.CKD", "2026.06", "facility-1"))
             .thenReturn(Optional.empty());
-        when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
-            .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
-        when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
-            .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
-        when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
-                "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
-            .thenReturn(Optional.of(publishedTerminologyPackage(
-                "TERM.LAB", "2026.06", "DEPARTMENT", "CARD")));
-        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
-            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
-        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
-            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+        when(packageReferenceRepository.findByTenantIdAndPackageCodeAndPackageVersionAndTargetOrgUnitId(
+                "tenant-A", "PKG.VTE", "2026.06", "facility-1"))
+            .thenReturn(Optional.empty());
+        when(packageReferenceRepository.save(any(TenantPackageReference.class)))
+            .thenAnswer(inv -> inv.getArgument(0));
 
-        PilotPackageInstantiationResponse response = service.instantiatePilotTemplate(
+        PilotPackageTemplateApplyResponse response = service.applyPilotTemplateReferences(
             "TPL.FIRST_RUN",
-            new PilotPackageTemplateInstantiateRequest(
-                "PKG.FIRST.RUN",
-                "2026.06.03",
-                "首发配置包",
-                "由试点首发模板实例化"
+            new PilotPackageTemplateApplyRequest(
+                "facility-1",
+                List.of()
             )
         );
 
         assertThat(response.templateCode()).isEqualTo("TPL.FIRST_RUN");
-        assertThat(response.packageInfo().status()).isEqualTo(KnowledgePackageStatus.DRAFT);
-        assertThat(response.packageInfo().packageCode()).isEqualTo("PKG.FIRST.RUN");
-        assertThat(response.items()).hasSize(4);
-        assertThat(response.items()).extracting(PackageItemResponse::assetType)
-            .containsExactly(
-                VersionedAssetType.KNOWLEDGE,
-                VersionedAssetType.TERMINOLOGY,
-                VersionedAssetType.RULE,
-                VersionedAssetType.PATHWAY
-            );
+        assertThat(response.references()).hasSize(2);
+        assertThat(response.references())
+            .extracting(TenantPackageReferenceResponse::packageCode)
+            .containsExactly("PKG.CKD", "PKG.VTE");
+        assertThat(response.initialOverrides()).isEmpty();
 
-        ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
-        verify(packageRepository).save(packCap.capture());
-        assertThat(packCap.getValue().status()).isEqualTo(KnowledgePackageStatus.DRAFT);
-        assertThat(packCap.getValue().traceId()).isEqualTo("trace-pkg");
-
-        ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
-        verify(itemRepository, org.mockito.Mockito.times(4)).save(itemCap.capture());
-        assertThat(itemCap.getAllValues()).allSatisfy(item -> {
-            assertThat(item.packageId()).isEqualTo(packCap.getValue().packageId());
-            assertThat(item.tenantId()).isEqualTo("tenant-A");
-            assertThat(item.traceId()).isEqualTo("trace-pkg");
+        verify(packageRepository, never()).save(any(KnowledgePackage.class));
+        verify(itemRepository, never()).save(any(PackageItem.class));
+        ArgumentCaptor<TenantPackageReference> referenceCap =
+            ArgumentCaptor.forClass(TenantPackageReference.class);
+        verify(packageReferenceRepository, org.mockito.Mockito.times(2)).save(referenceCap.capture());
+        assertThat(referenceCap.getAllValues()).allSatisfy(reference -> {
+            assertThat(reference.tenantId()).isEqualTo("tenant-A");
+            assertThat(reference.platformTenantId()).isEqualTo(PlatformTenant.ID);
+            assertThat(reference.targetOrgUnitId()).isEqualTo("facility-1");
+            assertThat(reference.sourceTemplateCode()).isEqualTo("TPL.FIRST_RUN");
+            assertThat(reference.traceId()).isEqualTo("trace-pkg");
         });
-        verify(auditRecorder).record(eq(AuditAction.CREATE), eq("knowledge_package"),
-            eq(packCap.getValue().packageId()), any());
+        verify(auditRecorder, org.mockito.Mockito.times(2)).record(
+            eq(AuditAction.CREATE), eq("tenant_package_reference"), any(), any());
     }
 
     @Test
-    void instantiatePilotTemplateRejectsMissingDependencyAndLeavesNoPartialDraft() {
+    void applyPilotTemplateReferencesRegistersOptionalInitialOverrides() {
+        PilotPackageTemplate template = activePilotTemplate(
+            "t-1", "tpl-first-run", "TPL.FIRST_RUN", "试点首发最小可运行集");
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "tenant-A", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "t-1", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.of(template));
+        when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("t-1", "tpl-first-run"))
+            .thenReturn(List.of(pilotTemplateItem(
+                "tpl-first-run", 10, VersionedAssetType.PACKAGE, "PKG.CKD", "2026.06")));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.CKD", "2026.06"))
+            .thenReturn(Optional.of(packageVersionForTenant(
+                "pkg-platform-ckd", PlatformTenant.ID, "PKG.CKD", "2026.06", KnowledgePackageStatus.ACTIVE)));
+        when(packageReferenceRepository.findByTenantIdAndPackageCodeAndPackageVersionAndTargetOrgUnitId(
+                "tenant-A", "PKG.CKD", "2026.06", "facility-1"))
+            .thenReturn(Optional.empty());
+        when(packageReferenceRepository.save(any(TenantPackageReference.class)))
+            .thenAnswer(inv -> inv.getArgument(0));
+        when(inheritanceOverrideService.registerOverride(any()))
+            .thenReturn(initialOverrideRecord("io-initial-rule"));
+
+        PilotPackageTemplateApplyResponse response = service.applyPilotTemplateReferences(
+            "TPL.FIRST_RUN",
+            new PilotPackageTemplateApplyRequest(
+                "facility-1",
+                List.of(new PilotPackageInitialOverrideRequest(
+                    VersionedAssetType.RULE,
+                    "RULE.CKD.DOSE",
+                    "av-platform-rule",
+                    "av-tenant-rule",
+                    "facility-1",
+                    "CKD",
+                    InheritanceOverrideMode.REPLACE,
+                    InheritancePropagation.EXCLUSIVE,
+                    "院内肾功能剂量阈值更严格",
+                    "首发开通需要启用院内初始定制",
+                    "FACILITY"
+                ))
+            )
+        );
+
+        assertThat(response.initialOverrides()).singleElement().satisfies(override -> {
+            assertThat(override.overrideId()).isEqualTo("io-initial-rule");
+            assertThat(override.assetType()).isEqualTo(VersionedAssetType.RULE);
+            assertThat(override.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
+        });
+        ArgumentCaptor<InheritanceOverrideRegisterCommand> commandCap =
+            ArgumentCaptor.forClass(InheritanceOverrideRegisterCommand.class);
+        verify(inheritanceOverrideService).registerOverride(commandCap.capture());
+        assertThat(commandCap.getValue()).satisfies(command -> {
+            assertThat(command.tenantId()).isEqualTo("tenant-A");
+            assertThat(command.assetType()).isEqualTo(VersionedAssetType.RULE);
+            assertThat(command.assetIdentity()).isEqualTo("RULE.CKD.DOSE");
+            assertThat(command.inheritedVersionId()).isEqualTo("av-platform-rule");
+            assertThat(command.overrideVersionId()).isEqualTo("av-tenant-rule");
+            assertThat(command.targetOrgUnitId()).isEqualTo("facility-1");
+            assertThat(command.applicableScope()).isEqualTo("CKD");
+            assertThat(command.overrideMode()).isEqualTo(InheritanceOverrideMode.REPLACE);
+            assertThat(command.createdBy()).isEqualTo("tester");
+            assertThat(command.traceId()).isEqualTo("trace-pkg");
+            assertThat(command.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
+        });
+    }
+
+    @Test
+    void applyPilotTemplateReferencesRejectsMissingPlatformPackageAndLeavesNoPartialReference() {
         PilotPackageTemplate template = activePilotTemplate(
             "tenant-A", "tpl-missing", "TPL.MISSING", "缺依赖模板");
         when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
@@ -751,30 +822,24 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(template));
         when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("tenant-A", "tpl-missing"))
             .thenReturn(List.of(pilotTemplateItem(
-                "tpl-missing", 10, VersionedAssetType.RULE, "rule-missing", "1")));
+                "tpl-missing", 10, VersionedAssetType.PACKAGE, "PKG.MISSING", "2026.06")));
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
-                "tenant-A", "PKG.MISSING", "2026.06.03"))
-            .thenReturn(Optional.empty());
-        when(ruleRepository.findByRuleIdAndTenantId("rule-missing", "tenant-A"))
+                PlatformTenant.ID, "PKG.MISSING", "2026.06"))
             .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.instantiatePilotTemplate(
+        assertThatThrownBy(() -> service.applyPilotTemplateReferences(
                 "TPL.MISSING",
-                new PilotPackageTemplateInstantiateRequest(
-                    "PKG.MISSING",
-                    "2026.06.03",
-                    "缺依赖配置包",
-                    "不能留下半成品"
-                )))
+                new PilotPackageTemplateApplyRequest("facility-1", List.of())))
             .isInstanceOf(ApiException.class)
             .satisfies(ex -> {
                 ApiException api = (ApiException) ex;
                 assertThat(api.errorCode()).isEqualTo(ErrorCode.PACKAGE_DEPENDENCY_MISSING);
-                assertThat(api.getMessage()).contains("rule-missing");
+                assertThat(api.getMessage()).contains("PKG.MISSING");
             });
 
         verify(packageRepository, never()).save(any(KnowledgePackage.class));
         verify(itemRepository, never()).save(any(PackageItem.class));
+        verify(packageReferenceRepository, never()).save(any(TenantPackageReference.class));
     }
 
     @Test
@@ -808,8 +873,56 @@ class PackageEngineServiceTest {
         assertThat(readiness.draftPackageCount()).isEqualTo(1);
         assertThat(readiness.releasedPackageCount()).isEqualTo(2);
         assertThat(readiness.activePackageCount()).isEqualTo(1);
+        assertThat(readiness.activePackageReferenceCount()).isZero();
         assertThat(readiness.grayscaleReady()).isTrue();
         assertThat(readiness.readyPackageId()).isEqualTo("pkg-active");
+        assertThat(readiness.blockers()).isEmpty();
+    }
+
+    @Test
+    void getAssetReadinessTreatsActivePlatformReferencesAsReadyAssets() {
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "tenant-A", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of());
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "t-1", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of(activePilotTemplate("t-1", "tpl-platform", "TPL.PLATFORM", "平台模板")));
+        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
+            .thenReturn(List.of());
+        when(packageReferenceRepository.findByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", TenantPackageReferenceStatus.ACTIVE))
+            .thenReturn(List.of(new TenantPackageReference(
+                1L,
+                "ref-pkg-ckd",
+                "tenant-A",
+                PlatformTenant.ID,
+                "pkg-platform-ckd",
+                "PKG.CKD",
+                "2026.06",
+                "facility-1",
+                "TPL.PLATFORM",
+                TenantPackageReferenceStatus.ACTIVE,
+                Instant.now(),
+                "tester",
+                Instant.now(),
+                "tester",
+                "trace"
+            )));
+        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
+            .thenReturn(List.of(new ReleasePlan(
+                1L, "plan-gray", "tenant-A", "pkg-platform-ckd", "facility-1",
+                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
+                "facility-1",
+                ReleasePlanStatus.SUCCESS,
+                Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
+
+        PackageAssetReadinessResponse readiness = service.getAssetReadiness();
+
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.releasedPackageCount()).isZero();
+        assertThat(readiness.activePackageReferenceCount()).isEqualTo(1);
+        assertThat(readiness.readyPackageId()).isEqualTo("pkg-platform-ckd");
         assertThat(readiness.blockers()).isEmpty();
     }
 
@@ -2594,6 +2707,42 @@ class PackageEngineServiceTest {
         return new KnowledgePackage(
             1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
             status, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private KnowledgePackage packageVersionForTenant(
+            String packageId,
+            String tenantId,
+            String packageCode,
+            String version,
+            KnowledgePackageStatus status) {
+        return new KnowledgePackage(
+            1L, packageId, tenantId, packageCode, version, "平台知识包", null,
+            status, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private InheritanceOverride initialOverrideRecord(String overrideId) {
+        return new InheritanceOverride(
+            1L,
+            overrideId,
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.CKD.DOSE",
+            "av-platform-rule",
+            "av-tenant-rule",
+            InheritanceOverrideMode.REPLACE,
+            InheritancePropagation.EXCLUSIVE,
+            "/TENANT-A/FACILITY-1",
+            "CKD",
+            "院内肾功能剂量阈值更严格",
+            "首发开通需要启用院内初始定制",
+            "FACILITY",
+            Instant.now(),
+            "tester",
+            Instant.now(),
+            "tester",
+            "trace-pkg"
         );
     }
 

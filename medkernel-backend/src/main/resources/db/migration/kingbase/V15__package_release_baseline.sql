@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS knowledge_package (
     updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
     trace_id          VARCHAR(128)  NULL,
-    CONSTRAINT uk_knowledge_package_id UNIQUE (package_id),
+    CONSTRAINT uk_knowledge_package_id UNIQUE (tenant_id, package_id),
     CONSTRAINT uk_knowledge_package_tenant_version UNIQUE (tenant_id, package_code, package_version),
     CONSTRAINT ck_knowledge_package_status CHECK (status IN (
         'DRAFT','PENDING_REVIEW','PUBLISHED','ACTIVE','OFFLINE','ARCHIVED'
@@ -93,7 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_log_plan ON sync_log (tenant_id, plan_id, st
 -- ===== 表与关键列中文注释（GA-ENG-API-10）=====
 
 COMMENT ON TABLE knowledge_package IS '知识包主数据：保存已审核的字典、规则和路径等资产包的版本、状态与发布信息';
-COMMENT ON COLUMN knowledge_package.package_id      IS '知识包 ID（业务主键，跨租户唯一）';
+COMMENT ON COLUMN knowledge_package.package_id      IS '知识包 ID（租户内业务主键）';
 COMMENT ON COLUMN knowledge_package.tenant_id       IS '租户 ID';
 COMMENT ON COLUMN knowledge_package.package_code    IS '知识包编码（租户内唯一）';
 COMMENT ON COLUMN knowledge_package.package_version IS '知识包版本号（同编码下递增）';

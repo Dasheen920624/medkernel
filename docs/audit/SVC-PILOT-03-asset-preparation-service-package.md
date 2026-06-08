@@ -1,14 +1,14 @@
 # SVC-PILOT-03 资产准备服务包实施记录
 
-> 日期：2026-06-03
-> 分支：`codex/d2-svc-pilot-03`
+> 日期：2026-06-03；2026-06-09 按平台引用制收敛
+> 分支：`codex/d2-svc-pilot-03`；`codex/tenant-onboarding-reference`
 
 ## 范围
 
 - 新增试点首发配置包模板模型：`PilotPackageTemplate`、`PilotPackageTemplateItem`，五方言 V65 迁移建立 `mk_pkg_pilot_package_template` / `mk_pkg_pilot_template_item`。
-- 新增配置包服务端点：模板列表、模板实例化、资产就绪快照。
-- 模板实例化在保存草稿前完成模板存在性、包编码版本唯一性、必需资产真实存在与已发布状态校验；缺失依赖返回 `PACKAGE_DEPENDENCY_MISSING`，不保存半成品。
-- 配置包中心新增“首发资产准备”区和“从首发模板创建”弹窗；状态、阻塞项和灰度证据来自后端事实复算。
+- 新增配置包服务端点：模板列表、模板推荐引用应用、资产就绪快照。
+- 模板应用只创建租户到平台包的引用；提交前完成模板存在性、平台包真实存在与已发布状态校验，缺失依赖返回 `PACKAGE_DEPENDENCY_MISSING`，不复制 `knowledge_package` / `package_item`。
+- 配置包中心新增“首发资产准备”区和“应用首发引用”弹窗；状态、阻塞项、平台引用数和灰度证据来自后端事实复算。
 - 清理当前触碰范围旧口径：`PhysicalSha256` 测试名与“物理推进”Javadoc。
 
 ## 不冒领
@@ -31,5 +31,6 @@
 - 中文注释：`scripts/check-comment-zh.sh --self-test`（6/6 通过）、`scripts/check-comment-zh.sh`（0 fail / 0 warn）。
 - 提交后 changed-mode：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`（17 文件）、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`（15 文件）、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`（5 文件）均通过。
 - 空白检查：`git diff --check` 与 `git diff --check origin/main..HEAD` 均通过。
+- 2026-06-09 引用制收敛补充：`mvn -q test`、`npm run verify`（81 files / 578 tests）、`openspec validate platform-first-knowledge-inheritance --strict`、`openspec validate --all --strict`、`git diff --check`、`scripts/check-comment-zh.sh`、真实性/配置边界/迁移规约 all 模式均通过；当前 6.1 触碰范围旧 `instantiate` 入口扫描无命中。
 
 PR、远端 CI 与合并状态以 `_HANDOFF.md` 后续更新为准。

@@ -79,18 +79,18 @@ public class PackageEngineController {
     }
 
     /**
-     * 从首发模板实例化配置包草稿，并自动写入模板声明的资产项。
+     * 应用首发模板推荐的平台包引用，并可登记初始覆盖。
      *
      * <p>权限：{@code package.publish}。
      */
-    @PostMapping("/pilot-templates/{templateCode}/instantiate")
+    @PostMapping("/pilot-templates/{templateCode}/references")
     @PreAuthorize("@perm.has('package.publish')")
-    public ResponseEntity<ApiResult<PilotPackageInstantiationResponse>> instantiatePilotTemplate(
+    public ResponseEntity<ApiResult<PilotPackageTemplateApplyResponse>> applyPilotTemplateReferences(
             @PathVariable String templateCode,
-            @RequestBody @Valid PilotPackageTemplateInstantiateRequest request) {
+            @RequestBody @Valid PilotPackageTemplateApplyRequest request) {
         validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(ApiResult.ok(service.instantiatePilotTemplate(templateCode, request)));
+            .body(ApiResult.ok(service.applyPilotTemplateReferences(templateCode, request)));
     }
 
     /**

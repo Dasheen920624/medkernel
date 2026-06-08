@@ -68,7 +68,7 @@ import {
   useInsuranceIssues,
   useReplayDeadLetter,
   useImplementationSteps,
-  useInstantiatePilotTemplate,
+  useApplyPilotTemplateReferences,
   useSignoffRule,
   useTransitionRuleGovernance,
   useKnowledgeCandidateDiff,
@@ -1915,6 +1915,7 @@ describe("package export api helpers", () => {
       draftPackageCount: 1,
       releasedPackageCount: 1,
       activePackageCount: 1,
+      activePackageReferenceCount: 1,
       grayscaleReady: true,
       readyPackageId: "pkg-ready",
       blockers: [],
@@ -2047,41 +2048,51 @@ describe("package export api helpers", () => {
     });
   });
 
-  it("instantiates a pilot template through API-10 with standard context fields", async () => {
+  it("applies pilot template references through API-10 with standard context fields", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
         data: {
           templateCode: "TPL.FIRST_RUN",
-          packageInfo: { packageId: "pkg-first", packageCode: "PILOT.FIRST" },
-          items: [],
+          references: [
+            {
+              referenceId: "ref-first",
+              tenantId: "tenant-A",
+              platformTenantId: "t-1",
+              platformPackageId: "pkg-first",
+              packageCode: "PKG.FIRST",
+              packageVersion: "2026.06.03",
+              targetOrgUnitId: "hospital-1",
+              sourceTemplateCode: "TPL.FIRST_RUN",
+              status: "ACTIVE",
+            },
+          ],
+          initialOverrides: [],
         },
       },
     });
 
-    const { result } = renderApiHook(() => useInstantiatePilotTemplate());
+    const { result } = renderApiHook(() => useApplyPilotTemplateReferences());
 
     await result.current.mutateAsync({
       templateCode: "TPL.FIRST_RUN",
+      packageVersion: "2026.06.03",
       request: {
-        packageCode: "PILOT.FIRST",
-        packageVersion: "2026.06.03",
-        name: "首发配置包",
-        description: "由首发模板生成",
+        target_org_unit_id: "hospital-1",
+        initial_overrides: [],
       },
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/pkg/packages/pilot-templates/TPL.FIRST_RUN/instantiate",
+      "/engine/pkg/packages/pilot-templates/TPL.FIRST_RUN/references",
       expect.objectContaining({
         request_id: "00000000-0000-4000-8000-000000000003",
         trace_id: "00000000-0000-4000-8000-000000000003",
         tenant_id: "tenant-A",
         role_codes: ["it-ops"],
         package_version: "2026.06.03",
-        packageCode: "PILOT.FIRST",
-        packageVersion: "2026.06.03",
-        name: "首发配置包",
+        target_org_unit_id: "hospital-1",
+        initial_overrides: [],
       }),
     );
   });
