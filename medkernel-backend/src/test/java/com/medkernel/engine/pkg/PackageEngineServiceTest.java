@@ -619,6 +619,42 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void addPackageItemAcceptsCkdDeclarativeAssetsBackedByUnifiedVersions() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-ckd", "tenant-A", "PKG.CKD", "2026.06", "CKD 专病包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-ckd", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+            "tenant-A", "pkg-ckd", VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR"))
+            .thenReturn(Optional.empty());
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-ckd"))
+            .thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06"))
+            .thenReturn(Optional.of(declarativeAssetVersion(
+                VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06", AssetVersionStatus.ACTIVE)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PACKAGE, "PKG.CKD", "2026.06"))
+            .thenReturn(Optional.of(packageAssetVersion(
+                "av-package-ckd", "PKG.CKD", "2026.06", "tenant:tenant-A", AssetVersionStatus.DRAFT)));
+
+        PackageItemResponse response = service.addPackageItem("pkg-ckd", new PackageItemRequest(
+            VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06"));
+
+        assertThat(response.assetType()).isEqualTo(VersionedAssetType.FORMULA);
+        assertThat(response.assetId()).isEqualTo("CKD_EPI_2021_EGFR");
+        assertThat(response.assetVersion()).isEqualTo("2026.06");
+        verify(versionedAssets).updateDraft(argThat(
+            (AssetVersionDraftUpdateCommand command) ->
+                command.versionId().equals("av-package-ckd")
+                    && command.contentHash() != null
+                    && command.contentHash().matches("[a-f0-9]{64}")
+        ));
+    }
+
+    @Test
     void addPackageItemRejectsAssetTypesWithoutPackageContract() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
@@ -1139,6 +1175,51 @@ class PackageEngineServiceTest {
         assertThat(snapshot.path("content").path("fragment").path("bodyJson").asText())
             .contains("observation.egfr");
         assertThat(snapshot.path("contentSha256").asText()).isEqualTo(sha256Node(snapshot.path("content")));
+    }
+
+    @Test
+    void exportOfflinePackageIncludesCkdDeclarativeAssetSnapshots() throws Exception {
+        KnowledgePackage pack = packageVersion("pkg-ckd", "2026.06", KnowledgePackageStatus.PUBLISHED);
+        when(packageRepository.findByPackageIdAndTenantId("pkg-ckd", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-ckd"))
+            .thenReturn(List.of(
+                packageItem(1L, "pkg-ckd", VersionedAssetType.VALUE_SET, "VS.ATC.NEPHROTOXIC", "2026.06"),
+                packageItem(2L, "pkg-ckd", VersionedAssetType.FIELD_CATALOG, "FIELD.CKD.BINDING", "2026.06"),
+                packageItem(3L, "pkg-ckd", VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06")
+            ));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "2026.06", "hospital-1"))
+            .thenReturn(effectiveResponse("pkg-ckd", "PKG.TEST", "2026.06", "hospital-1", List.of(
+                effectiveItem(VersionedAssetType.VALUE_SET, "VS.ATC.NEPHROTOXIC", "2026.06",
+                    "value-set-source-version", "1".repeat(64)),
+                effectiveItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CKD.BINDING", "2026.06",
+                    "field-source-version", "2".repeat(64)),
+                effectiveItem(VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06",
+                    "formula-source-version", "3".repeat(64))
+            )));
+
+        JsonNode snapshots = TEST_MAPPER.readTree(
+            service.exportOfflinePackage("pkg-ckd", "hospital-1"))
+            .path("payload").path("assetSnapshots");
+
+        assertThat(snapshots).hasSize(3);
+        assertThat(snapshots).anySatisfy(snapshot -> {
+            assertThat(snapshot.path("assetType").asText()).isEqualTo("VALUE_SET");
+            assertThat(snapshot.path("content").path("assetType").asText()).isEqualTo("VALUE_SET");
+            assertThat(snapshot.path("content").path("assetId").asText()).isEqualTo("VS.ATC.NEPHROTOXIC");
+            assertThat(snapshot.path("content").path("packageVersion").asText()).isEqualTo("2026.06");
+        });
+        assertThat(snapshots).anySatisfy(snapshot -> {
+            assertThat(snapshot.path("assetType").asText()).isEqualTo("FIELD_CATALOG");
+            assertThat(snapshot.path("content").path("assetId").asText()).isEqualTo("FIELD.CKD.BINDING");
+        });
+        assertThat(snapshots).anySatisfy(snapshot -> {
+            assertThat(snapshot.path("assetType").asText()).isEqualTo("FORMULA");
+            assertThat(snapshot.path("content").path("assetId").asText()).isEqualTo("CKD_EPI_2021_EGFR");
+            assertThat(snapshot.path("content").path("migrationContract").asText())
+                .isEqualTo("DECLARATIVE_VERSIONED_ASSET");
+            assertThat(snapshot.path("contentSha256").asText()).isEqualTo(sha256Node(snapshot.path("content")));
+        });
     }
 
     @Test
@@ -3168,6 +3249,21 @@ class PackageEngineServiceTest {
             organizationScope, "ALL", "0".repeat(64),
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
             status, "version:" + versionId, "knowledge-package:test",
+            null, null, now, "tester", now, "tester", "trace-pkg"
+        );
+    }
+
+    private AssetVersion declarativeAssetVersion(
+            VersionedAssetType type,
+            String identity,
+            String versionNo,
+            AssetVersionStatus status) {
+        Instant now = Instant.now();
+        return new AssetVersion(
+            null, "av-" + type + "-" + identity, "tenant-A", type, identity, versionNo,
+            "tenant:tenant-A", versionNo, "1".repeat(64),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.REVIEW,
+            status, "version:" + type + ":" + identity, "declarative:" + type,
             null, null, now, "tester", now, "tester", "trace-pkg"
         );
     }

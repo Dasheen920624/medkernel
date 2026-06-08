@@ -128,7 +128,8 @@ class MigrationBaselineContractTest {
         "V99__mk_engine_rule_parameter_binding.sql",
         "V100__mk_engine_condition_fragment.sql",
         "V101__authoring_asset_library.sql",
-        "V102__authoring_batch_job.sql"
+        "V102__authoring_batch_job.sql",
+        "V103__formula_asset_type_unification.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -1107,6 +1108,27 @@ class MigrationBaselineContractTest {
                 .contains("idx_mk_engine_authoring_batch_item_job")
                 .contains("comment on table mk_engine_authoring_batch_job")
                 .contains("comment on table mk_engine_authoring_batch_item");
+        }
+    }
+
+    @Test
+    void v103ShouldUnifyFormulaAssetTypeForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V103__formula_asset_type_unification.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s P13-4 受控公式资产类型归一", dialect)
+                .contains("formula")
+                .contains("ck_mk_version_asset_version_type")
+                .contains("ck_package_item_asset_type")
+                .contains("ck_pkg_tpli_type")
+                .contains("ck_mk_version_inheritance_override_type")
+                .contains("ck_mk_version_release_plan_type")
+                .contains("ck_mk_version_activation_transaction_type")
+                .contains("ck_mk_version_replay_binding_type")
+                .contains("comment on column mk_version_asset_version.asset_type");
         }
     }
 

@@ -7,13 +7,13 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.OracleContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,56 +28,57 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>达梦、金仓在普通 CI 无公开镜像，由国产化环境矩阵执行运行烟测，静态合同测试负责结构门禁
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
 class FlywayMultiDialectSmokeTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 102;
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("postgres:15-alpine"))
-            .withDatabaseName("medkernel")
-            .withUsername("medkernel")
-            .withPassword("medkernel");
-
-    @Container
-    static OracleContainer oracle = new OracleContainer(
-            DockerImageName.parse("gvenzl/oracle-xe:21-slim-faststart"))
-            .withDatabaseName("medkernel")
-            .withUsername("medkernel")
-            .withPassword("medkernel");
+    private static final int LATEST_MIGRATION_VERSION = 103;
 
     @Test
     @Tag("docker")
     void postgresFlywayBaselineMigrates() {
-        runFlyway(buildHikari(
+        Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker 不可用，跳过 PostgreSQL 迁移烟测");
+        try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+                DockerImageName.parse("postgres:15-alpine"))
+                .withDatabaseName("medkernel")
+                .withUsername("medkernel")
+                .withPassword("medkernel")) {
+            postgres.start();
+            runFlyway(buildHikari(
                 postgres.getJdbcUrl(),
                 postgres.getUsername(),
                 postgres.getPassword(),
                 "org.postgresql.Driver"
-        ), "classpath:db/migration/postgres", "PostgreSQL");
+            ), "classpath:db/migration/postgres", "PostgreSQL");
+        }
     }
 
     @Test
     @Tag("docker")
     void oracleFlywayBaselineMigrates() {
-        DataSource ds = buildHikari(
+        Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker 不可用，跳过 Oracle 迁移烟测");
+        try (OracleContainer oracle = new OracleContainer(
+                DockerImageName.parse("gvenzl/oracle-xe:21-slim-faststart"))
+                .withDatabaseName("medkernel")
+                .withUsername("medkernel")
+                .withPassword("medkernel")) {
+            oracle.start();
+            DataSource ds = buildHikari(
                 oracle.getJdbcUrl(),
                 oracle.getUsername(),
                 oracle.getPassword(),
                 "oracle.jdbc.OracleDriver"
-        );
-        runFlyway(ds, "classpath:db/migration/oracle", "Oracle");
+            );
+            runFlyway(ds, "classpath:db/migration/oracle", "Oracle");
 
-        JdbcTemplate jdbc = new JdbcTemplate(ds);
-        Integer lowercaseHistory = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM user_tables WHERE table_name = 'flyway_schema_history'",
-            Integer.class);
-        Integer uppercaseHistory = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FLYWAY_SCHEMA_HISTORY'",
-            Integer.class);
-        assertThat(lowercaseHistory).as("Oracle Flyway 小写 schema history 表").isEqualTo(1);
-        assertThat(uppercaseHistory).as("Oracle 不应额外生成大写 schema history 表").isZero();
+            JdbcTemplate jdbc = new JdbcTemplate(ds);
+            Integer lowercaseHistory = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'flyway_schema_history'",
+                Integer.class);
+            Integer uppercaseHistory = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FLYWAY_SCHEMA_HISTORY'",
+                Integer.class);
+            assertThat(lowercaseHistory).as("Oracle Flyway 小写 schema history 表").isEqualTo(1);
+            assertThat(uppercaseHistory).as("Oracle 不应额外生成大写 schema history 表").isZero();
+        }
     }
 
     @Test
