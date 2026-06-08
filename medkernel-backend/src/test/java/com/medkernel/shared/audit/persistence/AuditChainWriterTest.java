@@ -155,6 +155,44 @@ class AuditChainWriterTest {
         });
     }
 
+    @Test
+    void tamperingSummaryBreaksVerification() {
+        withTenant("t-1", () -> {
+            AuditEventRecord r = writer.persist(
+                AuditEvent.of(AuditAction.PUBLISH, "rule", "r-1", "原始发布摘要"));
+            assertThat(writer.verify(r)).isTrue();
+
+            AuditEventRecord tampered = new AuditEventRecord(
+                r.id(), r.eventId(), r.traceId(), r.occurredAt(), r.actorUserId(),
+                r.action(), r.resourceType(), r.resourceId(), "篡改后的发布摘要", r.payloadDigest(),
+                r.tenantId(), r.hospitalId(), r.departmentId(),
+                r.prevEventId(), r.prevSignature(), r.signature(), r.status(),
+                r.outcome(), r.errorCode(), r.createdAt(), r.actorRoles(), r.orgPath(),
+                r.environmentKey(), r.beforeSnapshot(), r.afterSnapshot(), r.dedupeKey()
+            );
+            assertThat(writer.verify(tampered)).isFalse();
+        });
+    }
+
+    @Test
+    void tamperingTenantBreaksVerification() {
+        withTenant("t-1", () -> {
+            AuditEventRecord r = writer.persist(
+                AuditEvent.of(AuditAction.PUBLISH, "rule", "r-1", "租户内发布"));
+            assertThat(writer.verify(r)).isTrue();
+
+            AuditEventRecord tampered = new AuditEventRecord(
+                r.id(), r.eventId(), r.traceId(), r.occurredAt(), r.actorUserId(),
+                r.action(), r.resourceType(), r.resourceId(), r.summary(), r.payloadDigest(),
+                "t-2", r.hospitalId(), r.departmentId(),
+                r.prevEventId(), r.prevSignature(), r.signature(), r.status(),
+                r.outcome(), r.errorCode(), r.createdAt(), r.actorRoles(), r.orgPath(),
+                r.environmentKey(), r.beforeSnapshot(), r.afterSnapshot(), r.dedupeKey()
+            );
+            assertThat(writer.verify(tampered)).isFalse();
+        });
+    }
+
     private static void withTenant(String tenantId, Runnable task) {
         RequestContext.runWith(
             new RequestContext.Snapshot("trace-" + tenantId,

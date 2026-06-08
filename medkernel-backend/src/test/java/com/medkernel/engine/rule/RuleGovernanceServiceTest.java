@@ -263,6 +263,30 @@ class RuleGovernanceServiceTest {
     }
 
     @Test
+    void currentCommitteeSignerCannotPublishReviewedRule() {
+        RuleGovernance committee = governance(RuleGovernanceState.COMMITTEE, 1);
+        when(governanceRepository.findByRuleVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(committee));
+        when(signoffRepository.findByRuleVersionIdAndTenantIdOrderBySignedAtAsc(
+            "version-1", "tenant-A"))
+            .thenReturn(List.of(signoff("signer-1", RuleSignoffStage.COMMITTEE)));
+
+        assertThatThrownBy(() -> service.transition(
+                "tenant-A",
+                "version-1",
+                RuleGovernanceState.SHADOW,
+                "会签人尝试发布",
+                "signer-1",
+                "trace-signer-publish"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("作者、会签人和发布人必须相互分离")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(governanceRepository, never()).save(any());
+    }
+
+    @Test
     void retiresMonitoredRuleWithoutDeletingGovernanceEvidence() {
         RuleGovernance monitoring = governance(RuleGovernanceState.MONITOR, 2);
         when(governanceRepository.findByRuleVersionIdAndTenantId("version-1", "tenant-A"))

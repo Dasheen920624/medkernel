@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -1423,6 +1424,23 @@ class RuleEngineServiceTest {
         verify(auditRecorder).record(
             AuditAction.FEEDBACK, "rule_override_log", saved.getValue().overrideId(),
             "记录规则越权 rex-1/BLOCK");
+    }
+
+    @Test
+    void captureOverrideCannotCrossTenantBoundary() {
+        when(executions.findByExecutionIdAndTenantId("rex-other", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.captureOverride(
+                "rex-other",
+                new RuleOverrideRequest(RuleActionCode.BLOCK, "跨租户越权尝试")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("规则执行记录不存在: rex-other")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_002);
+
+        verify(overrides, never()).save(any());
+        verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
     @Test
