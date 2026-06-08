@@ -33,6 +33,9 @@ class AuthoringPreviewControllerTest {
     @MockBean
     AuthoringPreviewService service;
 
+    @MockBean
+    AuthoringPreviewRunService previewRunService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -84,6 +87,56 @@ class AuthoringPreviewControllerTest {
                     """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"));
+    }
+
+    @Test
+    void previewRunEndpointReturnsDraftExecutionEvidence() throws Exception {
+        when(previewRunService.run(any(AuthoringPreviewRunRequest.class)))
+            .thenReturn(new AuthoringPreviewRunResponse(
+                AuthoringPreviewSubject.RULE_CONDITION,
+                "ctx-001",
+                "pkg-2026.1",
+                true,
+                true,
+                "草稿规则命中真实快照",
+                "CRITICAL",
+                List.of(),
+                null,
+                List.of(),
+                null,
+                List.of(),
+                java.util.Map.of(),
+                java.util.Map.of("observations", 1),
+                List.of(),
+                null,
+                null,
+                "trace-preview-run"));
+
+        mvc.perform(post("/api/v1/engine/authoring/preview-run")
+                .with(readJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-preview-run",
+                      "trace_id": "trace-preview-run",
+                      "tenant_id": "t-1",
+                      "user_id": "api-author",
+                      "role_codes": ["doctor"],
+                      "package_version": "pkg-2026.1",
+                      "subject": "RULE_CONDITION",
+                      "snapshot_id": "ctx-001",
+                      "dsl": {
+                        "trigger": "result-review",
+                        "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
+                        "then": []
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.snapshotId").value("ctx-001"))
+            .andExpect(jsonPath("$.data.outcomeText").value("草稿规则命中真实快照"))
+            .andExpect(jsonPath("$.data.contextResourceCounts.observations").value(1));
     }
 
     @Test

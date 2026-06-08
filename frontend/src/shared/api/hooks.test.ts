@@ -100,6 +100,7 @@ import {
   useRuleShadowStats,
   useCaptureRuleShadowFeedback,
   useAuthoringPreview,
+  useAuthoringPreviewRun,
   useRuleBacktestLatest,
   useRunRuleBacktest,
   useRuleDriftLatest,
@@ -762,6 +763,56 @@ describe("package export api helpers", () => {
       expect.objectContaining({
         subject: "RULE_CONDITION",
         dsl,
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "pkg-2026.06",
+        request_id: expect.any(String),
+        trace_id: expect.any(String),
+      }),
+    );
+  });
+
+  it("runs draft authoring preview against a real snapshot through the unified endpoint", async () => {
+    const response = {
+      subject: "PATHWAY_GUARD",
+      snapshotId: "ctx-real-1",
+      packageVersion: "pkg-2026.06",
+      matched: true,
+      hit: null,
+      outcomeText: "草稿路径推进到 REVIEW",
+      conditionEvidence: [],
+      contextResourceCounts: { observations: 2 },
+      nodeTrajectory: ["START", "REVIEW"],
+      finalStatus: "NODE_EXECUTING",
+      selectedEdgeCode: "E1",
+      traceId: "trace-preview-run",
+    };
+    const dsl = {
+      startNodeCode: "START",
+      edges: [{ edgeCode: "E1", fromNodeCode: "START", toNodeCode: "REVIEW" }],
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useAuthoringPreviewRun());
+
+    await expect(
+      result.current.mutateAsync({
+        subject: "PATHWAY_GUARD",
+        packageVersion: "pkg-2026.06",
+        snapshotId: "ctx-real-1",
+        dsl,
+        startNodeCode: "START",
+        requestedNextNodeCodes: ["REVIEW"],
+      }),
+    ).resolves.toEqual(response);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/authoring/preview-run",
+      expect.objectContaining({
+        subject: "PATHWAY_GUARD",
+        snapshot_id: "ctx-real-1",
+        dsl,
+        startNodeCode: "START",
+        requestedNextNodeCodes: ["REVIEW"],
         tenant_id: "tenant-A",
         role_codes: ["it-ops"],
         package_version: "pkg-2026.06",

@@ -61,6 +61,7 @@ import {
   useContextSnapshots,
   useCreatePathwayTemplate,
   useCreateSpecialtyPackage,
+  useAuthoringPreviewRun,
   useEvaluationIndicators,
   useFullRolloutPathwayTemplate,
   usePathwayTemplateDetail,
@@ -74,6 +75,8 @@ import {
 } from "@/shared/api/hooks";
 import type {
   ContextSnapshotSummary,
+  AuthoringPreviewRunEvidence,
+  AuthoringPreviewRunResponse,
   EvaluationIndicator,
   PathwayEdge,
   PathwayEdgeType,
@@ -1184,6 +1187,8 @@ export default function PathwayTemplates() {
   const [simulationResponse, setSimulationResponse] = useState<PathwaySimulationResponse | null>(
     null,
   );
+  const [createPreviewRunResult, setCreatePreviewRunResult] =
+    useState<AuthoringPreviewRunResponse | null>(null);
 
   const {
     data: listData,
@@ -1262,6 +1267,7 @@ export default function PathwayTemplates() {
 
   const { data: selectedSnapshotDetail, isLoading: selectedSnapshotLoading } =
     useContextSnapshotDetail(selectedSnapshotId || "", { enabled: !!selectedSnapshotId });
+  const snapshotList = snapshotsData?.items ?? [];
 
   const createPackageMutation = useCreateSpecialtyPackage();
   const createTemplateMutation = useCreatePathwayTemplate();
@@ -1269,6 +1275,7 @@ export default function PathwayTemplates() {
   const fullRolloutMutation = useFullRolloutPathwayTemplate();
   const rollbackMutation = useRollbackPathwayTemplate();
   const simulateMutation = useSimulatePathway(selectedTemplateId || "");
+  const previewRunMutation = useAuthoringPreviewRun();
 
   const [packageForm] = Form.useForm();
   const [templateForm] = Form.useForm<PathwayTemplateFormValue>();
@@ -1574,6 +1581,7 @@ export default function PathwayTemplates() {
     setReplaySnapshotIds([]);
     setSimulationMode("SINGLE_SNAPSHOT");
     setSimulationResponse(null);
+    setCreatePreviewRunResult(null);
   };
 
   const toggleCreateExpertMode = (checked: boolean) => {
@@ -1717,6 +1725,7 @@ export default function PathwayTemplates() {
       templateForm.resetFields();
       setSelectedPathwayPrototype("blank");
       setPathwayDslJson(buildDraftDslPreview([], [], []));
+      setCreatePreviewRunResult(null);
       refetchList();
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes("条件")) {
@@ -1882,6 +1891,58 @@ export default function PathwayTemplates() {
     });
     setSelectedSnapshotId(null);
     setSimulationResponse(null);
+    setCreatePreviewRunResult(null);
+  };
+
+  const handleRunCreatePreview = async () => {
+    const packageVersion = cleanText(createTemplatePackageVersion);
+    if (!packageVersion) {
+      messageApi.error("请先选择专病包或填写模板版本。");
+      return;
+    }
+    if (!selectedSnapshotId) {
+      messageApi.error("请先选择一个 ACTIVE 上下文快照。");
+      return;
+    }
+    if (
+      !selectedSnapshotDetail ||
+      selectedSnapshotDetail.status !== "ACTIVE" ||
+      !selectedSnapshotDetail.resources
+    ) {
+      messageApi.error("所选快照详情不可用，不能运行草稿路径。");
+      return;
+    }
+
+    try {
+      const values = templateForm.getFieldsValue(true);
+      const draftDsl = buildDraftDsl(
+        values.milestones,
+        values.nodes,
+        values.edges,
+        values.outcomeBindings,
+      );
+      const activeNodes = draftDsl.nodes.filter((node) => !node.disabled);
+      const startNodeCode =
+        cleanText(values.startNodeCode) ?? cleanText(activeNodes[0]?.nodeCode) ?? "";
+      if (!startNodeCode) {
+        messageApi.error("请先配置路径起始节点。");
+        return;
+      }
+      const result = await previewRunMutation.mutateAsync({
+        subject: "PATHWAY_GUARD",
+        packageVersion,
+        snapshotId: selectedSnapshotId,
+        startNodeCode,
+        dsl: {
+          ...draftDsl,
+          startNodeCode,
+        },
+      });
+      setCreatePreviewRunResult(result);
+      messageApi.success("路径草稿试运行完成，已返回真实快照证据");
+    } catch (error: unknown) {
+      messageApi.error(getApiErrorMessage(error, "路径草稿试运行失败"));
+    }
   };
 
   const handleSimulate = async () => {
@@ -2151,6 +2212,106 @@ export default function PathwayTemplates() {
       render: (terminal?: boolean | null) => (terminal ? "是" : "否"),
     },
   ];
+
+  const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
+    <Table
+      dataSource={evidence}
+      rowKey={(item) =>
+        `${item.fact}-${item.operator}-${item.sourcePath ?? item.formula ?? item.errorCode ?? item.matched}`
+      }
+      pagination={false}
+      size="small"
+      columns={[
+        {
+          title: "字段",
+          dataIndex: "fact",
+          render: (fact: string) => <span className={styles.codeText}>{fact}</span>,
+        },
+        { title: "算子", dataIndex: "operator" },
+        {
+          title: "证据",
+          key: "formula",
+          render: (_value, item) => item.formula || item.errorMessage || "-",
+        },
+        {
+          title: "结果",
+          dataIndex: "matched",
+          render: (matched: boolean, item) => {
+            if (matched) return <Tag color="green">命中</Tag>;
+            if (item.missing) return <Tag color="orange">缺失</Tag>;
+            return <Tag>未命中</Tag>;
+          },
+        },
+      ]}
+      className="medkernel-table"
+    />
+  );
+
+  const renderCreatePreviewSnapshot = () => {
+    if (!selectedSnapshotId) {
+      return <Empty description="请选择一个快照用于路径草稿试运行" />;
+    }
+    if (selectedSnapshotLoading) {
+      return <Alert type="info" showIcon message="正在读取快照详情..." />;
+    }
+    if (!selectedSnapshotDetail?.resources) {
+      return <Alert type="error" showIcon message="所选快照详情不可用，请重新选择。" />;
+    }
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Descriptions bordered size="small" column={1}>
+          <Descriptions.Item label="已选快照">
+            {selectedSnapshotDetail.snapshotId}
+          </Descriptions.Item>
+          <Descriptions.Item label="状态">{selectedSnapshotDetail.status}</Descriptions.Item>
+          <Descriptions.Item label="质量">{selectedSnapshotDetail.qualityStatus}</Descriptions.Item>
+          <Descriptions.Item label="路径包版本">
+            {selectedSnapshotDetail.packageVersion || createTemplatePackageVersion || "-"}
+          </Descriptions.Item>
+        </Descriptions>
+        <Button
+          type="primary"
+          icon={<PlayCircleOutlined />}
+          aria-label="运行草稿试运行"
+          onClick={handleRunCreatePreview}
+          loading={previewRunMutation.isPending || selectedSnapshotLoading}
+          block
+        >
+          运行草稿试运行
+        </Button>
+      </Space>
+    );
+  };
+
+  const renderCreatePreviewResult = (result: AuthoringPreviewRunResponse | null) => {
+    if (!result) {
+      return <Empty description="运行草稿路径后展示节点轨迹与边证据" />;
+    }
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space wrap>
+          <Tag color={result.matched ? "green" : "default"}>
+            {result.matched ? "已流转" : "未流转"}
+          </Tag>
+          {result.contextQualityStatus && (
+            <Tag color={result.contextQualityStatus === "COMPLETE" ? "green" : "orange"}>
+              快照质量：{result.contextQualityStatus}
+            </Tag>
+          )}
+          {result.finalStatus && <Tag color="purple">最终状态：{result.finalStatus}</Tag>}
+        </Space>
+        <Descriptions bordered size="small" column={1}>
+          <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
+          <Descriptions.Item label="选中路径边">{result.selectedEdgeCode || "-"}</Descriptions.Item>
+          <Descriptions.Item label="节点轨迹">
+            {result.nodeTrajectory?.join(" → ") || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Trace">{result.traceId || "-"}</Descriptions.Item>
+        </Descriptions>
+        {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
+      </Space>
+    );
+  };
 
   const createLayerItems: TabsProps["items"] = [
     {
@@ -3106,6 +3267,82 @@ export default function PathwayTemplates() {
         </div>
       ),
     },
+    {
+      key: "preview",
+      label: (
+        <span>
+          <PlayCircleOutlined /> 即配即试
+        </span>
+      ),
+      children: (
+        <Row gutter={16} className={styles.marginTopMd}>
+          <Col xs={24} lg={9}>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <div className={styles.formSection}>
+                <Form.Item label="患者 ID" htmlFor="pathway-create-snapshot-patient-id">
+                  <Input
+                    id="pathway-create-snapshot-patient-id"
+                    value={snapshotPatientId}
+                    onChange={(event) => setSnapshotPatientId(event.target.value)}
+                  />
+                </Form.Item>
+                <Form.Item label="就诊 ID" htmlFor="pathway-create-snapshot-encounter-id">
+                  <Input
+                    id="pathway-create-snapshot-encounter-id"
+                    value={snapshotEncounterId}
+                    onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                  />
+                </Form.Item>
+                <Button
+                  icon={<SearchOutlined />}
+                  aria-label="读取真实快照"
+                  onClick={handleSnapshotSearch}
+                  loading={snapshotsLoading}
+                  className="mk-full-width"
+                >
+                  读取真实快照
+                </Button>
+              </div>
+              <div className={styles.snapshotList}>
+                {snapshotList.length > 0 ? (
+                  <Space direction="vertical" className="mk-full-width">
+                    {snapshotList.map((snapshot: ContextSnapshotSummary) => (
+                      <Button
+                        key={snapshot.snapshotId}
+                        type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
+                        onClick={() => {
+                          setSelectedSnapshotId(snapshot.snapshotId);
+                          setCreatePreviewRunResult(null);
+                        }}
+                        className={styles.snapshotButton}
+                      >
+                        <span>{snapshot.snapshotId}</span>
+                        <Tag className={styles.tagGap}>{snapshot.qualityStatus}</Tag>
+                      </Button>
+                    ))}
+                  </Space>
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      snapshotQuery
+                        ? "未读取到 ACTIVE 快照"
+                        : "请输入患者 ID 或就诊 ID 读取真实快照"
+                    }
+                  />
+                )}
+              </div>
+            </Space>
+          </Col>
+          <Col xs={24} lg={15}>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              {renderCreatePreviewSnapshot()}
+              {renderCreatePreviewResult(createPreviewRunResult)}
+            </Space>
+          </Col>
+        </Row>
+      ),
+    },
     ...(createExpertMode
       ? [
           {
@@ -3171,7 +3408,6 @@ export default function PathwayTemplates() {
       : []),
   ];
 
-  const snapshotList = snapshotsData?.items ?? [];
   const detailExecutableNodes = (detailData?.nodes ?? []).filter((node) => !node.disabledFlag);
   const detailExecutableNodeCodes = new Set(detailExecutableNodes.map((node) => node.nodeCode));
   const detailExecutableEdges = (detailData?.edges ?? []).filter(
@@ -3639,6 +3875,7 @@ export default function PathwayTemplates() {
                                 );
                               }
                               setSimulationResponse(null);
+                              setCreatePreviewRunResult(null);
                             }}
                             className={styles.snapshotButton}
                           >
@@ -3890,6 +4127,7 @@ export default function PathwayTemplates() {
               onClick={() => {
                 setSelectedPathwayPrototype("blank");
                 resetCreateTemplateDraft();
+                resetSimulation();
                 setCreateExpertMode(false);
                 setCreateTemplateVisible(true);
               }}
@@ -4000,7 +4238,10 @@ export default function PathwayTemplates() {
         title="新建路径模板模型"
         open={createTemplateVisible}
         onOk={handleCreateTemplate}
-        onCancel={() => setCreateTemplateVisible(false)}
+        onCancel={() => {
+          setCreateTemplateVisible(false);
+          setCreatePreviewRunResult(null);
+        }}
         width={980}
         confirmLoading={createTemplateMutation.isPending}
         destroyOnClose

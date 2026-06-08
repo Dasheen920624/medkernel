@@ -2819,6 +2819,52 @@ export interface AuthoringPreviewPayload {
   dsl: unknown;
 }
 
+export interface AuthoringPreviewRunEvidence {
+  fact: string;
+  sourcePath?: string | null;
+  operator: string;
+  expected?: unknown;
+  actual?: unknown;
+  matched: boolean;
+  missing: boolean;
+  value?: unknown;
+  unit?: string | null;
+  source?: string | null;
+  formula?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface AuthoringPreviewRunResponse {
+  subject: AuthoringPreviewSubject;
+  snapshotId: string;
+  packageVersion: string;
+  matched: boolean;
+  hit?: boolean | null;
+  outcomeText: string;
+  severity?: string | null;
+  actions?: unknown[];
+  explanation?: unknown;
+  conditionEvidence: AuthoringPreviewRunEvidence[];
+  contextQualityStatus?: string | null;
+  missingFields?: unknown[];
+  mappingStatus?: Record<string, string>;
+  contextResourceCounts?: Record<string, number>;
+  nodeTrajectory?: string[];
+  finalStatus?: string | null;
+  selectedEdgeCode?: string | null;
+  traceId: string;
+}
+
+export interface AuthoringPreviewRunPayload {
+  subject: AuthoringPreviewSubject;
+  packageVersion: string;
+  snapshotId: string;
+  dsl: unknown;
+  startNodeCode?: string;
+  requestedNextNodeCodes?: string[];
+}
+
 export function useAuthoringPreview(
   payload: AuthoringPreviewPayload | null,
   options?: {
@@ -2840,6 +2886,32 @@ export function useAuthoringPreview(
           {
             subject: payload.subject,
             dsl: payload.dsl,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useAuthoringPreviewRun() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: AuthoringPreviewRunPayload) => {
+      if (!security.data) {
+        throw new Error("缺少安全上下文。");
+      }
+      const { data } = await apiClient.post<{ data: AuthoringPreviewRunResponse }>(
+        "/engine/authoring/preview-run",
+        withStandardApiContext(
+          {
+            subject: payload.subject,
+            snapshot_id: payload.snapshotId,
+            dsl: payload.dsl,
+            startNodeCode: payload.startNodeCode,
+            requestedNextNodeCodes: payload.requestedNextNodeCodes ?? [],
           },
           security.data,
           payload.packageVersion,
