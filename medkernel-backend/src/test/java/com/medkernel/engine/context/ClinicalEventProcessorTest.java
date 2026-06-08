@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +40,7 @@ class ClinicalEventProcessorTest {
     private AuditEventPublisher auditPublisher;
     private StateTransitionRecorder transitions;
     private ApplicationEventPublisher applicationEvents;
+    private ContextSnapshotService contextSnapshots;
     private CapturingAdapter ruleAdapter;
     private CapturingAdapter pathwayAdapter;
     private CapturingAdapter cdssAdapter;
@@ -52,6 +54,7 @@ class ClinicalEventProcessorTest {
         auditPublisher = mock(AuditEventPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         applicationEvents = mock(ApplicationEventPublisher.class);
+        contextSnapshots = mock(ContextSnapshotService.class);
         ruleAdapter = new CapturingAdapter(ClinicalEventEngine.RULE);
         pathwayAdapter = new CapturingAdapter(ClinicalEventEngine.PATHWAY);
         cdssAdapter = new CapturingAdapter(ClinicalEventEngine.CDSS);
@@ -59,8 +62,23 @@ class ClinicalEventProcessorTest {
         processor = new ClinicalEventProcessor(
             events, payloads, auditRecorder, auditPublisher, transitions, applicationEvents,
             new ClinicalEventContextFactory(json),
-            new ClinicalEventEngineDispatcher(List.of(ruleAdapter, pathwayAdapter, cdssAdapter)));
+            new ClinicalEventEngineDispatcher(List.of(ruleAdapter, pathwayAdapter, cdssAdapter)),
+            contextSnapshots);
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contextSnapshots.create(any(ContextSnapshotRequest.class), any()))
+            .thenAnswer(inv -> {
+                ContextSnapshotRequest req = inv.getArgument(0);
+                return new ContextSnapshotResponse(
+                    "ctx-event-" + req.requestId().replace("clinical-event:", ""),
+                    ContextSnapshotStatus.ACTIVE,
+                    req.resources(),
+                    req.packageVersion(),
+                    QualityStatus.VALID,
+                    List.of(),
+                    Map.of(),
+                    Instant.parse("2026-05-27T01:00:02Z"),
+                    req.traceId());
+            });
     }
 
     @Test
@@ -94,8 +112,66 @@ class ClinicalEventProcessorTest {
         assertThat(context.patientId()).isEqualTo("MPI-1");
         assertThat(context.encounterId()).isEqualTo("ENC-1");
         assertThat(context.orgScope().departmentId()).isEqualTo("dept-A");
-        assertThat(context.payload().path("a").asInt()).isEqualTo(1);
+        assertThat(context.contextSnapshotId()).isEqualTo("ctx-event-evt-1");
+        assertThat(context.payload().path("eventPayload").path("a").asInt()).isEqualTo(1);
         assertThat(context.payloadDigest()).isEqualTo("digest");
+    }
+
+    @Test
+    void processProjectsOrderPayloadBeforeDispatchingRulePathwayAndCdss() {
+        ClinicalEvent event = event(
+            "evt-order",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-order", "tenant-A")).thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-order", "tenant-A"))
+            .thenReturn(Optional.of(payload("evt-order", """
+                {
+                  "orders": [
+                    {
+                      "orderId": "ord-1",
+                      "localCode": "HIS-AMOX",
+                      "standardCode": "ATC-J01CA04",
+                      "displayName": "阿莫西林",
+                      "dose": 0.5,
+                      "doseUnit": "g",
+                      "route": "PO",
+                      "frequency": "TID",
+                      "status": "ACTIVE",
+                      "sourceRecordId": "his-order-1",
+                      "mappedVersion": "TERM-2026.06"
+                    }
+                  ]
+                }
+                """)));
+
+        ClinicalEventStatus status = processor.process("evt-order", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
+        assertThat(ruleAdapter.contexts()).hasSize(1);
+        assertThat(pathwayAdapter.contexts()).containsExactly(ruleAdapter.contexts().get(0));
+        assertThat(cdssAdapter.contexts()).containsExactly(ruleAdapter.contexts().get(0));
+        ClinicalEventContext context = ruleAdapter.contexts().get(0);
+        assertThat(context.triggerPoint()).isEqualTo("order-sign");
+        assertThat(context.contextSnapshotId()).isEqualTo("ctx-event-evt-order");
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).create(snapshotCap.capture(), eq("clinical-event:evt-order"));
+        assertThat(snapshotCap.getValue().resources().medications())
+            .singleElement()
+            .satisfies(medication ->
+                assertThat(medication.code()).isEqualTo("ATC-J01CA04"));
+        assertThat(context.payload().path("medications").path(0).path("code").asText())
+            .isEqualTo("ATC-J01CA04");
+        assertThat(context.payload().path("medications").path(0).path("sourceRecordId").asText())
+            .isEqualTo("his-order-1");
+        assertThat(context.codeMappingAnchors()).anySatisfy(anchor -> {
+            assertThat(anchor.resourceType()).isEqualTo(CanonicalResourceType.MEDICATION);
+            assertThat(anchor.fieldName()).isEqualTo("code");
+            assertThat(anchor.localCode()).isEqualTo("HIS-AMOX");
+            assertThat(anchor.targetDictionaryKey()).isEqualTo("TERM.DRUG");
+            assertThat(anchor.mappedVersion()).isEqualTo("TERM-2026.06");
+        });
     }
 
     @Test
@@ -109,7 +185,8 @@ class ClinicalEventProcessorTest {
             new ClinicalEventEngineDispatcher(List.of(
                 new UnavailableAdapter(),
                 new CapturingAdapter(ClinicalEventEngine.PATHWAY),
-                new CapturingAdapter(ClinicalEventEngine.CDSS))));
+                new CapturingAdapter(ClinicalEventEngine.CDSS))),
+            contextSnapshots);
 
         ClinicalEventStatus status = processor.process("evt-1", "tenant-A");
 
@@ -168,9 +245,15 @@ class ClinicalEventProcessorTest {
     }
 
     private ClinicalEvent event(ClinicalEventStatus status) {
+        return event("evt-1", ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW, status);
+    }
+
+    private ClinicalEvent event(String eventId, ClinicalEventType eventType,
+                                ClinicalEventTriggerPoint triggerPoint,
+                                ClinicalEventStatus status) {
         return new ClinicalEvent(
-            1L, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
-            ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
+            1L, eventId, "tenant-A", eventType,
+            triggerPoint, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
             "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
@@ -178,9 +261,13 @@ class ClinicalEventProcessorTest {
     }
 
     private ClinicalEventPayload payload() {
+        return payload("evt-1", "{\"a\":1}");
+    }
+
+    private ClinicalEventPayload payload(String eventId, String payload) {
         return new ClinicalEventPayload(
-            1L, "evt-1", "tenant-A", "{\"a\":1}", null,
-            "INLINE", "application/json", "digest", 7L, Instant.now(), null);
+            1L, eventId, "tenant-A", payload, null,
+            "INLINE", "application/json", "digest", (long) payload.length(), Instant.now(), null);
     }
 
     private static final class CapturingAdapter implements ClinicalEventEngineAdapter {

@@ -60,6 +60,52 @@ class ClinicalEventEngineAdapterTest {
     }
 
     @Test
+    void ruleAdapterExposesCanonicalProjectionAtRootBeforeEvaluation() throws Exception {
+        RuleEngineService service = mock(RuleEngineService.class);
+        when(service.evaluateContext(
+            any(String.class), any(JsonNode.class), any(String.class), any(List.class), any(String.class)))
+            .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, List.of(), "trace-1"));
+        var adapter = new ClinicalEventRuleEngineAdapter(service, json);
+        ClinicalEventContext context = new ClinicalEventContext(
+            "evt-order",
+            "tenant-A",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            "MPI-1",
+            "ENC-1",
+            ClinicalSetting.INPATIENT,
+            "ctx-order",
+            "HIS",
+            "pkg-2026.06",
+            "sha256:payload",
+            Instant.parse("2026-06-01T01:00:00Z"),
+            "HIS:order-sign",
+            "trace-1",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "pkg-2026.06",
+                Instant.parse("2026-06-01T01:00:00Z")),
+            json.readTree("""
+                {
+                  "patient": {"mpi": "MPI-1", "name": "脱敏患者"},
+                  "medications": [
+                    {"medicationId": "med-1", "code": "ATC-J01CA04", "displayName": "阿莫西林"}
+                  ],
+                  "eventPayload": {"orders": [{"localCode": "HIS-AMOX"}]}
+                }
+                """),
+            List.of());
+
+        adapter.dispatch(context);
+
+        ArgumentCaptor<JsonNode> contextCap = ArgumentCaptor.forClass(JsonNode.class);
+        verify(service).evaluateContext(any(), contextCap.capture(), any(), any(), any());
+        assertThat(contextCap.getValue().path("medications").path(0).path("code").asText())
+            .isEqualTo("ATC-J01CA04");
+        assertThat(contextCap.getValue().path("payload").path("eventPayload")
+            .path("orders").path(0).path("localCode").asText()).isEqualTo("HIS-AMOX");
+    }
+
+    @Test
     void pathwayAdapterCallsPathwayEntryWithSameContext() {
         PathwayEngineService service = mock(PathwayEngineService.class);
         when(service.dispatchClinicalEvent(any(ClinicalEventContext.class)))
@@ -117,6 +163,8 @@ class ClinicalEventEngineAdapterTest {
             Instant.parse("2026-06-01T01:00:00Z"),
             "HIS:patient-view",
             "trace-1",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "pkg-2026.06",
+                Instant.parse("2026-06-01T01:00:00Z")),
             json.createObjectNode().put("diagnosisCode", "I10"),
             List.of());
     }

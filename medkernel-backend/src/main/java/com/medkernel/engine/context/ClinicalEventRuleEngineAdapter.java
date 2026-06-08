@@ -43,6 +43,9 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
 
     private ObjectNode toRuleContext(ClinicalEventContext context) {
         ObjectNode root = json.createObjectNode();
+        if (context.payload().isObject()) {
+            root.setAll((ObjectNode) context.payload().deepCopy());
+        }
         ObjectNode event = root.putObject("event");
         event.put("eventId", context.eventId());
         event.put("eventType", context.eventType().name());
@@ -51,12 +54,16 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
         event.put("triggerSource", context.triggerSource());
         event.put("occurredAt", context.occurredAt().toString());
         event.put("payloadDigest", context.payloadDigest());
-        ObjectNode patient = root.putObject("patient");
+        ObjectNode patient = root.path("patient").isObject()
+            ? (ObjectNode) root.path("patient")
+            : root.putObject("patient");
         patient.put("patientId", context.patientId());
         patient.put("encounterId", context.encounterId());
-        ObjectNode encounter = root.putArray("encounters").addObject();
-        encounter.put("encounterId", context.encounterId());
-        encounter.put("encounterType", context.clinicalSetting().name());
+        if (!root.path("encounters").isArray() || root.path("encounters").isEmpty()) {
+            ObjectNode encounter = root.putArray("encounters").addObject();
+            encounter.put("encounterId", context.encounterId());
+            encounter.put("encounterType", context.clinicalSetting().name());
+        }
         root.set("orgScope", json.valueToTree(context.orgScope()));
         root.set("payload", context.payload());
         root.set("codeMappingAnchors", json.valueToTree(context.codeMappingAnchors()));

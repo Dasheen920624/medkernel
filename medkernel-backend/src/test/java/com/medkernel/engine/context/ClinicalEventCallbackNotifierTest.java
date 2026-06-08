@@ -107,6 +107,9 @@ class ClinicalEventCallbackNotifierTest {
             ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, null, "HIS",
             "kpv-1", "digest", Instant.parse("2026-05-27T01:00:00Z"),
-            "HIS:patient-view", "trace-1", null, List.of());
+            "HIS:patient-view", "trace-1",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "kpv-1",
+                Instant.parse("2026-05-27T01:00:00Z")),
+            null, List.of());
     }
 }
