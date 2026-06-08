@@ -123,7 +123,8 @@ class MigrationBaselineContractTest {
         "V94__structured_allergy_intolerance_resource.sql",
         "V95__compliance_identity_binding.sql",
         "V96__tenant_user_directory.sql",
-        "V97__plugin_security_boundary.sql"
+        "V97__plugin_security_boundary.sql",
+        "V98__engine_domain_event_sources.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",

@@ -29,6 +29,9 @@ import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.event.EngineDomainEventPort;
+import com.medkernel.engine.event.OverrideCapturedEvent;
+import com.medkernel.engine.event.RuleFiredEvent;
 import com.medkernel.engine.pkg.PackageReferenceConsistency;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -106,6 +109,7 @@ public class RuleEngineService {
     private final RuleGovernanceService governanceService;
     private final InheritanceResolver inheritanceResolver;
     private final ContextSnapshotService contextSnapshots;
+    private final EngineDomainEventPort domainEvents;
     private final RuleConflictDetector conflictDetector = new RuleConflictDetector();
 
     private enum RuleRuntimeMode {
@@ -145,14 +149,16 @@ public class RuleEngineService {
                              RuleBacktestRunRepository backtests,
                              RuleDriftSnapshotRepository driftSnapshots,
                              InheritanceResolver inheritanceResolver,
-                             ContextSnapshotService contextSnapshots) {
+                             ContextSnapshotService contextSnapshots,
+                             ObjectProvider<EngineDomainEventPort> domainEventProvider) {
         this(definitions, versions, testCases, executions, overrides,
             evaluator, applicabilityService,
             auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            backtests, driftSnapshots, inheritanceResolver, contextSnapshots);
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots,
+            domainEventProvider.getIfAvailable(EngineDomainEventPort::noop));
     }
 
     RuleEngineService(RuleDefinitionRepository definitions,
@@ -177,6 +183,35 @@ public class RuleEngineService {
                       RuleDriftSnapshotRepository driftSnapshots,
                       InheritanceResolver inheritanceResolver,
                       ContextSnapshotService contextSnapshots) {
+        this(definitions, versions, testCases, executions, overrides, evaluator, applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json, impactIndex, terminologyCoverageGate,
+            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback, backtests,
+            driftSnapshots, inheritanceResolver, contextSnapshots, EngineDomainEventPort.noop());
+    }
+
+    RuleEngineService(RuleDefinitionRepository definitions,
+                      RuleVersionRepository versions,
+                      RuleTestCaseRepository testCases,
+                      RuleExecutionLogRepository executions,
+                      RuleOverrideLogRepository overrides,
+                      RuleDslEvaluator evaluator,
+                      RuleApplicabilityService applicabilityService,
+                      AuditRecorder auditRecorder,
+                      StateTransitionRecorder transitions,
+                      DiagnoseResponseAssembler diagnoseAssembler,
+                      ObjectMapper json,
+                      RuleImpactIndex impactIndex,
+                      TerminologyCoverageGate terminologyCoverageGate,
+                      RuleVersionedAssetAdapter versionedAssets,
+                      AssetVersionRepository assetVersions,
+                      ReleasePort releasePort,
+                      RuleGovernanceService governanceService,
+                      RuleShadowFeedbackRepository shadowFeedback,
+                      RuleBacktestRunRepository backtests,
+                      RuleDriftSnapshotRepository driftSnapshots,
+                      InheritanceResolver inheritanceResolver,
+                      ContextSnapshotService contextSnapshots,
+                      EngineDomainEventPort domainEvents) {
         this.definitions = definitions;
         this.versions = versions;
         this.testCases = testCases;
@@ -203,6 +238,7 @@ public class RuleEngineService {
         this.governanceService = Objects.requireNonNull(governanceService, "规则治理服务不能为空");
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
         this.contextSnapshots = Objects.requireNonNull(contextSnapshots, "标准上下文快照服务不能为空");
+        this.domainEvents = domainEvents == null ? EngineDomainEventPort.noop() : domainEvents;
     }
 
     /**
@@ -1370,6 +1406,23 @@ public class RuleEngineService {
             EXECUTION_ENTITY, log.executionId(), null, status.name(),
             shadowMode ? "RECORD_SHADOW_RULE" : "EXECUTE_RULE", null);
         auditRecorder.record(AuditAction.EXECUTE, EXECUTION_ENTITY, log.executionId(), "执行规则 " + rule.ruleId());
+        if (status == RuleExecutionStatus.SUCCESS) {
+            domainEvents.ruleFired(new RuleFiredEvent(
+                executionTenantId,
+                log.traceId(),
+                rule.packageVersion(),
+                rule.ruleId(),
+                rule.ruleCode(),
+                version.versionId(),
+                log.executionId(),
+                triggerPoint,
+                eventId,
+                patientId,
+                encounterId(context),
+                evaluation.severity() == null ? null : evaluation.severity().name(),
+                actionCodes(evaluation.actions()),
+                now));
+        }
         return new RuleEvaluationItem(
             log.executionId(), rule.ruleId(), version.versionId(), evaluation.hit(),
             evaluation.severity(),
@@ -1554,6 +1607,7 @@ public class RuleEngineService {
                 tenantId, executionId, request.actionCode()).isPresent()) {
             throw new ApiException(ErrorCode.CONFLICT, "该规则动作已记录人工越权");
         }
+        RuleDefinition rule = findRule(execution.ruleId(), tenantId);
 
         Instant now = Instant.now();
         String overrideId = "rov-" + UUID.randomUUID();
@@ -1565,6 +1619,21 @@ public class RuleEngineService {
         auditRecorder.record(
             AuditAction.FEEDBACK, "rule_override_log", saved.overrideId(),
             "记录规则越权 " + executionId + "/" + request.actionCode().name());
+        domainEvents.overrideCaptured(new OverrideCapturedEvent(
+            tenantId,
+            saved.traceId(),
+            rule.packageVersion(),
+            saved.overrideId(),
+            saved.executionId(),
+            saved.ruleId(),
+            rule.ruleCode(),
+            saved.versionId(),
+            saved.patientId(),
+            saved.encounterId(),
+            saved.actionCode().name(),
+            saved.overrideReason(),
+            saved.overriddenBy(),
+            saved.overriddenAt()));
         return new RuleOverrideResponse(
             saved.overrideId(), saved.executionId(), saved.ruleId(), saved.actionCode(),
             saved.overrideReason(), saved.overriddenBy(), saved.overriddenAt(), saved.traceId());
@@ -1629,6 +1698,15 @@ public class RuleEngineService {
             saved.assessedAt(),
             saved.traceId()
         );
+    }
+
+    private static List<String> actionCodes(List<RuleActionResult> actions) {
+        return actions == null ? List.of() : actions.stream()
+            .map(RuleActionResult::actionCode)
+            .filter(Objects::nonNull)
+            .map(Enum::name)
+            .distinct()
+            .toList();
     }
 
     private static boolean supportsOverride(RuleActionCode actionCode) {

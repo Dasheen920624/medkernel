@@ -32,6 +32,9 @@ import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.evaluation.EvaluationSubjectType;
+import com.medkernel.engine.event.ClockSlaBreachedEvent;
+import com.medkernel.engine.event.EngineDomainEventPort;
+import com.medkernel.engine.event.PathwayVarianceRecordedEvent;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
@@ -92,6 +95,7 @@ class PathwayEngineServiceTest {
     private DiagnoseResponseAssembler diagnoseAssembler;
     private PathwayFollowupHandoffPort followupHandoff;
     private PathwayWorklistPort worklist;
+    private EngineDomainEventPort domainEvents;
     private ClinicalSafetyGuard safetyGuard;
     private PathwayVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
@@ -121,6 +125,7 @@ class PathwayEngineServiceTest {
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         followupHandoff = mock(PathwayFollowupHandoffPort.class);
         worklist = mock(PathwayWorklistPort.class);
+        domainEvents = mock(EngineDomainEventPort.class);
         safetyGuard = mock(ClinicalSafetyGuard.class);
         versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         assetVersions = mock(AssetVersionRepository.class);
@@ -133,7 +138,7 @@ class PathwayEngineServiceTest {
             packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, outcomeBindings, evaluationIndicators,
             contextSnapshots, new PathwayProgressor(), auditRecorder,
-            transitions, diagnoseAssembler, json, followupHandoff, worklist, safetyGuard,
+            transitions, diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
             packageItems, inheritanceResolver);
 
@@ -1191,6 +1196,8 @@ class PathwayEngineServiceTest {
             "clock-abx", "ABX", baselineAt, 0, 60, 90, ClinicalClockStatus.RUNNING);
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
             .thenReturn(List.of(overdueClock));
 
@@ -1200,6 +1207,14 @@ class PathwayEngineServiceTest {
         assertThat(response.getFirst().status()).isEqualTo(ClinicalClockStatus.TIMEOUT);
         assertThat(response.getFirst().escalationLevel()).isEqualTo(ClinicalClockEscalationLevel.QUALITY_RECORD);
         assertThat(response.getFirst().metricCode()).isEqualTo("COPD.TIME_TO_FOLLOWUP");
+        ArgumentCaptor<ClockSlaBreachedEvent> eventCap = ArgumentCaptor.forClass(ClockSlaBreachedEvent.class);
+        verify(domainEvents).clockSlaBreached(eventCap.capture());
+        assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(eventCap.getValue().traceId()).isEqualTo("trace-pathway");
+        assertThat(eventCap.getValue().packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(eventCap.getValue().patientPathwayId()).isEqualTo("pp-1");
+        assertThat(eventCap.getValue().clockId()).isEqualTo("clock-abx");
+        assertThat(eventCap.getValue().escalationLevel()).isEqualTo("QUALITY_RECORD");
     }
 
     @Test
@@ -1683,6 +1698,16 @@ class PathwayEngineServiceTest {
         assertThat(varianceCap.getValue().responsibleRole()).isEqualTo("主管医师");
         assertThat(varianceCap.getValue().resolutionDecision()).isEqualTo(VarianceResolutionDecision.HOLD);
         assertThat(varianceCap.getValue().continueNodeCode()).isNull();
+        ArgumentCaptor<PathwayVarianceRecordedEvent> eventCap =
+            ArgumentCaptor.forClass(PathwayVarianceRecordedEvent.class);
+        verify(domainEvents).pathwayVarianceRecorded(eventCap.capture());
+        assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(eventCap.getValue().traceId()).isEqualTo("trace-pathway");
+        assertThat(eventCap.getValue().packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(eventCap.getValue().patientPathwayId()).isEqualTo("pp-1");
+        assertThat(eventCap.getValue().varianceId()).isEqualTo(varianceCap.getValue().varianceId());
+        assertThat(eventCap.getValue().responsibleRole()).isEqualTo("主管医师");
+        assertThat(eventCap.getValue().resolutionDecision()).isEqualTo("HOLD");
     }
 
     @Test

@@ -5,5 +5,8 @@ package com.medkernel.engine.quality.dashboard;
  */
 public enum QualityDashboardAlertType {
     HIGH_RISK_FINDING,
-    OVERDUE_RECTIFICATION
+    OVERDUE_RECTIFICATION,
+    RULE_OVERRIDE,
+    PATHWAY_VARIANCE,
+    CLOCK_SLA_BREACH
 }

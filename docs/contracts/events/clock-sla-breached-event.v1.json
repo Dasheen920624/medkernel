@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "clock-sla-breached-event.v1",
+  "title": "路径关键时钟 SLA 超时事件 v1",
+  "type": "object",
+  "x-medkernel-version": 1,
+  "required": [
+    "tenantId",
+    "traceId",
+    "packageVersion",
+    "patientPathwayId",
+    "patientId",
+    "encounterId",
+    "clockId",
+    "nodeCode",
+    "metricCode",
+    "escalationLevel",
+    "dueAt",
+    "occurredAt"
+  ],
+  "properties": {
+    "tenantId": { "type": ["string", "null"] },
+    "traceId": { "type": ["string", "null"] },
+    "packageVersion": { "type": ["string", "null"] },
+    "patientPathwayId": { "type": ["string", "null"] },
+    "patientId": { "type": ["string", "null"] },
+    "encounterId": { "type": ["string", "null"] },
+    "clockId": { "type": ["string", "null"] },
+    "nodeCode": { "type": ["string", "null"] },
+    "metricCode": { "type": ["string", "null"] },
+    "escalationLevel": { "type": ["string", "null"] },
+    "dueAt": { "type": ["string", "null"], "format": "date-time" },
+    "occurredAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

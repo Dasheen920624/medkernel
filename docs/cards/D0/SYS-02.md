@@ -68,7 +68,7 @@ N·A —— 架构契约不落业务表（依赖校验/契约测试在 CI）。
 ## 完工证据
 - PR1 代码 permalink：`ModuleBoundaryArchTest` / `DomainOwnershipCatalog` / `DomainOwnershipContractTest`；同时将 `OrgLevel`、`JwtSecretResolver`、高危变更 guard、临床事件 worker 配置读取契约下沉到 shared，清除 shared 反向依赖 engine 的旧边界问题。
 - PR1 测试：`mvn -B -q -Dtest=ModuleBoundaryArchTest,DomainOwnershipContractTest test` 已通过，覆盖引擎 / shared 不依赖业务包、shared 不依赖 engine、顶层包无环、`@Table` 单一 owner、源码 SQL 直写只能发生在 owner 包内。
-- PR2 代码 permalink：`ServiceContractCatalog` / `OpenApiContractConfiguration` / `DomainEventSchemaCatalog` / `docs/contracts/events/*.json`；服务契约目录覆盖 35 个 `/api/v1` 控制器，OpenAPI 统一 group `medkernel-service-contracts` 从目录生成路径，事件 schema 用 5 个版本化 JSON 契约锁住 record 字段。
+- PR2 代码 permalink：`ServiceContractCatalog` / `OpenApiContractConfiguration` / `DomainEventSchemaCatalog` / `docs/contracts/events/*.json`；服务契约目录覆盖 35 个 `/api/v1` 控制器，OpenAPI 统一 group `medkernel-service-contracts` 从目录生成路径，事件 schema 用 10 个版本化 JSON 契约锁住 record 字段。
 - PR2 真实缺口修复：为 `IntegrationController` 补齐方法级 `@PreAuthorize`，新增 `integration.read/write/execute` 与 `mpi.read/write` 权限码并纳入默认角色策略；`AuthController.changePassword` 与 `BootstrapController.bindMfa` 明确登录态要求。
 - PR2 测试：`mvn -B -q -Dtest=ModuleBoundaryArchTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainEventSchemaContractTest test` 已通过，覆盖服务目录 / OpenAPI 路径 / 公开端点 / 权限码 / 审计点 / 领域事件 schema 破坏性变更门禁。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

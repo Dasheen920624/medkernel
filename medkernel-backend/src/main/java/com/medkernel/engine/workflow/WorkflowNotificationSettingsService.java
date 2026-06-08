@@ -222,7 +222,7 @@ public class WorkflowNotificationSettingsService {
         WorkflowNotificationType type = switch (sourceType) {
             case SAFETY_REVIEW -> WorkflowNotificationType.SAFETY;
             case FOLLOWUP_EVENT -> WorkflowNotificationType.FOLLOWUP;
-            case WORKFLOW_TODO -> WorkflowNotificationType.WORKFLOW;
+            case WORKFLOW_TODO, RULE_EVENT, PATHWAY_EVENT -> WorkflowNotificationType.WORKFLOW;
             case SYNC_EVENT -> WorkflowNotificationType.SYNC;
         };
         return settings.subscribedTypes().contains(type);
