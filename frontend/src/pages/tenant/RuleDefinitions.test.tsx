@@ -15,6 +15,13 @@ const apiMocks = vi.hoisted(() => ({
   shadowStatsData: null as unknown,
   backtestData: null as unknown,
   driftData: null as unknown,
+  authoringPreviewData: {
+    previewText: "当 年龄 大于等于 65。",
+    lines: ["当 年龄 大于等于 65"],
+    segments: [],
+    warnings: [],
+    traceId: "trace-authoring-preview",
+  } as unknown,
   orgUnitRequests: [] as Array<Record<string, unknown> | undefined>,
   orgUnitsData: {
     items: [
@@ -136,6 +143,13 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
     error: null,
     refetch: apiMocks.refetchList,
+  }),
+  useAuthoringPreview: () => ({
+    data: apiMocks.authoringPreviewData,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
   }),
   useRuleDetail: () => ({
     data: apiMocks.ruleDetailData,
@@ -422,11 +436,16 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
       fireEvent.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
+      expect(within(dialog).getByText("可读预览")).toBeInTheDocument();
+      expect(within(dialog).getByText("当 年龄 大于等于 65。")).toBeInTheDocument();
       fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
         target: { value: "observations.0.value" },
       });

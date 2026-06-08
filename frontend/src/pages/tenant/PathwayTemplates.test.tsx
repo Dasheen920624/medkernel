@@ -31,6 +31,13 @@ const apiMocks = vi.hoisted(() => ({
   rollbackTemplate: vi.fn(),
   simulatePathway: vi.fn(),
   templateListParams: [] as unknown[],
+  authoringPreviewData: {
+    previewText: "路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH。",
+    lines: ["路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH"],
+    segments: [],
+    warnings: [],
+    traceId: "trace-pathway-preview",
+  } as unknown,
 }));
 
 const PATHWAY_INTERACTION_TIMEOUT_MS = 90_000;
@@ -44,6 +51,13 @@ vi.mock("@/shared/api/hooks", () => ({
       refetch: apiMocks.refetchList,
     };
   },
+  useAuthoringPreview: () => ({
+    data: apiMocks.authoringPreviewData,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+  }),
   usePathwayTemplateDetail: () => ({
     data: apiMocks.templateDetailData,
     isLoading: false,
@@ -345,6 +359,10 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       fireEvent.change(within(dialog).getByLabelText("条件值"), {
         target: { value: "true" },
       });
+      expect(within(dialog).getByText("可读预览")).toBeInTheDocument();
+      expect(
+        within(dialog).getByText("路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH。"),
+      ).toBeInTheDocument();
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("路径 DSL JSON");

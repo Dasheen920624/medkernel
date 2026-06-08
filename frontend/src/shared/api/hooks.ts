@@ -2797,6 +2797,59 @@ export function useRuleDefinitions(
   });
 }
 
+export type AuthoringPreviewSubject = "RULE_CONDITION" | "PATHWAY_GUARD";
+
+export interface AuthoringPreviewSegment {
+  kind: string;
+  path: string;
+  text: string;
+}
+
+export interface AuthoringPreviewResponse {
+  previewText: string;
+  lines: string[];
+  segments: AuthoringPreviewSegment[];
+  warnings: string[];
+  traceId: string;
+}
+
+export interface AuthoringPreviewPayload {
+  subject: AuthoringPreviewSubject;
+  packageVersion: string;
+  dsl: unknown;
+}
+
+export function useAuthoringPreview(
+  payload: AuthoringPreviewPayload | null,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  const security = useSecurityProfile();
+  const dslKey = payload ? JSON.stringify(payload.dsl) : "";
+  return useQuery({
+    queryKey: ["authoring", "preview", payload?.subject, payload?.packageVersion, dslKey],
+    enabled: (options?.enabled ?? true) && Boolean(payload) && Boolean(security.data),
+    queryFn: async () => {
+      if (!payload) {
+        throw new Error("缺少创作预览请求。");
+      }
+      const { data } = await apiClient.post<{ data: AuthoringPreviewResponse }>(
+        "/engine/authoring/preview",
+        withStandardApiContext(
+          {
+            subject: payload.subject,
+            dsl: payload.dsl,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useRuleDetail(ruleId: string) {
   return useQuery({
     queryKey: ["rules", "detail", ruleId],

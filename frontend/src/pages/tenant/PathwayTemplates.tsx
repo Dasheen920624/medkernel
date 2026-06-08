@@ -40,6 +40,7 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
+import { AuthoringReadablePreview } from "@/shared/ui/condition/AuthoringReadablePreview";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import ConditionTreeEditor from "@/shared/ui/condition/ConditionTreeEditor";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
@@ -1254,6 +1255,8 @@ export default function PathwayTemplates() {
   const watchedEdges = Form.useWatch("edges", templateForm);
   const watchedOutcomeBindings = Form.useWatch("outcomeBindings", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
+  const watchedPackageId = Form.useWatch("packageId", templateForm);
+  const watchedTemplateVersion = Form.useWatch("templateVersion", templateForm);
 
   const canvasNodes = useMemo(
     () => normalizeNodes(watchedNodes).filter((node) => !node.disabled),
@@ -1264,6 +1267,13 @@ export default function PathwayTemplates() {
     () => findPathwayTopologyIssues(canvasNodes, canvasEdges, watchedStartNodeCode),
     [canvasEdges, canvasNodes, watchedStartNodeCode],
   );
+  const createPathwayDslFromL3 = useMemo(() => {
+    try {
+      return parsePathwayDslJson(pathwayDslJson);
+    } catch {
+      return null;
+    }
+  }, [pathwayDslJson]);
 
   const handleGraphNodePositionChange = (
     nodeIndex: number,
@@ -1423,6 +1433,32 @@ export default function PathwayTemplates() {
 
   const packageVersionFor = (packageId?: string | null) =>
     packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
+  const createTemplatePackageVersion =
+    packageVersionFor(typeof watchedPackageId === "string" ? watchedPackageId : undefined) ??
+    String(watchedTemplateVersion ?? "");
+
+  const renderEdgeReadablePreview = (edge: PathwayEdgeFormValue | undefined, edgeIndex: number) => {
+    if (!edge) return null;
+    let guard: unknown;
+    try {
+      guard = normalizeEdgeCondition(edge);
+    } catch {
+      return null;
+    }
+    if (!guard) return null;
+    return (
+      <AuthoringReadablePreview
+        subject="PATHWAY_GUARD"
+        packageVersion={createTemplatePackageVersion}
+        dsl={{
+          guard,
+          edgeCode: cleanText(edge.edgeCode) ?? `E${edgeIndex + 1}`,
+          fromNodeCode: cleanText(edge.fromNodeCode),
+          toNodeCode: cleanText(edge.toNodeCode),
+        }}
+      />
+    );
+  };
 
   const resetSimulation = () => {
     setSnapshotPatientId("");
@@ -1743,12 +1779,12 @@ export default function PathwayTemplates() {
 
   const handleSimulate = async () => {
     if (!selectedTemplateId) return;
-    const replayIds =
-      simulationMode === "QUEUE_REPLAY"
-        ? replaySnapshotIds
-        : selectedSnapshotId
-          ? [selectedSnapshotId]
-          : [];
+    let replayIds: string[] = [];
+    if (simulationMode === "QUEUE_REPLAY") {
+      replayIds = replaySnapshotIds;
+    } else if (selectedSnapshotId) {
+      replayIds = [selectedSnapshotId];
+    }
     if (replayIds.length === 0) {
       messageApi.error(
         simulationMode === "QUEUE_REPLAY"
@@ -2746,6 +2782,7 @@ export default function PathwayTemplates() {
                 {fields.length === 0 && <Empty description="尚未添加流转边" />}
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
+                  const edgeValue = watchedEdges?.[field.name];
                   return (
                     <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
@@ -2918,6 +2955,7 @@ export default function PathwayTemplates() {
                           }}
                         </Form.Item>
                       </Card>
+                      {renderEdgeReadablePreview(edgeValue, field.name)}
                     </div>
                   );
                 })}
@@ -2979,6 +3017,26 @@ export default function PathwayTemplates() {
                       className={styles.codeText}
                     />
                   </Form.Item>
+                  {createPathwayDslFromL3?.edges
+                    ?.filter(
+                      (edge) =>
+                        edge.condition &&
+                        typeof edge.condition === "object" &&
+                        !Array.isArray(edge.condition),
+                    )
+                    .map((edge, index) => (
+                      <AuthoringReadablePreview
+                        key={`create-l3-edge-preview-${edge.edgeCode || index}`}
+                        subject="PATHWAY_GUARD"
+                        packageVersion={createTemplatePackageVersion}
+                        dsl={{
+                          guard: edge.condition,
+                          edgeCode: edge.edgeCode || `E${index + 1}`,
+                          fromNodeCode: edge.fromNodeCode,
+                          toNodeCode: edge.toNodeCode,
+                        }}
+                      />
+                    ))}
                 </Space>
               </div>
             ),
@@ -3321,6 +3379,25 @@ export default function PathwayTemplates() {
                 columns={edgeColumns}
                 className="medkernel-table"
               />
+              {detailData.edges.map((edge) => {
+                const guard = parseLooseJson(edge.conditionJson);
+                if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+                  return null;
+                }
+                return (
+                  <AuthoringReadablePreview
+                    key={`edge-preview-${edge.edgeId}`}
+                    subject="PATHWAY_GUARD"
+                    packageVersion={releasePackageVersion()}
+                    dsl={{
+                      guard,
+                      edgeCode: edge.edgeCode,
+                      fromNodeCode: edge.fromNodeCode,
+                      toNodeCode: edge.toNodeCode,
+                    }}
+                  />
+                );
+              })}
               <Table
                 dataSource={detailData.metricBindings}
                 rowKey="bindingId"
@@ -3348,12 +3425,33 @@ export default function PathwayTemplates() {
                 key: "l3",
                 label: "L3 DSL",
                 children: (
-                  <TextArea
-                    value={buildDetailDslPreview(detailData)}
-                    rows={22}
-                    readOnly
-                    className={`${styles.codeText} ${styles.marginTopMd}`}
-                  />
+                  <Space direction="vertical" className={`mk-full-width ${styles.marginTopMd}`}>
+                    <TextArea
+                      value={buildDetailDslPreview(detailData)}
+                      rows={22}
+                      readOnly
+                      className={styles.codeText}
+                    />
+                    {detailData.edges.map((edge) => {
+                      const guard = parseLooseJson(edge.conditionJson);
+                      if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+                        return null;
+                      }
+                      return (
+                        <AuthoringReadablePreview
+                          key={`edge-l3-preview-${edge.edgeId}`}
+                          subject="PATHWAY_GUARD"
+                          packageVersion={releasePackageVersion()}
+                          dsl={{
+                            guard,
+                            edgeCode: edge.edgeCode,
+                            fromNodeCode: edge.fromNodeCode,
+                            toNodeCode: edge.toNodeCode,
+                          }}
+                        />
+                      );
+                    })}
+                  </Space>
                 ),
               },
             ]
