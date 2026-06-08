@@ -15,6 +15,7 @@ public record PackageAssetReadinessResponse(
     long draftPackageCount,
     long releasedPackageCount,
     long activePackageCount,
+    long activePackageReferenceCount,
     boolean grayscaleReady,
     String readyPackageId,
     List<String> blockers,

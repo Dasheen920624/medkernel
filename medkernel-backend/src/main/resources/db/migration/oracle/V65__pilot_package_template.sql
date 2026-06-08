@@ -70,7 +70,7 @@ COMMENT ON COLUMN mk_pkg_pilot_template_item.asset_type IS '资产类型：知�
 COMMENT ON COLUMN mk_pkg_pilot_template_item.asset_id IS '资产稳定业务 ID';
 COMMENT ON COLUMN mk_pkg_pilot_template_item.asset_version IS '资产版本号';
 COMMENT ON COLUMN mk_pkg_pilot_template_item.required_flag IS '是否必需资产项，1 表示必需';
-COMMENT ON COLUMN mk_pkg_pilot_template_item.sort_order IS '模板内展示与实例化顺序';
+COMMENT ON COLUMN mk_pkg_pilot_template_item.sort_order IS '模板内展示与引用顺序';
 COMMENT ON COLUMN mk_pkg_pilot_template_item.dependency_note IS '依赖说明';
 COMMENT ON COLUMN mk_pkg_pilot_template_item.created_at IS '创建时间';
 COMMENT ON COLUMN mk_pkg_pilot_template_item.created_by IS '创建人';

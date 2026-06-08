@@ -131,14 +131,12 @@ class PackageEngineControllerSecurityTest {
             """.formatted(standardContextFields(tenantId));
     }
 
-    private static String instantiateBodyWithContext(String tenantId) {
+    private static String applyReferencesBodyWithContext(String tenantId) {
         return """
             {
               %s,
-              "packageCode": "PKG.FIRST.RUN",
-              "packageVersion": "2026.06.03",
-              "name": "首发配置包",
-              "description": "由试点首发模板实例化"
+              "target_org_unit_id": "facility-A",
+              "initial_overrides": []
             }
             """.formatted(standardContextFields(tenantId));
     }
@@ -216,9 +214,9 @@ class PackageEngineControllerSecurityTest {
                 .content(ROLLBACK_BODY))
             .andExpect(status().isForbidden());
 
-        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/references")
                 .contentType("application/json")
-                .content(instantiateBodyWithContext("tenant-A")))
+                .content(applyReferencesBodyWithContext("tenant-A")))
             .andExpect(status().isForbidden());
     }
 
@@ -289,13 +287,12 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
 
-        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/references")
                 .contentType("application/json")
                 .content("""
                     {
-                      "packageCode": "PKG.FIRST.RUN",
-                      "packageVersion": "2026.06.03",
-                      "name": "首发配置包"
+                      "target_org_unit_id": "facility-A",
+                      "initial_overrides": []
                     }
                     """)
                 .with(jwt()
@@ -393,29 +390,27 @@ class PackageEngineControllerSecurityTest {
                 1,
                 1,
                 1,
+                1,
                 true,
                 "pkg-active",
                 List.of(),
                 Instant.parse("2026-06-03T00:00:00Z")
             ));
-        when(service.instantiatePilotTemplate(eq("TPL.FIRST_RUN"), any(PilotPackageTemplateInstantiateRequest.class)))
-            .thenReturn(new PilotPackageInstantiationResponse(
+        when(service.applyPilotTemplateReferences(eq("TPL.FIRST_RUN"), any(PilotPackageTemplateApplyRequest.class)))
+            .thenReturn(new PilotPackageTemplateApplyResponse(
                 "TPL.FIRST_RUN",
-                new PackageResponse(
+                List.of(new TenantPackageReferenceResponse(
+                    "ref-first-run",
+                    "tenant-A",
+                    "t-1",
                     "pkg-first-run",
                     "PKG.FIRST.RUN",
                     "2026.06.03",
-                    "首发配置包",
-                    "由试点首发模板实例化",
-                    KnowledgePackageStatus.DRAFT
-                ),
-                List.of(new PackageItemResponse(
-                    "item-rule",
-                    "pkg-first-run",
-                    VersionedAssetType.RULE,
-                    "rule-stable",
-                    "2"
-                ))
+                    "facility-A",
+                    "TPL.FIRST_RUN",
+                    TenantPackageReferenceStatus.ACTIVE
+                )),
+                List.of()
             ));
 
         mvc.perform(get(PKG_ROOT + "/pilot-templates")
@@ -434,16 +429,16 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.data.ready").value(true))
             .andExpect(jsonPath("$.data.readyPackageId").value("pkg-active"));
 
-        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/references")
                 .contentType("application/json")
-                .content(instantiateBodyWithContext("tenant-A"))
+                .content(applyReferencesBodyWithContext("tenant-A"))
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.templateCode").value("TPL.FIRST_RUN"))
-            .andExpect(jsonPath("$.data.packageInfo.packageId").value("pkg-first-run"))
-            .andExpect(jsonPath("$.data.items[0].assetId").value("rule-stable"));
+            .andExpect(jsonPath("$.data.references[0].referenceId").value("ref-first-run"))
+            .andExpect(jsonPath("$.data.references[0].packageCode").value("PKG.FIRST.RUN"));
     }
 
     @Test

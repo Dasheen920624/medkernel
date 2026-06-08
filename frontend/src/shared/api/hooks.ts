@@ -6475,23 +6475,48 @@ export interface PackageAssetReadiness {
   draftPackageCount: number;
   releasedPackageCount: number;
   activePackageCount: number;
+  activePackageReferenceCount: number;
   grayscaleReady: boolean;
   readyPackageId: string | null;
   blockers: string[];
   checkedAt: string;
 }
 
-export interface PilotPackageInstantiateRequest {
-  packageCode: string;
-  packageVersion: string;
-  name: string;
-  description?: string;
+export interface PilotPackageInitialOverrideRequest {
+  asset_type: PackageItem["assetType"];
+  asset_identity: string;
+  inherited_version_id: string;
+  override_version_id: string;
+  target_org_unit_id: string;
+  applicable_scope?: string;
+  override_mode: "REPLACE" | "ADD" | "DISABLE" | string;
+  propagation: "INHERITABLE" | "EXCLUSIVE" | string;
+  diff_summary?: string;
+  override_reason?: string;
+  impact_scope?: string;
 }
 
-export interface PilotPackageInstantiation {
+export interface PilotPackageTemplateApplyRequest {
+  target_org_unit_id: string;
+  initial_overrides?: PilotPackageInitialOverrideRequest[];
+}
+
+export interface TenantPackageReference {
+  referenceId: string;
+  tenantId: string;
+  platformTenantId: string;
+  platformPackageId: string;
+  packageCode: string;
+  packageVersion: string;
+  targetOrgUnitId: string;
+  sourceTemplateCode: string;
+  status: "ACTIVE" | "INACTIVE" | string;
+}
+
+export interface PilotPackageTemplateApplyResult {
   templateCode: string;
-  packageInfo: PackageResponse;
-  items: PackageItemResponse[];
+  references: TenantPackageReference[];
+  initialOverrides: Array<Record<string, unknown>>;
 }
 
 // 1. 获取配置包发布可用的统一集成适配器
@@ -6581,27 +6606,26 @@ export function usePackageAssetReadiness() {
   });
 }
 
-export function useInstantiatePilotTemplate() {
+export function useApplyPilotTemplateReferences() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
       templateCode: string;
-      request: PilotPackageInstantiateRequest;
+      packageVersion: string;
+      request: PilotPackageTemplateApplyRequest;
     }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: PilotPackageInstantiation }>(
-        `${PACKAGE_API_ROOT}/pilot-templates/${encodeURIComponent(payload.templateCode)}/instantiate`,
-        withStandardApiContext(
-          { ...requestPayload, packageVersion },
-          security.data,
-          packageVersion,
-        ),
+      const requestPayload = {
+        ...payload.request,
+        initial_overrides: payload.request.initial_overrides ?? [],
+      };
+      const { data } = await apiClient.post<{ data: PilotPackageTemplateApplyResult }>(
+        `${PACKAGE_API_ROOT}/pilot-templates/${encodeURIComponent(payload.templateCode)}/references`,
+        withStandardApiContext(requestPayload, security.data, payload.packageVersion),
       );
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
       queryClient.invalidateQueries({ queryKey: ["packages", "asset-readiness"] });
     },
   });

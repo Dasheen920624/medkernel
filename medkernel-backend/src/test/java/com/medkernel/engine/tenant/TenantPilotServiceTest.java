@@ -31,6 +31,9 @@ import com.medkernel.engine.pkg.ReleasePlanRepository;
 import com.medkernel.engine.pkg.ReleasePlanStatus;
 import com.medkernel.engine.pkg.ReleaseScopeType;
 import com.medkernel.engine.pkg.ReleaseStrategy;
+import com.medkernel.engine.pkg.TenantPackageReference;
+import com.medkernel.engine.pkg.TenantPackageReferenceRepository;
+import com.medkernel.engine.pkg.TenantPackageReferenceStatus;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
@@ -40,6 +43,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionHistory;
 import com.medkernel.shared.observability.StateTransitionHistoryRepository;
@@ -80,6 +84,9 @@ class TenantPilotServiceTest {
 
     @Autowired
     private KnowledgePackageRepository packageRepo;
+
+    @Autowired
+    private TenantPackageReferenceRepository packageReferenceRepo;
 
     @Autowired
     private ReleasePlanRepository releasePlanRepo;
@@ -236,12 +243,18 @@ class TenantPilotServiceTest {
             null, now, actor, now, actor
         ));
         packageRepo.save(new KnowledgePackage(
-            null, "pkg-readiness-01", tenantId, "PKG.CHEST", "1.0.0",
-            "胸痛配置资产包", "真实配置资产", KnowledgePackageStatus.ACTIVE,
+            null, "pkg-platform-readiness-01", PlatformTenant.ID, "PKG.CHEST", "1.0.0",
+            "平台胸痛配置资产包", "平台配置资产", KnowledgePackageStatus.ACTIVE,
+            now, actor, now, actor, traceId
+        ));
+        packageReferenceRepo.save(new TenantPackageReference(
+            null, "ref-readiness-01", tenantId, PlatformTenant.ID, "pkg-platform-readiness-01",
+            "PKG.CHEST", "1.0.0", hospital.id(), "TPL.FIRST_RUN",
+            TenantPackageReferenceStatus.ACTIVE,
             now, actor, now, actor, traceId
         ));
         releasePlanRepo.save(new ReleasePlan(
-            null, "plan-gray-01", tenantId, "pkg-readiness-01", hospital.id(),
+            null, "plan-gray-01", tenantId, "pkg-platform-readiness-01", hospital.id(),
             ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
             now, actor, now, actor, traceId
         ));

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS knowledge_package (
     updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
     trace_id          VARCHAR(128)  NULL,
-    CONSTRAINT uk_knowledge_package_id UNIQUE (package_id),
+    CONSTRAINT uk_knowledge_package_id UNIQUE (tenant_id, package_id),
     CONSTRAINT uk_knowledge_package_tenant_version UNIQUE (tenant_id, package_code, package_version),
     CONSTRAINT ck_knowledge_package_status CHECK (status IN (
         'DRAFT','PENDING_REVIEW','PUBLISHED','ACTIVE','OFFLINE','ARCHIVED'

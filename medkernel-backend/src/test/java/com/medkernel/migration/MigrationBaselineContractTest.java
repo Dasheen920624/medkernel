@@ -130,7 +130,8 @@ class MigrationBaselineContractTest {
         "V101__authoring_asset_library.sql",
         "V102__authoring_batch_job.sql",
         "V103__formula_asset_type_unification.sql",
-        "V104__org_scope_second_phase.sql"
+        "V104__org_scope_second_phase.sql",
+        "V105__tenant_package_reference.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -162,6 +163,7 @@ class MigrationBaselineContractTest {
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_log",
+        "mk_pkg_tenant_package_reference",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
@@ -291,6 +293,7 @@ class MigrationBaselineContractTest {
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
         "idx_release_plan_pkg", "idx_sync_log_plan",
+        "idx_pkg_tpref_tenant_status", "idx_pkg_tpref_package",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
         "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
         "uk_followup_plan_idempotency",
@@ -479,6 +482,7 @@ class MigrationBaselineContractTest {
         "uk_package_item_id", "uk_package_item_tenant_asset", "ck_package_item_asset_type",
         "uk_release_plan_id", "ck_release_plan_strategy", "ck_release_plan_scope_type", "ck_release_plan_status",
         "uk_sync_log_id", "ck_sync_log_status",
+        "uk_pkg_tpref_id", "uk_pkg_tpref_scope", "fk_pkg_tpref_platform_package", "ck_pkg_tpref_status",
         "uk_pkg_tpl_tenant_code", "ck_pkg_tpl_status",
         "fk_pkg_tpli_template", "uk_pkg_tpli_asset", "ck_pkg_tpli_type",
         "ck_pkg_tpli_required", "ck_pkg_tpli_sort",
@@ -1031,6 +1035,32 @@ class MigrationBaselineContractTest {
                 .contains("idx_mk_org_secondary_child")
                 .contains("comment on column org_unit.facility_type")
                 .contains("comment on table mk_org_secondary_membership");
+        }
+    }
+
+    @Test
+    void v105ShouldCreateTenantPackageReferenceWithoutCopyingPackagesForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V105__tenant_package_reference.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 租户开通只记录平台包引用，不复制配置包资产", dialect)
+                .contains("mk_pkg_tenant_package_reference")
+                .contains("platform_tenant_id")
+                .contains("platform_package_id")
+                .contains("target_org_unit_id")
+                .contains("source_template_code")
+                .contains("fk_pkg_tpref_platform_package")
+                .contains("foreign key (platform_tenant_id, platform_package_id)")
+                .contains("references knowledge_package (tenant_id, package_id)")
+                .contains("uk_pkg_tpref_scope")
+                .contains("ck_pkg_tpref_status")
+                .contains("idx_pkg_tpref_tenant_status")
+                .contains("comment on table mk_pkg_tenant_package_reference")
+                .doesNotContain("insert into knowledge_package")
+                .doesNotContain("insert into package_item");
         }
     }
 

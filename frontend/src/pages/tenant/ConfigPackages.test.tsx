@@ -17,7 +17,7 @@ const apiMocks = vi.hoisted(() => ({
   importOfflinePackage: vi.fn(),
   createPackage: vi.fn(),
   addPackageItem: vi.fn(),
-  instantiatePilotTemplate: vi.fn(),
+  applyPilotTemplateReferences: vi.fn(),
   releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
@@ -141,8 +141,8 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: apiMocks.assetReadinessLoading,
     isError: apiMocks.assetReadinessError,
   }),
-  useInstantiatePilotTemplate: () => ({
-    mutateAsync: apiMocks.instantiatePilotTemplate,
+  useApplyPilotTemplateReferences: () => ({
+    mutateAsync: apiMocks.applyPilotTemplateReferences,
     isPending: false,
   }),
   useAuthoringAssets: (...args: unknown[]) => apiMocks.useAuthoringAssets(...args),
@@ -183,7 +183,7 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.importOfflinePackage.mockReset();
     apiMocks.createPackage.mockReset();
     apiMocks.addPackageItem.mockReset();
-    apiMocks.instantiatePilotTemplate.mockReset();
+    apiMocks.applyPilotTemplateReferences.mockReset();
     apiMocks.refetchAssetReadiness.mockReset();
     apiMocks.useAuthoringAssets.mockReset();
     apiMocks.useAuthoringAssets.mockReturnValue({ data: { items: [] } });
@@ -271,6 +271,7 @@ describe("ConfigPackages offline package export", () => {
       draftPackageCount: 1,
       releasedPackageCount: 1,
       activePackageCount: 0,
+      activePackageReferenceCount: 1,
       grayscaleReady: true,
       readyPackageId: "pkg-offline",
       blockers: [],
@@ -297,15 +298,22 @@ describe("ConfigPackages offline package export", () => {
       packageVersion: "1.0.0",
       status: "DRAFT",
     });
-    apiMocks.instantiatePilotTemplate.mockResolvedValue({
+    apiMocks.applyPilotTemplateReferences.mockResolvedValue({
       templateCode: "TPL.FIRST_RUN",
-      packageInfo: {
-        packageId: "pkg-first-run",
-        packageCode: "PILOT.COPD.001",
-        packageVersion: "2026.06.03",
-        status: "DRAFT",
-      },
-      items: [],
+      references: [
+        {
+          referenceId: "ref-first-run",
+          tenantId: "tenant-A",
+          platformTenantId: "t-1",
+          platformPackageId: "pkg-platform-copd",
+          packageCode: "PKG.COPD",
+          packageVersion: "2026.06.03",
+          targetOrgUnitId: "hospital-1",
+          sourceTemplateCode: "TPL.FIRST_RUN",
+          status: "ACTIVE",
+        },
+      ],
+      initialOverrides: [],
     });
     apiMocks.releasePackage.mockReset();
     apiMocks.releasePackage.mockResolvedValue({
@@ -370,7 +378,7 @@ describe("ConfigPackages offline package export", () => {
     expect(screen.getAllByText("看影响").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "发布配置包" })).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: /发布配置包|从首发模板创建|一键创建/ }),
+      screen.getAllByRole("button", { name: /发布配置包|应用首发引用|一键创建/ }),
     ).toHaveLength(2);
   });
 
@@ -453,7 +461,7 @@ describe("ConfigPackages offline package export", () => {
   });
 
   it(
-    "shows asset readiness and instantiates a draft package from the first-run template",
+    "shows asset readiness and applies platform package references from the first-run template",
     async () => {
       render(
         <ConfigProvider>
@@ -466,38 +474,23 @@ describe("ConfigPackages offline package export", () => {
       expect(screen.getByText("首发资产准备")).toBeInTheDocument();
       expect(screen.getByText(/模板 1 个/)).toBeInTheDocument();
 
-      await userEvent.click(screen.getByRole("button", { name: "从首发模板创建" }));
+      await userEvent.click(screen.getByRole("button", { name: "应用首发引用" }));
 
       expect(screen.getByText("COPD 首发模板")).toBeInTheDocument();
       expect(screen.getByText(/KNOWLEDGE/)).toBeInTheDocument();
 
-      fireEvent.change(screen.getByLabelText("配置包编码"), {
-        target: { value: "PILOT.COPD.001" },
-      });
-      fireEvent.change(screen.getByLabelText("配置包版本"), {
-        target: { value: "2026.06.03" },
-      });
-      fireEvent.change(screen.getByLabelText("配置包名称"), {
-        target: { value: "COPD 首发配置包" },
-      });
-      fireEvent.change(screen.getByLabelText("说明"), {
-        target: { value: "从真实首发模板生成" },
-      });
-
-      await userEvent.click(screen.getByRole("button", { name: "生成配置包草案" }));
+      await userEvent.click(screen.getByRole("button", { name: "应用平台引用" }));
 
       await waitFor(() => {
-        expect(apiMocks.instantiatePilotTemplate).toHaveBeenCalledWith({
+        expect(apiMocks.applyPilotTemplateReferences).toHaveBeenCalledWith({
           templateCode: "TPL.FIRST_RUN",
+          packageVersion: "2026.06.01",
           request: {
-            packageCode: "PILOT.COPD.001",
-            packageVersion: "2026.06.03",
-            name: "COPD 首发配置包",
-            description: "从真实首发模板生成",
+            target_org_unit_id: "hospital-1",
+            initial_overrides: [],
           },
         });
       });
-      expect(apiMocks.refetchPackages).toHaveBeenCalled();
       expect(apiMocks.refetchAssetReadiness).toHaveBeenCalled();
     },
     PAGE_INTERACTION_TIMEOUT_MS,
@@ -520,6 +513,7 @@ describe("ConfigPackages offline package export", () => {
       draftPackageCount: 0,
       releasedPackageCount: 0,
       activePackageCount: 0,
+      activePackageReferenceCount: 0,
       grayscaleReady: false,
       readyPackageId: null,
       blockers: ["尚未配置首发模板", "尚未完成灰度发布证据"],
@@ -534,7 +528,7 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.queryByRole("button", { name: "从首发模板创建" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "应用首发引用" })).not.toBeInTheDocument();
     expect(screen.getByText("尚未配置首发模板")).toBeInTheDocument();
     expect(screen.getByText("尚未完成灰度发布证据")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导入离线包" })).toBeEnabled();

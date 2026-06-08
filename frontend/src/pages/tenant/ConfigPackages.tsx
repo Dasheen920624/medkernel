@@ -42,12 +42,12 @@ import {
   downloadPackageOfflineExport,
   downloadPackageSyncEvidenceExport,
   useAddPackageItem,
+  useApplyPilotTemplateReferences,
   useAuthoringAssets,
   useCalculateDiff,
   useCreatePackage,
   useEvaluationIndicators,
   useImportOfflinePackage,
-  useInstantiatePilotTemplate,
   usePackageAssetReadiness,
   usePackageDetail,
   useOrgUnits,
@@ -66,7 +66,6 @@ import type {
   EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
-  PilotPackageTemplate,
   SyncLogResponse,
   TermMappingPackage,
 } from "@/shared/api/hooks";
@@ -158,11 +157,6 @@ function assetTypeColor(type: string) {
     FOLLOWUP: "magenta",
   };
   return colors[type] || "default";
-}
-
-function defaultPilotPackageCode(template: PilotPackageTemplate) {
-  const suffix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  return `${template.packageCodePrefix}.${suffix}`;
 }
 
 function safeFilename(value: string) {
@@ -358,14 +352,14 @@ export default function ConfigPackages() {
   const releasePackageMutation = useReleasePackage();
   const rollbackPackageMutation = useRollbackPackage();
   const importOfflinePackageMutation = useImportOfflinePackage();
-  const instantiatePilotTemplateMutation = useInstantiatePilotTemplate();
+  const applyPilotTemplateReferencesMutation = useApplyPilotTemplateReferences();
 
   const activeCount = apiPackages.filter((p) => p.status === "ACTIVE").length;
   const publishedCount = apiPackages.filter((p) => p.status === "PUBLISHED").length;
   const draftCount = apiPackages.filter((p) => p.status === "DRAFT").length;
   const offlineCount = apiPackages.filter((p) => p.status === "OFFLINE").length;
   const readinessBlockers = assetReadiness?.blockers ?? [];
-  const canInstantiatePilotTemplate = pilotTemplates.length > 0 && !pilotTemplatesLoading;
+  const canApplyPilotTemplateReferences = pilotTemplates.length > 0 && !pilotTemplatesLoading;
   const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
   const attentionSyncLogs = visibleSyncLogs.filter(
     (log) => log.status === "FAILED" || log.status === "NOT_SYNCED",
@@ -399,6 +393,12 @@ export default function ConfigPackages() {
     authoringAssetOptions.find((item) => item.assetId === assetId);
   const releaseAdapterName = (adapterId: string) =>
     displayAdapters.find((adapter) => adapter.adapterId === adapterId)?.adapterName || adapterId;
+  const defaultTargetOrgUnitId =
+    securityProfile?.dataScope.hospitalId ??
+    securityProfile?.dataScope.campusId ??
+    securityProfile?.dataScope.siteId ??
+    securityProfile?.dataScope.departmentId ??
+    orgUnitOptions[0]?.value;
 
   const fillAssetVersion = (assetId: string | undefined) => {
     if (!assetId) {
@@ -446,10 +446,7 @@ export default function ConfigPackages() {
     setSelectedPilotTemplateCode(template.templateCode);
     pilotTemplateForm.setFieldsValue({
       templateCode: template.templateCode,
-      packageCode: defaultPilotPackageCode(template),
-      packageVersion: template.defaultPackageVersion,
-      name: `${template.name}配置包`,
-      description: template.description ?? "",
+      targetOrgUnitId: defaultTargetOrgUnitId,
     });
     setPilotTemplateModalVisible(true);
   };
@@ -459,10 +456,7 @@ export default function ConfigPackages() {
     setSelectedPilotTemplateCode(templateCode);
     if (!template) return;
     pilotTemplateForm.setFieldsValue({
-      packageCode: defaultPilotPackageCode(template),
-      packageVersion: template.defaultPackageVersion,
-      name: `${template.name}配置包`,
-      description: template.description ?? "",
+      targetOrgUnitId: pilotTemplateForm.getFieldValue("targetOrgUnitId") ?? defaultTargetOrgUnitId,
     });
   };
 
@@ -518,25 +512,24 @@ export default function ConfigPackages() {
     }
   };
 
-  const handleInstantiatePilotTemplate = async () => {
+  const handleApplyPilotTemplateReferences = async () => {
     try {
       const values = await pilotTemplateForm.validateFields();
-      const instantiated = await instantiatePilotTemplateMutation.mutateAsync({
+      const template = pilotTemplates.find((item) => item.templateCode === values.templateCode);
+      const applied = await applyPilotTemplateReferencesMutation.mutateAsync({
         templateCode: values.templateCode,
+        packageVersion: template?.defaultPackageVersion ?? "ONBOARDING",
         request: {
-          packageCode: values.packageCode,
-          packageVersion: values.packageVersion,
-          name: values.name,
-          description: values.description,
+          target_org_unit_id: values.targetOrgUnitId,
+          initial_overrides: [],
         },
       });
-      message.success(`首发配置包草案已生成：${instantiated.packageInfo.packageCode}`);
+      message.success(`首发平台包引用已应用：${applied.references.length} 个`);
       closePilotTemplateModal();
-      void packageQuery.refetch();
       void refetchAssetReadiness();
     } catch (err: unknown) {
       if (applyApiFieldErrors(pilotTemplateForm, err)) return;
-      message.error(getApiErrorMessage(err, "首发配置包草案生成失败，请核对模板资产依赖"));
+      message.error(getApiErrorMessage(err, "首发平台包引用失败，请核对模板和组织"));
     }
   };
 
@@ -864,8 +857,8 @@ export default function ConfigPackages() {
       <Space direction="vertical" className="mk-full-width">
         <Text>从首发模板、离线包或手工草案进入发布流。当前模板 {pilotTemplates.length} 个。</Text>
         <Space wrap>
-          <Button onClick={openPilotTemplateModal} disabled={!canInstantiatePilotTemplate}>
-            从首发模板创建
+          <Button onClick={openPilotTemplateModal} disabled={!canApplyPilotTemplateReferences}>
+            应用首发引用
           </Button>
           <Button onClick={() => setOfflineImportModalVisible(true)}>导入离线包</Button>
         </Space>
@@ -973,18 +966,18 @@ export default function ConfigPackages() {
 
   const pilotTemplateModal = (
     <Modal
-      title="从首发模板创建配置包草案"
+      title="应用首发平台包引用"
       open={pilotTemplateModalVisible}
-      onOk={handleInstantiatePilotTemplate}
+      onOk={handleApplyPilotTemplateReferences}
       onCancel={closePilotTemplateModal}
-      confirmLoading={instantiatePilotTemplateMutation.isPending}
+      confirmLoading={applyPilotTemplateReferencesMutation.isPending}
       destroyOnClose
       forceRender
-      okText="生成配置包草案"
+      okText="应用平台引用"
       cancelText="取消"
       width={760}
     >
-      <Form form={pilotTemplateForm} name="pilot-template-create" layout="vertical">
+      <Form form={pilotTemplateForm} name="pilot-template-reference" layout="vertical">
         <Form.Item
           name="templateCode"
           label="首发模板"
@@ -1027,34 +1020,24 @@ export default function ConfigPackages() {
           </Card>
         )}
         <Form.Item
-          name="packageCode"
-          label="配置包编码"
-          rules={[{ required: true, message: "请输入配置包编码" }]}
+          name="targetOrgUnitId"
+          label="目标组织"
+          rules={[{ required: true, message: "请选择目标组织" }]}
         >
-          <Input placeholder="输入配置包编码" />
-        </Form.Item>
-        <Form.Item
-          name="packageVersion"
-          label="配置包版本"
-          rules={[{ required: true, message: "请输入配置包版本" }]}
-        >
-          <Input placeholder="输入配置包版本" />
-        </Form.Item>
-        <Form.Item
-          name="name"
-          label="配置包名称"
-          rules={[{ required: true, message: "请输入配置包名称" }]}
-        >
-          <Input placeholder="输入配置包名称" />
-        </Form.Item>
-        <Form.Item name="description" label="说明">
-          <TextArea rows={3} placeholder="输入本次首发准备说明" />
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="选择引用生效组织"
+            options={orgUnitOptions}
+            loading={orgUnitsLoading}
+            notFoundContent="暂无可用组织单元"
+          />
         </Form.Item>
         <Alert
           type="info"
           showIcon
-          message="只生成草案，不绕过发布门禁"
-          description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
+          message="引用平台包，不复制资产"
+          description="系统会校验模板推荐的平台包是否真实存在且已发布，并把引用绑定到目标组织。"
         />
       </Form>
     </Modal>
@@ -1171,13 +1154,13 @@ export default function ConfigPackages() {
             },
           }}
           primary={
-            canInstantiatePilotTemplate ? (
+            canApplyPilotTemplateReferences ? (
               <Button
                 type="primary"
                 icon={<PlusOutlined aria-hidden="true" />}
                 onClick={openPilotTemplateModal}
               >
-                从首发模板创建
+                应用首发引用
               </Button>
             ) : (
               <Button
@@ -1223,11 +1206,11 @@ export default function ConfigPackages() {
           </Button>
           <Button
             icon={<FileProtectOutlined aria-hidden="true" />}
-            disabled={!canInstantiatePilotTemplate}
+            disabled={!canApplyPilotTemplateReferences}
             loading={pilotTemplatesLoading || readinessLoading}
             onClick={openPilotTemplateModal}
           >
-            从首发模板创建
+            应用首发引用
           </Button>
           <Button
             icon={<PlusOutlined aria-hidden="true" />}
@@ -1296,7 +1279,8 @@ export default function ConfigPackages() {
                 <span>
                   模板 {assetReadiness?.templateCount ?? pilotTemplates.length} 个 · 草案{" "}
                   {assetReadiness?.draftPackageCount ?? draftCount} 个 · 已发布{" "}
-                  {assetReadiness?.releasedPackageCount ?? publishedCount + activeCount} 个
+                  {assetReadiness?.releasedPackageCount ?? publishedCount + activeCount} 个 ·
+                  平台引用 {assetReadiness?.activePackageReferenceCount ?? 0} 个
                 </span>
               )
             }
