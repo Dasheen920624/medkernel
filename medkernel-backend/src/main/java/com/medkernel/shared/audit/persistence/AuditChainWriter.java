@@ -137,6 +137,7 @@ public class AuditChainWriter {
             nullSafe(event.action() == null ? null : event.action().name()),
             nullSafe(event.resourceType()),
             nullSafe(event.resourceId()),
+            nullSafe(event.summary()),
             nullSafe(event.actorUserId()),
             nullSafe(event.actorRoles()),
             nullSafe(tenantId),
