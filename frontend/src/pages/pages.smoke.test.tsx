@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { apiClient } from "@/shared/api/client";
 import ConfigPackages from "./tenant/ConfigPackages";
+import AuthoringAssets from "./tenant/AuthoringAssets";
 import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
 import Notifications from "./clinical/Notifications";
@@ -163,6 +164,12 @@ describe("page smoke coverage", () => {
     renderPage(<ConfigPackages />);
     expect(screen.getByRole("heading", { name: "配置包中心" })).toBeInTheDocument();
     expect(screen.getByText("正在加载配置包中心")).toBeInTheDocument();
+  });
+
+  it("renders the unified authoring asset library", () => {
+    renderPage(<AuthoringAssets />);
+    expect(screen.getByRole("heading", { name: "统一资产库" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载统一资产库")).toBeInTheDocument();
   });
 
   it("renders the tenant adapter-hub console", () => {

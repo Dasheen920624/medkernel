@@ -22,9 +22,9 @@ const apiMocks = vi.hoisted(() => ({
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
   refetchAssetReadiness: vi.fn(),
-  useRuleDefinitions: vi.fn(),
-  usePathwayTemplates: vi.fn(),
+  useAuthoringAssets: vi.fn(),
   useEvaluationIndicators: vi.fn(),
+  permissions: [] as Array<{ code: string }>,
   packagesData: null as Record<string, unknown> | null,
   packagesLoading: false,
   packagesError: false,
@@ -50,7 +50,7 @@ vi.mock("@/shared/api/hooks", () => ({
           scopeCode: "hospital-1",
         },
       ],
-      permissions: [],
+      permissions: apiMocks.permissions,
       menuKeys: [],
       environmentKeys: [],
       dataScope: {
@@ -145,8 +145,7 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.instantiatePilotTemplate,
     isPending: false,
   }),
-  useRuleDefinitions: (...args: unknown[]) => apiMocks.useRuleDefinitions(...args),
-  usePathwayTemplates: (...args: unknown[]) => apiMocks.usePathwayTemplates(...args),
+  useAuthoringAssets: (...args: unknown[]) => apiMocks.useAuthoringAssets(...args),
   useEvaluationIndicators: (...args: unknown[]) => apiMocks.useEvaluationIndicators(...args),
   useTerminologyPackages: () => ({
     data: {
@@ -186,12 +185,11 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.addPackageItem.mockReset();
     apiMocks.instantiatePilotTemplate.mockReset();
     apiMocks.refetchAssetReadiness.mockReset();
-    apiMocks.useRuleDefinitions.mockReset();
-    apiMocks.useRuleDefinitions.mockReturnValue({ data: { items: [] } });
-    apiMocks.usePathwayTemplates.mockReset();
-    apiMocks.usePathwayTemplates.mockReturnValue({ data: { items: [] } });
+    apiMocks.useAuthoringAssets.mockReset();
+    apiMocks.useAuthoringAssets.mockReturnValue({ data: { items: [] } });
     apiMocks.useEvaluationIndicators.mockReset();
     apiMocks.useEvaluationIndicators.mockReturnValue({ data: { items: [] } });
+    apiMocks.permissions = [];
     apiMocks.packagesData = null;
     apiMocks.packagesLoading = false;
     apiMocks.packagesError = false;
@@ -444,8 +442,10 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
-    expect(apiMocks.useRuleDefinitions).toHaveBeenCalledWith({ size: 100 }, { enabled: false });
-    expect(apiMocks.usePathwayTemplates).toHaveBeenCalledWith({ size: 100 }, { enabled: false });
+    expect(apiMocks.useAuthoringAssets).toHaveBeenCalledWith(
+      { assetType: "RULE", size: 100 },
+      { enabled: false },
+    );
     expect(apiMocks.useEvaluationIndicators).toHaveBeenCalledWith(
       { size: 100 },
       { enabled: false },
@@ -775,6 +775,71 @@ describe("ConfigPackages offline package export", () => {
 
       await waitFor(() => {
         expect(downloadPackageSyncEvidenceExport).toHaveBeenCalledWith("pkg-offline");
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "adds reusable condition fragments from the unified authoring asset library",
+    async () => {
+      apiMocks.permissions = [{ code: "rule.read" }, { code: "pathway.read" }];
+      apiMocks.useAuthoringAssets.mockReturnValue({
+        data: {
+          items: [
+            {
+              assetType: "CONDITION_FRAGMENT",
+              assetId: "frag-ckd",
+              assetCode: "FRAG.CKD",
+              name: "CKD 条件片段",
+              category: "慢病",
+              tags: ["复用"],
+              version: "1",
+              status: "ACTIVE",
+              packageVersion: "3.0.0",
+              favorite: true,
+              cloneable: true,
+              updatedAt: "2026-06-08T00:00:00Z",
+            },
+          ],
+        },
+      });
+      apiMocks.addPackageItem.mockResolvedValue({
+        itemId: "item-frag",
+        packageId: "pkg-offline",
+        assetType: "CONDITION_FRAGMENT",
+        assetId: "frag-ckd",
+        assetVersion: "1",
+      });
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+
+      fireEvent.mouseDown(screen.getByLabelText("资产类型"));
+      await userEvent.click(await screen.findByText("条件片段 (CONDITION_FRAGMENT)"));
+
+      fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
+      await userEvent.click(await screen.findByText(/CKD 条件片段/));
+      expect(screen.getByLabelText("资产快照版本")).toHaveValue("1");
+      await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
+
+      await waitFor(() => {
+        expect(apiMocks.addPackageItem).toHaveBeenCalledWith({
+          packageId: "pkg-offline",
+          request: {
+            assetType: "CONDITION_FRAGMENT",
+            assetId: "frag-ckd",
+            assetVersion: "1",
+            packageVersion: "3.0.0",
+          },
+        });
       });
     },
     PAGE_INTERACTION_TIMEOUT_MS,

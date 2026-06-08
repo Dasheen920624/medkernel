@@ -42,6 +42,7 @@ import {
   downloadPackageOfflineExport,
   downloadPackageSyncEvidenceExport,
   useAddPackageItem,
+  useAuthoringAssets,
   useCalculateDiff,
   useCreatePackage,
   useEvaluationIndicators,
@@ -52,21 +53,20 @@ import {
   useOrgUnits,
   usePackages,
   usePackageSyncLogs,
-  usePathwayTemplates,
   usePilotPackageTemplates,
   useReleasePackage,
   useRollbackPackage,
-  useRuleDefinitions,
   useSecurityProfile,
   usePackageReleaseAdapters,
   useTerminologyPackages,
 } from "@/shared/api/hooks";
 import type {
+  AuthoringAssetLibraryItem,
+  EngineAssetType,
   EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
   PilotPackageTemplate,
-  RuleDefinition,
   SyncLogResponse,
   TermMappingPackage,
 } from "@/shared/api/hooks";
@@ -109,6 +109,13 @@ const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }>
   { value: "OFFLINE", label: "已下线" },
 ];
 
+const authoringAssetTypes = ["RULE", "PATHWAY", "CONDITION_FRAGMENT"] as const;
+type AuthoringPackageAssetType = (typeof authoringAssetTypes)[number];
+
+function isAuthoringPackageAssetType(value: string): value is AuthoringPackageAssetType {
+  return authoringAssetTypes.includes(value as AuthoringPackageAssetType);
+}
+
 function hasHospitalAdminRole(roles: Array<{ code?: string }> | undefined) {
   return (roles ?? []).some((role) => {
     const normalized = (role.code ?? "").trim().toUpperCase().replace(/[-.]/g, "_");
@@ -143,6 +150,11 @@ function assetTypeColor(type: string) {
     RULE: "blue",
     PATHWAY: "purple",
     EVALUATION: "cyan",
+    CONDITION_FRAGMENT: "geekblue",
+    VALUE_SET: "lime",
+    ORDER_SET: "volcano",
+    ACTION_CARD: "gold",
+    SUBPATHWAY: "magenta",
     FOLLOWUP: "magenta",
   };
   return colors[type] || "default";
@@ -267,8 +279,8 @@ export default function ConfigPackages() {
       adapter.connectorAvailable,
   );
   const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
-  const canReadRules = hasPermission(securityProfile, "rule.read");
-  const canReadPathways = hasPermission(securityProfile, "pathway.read");
+  const canReadAuthoringAssets =
+    hasPermission(securityProfile, "rule.read") || hasPermission(securityProfile, "pathway.read");
   const canReadEvaluations = hasPermission(securityProfile, "evaluation.read");
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -316,8 +328,14 @@ export default function ConfigPackages() {
   const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
   const { data: apiDiffData } = useCalculateDiff(effectivePackageId || "", basePackageIdForDiff);
 
-  const { data: activeRules } = useRuleDefinitions({ size: 100 }, { enabled: canReadRules });
-  const { data: activePathways } = usePathwayTemplates({ size: 100 }, { enabled: canReadPathways });
+  const selectedAssetIsAuthoring = isAuthoringPackageAssetType(selectedAssetType);
+  const { data: authoringAssets } = useAuthoringAssets(
+    {
+      assetType: selectedAssetIsAuthoring ? selectedAssetType : undefined,
+      size: 100,
+    },
+    { enabled: canReadAuthoringAssets && selectedAssetIsAuthoring },
+  );
   const { data: activeEvaluations } = useEvaluationIndicators(
     { size: 100 },
     { enabled: canReadEvaluations },
@@ -362,14 +380,50 @@ export default function ConfigPackages() {
       )
     : [];
   const currentStep = currentStepFor(selectedPackage, currentItems, visibleSyncLogs);
+  let assetVersionPlaceholder = "输入资产快照版本";
+  if (selectedAssetType === "TERMINOLOGY") {
+    assetVersionPlaceholder = "选择术语包后自动带出版本";
+  } else if (selectedAssetIsAuthoring || selectedAssetType === "EVALUATION") {
+    assetVersionPlaceholder = "选择资产后自动带出版本";
+  }
 
   const terminologyPackageOptions = (activeTerminologyPackages?.items ?? []).filter(
     (item) => item.status === "PUBLISHED" || item.status === "GRAY",
   );
   const terminologyAssetId = (item: TermMappingPackage) =>
     `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
+  const authoringAssetOptions = (authoringAssets?.items ?? []).filter(
+    (item) => item.status === "PUBLISHED" || item.status === "ACTIVE",
+  );
+  const findSelectedAuthoringAsset = (assetId: string) =>
+    authoringAssetOptions.find((item) => item.assetId === assetId);
   const releaseAdapterName = (adapterId: string) =>
     displayAdapters.find((adapter) => adapter.adapterId === adapterId)?.adapterName || adapterId;
+
+  const fillAssetVersion = (assetId: string | undefined) => {
+    if (!assetId) {
+      itemForm.resetFields(["assetVersion"]);
+      return;
+    }
+    if (selectedAssetIsAuthoring) {
+      const selected = findSelectedAuthoringAsset(assetId);
+      itemForm.setFieldsValue({ assetVersion: selected?.version });
+      return;
+    }
+    if (selectedAssetType === "EVALUATION") {
+      const selected = (activeEvaluations?.items ?? []).find(
+        (item: EvaluationIndicator) => item.indicatorId === assetId,
+      );
+      itemForm.setFieldsValue({ assetVersion: selected?.versionNo?.toString() });
+      return;
+    }
+    if (selectedAssetType === "TERMINOLOGY") {
+      const selected = terminologyPackageOptions.find(
+        (item) => terminologyAssetId(item) === assetId,
+      );
+      itemForm.setFieldsValue({ assetVersion: selected?.packageVersion });
+    }
+  };
 
   const applyFilters = () => {
     setCurrentPage(1);
@@ -493,7 +547,7 @@ export default function ConfigPackages() {
       await addPackageItemMutation.mutateAsync({
         packageId: effectivePackageId,
         request: {
-          assetType: values.assetType,
+          assetType: values.assetType as EngineAssetType,
           assetId: values.assetId,
           assetVersion: values.assetVersion,
           packageVersion: selectedPackage?.packageVersion || values.assetVersion,
@@ -1411,7 +1465,15 @@ export default function ConfigPackages() {
             </Descriptions>
 
             {selectedPackage.status === "DRAFT" ? (
-              <Card title="追加临床资产条目" size="small">
+              <Card
+                title="追加临床资产条目"
+                size="small"
+                extra={
+                  <Button href="/authoring/assets" icon={<FileProtectOutlined />}>
+                    整理资产库
+                  </Button>
+                }
+              >
                 <Form form={itemForm} layout="vertical" onFinish={handleAddItem}>
                   <Form.Item
                     name="assetType"
@@ -1427,6 +1489,7 @@ export default function ConfigPackages() {
                     >
                       <Option value="RULE">规则引擎 (RULE)</Option>
                       <Option value="PATHWAY">临床路径 (PATHWAY)</Option>
+                      <Option value="CONDITION_FRAGMENT">条件片段 (CONDITION_FRAGMENT)</Option>
                       <Option value="EVALUATION">质控评估指标 (EVALUATION)</Option>
                       <Option value="TERMINOLOGY">术语字典映射 (TERMINOLOGY)</Option>
                     </Select>
@@ -1440,32 +1503,36 @@ export default function ConfigPackages() {
                       placeholder="请选择已发布资产"
                       showSearch
                       allowClear
-                      onChange={(value) => {
-                        if (selectedAssetType !== "TERMINOLOGY") return;
-                        const selected = terminologyPackageOptions.find(
-                          (item) => terminologyAssetId(item) === value,
-                        );
-                        itemForm.setFieldsValue({
-                          assetVersion: selected?.packageVersion,
-                        });
-                      }}
+                      optionFilterProp="label"
+                      onChange={fillAssetVersion}
                     >
-                      {selectedAssetType === "RULE" &&
-                        (activeRules?.items ?? []).map((rule: RuleDefinition) => (
-                          <Option key={rule.ruleId} value={rule.ruleId}>
-                            {rule.name} ({rule.ruleId})
-                          </Option>
-                        ))}
-                      {selectedAssetType === "PATHWAY" &&
-                        (activePathways?.items ?? []).map((pathway) => (
-                          <Option key={pathway.templateId} value={pathway.templateId}>
-                            {pathway.name} ({pathway.templateId})
+                      {selectedAssetIsAuthoring &&
+                        authoringAssetOptions.map((asset: AuthoringAssetLibraryItem) => (
+                          <Option
+                            key={`${asset.assetType}-${asset.assetId}-${asset.version}`}
+                            value={asset.assetId}
+                            label={`${asset.name} ${asset.assetCode} ${asset.version}`}
+                          >
+                            <Space size="small" wrap>
+                              <span>{asset.name}</span>
+                              <Text type="secondary">
+                                {asset.assetCode} · v{asset.version}
+                              </Text>
+                              {asset.favorite && <Tag color="blue">已收藏</Tag>}
+                              {asset.tags.slice(0, 2).map((tag) => (
+                                <Tag key={tag}>{tag}</Tag>
+                              ))}
+                            </Space>
                           </Option>
                         ))}
                       {selectedAssetType === "EVALUATION" &&
                         (activeEvaluations?.items ?? []).map((evaluation: EvaluationIndicator) => (
-                          <Option key={evaluation.indicatorId} value={evaluation.indicatorId}>
-                            {evaluation.name} ({evaluation.indicatorId})
+                          <Option
+                            key={evaluation.indicatorId}
+                            value={evaluation.indicatorId}
+                            label={`${evaluation.name} ${evaluation.indicatorCode}`}
+                          >
+                            {evaluation.name} ({evaluation.indicatorCode} · v{evaluation.versionNo})
                           </Option>
                         ))}
                       {selectedAssetType === "TERMINOLOGY" &&
@@ -1473,6 +1540,7 @@ export default function ConfigPackages() {
                           <Option
                             key={`${termPackage.packageCode}-${termPackage.packageVersion}-${termPackage.scopeLevel}-${termPackage.scopeCode}`}
                             value={terminologyAssetId(termPackage)}
+                            label={`${termPackage.displayName} ${termPackage.packageCode} ${termPackage.scopeLevel} ${termPackage.scopeCode}`}
                           >
                             {termPackage.displayName} ({termPackage.packageCode} /{" "}
                             {termPackage.scopeLevel}:{termPackage.scopeCode})
@@ -1482,12 +1550,12 @@ export default function ConfigPackages() {
                   </Form.Item>
                   <Form.Item name="assetVersion" label="资产快照版本" rules={[{ required: true }]}>
                     <Input
-                      placeholder={
+                      placeholder={assetVersionPlaceholder}
+                      readOnly={
+                        selectedAssetIsAuthoring ||
+                        selectedAssetType === "EVALUATION" ||
                         selectedAssetType === "TERMINOLOGY"
-                          ? "选择术语包后自动带出版本"
-                          : "输入资产快照版本"
                       }
-                      readOnly={selectedAssetType === "TERMINOLOGY"}
                     />
                   </Form.Item>
                   <Button htmlType="submit" loading={addPackageItemMutation.isPending}>

@@ -63,6 +63,14 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "mk_engine_condition_fragment", "创建条件片段"),
                 audit(AuditAction.UPDATE, "mk_engine_condition_fragment", "更新条件片段并刷新影响分析"))),
+        contract("authoring-asset-library", "统一创作资产库服务",
+            "com.medkernel.engine.authoring.AuthoringAssetLibraryController",
+            "/api/v1/engine/authoring/assets",
+            permissions("rule.read", "pathway.read", "rule.write", "pathway.write"),
+            audits(
+                audit(AuditAction.UPDATE, "mk_engine_authoring_asset_profile", "更新统一资产库分类与标签"),
+                audit(AuditAction.UPDATE, "mk_engine_authoring_asset_favorite", "更新统一资产库个人收藏"),
+                audit(AuditAction.CREATE, "mk_engine_condition_fragment", "克隆条件片段为独立草稿"))),
         contract("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/clinical-events",
             permissions("event.write", "event.read"),

@@ -2797,6 +2797,24 @@ export function useRuleDefinitions(
   });
 }
 
+export type EngineAssetType =
+  | "KNOWLEDGE"
+  | "TERMINOLOGY"
+  | "RULE"
+  | "PATHWAY"
+  | "EVALUATION"
+  | "FOLLOWUP"
+  | "FIELD_CATALOG"
+  | "PACKAGE"
+  | "RECOMMENDATION"
+  | "SAFETY"
+  | "CDSS_RISK"
+  | "CONDITION_FRAGMENT"
+  | "VALUE_SET"
+  | "ORDER_SET"
+  | "ACTION_CARD"
+  | "SUBPATHWAY";
+
 export type AuthoringPreviewSubject = "RULE_CONDITION" | "PATHWAY_GUARD";
 
 export interface AuthoringPreviewSegment {
@@ -2918,6 +2936,179 @@ export function useAuthoringPreviewRun() {
         ),
       );
       return data.data;
+    },
+  });
+}
+
+export interface AuthoringAssetLibraryItem {
+  assetType: EngineAssetType;
+  assetId: string;
+  assetCode: string;
+  name: string;
+  category?: string | null;
+  tags: string[];
+  version: string;
+  status: string;
+  packageVersion?: string | null;
+  favorite: boolean;
+  cloneable: boolean;
+  updatedAt?: string | null;
+}
+
+export interface AuthoringAssetQueryParams {
+  assetType?: EngineAssetType;
+  keyword?: string;
+  tag?: string;
+  favoriteOnly?: boolean;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+export interface AuthoringAssetProfilePayload {
+  category?: string | null;
+  tags?: string[];
+}
+
+export interface AuthoringAssetProfileResponse {
+  assetType: EngineAssetType;
+  assetId: string;
+  category?: string | null;
+  tags: string[];
+  traceId?: string | null;
+}
+
+export interface AuthoringAssetFavoriteResponse {
+  assetType: EngineAssetType;
+  assetId: string;
+  favorite: boolean;
+  traceId?: string | null;
+}
+
+export interface AuthoringAssetClonePayload {
+  newCode: string;
+  newName: string;
+  newVersion: number;
+  packageVersion: string;
+}
+
+export interface AuthoringAssetCloneResponse {
+  sourceAssetType: EngineAssetType;
+  sourceAssetId: string;
+  clonedAssetType: EngineAssetType;
+  clonedAssetId: string;
+  clonedAssetCode: string;
+  status: string;
+}
+
+const AUTHORING_ASSET_API_ROOT = "/engine/authoring/assets";
+
+export function useAuthoringAssets(
+  params: AuthoringAssetQueryParams = {},
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  const requestParams = {
+    ...(params.assetType ? { assetType: params.assetType } : {}),
+    ...(params.keyword ? { keyword: params.keyword } : {}),
+    ...(params.tag ? { tag: params.tag } : {}),
+    ...(typeof params.favoriteOnly === "boolean" ? { favoriteOnly: params.favoriteOnly } : {}),
+    ...(typeof params.page === "number" ? { page: params.page } : {}),
+    ...(typeof params.size === "number" ? { size: params.size } : {}),
+    ...(params.sort ? { sort: params.sort } : {}),
+  };
+  return useQuery({
+    queryKey: ["authoring", "assets", requestParams],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<AuthoringAssetLibraryItem> }>(
+        AUTHORING_ASSET_API_ROOT,
+        { params: requestParams },
+      );
+      return (
+        data.data ?? {
+          items: [],
+          page: (params.page ?? 0) + 1,
+          size: params.size ?? 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        }
+      );
+    },
+  });
+}
+
+export function useUpdateAuthoringAssetProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      assetType: EngineAssetType;
+      assetId: string;
+      request: AuthoringAssetProfilePayload;
+    }) => {
+      const { data } = await apiClient.put<{ data: AuthoringAssetProfileResponse }>(
+        `${AUTHORING_ASSET_API_ROOT}/${payload.assetType}/${encodeURIComponent(
+          payload.assetId,
+        )}/profile`,
+        payload.request,
+      );
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] }),
+  });
+}
+
+export function useFavoriteAuthoringAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { assetType: EngineAssetType; assetId: string }) => {
+      const { data } = await apiClient.post<{ data: AuthoringAssetFavoriteResponse }>(
+        `${AUTHORING_ASSET_API_ROOT}/${payload.assetType}/${encodeURIComponent(
+          payload.assetId,
+        )}/favorite`,
+      );
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] }),
+  });
+}
+
+export function useUnfavoriteAuthoringAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { assetType: EngineAssetType; assetId: string }) => {
+      const { data } = await apiClient.delete<{ data: AuthoringAssetFavoriteResponse }>(
+        `${AUTHORING_ASSET_API_ROOT}/${payload.assetType}/${encodeURIComponent(
+          payload.assetId,
+        )}/favorite`,
+      );
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] }),
+  });
+}
+
+export function useCloneAuthoringAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      assetType: EngineAssetType;
+      assetId: string;
+      request: AuthoringAssetClonePayload;
+    }) => {
+      const { data } = await apiClient.post<{ data: AuthoringAssetCloneResponse }>(
+        `${AUTHORING_ASSET_API_ROOT}/${payload.assetType}/${encodeURIComponent(
+          payload.assetId,
+        )}/clone`,
+        payload.request,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
+      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] });
     },
   });
 }
@@ -5975,7 +6166,7 @@ export interface PackageItem {
   itemId: string;
   tenantId: string;
   packageId: string;
-  assetType: "RULE" | "PATHWAY" | "EVALUATION" | "TERMINOLOGY" | "KNOWLEDGE" | "FOLLOWUP" | string;
+  assetType: EngineAssetType;
   assetId: string;
   assetVersion: string;
   createdAt: string;
@@ -5994,7 +6185,7 @@ export interface PackageDetailResponse {
 
 export interface PackageItemRequest {
   packageVersion: string;
-  assetType: "RULE" | "PATHWAY" | "EVALUATION" | "TERMINOLOGY" | "KNOWLEDGE" | "FOLLOWUP" | string;
+  assetType: EngineAssetType;
   assetId: string;
   assetVersion: string;
 }

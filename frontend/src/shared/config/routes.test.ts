@@ -193,6 +193,23 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("keeps unified authoring assets as a governed pilot setup route without adding a second-level menu", () => {
+    const route = findRouteByPath("/authoring/assets");
+
+    expect(route?.sectionKey).toBe("pilot-setup");
+    expect(route?.hidden).toBe(true);
+    expect(route?.menuKey).toBeUndefined();
+    expect(route?.menuLabel).toBeUndefined();
+    expect(route?.requiredPermissions).toEqual(["rule.read", "pathway.read"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "rule.read" }, { code: "pathway.read" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(true);
+  });
+
   it("limits terminology mapping to terminology operators with read/write/publish permissions", () => {
     const route = findRouteByPath("/terminology/mapping");
 
