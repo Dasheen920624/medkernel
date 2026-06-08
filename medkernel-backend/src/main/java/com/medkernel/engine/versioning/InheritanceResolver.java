@@ -1,16 +1,21 @@
 package com.medkernel.engine.versioning;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
  * 基于组织树闭包解析配置资产继承版本；专病通过适用域参与版本筛选。
@@ -22,16 +27,28 @@ public class InheritanceResolver {
     private final AssetVersionRepository assetVersions;
     private final InheritanceOverrideRepository overrides;
     private final List<SafetyMonotonicityCheck> safetyChecks;
+    private final AssetDependencyRepository assetDependencies;
+
+    @Autowired
+    public InheritanceResolver(
+            OrgHierarchyRepository hierarchy,
+            AssetVersionRepository assetVersions,
+            InheritanceOverrideRepository overrides,
+            List<SafetyMonotonicityCheck> safetyChecks,
+            AssetDependencyRepository assetDependencies) {
+        this.hierarchy = hierarchy;
+        this.assetVersions = assetVersions;
+        this.overrides = overrides;
+        this.safetyChecks = safetyChecks;
+        this.assetDependencies = assetDependencies;
+    }
 
     public InheritanceResolver(
             OrgHierarchyRepository hierarchy,
             AssetVersionRepository assetVersions,
             InheritanceOverrideRepository overrides,
             List<SafetyMonotonicityCheck> safetyChecks) {
-        this.hierarchy = hierarchy;
-        this.assetVersions = assetVersions;
-        this.overrides = overrides;
-        this.safetyChecks = safetyChecks;
+        this(hierarchy, assetVersions, overrides, safetyChecks, null);
     }
 
     public ResolvedAssetVersion resolve(InheritanceResolveQuery query) {
@@ -128,6 +145,91 @@ public class InheritanceResolver {
         }
 
         throw new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 ACTIVE 资产版本");
+    }
+
+    public ResolvedAssetGraph resolveWithDependencies(InheritanceResolveQuery query) {
+        ResolvedAssetVersion root = resolve(query);
+        List<ResolvedAssetDependency> resolvedDependencies = new ArrayList<>();
+        Map<String, ResolutionEpochBinding> bindings = new LinkedHashMap<>();
+        collectBinding(bindings, root);
+        collectDependencies(query, root, resolvedDependencies, bindings, new ArrayList<>());
+        List<ResolutionEpochBinding> orderedBindings = bindings.values().stream()
+            .sorted(Comparator
+                .comparing((ResolutionEpochBinding binding) -> binding.assetType().name())
+                .thenComparing(ResolutionEpochBinding::assetIdentity)
+                .thenComparing(ResolutionEpochBinding::versionId))
+            .toList();
+        List<String> epochParts = orderedBindings.stream()
+            .map(binding -> binding.assetType().name()
+                + "|" + binding.assetIdentity()
+                + "|" + binding.versionId()
+                + "|" + binding.contentHash())
+            .toList();
+        String epochSource = String.join("\n", epochParts);
+        String epoch = Sha256ContentHash.sha256(epochSource, "resolution epoch 不能为空");
+        return new ResolvedAssetGraph(root, resolvedDependencies, orderedBindings, epoch);
+    }
+
+    private void collectDependencies(
+            InheritanceResolveQuery rootQuery,
+            ResolvedAssetVersion owner,
+            List<ResolvedAssetDependency> resolvedDependencies,
+            Map<String, ResolutionEpochBinding> bindings,
+            List<String> stack) {
+        if (owner.version() == null || assetDependencies == null) {
+            return;
+        }
+        AssetVersion ownerVersion = owner.version();
+        String ownerKey = key(ownerVersion.assetType(), ownerVersion.assetIdentity());
+        if (stack.contains(ownerKey)) {
+            throw new ApiException(ErrorCode.CONFLICT, "引用完整性校验失败：资产依赖图存在循环 " + stack + " -> " + ownerKey);
+        }
+        List<String> nextStack = new ArrayList<>(stack);
+        nextStack.add(ownerKey);
+        List<AssetDependency> edges =
+            assetDependencies.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+                ownerVersion.tenantId(), ownerVersion.assetType(), ownerVersion.assetIdentity(), ownerVersion.versionId());
+        for (AssetDependency edge : edges) {
+            ResolvedAssetVersion dependency = resolve(new InheritanceResolveQuery(
+                rootQuery.tenantId(),
+                edge.dependsOnAssetType(),
+                edge.dependsOnIdentity(),
+                rootQuery.applicableScope(),
+                rootQuery.targetOrgUnitId()
+            ));
+            if (dependency.version() == null || dependency.disabled()) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "引用完整性校验失败：依赖资产 " + edge.dependsOnIdentity() + " 在当前上下文被停用"
+                );
+            }
+            if (!AssetDependencyService.isCompatible(dependency.version().versionNo(), edge)) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "引用完整性校验失败：依赖资产 " + edge.dependsOnIdentity()
+                        + " 版本 " + dependency.version().versionNo() + " 不满足兼容范围"
+                );
+            }
+            resolvedDependencies.add(new ResolvedAssetDependency(edge, dependency));
+            collectBinding(bindings, dependency);
+            collectDependencies(rootQuery, dependency, resolvedDependencies, bindings, nextStack);
+        }
+    }
+
+    private void collectBinding(Map<String, ResolutionEpochBinding> bindings, ResolvedAssetVersion resolved) {
+        if (resolved.version() == null) {
+            return;
+        }
+        AssetVersion version = resolved.version();
+        bindings.putIfAbsent(
+            key(version.assetType(), version.assetIdentity()),
+            new ResolutionEpochBinding(
+                version.assetType(), version.assetIdentity(), version.versionId(), version.contentHash())
+        );
+    }
+
+    private String key(VersionedAssetType assetType, String assetIdentity) {
+        return assetType.name() + "|" + assetIdentity;
     }
 
     /**

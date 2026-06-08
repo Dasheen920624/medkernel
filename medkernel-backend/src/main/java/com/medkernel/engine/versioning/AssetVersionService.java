@@ -18,15 +18,25 @@ import com.medkernel.shared.ids.Ulid;
 public class AssetVersionService implements VersionedAssetPort {
 
     private final AssetVersionRepository repository;
+    private final AssetDependencyService dependencies;
     private final Clock clock;
 
     @Autowired
+    public AssetVersionService(AssetVersionRepository repository, AssetDependencyService dependencies) {
+        this(repository, dependencies, Clock.systemUTC());
+    }
+
     public AssetVersionService(AssetVersionRepository repository) {
-        this(repository, Clock.systemUTC());
+        this(repository, null, Clock.systemUTC());
     }
 
     AssetVersionService(AssetVersionRepository repository, Clock clock) {
+        this(repository, null, clock);
+    }
+
+    AssetVersionService(AssetVersionRepository repository, AssetDependencyService dependencies, Clock clock) {
         this.repository = repository;
+        this.dependencies = dependencies;
         this.clock = clock;
     }
 
@@ -72,7 +82,9 @@ public class AssetVersionService implements VersionedAssetPort {
             createdBy,
             blankToNull(command.traceId())
         );
-        return repository.save(version);
+        AssetVersion saved = repository.save(version);
+        registerDependencies(saved, command.dependencies(), createdBy, command.traceId());
+        return saved;
     }
 
     @Override
@@ -89,7 +101,7 @@ public class AssetVersionService implements VersionedAssetPort {
             .ifPresent(existing -> {
                 throw new ApiException(ErrorCode.CONFLICT, "同一资产版本号已存在，禁止覆盖旧版本");
             });
-        return repository.save(version.withDraftRegistration(
+        AssetVersion saved = repository.save(version.withDraftRegistration(
             assetIdentity,
             required(command.organizationScope(), "组织生效域"),
             required(command.applicableScope(), "适用人群或上下文"),
@@ -100,6 +112,8 @@ public class AssetVersionService implements VersionedAssetPort {
             Instant.now(clock),
             required(command.actor(), "操作人")
         ));
+        registerDependencies(saved, command.dependencies(), command.actor(), command.traceId());
+        return saved;
     }
 
     @Override
@@ -166,6 +180,16 @@ public class AssetVersionService implements VersionedAssetPort {
 
     private static String draftScopeKey(String versionId) {
         return "version:" + versionId;
+    }
+
+    private void registerDependencies(
+            AssetVersion version,
+            java.util.List<AssetDependencyDeclaration> declarations,
+            String actor,
+            String traceId) {
+        if (dependencies != null) {
+            dependencies.registerDependencies(version, declarations, actor, traceId);
+        }
     }
 
     private static <T> T required(T value, String label) {

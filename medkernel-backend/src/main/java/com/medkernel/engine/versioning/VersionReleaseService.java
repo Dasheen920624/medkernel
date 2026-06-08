@@ -28,6 +28,7 @@ public class VersionReleaseService implements ReleasePort {
     private final VersionReleasePlanRepository releasePlans;
     private final VersionActivationTransactionRepository activationTransactions;
     private final PermissionEvaluator permissionEvaluator;
+    private final AssetDependencyService assetDependencies;
     private final Clock clock;
 
     @Autowired
@@ -35,8 +36,9 @@ public class VersionReleaseService implements ReleasePort {
             AssetVersionRepository assetVersions,
             VersionReleasePlanRepository releasePlans,
             VersionActivationTransactionRepository activationTransactions,
-            PermissionEvaluator permissionEvaluator) {
-        this(assetVersions, releasePlans, activationTransactions, permissionEvaluator, Clock.systemUTC());
+            PermissionEvaluator permissionEvaluator,
+            AssetDependencyService assetDependencies) {
+        this(assetVersions, releasePlans, activationTransactions, permissionEvaluator, assetDependencies, Clock.systemUTC());
     }
 
     VersionReleaseService(
@@ -45,10 +47,21 @@ public class VersionReleaseService implements ReleasePort {
             VersionActivationTransactionRepository activationTransactions,
             PermissionEvaluator permissionEvaluator,
             Clock clock) {
+        this(assetVersions, releasePlans, activationTransactions, permissionEvaluator, null, clock);
+    }
+
+    VersionReleaseService(
+            AssetVersionRepository assetVersions,
+            VersionReleasePlanRepository releasePlans,
+            VersionActivationTransactionRepository activationTransactions,
+            PermissionEvaluator permissionEvaluator,
+            AssetDependencyService assetDependencies,
+            Clock clock) {
         this.assetVersions = assetVersions;
         this.releasePlans = releasePlans;
         this.activationTransactions = activationTransactions;
         this.permissionEvaluator = permissionEvaluator;
+        this.assetDependencies = assetDependencies;
         this.clock = clock;
     }
 
@@ -95,6 +108,7 @@ public class VersionReleaseService implements ReleasePort {
         requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.PENDING_REVIEW, "只有待审核版本可以进入静默观察");
+        assertDependenciesResolvable(version);
         Instant now = clock.instant();
         assetVersions.save(version.withStatus(
             AssetVersionStatus.PUBLISHED,
@@ -132,6 +146,7 @@ public class VersionReleaseService implements ReleasePort {
         if (target.status() != AssetVersionStatus.PUBLISHED && target.status() != AssetVersionStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "只有已发布版本可以全量激活");
         }
+        assertDependenciesResolvable(target);
         Instant now = clock.instant();
         String activeScopeKey = activeScopeKey(command);
         List<AssetVersion> activeVersions = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
@@ -298,6 +313,12 @@ public class VersionReleaseService implements ReleasePort {
             actor,
             command.traceId()
         ));
+    }
+
+    private void assertDependenciesResolvable(AssetVersion version) {
+        if (assetDependencies != null) {
+            assetDependencies.assertDependenciesResolvable(version);
+        }
     }
 
     private AssetVersion requireVersion(VersionReleaseCommand command) {
