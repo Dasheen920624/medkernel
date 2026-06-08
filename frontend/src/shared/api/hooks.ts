@@ -7140,6 +7140,20 @@ export interface AdapterHubSourceStatus {
   gaps: string[];
 }
 
+export interface AdapterHubRequiredSourceStatus {
+  sourceSystem: "HIS" | "EMR" | "LIS" | string;
+  label: string;
+  adapterId: string | null;
+  adapterName: string | null;
+  protocolType: string | null;
+  status: "MISSING" | "BOUND" | "READY" | string;
+  healthStatus: IntegrationAdapter["healthStatus"];
+  mappedFieldCount: number;
+  lastHeartbeatAt: string | null;
+  ready: boolean;
+  gaps: string[];
+}
+
 export interface AdapterHubStatus {
   totalAdapters: number;
   activeAdapters: number;
@@ -7150,6 +7164,54 @@ export interface AdapterHubStatus {
   mappedAdapters: number;
   generatedAt: string;
   sources: AdapterHubSourceStatus[];
+  requiredSources: AdapterHubRequiredSourceStatus[];
+}
+
+export interface IntegrationDataContractFieldSchema {
+  type: string;
+  description?: string | null;
+  unit?: string | null;
+  codeSystem?: string | null;
+  required?: boolean;
+  derived?: boolean;
+}
+
+export interface IntegrationDataContractJsonSchema {
+  type: string;
+  required: string[];
+  properties: Record<string, IntegrationDataContractFieldSchema>;
+  additionalProperties?: boolean;
+}
+
+export interface IntegrationDataContractResource {
+  resourceType: string;
+  payloadKey: string;
+  array: boolean;
+  jsonSchema: IntegrationDataContractJsonSchema;
+}
+
+export interface IntegrationDataContractField {
+  resourceType: string;
+  fieldPath: string;
+  payloadKey: string;
+  propertyName: string;
+  displayName: string;
+  dataType: string;
+  jsonSchemaType: string;
+  unit: string | null;
+  codeSystem: string | null;
+  required: boolean;
+  derived: boolean;
+  description: string;
+}
+
+export interface IntegrationDataContractResponse {
+  contractId: string;
+  packageVersion: string;
+  schemaVersion: string;
+  accessGuide: string[];
+  resources: Record<string, IntegrationDataContractResource>;
+  fields: IntegrationDataContractField[];
 }
 
 export interface DataQualityReport {
@@ -7381,6 +7443,21 @@ export function useAdapterHubStatus() {
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<AdapterHubStatus>>(
         "/engine/integration/adapter-hub/status",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useIntegrationDataContract(packageVersion: string, enabled = false) {
+  const normalizedVersion = packageVersion.trim();
+  return useQuery({
+    queryKey: ["integration", "data-contract", normalizedVersion],
+    enabled: enabled && normalizedVersion.length > 0,
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<IntegrationDataContractResponse>>(
+        "/engine/integration/data-contract",
+        { params: { packageVersion: normalizedVersion } },
       );
       return data.data;
     },

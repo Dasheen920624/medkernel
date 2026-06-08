@@ -63,6 +63,7 @@ import {
   useGrantPlugin,
   useGrayEvaluationIndicator,
   useFollowupStats,
+  useIntegrationDataContract,
   useIntegrationOnboardings,
   useInsuranceIssues,
   useReplayDeadLetter,
@@ -2558,6 +2559,48 @@ describe("integration adapter api helpers", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(onboardings);
     expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/onboardings");
+  });
+
+  it("loads versioned integration data contracts from the canonical endpoint", async () => {
+    const contract = {
+      contractId: "context-field-contract:pkg-2026.06",
+      packageVersion: "pkg-2026.06",
+      schemaVersion: "medkernel.context-field-contract.v1",
+      accessGuide: ["调用时必须显式传入 packageVersion=pkg-2026.06"],
+      resources: {
+        Patient: {
+          resourceType: "Patient",
+          payloadKey: "patient",
+          array: false,
+          jsonSchema: { type: "object", required: ["id"], properties: {} },
+        },
+      },
+      fields: [
+        {
+          resourceType: "Patient",
+          fieldPath: "patient.id",
+          payloadKey: "patient",
+          propertyName: "id",
+          displayName: "患者标识",
+          dataType: "string",
+          jsonSchemaType: "string",
+          unit: null,
+          codeSystem: null,
+          required: true,
+          derived: false,
+          description: "患者主索引标识",
+        },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: contract } });
+
+    const { result } = renderApiHook(() => useIntegrationDataContract(" pkg-2026.06 ", true));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(contract);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/data-contract", {
+      params: { packageVersion: "pkg-2026.06" },
+    });
   });
 
   it("creates and advances integration onboarding records without inventing endpoints", async () => {

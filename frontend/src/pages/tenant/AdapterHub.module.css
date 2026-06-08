@@ -15,6 +15,26 @@
   gap: calc(var(--mk-unit) * 16);
 }
 
+.operationGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(calc(var(--mk-unit) * 260), 0.65fr);
+  gap: calc(var(--mk-unit) * 16);
+}
+
+.requiredSourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 190), 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.requiredSourceItem {
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 12);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-sm);
+  background: var(--ant-color-fill-quaternary);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -56,4 +76,10 @@
   background: var(--ant-color-fill-tertiary);
   border: var(--mk-line-width) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-sm);
+}
+
+@media (max-width: 53.75em) {
+  .operationGrid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -11,6 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -72,6 +73,7 @@ public class IntegrationService {
     private static final String MAPPING_CONFIRMED = "CONFIRMED";
     private static final String STANDARD_ACTIVE = "ACTIVE";
     private static final long WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS = 300L;
+    private static final List<String> REQUIRED_SOURCE_SYSTEMS = List.of("HIS", "EMR", "LIS");
 
     private final IntegrationAdapterRepository adapterRepository;
     private final IntegrationWebhookConfigRepository webhookRepository;
@@ -262,6 +264,14 @@ public class IntegrationService {
         List<AdapterHubSourceStatus> sources = adapters.stream()
             .map(adapter -> toAdapterHubSourceStatus(adapter, generatedAt))
             .toList();
+        List<IntegrationOnboarding> onboardings = onboardingRepository.findAllByTenantId(tenantId);
+        Map<String, IntegrationAdapter> adapterById = new LinkedHashMap<>();
+        for (IntegrationAdapter adapter : adapters) {
+            adapterById.put(adapter.adapterId(), adapter);
+        }
+        List<AdapterHubRequiredSourceStatus> requiredSources = REQUIRED_SOURCE_SYSTEMS.stream()
+            .map(sourceSystem -> toRequiredSourceStatus(sourceSystem, adapters, adapterById, onboardings, generatedAt))
+            .toList();
 
         return new AdapterHubStatus(
             adapters.size(),
@@ -272,7 +282,8 @@ public class IntegrationService {
             countByHealth(adapters, HEALTH_MISCONFIGURED),
             (int) sources.stream().filter(source -> source.mappedFieldCount() > 0).count(),
             generatedAt,
-            sources
+            sources,
+            requiredSources
         );
     }
 
@@ -1250,6 +1261,98 @@ public class IntegrationService {
             adapter.lastHeartbeatAt(),
             List.copyOf(gaps)
         );
+    }
+
+    private AdapterHubRequiredSourceStatus toRequiredSourceStatus(
+        String sourceSystem,
+        List<IntegrationAdapter> adapters,
+        Map<String, IntegrationAdapter> adapterById,
+        List<IntegrationOnboarding> onboardings,
+        Instant generatedAt
+    ) {
+        IntegrationAdapter adapter = findRequiredSourceAdapter(sourceSystem, adapters, adapterById, onboardings);
+        if (adapter == null) {
+            return new AdapterHubRequiredSourceStatus(
+                sourceSystem,
+                requiredSourceLabel(sourceSystem),
+                null,
+                null,
+                null,
+                "MISSING",
+                HEALTH_NOT_CONNECTED,
+                0,
+                null,
+                false,
+                List.of("缺少 " + sourceSystem + " 适配器")
+            );
+        }
+        AdapterHubSourceStatus sourceStatus = toAdapterHubSourceStatus(adapter, generatedAt);
+        boolean ready = HEALTH_HEALTHY.equals(adapter.healthStatus())
+            && sourceStatus.mappedFieldCount() > 0
+            && sourceStatus.gaps().isEmpty();
+        return new AdapterHubRequiredSourceStatus(
+            sourceSystem,
+            requiredSourceLabel(sourceSystem),
+            adapter.adapterId(),
+            adapter.name(),
+            adapter.protocolType(),
+            ready ? "READY" : "BOUND",
+            adapter.healthStatus(),
+            sourceStatus.mappedFieldCount(),
+            adapter.lastHeartbeatAt(),
+            ready,
+            sourceStatus.gaps()
+        );
+    }
+
+    private IntegrationAdapter findRequiredSourceAdapter(
+        String sourceSystem,
+        List<IntegrationAdapter> adapters,
+        Map<String, IntegrationAdapter> adapterById,
+        List<IntegrationOnboarding> onboardings
+    ) {
+        String normalizedSource = normalizeRequiredSource(sourceSystem);
+        for (IntegrationOnboarding onboarding : onboardings) {
+            if (normalizedSource.equals(normalizeRequiredSource(onboarding.sourceSystem()))
+                && onboarding.adapterId() != null
+                && adapterById.containsKey(onboarding.adapterId())) {
+                return adapterById.get(onboarding.adapterId());
+            }
+        }
+        return adapters.stream()
+            .filter(adapter -> adapterMatchesRequiredSource(adapter, normalizedSource))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private boolean adapterMatchesRequiredSource(IntegrationAdapter adapter, String normalizedSource) {
+        return requiredSourceTokens(adapter.adapterId()).contains(normalizedSource)
+            || requiredSourceTokens(adapter.name()).contains(normalizedSource);
+    }
+
+    private String requiredSourceLabel(String sourceSystem) {
+        return switch (sourceSystem) {
+            case "HIS" -> "HIS 医院信息系统";
+            case "EMR" -> "EMR 电子病历系统";
+            case "LIS" -> "LIS 检验信息系统";
+            default -> sourceSystem;
+        };
+    }
+
+    private String normalizeRequiredSource(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+    }
+
+    private List<String> requiredSourceTokens(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.trim().toUpperCase(Locale.ROOT).split("[^A-Z0-9]+"))
+            .filter(token -> !token.isBlank())
+            .toList();
     }
 
     private IntegrationHealthProbeItemDto toHealthProbeItem(IntegrationAdapter adapter) {

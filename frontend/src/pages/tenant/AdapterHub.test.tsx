@@ -11,6 +11,7 @@ import {
   useCreateIntegrationOnboarding,
   useCreateWebhook,
   useGenerateDataQualityReport,
+  useIntegrationDataContract,
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
@@ -25,6 +26,7 @@ import {
   useWebhooks,
   type AdapterHubStatus,
   type DataQualityReport,
+  type IntegrationDataContractResponse,
   type IntegrationAdapter,
   type IntegrationMessageLog,
   type IntegrationOnboarding,
@@ -43,6 +45,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateIntegrationOnboarding: vi.fn(),
   useCreateWebhook: vi.fn(),
   useGenerateDataQualityReport: vi.fn(),
+  useIntegrationDataContract: vi.fn(),
   useIntegrationAdapters: vi.fn(),
   useIntegrationLogs: vi.fn(),
   useIntegrationOnboardings: vi.fn(),
@@ -144,6 +147,47 @@ const status: AdapterHubStatus = {
       gaps: ["缺少检查报告时间映射"],
     },
   ],
+  requiredSources: [
+    {
+      sourceSystem: "HIS",
+      label: "HIS 医院信息系统",
+      adapterId: "his-main",
+      adapterName: "HIS 主数据接入",
+      protocolType: "REST",
+      status: "BOUND",
+      healthStatus: "NOT_CONNECTED",
+      mappedFieldCount: 12,
+      lastHeartbeatAt: "2026-06-03T08:00:00Z",
+      ready: false,
+      gaps: ["未连接真实外部系统"],
+    },
+    {
+      sourceSystem: "EMR",
+      label: "EMR 电子病历系统",
+      adapterId: null,
+      adapterName: null,
+      protocolType: null,
+      status: "MISSING",
+      healthStatus: "NOT_CONNECTED",
+      mappedFieldCount: 0,
+      lastHeartbeatAt: null,
+      ready: false,
+      gaps: ["缺少 EMR 适配器"],
+    },
+    {
+      sourceSystem: "LIS",
+      label: "LIS 检验信息系统",
+      adapterId: null,
+      adapterName: null,
+      protocolType: null,
+      status: "MISSING",
+      healthStatus: "NOT_CONNECTED",
+      mappedFieldCount: 0,
+      lastHeartbeatAt: null,
+      ready: false,
+      gaps: ["缺少 LIS 适配器"],
+    },
+  ],
 };
 
 const failedLog: IntegrationMessageLog = {
@@ -211,6 +255,37 @@ const qualityReport: DataQualityReport = {
   traceId: "trace-dqr",
 };
 
+const dataContract: IntegrationDataContractResponse = {
+  contractId: "context-field-contract:pkg-2026.06",
+  packageVersion: "pkg-2026.06",
+  schemaVersion: "medkernel.context-field-contract.v1",
+  accessGuide: ["调用时必须显式传入 packageVersion=pkg-2026.06"],
+  resources: {
+    Patient: {
+      resourceType: "Patient",
+      payloadKey: "patient",
+      array: false,
+      jsonSchema: { type: "object", required: ["id"], properties: {} },
+    },
+  },
+  fields: [
+    {
+      resourceType: "Patient",
+      fieldPath: "patient.id",
+      payloadKey: "patient",
+      propertyName: "id",
+      displayName: "患者标识",
+      dataType: "string",
+      jsonSchemaType: "string",
+      unit: null,
+      codeSystem: null,
+      required: true,
+      derived: false,
+      description: "患者主索引标识",
+    },
+  ],
+};
+
 const webhook: IntegrationWebhookConfig = {
   id: 21,
   webhookId: "clinical-events",
@@ -259,6 +334,7 @@ function setupMocks() {
   vi.mocked(useSecurityProfile).mockReturnValue(query(profile) as never);
   vi.mocked(useIntegrationAdapters).mockReturnValue(query([hisAdapter]) as never);
   vi.mocked(useAdapterHubStatus).mockReturnValue(query(status) as never);
+  vi.mocked(useIntegrationDataContract).mockReturnValue(query(undefined) as never);
   vi.mocked(useIntegrationLogs).mockReturnValue(
     query({ items: [failedLog, deadLetterLog], total: 2 }) as never,
   );
@@ -354,9 +430,59 @@ describe("AdapterHub", () => {
     expect(screen.getByText("接入向导")).toBeInTheDocument();
     expect(screen.getByText("回调通道")).toBeInTheDocument();
     expect(screen.getByText("区域来源")).toBeInTheDocument();
+    expect(screen.getByText("必接系统清单")).toBeInTheDocument();
+    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
+    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
+    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
+    expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
+  });
+
+  it("loads the data contract summary with an explicit package version", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("版本号"), {
+      target: { value: "pkg-2026.06" },
+    });
+    await user.click(screen.getByRole("button", { name: "读取契约" }));
+
+    expect(useIntegrationDataContract).toHaveBeenCalledWith("pkg-2026.06", true);
+    expect(screen.getByText("context-field-contract:pkg-2026.06")).toBeInTheDocument();
+    expect(screen.getByText("资源 1 类")).toBeInTheDocument();
+    expect(screen.getByText("字段 1 项")).toBeInTheDocument();
+  });
+
+  it("keeps required source and data contract configuration visible before any adapter is created", () => {
+    vi.mocked(useIntegrationAdapters).mockReturnValue(query([]) as never);
+    vi.mocked(useAdapterHubStatus).mockReturnValue(
+      query({
+        ...status,
+        totalAdapters: 0,
+        healthyAdapters: 0,
+        notConnectedAdapters: 0,
+        misconfiguredAdapters: 0,
+        mappedAdapters: 0,
+        sources: [],
+      }) as never,
+    );
+    vi.mocked(useIntegrationLogs).mockReturnValue(query({ items: [], total: 0 }) as never);
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(query([]) as never);
+
+    renderPage();
+
+    expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
+    expect(screen.getByText("必接系统清单")).toBeInTheDocument();
+    expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
+    expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
+    expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getByText("数据接入契约")).toBeInTheDocument();
+    expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
 
   it("creates adapters with the backend protocol contract and structured field mappings", async () => {
@@ -577,7 +703,7 @@ describe("AdapterHub", () => {
     });
   });
 
-  it("renders all six page states from real query status instead of local fallback data", () => {
+  it("renders guarded page states from real query status while keeping zero-record setup actionable", () => {
     vi.mocked(useIntegrationAdapters).mockReturnValue(query([], { isLoading: true }) as never);
     const { rerender } = renderPage();
     expect(screen.getByText("正在加载适配器中心")).toBeInTheDocument();
@@ -591,7 +717,9 @@ describe("AdapterHub", () => {
         <AdapterHub />
       </ConfigProvider>,
     );
-    expect(screen.getByText("暂无适配器接入记录")).toBeInTheDocument();
+    expect(screen.getByText("必接系统清单")).toBeInTheDocument();
+    expect(screen.getByText("数据接入契约")).toBeInTheDocument();
+    expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
 
     vi.mocked(useIntegrationAdapters).mockReturnValue(
       query([], { isError: true, error: new Error("boom") }) as never,

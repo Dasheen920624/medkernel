@@ -40,6 +40,7 @@ import {
   useCreateIntegrationOnboarding,
   useCreateWebhook,
   useGenerateDataQualityReport,
+  useIntegrationDataContract,
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
@@ -53,7 +54,9 @@ import {
   useUpdateAdapter,
   useWebhooks,
   type AdapterHubSourceStatus,
+  type AdapterHubRequiredSourceStatus,
   type DataQualityReport,
+  type IntegrationDataContractResponse,
   type IntegrationAdapter,
   type IntegrationMessageLog,
   type IntegrationOnboarding,
@@ -174,6 +177,12 @@ function healthTag(status: string) {
   return <Tag color={HEALTH_COLOR[status] ?? "default"}>{status}</Tag>;
 }
 
+function requiredSourceStatusColor(item: AdapterHubRequiredSourceStatus) {
+  if (item.ready) return "green";
+  if (item.status === "MISSING") return "red";
+  return "orange";
+}
+
 function adapterEvidenceText(onboarding: IntegrationOnboarding) {
   return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${onboarding.healthStatus}，缺口 ${onboarding.blockers.length} 项。`;
 }
@@ -199,22 +208,17 @@ function pageStateFor({
   adaptersLoading,
   adaptersError,
   partialError,
-  adapters,
-  onboardings,
 }: {
   canAccess: boolean;
   securityLoading: boolean;
   adaptersLoading: boolean;
   adaptersError: boolean;
   partialError: boolean;
-  adapters: IntegrationAdapter[];
-  onboardings: IntegrationOnboarding[];
 }): PageStateKind {
   if (!securityLoading && !canAccess) return "forbidden";
   if (securityLoading || adaptersLoading) return "loading";
   if (adaptersError) return "error";
   if (partialError) return "partial";
-  if (adapters.length === 0 && onboardings.length === 0) return "empty";
   return "ready";
 }
 
@@ -225,6 +229,8 @@ export default function AdapterHub() {
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [regionalSourceModalOpen, setRegionalSourceModalOpen] = useState(false);
   const [expertMode, setExpertMode] = useState(false);
+  const [contractVersionInput, setContractVersionInput] = useState("");
+  const [contractVersion, setContractVersion] = useState("");
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
   const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
@@ -244,6 +250,7 @@ export default function AdapterHub() {
   const security = useSecurityProfile();
   const adaptersQuery = useIntegrationAdapters();
   const statusQuery = useAdapterHubStatus();
+  const dataContractQuery = useIntegrationDataContract(contractVersion, contractVersion.length > 0);
   const logsQuery = useIntegrationLogs(logPage, LOG_PAGE_SIZE);
   const onboardingsQuery = useIntegrationOnboardings();
   const webhooksQuery = useWebhooks();
@@ -302,8 +309,6 @@ export default function AdapterHub() {
       onboardingsQuery.isError ||
       webhooksQuery.isError ||
       regionalSourcesQuery.isError,
-    adapters,
-    onboardings,
   });
 
   useEffect(() => {
@@ -501,6 +506,15 @@ export default function AdapterHub() {
       if (applyApiFieldErrors(regionalSourceForm, error)) return;
       message.error(getApiErrorMessage(error, "登记区域来源失败"));
     }
+  }
+
+  function handleLoadDataContract() {
+    const nextVersion = contractVersionInput.trim();
+    if (!nextVersion) {
+      message.warning("请输入 packageVersion。");
+      return;
+    }
+    setContractVersion(nextVersion);
   }
 
   const adapterColumns: ColumnsType<IntegrationAdapter> = [
@@ -768,6 +782,7 @@ export default function AdapterHub() {
   ];
 
   const fieldMappingItems = status?.sources ?? [];
+  const requiredSources = status?.requiredSources ?? [];
 
   return (
     <PageExperienceShell
@@ -850,6 +865,18 @@ export default function AdapterHub() {
                 prefix={<SafetyCertificateOutlined />}
               />
             </Card>
+          </div>
+
+          <div className={styles.operationGrid}>
+            <RequiredSourcesPanel items={requiredSources} />
+            <DataContractPanel
+              versionInput={contractVersionInput}
+              onVersionInputChange={setContractVersionInput}
+              onLoad={handleLoadDataContract}
+              loading={dataContractQuery.isFetching}
+              contract={contractVersion ? dataContractQuery.data : undefined}
+              error={contractVersion ? dataContractQuery.isError : false}
+            />
           </div>
 
           <StepFlow
@@ -1471,6 +1498,91 @@ function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
           ))}
         </Space>
       )}
+    </Card>
+  );
+}
+
+function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus[] }) {
+  return (
+    <Card title="必接系统清单" className={styles.sectionCard}>
+      {items.length === 0 ? (
+        <Text type="secondary">暂无必接系统状态。</Text>
+      ) : (
+        <div className={styles.requiredSourceGrid}>
+          {items.map((item) => (
+            <div key={item.sourceSystem} className={styles.requiredSourceItem}>
+              <Space direction="vertical" size="small" className="mk-full-width">
+                <Space wrap>
+                  <Text strong>{item.label}</Text>
+                  <Tag color={requiredSourceStatusColor(item)}>{item.status}</Tag>
+                  {healthTag(item.healthStatus)}
+                </Space>
+                <Text type="secondary">{item.adapterName ?? "未绑定适配器"}</Text>
+                <Text type="secondary">字段映射 {item.mappedFieldCount} 项</Text>
+                {item.gaps.length > 0 && (
+                  <ul className={styles.gapList}>
+                    {item.gaps.map((gap) => (
+                      <li key={gap}>{gap}</li>
+                    ))}
+                  </ul>
+                )}
+              </Space>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DataContractPanel({
+  versionInput,
+  onVersionInputChange,
+  onLoad,
+  loading,
+  contract,
+  error,
+}: {
+  versionInput: string;
+  onVersionInputChange: (value: string) => void;
+  onLoad: () => void;
+  loading: boolean;
+  contract?: IntegrationDataContractResponse;
+  error: boolean;
+}) {
+  const resourceCount = contract ? Object.keys(contract.resources).length : 0;
+  return (
+    <Card title="数据接入契约" className={styles.sectionCard}>
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space align="end" wrap>
+          <Space direction="vertical" size={4}>
+            <label htmlFor="integration-contract-version">版本号</label>
+            <Input
+              id="integration-contract-version"
+              value={versionInput}
+              onChange={(event) => onVersionInputChange(event.target.value)}
+              placeholder="pkg-2026.06"
+            />
+          </Space>
+          <Button loading={loading} onClick={onLoad}>
+            读取契约
+          </Button>
+        </Space>
+        {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
+        {contract ? (
+          <Space direction="vertical" size="small">
+            <Text strong>{contract.contractId}</Text>
+            <Space wrap>
+              <Tag color="blue">{contract.schemaVersion}</Tag>
+              <Text>资源 {resourceCount} 类</Text>
+              <Text>字段 {contract.fields.length} 项</Text>
+            </Space>
+            <Text type="secondary">{contract.accessGuide[0]}</Text>
+          </Space>
+        ) : (
+          <Text type="secondary">输入 packageVersion 后读取字段目录派生的外部接入契约。</Text>
+        )}
+      </Space>
     </Card>
   );
 }
