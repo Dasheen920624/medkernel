@@ -208,6 +208,10 @@ public class SystemConfigSeeder implements ApplicationRunner {
             auditFallbackProperties.pathOrDefault(),
             "STRING", "审计降级文件路径", "HIGH", "合规审计",
             "控制审计持久化不可用时 JSONL 降级证据写入路径。", true, seededAt);
+        seedConfigValue(SystemConfigService.CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY,
+            Long.toString(Math.max(1L, clinicalEventProperties.syncTimeout().toMillis())),
+            "INTEGER", "临床事件同步求值预算", "HIGH", "信息科 / 运维组",
+            "控制临床事件同步触发规则、路径和 CDSS 的总时延预算，超时必须诚实不可用并进入人工核查。", true, seededAt);
         seedConfigValue(SystemConfigService.CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY,
             Long.toString(clinicalEventProperties.workerPollIntervalMs()),
             "INTEGER", "临床事件轮询间隔", "MEDIUM", "信息科 / 运维组",

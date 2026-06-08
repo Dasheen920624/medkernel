@@ -60,6 +60,17 @@ medkernel:
     idempotency:
       enabled: ${MEDKERNEL_API_IDEMPOTENCY_ENABLED:true}
       ttl: ${MEDKERNEL_API_IDEMPOTENCY_TTL:24h}
+  events:
+    max-payload-size-bytes: ${MEDKERNEL_EVENTS_MAX_PAYLOAD_SIZE_BYTES:1048576}
+    sync-timeout: ${MEDKERNEL_EVENTS_SYNC_TIMEOUT:3s}
+    worker-batch-size: ${MEDKERNEL_EVENTS_WORKER_BATCH_SIZE:50}
+    max-retries: ${MEDKERNEL_EVENTS_MAX_RETRIES:5}
+    backoff-seconds:
+      - 5
+      - 30
+      - 300
+      - 1800
+    worker-poll-interval-ms: ${MEDKERNEL_EVENTS_WORKER_POLL_INTERVAL_MS:200}
   integration:
     health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
     secret-key: ${MEDKERNEL_INTEGRATION_SECRET_KEY:}

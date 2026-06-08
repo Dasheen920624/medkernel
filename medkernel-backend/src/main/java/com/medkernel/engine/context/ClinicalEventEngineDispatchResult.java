@@ -20,4 +20,10 @@ public record ClinicalEventEngineDispatchResult(
         return new ClinicalEventEngineDispatchResult(
             engine, ClinicalEventEngineDispatchStatus.SKIPPED, downstreamReferenceId, message);
     }
+
+    public static ClinicalEventEngineDispatchResult unavailable(
+            ClinicalEventEngine engine, String downstreamReferenceId, String message) {
+        return new ClinicalEventEngineDispatchResult(
+            engine, ClinicalEventEngineDispatchStatus.UNAVAILABLE, downstreamReferenceId, message);
+    }
 }

@@ -70,6 +70,11 @@ public class RuleDslEvaluator {
         if (!condition.matched() && !unknownBlocked) {
             return new RuleDslEvaluation(false, null, List.of(), explanation);
         }
+        if (unknownBlocked) {
+            actions = actions.stream()
+                .map(this::forceManualReview)
+                .toList();
+        }
 
         RuleRiskLevel highest = actions.stream()
             .map(RuleActionResult::severity)
@@ -198,8 +203,23 @@ public class RuleDslEvaluator {
         explanation.put("missingPolicy", missingPolicy.name());
         if (unknownBlocked) {
             explanation.put("unknownBlocked", true);
+            explanation.put("manualReviewRequired", true);
+            explanation.put("manualReviewReason", "missingPolicy=UNKNOWN_AS_BLOCK，关键事实未知时必须人工核查");
         }
         return explanation;
+    }
+
+    private RuleActionResult forceManualReview(RuleActionResult action) {
+        return new RuleActionResult(
+            action.actionCode(),
+            action.severity(),
+            action.indicator(),
+            action.summary(),
+            action.detail(),
+            action.source(),
+            action.suggestions(),
+            action.overrideReasons(),
+            true);
     }
 
     private JsonNode safeNode(JsonNode node) {
