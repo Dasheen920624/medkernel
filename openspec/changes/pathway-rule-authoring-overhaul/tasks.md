@@ -155,7 +155,7 @@
   - ✅ 测试：各非法/边界情形确定性失败；条件片段库当前无运行模型，不伪造片段环实现。
 - [x] H-5 引用与包版本一致性校验（发布门禁 + 运行期）；引用资产变更影响分析。
   - ✅ 测试：跨版本引用被拒；规则 / 路径引用资产变更进入影响摘要。
-- [ ] H-6 领域事件发出（RuleFired/OverrideCaptured/PathwayVariance/ClockSlaBreached/…）对接待办/通知/质控驾驶舱。
+- [x] H-6 领域事件发出（RuleFired/OverrideCaptured/PathwayVariance/ClockSlaBreached/…）对接待办/通知/质控驾驶舱。
   - ✅ 测试：事件含 tenant/trace/packageVersion 且可被消费端订阅。
 
 ## 阶段 P12：创作体验与资产复用（简单·易用·易配·可批量·可复用）

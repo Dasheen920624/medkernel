@@ -21,6 +21,9 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.event.EngineDomainEventPort;
+import com.medkernel.engine.event.OverrideCapturedEvent;
+import com.medkernel.engine.event.RuleFiredEvent;
 import com.medkernel.engine.terminology.MappingCoverageItem;
 import com.medkernel.engine.terminology.TerminologyCoverageGate;
 import com.medkernel.engine.terminology.TerminologyCoverageIssue;
@@ -81,6 +84,7 @@ class RuleEngineServiceTest {
     private RuleGovernanceService governanceService;
     private InheritanceResolver inheritanceResolver;
     private ContextSnapshotService contextSnapshots;
+    private EngineDomainEventPort domainEvents;
     private ObjectMapper json;
     private RuleEngineService service;
 
@@ -104,6 +108,7 @@ class RuleEngineServiceTest {
         governanceService = mock(RuleGovernanceService.class);
         inheritanceResolver = mock(InheritanceResolver.class);
         contextSnapshots = mock(ContextSnapshotService.class);
+        domainEvents = mock(EngineDomainEventPort.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
         applicabilityService = new RuleApplicabilityService(
@@ -114,7 +119,7 @@ class RuleEngineServiceTest {
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            backtests, driftSnapshots, inheritanceResolver, contextSnapshots);
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots, domainEvents);
 
         when(definitions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versions.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -997,6 +1002,16 @@ class RuleEngineServiceTest {
             .contains("\"conditionEvidence\"")
             .contains("\"sourcePath\":\"$.patient.age\"");
         verify(auditRecorder).record(AuditAction.EXECUTE, "rule_execution", item.executionId(), "执行规则 rule-1");
+        ArgumentCaptor<RuleFiredEvent> eventCap = ArgumentCaptor.forClass(RuleFiredEvent.class);
+        verify(domainEvents).ruleFired(eventCap.capture());
+        assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(eventCap.getValue().traceId()).isEqualTo("trace-rule");
+        assertThat(eventCap.getValue().packageVersion()).isEqualTo("rpv-1");
+        assertThat(eventCap.getValue().ruleId()).isEqualTo("rule-1");
+        assertThat(eventCap.getValue().ruleCode()).isEqualTo("RULE.ANTICOAG");
+        assertThat(eventCap.getValue().executionId()).isEqualTo(item.executionId());
+        assertThat(eventCap.getValue().patientId()).isNull();
+        assertThat(eventCap.getValue().actions()).containsExactly("STRONG_REMINDER");
     }
 
     @Test
@@ -1483,6 +1498,8 @@ class RuleEngineServiceTest {
             RuleExecutionStatus.SUCCESS, null, null, null, executedAt, executedAt, "trace-rule");
         when(executions.findByExecutionIdAndTenantId("rex-1", "tenant-A"))
             .thenReturn(Optional.of(execution));
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
         when(overrides.findByTenantIdAndExecutionIdAndActionCode(
             "tenant-A", "rex-1", RuleActionCode.BLOCK))
             .thenReturn(Optional.empty());
@@ -1500,6 +1517,15 @@ class RuleEngineServiceTest {
         verify(auditRecorder).record(
             AuditAction.FEEDBACK, "rule_override_log", saved.getValue().overrideId(),
             "记录规则越权 rex-1/BLOCK");
+        ArgumentCaptor<OverrideCapturedEvent> eventCap = ArgumentCaptor.forClass(OverrideCapturedEvent.class);
+        verify(domainEvents).overrideCaptured(eventCap.capture());
+        assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(eventCap.getValue().traceId()).isEqualTo("trace-rule");
+        assertThat(eventCap.getValue().packageVersion()).isEqualTo("rpv-1");
+        assertThat(eventCap.getValue().ruleCode()).isEqualTo("RULE.ANTICOAG");
+        assertThat(eventCap.getValue().overrideId()).isEqualTo(saved.getValue().overrideId());
+        assertThat(eventCap.getValue().actionCode()).isEqualTo("BLOCK");
+        assertThat(eventCap.getValue().overriddenBy()).isEqualTo("tester");
     }
 
     @Test

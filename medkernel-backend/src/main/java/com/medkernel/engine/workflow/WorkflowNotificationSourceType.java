@@ -7,5 +7,7 @@ public enum WorkflowNotificationSourceType {
     FOLLOWUP_EVENT,
     SAFETY_REVIEW,
     WORKFLOW_TODO,
-    SYNC_EVENT
+    SYNC_EVENT,
+    RULE_EVENT,
+    PATHWAY_EVENT
 }

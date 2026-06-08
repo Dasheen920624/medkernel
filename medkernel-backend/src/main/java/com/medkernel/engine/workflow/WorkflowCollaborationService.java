@@ -1056,6 +1056,8 @@ public class WorkflowCollaborationService {
             case REPORT_INTERPRETATION -> "报告解读复核";
             case BEDSIDE_KNOWLEDGE -> "床旁知识卡复核";
             case PATHWAY_NODE -> "路径节点待处理";
+            case RULE_EVENT -> "规则事件复核";
+            case PATHWAY_EVENT -> "路径事件复核";
             case FOLLOWUP_TASK, SAFETY_REVIEW, RECOMMENDATION_CARD -> "临床提醒复核";
         };
     }

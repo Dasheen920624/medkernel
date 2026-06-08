@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "override-captured-event.v1",
+  "title": "规则人工越权捕获事件 v1",
+  "type": "object",
+  "x-medkernel-version": 1,
+  "required": [
+    "tenantId",
+    "traceId",
+    "packageVersion",
+    "overrideId",
+    "executionId",
+    "ruleId",
+    "ruleCode",
+    "versionId",
+    "patientId",
+    "encounterId",
+    "actionCode",
+    "overrideReason",
+    "overriddenBy",
+    "occurredAt"
+  ],
+  "properties": {
+    "tenantId": { "type": ["string", "null"] },
+    "traceId": { "type": ["string", "null"] },
+    "packageVersion": { "type": ["string", "null"] },
+    "overrideId": { "type": ["string", "null"] },
+    "executionId": { "type": ["string", "null"] },
+    "ruleId": { "type": ["string", "null"] },
+    "ruleCode": { "type": ["string", "null"] },
+    "versionId": { "type": ["string", "null"] },
+    "patientId": { "type": ["string", "null"] },
+    "encounterId": { "type": ["string", "null"] },
+    "actionCode": { "type": ["string", "null"] },
+    "overrideReason": { "type": ["string", "null"] },
+    "overriddenBy": { "type": ["string", "null"] },
+    "occurredAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

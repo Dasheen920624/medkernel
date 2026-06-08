@@ -31,6 +31,7 @@
 - 2026-06-08 H-2 进展：临床事件触发路径推进与规则、CDSS 共用 `medkernel.events.sync-timeout-ms` 同步求值预算；预算耗尽或下游不可用时事件进入 `FAILED/ENG-SYS-002` 人工核查，不继续误推进路径。
 - 2026-06-08 H-4 进展：路径发布门禁拒绝可达有向环；`SUBPATHWAY` 不能引用当前路径模板；仿真超过节点数最大步数即拒绝，避免旧图无限推进。条件片段库当前尚无运行模型，片段环检测随 P12-5 接入，不伪造实现。
 - 2026-06-08 H-5 进展：路径发布门禁统一校验模板入 / 出径条件、节点配置、边条件和结局指标绑定的显式包版本；入径、推进、单快照仿真和队列回放按模板所属专病包版本校验上下文快照；引用字段、子路径、医嘱集和结局指标摘要进入影响 `digest`。
+- 2026-06-08 H-6 进展：路径变异发出 `PathwayVarianceRecorded` 并进入待办 / 通知；关键时钟 SLA 从 RUNNING 投影到 TIMEOUT 时发出 `ClockSlaBreached` 并进入待办 / 通知 / 质控驾驶舱，事件统一携带 `tenantId`、`traceId`、`packageVersion`。
 
 ## 功能要求（原子可测条目）
 
@@ -46,6 +47,7 @@
 - [x] **FR-10 事件触发硬超时**：临床事件触发路径推进必须在配置预算内完成；超时或下游不可用时不推进节点，事件转人工核查。
 - [x] **FR-11 环与步数护栏**：路径模板发布拒绝可达有向环和当前模板自引用子路径；仿真运行期有最大步数护栏，旧坏图不能无限推进。
 - [x] **FR-12 引用包版本一致性**：路径模板引用的字段、条件、子路径、医嘱集和结局指标必须与模板所属专病包版本一致；发布门禁与运行期同时拒绝跨包版本引用；引用资产变更进入影响分析。
+- [x] **FR-13 领域事件协同**：路径变异与 SLA 超时只从后端真实路径事实发出，统一对接现有待办、通知与质控驾驶舱，不由前端伪造提醒。
 
 ## 接口契约 / 页面契约
 
@@ -113,6 +115,7 @@
 - 当前 P10-4 本地证据：新增红灯覆盖结局绑定、无效/非 ACTIVE 指标拒绝、队列回放只读、多路径 `ORDER_SET` 冲突仅提示协调；后端 `mvn -q test` 通过，Surefire 汇总 281 文件 / 1889 测试 / 0 failures / 0 errors / 3 skipped；前端 `npm run verify` 通过，78 文件 / 549 测试，并新增结局指标创建 payload 与队列回放 payload/轨迹展示用例；项目 Playwright `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 VITE_API_PROXY_TARGET=http://localhost:18080 npx playwright test e2e/pathway-graph-editor.spec.ts --project=chromium` 3/3 通过。首次 Playwright 未配置代理目标被 Vite 配置边界拒绝，补真实后端代理环境后通过。OpenSpec strict 通过；T-GATE 三 guard 38/38 通过；changed-mode 真实性 / 配置边界 / 迁移规约分别扫描 19 / 16 / 5 个文件且 0 阻断；中文注释 0 fail / 0 warn；`git diff --check` 通过。
 - 当前 H-4 本地证据：路径边界红灯先失败于发布未拒绝有向环 / 当前模板自引用子路径、旧图仿真未触发最大步数护栏；`PathwayEngineServiceTest` 聚焦与后端全量 `1911` tests / 0 failures / 0 errors / 3 skipped 通过；OpenSpec strict、T-GATE 38/38、changed-mode 真实性 / 配置边界 / 迁移规约分别扫描 4 / 4 / 0 个文件且 0 阻断，中文注释与空白检查均通过。
 - 当前 H-5 本地证据：红灯先失败于路径仿真未按模板包版本校验快照、发布门禁未拒绝跨包节点引用；随后 `PathwayEngineServiceTest` 聚焦通过，后端全量 `mvn -q test` 汇总 `1916` tests / 0 failures / 0 errors / 3 skipped。
+- 当前 H-6 本地证据：红灯先失败于缺少路径领域事件出口与消费 adapter；随后 `PathwayEngineServiceTest` 变异 / SLA 聚焦通过，协同 adapter 测试验证 `PATHWAY_EVENT` 待办通知与 `CLOCK_SLA_BREACH` 质控告警落库；后端全量 `mvn -q test` 汇总 `1920` tests / 0 failures / 0 errors / 3 skipped；OpenSpec strict、T-GATE 38/38、changed-mode 真实性 / 配置边界 / 迁移规约分别扫描 15 / 15 / 5 个文件且 0 阻断。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（16d，后端 + 三层前端；按 PR 拆分）

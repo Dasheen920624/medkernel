@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,6 +31,9 @@ import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
+import com.medkernel.engine.event.ClockSlaBreachedEvent;
+import com.medkernel.engine.event.EngineDomainEventPort;
+import com.medkernel.engine.event.PathwayVarianceRecordedEvent;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.pkg.PackageReferenceConsistency;
@@ -116,6 +120,7 @@ public class PathwayEngineService {
     private final ObjectMapper json;
     private final PathwayFollowupHandoffPort followupHandoff;
     private final PathwayWorklistPort worklist;
+    private final EngineDomainEventPort domainEvents;
     private final ClinicalSafetyGuard safetyGuard;
     private final TerminologyCoverageGate terminologyCoverageGate;
     private final PathwayVersionedAssetAdapter versionedAssets;
@@ -153,6 +158,7 @@ public class PathwayEngineService {
                                 ClinicalSafetyGuard safetyGuard,
                                 ObjectProvider<PathwayFollowupHandoffPort> followupHandoffProvider,
                                 ObjectProvider<PathwayWorklistPort> worklistProvider,
+                                ObjectProvider<EngineDomainEventPort> domainEventProvider,
                                 ObjectProvider<TerminologyCoverageGate> terminologyCoverageGateProvider,
                                 PathwayVersionedAssetAdapter versionedAssets,
                                 AssetVersionRepository assetVersions,
@@ -163,8 +169,44 @@ public class PathwayEngineService {
             metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, conditionEvaluator,
             authoringFeatureGate, auditRecorder, transitions, diagnoseAssembler, json,
             followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop),
-            worklistProvider.getIfAvailable(PathwayWorklistPort::noop), safetyGuard,
+            worklistProvider.getIfAvailable(PathwayWorklistPort::noop),
+            domainEventProvider.getIfAvailable(EngineDomainEventPort::noop), safetyGuard,
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
+            versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
+    }
+
+    PathwayEngineService(SpecialtyPackageRepository packages,
+                         SpecialtyProfileRepository profiles,
+                         PathwayTemplateRepository templates,
+                         PathwayNodeRepository nodes,
+                         PathwayMilestoneRepository milestones,
+                         PathwayEdgeRepository edges,
+                         PatientPathwayRepository patientPathways,
+                         PathwayVarianceRepository variances,
+                         ClinicalClockRepository clocks,
+                         SpecialtyMetricBindingRepository metricBindings,
+                         PathwayOutcomeBindingRepository outcomeBindings,
+                         EvaluationIndicatorRepository evaluationIndicators,
+                         ContextSnapshotService contextSnapshots,
+                         PathwayProgressor progressor,
+                         AuditRecorder auditRecorder,
+                         StateTransitionRecorder transitions,
+                         DiagnoseResponseAssembler diagnoseAssembler,
+                         ObjectMapper json,
+                         PathwayFollowupHandoffPort followupHandoff,
+                         PathwayWorklistPort worklist,
+                         EngineDomainEventPort domainEvents,
+                         ClinicalSafetyGuard safetyGuard,
+                         TerminologyCoverageGate terminologyCoverageGate,
+                         PathwayVersionedAssetAdapter versionedAssets,
+                         AssetVersionRepository assetVersions,
+                         ReleasePort releasePort,
+                         PackageItemRepository packageItems,
+                         InheritanceResolver inheritanceResolver) {
+        this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor,
+            new ConditionEvaluator(json), AuthoringFeatureGate.alwaysEnabled(), auditRecorder, transitions,
+            diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard, terminologyCoverageGate,
             versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
     }
 
@@ -196,10 +238,10 @@ public class PathwayEngineService {
                          PackageItemRepository packageItems,
                          InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
-            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor,
-            new ConditionEvaluator(json), AuthoringFeatureGate.alwaysEnabled(), auditRecorder, transitions,
-            diagnoseAssembler, json, followupHandoff, worklist, safetyGuard, terminologyCoverageGate, versionedAssets,
-            assetVersions, releasePort, packageItems, inheritanceResolver);
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, auditRecorder,
+            transitions, diagnoseAssembler, json, followupHandoff, worklist, EngineDomainEventPort.noop(),
+            safetyGuard, terminologyCoverageGate, versionedAssets, assetVersions, releasePort, packageItems,
+            inheritanceResolver);
     }
 
     private PathwayEngineService(SpecialtyPackageRepository packages,
@@ -224,6 +266,7 @@ public class PathwayEngineService {
                                  ObjectMapper json,
                                  PathwayFollowupHandoffPort followupHandoff,
                                  PathwayWorklistPort worklist,
+                                 EngineDomainEventPort domainEvents,
                                  ClinicalSafetyGuard safetyGuard,
                                  TerminologyCoverageGate terminologyCoverageGate,
                                  PathwayVersionedAssetAdapter versionedAssets,
@@ -255,6 +298,7 @@ public class PathwayEngineService {
         this.json = json;
         this.followupHandoff = followupHandoff == null ? PathwayFollowupHandoffPort.noop() : followupHandoff;
         this.worklist = worklist == null ? PathwayWorklistPort.noop() : worklist;
+        this.domainEvents = domainEvents == null ? EngineDomainEventPort.noop() : domainEvents;
         this.safetyGuard = safetyGuard;
         this.terminologyCoverageGate = terminologyCoverageGate == null
             ? TerminologyCoverageGate.noop()
@@ -294,8 +338,9 @@ public class PathwayEngineService {
                          InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
             metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, auditRecorder, transitions, diagnoseAssembler, json,
-            followupHandoff, PathwayWorklistPort.noop(), safetyGuard, terminologyCoverageGate, versionedAssets,
-            assetVersions, releasePort, packageItems, inheritanceResolver);
+            followupHandoff, PathwayWorklistPort.noop(), EngineDomainEventPort.noop(), safetyGuard,
+            terminologyCoverageGate, versionedAssets, assetVersions, releasePort, packageItems,
+            inheritanceResolver);
     }
 
     /**
@@ -1247,7 +1292,7 @@ public class PathwayEngineService {
      *
      * <p>返回路径运行时状态、里程碑达成判定、按创建时间排列的变异记录和按启动时间排列的关键时钟。
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PatientPathwayDetailResponse patientDetail(String patientPathwayId) {
         String tenantId = requireCurrentTenant();
         PatientPathway runtime = findPatientPathway(patientPathwayId, tenantId);
@@ -1255,6 +1300,8 @@ public class PathwayEngineService {
         EffectivePathwayGraph graph = effectiveGraphFor(effective.template(), effective.sourceTenantId());
         List<ClinicalClock> runtimeClocks =
             projectClockSla(
+                runtime,
+                () -> packageVersionForTemplate(effective.template(), effective.sourceTenantId()),
                 clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
                 Instant.now());
         return new PatientPathwayDetailResponse(
@@ -1285,11 +1332,16 @@ public class PathwayEngineService {
      *
      * <p>先校验患者路径属于当前租户，再按启动时间返回节点时钟事实。
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ClinicalClock> clocks(String patientPathwayId) {
         String tenantId = requireCurrentTenant();
-        findPatientPathway(patientPathwayId, tenantId);
+        PatientPathway runtime = findPatientPathway(patientPathwayId, tenantId);
         return projectClockSla(
+            runtime,
+            () -> {
+                EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
+                return packageVersionForTemplate(effective.template(), effective.sourceTenantId());
+            },
             clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
             Instant.now());
     }
@@ -1495,11 +1547,25 @@ public class PathwayEngineService {
         ClinicalClock currentClock = runningClockForNode(runtime.patientPathwayId(), tenantId, currentNodeCode);
         if (request.eventType() == PathwayAdvanceEventType.VARIANCE) {
             varianceId = "pv-" + UUID.randomUUID();
-            variances.save(new PathwayVariance(
+            PathwayVariance savedVariance = variances.save(new PathwayVariance(
                 null, varianceId, tenantId, runtime.patientPathwayId(), currentNodeCode,
                 request.varianceType(), request.varianceReasonCode(), request.varianceReason(),
                 request.responsibleRole(), request.resolutionDecision(), request.resolutionAction(),
                 request.requestedNextNodeCode(), now, actor, now, actor, traceId));
+            domainEvents.pathwayVarianceRecorded(new PathwayVarianceRecordedEvent(
+                savedVariance.tenantId(),
+                savedVariance.traceId(),
+                packageVersionForTemplate(effective.template(), effective.sourceTenantId()),
+                runtime.patientPathwayId(),
+                runtime.patientId(),
+                runtime.encounterId(),
+                savedVariance.varianceId(),
+                savedVariance.nodeCode(),
+                savedVariance.varianceType().name(),
+                savedVariance.reasonCode(),
+                savedVariance.responsibleRole(),
+                savedVariance.resolutionDecision().name(),
+                savedVariance.createdAt()));
         }
         if (decision.status() != PatientPathwayStatus.VARIANCE) {
             completeNodeWorklist(runtime, currentNodeCode, currentClock, decision, now, actor, traceId);
@@ -2472,9 +2538,31 @@ public class PathwayEngineService {
         }
     }
 
-    private List<ClinicalClock> projectClockSla(List<ClinicalClock> source, Instant now) {
+    private List<ClinicalClock> projectClockSla(
+            PatientPathway runtime,
+            Supplier<String> packageVersionSupplier,
+            List<ClinicalClock> source,
+            Instant now) {
         return nullToEmpty(source).stream()
-            .map(clock -> projectClockSla(clock, now))
+            .map(clock -> {
+                ClinicalClock projected = projectClockSla(clock, now);
+                if (projected != clock && projected.status() == ClinicalClockStatus.TIMEOUT) {
+                    domainEvents.clockSlaBreached(new ClockSlaBreachedEvent(
+                        runtime.tenantId(),
+                        projected.traceId(),
+                        packageVersionSupplier.get(),
+                        runtime.patientPathwayId(),
+                        runtime.patientId(),
+                        runtime.encounterId(),
+                        projected.clockId(),
+                        projected.nodeCode(),
+                        projected.metricCode(),
+                        projected.escalationLevel().name(),
+                        projected.dueAt(),
+                        now));
+                }
+                return projected;
+            })
             .toList();
     }
 
@@ -3047,6 +3135,14 @@ public class PathwayEngineService {
             }
         }
         throw new ApiException(ErrorCode.ENG_PATHWAY_002, "患者路径绑定的模板版本不存在: " + templateId);
+    }
+
+    private String packageVersionForTemplate(PathwayTemplate template, String tenantId) {
+        return packages.findByPackageIdAndTenantId(template.packageId(), tenantId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_002,
+                "路径模板所属专病包不存在: " + template.packageId()))
+            .packageVersion();
     }
 
     private Optional<EffectivePathwayTemplate> resolveEffectiveTemplateForCurrentOrg(
