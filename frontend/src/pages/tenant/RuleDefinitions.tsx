@@ -77,6 +77,7 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
+import { AuthoringReadablePreview } from "@/shared/ui/condition/AuthoringReadablePreview";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
@@ -512,6 +513,7 @@ export default function RuleDefinitions() {
     useState<Record<RuleOrgLevel, OrgSelectOption[]>>(EMPTY_ORG_OPTION_CACHE);
   const [dslEditorValue, setDslEditorValue] = useState(createDefaultDslText);
   const [createForm] = Form.useForm();
+  const createPackageVersion = Form.useWatch("packageVersion", createForm);
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
   const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
@@ -752,6 +754,30 @@ export default function RuleDefinitions() {
   };
 
   const conditionRoot = conditionTree.root ?? flatToRootGroup(conditionTree);
+  const createRulePreviewDsl = useMemo(
+    () =>
+      buildRuleDslFromRoot(
+        conditionRoot,
+        conditionTree.triggerPoint,
+        conditionTree.applicability,
+        conditionTree.actions,
+        conditionTree.explanationSummary,
+      ),
+    [
+      conditionRoot,
+      conditionTree.actions,
+      conditionTree.applicability,
+      conditionTree.explanationSummary,
+      conditionTree.triggerPoint,
+    ],
+  );
+  const createRulePreviewDslFromL3 = useMemo(() => {
+    try {
+      return parseRuleJson(dslEditorValue);
+    } catch {
+      return null;
+    }
+  }, [dslEditorValue]);
 
   const updateTriggerPoint = (triggerPoint: ClinicalTriggerPoint) => {
     const nextTree = { ...conditionTree, triggerPoint };
@@ -2812,6 +2838,13 @@ export default function RuleDefinitions() {
               ) : (
                 <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 专家视图核查。" />
               )}
+              {Boolean(detailDsl) && (
+                <AuthoringReadablePreview
+                  subject="RULE_CONDITION"
+                  packageVersion={selectedRulePackageVersion}
+                  dsl={detailDsl}
+                />
+              )}
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="适用场景">
                   <Space wrap>
@@ -2874,20 +2907,29 @@ export default function RuleDefinitions() {
                   </span>
                 ),
                 children: (
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <div className={`${styles.codePanel} ${styles.codeText}`}>
-                        {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
-                      </div>
-                    </Col>
-                    <Col span={12}>
-                      <div className={`${styles.codePanel} ${styles.codeText}`}>
-                        {detailExplanation
-                          ? formatRuleJson(detailExplanation)
-                          : "当前版本解释模板为空或无法解析"}
-                      </div>
-                    </Col>
-                  </Row>
+                  <Space direction="vertical" className="mk-full-width">
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <div className={`${styles.codePanel} ${styles.codeText}`}>
+                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
+                        </div>
+                      </Col>
+                      <Col span={12}>
+                        <div className={`${styles.codePanel} ${styles.codeText}`}>
+                          {detailExplanation
+                            ? formatRuleJson(detailExplanation)
+                            : "当前版本解释模板为空或无法解析"}
+                        </div>
+                      </Col>
+                    </Row>
+                    {Boolean(detailDsl) && (
+                      <AuthoringReadablePreview
+                        subject="RULE_CONDITION"
+                        packageVersion={selectedRulePackageVersion}
+                        dsl={detailDsl}
+                      />
+                    )}
+                  </Space>
                 ),
               },
             ]
@@ -3678,6 +3720,12 @@ export default function RuleDefinitions() {
             ))}
           </Space>
 
+          <AuthoringReadablePreview
+            subject="RULE_CONDITION"
+            packageVersion={createPackageVersion}
+            dsl={createRulePreviewDsl}
+          />
+
           <Space>
             <Button
               type="primary"
@@ -3724,6 +3772,11 @@ export default function RuleDefinitions() {
                     className={styles.codeText}
                   />
                 </Form.Item>
+                <AuthoringReadablePreview
+                  subject="RULE_CONDITION"
+                  packageVersion={createPackageVersion}
+                  dsl={createRulePreviewDslFromL3}
+                />
                 <Space>
                   <Button
                     icon={<BranchesOutlined />}

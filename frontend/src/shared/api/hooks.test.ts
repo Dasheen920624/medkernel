@@ -99,6 +99,7 @@ import {
   useRuleExecutions,
   useRuleShadowStats,
   useCaptureRuleShadowFeedback,
+  useAuthoringPreview,
   useRuleBacktestLatest,
   useRunRuleBacktest,
   useRuleDriftLatest,
@@ -734,6 +735,40 @@ describe("package export api helpers", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("renders rule and pathway authoring preview through the unified authoring endpoint", async () => {
+    const response = {
+      previewText: "当 年龄 大于等于 65。",
+      lines: ["当 年龄 大于等于 65"],
+      segments: [{ kind: "condition", path: "$.when.all[0]", text: "年龄 大于等于 65" }],
+      warnings: [],
+      traceId: "trace-preview",
+    };
+    const dsl = { when: { all: [{ fact: "patient.age", operator: "gte", value: 65 }] } };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const hook = renderApiHook(() =>
+      useAuthoringPreview({
+        subject: "RULE_CONDITION",
+        packageVersion: "pkg-2026.06",
+        dsl,
+      }),
+    );
+
+    await waitFor(() => expect(hook.result.current.data).toEqual(response));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/authoring/preview",
+      expect.objectContaining({
+        subject: "RULE_CONDITION",
+        dsl,
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "pkg-2026.06",
+        request_id: expect.any(String),
+        trace_id: expect.any(String),
+      }),
+    );
   });
 
   it("runs all rule cases through the canonical rule test endpoint with standard context", async () => {
