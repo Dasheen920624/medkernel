@@ -81,12 +81,12 @@ public class ClinicalEventService {
             || accepted.status() == ClinicalEventStatus.PROCESSED) {
             return accepted;
         }
-        processor.process(accepted.eventId(), tenantId);
+        ClinicalEventStatus finalStatus = processor.process(accepted.eventId(), tenantId);
         outbox.findByEventIdAndTenantId(accepted.eventId(), tenantId)
             .filter(row -> row.id() != null)
             .ifPresent(row -> outbox.markProcessed(row.id(), Instant.now()));
         return new ClinicalEventAcceptedResponse(
-            accepted.eventId(), ClinicalEventStatus.PROCESSED,
+            accepted.eventId(), finalStatus,
             accepted.payloadDigest(), accepted.traceId(), accepted.acceptedAt());
     }
 

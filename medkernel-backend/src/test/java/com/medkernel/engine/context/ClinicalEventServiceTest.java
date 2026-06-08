@@ -85,6 +85,7 @@ class ClinicalEventServiceTest {
     @Test
     void receiveProcessesBeforeReturningAndClosesOutbox() {
         when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.empty());
+        when(processor.process("evt-1", "tenant-A")).thenReturn(ClinicalEventStatus.PROCESSED);
         when(outbox.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(
             new ClinicalEventOutbox(42L, "evt-1", "tenant-A", "trace-event", "tester",
                 "PENDING", null, null, Instant.now(), 0, null, Instant.now(), null)));
@@ -93,6 +94,22 @@ class ClinicalEventServiceTest {
 
         assertThat(resp.eventId()).isEqualTo("evt-1");
         assertThat(resp.status()).isEqualTo(ClinicalEventStatus.PROCESSED);
+        verify(processor).process("evt-1", "tenant-A");
+        verify(outbox).markProcessed(eq(42L), any());
+    }
+
+    @Test
+    void receiveReturnsFailedAndClosesOutboxWhenSyncEvaluationUnavailable() {
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.empty());
+        when(processor.process("evt-1", "tenant-A")).thenReturn(ClinicalEventStatus.FAILED);
+        when(outbox.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(
+            new ClinicalEventOutbox(42L, "evt-1", "tenant-A", "trace-event", "tester",
+                "PENDING", null, null, Instant.now(), 0, null, Instant.now(), null)));
+
+        ClinicalEventAcceptedResponse resp = service.receive(sampleRequest("evt-1"));
+
+        assertThat(resp.eventId()).isEqualTo("evt-1");
+        assertThat(resp.status()).isEqualTo(ClinicalEventStatus.FAILED);
         verify(processor).process("evt-1", "tenant-A");
         verify(outbox).markProcessed(eq(42L), any());
     }

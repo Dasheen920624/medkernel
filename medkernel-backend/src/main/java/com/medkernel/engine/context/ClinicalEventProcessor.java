@@ -51,7 +51,7 @@ public class ClinicalEventProcessor {
     }
 
     @Transactional
-    public void process(String eventId, String tenantId) {
+    public ClinicalEventStatus process(String eventId, String tenantId) {
         ClinicalEvent event = events.findByEventIdAndTenantId(eventId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVENT_003,
                 "临床事件不存在: " + eventId));
@@ -60,7 +60,7 @@ public class ClinicalEventProcessor {
                 "事件 payload 不存在: " + eventId));
 
         if (event.processingStatus() == ClinicalEventStatus.PROCESSED) {
-            return;
+            return ClinicalEventStatus.PROCESSED;
         }
 
         ClinicalEvent mapped = withStatus(event, ClinicalEventStatus.MAPPED);
@@ -70,7 +70,13 @@ public class ClinicalEventProcessor {
             "TERMINOLOGY_OK", null);
 
         ClinicalEventContext context = contextFactory.from(mapped, payload);
-        engineDispatcher.dispatch(context);
+        java.util.List<ClinicalEventEngineDispatchResult> dispatchResults = engineDispatcher.dispatch(context);
+        java.util.Optional<ClinicalEventEngineDispatchResult> unavailable = dispatchResults.stream()
+            .filter(result -> result.status() == ClinicalEventEngineDispatchStatus.UNAVAILABLE)
+            .findFirst();
+        if (unavailable.isPresent()) {
+            return markEnginesUnavailable(mapped, unavailable.get());
+        }
 
         ClinicalEvent processed = withStatus(mapped, ClinicalEventStatus.PROCESSED);
         events.save(processed);
@@ -82,6 +88,7 @@ public class ClinicalEventProcessor {
             "处理临床事件成功 type=" + event.eventType());
         applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
             eventId, tenantId, event.traceId(), context));
+        return ClinicalEventStatus.PROCESSED;
     }
 
     @Transactional
@@ -117,5 +124,29 @@ public class ClinicalEventProcessor {
             source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             status, null, null, source.retryCount(), source.rootEventId(), source.traceId());
+    }
+
+    private ClinicalEventStatus markEnginesUnavailable(
+            ClinicalEvent source,
+            ClinicalEventEngineDispatchResult result) {
+        ErrorCode errorCode = ErrorCode.DOWNSTREAM_UNAVAILABLE;
+        ClinicalEvent failed = new ClinicalEvent(
+            source.id(), source.eventId(), source.tenantId(), source.eventType(),
+            source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
+            source.orgScopeJson(),
+            source.patientId(), source.encounterId(), source.clinicalSetting(),
+            source.sourceSystem(), source.packageVersion(),
+            source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
+            ClinicalEventStatus.FAILED, errorCode.code(), errorCode.errorClass().name(),
+            source.retryCount(), source.rootEventId(), source.traceId());
+        events.save(failed);
+        transitions.record(ENTITY_TYPE, source.eventId(),
+            ClinicalEventStatus.MAPPED.name(), ClinicalEventStatus.FAILED.name(),
+            "ENGINES_UNAVAILABLE",
+            TransitionError.of(errorCode.code(), errorCode.errorClass(),
+                result.engine() + ": " + result.message(), source.retryCount(), null));
+        auditPublisher.publish(AuditEvent.failure(AuditAction.EXECUTE, ENTITY_TYPE, source.eventId(),
+            errorCode.code(), "临床事件下游引擎不可用 engine=" + result.engine()));
+        return ClinicalEventStatus.FAILED;
     }
 }

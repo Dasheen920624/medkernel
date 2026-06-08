@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,8 +69,9 @@ class ClinicalEventProcessorTest {
         when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
         when(payloads.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(payload()));
 
-        processor.process("evt-1", "tenant-A");
+        ClinicalEventStatus status = processor.process("evt-1", "tenant-A");
 
+        assertThat(status).isEqualTo(ClinicalEventStatus.PROCESSED);
         ArgumentCaptor<ClinicalEvent> eventCap = ArgumentCaptor.forClass(ClinicalEvent.class);
         verify(events, org.mockito.Mockito.times(2)).save(eventCap.capture());
         org.assertj.core.api.Assertions.assertThat(eventCap.getAllValues())
@@ -94,6 +96,36 @@ class ClinicalEventProcessorTest {
         assertThat(context.orgScope().departmentId()).isEqualTo("dept-A");
         assertThat(context.payload().path("a").asInt()).isEqualTo(1);
         assertThat(context.payloadDigest()).isEqualTo("digest");
+    }
+
+    @Test
+    void processMarksEventFailedWhenAnEngineIsUnavailable() {
+        ClinicalEvent event = event(ClinicalEventStatus.RECEIVED);
+        when(events.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(event));
+        when(payloads.findByEventIdAndTenantId("evt-1", "tenant-A")).thenReturn(Optional.of(payload()));
+        processor = new ClinicalEventProcessor(
+            events, payloads, auditRecorder, auditPublisher, transitions, applicationEvents,
+            new ClinicalEventContextFactory(new ObjectMapper().findAndRegisterModules()),
+            new ClinicalEventEngineDispatcher(List.of(
+                new UnavailableAdapter(),
+                new CapturingAdapter(ClinicalEventEngine.PATHWAY),
+                new CapturingAdapter(ClinicalEventEngine.CDSS))));
+
+        ClinicalEventStatus status = processor.process("evt-1", "tenant-A");
+
+        assertThat(status).isEqualTo(ClinicalEventStatus.FAILED);
+        ArgumentCaptor<ClinicalEvent> eventCap = ArgumentCaptor.forClass(ClinicalEvent.class);
+        verify(events, org.mockito.Mockito.times(2)).save(eventCap.capture());
+        assertThat(eventCap.getAllValues())
+            .extracting(ClinicalEvent::processingStatus)
+            .containsExactly(ClinicalEventStatus.MAPPED, ClinicalEventStatus.FAILED);
+        assertThat(eventCap.getAllValues().get(1).errorCode())
+            .isEqualTo(ErrorCode.DOWNSTREAM_UNAVAILABLE.code());
+        ArgumentCaptor<TransitionError> errorCap = ArgumentCaptor.forClass(TransitionError.class);
+        verify(transitions).record(eq("clinical_event"), eq("evt-1"),
+            eq("MAPPED"), eq("FAILED"), eq("ENGINES_UNAVAILABLE"), errorCap.capture());
+        assertThat(errorCap.getValue().errorCode()).isEqualTo(ErrorCode.DOWNSTREAM_UNAVAILABLE.code());
+        verify(applicationEvents, never()).publishEvent(any(ClinicalEventProcessedEvent.class));
     }
 
     @Test
@@ -172,6 +204,19 @@ class ClinicalEventProcessorTest {
 
         private List<ClinicalEventContext> contexts() {
             return contexts;
+        }
+    }
+
+    private static final class UnavailableAdapter implements ClinicalEventEngineAdapter {
+        @Override
+        public ClinicalEventEngine engine() {
+            return ClinicalEventEngine.RULE;
+        }
+
+        @Override
+        public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
+            return ClinicalEventEngineDispatchResult.unavailable(
+                engine(), null, "规则引擎事件触发求值超时");
         }
     }
 }

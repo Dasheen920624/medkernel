@@ -5,5 +5,6 @@ package com.medkernel.engine.context;
  */
 public enum ClinicalEventEngineDispatchStatus {
     DISPATCHED,
-    SKIPPED
+    SKIPPED,
+    UNAVAILABLE
 }

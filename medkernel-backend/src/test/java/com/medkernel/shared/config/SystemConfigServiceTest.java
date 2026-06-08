@@ -1,5 +1,6 @@
 package com.medkernel.shared.config;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -384,6 +385,60 @@ class SystemConfigServiceTest {
                 null)));
 
         assertThat(service.runtimeIntegrationHealthProbeIntervalMs(settings)).isEqualTo(300_000L);
+    }
+
+    @Test
+    void runtimeClinicalEventSyncTimeoutReadsConfigCenterAndFallsBackSafely() {
+        ClinicalEventWorkerSettings settings = new ClinicalEventWorkerSettings() {
+            @Override
+            public Duration syncTimeout() {
+                return Duration.ofMillis(3_000);
+            }
+
+            @Override
+            public long workerPollIntervalMs() {
+                return 200;
+            }
+        };
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY,
+                "1200",
+                "INTEGER",
+                "临床事件同步求值预算",
+                "HIGH",
+                "信息科 / 运维组",
+                "控制临床事件同步触发规则、路径和 CDSS 的总时延预算。",
+                "API",
+                true,
+                true,
+                3,
+                null)));
+
+        assertThat(service.runtimeClinicalEventSyncTimeoutMs(settings)).isEqualTo(1_200L);
+
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY,
+                "not-a-number",
+                "INTEGER",
+                "临床事件同步求值预算",
+                "HIGH",
+                "信息科 / 运维组",
+                "控制临床事件同步触发规则、路径和 CDSS 的总时延预算。",
+                "API",
+                true,
+                true,
+                4,
+                null)));
+
+        assertThat(service.runtimeClinicalEventSyncTimeoutMs(settings)).isEqualTo(3_000L);
     }
 
     private static SystemConfigItem configItem(

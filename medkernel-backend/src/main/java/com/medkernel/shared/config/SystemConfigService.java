@@ -48,6 +48,8 @@ public class SystemConfigService {
     public static final String AUTH_LOGIN_PREFIX = "medkernel.auth.login.";
     public static final String LOGGING_LEVEL_PREFIX = "medkernel.logging.level.";
     public static final String AUDIT_FALLBACK_PATH_KEY = "medkernel.audit.fallback.path";
+    public static final String CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY =
+        "medkernel.events.sync-timeout-ms";
     public static final String CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY =
         "medkernel.events.worker.poll-interval-ms";
     public static final String INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY =
@@ -385,6 +387,11 @@ public class SystemConfigService {
             properties.workerPollIntervalMs()).value();
     }
 
+    public long runtimeClinicalEventSyncTimeoutMs(ClinicalEventWorkerSettings properties) {
+        long fallbackMs = Math.max(1L, properties.syncTimeout().toMillis());
+        return readRuntimeLongConfig(CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY, fallbackMs).value();
+    }
+
     public long runtimeIntegrationHealthProbeIntervalMs(IntegrationHealthProbeSettings properties) {
         return readRuntimeLongConfig(
             INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
@@ -477,6 +484,7 @@ public class SystemConfigService {
 
     private static void validateRuntimePolicyValue(String key, String value) {
         if (AUTH_JWT_TTL_SECONDS_KEY.equals(key)
+            || CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY.equals(key)
             || CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY.equals(key)
             || (key != null && key.equals(AUTH_COOKIE_PREFIX + "max-age-seconds"))
             || (key != null && key.startsWith(AUTH_SESSION_PREFIX))) {

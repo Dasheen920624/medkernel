@@ -449,6 +449,34 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void unknownAsBlockForcesManualReviewEvenForLowRiskAction() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "order-sign",
+              "missingPolicy": "UNKNOWN_AS_BLOCK",
+              "when": {
+                "all": [
+                  {"fact": "lab.potassium", "operator": "gte", "value": 6.0}
+                ]
+              },
+              "then": [
+                {"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少检验", "detail": "缺少检验", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": false}
+              ],
+              "explain": {"title": "缺失核查"}
+            }
+            """), read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        assertThat(result.actions()).singleElement()
+            .satisfies(action -> assertThat(action.requiresPhysicianConfirmation()).isTrue());
+        assertThat(result.explanation().path("unknownBlocked").asBoolean()).isTrue();
+        assertThat(result.explanation().path("manualReviewRequired").asBoolean()).isTrue();
+        assertThat(result.explanation().path("manualReviewReason").asText()).contains("UNKNOWN_AS_BLOCK");
+    }
+
+    @Test
     void invalidMissingPolicyIsRejectedWithoutSilentFallback() throws Exception {
         JsonNode dsl = read("""
             {
