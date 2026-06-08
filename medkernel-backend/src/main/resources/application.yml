@@ -71,6 +71,10 @@ medkernel:
       - 300
       - 1800
     worker-poll-interval-ms: ${MEDKERNEL_EVENTS_WORKER_POLL_INTERVAL_MS:200}
+  cdss:
+    realtime:
+      default-timeout: ${MEDKERNEL_CDSS_REALTIME_DEFAULT_TIMEOUT:2s}
+      order-sign-timeout: ${MEDKERNEL_CDSS_REALTIME_ORDER_SIGN_TIMEOUT:1s}
   integration:
     health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
     secret-key: ${MEDKERNEL_INTEGRATION_SECRET_KEY:}

@@ -25,6 +25,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private final AuthSessionProperties sessionProperties;
     private final AuditFallbackProperties auditFallbackProperties;
     private final ClinicalEventWorkerSettings clinicalEventProperties;
+    private final RealtimeCdsSettings realtimeCdsSettings;
     private final IntegrationHealthProbeSettings integrationHealthProbeSettings;
     private final Environment environment;
     private final SystemConfigService service;
@@ -35,6 +36,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
                               AuthSessionProperties sessionProperties,
                               AuditFallbackProperties auditFallbackProperties,
                               ClinicalEventWorkerSettings clinicalEventProperties,
+                              RealtimeCdsSettings realtimeCdsSettings,
                               IntegrationHealthProbeSettings integrationHealthProbeSettings,
                               Environment environment,
                               SystemConfigService service) {
@@ -44,6 +46,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         this.sessionProperties = sessionProperties;
         this.auditFallbackProperties = auditFallbackProperties;
         this.clinicalEventProperties = clinicalEventProperties;
+        this.realtimeCdsSettings = realtimeCdsSettings;
         this.integrationHealthProbeSettings = integrationHealthProbeSettings;
         this.environment = environment;
         this.service = service;
@@ -212,6 +215,14 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(Math.max(1L, clinicalEventProperties.syncTimeout().toMillis())),
             "INTEGER", "临床事件同步求值预算", "HIGH", "信息科 / 运维组",
             "控制临床事件同步触发规则、路径和 CDSS 的总时延预算，超时必须诚实不可用并进入人工核查。", true, seededAt);
+        seedConfigValue(SystemConfigService.REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY,
+            Long.toString(Math.max(1L, realtimeCdsSettings.defaultTimeout().toMillis())),
+            "INTEGER", "实时 CDS 默认硬超时", "HIGH", "信息科 / 运维组",
+            "控制非 order-sign 实时 CDS 同步取卡预算，超时返回求值不可用并要求人工核查。", true, seededAt);
+        seedConfigValue(SystemConfigService.REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY,
+            Long.toString(Math.max(1L, realtimeCdsSettings.orderSignTimeout().toMillis())),
+            "INTEGER", "开医嘱实时 CDS 硬超时", "HIGH", "信息科 / 运维组",
+            "控制 order-sign 实时 CDS 同步取卡预算，超时返回求值不可用且高危医嘱不静默放过。", true, seededAt);
         seedConfigValue(SystemConfigService.CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY,
             Long.toString(clinicalEventProperties.workerPollIntervalMs()),
             "INTEGER", "临床事件轮询间隔", "MEDIUM", "信息科 / 运维组",

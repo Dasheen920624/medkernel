@@ -1,5 +1,6 @@
 package com.medkernel.shared.config;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +53,10 @@ public class SystemConfigService {
         "medkernel.events.sync-timeout-ms";
     public static final String CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY =
         "medkernel.events.worker.poll-interval-ms";
+    public static final String REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY =
+        "medkernel.cdss.realtime.default-timeout-ms";
+    public static final String REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY =
+        "medkernel.cdss.realtime.order-sign-timeout-ms";
     public static final String INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY =
         "medkernel.integration.health-probe-interval-ms";
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
@@ -392,10 +397,29 @@ public class SystemConfigService {
         return readRuntimeLongConfig(CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY, fallbackMs).value();
     }
 
+    public long runtimeRealtimeCdsDefaultTimeoutMs(RealtimeCdsSettings properties) {
+        return readRuntimeLongConfig(
+            REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY,
+            durationMs(properties == null ? null : properties.defaultTimeout(), Duration.ofSeconds(2))).value();
+    }
+
+    public long runtimeRealtimeCdsOrderSignTimeoutMs(RealtimeCdsSettings properties) {
+        return readRuntimeLongConfig(
+            REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY,
+            durationMs(properties == null ? null : properties.orderSignTimeout(), Duration.ofSeconds(1))).value();
+    }
+
     public long runtimeIntegrationHealthProbeIntervalMs(IntegrationHealthProbeSettings properties) {
         return readRuntimeLongConfig(
             INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
             properties.healthProbeIntervalMs()).value();
+    }
+
+    private static long durationMs(Duration configured, Duration fallback) {
+        Duration duration = configured == null || configured.isZero() || configured.isNegative()
+            ? fallback
+            : configured;
+        return Math.max(1L, duration.toMillis());
     }
 
     private RuntimeFeatureFlag runtimeFeatureFlag(String key, RuntimeProperties.FeatureFlag fallback) {
@@ -486,6 +510,8 @@ public class SystemConfigService {
         if (AUTH_JWT_TTL_SECONDS_KEY.equals(key)
             || CLINICAL_EVENT_SYNC_TIMEOUT_MS_KEY.equals(key)
             || CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY.equals(key)
+            || REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY.equals(key)
+            || REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY.equals(key)
             || (key != null && key.equals(AUTH_COOKIE_PREFIX + "max-age-seconds"))
             || (key != null && key.startsWith(AUTH_SESSION_PREFIX))) {
             validatePositiveLong(value);
