@@ -15,5 +15,6 @@ public record AdapterHubStatus(
     int misconfiguredAdapters,
     int mappedAdapters,
     Instant generatedAt,
-    List<AdapterHubSourceStatus> sources
+    List<AdapterHubSourceStatus> sources,
+    List<AdapterHubRequiredSourceStatus> requiredSources
 ) {}

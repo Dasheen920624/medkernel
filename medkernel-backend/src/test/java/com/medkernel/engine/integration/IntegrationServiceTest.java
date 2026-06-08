@@ -211,6 +211,81 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void adapterHubStatusIncludesRequiredHisEmrLisChecklistWithoutFakingMissingConnections() {
+        service.createAdapter(tenantId, new AdapterCreateDto("his-required", "一院 HIS 主数据", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+        service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+            "onb-his-required",
+            "HIS 主数据接入",
+            "ADAPTER",
+            "his-required",
+            null,
+            "HIS",
+            "S2 院内系统接入",
+            "/t-1/group-a/hospital-a",
+            null
+        ));
+        service.createAdapter(tenantId, new AdapterCreateDto("pacs-required", "PACS 非必接", "Webhook", "{}"));
+
+        AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
+
+        assertEquals(List.of("HIS", "EMR", "LIS"),
+            status.requiredSources().stream().map(AdapterHubRequiredSourceStatus::sourceSystem).toList());
+        AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
+            .filter(item -> "HIS".equals(item.sourceSystem()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus emr = status.requiredSources().stream()
+            .filter(item -> "EMR".equals(item.sourceSystem()))
+            .findFirst()
+            .orElseThrow();
+        AdapterHubRequiredSourceStatus lis = status.requiredSources().stream()
+            .filter(item -> "LIS".equals(item.sourceSystem()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("his-required", his.adapterId());
+        assertEquals("BOUND", his.status());
+        assertEquals("NOT_CONNECTED", his.healthStatus());
+        assertEquals(1, his.mappedFieldCount());
+        assertFalse(his.ready());
+        assertTrue(his.gaps().contains("未连接真实外部系统"));
+
+        assertNull(emr.adapterId());
+        assertEquals("MISSING", emr.status());
+        assertEquals("NOT_CONNECTED", emr.healthStatus());
+        assertFalse(emr.ready());
+        assertTrue(emr.gaps().contains("缺少 EMR 适配器"));
+
+        assertNull(lis.adapterId());
+        assertEquals("MISSING", lis.status());
+        assertEquals("NOT_CONNECTED", lis.healthStatus());
+        assertFalse(lis.ready());
+        assertTrue(lis.gaps().contains("缺少 LIS 适配器"));
+    }
+
+    @Test
+    void requiredSourceFallbackDoesNotMatchUnrelatedSubstringInsideAdapterIdentifier() {
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "this-statistics",
+            "院内统计系统",
+            "Webhook",
+            "{}"
+        ));
+
+        AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
+
+        AdapterHubRequiredSourceStatus his = status.requiredSources().stream()
+            .filter(item -> "HIS".equals(item.sourceSystem()))
+            .findFirst()
+            .orElseThrow();
+        assertNull(his.adapterId());
+        assertEquals("MISSING", his.status());
+        assertTrue(his.gaps().contains("缺少 HIS 适配器"));
+    }
+
+    @Test
     void onboardingLifecycleComposesAdapterAndFhirRoutesWithoutFakingConnectivity() {
         service.createAdapter(tenantId, new AdapterCreateDto("his-business", "一院 HIS 业务接口", "Webhook", """
             {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}

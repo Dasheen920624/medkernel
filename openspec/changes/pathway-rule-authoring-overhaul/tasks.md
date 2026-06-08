@@ -181,7 +181,7 @@
 
 > 详见附录 I。多数为对既有运行时的接线与场景验证，非新建并行链路。
 
-- [ ] P13-1 适配器接入清单 + 健康自检诚实状态走查（HIS/EMR/LIS 至少各一）；对外契约 `/integration/data-contract` 产出。
+- [x] P13-1 适配器接入清单 + 健康自检诚实状态走查（HIS/EMR/LIS 至少各一）；对外契约 `/integration/data-contract` 产出。
   - ✅ 测试：未接连接器显示 NOT_CONNECTED；契约随 packageVersion。
 - [ ] P13-2 临床事件→引擎触发映射核验：ORDER/ADMISSION/DIAGNOSIS/REPORT/FOLLOWUP/DISCHARGE 各触发规则/路径/推荐求值，投影归一在求值前完成。
   - ✅ 端到端测：开医嘱(ORDER)触发规则求值，院内编码已归一。
