@@ -16,6 +16,23 @@ public record ConditionEvidence(
     JsonNode value,
     String unit,
     String source,
-    String formula
+    String formula,
+    String errorCode,
+    String errorMessage
 ) {
+    public ConditionEvidence(
+        String fact,
+        String sourcePath,
+        String operator,
+        JsonNode expected,
+        JsonNode actual,
+        boolean matched,
+        boolean missing,
+        JsonNode value,
+        String unit,
+        String source,
+        String formula
+    ) {
+        this(fact, sourcePath, operator, expected, actual, matched, missing, value, unit, source, formula, null, null);
+    }
 }

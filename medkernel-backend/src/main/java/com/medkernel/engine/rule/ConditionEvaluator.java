@@ -35,6 +35,8 @@ import com.medkernel.shared.config.SystemConfigService;
 @Component
 public class ConditionEvaluator {
 
+    private static final int MAX_VALUE_SET_EXPANSION_SIZE = 10_000;
+
     private final ObjectMapper json;
     private final ClinicalRuleOperatorSupport clinicalOperators;
     private final AuthoringFeatureGate featureGate;
@@ -166,7 +168,7 @@ public class ConditionEvaluator {
         LeafActual leaf = resolveLeafActual(node, context);
         String fact = leaf.fact();
         JsonNode actual = leaf.actual();
-        JsonNode expected = normalizeOperand(node.get("value"), context);
+        JsonNode expected = node.get("value");
 
         if (hasInvalidQuality(actual)) {
             return new ConditionEvaluation(
@@ -185,30 +187,39 @@ public class ConditionEvaluator {
                     leaf.formula())));
         }
 
-        ClinicalRuleOperatorSupport.Outcome outcome = switch (operator) {
-            case "exists" -> clinicalOperators.basicOutcome(exists(actual), actual, expected);
-            case "equals" -> clinicalOperators.basicOutcome(exists(actual) && valuesEqual(actual, expected), actual, expected);
-            case "not_equals" -> clinicalOperators.basicOutcome(!exists(actual) || !valuesEqual(actual, expected), actual, expected);
-            case "contains" -> clinicalOperators.basicOutcome(contains(actual, expected), actual, expected);
-            case "gt" -> clinicalOperators.basicOutcome(compare(actual, expected, "gt"), actual, expected);
-            case "gte" -> clinicalOperators.basicOutcome(compare(actual, expected, "gte"), actual, expected);
-            case "lt" -> clinicalOperators.basicOutcome(compare(actual, expected, "lt"), actual, expected);
-            case "lte" -> clinicalOperators.basicOutcome(compare(actual, expected, "lte"), actual, expected);
-            case "in" -> clinicalOperators.basicOutcome(in(actual, expected), actual, expected);
-            case "not_in" -> clinicalOperators.basicOutcome(!in(actual, expected), actual, expected);
-            case "between" -> clinicalOperators.between(fact, actual, expected);
-            case "not_between" -> clinicalOperators.notBetween(fact, actual, expected);
-            case "within_ref" -> clinicalOperators.referenceRange(fact, actual, "within");
-            case "above_ref" -> clinicalOperators.referenceRange(fact, actual, "above");
-            case "below_ref" -> clinicalOperators.referenceRange(fact, actual, "below");
-            case "is_missing" -> clinicalOperators.isMissing(actual);
-            case "is_critical" -> clinicalOperators.isCritical(actual, expected);
-            case "is_stale" -> clinicalOperators.isStale(fact, actual, expected);
-            case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
-            case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
-            case "derived" -> clinicalOperators.derived(fact, context, expected);
-            default -> throw operatorInvalid("不支持的规则算子: " + operator);
-        };
+        ClinicalRuleOperatorSupport.Outcome outcome;
+        try {
+            expected = normalizeOperand(expected, context);
+            outcome = switch (operator) {
+                case "exists" -> clinicalOperators.basicOutcome(exists(actual), actual, expected);
+                case "equals" -> clinicalOperators.basicOutcome(exists(actual) && valuesEqual(actual, expected), actual, expected);
+                case "not_equals" -> clinicalOperators.basicOutcome(!exists(actual) || !valuesEqual(actual, expected), actual, expected);
+                case "contains" -> clinicalOperators.basicOutcome(contains(actual, expected), actual, expected);
+                case "gt" -> clinicalOperators.basicOutcome(compare(actual, expected, "gt"), actual, expected);
+                case "gte" -> clinicalOperators.basicOutcome(compare(actual, expected, "gte"), actual, expected);
+                case "lt" -> clinicalOperators.basicOutcome(compare(actual, expected, "lt"), actual, expected);
+                case "lte" -> clinicalOperators.basicOutcome(compare(actual, expected, "lte"), actual, expected);
+                case "in" -> clinicalOperators.basicOutcome(in(actual, expected), actual, expected);
+                case "not_in" -> clinicalOperators.basicOutcome(!in(actual, expected), actual, expected);
+                case "between" -> clinicalOperators.between(fact, actual, expected);
+                case "not_between" -> clinicalOperators.notBetween(fact, actual, expected);
+                case "within_ref" -> clinicalOperators.referenceRange(fact, actual, "within");
+                case "above_ref" -> clinicalOperators.referenceRange(fact, actual, "above");
+                case "below_ref" -> clinicalOperators.referenceRange(fact, actual, "below");
+                case "is_missing" -> clinicalOperators.isMissing(actual);
+                case "is_critical" -> clinicalOperators.isCritical(actual, expected);
+                case "is_stale" -> clinicalOperators.isStale(fact, actual, expected);
+                case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
+                case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
+                case "derived" -> clinicalOperators.derived(fact, context, expected);
+                default -> throw operatorInvalid("不支持的规则算子: " + operator);
+            };
+        } catch (ApiException exception) {
+            if (!isDeterministicUnknown(exception)) {
+                throw exception;
+            }
+            return unknownEvidence(fact, leaf.sourcePath(), operator, expected, actual, leaf, exception);
+        }
         return new ConditionEvaluation(
             outcome.matched(),
             List.of(new ConditionEvidence(
@@ -223,6 +234,38 @@ public class ConditionEvaluator {
                 outcome.unit(),
                 outcome.source() == null ? leaf.source() : outcome.source(),
                 combineFormula(outcome.formula(), leaf.formula()))));
+    }
+
+    private boolean isDeterministicUnknown(ApiException exception) {
+        return exception.errorCode() == ErrorCode.UNIT_INCOMPATIBLE
+            || exception.errorCode() == ErrorCode.INSUFFICIENT_DATA;
+    }
+
+    private ConditionEvaluation unknownEvidence(
+        String fact,
+        String sourcePath,
+        String operator,
+        JsonNode expected,
+        JsonNode actual,
+        LeafActual leaf,
+        ApiException exception
+    ) {
+        return new ConditionEvaluation(
+            false,
+            List.of(new ConditionEvidence(
+                fact,
+                sourcePath,
+                operator,
+                expected,
+                actual,
+                false,
+                true,
+                null,
+                null,
+                leaf.source(),
+                leaf.formula(),
+                exception.errorCode().code(),
+                exception.getMessage())));
     }
 
     private LeafActual resolveLeafActual(JsonNode node, JsonNode context) {
@@ -295,8 +338,31 @@ public class ConditionEvaluator {
             if (field != null) {
                 return findPath(context, field);
             }
+            String valueSet = optionalText(value, "valueSet");
+            if (valueSet != null) {
+                return normalizeValueSetOperand(valueSet, value);
+            }
         }
         return value;
+    }
+
+    private JsonNode normalizeValueSetOperand(String valueSet, JsonNode value) {
+        JsonNode members = value.path("members");
+        int expandedCount = value.path("expandedCount").isIntegralNumber()
+            ? value.path("expandedCount").asInt()
+            : members.isArray() ? members.size() : -1;
+        if (expandedCount > MAX_VALUE_SET_EXPANSION_SIZE) {
+            throw insufficientData("值集 " + valueSet + " 展开成员 " + expandedCount
+                + " 超过上限 " + MAX_VALUE_SET_EXPANSION_SIZE + "，请收窄或内涵化值集");
+        }
+        if (!members.isArray()) {
+            throw insufficientData("值集 " + valueSet + " 缺少展开成员 members");
+        }
+        if (members.size() > MAX_VALUE_SET_EXPANSION_SIZE) {
+            throw insufficientData("值集 " + valueSet + " 展开成员 " + members.size()
+                + " 超过上限 " + MAX_VALUE_SET_EXPANSION_SIZE + "，请收窄或内涵化值集");
+        }
+        return members;
     }
 
     private ExpressionAggregate aggregateExpression(String field, String select, List<ExpressionItem> candidates) {

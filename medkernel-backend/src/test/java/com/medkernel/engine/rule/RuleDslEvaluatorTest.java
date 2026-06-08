@@ -273,6 +273,69 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void inOperatorAcceptsBoundedExpandedValueSetMembers() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "MEDICATION_ORDER",
+              "when": {
+                "all": [
+                  {
+                    "fact": "medication.atcCode",
+                    "operator": "in",
+                    "value": {
+                      "valueSet": "VS.NEPHROTOXIC_ATC",
+                      "expandedCount": 2,
+                      "members": ["J01CA04", "J01GB03"]
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "肾毒性药物提醒", "detail": "肾毒性药物提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
+              "explain": {"title": "值集", "reason": "值集成员判断"}
+            }
+            """), read("""
+            {"medication": {"atcCode": "J01GB03"}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("expected")).hasSize(2);
+        assertThat(evidence.path("errorCode").isMissingNode()).isTrue();
+    }
+
+    @Test
+    void inOperatorReturnsUnknownEvidenceWhenExpandedValueSetExceedsLimit() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "MEDICATION_ORDER",
+              "when": {
+                "all": [
+                  {
+                    "fact": "medication.atcCode",
+                    "operator": "in",
+                    "value": {
+                      "valueSet": "VS.NEPHROTOXIC_ATC",
+                      "expandedCount": 10001,
+                      "members": ["J01CA04"]
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "肾毒性药物提醒", "detail": "肾毒性药物提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
+              "explain": {"title": "值集", "reason": "值集展开超上限 fail-safe"}
+            }
+            """), read("""
+            {"medication": {"atcCode": "J01GB03"}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("VS.NEPHROTOXIC_ATC", "上限");
+    }
+
+    @Test
     void notConditionNegatesNestedGroupWithEvidence() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
@@ -618,8 +681,8 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void betweenOperatorRejectsUnitMismatchWithoutGuessing() throws Exception {
-        JsonNode dsl = read("""
+    void betweenOperatorReturnsUnknownEvidenceWhenUnitMismatch() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "LAB_RESULT",
               "when": {
@@ -634,15 +697,16 @@ class RuleDslEvaluatorTest {
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾区间提醒", "detail": "血钾区间提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血钾区间", "reason": "校验血钾是否位于目标区间"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"lab": {"potassium": {"value": 4.0, "unit": "mg/dL", "source": "LIS:K-002"}}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE);
-                assertThat(exception.getMessage()).contains("lab.potassium");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("lab.potassium");
     }
 
     @Test
@@ -717,8 +781,8 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void unitCompareRejectsUnknownConversionWithoutGuessing() throws Exception {
-        JsonNode dsl = read("""
+    void unitCompareReturnsUnknownEvidenceForUnknownConversion() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "LAB_RESULT",
               "when": {
@@ -738,15 +802,15 @@ class RuleDslEvaluatorTest {
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "钠离子提醒", "detail": "钠离子提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "钠离子换算", "reason": "未知换算拒绝"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"lab": {"sodium": {"value": 140, "unit": "mmol/L", "source": "LIS:NA-001"}}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE);
-                assertThat(exception.getMessage()).contains("lab.sodium");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("lab.sodium");
     }
 
     @Test
@@ -1239,8 +1303,8 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void derivedFormulaRejectsNonPositiveClinicalParametersWithoutInternalError() throws Exception {
-        JsonNode dsl = read("""
+    void derivedFormulaReturnsUnknownEvidenceForNonPositiveClinicalParameters() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "order-sign",
               "when": {
@@ -1265,23 +1329,23 @@ class RuleDslEvaluatorTest {
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "拒绝不合法入参"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {
               "patient": {"age": 60, "sex": "FEMALE"},
               "labs": {"creatinine": {"value": 0, "unit": "mg/dL", "source": "LIS:CR-zero"}}
             }
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
-                assertThat(exception.getMessage()).contains("creatinine");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("creatinine");
     }
 
     @Test
-    void derivedEgfrRejectsMissingCreatinineWithoutDefaultValue() throws Exception {
-        JsonNode dsl = read("""
+    void derivedEgfrReturnsUnknownEvidenceForMissingCreatinineWithoutDefaultValue() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "order-sign",
               "when": {
@@ -1306,15 +1370,15 @@ class RuleDslEvaluatorTest {
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "校验肾功能"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"patient": {"age": 60, "sex": "FEMALE"}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
-                assertThat(exception.getMessage()).contains("creatinine");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("creatinine");
     }
 
     @Test
@@ -1460,6 +1524,52 @@ class RuleDslEvaluatorTest {
         assertThat(evidence.path("value").asText()).isEqualTo("22.86");
         assertThat(evidence.path("unit").asText()).isEqualTo("kg/m2");
         assertThat(evidence.path("formula").asText()).contains("BMI", "HeightCm=175", "WeightKg=70");
+    }
+
+    @Test
+    void unknownAsBlockProducesManualReviewWhenFormulaInputIsZero() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "CONTEXT_READY",
+              "missingPolicy": "UNKNOWN_AS_BLOCK",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.bmi",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "BMI",
+                      "comparison": "gte",
+                      "value": 18.5,
+                      "unit": "kg/m2",
+                      "parameters": {
+                        "heightCm": "vitals.heightCm",
+                        "weightKg": "vitals.weightKg"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "BMI 入参需人工核查", "detail": "BMI 入参需人工核查", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": false}],
+              "explain": {"title": "BMI", "reason": "公式入参非法时 fail-safe"}
+            }
+            """), read("""
+            {
+              "vitals": {
+                "heightCm": 175,
+                "weightKg": 0
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        assertThat(result.actions()).singleElement()
+            .satisfies(action -> assertThat(action.requiresPhysicianConfirmation()).isTrue());
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("weightKg");
+        assertThat(result.explanation().path("unknownBlocked").asBoolean()).isTrue();
     }
 
     @Test
@@ -1768,23 +1878,23 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void referenceOperatorRejectsUnparseableRangeWithoutGuessing() throws Exception {
-        JsonNode dsl = read("""
+    void referenceOperatorReturnsUnknownEvidenceForUnparseableRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "参考范围提醒", "detail": "参考范围提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "拒绝不可解析的参考范围"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "referenceRange": "见报告", "source": "LIS:K-5"}}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
-                assertThat(exception.getMessage()).contains("lab.potassium");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("lab.potassium");
     }
 
     @Test
@@ -1806,21 +1916,22 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void aboveRefRejectsRangeWithoutUpperBound() throws Exception {
-        JsonNode dsl = read("""
+    void aboveRefReturnsUnknownEvidenceWhenRangeHasNoUpperBound() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "参考范围提醒", "detail": "参考范围提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "无上界不能判断 above_ref"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "referenceRange": ">3.5", "source": "LIS:K-6"}}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception ->
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA));
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
     }
 
     @Test
@@ -1875,8 +1986,8 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
-    void isStaleRejectsMissingTimestampWithoutGuessing() throws Exception {
-        JsonNode dsl = read("""
+    void isStaleReturnsUnknownEvidenceWhenTimestampMissing() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
             {
               "trigger": "order-sign",
               "when": {
@@ -1891,15 +2002,15 @@ class RuleDslEvaluatorTest {
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "结果陈旧", "reason": "无时间戳不臆测陈旧"}
             }
-            """);
-
-        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            """), read("""
             {"lab": {"potassium": {"value": 5.0, "unit": "mmol/L", "source": "LIS:K-3"}}}
-            """)))
-            .isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
-                assertThat(exception.getMessage()).contains("lab.potassium");
-            });
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+        assertThat(evidence.path("errorCode").asText()).isEqualTo(ErrorCode.INSUFFICIENT_DATA.code());
+        assertThat(evidence.path("errorMessage").asText()).contains("lab.potassium");
     }
 
     @Test

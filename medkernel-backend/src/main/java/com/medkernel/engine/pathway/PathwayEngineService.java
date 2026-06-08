@@ -1374,7 +1374,8 @@ public class PathwayEngineService {
         String currentNode = startNodeCode;
         trajectory.add(currentNode);
         PatientPathwayStatus finalStatus = PatientPathwayStatus.NODE_EXECUTING;
-        for (int index = 0; index <= graph.nodes().size(); index += 1) {
+        int maxSteps = Math.max(graph.nodes().size(), 1);
+        for (int index = 0; index < maxSteps; index += 1) {
             String requestedTarget = index < safeRequestedTargets.size()
                 ? safeRequestedTargets.get(index)
                 : null;
@@ -1383,19 +1384,20 @@ public class PathwayEngineService {
                 PathwayAdvanceEventType.COMPLETE, requestedTarget, facts));
             finalStatus = decision.status();
             if (decision.nextNodeCode() == null) {
-                break;
+                return new PathwaySimulationReplayStep(
+                    snapshot == null ? null : snapshot.snapshotId(),
+                    trajectory,
+                    finalStatus,
+                    snapshot == null ? null : snapshot.qualityStatus(),
+                    snapshot == null ? List.of() : snapshot.missingFields(),
+                    snapshot == null ? Map.of() : snapshot.mappingStatus(),
+                    snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()));
             }
             currentNode = decision.nextNodeCode();
             trajectory.add(currentNode);
         }
-        return new PathwaySimulationReplayStep(
-            snapshot == null ? null : snapshot.snapshotId(),
-            trajectory,
-            finalStatus,
-            snapshot == null ? null : snapshot.qualityStatus(),
-            snapshot == null ? List.of() : snapshot.missingFields(),
-            snapshot == null ? Map.of() : snapshot.mappingStatus(),
-            snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()));
+        throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+            "路径试运行超过最大推进步数 " + maxSteps + "，请检查路径图是否成环");
     }
 
     private List<String> replaySnapshotIds(PathwaySimulateRequest request) {
@@ -1942,6 +1944,8 @@ public class PathwayEngineService {
             }
         }
         validateRichNodeContracts(executableNodes, executableEdges);
+        validatePathwayGraphAcyclic(executableNodes, executableEdges);
+        validateSubPathwayCycleBoundary(template, executableNodes);
         validateClockBindings(executableNodes, graphBindings);
         validateEffectiveOutcomeBindings(graphOutcomeBindings, graphMilestones);
     }
@@ -1989,6 +1993,69 @@ public class PathwayEngineService {
                 }
             }
         }
+    }
+
+    private void validatePathwayGraphAcyclic(List<PathwayNode> graphNodes, List<PathwayEdge> graphEdges) {
+        Map<String, List<String>> outgoingByNode = new LinkedHashMap<>();
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            outgoingByNode.putIfAbsent(node.nodeCode(), new ArrayList<>());
+        }
+        for (PathwayEdge edge : nullToEmpty(graphEdges)) {
+            outgoingByNode.computeIfAbsent(edge.fromNodeCode(), ignored -> new ArrayList<>())
+                .add(edge.toNodeCode());
+        }
+        Set<String> visiting = new HashSet<>();
+        Set<String> visited = new HashSet<>();
+        ArrayList<String> stack = new ArrayList<>();
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            detectPathwayCycle(node.nodeCode(), outgoingByNode, visiting, visited, stack);
+        }
+    }
+
+    private void detectPathwayCycle(String nodeCode,
+                                    Map<String, List<String>> outgoingByNode,
+                                    Set<String> visiting,
+                                    Set<String> visited,
+                                    ArrayList<String> stack) {
+        if (isBlank(nodeCode) || visited.contains(nodeCode)) {
+            return;
+        }
+        visiting.add(nodeCode);
+        stack.add(nodeCode);
+        for (String nextNodeCode : outgoingByNode.getOrDefault(nodeCode, List.of())) {
+            if (visiting.contains(nextNodeCode)) {
+                int cycleStart = stack.indexOf(nextNodeCode);
+                List<String> cycle = new ArrayList<>(stack.subList(Math.max(cycleStart, 0), stack.size()));
+                cycle.add(nextNodeCode);
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "路径图存在环: " + String.join(" -> ", cycle));
+            }
+            detectPathwayCycle(nextNodeCode, outgoingByNode, visiting, visited, stack);
+        }
+        stack.remove(stack.size() - 1);
+        visiting.remove(nodeCode);
+        visited.add(nodeCode);
+    }
+
+    private void validateSubPathwayCycleBoundary(PathwayTemplate template, List<PathwayNode> graphNodes) {
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            if (node.nodeType() != PathwayNodeType.SUBPATHWAY) {
+                continue;
+            }
+            String ref = nodeConfigText(node, "subPathwayRef");
+            if (samePathwayTemplateRef(template, ref)) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "子路径节点 " + node.nodeCode() + " 不能引用当前路径模板");
+            }
+        }
+    }
+
+    private boolean samePathwayTemplateRef(PathwayTemplate template, String ref) {
+        if (isBlank(ref)) {
+            return false;
+        }
+        return Objects.equals(ref, template.templateId())
+            || Objects.equals(ref, template.templateCode());
     }
 
     private void ensureRichNodeFeatureEnabledForTemplate(PathwayNode node) {

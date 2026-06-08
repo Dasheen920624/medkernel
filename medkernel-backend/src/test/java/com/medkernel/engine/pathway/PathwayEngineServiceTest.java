@@ -619,6 +619,55 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenTemplateGraphContainsCycle() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("REVIEW", PathwayNodeType.ASSESSMENT, 20, false, null, "医生", null),
+                node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 30, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "REVIEW", PathwayEdgeType.DEFAULT),
+                edge("REVIEW", "ASSESS", PathwayEdgeType.DEFAULT),
+                edge("REVIEW", "FOLLOWUP", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"review.done\",\"operator\":\"equals\",\"value\":true}", 2)
+            ));
+
+        assertThatThrownBy(() -> service.templateImpact("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("路径图存在环")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
+    void publishFailsWhenSubPathwayReferencesCurrentTemplate() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("SUB", PathwayNodeType.SUBPATHWAY, 20, false,
+                    "{\"subPathwayRef\":\"pt-1\"}", "医生", null),
+                node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 30, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "SUB", PathwayEdgeType.DEFAULT),
+                edge("SUB", "FOLLOWUP", PathwayEdgeType.DEFAULT)
+            ));
+
+        assertThatThrownBy(() -> service.templateImpact("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("子路径节点 SUB 不能引用当前路径模板")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
     void publishFailsWhenDecisionNodeHasNoDefaultFallbackBranch() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT, "DECIDE")));
@@ -1767,6 +1816,30 @@ class PathwayEngineServiceTest {
 
         assertThat(response.nodeTrajectory()).containsExactly("ASSESS", "TRANSFUSION_REVIEW");
         assertThat(response.finalStatus()).isEqualTo(PatientPathwayStatus.COMPLETED);
+    }
+
+    @Test
+    void simulateFailsWhenLegacyGraphExceedsMaxStepGuard() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("REVIEW", PathwayNodeType.ASSESSMENT, 20, false, null, "医生", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "REVIEW", PathwayEdgeType.DEFAULT),
+                edge("REVIEW", "ASSESS", PathwayEdgeType.DEFAULT)
+            ));
+
+        assertThatThrownBy(() -> service.simulate(
+                "pt-1",
+                new PathwaySimulateRequest(null, "ASSESS", List.of())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("超过最大推进步数")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
     }
 
     @Test
