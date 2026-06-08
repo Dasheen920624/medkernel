@@ -468,6 +468,76 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
+    "危急值原型向导带出默认动作和高级折叠，未展开高级项也可创建草稿",
+    async () => {
+      apiMocks.createRule.mockResolvedValue({ ruleId: "rule-critical" });
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+
+      await user.click(within(dialog).getByLabelText("危急值回报"));
+      expect(within(dialog).queryByLabelText("灰度比例")).not.toBeInTheDocument();
+
+      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
+        target: { value: "RULE.LAB.CRITICAL.K" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
+        target: { value: "血钾危急值回报" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
+        target: { value: "检验危急值管理制度 2026" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("检验结果字段"), {
+        target: { value: "observations[].valueNumeric" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("危急阈值"), {
+        target: { value: "6.5" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("回报时限分钟"), {
+        target: { value: "15" },
+      });
+
+      await user.click(within(dialog).getByRole("button", { name: "创建草稿" }));
+
+      await waitFor(() => expect(apiMocks.createRule).toHaveBeenCalled());
+      const payload = apiMocks.createRule.mock.calls[0][0] as {
+        riskLevel: string;
+        dslJson: {
+          trigger: string;
+          when: { all?: Array<{ fact?: string; operator?: string; value?: unknown }> };
+          then: Array<{ actionCode: string; atSeverity: string; detail: string }>;
+        };
+      };
+      expect(payload.riskLevel).toBe("CRITICAL");
+      expect(payload.dslJson.trigger).toBe("result-review");
+      expect(payload.dslJson.when.all).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fact: "observations[].valueNumeric",
+            operator: "gte",
+            value: 6.5,
+          }),
+        ]),
+      );
+      expect(payload.dslJson.then).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            actionCode: "STRONG_REMINDER",
+            atSeverity: "CRITICAL",
+            detail: expect.stringContaining("15 分钟"),
+          }),
+        ]),
+      );
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "创建规则草稿时提交完整适用域",
     async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-new" });

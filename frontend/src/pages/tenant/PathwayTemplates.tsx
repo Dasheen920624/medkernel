@@ -15,6 +15,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Radio,
   Row,
   Segmented,
   Select,
@@ -25,7 +26,7 @@ import {
   Tag,
   Timeline,
 } from "antd";
-import type { BadgeProps, TableProps, TabsProps } from "antd";
+import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
   ApartmentOutlined,
   CheckCircleOutlined,
@@ -317,6 +318,8 @@ type SnapshotQuery = {
   size: number;
 };
 
+type PathwayPrototypeKey = "blank" | "ed_disposition";
+
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
   { value: "STANDARD", label: "STANDARD 标准模板" },
   { value: "HOSPITAL", label: "HOSPITAL 医院模板" },
@@ -376,6 +379,23 @@ const simulationModeOptions: Array<{ value: PathwaySimulationMode; label: string
   { value: "SINGLE_SNAPSHOT", label: "单快照" },
   { value: "QUEUE_REPLAY", label: "队列回放" },
   { value: "TIME_MACHINE", label: "时光机" },
+];
+
+const pathwayPrototypeOptions: Array<{
+  key: PathwayPrototypeKey;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "blank",
+    title: "空白路径",
+    description: "从 L1 基本信息与 L2 节点画布手工配置。",
+  },
+  {
+    key: "ed_disposition",
+    title: "急诊处置路径",
+    description: "默认生成急诊评估到处置安排的两节点安全骨架。",
+  },
 ];
 
 const pathwayConditionOperatorOptions = [
@@ -1142,6 +1162,8 @@ export default function PathwayTemplates() {
   const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
   const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
   const [detailExpertMode, setDetailExpertMode] = useState<boolean>(false);
+  const [selectedPathwayPrototype, setSelectedPathwayPrototype] =
+    useState<PathwayPrototypeKey>("blank");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [detailActiveTab, setDetailActiveTab] = useState<string>("l1");
   const [releaseReason, setReleaseReason] = useState<string>("");
@@ -1437,6 +1459,90 @@ export default function PathwayTemplates() {
     packageVersionFor(typeof watchedPackageId === "string" ? watchedPackageId : undefined) ??
     String(watchedTemplateVersion ?? "");
 
+  const resetCreateTemplateDraft = () => {
+    templateForm.resetFields();
+    templateForm.setFieldsValue({
+      templateLevel: "STANDARD",
+      templateVersion: 1,
+      entryMode: "AUTO_SUGGEST",
+      nodes: [],
+      edges: [],
+      milestones: [],
+      outcomeBindings: [],
+    });
+    setPathwayDslJson(buildDraftDslPreview([], [], []));
+  };
+
+  const applyPathwayPrototype = (prototypeKey: PathwayPrototypeKey) => {
+    setSelectedPathwayPrototype(prototypeKey);
+    if (prototypeKey === "blank") {
+      resetCreateTemplateDraft();
+      return;
+    }
+
+    const packageId = packagesData?.items?.[0]?.packageId;
+    const milestones: PathwayMilestoneFormValue[] = [
+      {
+        phaseCode: "ED",
+        phaseName: "急诊处置",
+        milestoneCode: "M-ED-ASSESS",
+        name: "完成急诊评估",
+        dayOffset: 0,
+        expectedOffsetMinutes: 30,
+        sortOrder: 1,
+      },
+    ];
+    const nodes: PathwayNodeFormValue[] = [
+      {
+        nodeCode: "ASSESS",
+        name: "急诊评估",
+        nodeType: "ASSESSMENT",
+        milestoneCode: "M-ED-ASSESS",
+        sortOrder: 1,
+        responsibleRole: "急诊医生",
+        accountableRole: "急诊医生",
+      },
+      {
+        nodeCode: "DISPOSITION",
+        name: "处置安排",
+        nodeType: "DISCHARGE",
+        milestoneCode: "M-ED-ASSESS",
+        sortOrder: 2,
+        responsibleRole: "急诊医生",
+        accountableRole: "急诊医生",
+        terminal: true,
+      },
+    ];
+    const edges: PathwayEdgeFormValue[] = [
+      {
+        edgeCode: "E-ASSESS-DISPOSITION",
+        fromNodeCode: "ASSESS",
+        toNodeCode: "DISPOSITION",
+        edgeType: "DEFAULT",
+        priority: 1,
+      },
+    ];
+
+    templateForm.setFieldsValue({
+      packageId,
+      name: "急诊处置路径",
+      templateCode: "PATH.ED.DISPOSITION",
+      diseaseCode: "ED",
+      templateLevel: "STANDARD",
+      parentTemplateId: undefined,
+      templateVersion: 1,
+      entryMode: "AUTO_SUGGEST",
+      startNodeCode: "ASSESS",
+      sourceRef: "院内已审核急诊处置制度",
+      description: "急诊评估后进入处置或离院安排。",
+      milestones,
+      nodes,
+      edges,
+      outcomeBindings: [],
+    });
+    setPathwayDslJson(buildDraftDslPreview(milestones, nodes, edges, []));
+  };
+
   const renderEdgeReadablePreview = (edge: PathwayEdgeFormValue | undefined, edgeIndex: number) => {
     if (!edge) return null;
     let guard: unknown;
@@ -1609,6 +1715,7 @@ export default function PathwayTemplates() {
       messageApi.success("专病路径模板草稿创建成功");
       setCreateTemplateVisible(false);
       templateForm.resetFields();
+      setSelectedPathwayPrototype("blank");
       setPathwayDslJson(buildDraftDslPreview([], [], []));
       refetchList();
     } catch (error: unknown) {
@@ -2051,6 +2158,25 @@ export default function PathwayTemplates() {
       label: "L1 模板",
       children: (
         <div className={styles.editorSection}>
+          <Form.Item label="路径原型">
+            <Radio.Group
+              value={selectedPathwayPrototype}
+              onChange={(event: RadioChangeEvent) =>
+                applyPathwayPrototype(event.target.value as PathwayPrototypeKey)
+              }
+            >
+              <Space direction="vertical" className="mk-full-width">
+                {pathwayPrototypeOptions.map((prototype) => (
+                  <Radio key={prototype.key} value={prototype.key} aria-label={prototype.title}>
+                    <Space direction="vertical" size={0}>
+                      <span className={styles.textStrong}>{prototype.title}</span>
+                      <span className={styles.textSecondary}>{prototype.description}</span>
+                    </Space>
+                  </Radio>
+                ))}
+              </Space>
+            </Radio.Group>
+          </Form.Item>
           <Row gutter={16}>
             <Col xs={24} md={12}>
               <Form.Item name="packageId" label="归属专病包" rules={[{ required: true }]}>
@@ -3762,16 +3888,8 @@ export default function PathwayTemplates() {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => {
-                templateForm.resetFields();
-                templateForm.setFieldsValue({
-                  templateLevel: "STANDARD",
-                  templateVersion: 1,
-                  entryMode: "AUTO_SUGGEST",
-                  nodes: [],
-                  edges: [],
-                  milestones: [],
-                });
-                setPathwayDslJson(buildDraftDslPreview([], [], []));
+                setSelectedPathwayPrototype("blank");
+                resetCreateTemplateDraft();
                 setCreateExpertMode(false);
                 setCreateTemplateVisible(true);
               }}
