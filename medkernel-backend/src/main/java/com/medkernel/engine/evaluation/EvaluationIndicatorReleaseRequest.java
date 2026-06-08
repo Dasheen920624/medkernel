@@ -1,5 +1,7 @@
 package com.medkernel.engine.evaluation;
 
+import com.medkernel.engine.versioning.VersionPublishEvidence;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -9,5 +11,14 @@ import jakarta.validation.constraints.Size;
 public record EvaluationIndicatorReleaseRequest(
     @NotBlank
     @Size(max = 500)
-    String reason
-) {}
+    String reason,
+    VersionPublishEvidence publishEvidence
+) {
+    public EvaluationIndicatorReleaseRequest {
+        publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
+    }
+
+    public EvaluationIndicatorReleaseRequest(String reason) {
+        this(reason, VersionPublishEvidence.empty());
+    }
+}

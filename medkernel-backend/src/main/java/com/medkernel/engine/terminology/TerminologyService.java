@@ -632,7 +632,9 @@ public class TerminologyService {
             request.reason(),
             List.of(),
             actor,
-            RequestContext.currentTraceId()
+            RequestContext.currentTraceId(),
+            request.publishEvidence().electronicSignature(),
+            request.publishEvidence().qualityGate()
         );
     }
 
@@ -642,17 +644,17 @@ public class TerminologyService {
             PackageReleaseMode mode) {
         if (assetVersion.status() == AssetVersionStatus.DRAFT) {
             releasePort.submitForReview(command);
-            releasePort.approveForSilentObservation(command);
-        } else if (assetVersion.status() == AssetVersionStatus.PENDING_REVIEW) {
-            releasePort.approveForSilentObservation(command);
-        } else if (assetVersion.status() != AssetVersionStatus.PUBLISHED
-                && assetVersion.status() != AssetVersionStatus.ACTIVE) {
+            releasePort.approveReview(command);
+        } else if (assetVersion.status() == AssetVersionStatus.IN_REVIEW) {
+            releasePort.approveReview(command);
+        } else if (assetVersion.status() != AssetVersionStatus.APPROVED
+                && assetVersion.status() != AssetVersionStatus.PUBLISHED) {
             throw ApiException.conflict("统一术语资产版本状态不允许发布");
         }
         if (mode == PackageReleaseMode.GRAY) {
             releasePort.releaseGray(command);
         } else {
-            releasePort.releaseFull(command);
+            releasePort.publish(command);
         }
     }
 

@@ -491,7 +491,7 @@ class TerminologyServiceTest {
         verify(packageReleaseRepository).save(releaseCaptor.capture());
         assertThat(releaseCaptor.getValue().eventType()).isEqualTo(TermPackageReleaseEventType.PUBLISH);
         assertThat(releaseCaptor.getValue().releaseMode()).isEqualTo(PackageReleaseMode.FULL);
-        verify(releasePort).releaseFull(Mockito.argThat(command ->
+        verify(releasePort).publish(Mockito.argThat(command ->
             command.assetType() == VersionedAssetType.TERMINOLOGY
                 && command.versionId().equals("av-term-30")
         ));
@@ -519,7 +519,7 @@ class TerminologyServiceTest {
         verify(packageReleaseRepository).save(releaseCaptor.capture());
         assertThat(releaseCaptor.getValue().grayScopeJson()).contains("CANARY_BED_PERCENT", "10");
         verify(releasePort).submitForReview(any());
-        verify(releasePort).approveForSilentObservation(any());
+        verify(releasePort).approveReview(any());
         verify(releasePort).releaseGray(any());
     }
 
@@ -557,8 +557,8 @@ class TerminologyServiceTest {
 
         assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
         verify(releasePort).submitForReview(any());
-        verify(releasePort).approveForSilentObservation(any());
-        verify(releasePort).releaseFull(any());
+        verify(releasePort).approveReview(any());
+        verify(releasePort).publish(any());
     }
 
     @Test
@@ -569,10 +569,10 @@ class TerminologyServiceTest {
         when(packageRepository.findByTenantIdAndId("t-1", 29L)).thenReturn(Optional.of(target));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.25"
-        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.ACTIVE)));
+        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.PUBLISHED)));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.01"
-        )).thenReturn(Optional.of(assetVersion("av-term-29", "2026.05.01", AssetVersionStatus.OFFLINE)));
+        )).thenReturn(Optional.of(assetVersion("av-term-29", "2026.05.01", AssetVersionStatus.DEPRECATED)));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

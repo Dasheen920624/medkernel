@@ -46,7 +46,7 @@ import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Component;
 
 /**
- * CDSS B0 确定性命中器：读取标准上下文与统一版本已激活规则，生成可追溯推荐候选。
+ * CDSS B0 确定性命中器：读取标准上下文与统一版本已发布规则，生成可追溯推荐候选。
  *
  * <p>本组件只产出候选，不落库、不审计；事务、状态推进和疲劳治理由
  * {@link RecommendationEngineService} 统一处理。模型关闭时也依赖此组件保持主链路可用。
@@ -203,7 +203,7 @@ public class RecommendationDeterministicMatcher {
                 VersionedAssetType.RULE,
                 rule.ruleCode(),
                 String.valueOf(version.versionNo()))
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
             .map(assetVersion -> version);
     }
 

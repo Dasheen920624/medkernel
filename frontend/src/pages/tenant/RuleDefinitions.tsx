@@ -429,12 +429,11 @@ function renderStatus(status: string) {
 function renderDeploymentStatus(status: string) {
   const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
     DRAFT: { text: "待提交", status: "warning" },
-    PENDING_REVIEW: { text: "审核中", status: "processing" },
-    PUBLISHED: { text: "待全量激活", status: "processing" },
-    ACTIVE: { text: "运行中", status: "success" },
-    OFFLINE: { text: "已下线", status: "default" },
-    WITHDRAWN: { text: "已撤回", status: "error" },
-    ARCHIVED: { text: "已归档", status: "default" },
+    IN_REVIEW: { text: "审核中", status: "processing" },
+    APPROVED: { text: "已批准待发布", status: "processing" },
+    PUBLISHED: { text: "运行中", status: "success" },
+    DEPRECATED: { text: "已弃用", status: "default" },
+    RETIRED: { text: "已退役", status: "default" },
   };
   const config = statusMap[status] || { text: status, status: "processing" };
   return <Badge status={config.status} text={config.text} />;

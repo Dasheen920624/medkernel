@@ -33,7 +33,7 @@ public interface TermMappingPackageItemRepository extends ListCrudRepository<Ter
            AND version.version_no = package.package_version
          WHERE item.tenant_id = :tenantId
            AND package.status = 'PUBLISHED'
-           AND version.status = 'ACTIVE'
+           AND version.status = 'PUBLISHED'
            AND item.local_code = :localCode
            AND (:sourceSystem IS NULL OR item.source_system = :sourceSystem)
            AND (:targetDictionaryKey IS NULL OR item.target_dictionary_key = :targetDictionaryKey)
@@ -82,7 +82,7 @@ public interface TermMappingPackageItemRepository extends ListCrudRepository<Ter
            AND version.version_no = package.package_version
          WHERE item.tenant_id = :tenantId
            AND package.status = 'PUBLISHED'
-           AND version.status = 'ACTIVE'
+           AND version.status = 'PUBLISHED'
            AND item.target_dictionary_key = :targetDictionaryKey
            AND item.standard_code = :standardCode
            AND (

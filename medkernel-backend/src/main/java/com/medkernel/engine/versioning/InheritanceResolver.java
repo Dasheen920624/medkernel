@@ -77,7 +77,7 @@ public class InheritanceResolver {
                 tenantId,
                 assetType,
                 activeScopeKey(assetIdentity, candidate.orgPath(), applicableScope),
-                AssetVersionStatus.ACTIVE
+                AssetVersionStatus.PUBLISHED
             );
             if (active.isEmpty()) {
                 // 本级无替换版本：消费本级停用(DISABLE)覆盖（其 override_version_id 为空，按组织生效域直查）
@@ -144,7 +144,7 @@ public class InheritanceResolver {
             return platformBaseline;
         }
 
-        throw new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 ACTIVE 资产版本");
+        throw new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 PUBLISHED 资产版本");
     }
 
     public ResolvedAssetGraph resolveWithDependencies(InheritanceResolveQuery query) {
@@ -234,9 +234,9 @@ public class InheritanceResolver {
 
     /**
      * 前置回退平台权威基线：租户组织闭包无适用版本时，按 {@link PlatformAuthority} 约定读取
-     * 平台主租户顶层组织路径下该身份的 ACTIVE 版本，标注 {@link SourceTier#PLATFORM}。
+     * 平台主租户顶层组织路径下该身份的 PUBLISHED 版本，标注 {@link SourceTier#PLATFORM}。
      *
-     * <p>平台版本是继承链最一般的根：未被任何租户覆盖遮蔽的身份恒解析到平台 ACTIVE 版本，平台升级后
+     * <p>平台版本是继承链最一般的根：未被任何租户覆盖遮蔽的身份恒解析到平台 PUBLISHED 版本，平台升级后
      * 未定制方下次解析自动跟随，无需任何租户级复制（设计 platform-authority 规格）。平台亦无基线时返回
      * {@code null}，由调用方按 {@code NOT_FOUND} 诚实降级，不伪造。
      *
@@ -252,7 +252,7 @@ public class InheritanceResolver {
             PlatformAuthority.PLATFORM_TENANT_ID,
             assetType,
             activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         );
         if (platformActive.isEmpty()) {
             return null;
@@ -303,7 +303,7 @@ public class InheritanceResolver {
         }
         String summary = inherited
             ? "未找到本级覆盖，继承上级组织版本 " + version.versionNo()
-            : "命中本级 ACTIVE 版本 " + version.versionNo();
+            : "命中本级 PUBLISHED 版本 " + version.versionNo();
         return new InheritanceExplanation(
             appendSafetyInterception(summary, ignoredOverrideId), inheritancePath, null, null, null);
     }

@@ -13,7 +13,6 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -156,27 +155,6 @@ class AssetVersionServiceTest {
         assertThat(updated.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
         assertThat(updated.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
         assertThat(updated.updatedBy()).isEqualTo("reviewer-2");
-    }
-
-    @Test
-    void activateRejectsSecondActiveVersionInSameEffectiveDomain() {
-        AssetVersion target = sample(AssetVersionStatus.PUBLISHED, "hash-b", "version:av-2");
-        AssetVersion existingActive = sample(AssetVersionStatus.ACTIVE, "hash-a",
-            "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient").withVersionId("av-1");
-        when(repository.findByVersionIdAndTenantId("av-2", "tenant-A")).thenReturn(Optional.of(target.withVersionId("av-2")));
-        when(repository.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
-            "tenant-A",
-            VersionedAssetType.RULE,
-            "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient",
-            AssetVersionStatus.ACTIVE
-        )).thenReturn(List.of(existingActive));
-
-        assertThatThrownBy(() -> service.activate("tenant-A", "av-2", "publisher-1"))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.CONFLICT);
-
-        verify(repository, never()).save(any(AssetVersion.class));
     }
 
     private AssetVersion sample(AssetVersionStatus status, String hash, String activeScopeKey) {

@@ -56,7 +56,7 @@ class PackageInheritanceImpactServiceTest {
 
     @Test
     void analyzesPlatformUpstreamChangeWithAutomaticInheritanceAndRebasePrompts() {
-        AssetVersion platformV1 = platformVersion("av-platform-v1", "1.0.0", "hash-platform-v1", AssetVersionStatus.ACTIVE);
+        AssetVersion platformV1 = platformVersion("av-platform-v1", "1.0.0", "hash-platform-v1", AssetVersionStatus.PUBLISHED);
         AssetVersion platformV2 = platformVersion("av-platform-v2", "2.0.0", "hash-platform-v2", AssetVersionStatus.PUBLISHED);
         AssetVersion tenantOverride = tenantVersion("av-tenant-local", "1.1.0-hosp", HOSPITAL_PATH, "hash-tenant-local");
         OrgUnit hospital = org("org-hosp", null, HOSPITAL_PATH, OrgLevel.FACILITY);
@@ -69,7 +69,7 @@ class PackageInheritanceImpactServiceTest {
             PlatformTenant.ID,
             VersionedAssetType.RULE,
             ASSET_IDENTITY + "|" + PlatformAuthority.PLATFORM_ORG_PATH + "|" + APPLICABLE_SCOPE,
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(platformV1));
         when(orgUnits.findByTenantIdOrderByLevelAscCodeAsc(TENANT_ID))
             .thenReturn(List.of(hospital, department, ward));
@@ -191,7 +191,7 @@ class PackageInheritanceImpactServiceTest {
     }
 
     private AssetVersion tenantVersion(String versionId, String versionNo, String orgPath, String contentHash) {
-        return version(versionId, TENANT_ID, versionNo, orgPath, contentHash, AssetVersionStatus.ACTIVE);
+        return version(versionId, TENANT_ID, versionNo, orgPath, contentHash, AssetVersionStatus.PUBLISHED);
     }
 
     private AssetVersion version(
@@ -217,7 +217,7 @@ class PackageInheritanceImpactServiceTest {
             status,
             ASSET_IDENTITY + "|" + orgPath + "|" + APPLICABLE_SCOPE,
             "rule/" + ASSET_IDENTITY,
-            status == AssetVersionStatus.ACTIVE ? now : null,
+            status == AssetVersionStatus.PUBLISHED ? now : null,
             null,
             now,
             "publisher-1",

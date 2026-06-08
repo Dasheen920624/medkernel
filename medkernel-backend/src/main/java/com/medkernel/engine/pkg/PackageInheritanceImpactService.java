@@ -200,7 +200,7 @@ public class PackageInheritanceImpactService {
             PlatformTenant.ID,
             assetType,
             activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         );
         return activeVersions.isEmpty() ? null : activeVersions.get(0);
     }

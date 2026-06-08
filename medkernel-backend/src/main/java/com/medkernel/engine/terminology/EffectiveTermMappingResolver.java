@@ -15,7 +15,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 解析当前组织真正可消费的术语映射。
  *
- * <p>仅查询统一资产版本为 ACTIVE、领域包状态为 PUBLISHED 的不可变包条目；
+ * <p>仅查询统一资产版本与领域包状态均为 PUBLISHED 的不可变包条目；
  * 同一编码锚点同时命中多层组织包时，仅保留最具体层级，避免上级基线与下级覆盖形成伪冲突。
  */
 @Service

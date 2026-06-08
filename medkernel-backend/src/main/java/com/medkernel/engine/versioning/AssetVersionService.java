@@ -91,7 +91,7 @@ public class AssetVersionService implements VersionedAssetPort {
     @Transactional
     public AssetVersion updateDraft(AssetVersionDraftUpdateCommand command) {
         AssetVersion version = findOwnedVersion(command.tenantId(), command.versionId());
-        if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.PENDING_REVIEW) {
+        if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.IN_REVIEW) {
             throw new ApiException(ErrorCode.CONFLICT, "已发布版本不可原地修改，必须登记新版本");
         }
         String assetIdentity = required(command.assetIdentity(), "资产身份");
@@ -114,60 +114,6 @@ public class AssetVersionService implements VersionedAssetPort {
         ));
         registerDependencies(saved, command.dependencies(), command.actor(), command.traceId());
         return saved;
-    }
-
-    @Override
-    @Transactional
-    public AssetVersion publish(String tenantId, String versionId, String actor) {
-        AssetVersion version = findOwnedVersion(tenantId, versionId);
-        if (version.status() == AssetVersionStatus.PUBLISHED || version.status() == AssetVersionStatus.ACTIVE) {
-            return version;
-        }
-        if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.PENDING_REVIEW) {
-            throw new ApiException(ErrorCode.CONFLICT, "当前版本状态不允许发布");
-        }
-        return repository.save(version.withStatus(
-            AssetVersionStatus.PUBLISHED,
-            draftScopeKey(version.versionId()),
-            Instant.now(clock),
-            required(actor, "操作人")
-        ));
-    }
-
-    @Override
-    @Transactional
-    public AssetVersion activate(String tenantId, String versionId, String actor) {
-        AssetVersion version = findOwnedVersion(tenantId, versionId);
-        if (version.status() == AssetVersionStatus.ACTIVE) {
-            return version;
-        }
-        if (version.status() != AssetVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.CONFLICT, "只有已发布版本可以激活为 ACTIVE");
-        }
-
-        String activeScopeKey = activeScopeKey(version);
-        boolean hasOtherActive = repository.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
-                version.tenantId(), version.assetType(), activeScopeKey, AssetVersionStatus.ACTIVE)
-            .stream()
-            .anyMatch(active -> !active.versionId().equals(version.versionId()));
-        if (hasOtherActive) {
-            throw new ApiException(ErrorCode.CONFLICT, "同一资产生效域已存在 ACTIVE 版本，禁止双活");
-        }
-
-        return repository.save(version.withStatus(
-            AssetVersionStatus.ACTIVE,
-            activeScopeKey,
-            Instant.now(clock),
-            required(actor, "操作人")
-        ));
-    }
-
-    static String activeScopeKey(AssetVersion version) {
-        return String.join("|",
-            required(version.assetIdentity(), "资产身份"),
-            required(version.organizationScope(), "组织生效域"),
-            required(version.applicableScope(), "适用人群或上下文")
-        );
     }
 
     private AssetVersion findOwnedVersion(String tenantId, String versionId) {

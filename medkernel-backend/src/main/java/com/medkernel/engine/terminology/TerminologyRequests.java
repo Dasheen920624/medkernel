@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.shared.api.ApiError;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -277,10 +278,35 @@ record PublishTerminologyPackageRequest(
     @JsonProperty("package_version") String packageVersion,
     @NotNull PackageReleaseMode releaseMode,
     @NotBlank @Size(max = 500) String reason,
-    @Size(max = 2048) String grayScopeJson
+    @Size(max = 2048) String grayScopeJson,
+    VersionPublishEvidence publishEvidence
 ) implements TerminologyContextRequest {
     PublishTerminologyPackageRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
+    }
+
+    PublishTerminologyPackageRequest(
+            String requestId,
+            String traceId,
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId,
+            String userId,
+            List<String> roleCodes,
+            String packageVersion,
+            PackageReleaseMode releaseMode,
+            String reason,
+            String grayScopeJson) {
+        this(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion,
+            releaseMode, reason, grayScopeJson, VersionPublishEvidence.empty()
+        );
     }
 
     public TerminologyApiContext context() {

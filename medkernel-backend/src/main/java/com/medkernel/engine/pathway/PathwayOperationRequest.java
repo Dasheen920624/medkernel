@@ -3,6 +3,7 @@ package com.medkernel.engine.pathway;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.constraints.Size;
 
@@ -26,15 +27,43 @@ public record PathwayOperationRequest(
     @Size(max = 500) String reason,
     String releaseStep,
     Boolean directFullRollout,
-    String rollbackTargetTemplateId
+    String rollbackTargetTemplateId,
+    VersionPublishEvidence publishEvidence
 ) implements PathwayContextRequest {
     public PathwayOperationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
+    }
+
+    public PathwayOperationRequest(
+            String requestId,
+            String traceId,
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId,
+            String userId,
+            List<String> roleCodes,
+            String packageVersion,
+            String impactDigest,
+            String reason,
+            String releaseStep,
+            Boolean directFullRollout,
+            String rollbackTargetTemplateId) {
+        this(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion,
+            impactDigest, reason, releaseStep, directFullRollout, rollbackTargetTemplateId,
+            VersionPublishEvidence.empty()
+        );
     }
 
     public PathwayOperationRequest(String impactDigest, String reason) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            impactDigest, reason, "submit_review", false, null);
+            impactDigest, reason, "submit_review", false, null, VersionPublishEvidence.empty());
     }
 
     public PathwayApiContext apiContext() {

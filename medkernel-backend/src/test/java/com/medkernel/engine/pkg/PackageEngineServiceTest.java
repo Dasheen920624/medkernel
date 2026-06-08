@@ -645,7 +645,7 @@ class PackageEngineServiceTest {
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06"))
             .thenReturn(Optional.of(declarativeAssetVersion(
-                VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06", AssetVersionStatus.ACTIVE)));
+                VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06", AssetVersionStatus.PUBLISHED)));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.PACKAGE, "PKG.CKD", "2026.06"))
             .thenReturn(Optional.of(packageAssetVersion(
@@ -1856,8 +1856,8 @@ class PackageEngineServiceTest {
         // 全量成功后，原包状态应该原子更新为 ACTIVE
         assertThat(packCap.getValue().status()).isEqualTo(KnowledgePackageStatus.ACTIVE);
         verify(releasePort).submitForReview(any());
-        verify(releasePort).approveForSilentObservation(any());
-        verify(releasePort).releaseFull(any());
+        verify(releasePort).approveReview(any());
+        verify(releasePort).publish(any());
         verify(auditRecorder).record(eq(AuditAction.PUBLISH), eq("knowledge_package"), eq("pkg-1"), any());
     }
 
@@ -3378,12 +3378,12 @@ class PackageEngineServiceTest {
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.PACKAGE, identity, "2.0.0"
         )).thenReturn(Optional.of(packageAssetVersion(
-            "av-package-2", identity, "2.0.0", targetOrgUnitId, AssetVersionStatus.ACTIVE
+            "av-package-2", identity, "2.0.0", targetOrgUnitId, AssetVersionStatus.PUBLISHED
         )));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.PACKAGE, identity, "1.0.0"
         )).thenReturn(Optional.of(packageAssetVersion(
-            "av-package-1", identity, "1.0.0", targetOrgUnitId, AssetVersionStatus.OFFLINE
+            "av-package-1", identity, "1.0.0", targetOrgUnitId, AssetVersionStatus.DEPRECATED
         )));
     }
 

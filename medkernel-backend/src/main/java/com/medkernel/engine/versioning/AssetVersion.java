@@ -70,6 +70,14 @@ public record AssetVersion(
         );
     }
 
+    public AssetVersion withOverridePolicy(AssetVersionOverridePolicy newOverridePolicy) {
+        return new AssetVersion(
+            id, versionId, tenantId, assetType, assetIdentity, versionNo,
+            organizationScope, applicableScope, contentHash, safetyPolicy, newOverridePolicy, status, activeScopeKey, sourceRef,
+            effectiveFrom, effectiveTo, createdAt, createdBy, updatedAt, updatedBy, traceId
+        );
+    }
+
     public AssetVersion withStatusAndWindow(
             AssetVersionStatus newStatus,
             String newActiveScopeKey,

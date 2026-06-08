@@ -104,15 +104,15 @@ public class InheritanceOverrideService {
             }
         }
 
-        // REPLACE/ADD 须绑定本地 ACTIVE 版本；DISABLE 无替换版本，overrideVersion 留空，
+        // REPLACE/ADD 须绑定本地 PUBLISHED 版本；DISABLE 无替换版本，overrideVersion 留空，
         // 仅凭已校验必填的原因/影响/差异/操作者/trace 留作发布证据链（解析期由 InheritanceResolver 消费）
         AssetVersion overrideVersion = null;
         if (mode == InheritanceOverrideMode.REPLACE || mode == InheritanceOverrideMode.ADD) {
             String label = mode == InheritanceOverrideMode.ADD ? "独有版本 ID" : "覆盖版本 ID";
             overrideVersion = findOwnedVersion(tenantId, required(command.overrideVersionId(), label));
             assertVersionDomain(overrideVersion, assetType, assetIdentity, applicableScope, "覆盖版本");
-            if (overrideVersion.status() != AssetVersionStatus.ACTIVE) {
-                throw new ApiException(ErrorCode.CONFLICT, "覆盖版本必须为 ACTIVE");
+            if (overrideVersion.status() != AssetVersionStatus.PUBLISHED) {
+                throw new ApiException(ErrorCode.CONFLICT, "覆盖版本必须为 PUBLISHED");
             }
             if (!target.orgPath().equals(overrideVersion.organizationScope())) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED, "覆盖版本组织生效域必须等于目标组织");
@@ -245,7 +245,7 @@ public class InheritanceOverrideService {
             PlatformAuthority.PLATFORM_TENANT_ID,
             assetType,
             InheritanceResolver.activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         );
         if (platformActive != null && !platformActive.isEmpty()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台已有该身份基线，请使用 REPLACE 或 DISABLE");

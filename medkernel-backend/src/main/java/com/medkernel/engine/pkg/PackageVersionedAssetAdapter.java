@@ -49,14 +49,4 @@ public class PackageVersionedAssetAdapter implements VersionedAssetPort {
     public AssetVersion updateDraft(AssetVersionDraftUpdateCommand command) {
         return delegate.updateDraft(command);
     }
-
-    @Override
-    public AssetVersion publish(String tenantId, String versionId, String actor) {
-        return delegate.publish(tenantId, versionId, actor);
-    }
-
-    @Override
-    public AssetVersion activate(String tenantId, String versionId, String actor) {
-        return delegate.activate(tenantId, versionId, actor);
-    }
 }

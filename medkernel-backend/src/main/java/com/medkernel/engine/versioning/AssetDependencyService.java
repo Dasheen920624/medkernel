@@ -141,7 +141,7 @@ public class AssetDependencyService {
             owner.tenantId(),
             edge.dependsOnAssetType(),
             InheritanceResolver.activeScopeKey(edge.dependsOnIdentity(), owner.organizationScope(), owner.applicableScope()),
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         ));
         if (!PlatformAuthority.PLATFORM_TENANT_ID.equals(owner.tenantId())
                 || !PlatformAuthority.PLATFORM_ORG_PATH.equals(owner.organizationScope())) {
@@ -150,14 +150,14 @@ public class AssetDependencyService {
                 edge.dependsOnAssetType(),
                 InheritanceResolver.activeScopeKey(
                     edge.dependsOnIdentity(), PlatformAuthority.PLATFORM_ORG_PATH, owner.applicableScope()),
-                AssetVersionStatus.ACTIVE
+                AssetVersionStatus.PUBLISHED
             ));
         }
         return candidates;
     }
 
     private boolean isInUse(AssetVersion version) {
-        return version.status() == AssetVersionStatus.PUBLISHED || version.status() == AssetVersionStatus.ACTIVE;
+        return version.status() == AssetVersionStatus.PUBLISHED;
     }
 
     private boolean overlapsDisableScope(AssetVersion version, String targetOrgPath, String applicableScope) {

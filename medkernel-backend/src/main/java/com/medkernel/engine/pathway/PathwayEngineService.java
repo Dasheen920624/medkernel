@@ -565,7 +565,9 @@ public class PathwayEngineService {
             releaseReason(request, "路径发布门禁通过"),
             request == null ? List.of() : request.roleCodes(),
             actor,
-            RequestContext.currentTraceId()
+            RequestContext.currentTraceId(),
+            request == null ? null : request.publishEvidence().electronicSignature(),
+            request == null ? null : request.publishEvidence().qualityGate()
         );
         return advanceCanaryRelease(assetVersion, command);
     }
@@ -589,7 +591,9 @@ public class PathwayEngineService {
             releaseReason(request, "路径全量发布门禁通过"),
             request == null ? List.of() : request.roleCodes(),
             actor,
-            RequestContext.currentTraceId()
+            RequestContext.currentTraceId(),
+            request == null ? null : request.publishEvidence().electronicSignature(),
+            request == null ? null : request.publishEvidence().qualityGate()
         );
         return advanceFullRelease(assetVersion, command);
     }
@@ -645,19 +649,19 @@ public class PathwayEngineService {
         );
     }
 
-    private AssetVersion requireActivePathwayAssetVersion(PathwayTemplate template) {
+    private AssetVersion requirePublishedPathwayAssetVersion(PathwayTemplate template) {
         return findPathwayAssetVersion(template)
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_005,
-                "路径模板统一版本未全量激活，不能入径: "
+                "路径模板统一版本尚未发布，不能入径: "
                     + template.templateCode() + "@" + template.templateVersion()
             ));
     }
 
     private boolean hasActivePathwayAssetVersion(PathwayTemplate template) {
         return findPathwayAssetVersion(template)
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
             .isPresent();
     }
 
@@ -666,16 +670,16 @@ public class PathwayEngineService {
         AssetVersionStatus status = assetVersion.status();
         if (status == AssetVersionStatus.DRAFT) {
             appendEvidence(evidence, releasePort.submitForReview(command));
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+            appendEvidence(evidence, releasePort.approveReview(command));
             appendEvidence(evidence, releasePort.releaseGray(command));
             return evidence;
         }
-        if (status == AssetVersionStatus.PENDING_REVIEW) {
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+        if (status == AssetVersionStatus.IN_REVIEW) {
+            appendEvidence(evidence, releasePort.approveReview(command));
             appendEvidence(evidence, releasePort.releaseGray(command));
             return evidence;
         }
-        if (status == AssetVersionStatus.PUBLISHED || status == AssetVersionStatus.ACTIVE) {
+        if (status == AssetVersionStatus.APPROVED || status == AssetVersionStatus.PUBLISHED) {
             appendEvidence(evidence, releasePort.releaseGray(command));
         }
         return evidence;
@@ -686,17 +690,17 @@ public class PathwayEngineService {
         AssetVersionStatus status = assetVersion.status();
         if (status == AssetVersionStatus.DRAFT) {
             appendEvidence(evidence, releasePort.submitForReview(command));
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
-            appendEvidence(evidence, releasePort.releaseFull(command));
+            appendEvidence(evidence, releasePort.approveReview(command));
+            appendEvidence(evidence, releasePort.publish(command));
             return evidence;
         }
-        if (status == AssetVersionStatus.PENDING_REVIEW) {
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
-            appendEvidence(evidence, releasePort.releaseFull(command));
+        if (status == AssetVersionStatus.IN_REVIEW) {
+            appendEvidence(evidence, releasePort.approveReview(command));
+            appendEvidence(evidence, releasePort.publish(command));
             return evidence;
         }
-        if (status == AssetVersionStatus.PUBLISHED || status == AssetVersionStatus.ACTIVE) {
-            appendEvidence(evidence, releasePort.releaseFull(command));
+        if (status == AssetVersionStatus.APPROVED || status == AssetVersionStatus.PUBLISHED) {
+            appendEvidence(evidence, releasePort.publish(command));
         }
         return evidence;
     }
@@ -1040,7 +1044,7 @@ public class PathwayEngineService {
             snapshot.packageVersion(),
             ErrorCode.ENG_PATHWAY_001,
             "患者入径包版本必须与路径模板所属包版本一致");
-        requireActivePathwayAssetVersion(template);
+        requirePublishedPathwayAssetVersion(template);
         safetyGuard.assertPathwayTemplateAllowed(template);
         validateEntryCriteria(template, snapshot.resources());
         EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
