@@ -1191,6 +1191,42 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void evaluateAllRulesUsesInheritanceResolvedVersionForCurrentDepartment() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
+        RuleDefinition rule = existingRule(
+            "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示",
+            "version-1", RuleDefinitionStatus.PUBLISHED);
+        RuleVersion originalVersion = existingVersion(
+            "version-1", "tenant-A", "rule-1", RuleVersionStatus.PUBLISHED, 1);
+        RuleVersion effectiveVersion = existingVersion(
+            "version-2", "tenant-A", "rule-1", RuleVersionStatus.PUBLISHED, 2);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(rule));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(originalVersion));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
+        when(inheritanceResolver.resolve(any())).thenReturn(new ResolvedAssetVersion(
+            assetVersion("av-rule-2", VersionedAssetType.RULE, "RULE.ANTICOAG", "2", AssetVersionStatus.ACTIVE),
+            "dept-1", false, true, false, null, SourceTier.ORG));
+        when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.ANTICOAG"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByRuleIdAndTenantIdAndVersionNo("rule-1", "tenant-A", 2))
+            .thenReturn(Optional.of(effectiveVersion));
+        when(versions.findByVersionIdAndTenantId("version-2", "tenant-A"))
+            .thenReturn(Optional.of(effectiveVersion));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "2", AssetVersionStatus.ACTIVE);
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContext(), "evt-effective-all", List.of());
+
+        assertThat(response.items()).singleElement()
+            .extracting(RuleEvaluationItem::versionId)
+            .isEqualTo("version-2");
+        verify(inheritanceResolver).resolve(any());
+    }
+
+    @Test
     void evaluateSpecifiedRuleUsesInheritanceResolvedVersionForCurrentDepartment() {
         InheritanceResolver resolver = mock(InheritanceResolver.class);
         RuleEngineService inheritedService = new RuleEngineService(

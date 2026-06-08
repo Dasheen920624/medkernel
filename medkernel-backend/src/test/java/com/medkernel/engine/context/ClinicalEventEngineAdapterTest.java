@@ -17,9 +17,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEventDispatchResponse;
+import com.medkernel.engine.recommendation.RecommendationCard;
+import com.medkernel.engine.recommendation.RecommendationCardStatus;
+import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
+import com.medkernel.engine.recommendation.RecommendationInterruptLevel;
 import com.medkernel.engine.recommendation.RecommendationModelStatus;
+import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
 import com.medkernel.engine.rule.RuleEngineService;
@@ -128,13 +133,16 @@ class ClinicalEventEngineAdapterTest {
         when(service.evaluate(any(RecommendationTriggerRequest.class)))
             .thenReturn(new RecommendationEvaluationResponse(
                 "rt-1", RecommendationTriggerStatus.EVALUATED, 1, 1, 0,
-                RecommendationModelStatus.MODEL_DISABLED, List.of(), "trace-1"));
+                RecommendationModelStatus.MODEL_DISABLED, List.of(cardWithResolutionSource()), "trace-1"));
         var adapter = new ClinicalEventRecommendationEngineAdapter(service);
 
         ClinicalEventEngineDispatchResult result = adapter.dispatch(context());
 
         assertThat(result.engine()).isEqualTo(ClinicalEventEngine.CDSS);
         assertThat(result.downstreamReferenceId()).isEqualTo("rt-1");
+        assertThat(result.message())
+            .contains("来源=ORG")
+            .contains("sha256:tenant-rule-v2");
         ArgumentCaptor<RecommendationTriggerRequest> requestCap =
             ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
         verify(service).evaluate(requestCap.capture());
@@ -167,5 +175,43 @@ class ClinicalEventEngineAdapterTest {
                 Instant.parse("2026-06-01T01:00:00Z")),
             json.createObjectNode().put("diagnosisCode", "I10"),
             List.of());
+    }
+
+    private RecommendationCard cardWithResolutionSource() {
+        Instant now = Instant.parse("2026-06-01T01:00:00Z");
+        return new RecommendationCard(
+            null,
+            "card-1",
+            "tenant-A",
+            "rt-1",
+            "RULE.RISK_GENDER.v2",
+            RecommendationCardType.RISK,
+            "性别风险评估",
+            "请结合上下文复核",
+            "请结合推荐解释确认处理",
+            RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO,
+            RecommendationCardStatus.PENDING,
+            false,
+            false,
+            "规则 RISK_GENDER v2 命中，来源=ORG，content_hash=sha256:tenant-rule-v2",
+            "{}",
+            "patient-view:RISK_GENDER",
+            null,
+            now,
+            "system",
+            now,
+            "system",
+            "trace-1",
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            false,
+            null,
+            null,
+            null);
     }
 }

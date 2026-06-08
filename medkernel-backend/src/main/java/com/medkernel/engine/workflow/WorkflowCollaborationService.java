@@ -1237,27 +1237,7 @@ public class WorkflowCollaborationService {
 
     private static String currentOrgUnitId(RequestContext.Snapshot ctx) {
         OrgScope scope = ctx.orgScope();
-        String orgUnitId = blankToNull(scope.specialtyId());
-        if (orgUnitId != null) {
-            return orgUnitId;
-        }
-        orgUnitId = blankToNull(scope.departmentId());
-        if (orgUnitId != null) {
-            return orgUnitId;
-        }
-        orgUnitId = blankToNull(scope.siteId());
-        if (orgUnitId != null) {
-            return orgUnitId;
-        }
-        orgUnitId = blankToNull(scope.campusId());
-        if (orgUnitId != null) {
-            return orgUnitId;
-        }
-        orgUnitId = blankToNull(scope.hospitalId());
-        if (orgUnitId != null) {
-            return orgUnitId;
-        }
-        return blankToNull(scope.groupId());
+        return scope == null ? null : blankToNull(scope.nearestOrgUnitId());
     }
 
     private static RequestContext.Snapshot projectionContext(ClinicalEventProcessedEvent processed, String tenantId) {

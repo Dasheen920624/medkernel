@@ -7,10 +7,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
@@ -20,6 +23,43 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 class ClinicalEventEngineDispatcherTest {
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+
+    @AfterEach
+    void clearContext() {
+        RequestContext.clear();
+    }
+
+    @Test
+    void dispatchRestoresClinicalEventTraceAndOrgScopeForRuntimeResolution() {
+        AtomicReference<String> observedTrace = new AtomicReference<>();
+        AtomicReference<OrgScope> observedScope = new AtomicReference<>();
+        ClinicalEventEngineAdapter capturingRule = new ClinicalEventEngineAdapter() {
+            @Override
+            public ClinicalEventEngine engine() {
+                return ClinicalEventEngine.RULE;
+            }
+
+            @Override
+            public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
+                observedTrace.set(RequestContext.currentTraceId());
+                observedScope.set(RequestContext.currentOrgScope());
+                return ClinicalEventEngineDispatchResult.dispatched(engine(), "rule-ok", "已按事件组织解析");
+            }
+        };
+        ClinicalEventEngineDispatcher dispatcher = new ClinicalEventEngineDispatcher(
+            List.of(capturingRule, fast(ClinicalEventEngine.PATHWAY), fast(ClinicalEventEngine.CDSS)),
+            new SimpleAsyncTaskExecutor("clinical-dispatch-context-test-"),
+            new ClinicalEventProperties(1024, Duration.ofSeconds(1), 10, 3, List.of(1L)));
+        RequestContext.restore(new RequestContext.Snapshot(
+            "ambient-trace", OrgScope.tenant("tenant-A"), "doctor-ambient"));
+
+        List<ClinicalEventEngineDispatchResult> results = dispatcher.dispatch(context());
+
+        assertThat(results).hasSize(3);
+        assertThat(observedTrace).hasValue("trace-1");
+        assertThat(observedScope.get().departmentId()).isEqualTo("dept-A");
+        assertThat(observedScope.get().specialtyId()).isEqualTo("specialty-A");
+    }
 
     @Test
     void dispatchReturnsUnavailableWhenEngineExceedsSyncBudget() throws Exception {

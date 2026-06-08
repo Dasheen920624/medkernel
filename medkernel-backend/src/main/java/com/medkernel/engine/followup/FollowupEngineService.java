@@ -806,7 +806,7 @@ public class FollowupEngineService {
             List.of(),
             plan.patientId(),
             plan.encounterId(),
-            firstNonBlank(scope.specialtyId(), scope.departmentId(), scope.tenantId()),
+            scope.nearestOrgUnitIdOrTenant(scope.tenantId()),
             request.packageVersion(),
             resources
         );

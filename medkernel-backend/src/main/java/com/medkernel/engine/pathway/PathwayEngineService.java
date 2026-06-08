@@ -3279,25 +3279,7 @@ public class PathwayEngineService {
         if (scope == null) {
             return null;
         }
-        if (scope.specialtyId() != null && !scope.specialtyId().isBlank()) {
-            return scope.specialtyId();
-        }
-        if (scope.departmentId() != null && !scope.departmentId().isBlank()) {
-            return scope.departmentId();
-        }
-        if (scope.siteId() != null && !scope.siteId().isBlank()) {
-            return scope.siteId();
-        }
-        if (scope.campusId() != null && !scope.campusId().isBlank()) {
-            return scope.campusId();
-        }
-        if (scope.hospitalId() != null && !scope.hospitalId().isBlank()) {
-            return scope.hospitalId();
-        }
-        if (scope.groupId() != null && !scope.groupId().isBlank()) {
-            return scope.groupId();
-        }
-        return null;
+        return scope.nearestOrgUnitId();
     }
 
     private String currentActor() {

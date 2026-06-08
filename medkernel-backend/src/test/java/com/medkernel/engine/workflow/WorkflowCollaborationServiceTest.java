@@ -1819,6 +1819,7 @@ class WorkflowCollaborationServiceTest {
         verify(todos).save(todoCaptor.capture());
         assertThat(todoCaptor.getValue().sourceType()).isEqualTo(WorkflowTodoSourceType.RECOMMENDATION_CARD);
         assertThat(todoCaptor.getValue().sourceId()).isEqualTo("card-order-1");
+        assertThat(todoCaptor.getValue().orgUnitId()).isEqualTo("dept-A");
         assertThat(todoCaptor.getValue().deepLink()).isEqualTo("/cdss/fatigue?cardId=card-order-1");
         assertThat(todoCaptor.getValue().traceId()).isEqualTo("trace-order");
 
