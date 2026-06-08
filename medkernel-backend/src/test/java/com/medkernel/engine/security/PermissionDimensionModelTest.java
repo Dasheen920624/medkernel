@@ -66,16 +66,25 @@ class PermissionDimensionModelTest {
     }
 
     @Test
-    void platformAndGroupAdminsReceiveEveryNonEmergencyPermissionThroughPolicy() {
+    void platformAdminReceivesEveryNonEmergencyPermissionThroughPolicy() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
             .containsAll(expected)
             .doesNotContain(PermissionCode.ENV_EMERGENCY);
+    }
+
+    @Test
+    void groupAdminReceivesTenantGovernanceWithoutPlatformPublishPermission() {
+        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
+        expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.remove(PermissionCode.PLATFORM_PUBLISH);
+
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+            .contains(PermissionCode.TENANT_OVERRIDE)
+            .doesNotContain(PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH);
     }
 
     private String invokeDimension(Method dimensionMethod, PermissionCode permission) {

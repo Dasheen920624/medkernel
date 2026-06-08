@@ -123,6 +123,47 @@ class InheritanceResolverTest {
     }
 
     @Test
+    void ignoresInReviewOverrideAndFallsBackToPublishedAncestor() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion pendingHospitalOverride =
+            version("av-hosp-pending", "1.0.0-hosp-review", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride pendingRecord = override(
+            "io-hosp-review",
+            groupV1.versionId(),
+            pendingHospitalOverride.versionId(),
+            HOSP_PATH,
+            "给药剂量阈值待评审",
+            "药事会未完成",
+            "HOSP-A",
+            InheritancePropagation.INHERITABLE,
+            InheritanceOverrideStatus.IN_REVIEW
+        );
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubActiveAt(HOSP_PATH, pendingHospitalOverride);
+        stubActiveAt(GROUP_PATH, groupV1);
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", pendingHospitalOverride.versionId()))
+            .thenReturn(Optional.of(pendingRecord));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", groupV1.versionId()))
+            .thenReturn(Optional.empty());
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "adult|inpatient",
+            hospital.id()
+        ));
+
+        assertThat(resolved.version()).isEqualTo(groupV1);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.explanation().resolutionSummary()).contains("继承上级组织版本");
+    }
+
+    @Test
     void exclusiveOverrideDoesNotPropagateToDescendants() {
         OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
@@ -707,9 +748,10 @@ class InheritanceResolverTest {
             .thenReturn(Optional.of(hospitalRecord));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", platform.versionId()))
             .thenReturn(Optional.empty());
-        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
             "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, sitePath, applicableScope,
-            InheritanceOverrideMode.DISABLE
+            InheritanceOverrideMode.DISABLE,
+            InheritanceOverrideStatus.PUBLISHED
         )).thenReturn(List.of(siteDisable));
 
         ResolvedAssetVersion atGroup = resolver.resolve(new InheritanceResolveQuery(
@@ -798,6 +840,7 @@ class InheritanceResolverTest {
             overrideVersionId,
             mode,
             propagation,
+            InheritanceOverrideStatus.PUBLISHED,
             orgPath,
             applicableScope,
             "术语覆盖",
@@ -874,9 +917,10 @@ class InheritanceResolverTest {
     }
 
     private void stubDisableAt(String orgPath, InheritanceOverride disable) {
-        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", orgPath, "adult|inpatient",
-            InheritanceOverrideMode.DISABLE
+            InheritanceOverrideMode.DISABLE,
+            InheritanceOverrideStatus.PUBLISHED
         )).thenReturn(List.of(disable));
     }
 
@@ -893,6 +937,7 @@ class InheritanceResolverTest {
             null,
             InheritanceOverrideMode.DISABLE,
             propagation,
+            InheritanceOverrideStatus.PUBLISHED,
             orgPath,
             "adult|inpatient",
             "本机构停用该资产",
@@ -1015,6 +1060,29 @@ class InheritanceResolverTest {
             String overrideReason,
             String impactScope,
             InheritancePropagation propagation) {
+        return override(
+            overrideId,
+            inheritedVersionId,
+            overrideVersionId,
+            orgPath,
+            diffSummary,
+            overrideReason,
+            impactScope,
+            propagation,
+            InheritanceOverrideStatus.PUBLISHED
+        );
+    }
+
+    private InheritanceOverride override(
+            String overrideId,
+            String inheritedVersionId,
+            String overrideVersionId,
+            String orgPath,
+            String diffSummary,
+            String overrideReason,
+            String impactScope,
+            InheritancePropagation propagation,
+            InheritanceOverrideStatus lifecycleStatus) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new InheritanceOverride(
             1L,
@@ -1026,6 +1094,7 @@ class InheritanceResolverTest {
             overrideVersionId,
             InheritanceOverrideMode.REPLACE,
             propagation,
+            lifecycleStatus,
             orgPath,
             "adult|inpatient",
             diffSummary,

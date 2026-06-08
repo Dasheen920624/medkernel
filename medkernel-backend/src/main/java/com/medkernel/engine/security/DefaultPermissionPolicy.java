@@ -33,12 +33,12 @@ public final class DefaultPermissionPolicy {
         // 内置超级管理员：经 RBAC 拥有所有运行时权限，不通过 if 分支旁路。
         map.put(RoleCode.SYSTEM_SUPERADMIN, allRuntimePermissions());
 
-        // 平台 / 集团管理员：除 break-glass 外的全部常规权限；应急权限必须走时限授予。
+        // 平台管理员可发布平台权威版本；集团/医院管理员只拥有租户覆盖治理能力。
         map.put(RoleCode.PLATFORM_ADMIN, allNonEmergencyPermissions());
-        map.put(RoleCode.GROUP_ADMIN, allNonEmergencyPermissions());
+        map.put(RoleCode.GROUP_ADMIN, tenantAdminPermissions());
 
         // 医院管理员：除平台运维和 break-glass 外的全部常规权限
-        EnumSet<PermissionCode> hospitalAdmin = allNonEmergencyPermissions();
+        EnumSet<PermissionCode> hospitalAdmin = tenantAdminPermissions();
         hospitalAdmin.remove(SYSTEM_MANAGE);
         map.put(RoleCode.HOSPITAL_ADMIN, hospitalAdmin);
 
@@ -56,7 +56,7 @@ public final class DefaultPermissionPolicy {
             EVENT_READ, EVENT_WRITE,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE,
             EVALUATION_EXECUTE,
-            SYSTEM_READ, SYSTEM_MANAGE,
+            SYSTEM_READ, SYSTEM_MANAGE, TENANT_OVERRIDE,
             AUDIT_READ,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             WORKFLOW_READ, WORKFLOW_WRITE,
@@ -94,6 +94,7 @@ public final class DefaultPermissionPolicy {
             ENV_TRIAL, ENV_PRODUCTION,
             ORG_READ,
             KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW, KNOWLEDGE_PUBLISH, KNOWLEDGE_WITHDRAW, KNOWLEDGE_EXPORT,
+            TENANT_OVERRIDE,
             RULE_READ, RULE_WRITE, RULE_PUBLISH,
             PATHWAY_READ, PATHWAY_WRITE, PATHWAY_PUBLISH,
             TERM_READ,
@@ -134,6 +135,7 @@ public final class DefaultPermissionPolicy {
             ORG_READ,
             EVALUATION_READ, EVALUATION_WRITE, EVALUATION_PUBLISH, EVALUATION_EXECUTE,
             EVALUATION_REMEDIATE, EVALUATION_REVIEW,
+            TENANT_OVERRIDE,
             KNOWLEDGE_READ, KNOWLEDGE_EXPORT,
             RULE_READ,
             PATHWAY_READ,
@@ -176,7 +178,7 @@ public final class DefaultPermissionPolicy {
             ORG_READ,
             PATHWAY_READ, PATHWAY_WRITE,
             RULE_READ, RULE_WRITE, RULE_OVERRIDE,
-            KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW,
+            KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW, TENANT_OVERRIDE,
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ, EVALUATION_REMEDIATE,
             RECOMMENDATION_READ,
@@ -205,7 +207,7 @@ public final class DefaultPermissionPolicy {
             ASSET_DICTIONARY, ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_TEST, ENV_PRODUCTION,
             ORG_READ,
-            KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW,
+            KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW, TENANT_OVERRIDE,
             PATHWAY_READ, PATHWAY_WRITE,
             RULE_READ, RULE_WRITE, RULE_OVERRIDE,
             TERM_READ, TERM_WRITE,
@@ -310,7 +312,7 @@ public final class DefaultPermissionPolicy {
             KNOWLEDGE_READ,
             CONTEXT_READ, CONTEXT_WRITE,
             EVENT_READ, EVENT_WRITE,
-            SYSTEM_READ,
+            SYSTEM_READ, TENANT_OVERRIDE,
             AUDIT_READ,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             WORKFLOW_READ, WORKFLOW_WRITE,
@@ -348,6 +350,12 @@ public final class DefaultPermissionPolicy {
     private static EnumSet<PermissionCode> allNonEmergencyPermissions() {
         EnumSet<PermissionCode> permissions = allRuntimePermissions();
         permissions.remove(PermissionCode.ENV_EMERGENCY);
+        return permissions;
+    }
+
+    private static EnumSet<PermissionCode> tenantAdminPermissions() {
+        EnumSet<PermissionCode> permissions = allNonEmergencyPermissions();
+        permissions.remove(PermissionCode.PLATFORM_PUBLISH);
         return permissions;
     }
 

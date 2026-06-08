@@ -21,6 +21,8 @@ import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.org.OrgAssignmentValidator;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.security.PermissionCode;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetVersionService;
 import com.medkernel.engine.versioning.VersionReleaseService;
@@ -85,6 +87,7 @@ class EvaluationEngineIntegrationTest {
     @MockBean com.medkernel.engine.context.ContextSnapshotRepository snapshots;
     @MockBean com.medkernel.engine.rule.RuleDslEvaluator ruleEvaluator;
     @MockBean OrgAssignmentValidator orgAssignmentValidator;
+    @MockBean PermissionEvaluator permissionEvaluator;
 
     @BeforeEach
     void setUp() {
@@ -97,6 +100,7 @@ class EvaluationEngineIntegrationTest {
                 List.of(new SimpleGrantedAuthority(RoleCode.HOSPITAL_ADMIN.authority()))
             )
         );
+        when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
     }
 
     @AfterEach

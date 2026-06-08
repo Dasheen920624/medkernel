@@ -94,6 +94,9 @@ public class InheritanceResolver {
                 tenantId, selected.versionId());
             if (override.isPresent()) {
                 InheritanceOverride value = override.get();
+                if (value.lifecycleStatus() != InheritanceOverrideStatus.PUBLISHED) {
+                    continue;
+                }
                 // 传播判定：祖先节点的 EXCLUSIVE 覆盖仅本节点生效、不向下沉；下级跳过它，回退到上一层适用版本
                 if (inherited && value.propagation() == InheritancePropagation.EXCLUSIVE) {
                     continue;
@@ -261,8 +264,14 @@ public class InheritanceResolver {
             String applicableScope,
             String orgPath) {
         return overrides
-            .findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
-                tenantId, assetType, assetIdentity, orgPath, applicableScope, InheritanceOverrideMode.DISABLE)
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
+                tenantId,
+                assetType,
+                assetIdentity,
+                orgPath,
+                applicableScope,
+                InheritanceOverrideMode.DISABLE,
+                InheritanceOverrideStatus.PUBLISHED)
             .stream()
             .findFirst();
     }

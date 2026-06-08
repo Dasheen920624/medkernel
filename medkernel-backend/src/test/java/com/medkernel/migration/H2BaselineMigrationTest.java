@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 105;
+    private static final int LATEST_MIGRATION_VERSION = 106;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -82,6 +82,12 @@ class H2BaselineMigrationTest {
             "SELECT COUNT(*) FROM sys_permission WHERE permission_code = 'workbench:readiness:view'",
             Integer.class);
         assertThat(readinessPermissionCount).as("WORKBENCH-02 动作权限目录").isEqualTo(1);
+
+        Integer governancePermissionCount = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM sys_permission
+            WHERE permission_code IN ('platform.publish', 'tenant.override')
+            """, Integer.class);
+        assertThat(governancePermissionCount).as("平台/租户发布治理权限目录").isEqualTo(2);
 
         Integer modelCapabilityCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM model_capability_definition WHERE enabled_flag = 'Y'",

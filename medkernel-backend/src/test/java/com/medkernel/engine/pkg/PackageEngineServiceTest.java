@@ -2733,6 +2733,7 @@ class PackageEngineServiceTest {
             "av-tenant-rule",
             InheritanceOverrideMode.REPLACE,
             InheritancePropagation.EXCLUSIVE,
+            com.medkernel.engine.versioning.InheritanceOverrideStatus.PUBLISHED,
             "/TENANT-A/FACILITY-1",
             "CKD",
             "院内肾功能剂量阈值更严格",

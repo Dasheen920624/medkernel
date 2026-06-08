@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -22,9 +23,14 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.medkernel.engine.security.PermissionCode;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
+import com.medkernel.shared.context.RequestContext;
 
 class VersionReleaseServiceTest {
 
@@ -33,6 +39,7 @@ class VersionReleaseServiceTest {
     private AssetVersionRepository assetVersions;
     private VersionReleasePlanRepository releasePlans;
     private VersionActivationTransactionRepository activationTransactions;
+    private PermissionEvaluator permissionEvaluator;
     private VersionReleaseService service;
 
     @Test
@@ -46,13 +53,18 @@ class VersionReleaseServiceTest {
         assetVersions = mock(AssetVersionRepository.class);
         releasePlans = mock(VersionReleasePlanRepository.class);
         activationTransactions = mock(VersionActivationTransactionRepository.class);
-        service = new VersionReleaseService(assetVersions, releasePlans, activationTransactions, CLOCK);
+        permissionEvaluator = mock(PermissionEvaluator.class);
+        service = new VersionReleaseService(
+            assetVersions, releasePlans, activationTransactions, permissionEvaluator, CLOCK);
         authenticate(RoleCode.HOSPITAL_ADMIN);
+        when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
+        when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(false);
     }
 
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+        RequestContext.clear();
     }
 
     @Test
@@ -171,10 +183,11 @@ class VersionReleaseServiceTest {
     }
 
     @Test
-    void rejectsDirectFullReleaseForNonHospitalAdminRole() {
+    void rejectsTenantReleaseWithoutTenantOverridePermission() {
         AssetVersion published = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(published));
         authenticate(RoleCode.IT_OPS);
+        when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(false);
 
         assertThatThrownBy(() -> service.releaseFull(releaseCommand(
             "av-v2",
@@ -184,12 +197,116 @@ class VersionReleaseServiceTest {
             List.of("hospital-admin")
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("直接全量")
+            .hasMessageContaining("tenant.override")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.FORBIDDEN);
 
         verify(releasePlans, never()).save(any(VersionReleasePlan.class));
         verify(assetVersions, never()).save(any(AssetVersion.class));
+    }
+
+    @Test
+    void rejectsTenantReleaseOutsideCurrentRequestTenant() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-tenant-b",
+            OrgScope.tenant("tenant-B"),
+            "publisher-1"
+        ));
+
+        assertThatThrownBy(() -> service.releaseFull(releaseCommand(
+            "av-v2",
+            VersionReleaseScopeType.ALL,
+            null,
+            "影响摘要 d1",
+            List.of("hospital-admin")
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("当前请求租户")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verifyNoInteractions(assetVersions, releasePlans, activationTransactions);
+    }
+
+    @Test
+    void platformReleaseRequiresPlatformPublishPermission() {
+        AssetVersion published = version(
+            "av-platform-v2",
+            PlatformTenant.ID,
+            "2.0.0",
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            AssetVersionStatus.PUBLISHED,
+            AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-platform-v2", PlatformTenant.ID))
+            .thenReturn(Optional.of(published));
+        when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.releaseFull(new VersionReleaseCommand(
+            PlatformTenant.ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "av-platform-v2",
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            "adult|inpatient",
+            VersionReleaseScopeType.ALL,
+            null,
+            "平台发布影响摘要",
+            "平台审核结论",
+            List.of("platform-admin"),
+            "platform-publisher",
+            "trace-platform"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("platform.publish")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(releasePlans, never()).save(any(VersionReleasePlan.class));
+        verify(assetVersions, never()).save(any(AssetVersion.class));
+    }
+
+    @Test
+    void platformReleaseWithPlatformPublishPermissionActivatesPlatformVersion() {
+        AssetVersion target = version(
+            "av-platform-v2",
+            PlatformTenant.ID,
+            "2.0.0",
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            AssetVersionStatus.PUBLISHED,
+            AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-platform-v2", PlatformTenant.ID))
+            .thenReturn(Optional.of(target));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            PlatformTenant.ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of());
+        when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(true);
+        when(assetVersions.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(releasePlans.save(any(VersionReleasePlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(activationTransactions.save(any(VersionActivationTransaction.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        VersionReleasePlan result = service.releaseFull(new VersionReleaseCommand(
+            PlatformTenant.ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "av-platform-v2",
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            "adult|inpatient",
+            VersionReleaseScopeType.ALL,
+            null,
+            "平台发布影响摘要",
+            "平台审核结论",
+            List.of("platform-admin"),
+            "platform-publisher",
+            "trace-platform"
+        ));
+
+        assertThat(result.status()).isEqualTo(VersionReleaseStatus.FULL);
+        verify(permissionEvaluator).has(PermissionCode.PLATFORM_PUBLISH);
+        verify(activationTransactions).save(any(VersionActivationTransaction.class));
     }
 
     private void authenticate(RoleCode role) {
@@ -399,21 +516,33 @@ class VersionReleaseServiceTest {
             String versionNo,
             AssetVersionStatus status,
             AssetVersionSafetyPolicy safetyPolicy) {
+        return version(versionId, "tenant-A", versionNo, "/TENANT-A/GROUP-A/HOSP-A", status, safetyPolicy);
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String tenantId,
+            String versionNo,
+            String orgPath,
+            AssetVersionStatus status,
+            AssetVersionSafetyPolicy safetyPolicy) {
         Instant now = CLOCK.instant();
         return new AssetVersion(
             1L,
             versionId,
-            "tenant-A",
+            tenantId,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
             versionNo,
-            "/TENANT-A/GROUP-A/HOSP-A",
+            orgPath,
             "adult|inpatient",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             safetyPolicy,
             AssetVersionOverridePolicy.FREE,
             status,
-            status == AssetVersionStatus.ACTIVE ? activeScopeKey() : "version:" + versionId,
+            status == AssetVersionStatus.ACTIVE
+                ? "RULE.VTE.RISK|" + orgPath + "|adult|inpatient"
+                : "version:" + versionId,
             "rule/RULE.VTE.RISK",
             null,
             null,

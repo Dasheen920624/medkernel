@@ -131,7 +131,8 @@ class MigrationBaselineContractTest {
         "V102__authoring_batch_job.sql",
         "V103__formula_asset_type_unification.sql",
         "V104__org_scope_second_phase.sql",
-        "V105__tenant_package_reference.sql"
+        "V105__tenant_package_reference.sql",
+        "V106__platform_tenant_governance_permissions.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -571,6 +572,7 @@ class MigrationBaselineContractTest {
         "uk_mk_version_inheritance_override_id", "uk_mk_version_inheritance_override_active",
         "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode",
         "ck_mk_version_inheritance_override_propagation",
+        "ck_mk_version_inheritance_override_lifecycle",
         "uk_mk_version_release_plan_id", "ck_mk_version_release_plan_type",
         "ck_mk_version_release_plan_scope", "ck_mk_version_release_plan_status",
         "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
@@ -812,7 +814,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),
         Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind")),
         Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status")),
-        Map.entry("mk_version_inheritance_override", Set.of("override_mode")),
+        Map.entry("mk_version_inheritance_override", Set.of("override_mode", "lifecycle_status")),
         Map.entry("mk_version_release_plan", Set.of("scope_type", "status")),
         Map.entry("mk_version_activation_transaction", Set.of("action")),
         Map.entry("mk_version_replay_binding", Set.of("result_hash")),
@@ -1061,6 +1063,28 @@ class MigrationBaselineContractTest {
                 .contains("comment on table mk_pkg_tenant_package_reference")
                 .doesNotContain("insert into knowledge_package")
                 .doesNotContain("insert into package_item");
+        }
+    }
+
+    @Test
+    void v106ShouldSeparatePlatformPublishAndTenantOverrideGovernanceForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V106__platform_tenant_governance_permissions.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 平台发布与租户覆盖权限分离迁移", dialect)
+                .contains("mk_version_inheritance_override")
+                .contains("lifecycle_status")
+                .contains("in_review")
+                .contains("published")
+                .contains("ck_mk_version_inheritance_override_lifecycle")
+                .contains("platform.publish")
+                .contains("tenant.override")
+                .contains("sys_permission")
+                .contains("comment on column mk_version_inheritance_override.lifecycle_status")
+                .contains("仅 published 参与解析");
         }
     }
 
@@ -1364,7 +1388,8 @@ class MigrationBaselineContractTest {
     @Test
     void tenantIsolationAuditAndLifecycleColumnsRemainPresent() throws IOException {
         for (String dialect : DIALECTS) {
-            Map<String, String> tables = tableBlocks(combinedDdl(dialect));
+            String ddl = combinedDdl(dialect);
+            Map<String, String> tables = tableBlocks(ddl);
             TENANT_TABLES.forEach(table ->
                 assertThat(tables.get(table)).as("%s.%s 租户字段", dialect, table).contains("tenant_id"));
             MUTABLE_AUDITED_TABLES.forEach(table ->
@@ -1374,7 +1399,7 @@ class MigrationBaselineContractTest {
                 assertThat(tables.get(table)).as("%s.%s 专属审计字段", dialect, table)
                     .contains(fields.toArray(String[]::new)));
             LIFECYCLE_FIELDS.forEach((table, fields) ->
-                assertThat(tables.get(table)).as("%s.%s 状态或版本字段", dialect, table)
+                assertThat(tables.get(table) + "\n" + ddl).as("%s.%s 状态或版本字段", dialect, table)
                     .contains(fields.toArray(String[]::new)));
         }
     }

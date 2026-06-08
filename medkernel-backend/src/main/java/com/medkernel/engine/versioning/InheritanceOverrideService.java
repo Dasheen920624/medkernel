@@ -3,6 +3,7 @@ package com.medkernel.engine.versioning;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,8 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.security.PermissionCode;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
 /**
@@ -23,24 +29,28 @@ public class InheritanceOverrideService {
     private final AssetVersionRepository assetVersions;
     private final InheritanceOverrideRepository overrides;
     private final OrgHierarchyRepository hierarchy;
+    private final PermissionEvaluator permissionEvaluator;
     private final Clock clock;
 
     @Autowired
     public InheritanceOverrideService(
             AssetVersionRepository assetVersions,
             InheritanceOverrideRepository overrides,
-            OrgHierarchyRepository hierarchy) {
-        this(assetVersions, overrides, hierarchy, Clock.systemUTC());
+            OrgHierarchyRepository hierarchy,
+            PermissionEvaluator permissionEvaluator) {
+        this(assetVersions, overrides, hierarchy, permissionEvaluator, Clock.systemUTC());
     }
 
     InheritanceOverrideService(
             AssetVersionRepository assetVersions,
             InheritanceOverrideRepository overrides,
             OrgHierarchyRepository hierarchy,
+            PermissionEvaluator permissionEvaluator,
             Clock clock) {
         this.assetVersions = assetVersions;
         this.overrides = overrides;
         this.hierarchy = hierarchy;
+        this.permissionEvaluator = permissionEvaluator;
         this.clock = clock;
     }
 
@@ -57,8 +67,9 @@ public class InheritanceOverrideService {
         String overrideReason = required(command.overrideReason(), "覆盖原因");
         String impactScope = required(command.impactScope(), "影响范围");
         String actor = required(command.createdBy(), "创建人");
+        requireTenantOverridePermission(tenantId);
 
-        AssetVersion inherited = findOwnedVersion(tenantId, inheritedVersionId);
+        AssetVersion inherited = findInheritedVersion(tenantId, inheritedVersionId);
         assertVersionDomain(inherited, assetType, assetIdentity, applicableScope, "被继承版本");
 
         List<OrgUnit> path = hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId);
@@ -66,6 +77,7 @@ public class InheritanceOverrideService {
             throw new ApiException(ErrorCode.NOT_FOUND, "组织不存在: " + targetOrgUnitId);
         }
         OrgUnit target = path.get(path.size() - 1);
+        requireWithinActorOrgClosure(tenantId, targetOrgUnitId);
         if (!isSameOrDescendant(target.orgPath(), inherited.organizationScope())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "覆盖组织必须位于被继承版本生效域下");
         }
@@ -89,6 +101,9 @@ public class InheritanceOverrideService {
         InheritancePropagation propagation = command.propagation() == null
             ? InheritancePropagation.INHERITABLE
             : command.propagation();
+        InheritanceOverrideStatus lifecycleStatus = requiresReview(inherited)
+            ? InheritanceOverrideStatus.IN_REVIEW
+            : InheritanceOverrideStatus.PUBLISHED;
         Instant now = Instant.now(clock);
         return overrides.save(new InheritanceOverride(
             null,
@@ -100,6 +115,7 @@ public class InheritanceOverrideService {
             overrideVersion == null ? null : overrideVersion.versionId(),
             mode,
             propagation,
+            lifecycleStatus,
             target.orgPath(),
             applicableScope,
             diffSummary,
@@ -111,6 +127,32 @@ public class InheritanceOverrideService {
             actor,
             blankToNull(command.traceId())
         ));
+    }
+
+    private void requireTenantOverridePermission(String tenantId) {
+        OrgScope scope = RequestContext.currentOrgScope();
+        if (scope.hasTenant() && !tenantId.equals(scope.tenantId())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "tenant.override 只能作用于当前请求租户");
+        }
+        if (permissionEvaluator == null || !permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "缺少 tenant.override，不能发布租户或机构覆盖");
+        }
+    }
+
+    private void requireWithinActorOrgClosure(String tenantId, String targetOrgUnitId) {
+        String actorOrgUnitId = RequestContext.currentOrgScope().nearestOrgUnitId();
+        if (actorOrgUnitId == null || actorOrgUnitId.isBlank()) {
+            return;
+        }
+        if (!hierarchy.isDescendant(tenantId, actorOrgUnitId, targetOrgUnitId)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "tenant.override 只能作用于自身组织闭包");
+        }
+    }
+
+    private boolean requiresReview(AssetVersion inherited) {
+        return inherited.overridePolicy() == AssetVersionOverridePolicy.REVIEW
+            || inherited.overridePolicy() == AssetVersionOverridePolicy.LOCKED
+            || inherited.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE;
     }
 
     private void denyUnsafeLowerOverride(
@@ -140,6 +182,18 @@ public class InheritanceOverrideService {
         }
     }
 
+    private AssetVersion findInheritedVersion(String tenantId, String versionId) {
+        Optional<AssetVersion> tenantVersion = assetVersions.findByVersionIdAndTenantId(
+            required(versionId, "版本 ID"),
+            required(tenantId, "租户 ID")
+        );
+        if (tenantVersion.isPresent()) {
+            return tenantVersion.get();
+        }
+        return assetVersions.findByVersionIdAndTenantId(versionId, PlatformTenant.ID)
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "资产版本不存在: " + versionId));
+    }
+
     private AssetVersion findOwnedVersion(String tenantId, String versionId) {
         return assetVersions.findByVersionIdAndTenantId(
                 required(versionId, "版本 ID"),
@@ -162,6 +216,9 @@ public class InheritanceOverrideService {
     }
 
     private boolean isSameOrDescendant(String targetOrgPath, String inheritedOrgPath) {
+        if (PlatformAuthority.PLATFORM_ORG_PATH.equals(inheritedOrgPath)) {
+            return true;
+        }
         return targetOrgPath.equals(inheritedOrgPath) || targetOrgPath.startsWith(inheritedOrgPath + "/");
     }
 

@@ -26,4 +26,14 @@ public interface InheritanceOverrideRepository extends ListCrudRepository<Inheri
         String applicableScope,
         InheritanceOverrideMode overrideMode
     );
+
+    List<InheritanceOverride> findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
+        String tenantId,
+        VersionedAssetType assetType,
+        String assetIdentity,
+        String orgPath,
+        String applicableScope,
+        InheritanceOverrideMode overrideMode,
+        InheritanceOverrideStatus lifecycleStatus
+    );
 }
