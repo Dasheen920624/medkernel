@@ -19,6 +19,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.AuthoringFeatureFlag;
+import com.medkernel.engine.authoring.AuthoringFeatureGate;
 import com.medkernel.engine.context.ClinicalEventContext;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
@@ -57,6 +59,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -119,6 +122,8 @@ public class PathwayEngineService {
     private final ReleasePort releasePort;
     private final PackageItemRepository packageItems;
     private final InheritanceResolver inheritanceResolver;
+    private final ConditionEvaluator conditionEvaluator;
+    private final AuthoringFeatureGate authoringFeatureGate;
 
     /**
      * 注入路径引擎闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
@@ -138,6 +143,8 @@ public class PathwayEngineService {
                                 EvaluationIndicatorRepository evaluationIndicators,
                                 ContextSnapshotService contextSnapshots,
                                 PathwayProgressor progressor,
+                                ConditionEvaluator conditionEvaluator,
+                                AuthoringFeatureGate authoringFeatureGate,
                                 AuditRecorder auditRecorder,
                                 StateTransitionRecorder transitions,
                                 DiagnoseResponseAssembler diagnoseAssembler,
@@ -152,8 +159,8 @@ public class PathwayEngineService {
                                 PackageItemRepository packageItems,
                                 InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
-            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, auditRecorder, transitions,
-            diagnoseAssembler, json,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, conditionEvaluator,
+            authoringFeatureGate, auditRecorder, transitions, diagnoseAssembler, json,
             followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop),
             worklistProvider.getIfAvailable(PathwayWorklistPort::noop), safetyGuard,
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
@@ -187,6 +194,42 @@ public class PathwayEngineService {
                          ReleasePort releasePort,
                          PackageItemRepository packageItems,
                          InheritanceResolver inheritanceResolver) {
+        this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor,
+            new ConditionEvaluator(json), AuthoringFeatureGate.alwaysEnabled(), auditRecorder, transitions,
+            diagnoseAssembler, json, followupHandoff, worklist, safetyGuard, terminologyCoverageGate, versionedAssets,
+            assetVersions, releasePort, packageItems, inheritanceResolver);
+    }
+
+    private PathwayEngineService(SpecialtyPackageRepository packages,
+                                 SpecialtyProfileRepository profiles,
+                                 PathwayTemplateRepository templates,
+                                 PathwayNodeRepository nodes,
+                                 PathwayMilestoneRepository milestones,
+                                 PathwayEdgeRepository edges,
+                                 PatientPathwayRepository patientPathways,
+                                 PathwayVarianceRepository variances,
+                                 ClinicalClockRepository clocks,
+                                 SpecialtyMetricBindingRepository metricBindings,
+                                 PathwayOutcomeBindingRepository outcomeBindings,
+                                 EvaluationIndicatorRepository evaluationIndicators,
+                                 ContextSnapshotService contextSnapshots,
+                                 PathwayProgressor progressor,
+                                 ConditionEvaluator conditionEvaluator,
+                                 AuthoringFeatureGate authoringFeatureGate,
+                                 AuditRecorder auditRecorder,
+                                 StateTransitionRecorder transitions,
+                                 DiagnoseResponseAssembler diagnoseAssembler,
+                                 ObjectMapper json,
+                                 PathwayFollowupHandoffPort followupHandoff,
+                                 PathwayWorklistPort worklist,
+                                 ClinicalSafetyGuard safetyGuard,
+                                 TerminologyCoverageGate terminologyCoverageGate,
+                                 PathwayVersionedAssetAdapter versionedAssets,
+                                 AssetVersionRepository assetVersions,
+                                 ReleasePort releasePort,
+                                 PackageItemRepository packageItems,
+                                 InheritanceResolver inheritanceResolver) {
         this.packages = packages;
         this.profiles = profiles;
         this.templates = templates;
@@ -201,6 +244,10 @@ public class PathwayEngineService {
         this.evaluationIndicators = evaluationIndicators;
         this.contextSnapshots = contextSnapshots;
         this.progressor = progressor;
+        this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+        this.authoringFeatureGate = authoringFeatureGate == null
+            ? AuthoringFeatureGate.alwaysEnabled()
+            : authoringFeatureGate;
         this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
@@ -1151,7 +1198,7 @@ public class PathwayEngineService {
 
     private ConditionEvaluation evaluateCriteria(JsonNode condition, JsonNode context, String label) {
         try {
-            return new ConditionEvaluator(json).evaluate(condition, context);
+            return conditionEvaluator.evaluate(condition, context);
         } catch (ApiException exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_001,
                 "路径" + label + "条件无法求值: " + exception.getMessage(), exception);
@@ -1924,6 +1971,7 @@ public class PathwayEngineService {
         }
         for (PathwayNode node : nullToEmpty(graphNodes)) {
             List<PathwayEdge> outgoing = outgoingByNode.getOrDefault(node.nodeCode(), List.of());
+            ensureRichNodeFeatureEnabledForTemplate(node);
             switch (node.nodeType()) {
                 case DECISION -> validateDecisionNode(node, outgoing);
                 case PARALLEL -> validateParallelNode(node, outgoing);
@@ -1941,6 +1989,26 @@ public class PathwayEngineService {
                 }
             }
         }
+    }
+
+    private void ensureRichNodeFeatureEnabledForTemplate(PathwayNode node) {
+        if (!isRichPathwayNode(node.nodeType())
+                || authoringFeatureGate.enabled(AuthoringFeatureFlag.PATHWAY_RICH_NODES)) {
+            return;
+        }
+        throw new ApiException(
+            ErrorCode.ENG_PATHWAY_004,
+            AuthoringFeatureFlag.PATHWAY_RICH_NODES.displayName()
+                + "能力开关未启用: "
+                + SystemConfigService.runtimeFeatureFlagConfigKey(AuthoringFeatureFlag.PATHWAY_RICH_NODES.key())
+                + "，节点 " + node.nodeCode() + " 类型 " + node.nodeType());
+    }
+
+    private boolean isRichPathwayNode(PathwayNodeType nodeType) {
+        return switch (nodeType) {
+            case DECISION, PARALLEL, WAIT_TIMER, SUBPATHWAY, MANUAL_GATE, ORDER_SET -> true;
+            default -> false;
+        };
     }
 
     private void validateDecisionNode(PathwayNode node, List<PathwayEdge> outgoing) {

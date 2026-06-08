@@ -3,6 +3,7 @@ package com.medkernel.engine.rule;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,9 +32,14 @@ public class RuleDslEvaluator {
     /**
      * 注入 JSON 处理器，用于缺省上下文、缺失节点与 DSL 条件树解析。
      */
-    public RuleDslEvaluator(ObjectMapper json) {
+    @Autowired
+    public RuleDslEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
         this.json = json;
-        this.conditionEvaluator = new ConditionEvaluator(json);
+        this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+    }
+
+    public RuleDslEvaluator(ObjectMapper json) {
+        this(json, new ConditionEvaluator(json));
     }
 
     /**

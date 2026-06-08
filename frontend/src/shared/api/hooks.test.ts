@@ -21,6 +21,7 @@ import {
   fetchIdentityBindings,
   fetchMaskingRules,
   fetchSystemConfigs,
+  fetchTenantSystemConfigs,
   fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
@@ -31,6 +32,7 @@ import {
   submitLargeListExport,
   unbindIdentityBinding,
   updateSystemConfig,
+  updateTenantSystemConfig,
   upsertDataPermissionPolicy,
   upsertMaskingRule,
   useCompleteWorkflowTodo,
@@ -2584,12 +2586,14 @@ describe("experience foundation api helpers", () => {
     const approvals = [{ approvalId: "exp-audit-1", status: "REQUESTED" }];
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ data: { data: systemConfigs } })
+      .mockResolvedValueOnce({ data: { data: systemConfigs } })
       .mockResolvedValueOnce({ data: { data: policies } })
       .mockResolvedValueOnce({ data: { data: maskingRules } })
       .mockResolvedValueOnce({ data: { data: assessment } })
       .mockResolvedValueOnce({ data: { data: approvals } });
 
     expect(await fetchSystemConfigs("medkernel.auth.")).toBe(systemConfigs);
+    expect(await fetchTenantSystemConfigs("tenant-A", "medkernel.runtime.")).toBe(systemConfigs);
     expect(
       await fetchDataPermissionPolicies({ resourceType: "clinical_case", action: "READ" }),
     ).toBe(policies);
@@ -2602,24 +2606,37 @@ describe("experience foundation api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/configs", {
       params: { prefix: "medkernel.auth." },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/compliance/data-permissions", {
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/system/configs/tenants/tenant-A", {
+      params: { prefix: "medkernel.runtime." },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/compliance/data-permissions", {
       params: { resourceType: "clinical_case", action: "READ" },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/compliance/masking-rules", {
+    expect(apiClient.get).toHaveBeenNthCalledWith(4, "/compliance/masking-rules", {
       params: { resourceType: "clinical_case" },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(4, "/compliance/interop-assessment", {
+    expect(apiClient.get).toHaveBeenNthCalledWith(5, "/compliance/interop-assessment", {
       params: { standardVersion: "IOT-2026" },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(5, "/compliance/exports", {
+    expect(apiClient.get).toHaveBeenNthCalledWith(6, "/compliance/exports", {
       params: { resourceType: "AUDIT_EVENT", status: "REQUESTED" },
     });
   });
 
   it("writes configuration and compliance policies through audited mutations", async () => {
-    vi.mocked(apiClient.patch).mockResolvedValueOnce({
-      data: { data: { key: "medkernel.auth.password.min-length", value: "14", version: 2 } },
-    });
+    vi.mocked(apiClient.patch)
+      .mockResolvedValueOnce({
+        data: { data: { key: "medkernel.auth.password.min-length", value: "14", version: 2 } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            key: "medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
+            value: "false",
+            version: 2,
+          },
+        },
+      });
     vi.mocked(apiClient.put)
       .mockResolvedValueOnce({ data: { data: { policyId: "policy-1" } } })
       .mockResolvedValueOnce({ data: { data: { ruleId: "mask-1" } } });
@@ -2640,6 +2657,15 @@ describe("experience foundation api helpers", () => {
       expectedVersion: 1,
       confirmedHighRisk: true,
     });
+    await updateTenantSystemConfig(
+      "tenant-A",
+      "medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
+      {
+        value: "false",
+        reason: "租户灰度回退",
+        confirmedHighRisk: true,
+      },
+    );
     await upsertDataPermissionPolicy({
       resourceType: "clinical_case",
       action: "READ",
@@ -2681,6 +2707,10 @@ describe("experience foundation api helpers", () => {
     expect(apiClient.patch).toHaveBeenCalledWith(
       "/system/configs/medkernel.auth.password.min-length",
       expect.objectContaining({ value: "14", expectedVersion: 1 }),
+    );
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      "/system/configs/tenants/tenant-A/medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
+      expect.objectContaining({ value: "false", reason: "租户灰度回退" }),
     );
     expect(apiClient.put).toHaveBeenNthCalledWith(
       1,

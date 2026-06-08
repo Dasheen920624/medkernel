@@ -1,5 +1,6 @@
 package com.medkernel.shared.config;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -79,9 +80,56 @@ public class SystemConfigService {
             .toList();
     }
 
+    public List<SystemConfigItemResponse> listTenantMerged(String tenantId, String prefix) {
+        String normalizedTenantId = normalizeTenantId(tenantId);
+        Map<String, SystemConfigItem> tenantItems = repository.listActive(normalizedTenantId, prefix).stream()
+            .collect(java.util.stream.Collectors.toMap(
+                SystemConfigItem::key,
+                item -> item,
+                (left, right) -> left,
+                LinkedHashMap::new));
+        return repository.listActive(SYSTEM_TENANT, prefix).stream()
+            .map(systemItem -> tenantItems.getOrDefault(systemItem.key(), inheritedTenantItem(normalizedTenantId, systemItem)))
+            .map(SystemConfigItemResponse::from)
+            .toList();
+    }
+
     @Transactional
     public SystemConfigItemResponse update(String key, SystemConfigUpdateRequest request, String actor) {
         return updateTenant(SYSTEM_TENANT, key, request, actor);
+    }
+
+    @Transactional
+    public SystemConfigItemResponse updateTenantOverride(
+            String tenantId,
+            String key,
+            SystemConfigUpdateRequest request,
+            String actor) {
+        String normalizedTenantId = normalizeTenantId(tenantId);
+        String normalizedKey = normalizeKey(key);
+        if (repository.findActive(normalizedTenantId, normalizedKey).isEmpty()) {
+            SystemConfigItem systemItem = repository.findActive(SYSTEM_TENANT, normalizedKey)
+                .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
+            Instant now = Instant.now();
+            repository.insertSeedIfAbsent(new SystemConfigSeed(
+                normalizedTenantId,
+                normalizedKey,
+                systemItem.value(),
+                systemItem.valueType(),
+                systemItem.displayName(),
+                systemItem.risk(),
+                systemItem.owner(),
+                systemItem.description(),
+                "SYSTEM_INHERITED",
+                systemItem.protectedConfig(),
+                now), currentActor(actor));
+            request = new SystemConfigUpdateRequest(
+                request.value(),
+                request.reason(),
+                null,
+                request.confirmedHighRisk());
+        }
+        return updateTenant(normalizedTenantId, normalizedKey, request, actor);
     }
 
     /**
@@ -205,6 +253,32 @@ public class SystemConfigService {
             return false;
         }
         return readFlagValue(configKey(key), fallback.isEnabled());
+    }
+
+    public boolean runtimeFeatureFlagEnabledForTenant(RuntimeProperties properties, String key, String tenantId) {
+        RuntimeProperties.FeatureFlag fallback = properties.getFeatureFlags().get(key);
+        if (fallback == null) {
+            return false;
+        }
+        String configKey = configKey(key);
+        RuntimeBooleanRead systemRead = readRuntimeBooleanConfig(configKey, fallback.isEnabled());
+        if (tenantId == null || tenantId.isBlank() || SYSTEM_TENANT.equalsIgnoreCase(tenantId.trim())) {
+            return systemRead.value();
+        }
+        try {
+            SystemConfigItem tenantItem = repository.findActive(tenantId.trim(), configKey).orElse(null);
+            if (tenantItem == null) {
+                return systemRead.value();
+            }
+            Boolean tenantValue = parseBooleanOrNull(tenantItem.value());
+            return tenantValue == null ? systemRead.value() : tenantValue;
+        } catch (DataAccessException ignored) {
+            return systemRead.value();
+        }
+    }
+
+    public static String runtimeFeatureFlagConfigKey(String key) {
+        return configKey(key);
     }
 
     public RuntimeBackupReadiness runtimeBackupReadiness(RuntimeProperties properties) {
@@ -619,6 +693,23 @@ public class SystemConfigService {
 
     private static String valueOrFallback(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static SystemConfigItem inheritedTenantItem(String tenantId, SystemConfigItem systemItem) {
+        return new SystemConfigItem(
+            tenantId,
+            systemItem.key(),
+            systemItem.value(),
+            systemItem.valueType(),
+            systemItem.displayName(),
+            systemItem.risk(),
+            systemItem.owner(),
+            systemItem.description(),
+            "SYSTEM_INHERITED",
+            systemItem.protectedConfig(),
+            systemItem.active(),
+            systemItem.version(),
+            systemItem.updatedAt());
     }
 
     private static int safeInt(long value, int fallback) {

@@ -1998,7 +1998,7 @@ export interface SystemConfigItem {
 export interface SystemConfigUpdatePayload {
   value: string;
   reason: string;
-  expectedVersion: number;
+  expectedVersion?: number;
   confirmedHighRisk: boolean;
 }
 
@@ -2179,6 +2179,31 @@ export async function updateSystemConfig(
   return data.data;
 }
 
+export async function fetchTenantSystemConfigs(
+  tenantId: string,
+  prefix?: string,
+): Promise<SystemConfigItem[]> {
+  const { data } = await apiClient.get<{ data: SystemConfigItem[] }>(
+    `/system/configs/tenants/${encodeURIComponent(tenantId)}`,
+    {
+      params: prefix ? { prefix } : {},
+    },
+  );
+  return data.data ?? [];
+}
+
+export async function updateTenantSystemConfig(
+  tenantId: string,
+  key: string,
+  payload: SystemConfigUpdatePayload,
+): Promise<SystemConfigItem> {
+  const { data } = await apiClient.patch<{ data: SystemConfigItem }>(
+    `/system/configs/tenants/${encodeURIComponent(tenantId)}/${encodeURIComponent(key)}`,
+    payload,
+  );
+  return data.data;
+}
+
 export async function fetchDataPermissionPolicies(
   params: { resourceType?: string; action?: DataPermissionAction } = {},
 ): Promise<DataPermissionPolicy[]> {
@@ -2269,11 +2294,35 @@ export function useSystemConfigs(prefix?: string) {
   });
 }
 
+export function useTenantSystemConfigs(tenantId: string, prefix?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["system", "configs", "tenant", tenantId, prefix ?? ""],
+    queryFn: () => fetchTenantSystemConfigs(tenantId, prefix),
+    enabled: enabled && tenantId.trim().length > 0,
+  });
+}
+
 export function useUpdateSystemConfig() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ key, payload }: { key: string; payload: SystemConfigUpdatePayload }) =>
       updateSystemConfig(key, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["system", "configs"] }),
+  });
+}
+
+export function useUpdateTenantSystemConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      key,
+      payload,
+    }: {
+      tenantId: string;
+      key: string;
+      payload: SystemConfigUpdatePayload;
+    }) => updateTenantSystemConfig(tenantId, key, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["system", "configs"] }),
   });
 }

@@ -43,6 +43,10 @@ body,
   text-align: right;
 }
 
+.mk-config-tenant-input {
+  width: calc(var(--mk-unit) * 220);
+}
+
 .mk-clickable {
   cursor: pointer;
 }

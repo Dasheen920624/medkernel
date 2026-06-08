@@ -38,6 +38,13 @@ public class SystemConfigController {
         return ApiResult.ok(service.list(prefix));
     }
 
+    @GetMapping("/tenants/{tenantId}")
+    @PreAuthorize("@perm.has('system.read')")
+    public ApiResult<List<SystemConfigItemResponse>> listTenant(@PathVariable String tenantId,
+                                                                @RequestParam(required = false) String prefix) {
+        return ApiResult.ok(service.listTenantMerged(tenantId, prefix));
+    }
+
     @PatchMapping("/{key:.+}")
     @PreAuthorize("@perm.has('system.manage')")
     public ApiResult<SystemConfigItemResponse> update(@PathVariable String key,
@@ -45,6 +52,16 @@ public class SystemConfigController {
                                                       Authentication authentication) {
         String actor = SystemConfigService.currentActor(authentication == null ? null : authentication.getName());
         return ApiResult.ok(service.update(key, request, actor));
+    }
+
+    @PatchMapping("/tenants/{tenantId}/{key:.+}")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<SystemConfigItemResponse> updateTenant(@PathVariable String tenantId,
+                                                            @PathVariable String key,
+                                                            @Valid @RequestBody SystemConfigUpdateRequest request,
+                                                            Authentication authentication) {
+        String actor = SystemConfigService.currentActor(authentication == null ? null : authentication.getName());
+        return ApiResult.ok(service.updateTenantOverride(tenantId, key, request, actor));
     }
 
     @PostMapping("/{key:.+}/rollback")
