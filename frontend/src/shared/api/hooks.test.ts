@@ -85,6 +85,7 @@ import {
   useOnboardingReadiness,
   useOrgUnits,
   useOrgUsers,
+  usePackageInheritanceImpact,
   usePackages,
   usePlugins,
   useProjectionConsistency,
@@ -425,6 +426,61 @@ describe("package export api helpers", () => {
       ]),
     );
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
+  });
+
+  it("loads package inheritance impact with the platform-first query contract", async () => {
+    const response = {
+      tenantId: "tenant-A",
+      assetType: "RULE",
+      assetIdentity: "RULE.VTE.RISK",
+      applicableScope: "adult|inpatient",
+      upstreamBaseVersion: "1.0.0",
+      upstreamTargetVersion: "2.0.0",
+      autoInheritedCount: 1,
+      rebaseRequiredCount: 1,
+      upstreamDiff: {
+        packageId: "RULE.VTE.RISK",
+        baseVersion: "1.0.0",
+        targetVersion: "2.0.0",
+        addedCount: 0,
+        updatedCount: 1,
+        removedCount: 0,
+        affectedDepartments: ["心内科"],
+        changes: [],
+      },
+      targets: [
+        {
+          orgUnitId: "hospital-1",
+          orgPath: "/TENANT-A/HOSPITAL-1",
+          impactType: "AUTO_INHERITS_UPSTREAM",
+          effectiveVersionId: "av-platform-v1",
+          effectiveVersionNo: "1.0.0",
+          sourceTier: "PLATFORM",
+          diffSummary: null,
+          rebasePrompt: "平台新版本激活后自动继承",
+        },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() =>
+      usePackageInheritanceImpact({
+        assetType: "RULE",
+        assetIdentity: "RULE.VTE.RISK",
+        applicableScope: "adult|inpatient",
+        upstreamVersionId: "av-platform-v2",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/inheritance-impact", {
+      params: {
+        assetType: "RULE",
+        assetIdentity: "RULE.VTE.RISK",
+        applicableScope: "adult|inpatient",
+        upstreamVersionId: "av-platform-v2",
+      },
+    });
   });
 
   it("loads workflow todos from the unified workflow endpoint with server-side filters", async () => {

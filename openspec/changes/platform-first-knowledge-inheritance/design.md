@@ -51,7 +51,7 @@
 | DISABLE | 在该作用域停用平台资产（不适用本机构） | 空（墓碑） |
 | **ADD（新增）** | 新增平台没有的租户/机构独有资产（新 `asset_identity`，归属该 org_path） | 指向独有版本 |
 
-> ADD 不必新增枚举值——以"归属该 org_path 的 AssetVersion + 无平台基线"自然表达；REPLACE/DISABLE 沿用现有枚举。
+> 实现层以 `ADD` 覆盖模式显式记录"无平台基线 + 指向本级独有版本"的语义；注册时拒绝已有平台基线的 ADD，并通过 `propagation` 区分下级复用或本级独有。
 
 ### 4.2 传播语义（新增列 `propagation`）
 为 `InheritanceOverride` 增列 `propagation`：
