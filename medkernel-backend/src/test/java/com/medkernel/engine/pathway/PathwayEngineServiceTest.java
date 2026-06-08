@@ -1146,6 +1146,10 @@ class PathwayEngineServiceTest {
 
     @Test
     void enterPatientPathwayCreatesStartNodeWorklistFromRaciRoles() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-pathway",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            "tester"));
         PathwayNode startNode = nodeWithRaci(
             "ASSESS",
             PathwayNodeType.ASSESSMENT,
@@ -1165,6 +1169,9 @@ class PathwayEngineServiceTest {
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
         stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        when(inheritanceResolver.resolve(any())).thenReturn(new ResolvedAssetVersion(
+            assetVersion("av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.ACTIVE),
+            "dept-A", false, false, false, null, SourceTier.ORG));
 
         service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-1", null, "pkg-2026.06"));
@@ -1174,6 +1181,7 @@ class PathwayEngineServiceTest {
         verify(worklist).openNodeTodo(commandCap.capture());
         PathwayNodeWorklistCommand command = commandCap.getValue();
         assertThat(command.tenantId()).isEqualTo("tenant-A");
+        assertThat(command.orgUnitId()).isEqualTo("dept-A");
         assertThat(command.patientPathwayId()).startsWith("pp-");
         assertThat(command.patientId()).isEqualTo("patient-1");
         assertThat(command.encounterId()).isEqualTo("enc-1");

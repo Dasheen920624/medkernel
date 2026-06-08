@@ -2,7 +2,9 @@ package com.medkernel.engine.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -56,6 +58,10 @@ import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.InheritanceResolveQuery;
+import com.medkernel.engine.versioning.InheritanceResolver;
+import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -76,6 +82,7 @@ class RecommendationDeterministicMatcherTest {
     private final KnowledgeIdentityRepository knowledgeIdentities = mock(KnowledgeIdentityRepository.class);
     private final KnowledgeAssetVersionRepository knowledgeVersions = mock(KnowledgeAssetVersionRepository.class);
     private final ClinicalRedlineMatcher redlineMatcher = mock(ClinicalRedlineMatcher.class);
+    private final InheritanceResolver inheritanceResolver = mock(InheritanceResolver.class);
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final RecommendationDeterministicMatcher matcher = new RecommendationDeterministicMatcher(
         snapshots,
@@ -90,6 +97,7 @@ class RecommendationDeterministicMatcherTest {
         knowledgeIdentities,
         knowledgeVersions,
         redlineMatcher,
+        inheritanceResolver,
         json
     );
 
@@ -243,6 +251,56 @@ class RecommendationDeterministicMatcherTest {
     }
 
     @Test
+    void resolvesRecommendationRuleThroughOrgInheritanceAndRecordsResolutionSource() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-cdss",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
+        when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
+        when(inheritanceResolver.resolve(any(InheritanceResolveQuery.class))).thenReturn(new ResolvedAssetVersion(
+            tenantOverrideRuleAsset(),
+            "dept-A",
+            false,
+            true,
+            false,
+            null,
+            SourceTier.ORG
+        ));
+        when(ruleDefinitions.findByTenantIdAndRuleCode("tenant-A", "RISK_GENDER"))
+            .thenReturn(Optional.of(ruleDefinition()));
+        when(ruleVersions.findByRuleIdAndTenantIdAndVersionNo("rule-risk", "tenant-A", 2))
+            .thenReturn(Optional.of(ruleVersionNo("rv-risk-v2", 2)));
+        when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
+            .thenReturn(Optional.of(knowledgeIdentity()));
+        when(knowledgeVersions.findByTenantIdAndId("tenant-A", 100L))
+            .thenReturn(Optional.of(knowledgeVersion()));
+
+        List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
+
+        assertThat(matches).hasSize(1);
+        RecommendationCardRequest card = matches.get(0);
+        assertThat(card.cardCode()).isEqualTo("RULE.RISK_GENDER.v2");
+        assertThat(card.sourceSummary())
+            .contains("RISK_GENDER")
+            .contains("来源=ORG")
+            .contains("sha256:tenant-rule-v2");
+        RecommendationSourceRequest ruleSource = card.sources().get(0);
+        assertThat(ruleSource.sourceHash()).isEqualTo("sha256:tenant-rule-v2");
+        assertThat(ruleSource.summary()).contains("ORG").contains("dept-A");
+        assertThat(card.explanationJson())
+            .contains("\"sourceTier\":\"ORG\"")
+            .contains("\"sourceOrgPath\":\"dept-A\"")
+            .contains("\"contentHash\":\"sha256:tenant-rule-v2\"");
+        verify(inheritanceResolver).resolve(argThat(query ->
+            "tenant-A".equals(query.tenantId())
+                && query.assetType() == VersionedAssetType.RULE
+                && "RISK_GENDER".equals(query.assetIdentity())
+                && "dept-A".equals(query.targetOrgUnitId())));
+    }
+
+    @Test
     void appendsClinicalRedlineMatchesFromRuntimeMatcher() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -322,6 +380,33 @@ class RecommendationDeterministicMatcherTest {
             )));
     }
 
+    private AssetVersion tenantOverrideRuleAsset() {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new AssetVersion(
+            2L,
+            "av-RISK_GENDER-2",
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RISK_GENDER",
+            "2",
+            "dept-A",
+            "rule-1",
+            "sha256:tenant-rule-v2",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.ACTIVE,
+            "version:RISK_GENDER-2",
+            "测试规则覆盖版本",
+            null,
+            null,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-cdss"
+        );
+    }
+
     private RecommendationCardRequest redlineCard() {
         return new RecommendationCardRequest(
             "REDLINE.RDL-DDI-001.v2026.2",
@@ -368,6 +453,15 @@ class RecommendationDeterministicMatcherTest {
 
     private RuleVersion ruleVersion() {
         return ruleVersionForSetting("INPATIENT");
+    }
+
+    private RuleVersion ruleVersionNo(String versionId, int versionNo) {
+        Instant now = Instant.now();
+        return new RuleVersion(
+            11L, versionId, "tenant-A", "rule-risk", versionNo,
+            "knowledge:RISK_GENDER", "发布性别风险评估", ruleVersion().dslJson(), "{\"summary\":\"规则解释\"}",
+            RuleVersionStatus.PUBLISHED, now, "reviewer", null,
+            now, "tester", now, "tester", "trace-cdss");
     }
 
     private RuleVersion ruleVersionForSetting(String setting) {

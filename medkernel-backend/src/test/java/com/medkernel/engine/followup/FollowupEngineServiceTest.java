@@ -714,6 +714,11 @@ class FollowupEngineServiceTest {
 
     @Test
     void backflowResultCreatesFollowupContextSnapshot() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-123",
+            new OrgScope("tenant-1", "group-1", "hospital-1", "campus-1", "site-1", "dept-1", "specialty-1"),
+            "user-1"
+        ));
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
             FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
         FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
@@ -753,6 +758,7 @@ class FollowupEngineServiceTest {
         assertThat(snapshotCaptor.getValue().resources().followUps()).hasSize(1);
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).followUpId()).isEqualTo("FQ01");
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).abnormalFlag()).isEqualTo("N");
+        assertThat(snapshotCaptor.getValue().orgUnitId()).isEqualTo("dept-1");
         verify(eventRepository).save(any(FollowupEvent.class));
     }
 

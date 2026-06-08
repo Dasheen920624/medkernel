@@ -99,8 +99,14 @@ class ClinicalEventProcessorTest {
             "RECEIVED", "MAPPED", "TERMINOLOGY_OK", null);
         verify(transitions).record("clinical_event", "evt-1",
             "MAPPED", "PROCESSED", "ENGINES_OK", null);
-        verify(auditRecorder).record(AuditAction.EXECUTE, "clinical_event", "evt-1",
-            "处理临床事件成功 type=DIAGNOSIS");
+        ArgumentCaptor<String> auditSummaryCap = ArgumentCaptor.forClass(String.class);
+        verify(auditRecorder).record(eq(AuditAction.EXECUTE), eq("clinical_event"), eq("evt-1"),
+            auditSummaryCap.capture());
+        assertThat(auditSummaryCap.getValue())
+            .contains("处理临床事件成功 type=DIAGNOSIS")
+            .contains("RULE:DISPATCHED:已接收")
+            .contains("PATHWAY:DISPATCHED:已接收")
+            .contains("CDSS:DISPATCHED:已接收");
         verify(applicationEvents).publishEvent(any(ClinicalEventProcessedEvent.class));
 
         assertThat(ruleAdapter.contexts()).hasSize(1);
@@ -115,6 +121,9 @@ class ClinicalEventProcessorTest {
         assertThat(context.contextSnapshotId()).isEqualTo("ctx-event-evt-1");
         assertThat(context.payload().path("eventPayload").path("a").asInt()).isEqualTo(1);
         assertThat(context.payloadDigest()).isEqualTo("digest");
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshots).create(snapshotCap.capture(), eq("clinical-event:evt-1"));
+        assertThat(snapshotCap.getValue().orgUnitId()).isEqualTo("dept-A");
     }
 
     @Test
@@ -254,7 +263,7 @@ class ClinicalEventProcessorTest {
         return new ClinicalEvent(
             1L, eventId, "tenant-A", eventType,
             triggerPoint, null, null,
-            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
+            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
             "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-1");

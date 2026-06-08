@@ -93,7 +93,7 @@ public class ClinicalEventProcessor {
             "ENGINES_OK", null);
 
         auditRecorder.record(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
-            "处理临床事件成功 type=" + event.eventType());
+            successAuditMessage(event, dispatchResults));
         applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
             eventId, tenantId, event.traceId(), context));
         return ClinicalEventStatus.PROCESSED;
@@ -173,25 +173,7 @@ public class ClinicalEventProcessor {
         if (scope == null) {
             return tenantId;
         }
-        if (hasText(scope.specialtyId())) {
-            return scope.specialtyId();
-        }
-        if (hasText(scope.departmentId())) {
-            return scope.departmentId();
-        }
-        if (hasText(scope.siteId())) {
-            return scope.siteId();
-        }
-        if (hasText(scope.campusId())) {
-            return scope.campusId();
-        }
-        if (hasText(scope.hospitalId())) {
-            return scope.hospitalId();
-        }
-        if (hasText(scope.groupId())) {
-            return scope.groupId();
-        }
-        return tenantId;
+        return scope.nearestOrgUnitIdOrTenant(tenantId);
     }
 
     private boolean hasText(String value) {
@@ -220,5 +202,25 @@ public class ClinicalEventProcessor {
         auditPublisher.publish(AuditEvent.failure(AuditAction.EXECUTE, ENTITY_TYPE, source.eventId(),
             errorCode.code(), "临床事件下游引擎不可用 engine=" + result.engine()));
         return ClinicalEventStatus.FAILED;
+    }
+
+    private String successAuditMessage(
+            ClinicalEvent event,
+            List<ClinicalEventEngineDispatchResult> dispatchResults) {
+        String engines = String.join("|", dispatchResults.stream()
+            .map(result -> result.engine() + ":" + result.status() + ":" + trimForAudit(result.message()))
+            .toList());
+        if (!hasText(engines)) {
+            return "处理临床事件成功 type=" + event.eventType();
+        }
+        return "处理临床事件成功 type=" + event.eventType() + " engines=" + engines;
+    }
+
+    private String trimForAudit(String value) {
+        if (!hasText(value)) {
+            return "";
+        }
+        String normalized = value.replace('\n', ' ').replace('\r', ' ').trim();
+        return normalized.length() <= 300 ? normalized : normalized.substring(0, 300);
     }
 }

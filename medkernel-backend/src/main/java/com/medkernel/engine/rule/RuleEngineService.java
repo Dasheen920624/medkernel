@@ -2139,6 +2139,14 @@ public class RuleEngineService {
         if (targetOrgUnitId == null) {
             return Optional.empty();
         }
+        return resolveEffectiveRuleForOrg(candidate, tenantId, targetOrgUnitId, true);
+    }
+
+    private Optional<RuleDefinition> resolveEffectiveRuleForOrg(
+            RuleDefinition candidate,
+            String tenantId,
+            String targetOrgUnitId,
+            boolean failOnDisabled) {
         ResolvedAssetVersion resolved = inheritanceResolver.resolve(new InheritanceResolveQuery(
             tenantId,
             VersionedAssetType.RULE,
@@ -2147,9 +2155,15 @@ public class RuleEngineService {
             targetOrgUnitId
         ));
         if (resolved.disabled()) {
+            if (!failOnDisabled) {
+                return Optional.empty();
+            }
             throw new ApiException(ErrorCode.ENG_RULE_002, "规则已在当前组织停用");
         }
         if (resolved.version() == null) {
+            if (!failOnDisabled) {
+                return Optional.empty();
+            }
             throw new ApiException(ErrorCode.ENG_RULE_002, "当前组织未解析到有效规则版本");
         }
         AssetVersion assetVersion = resolved.version();
@@ -2172,6 +2186,30 @@ public class RuleEngineService {
     }
 
     private List<RuleDefinition> effectiveActiveRules(String tenantId) {
+        String targetOrgUnitId = targetOrgUnitId();
+        if (targetOrgUnitId != null) {
+            LinkedHashMap<String, RuleDefinition> candidates = new LinkedHashMap<>();
+            definitions.findPublishedByTenantId(tenantId)
+                .forEach(rule -> candidates.put(rule.ruleCode(), rule));
+            if (!PlatformTenant.isPlatformTenant(tenantId)) {
+                definitions.findPublishedByTenantId(PlatformTenant.ID)
+                    .forEach(rule -> candidates.putIfAbsent(rule.ruleCode(), rule));
+            }
+            return candidates.values().stream()
+                .map(rule -> {
+                    try {
+                        return resolveEffectiveRuleForOrg(rule, tenantId, targetOrgUnitId, false);
+                    } catch (ApiException exception) {
+                        if (exception.errorCode() == ErrorCode.NOT_FOUND) {
+                            return Optional.<RuleDefinition>empty();
+                        }
+                        throw exception;
+                    }
+                })
+                .flatMap(Optional::stream)
+                .filter(this::hasActiveUnifiedVersion)
+                .toList();
+        }
         LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
         definitions.findPublishedByTenantId(tenantId).stream()
             .filter(this::hasActiveUnifiedVersion)
@@ -2234,25 +2272,7 @@ public class RuleEngineService {
         if (scope == null) {
             return null;
         }
-        if (scope.specialtyId() != null && !scope.specialtyId().isBlank()) {
-            return scope.specialtyId();
-        }
-        if (scope.departmentId() != null && !scope.departmentId().isBlank()) {
-            return scope.departmentId();
-        }
-        if (scope.siteId() != null && !scope.siteId().isBlank()) {
-            return scope.siteId();
-        }
-        if (scope.campusId() != null && !scope.campusId().isBlank()) {
-            return scope.campusId();
-        }
-        if (scope.hospitalId() != null && !scope.hospitalId().isBlank()) {
-            return scope.hospitalId();
-        }
-        if (scope.groupId() != null && !scope.groupId().isBlank()) {
-            return scope.groupId();
-        }
-        return null;
+        return scope.nearestOrgUnitId();
     }
 
     private JsonNode readJson(String source) {

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.TraceIdPropagator;
 
 /**
@@ -76,8 +78,7 @@ public class ClinicalEventEngineDispatcher {
             return ClinicalEventEngineDispatchResult.unavailable(
                 engine, null, "事件触发求值预算已耗尽，未继续派发 " + engine);
         }
-        Future<ClinicalEventEngineDispatchResult> future = taskExecutor.submit(
-            TraceIdPropagator.wrap(() -> adapter(engine).dispatch(context)));
+        Future<ClinicalEventEngineDispatchResult> future = taskExecutor.submit(dispatchTask(engine, context));
         try {
             return future.get(remainingNanos, TimeUnit.NANOSECONDS);
         } catch (TimeoutException exception) {
@@ -92,6 +93,24 @@ public class ClinicalEventEngineDispatcher {
             Throwable cause = exception.getCause() == null ? exception : exception.getCause();
             return ClinicalEventEngineDispatchResult.unavailable(
                 engine, null, "事件触发求值不可用: " + cause.getMessage());
+        }
+    }
+
+    private Callable<ClinicalEventEngineDispatchResult> dispatchTask(
+            ClinicalEventEngine engine,
+            ClinicalEventContext context) {
+        RequestContext.Snapshot eventSnapshot = new RequestContext.Snapshot(
+            context.traceId(),
+            context.orgScope(),
+            RequestContext.currentUserId().orElse(null)
+        );
+        try {
+            return RequestContext.callWith(
+                eventSnapshot,
+                () -> TraceIdPropagator.wrap(() -> adapter(engine).dispatch(context))
+            );
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_EVENT_005, "创建临床事件派发上下文失败");
         }
     }
 

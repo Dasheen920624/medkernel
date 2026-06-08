@@ -38,4 +38,44 @@ public record OrgScope(
     public boolean hasTenant() {
         return tenantId != null && !tenantId.isBlank();
     }
+
+    /**
+     * 返回组织树中距离当前上下文最近的真实组织节点；专病是横切维度，不属于组织树。
+     */
+    public String nearestOrgUnitId() {
+        if (hasText(departmentId)) {
+            return departmentId;
+        }
+        if (hasText(siteId)) {
+            return siteId;
+        }
+        if (hasText(campusId)) {
+            return campusId;
+        }
+        if (hasText(hospitalId)) {
+            return hospitalId;
+        }
+        if (hasText(groupId)) {
+            return groupId;
+        }
+        return null;
+    }
+
+    /**
+     * 返回最近组织节点；无组织节点时回退到租户，用于审计和快照归属。
+     */
+    public String nearestOrgUnitIdOrTenant(String fallbackTenantId) {
+        String orgUnitId = nearestOrgUnitId();
+        if (hasText(orgUnitId)) {
+            return orgUnitId;
+        }
+        if (hasText(tenantId)) {
+            return tenantId;
+        }
+        return fallbackTenantId;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
 }

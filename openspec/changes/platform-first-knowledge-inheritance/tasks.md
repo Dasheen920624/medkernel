@@ -33,8 +33,8 @@
 ## P4 统一分发与运行期
 - [x] 5.1 `KnowledgePackage` 有效包解析（平台包基线 ∪ 组织闭包覆盖增量，lazy）
 - [x] 5.2 `SyncTarget`/离线导入下发"解析后有效包快照"（content_hash + 来源版本指针 + 回滚）
-- [ ] 5.3 ClinicalEvent/cdss/cdshook/recommendation 运行期按 `encounter.orgPath` 解析有效资产集
-- [ ] 5.4 解析来源（平台/覆盖 + content_hash）落审计与 trace
+- [x] 5.3 ClinicalEvent/cdss/cdshook/recommendation 运行期按 `encounter.orgPath` 解析有效资产集
+- [x] 5.4 解析来源（平台/覆盖 + content_hash）落审计与 trace
 
 ## P5 开通 + 治理 + 影响
 - [ ] 6.1 租户开通改引用制（不实例化副本）；`PilotPackageTemplate` 改为推荐引用 + 可选初始覆盖
