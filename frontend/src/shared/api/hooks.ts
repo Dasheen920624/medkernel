@@ -2922,6 +2922,127 @@ export function useAuthoringPreviewRun() {
   });
 }
 
+export type ConditionFragmentStatus = "DRAFT" | "ACTIVE" | "RETIRED";
+
+export interface ConditionFragmentResponse {
+  fragmentId: string;
+  tenantId: string;
+  fragmentCode: string;
+  name: string;
+  category?: string | null;
+  bodyJson: unknown;
+  versionNo: number;
+  status: ConditionFragmentStatus;
+  packageVersion: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  traceId?: string | null;
+}
+
+export interface ConditionFragmentUpsertPayload {
+  fragmentCode: string;
+  name: string;
+  category?: string;
+  bodyJson: unknown;
+  versionNo: number;
+  packageVersion: string;
+  status?: ConditionFragmentStatus;
+}
+
+export interface ConditionFragmentAffectedAsset {
+  assetType: string;
+  assetId: string;
+  assetCode: string;
+  displayName: string;
+  impactReason: string;
+}
+
+export interface ConditionFragmentImpactResponse {
+  fragmentId: string;
+  fragmentCode: string;
+  versionNo: number;
+  packageVersion: string;
+  affectedAssets: ConditionFragmentAffectedAsset[];
+  impactDigest: string;
+  traceId?: string | null;
+}
+
+export function useConditionFragments(
+  params?: {
+    status?: ConditionFragmentStatus;
+    packageVersion?: string;
+    keyword?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["authoring", "condition-fragments", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ConditionFragmentResponse> }>(
+        "/engine/authoring/fragments",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCreateConditionFragment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ConditionFragmentUpsertPayload) => {
+      const { data } = await apiClient.post<{ data: ConditionFragmentResponse }>(
+        "/engine/authoring/fragments",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] }),
+  });
+}
+
+export function useUpdateConditionFragment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { fragmentId: string; body: ConditionFragmentUpsertPayload }) => {
+      const { data } = await apiClient.put<{ data: ConditionFragmentResponse }>(
+        `/engine/authoring/fragments/${payload.fragmentId}`,
+        payload.body,
+      );
+      return data.data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] }),
+  });
+}
+
+export function useConditionFragmentImpact(
+  fragmentId: string,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["authoring", "condition-fragment-impact", fragmentId],
+    enabled: (options?.enabled ?? true) && !!fragmentId,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ConditionFragmentImpactResponse }>(
+        `/engine/authoring/fragments/${fragmentId}/impact`,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useRuleDetail(ruleId: string) {
   return useQuery({
     queryKey: ["rules", "detail", ruleId],

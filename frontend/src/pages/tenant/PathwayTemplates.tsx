@@ -25,6 +25,7 @@ import {
   Tabs,
   Tag,
   Timeline,
+  Typography,
 } from "antd";
 import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
@@ -61,6 +62,7 @@ import {
   useContextSnapshots,
   useCreatePathwayTemplate,
   useCreateSpecialtyPackage,
+  useConditionFragments,
   useAuthoringPreviewRun,
   useEvaluationIndicators,
   useFullRolloutPathwayTemplate,
@@ -77,6 +79,7 @@ import type {
   ContextSnapshotSummary,
   AuthoringPreviewRunEvidence,
   AuthoringPreviewRunResponse,
+  ConditionFragmentResponse,
   EvaluationIndicator,
   PathwayEdge,
   PathwayEdgeType,
@@ -111,6 +114,7 @@ import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
+const { Text } = Typography;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
@@ -279,6 +283,7 @@ type PathwayEdgeFormValue = {
   fromNodeCode?: string;
   toNodeCode?: string;
   edgeType?: PathwayEdgeType;
+  conditionFragmentId?: string;
   conditionTree?: RuleGroup;
   conditionFact?: string;
   conditionOperator?: "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
@@ -528,6 +533,24 @@ function createDefaultEdgeConditionTree(): RuleGroup {
         valueKind: "string",
       }),
     ],
+  });
+}
+
+function conditionFragmentToPathwayTree(
+  fragment: ConditionFragmentResponse,
+  mode: "reference" | "copy",
+): RuleGroup {
+  if (mode === "copy") {
+    return dslToRootGroup(fragment.bodyJson);
+  }
+  return dslToRootGroup({
+    fragmentRef: fragment.fragmentCode,
+    version: fragment.versionNo,
+    packageVersion: fragment.packageVersion,
+    ui: {
+      label: fragment.name,
+      fragmentId: fragment.fragmentId,
+    },
   });
 }
 
@@ -1259,7 +1282,6 @@ export default function PathwayTemplates() {
       );
     }
   };
-
   const { data: snapshotsData, isLoading: snapshotsLoading } = useContextSnapshots(
     snapshotQuery ?? undefined,
     { enabled: !!snapshotQuery },
@@ -1420,6 +1442,58 @@ export default function PathwayTemplates() {
       })),
     [evaluationIndicatorsData?.items],
   );
+  const packageVersionFor = (packageId?: string | null) =>
+    packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
+  const selectedTemplatePackageVersion =
+    typeof watchedPackageId === "string" ? packageVersionFor(watchedPackageId) : undefined;
+  const createTemplatePackageVersion =
+    selectedTemplatePackageVersion ?? String(watchedTemplateVersion ?? "");
+  const conditionFragmentPackageVersion = selectedTemplatePackageVersion ?? "";
+  const activeConditionFragmentsQuery = useConditionFragments(
+    {
+      status: "ACTIVE",
+      packageVersion: conditionFragmentPackageVersion,
+      page: 1,
+      size: 50,
+    },
+    {
+      enabled: createTemplateVisible && Boolean(conditionFragmentPackageVersion),
+    },
+  );
+  const activeConditionFragments = useMemo(
+    () => activeConditionFragmentsQuery.data?.items ?? [],
+    [activeConditionFragmentsQuery.data?.items],
+  );
+  const conditionFragmentById = useMemo(
+    () => new Map(activeConditionFragments.map((fragment) => [fragment.fragmentId, fragment])),
+    [activeConditionFragments],
+  );
+  const conditionFragmentOptions = useMemo(
+    () =>
+      activeConditionFragments.map((fragment) => ({
+        value: fragment.fragmentId,
+        label: `${fragment.name} · ${fragment.fragmentCode} · v${fragment.versionNo}`,
+      })),
+    [activeConditionFragments],
+  );
+  const applyEdgeConditionFragment = (edgeIndex: number, mode: "reference" | "copy") => {
+    const fragmentId = templateForm.getFieldValue(["edges", edgeIndex, "conditionFragmentId"]);
+    const fragment =
+      typeof fragmentId === "string" ? conditionFragmentById.get(fragmentId) : undefined;
+    if (!fragment) {
+      messageApi.warning("请选择条件片段。");
+      return;
+    }
+    try {
+      templateForm.setFieldValue(
+        ["edges", edgeIndex, "conditionTree"],
+        conditionFragmentToPathwayTree(fragment, mode),
+      );
+      messageApi.success(mode === "reference" ? "已引用条件片段" : "已拷贝条件片段正文");
+    } catch {
+      messageApi.error("条件片段正文无法转成当前路径边条件。");
+    }
+  };
 
   // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
@@ -1459,12 +1533,6 @@ export default function PathwayTemplates() {
       </Space>
     </div>
   );
-
-  const packageVersionFor = (packageId?: string | null) =>
-    packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
-  const createTemplatePackageVersion =
-    packageVersionFor(typeof watchedPackageId === "string" ? watchedPackageId : undefined) ??
-    String(watchedTemplateVersion ?? "");
 
   const resetCreateTemplateDraft = () => {
     templateForm.resetFields();
@@ -3070,6 +3138,10 @@ export default function PathwayTemplates() {
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
                   const edgeValue = watchedEdges?.[field.name];
+                  const selectedEdgeFragment =
+                    typeof edgeValue?.conditionFragmentId === "string"
+                      ? conditionFragmentById.get(edgeValue.conditionFragmentId)
+                      : undefined;
                   return (
                     <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
@@ -3222,6 +3294,81 @@ export default function PathwayTemplates() {
                           </Form.Item>
                         </Col>
                       </Row>
+                      <div className={styles.conditionCard}>
+                        <div className={styles.conditionHeader}>
+                          <Space direction="vertical" size={0}>
+                            <Text strong>条件片段</Text>
+                            <Text type="secondary">
+                              使用同包版本片段作为路径守卫，可引用联动或拷贝后细调。
+                            </Text>
+                          </Space>
+                          <Tag color={conditionFragmentPackageVersion ? "green" : "default"}>
+                            {conditionFragmentPackageVersion || "待选择专病包"}
+                          </Tag>
+                        </div>
+                        <Space wrap className="mk-full-width">
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "conditionFragmentId"]}
+                            className={styles.zeroBottom}
+                          >
+                            <Select
+                              aria-label="选择条件片段"
+                              showSearch
+                              allowClear
+                              loading={activeConditionFragmentsQuery.isLoading}
+                              disabled={
+                                !conditionFragmentPackageVersion ||
+                                activeConditionFragmentsQuery.isError
+                              }
+                              options={conditionFragmentOptions}
+                              optionFilterProp="label"
+                              placeholder={
+                                conditionFragmentPackageVersion
+                                  ? "选择可复用条件片段"
+                                  : "先选择专病包"
+                              }
+                              className={styles.fragmentSelect}
+                            />
+                          </Form.Item>
+                          <Button
+                            icon={<SwapOutlined />}
+                            disabled={!selectedEdgeFragment}
+                            onClick={() => applyEdgeConditionFragment(field.name, "reference")}
+                          >
+                            引用
+                          </Button>
+                          <Button
+                            icon={<PlusOutlined />}
+                            disabled={!selectedEdgeFragment}
+                            onClick={() => applyEdgeConditionFragment(field.name, "copy")}
+                          >
+                            拷贝
+                          </Button>
+                        </Space>
+                        {activeConditionFragmentsQuery.isError && (
+                          <Alert
+                            className={styles.marginTopSm}
+                            type="error"
+                            showIcon
+                            message="条件片段暂不可用"
+                            description={getApiErrorMessage(
+                              activeConditionFragmentsQuery.error,
+                              "条件片段列表加载失败，请稍后重试。",
+                            )}
+                          />
+                        )}
+                        {conditionFragmentPackageVersion &&
+                          !activeConditionFragmentsQuery.isLoading &&
+                          !activeConditionFragmentsQuery.isError &&
+                          conditionFragmentOptions.length === 0 && (
+                            <Empty
+                              className={styles.marginTopSm}
+                              image={Empty.PRESENTED_IMAGE_SIMPLE}
+                              description="当前包版本暂无可用条件片段"
+                            />
+                          )}
+                      </div>
                       <Card size="small" className={styles.marginTopMd} title="条件树构建器">
                         <Form.Item noStyle shouldUpdate>
                           {({ getFieldValue, setFieldValue }) => {

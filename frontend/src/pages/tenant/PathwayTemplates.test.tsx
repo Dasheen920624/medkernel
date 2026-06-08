@@ -19,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
   templateInheritanceDiffData: null as unknown,
   evaluationIndicatorsData: { items: [], total: 0 } as unknown,
   packagesData: { items: [], total: 0 } as unknown,
+  conditionFragmentsData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
   refetchList: vi.fn(),
@@ -86,6 +87,12 @@ vi.mock("@/shared/api/hooks", () => ({
   useSpecialtyPackages: () => ({
     data: apiMocks.packagesData,
     refetch: apiMocks.refetchPackages,
+  }),
+  useConditionFragments: () => ({
+    data: apiMocks.conditionFragmentsData,
+    isLoading: false,
+    isError: false,
+    error: null,
   }),
   useCreateSpecialtyPackage: () => ({
     mutateAsync: apiMocks.createPackage,
@@ -303,6 +310,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.templateInheritanceDiffData = null;
     apiMocks.evaluationIndicatorsData = { items: [], total: 0 };
     apiMocks.packagesData = { items: [], total: 0 };
+    apiMocks.conditionFragmentsData = { items: [], total: 0 };
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.refetchList.mockReset();
@@ -585,6 +593,70 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           expect.objectContaining({ all: expect.any(Array) }),
         ]),
       );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径边守卫可按引用复用同包版本条件片段",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.conditionFragmentsData = {
+        items: [
+          {
+            fragmentId: "frag-bleeding-v1",
+            tenantId: "tenant-hospital",
+            fragmentCode: "FRAG_HIGH_BLEEDING",
+            name: "高出血风险",
+            category: "抗凝",
+            bodyJson: {
+              all: [
+                {
+                  fact: "diagnoses[].code",
+                  operator: "in",
+                  value: ["I61"],
+                  ui: { valueKind: "list" },
+                },
+              ],
+            },
+            versionNo: 1,
+            status: "ACTIVE",
+            packageVersion: "pkg-2026.06",
+            createdAt: "2026-06-08T00:00:00Z",
+            createdBy: "u-admin",
+            updatedAt: "2026-06-08T00:00:00Z",
+            updatedBy: "u-admin",
+            traceId: "trace-fragment",
+          },
+        ],
+        total: 1,
+      };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+      fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "选择条件片段" }));
+      await user.click(
+        await screen.findByText("高出血风险 · FRAG_HIGH_BLEEDING · v1", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+      await user.click(within(dialog).getByRole("button", { name: /引用/ }));
+      expect(await within(dialog).findByTestId("condition-fragment-leaf")).toHaveTextContent(
+        "FRAG_HIGH_BLEEDING",
+      );
+
+      await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement;
+      expect(dslEditor.value).toContain('"fragmentRef": "FRAG_HIGH_BLEEDING"');
+      expect(dslEditor.value).toContain('"packageVersion": "pkg-2026.06"');
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
