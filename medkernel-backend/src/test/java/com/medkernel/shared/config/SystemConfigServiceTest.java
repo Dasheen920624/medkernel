@@ -441,6 +441,58 @@ class SystemConfigServiceTest {
         assertThat(service.runtimeClinicalEventSyncTimeoutMs(settings)).isEqualTo(3_000L);
     }
 
+    @Test
+    void runtimeRealtimeCdsTimeoutsReadConfigCenterAndFallBackSafely() {
+        RealtimeCdsSettings settings = new RealtimeCdsSettings() {
+            @Override
+            public Duration defaultTimeout() {
+                return Duration.ofMillis(2_000);
+            }
+
+            @Override
+            public Duration orderSignTimeout() {
+                return Duration.ofMillis(1_000);
+            }
+        };
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY,
+                "450",
+                "INTEGER",
+                "开医嘱实时 CDS 硬超时",
+                "HIGH",
+                "信息科 / 运维组",
+                "控制 order-sign 实时 CDS 的同步硬超时。",
+                "API",
+                true,
+                true,
+                3,
+                null)));
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY,
+                "not-a-number",
+                "INTEGER",
+                "实时 CDS 默认硬超时",
+                "HIGH",
+                "信息科 / 运维组",
+                "控制非 order-sign 实时 CDS 的同步硬超时。",
+                "API",
+                true,
+                true,
+                4,
+                null)));
+
+        assertThat(service.runtimeRealtimeCdsOrderSignTimeoutMs(settings)).isEqualTo(450L);
+        assertThat(service.runtimeRealtimeCdsDefaultTimeoutMs(settings)).isEqualTo(2_000L);
+    }
+
     private static SystemConfigItem configItem(
             String tenantId,
             String key,
