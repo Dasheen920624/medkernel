@@ -56,6 +56,13 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.EXECUTE, "authoring_preview", "生成规则和路径编排的自然语言预览"),
                 audit(AuditAction.EXECUTE, "authoring_preview_run", "基于真实上下文快照试运行草稿规则和路径"))),
+        contract("authoring-condition-fragment", "条件片段库服务",
+            "com.medkernel.engine.authoring.ConditionFragmentController",
+            "/api/v1/engine/authoring/fragments",
+            permissions("rule.read", "pathway.read", "rule.write", "pathway.write"),
+            audits(
+                audit(AuditAction.CREATE, "mk_engine_condition_fragment", "创建条件片段"),
+                audit(AuditAction.UPDATE, "mk_engine_condition_fragment", "更新条件片段并刷新影响分析"))),
         contract("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/clinical-events",
             permissions("event.write", "event.read"),

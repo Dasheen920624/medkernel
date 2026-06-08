@@ -118,6 +118,35 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
     expect(dsl.value).toBeUndefined();
   });
 
+  it("条件片段引用可作为叶子参与路径守卫条件树", () => {
+    const root = createGroup({
+      logic: "all",
+      children: [
+        createLeaf({
+          label: "肾功能受限",
+          fact: "",
+          operator: "exists",
+          valueKind: "empty",
+          fragment: {
+            fragmentId: "cf-renal",
+            fragmentCode: "FRAG_RENAL",
+            version: 1,
+            packageVersion: "pkg-2026.06",
+          },
+        }),
+      ],
+    });
+
+    const dsl = nodeToDsl(root) as { all: Array<Record<string, unknown>> };
+    expect(dsl.all[0]).toMatchObject({
+      fragmentRef: "FRAG_RENAL",
+      version: 1,
+      packageVersion: "pkg-2026.06",
+    });
+    expect(hasUnresolvedFact(root)).toBe(false);
+    expect(nodeToDsl(dslToRootGroup(dsl))).toEqual(dsl);
+  });
+
   it("list 比较值按逗号归一", () => {
     const leaf = createLeaf({ fact: "x", operator: "in", value: "a, b ,c", valueKind: "list" });
     const dsl = nodeToDsl(leaf) as { value: unknown };

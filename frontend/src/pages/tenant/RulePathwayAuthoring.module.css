@@ -58,6 +58,10 @@
   width: min(calc(var(--mk-unit) * 220), 100%);
 }
 
+.fragmentSelect {
+  width: min(calc(var(--mk-unit) * 360), 100%);
+}
+
 .fullWidth {
   width: 100%;
 }

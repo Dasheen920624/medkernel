@@ -9,6 +9,7 @@ import type { RuleDefinition, RuleDetailResponse, SecurityProfile } from "@/shar
 const apiMocks = vi.hoisted(() => ({
   ruleListData: { items: [], total: 0 } as unknown,
   ruleDetailData: null as unknown,
+  conditionFragmentsData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
   impactData: null as unknown,
@@ -61,6 +62,9 @@ const apiMocks = vi.hoisted(() => ({
   refetchBacktest: vi.fn(),
   refetchDrift: vi.fn(),
   createRule: vi.fn(),
+  createConditionFragment: vi.fn(),
+  updateConditionFragment: vi.fn(),
+  conditionFragmentImpactData: null as unknown,
   addTestCase: vi.fn(),
   runRuleTests: vi.fn(),
   simulateRule: vi.fn(),
@@ -167,6 +171,26 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
+  useConditionFragments: () => ({
+    data: apiMocks.conditionFragmentsData,
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
+  useCreateConditionFragment: () => ({
+    mutateAsync: apiMocks.createConditionFragment,
+    isPending: false,
+  }),
+  useUpdateConditionFragment: () => ({
+    mutateAsync: apiMocks.updateConditionFragment,
+    isPending: false,
+  }),
+  useConditionFragmentImpact: () => ({
+    data: apiMocks.conditionFragmentImpactData,
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
   useOrgUnits: (params?: Record<string, unknown>) => {
     apiMocks.orgUnitRequests.push(params);
     return { data: apiMocks.orgUnitsData, isLoading: false, isError: false };
@@ -397,6 +421,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   beforeEach(() => {
     apiMocks.ruleListData = { items: [], total: 0 };
     apiMocks.ruleDetailData = null;
+    apiMocks.conditionFragmentsData = { items: [], total: 0 };
+    apiMocks.conditionFragmentImpactData = null;
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
@@ -410,6 +436,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.refetchBacktest.mockReset();
     apiMocks.refetchDrift.mockReset();
     apiMocks.createRule.mockReset();
+    apiMocks.createConditionFragment.mockReset();
+    apiMocks.updateConditionFragment.mockReset();
     apiMocks.addTestCase.mockReset();
     apiMocks.runRuleTests.mockReset();
     apiMocks.simulateRule.mockReset();
@@ -469,6 +497,156 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "创建规则时可按引用复用同包版本条件片段",
+    async () => {
+      apiMocks.conditionFragmentsData = {
+        items: [
+          {
+            fragmentId: "frag-renal-v1",
+            tenantId: "tenant-hospital",
+            fragmentCode: "FRAG_RENAL_IMPAIRED",
+            name: "肾功能受限",
+            category: "肾病",
+            bodyJson: {
+              all: [
+                {
+                  fact: "observations[].eGfr",
+                  operator: "lt",
+                  value: 60,
+                  ui: { valueKind: "number" },
+                },
+              ],
+            },
+            versionNo: 1,
+            status: "ACTIVE",
+            packageVersion: "pkg-2026.06",
+            createdAt: "2026-06-08T00:00:00Z",
+            createdBy: "u-admin",
+            updatedAt: "2026-06-08T00:00:00Z",
+            updatedBy: "u-admin",
+            traceId: "trace-fragment",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.createRule.mockResolvedValue({ ruleId: "rule-fragment" });
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
+        target: { value: "RULE.RENAL.FRAGMENT" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
+        target: { value: "肾功能片段复用提醒" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
+        target: { value: "院内肾病诊疗规范 2026" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
+        target: { value: "patient.age" },
+      });
+      fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "选择条件片段" }));
+      await user.click(
+        await screen.findByText("肾功能受限 · FRAG_RENAL_IMPAIRED · v1", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+      await waitFor(() =>
+        expect(within(dialog).getByRole("button", { name: /引用/ })).toBeEnabled(),
+      );
+      await user.click(within(dialog).getByRole("button", { name: /引用/ }));
+      await waitFor(() =>
+        expect(
+          within(dialog).getAllByText((_, element) =>
+            Boolean(element?.textContent?.includes("FRAG_RENAL_IMPAIRED")),
+          ).length,
+        ).toBeGreaterThan(0),
+      );
+
+      await user.click(within(dialog).getByRole("button", { name: "创建草稿" }));
+
+      await waitFor(() => expect(apiMocks.createRule).toHaveBeenCalled());
+      const payload = apiMocks.createRule.mock.calls[0][0] as {
+        dslJson: {
+          when: {
+            all?: unknown[];
+          };
+        };
+      };
+      expect(payload.dslJson.when.all).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fragmentRef: "FRAG_RENAL_IMPAIRED",
+            version: 1,
+            packageVersion: "pkg-2026.06",
+          }),
+        ]),
+      );
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "条件片段库可将当前 L2 条件树保存为可复用片段",
+    async () => {
+      apiMocks.createConditionFragment.mockResolvedValue({ fragmentId: "frag-created" });
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
+        target: { value: "observations[].eGfr" },
+      });
+      await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
+
+      const fragmentLibraryTitle = await screen.findByText("条件片段库");
+      const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
+      expect(fragmentLibraryDrawer).not.toBeNull();
+      const fragmentLibrary = within(fragmentLibraryDrawer as HTMLElement);
+      fireEvent.change(fragmentLibrary.getByLabelText("片段编码"), {
+        target: { value: "FRAG_RENAL_IMPAIRED" },
+      });
+      fireEvent.change(fragmentLibrary.getByLabelText("片段名称"), {
+        target: { value: "肾功能受限" },
+      });
+      await user.click(fragmentLibrary.getByRole("button", { name: "保存片段" }));
+
+      await waitFor(() => expect(apiMocks.createConditionFragment).toHaveBeenCalled());
+      const payload = apiMocks.createConditionFragment.mock.calls[0][0] as {
+        fragmentCode: string;
+        name: string;
+        packageVersion: string;
+        bodyJson: { all?: Array<{ fact?: string }> };
+      };
+      expect(payload).toMatchObject({
+        fragmentCode: "FRAG_RENAL_IMPAIRED",
+        name: "肾功能受限",
+        packageVersion: "pkg-2026.06",
+      });
+      expect(payload.bodyJson.all).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fact: "observations[].eGfr",
+          }),
+        ]),
+      );
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

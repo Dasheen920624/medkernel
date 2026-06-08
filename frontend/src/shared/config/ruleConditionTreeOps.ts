@@ -25,7 +25,7 @@ function nextId(prefix: "group" | "condition"): string {
 
 /** 新建叶子条件（默认等于算子、文本比较值）。 */
 export function createConditionLeaf(partial: Partial<RuleCondition> = {}): RuleCondition {
-  return {
+  const leaf: RuleCondition = {
     id: partial.id ?? nextId("condition"),
     label: partial.label ?? "条件",
     fact: partial.fact ?? "",
@@ -33,6 +33,9 @@ export function createConditionLeaf(partial: Partial<RuleCondition> = {}): RuleC
     value: partial.value ?? "",
     valueKind: partial.valueKind ?? "string",
   };
+  if (partial.expr) leaf.expr = partial.expr;
+  if (partial.fragment) leaf.fragment = partial.fragment;
+  return leaf;
 }
 
 /** 新建条件组（默认全部满足，含一个叶子）。 */
@@ -109,6 +112,7 @@ export function rootDepth(node: RuleConditionNode): number {
 /** 是否存在未解析字段（空或仍含模板占位符）。 */
 export function rootHasUnresolvedFact(node: RuleConditionNode): boolean {
   if (!isConditionGroup(node)) {
+    if (node.fragment) return false;
     const fact = (node.expr?.field ?? node.fact).trim();
     return fact.length === 0 || fact.includes("<字段路径>");
   }

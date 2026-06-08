@@ -125,7 +125,8 @@ class MigrationBaselineContractTest {
         "V96__tenant_user_directory.sql",
         "V97__plugin_security_boundary.sql",
         "V98__engine_domain_event_sources.sql",
-        "V99__mk_engine_rule_parameter_binding.sql"
+        "V99__mk_engine_rule_parameter_binding.sql",
+        "V100__mk_engine_condition_fragment.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -140,7 +141,7 @@ class MigrationBaselineContractTest {
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
-        "rule_test_case", "mk_engine_rule_parameter_binding",
+        "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
@@ -235,6 +236,8 @@ class MigrationBaselineContractTest {
         "idx_rule_governance_state", "idx_rule_signoff_version",
         "idx_rule_test_case_version_type",
         "idx_mk_engine_rule_parameter_binding_version", "idx_mk_engine_rule_parameter_binding_key",
+        "idx_mk_engine_condition_fragment_code", "idx_mk_engine_condition_fragment_package",
+        "idx_mk_engine_condition_fragment_status",
         "idx_rule_execution_tenant_time", "idx_rule_execution_rule_time",
         "idx_rule_execution_trigger", "idx_rule_execution_dedupe",
         "idx_rule_override_rule_time", "idx_rule_override_execution",
@@ -406,6 +409,7 @@ class MigrationBaselineContractTest {
         "ck_rule_signoff_stage", "ck_rule_signoff_decision",
         "uk_rule_test_case_id", "ck_rule_test_case_type", "ck_rule_test_case_status",
         "uk_mk_engine_rule_parameter_binding_key",
+        "uk_mk_engine_condition_fragment_id", "uk_mk_engine_condition_fragment_version",
         "uk_rule_execution_id", "ck_rule_execution_status", "ck_rule_execution_severity",
         "uk_rule_override_id", "uk_rule_override_execution_action", "ck_rule_override_action",
         "uk_rule_shadow_feedback_id", "uk_rule_shadow_feedback_execution",
@@ -572,7 +576,7 @@ class MigrationBaselineContractTest {
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
-        "rule_test_case", "mk_engine_rule_parameter_binding",
+        "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
@@ -618,6 +622,7 @@ class MigrationBaselineContractTest {
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
         "term_mapping_package", "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
+        "mk_engine_condition_fragment",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",

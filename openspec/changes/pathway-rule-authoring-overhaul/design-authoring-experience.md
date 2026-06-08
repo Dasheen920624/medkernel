@@ -45,8 +45,8 @@
 
 ## G5. 可复用（Reusable）——一次定义，处处引用
 
-1. **条件片段库（Condition Fragment Library，核心）**：把常用条件组保存为命名片段（如「肾功能受限」「高出血风险」「妊娠人群」），在多条规则的 `when` 与路径边 `guard` 中**按引用**复用；片段更新→引用处随版本传播（改动走影响分析）。新增资产类型 `CONDITION_FRAGMENT`。
-   - 引用模式：`{ "fragmentRef": "FRAG_RENAL_IMPAIRED", "version": "..." }`，求值期由 `ConditionEvaluator` 内联展开。
+1. **条件片段库（Condition Fragment Library，核心）**：把常用条件组保存为命名片段（如「肾功能受限」「高出血风险」「妊娠人群」），在多条规则的 `when` 与路径边 `guard` 中**按引用**复用；片段更新→引用处随版本传播（改动走影响分析）。当前 P12-5 已落库为 `mk_engine_condition_fragment`，P12-6 再纳入统一资产库类型 `CONDITION_FRAGMENT`。
+   - 引用模式：`{ "fragmentRef": "FRAG_RENAL_IMPAIRED", "version": 1, "packageVersion": "pkg-2026.06" }`，求值期由 `ConditionEvaluator` 按 ACTIVE 片段内联展开。
    - 复用 vs 拷贝：可「引用」（联动）或「拷贝为本地副本」（脱钩），由用户显式选择。
 2. **规则/路径模板库**：参数化模板可在集团/医院/科室间共享；多级继承（覆盖/新增/禁用）与差异合并（复用路径模板继承机制）。
 3. **资产库统一视图（Asset Library）**：规则、路径、条件片段、值集、医嘱套餐、动作卡片、子路径统一编目，支持分类、标签、搜索、收藏；底层为 `PackageItem` + 标签。
@@ -61,13 +61,13 @@
 
 ```sql
 -- 可复用条件片段
-CREATE TABLE condition_fragment (
+CREATE TABLE mk_engine_condition_fragment (
   id BIGINT PRIMARY KEY, fragment_id VARCHAR(64) NOT NULL, tenant_id VARCHAR(64) NOT NULL,
   fragment_code VARCHAR(64) NOT NULL, name VARCHAR(200) NOT NULL, category VARCHAR(64),
   body_json CLOB NOT NULL,            -- 统一 Group 文法
-  version INT NOT NULL, status VARCHAR(20) NOT NULL, package_version VARCHAR(40) NOT NULL,
+  version_no INT NOT NULL, status VARCHAR(20) NOT NULL, package_version VARCHAR(40) NOT NULL,
   created_at TIMESTAMP, created_by VARCHAR(64), updated_at TIMESTAMP, updated_by VARCHAR(64), trace_id VARCHAR(64),
-  CONSTRAINT uk_frag UNIQUE (tenant_id, fragment_code, version)
+  CONSTRAINT uk_mk_engine_condition_fragment_version UNIQUE (tenant_id, fragment_code, version_no)
 );
 -- 参数化规则的实例参数取值（schema 存于 DSL meta.parameters）
 CREATE TABLE mk_engine_rule_parameter_binding (
@@ -97,7 +97,8 @@ CREATE TABLE batch_job (
 |---|---|---|
 | POST | `/authoring/preview` | 草稿 DSL → 自然语言摘要 + 可读句子 |
 | POST | `/rules/preview-run` / `/pathways/preview-run` | 即配即试（草稿 + 快照 → 命中/证据） |
-| GET/POST/PUT | `/authoring/fragments[/{id}]` | 条件片段库 CRUD |
+| GET/POST/PUT | `/api/v1/engine/authoring/fragments[/{id}]` | 条件片段库 CRUD |
+| GET | `/api/v1/engine/authoring/fragments/{id}/impact` | 条件片段变更影响分析 |
 | POST | `/authoring/{assetType}/{id}/clone` | 克隆/另存为 |
 | GET | `/authoring/assets?type=&tag=&keyword=` | 统一资产库检索 |
 | POST | `/rules/batch/import` `/pathways/batch/import` | 批量导入（复用离线导入校验） |

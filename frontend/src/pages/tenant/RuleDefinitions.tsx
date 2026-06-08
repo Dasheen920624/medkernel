@@ -57,6 +57,10 @@ import {
   useContextSnapshots,
   useContextSnapshotDetail,
   useAuthoringPreviewRun,
+  useConditionFragments,
+  useCreateConditionFragment,
+  useUpdateConditionFragment,
+  useConditionFragmentImpact,
   useRuleImpact,
   useRuleShadowStats,
   useRuleBacktestLatest,
@@ -77,6 +81,8 @@ import type {
   ContextSnapshotSummary,
   AuthoringPreviewRunEvidence,
   AuthoringPreviewRunResponse,
+  ConditionFragmentStatus,
+  ConditionFragmentResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
@@ -113,6 +119,7 @@ import {
   createCriticalValueParameterDefinitions,
   createRuleActionDraft,
   createExplanationTemplate,
+  dslToConditionNode,
   dslToConditionTree,
   dslWhenToRootGroup,
   flatToRootGroup,
@@ -164,6 +171,14 @@ const { Text } = Typography;
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
 type CreateLayerKey = "l1" | "l2" | "preview" | "l3";
 type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
+type ConditionFragmentFormValue = {
+  fragmentCode: string;
+  fragmentName: string;
+  category?: string;
+  versionNo: number;
+  packageVersion: string;
+  status: ConditionFragmentStatus;
+};
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
@@ -202,6 +217,12 @@ const RISK_LABELS: Record<RuleSeverity, string> = {
   HIGH: "高风险",
   CRITICAL: "红线",
 };
+
+function conditionFragmentStatusColor(status: ConditionFragmentStatus) {
+  if (status === "ACTIVE") return "green";
+  if (status === "DRAFT") return "blue";
+  return "default";
+}
 
 const numericComparisonChoices = [
   { value: "gt", label: "大于" },
@@ -542,6 +563,14 @@ export default function RuleDefinitions() {
   const [dslEditorValue, setDslEditorValue] = useState(createDefaultDslText);
   const [createForm] = Form.useForm();
   const createPackageVersion = Form.useWatch("packageVersion", createForm);
+  const currentCreatePackageVersion =
+    typeof createPackageVersion === "string" ? createPackageVersion.trim() : "";
+  const [selectedFragmentId, setSelectedFragmentId] = useState<string | undefined>();
+  const [fragmentLibraryOpen, setFragmentLibraryOpen] = useState(false);
+  const [editingFragmentId, setEditingFragmentId] = useState<string | null>(null);
+  const [fragmentBodyJson, setFragmentBodyJson] = useState<unknown | null>(null);
+  const [impactFragmentId, setImpactFragmentId] = useState("");
+  const [fragmentForm] = Form.useForm<ConditionFragmentFormValue>();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
   const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
@@ -596,6 +625,44 @@ export default function RuleDefinitions() {
     level: "DEPARTMENT",
     status: "ACTIVE",
   });
+  const activeConditionFragmentsQuery = useConditionFragments(
+    {
+      status: "ACTIVE",
+      packageVersion: currentCreatePackageVersion,
+      page: 1,
+      size: 50,
+    },
+    { enabled: createModalVisible && Boolean(currentCreatePackageVersion) },
+  );
+  const activeConditionFragments = useMemo(
+    () => activeConditionFragmentsQuery.data?.items ?? [],
+    [activeConditionFragmentsQuery.data?.items],
+  );
+  const fragmentById = useMemo(
+    () => new Map(activeConditionFragments.map((fragment) => [fragment.fragmentId, fragment])),
+    [activeConditionFragments],
+  );
+  const conditionFragmentOptions = useMemo(
+    () =>
+      activeConditionFragments.map((fragment) => ({
+        value: fragment.fragmentId,
+        label: `${fragment.name} · ${fragment.fragmentCode} · v${fragment.versionNo}`,
+      })),
+    [activeConditionFragments],
+  );
+  const selectedConditionFragment = selectedFragmentId
+    ? fragmentById.get(selectedFragmentId)
+    : undefined;
+  const fragmentLibraryQuery = useConditionFragments(
+    {
+      packageVersion: currentCreatePackageVersion || undefined,
+      page: 1,
+      size: 100,
+      sort: "fragmentCode,asc",
+    },
+    { enabled: fragmentLibraryOpen },
+  );
+  const fragmentLibraryItems = fragmentLibraryQuery.data?.items ?? [];
 
   const {
     data: detailData,
@@ -632,6 +699,11 @@ export default function RuleDefinitions() {
   const signoffMutation = useSignoffRule();
   const governanceTransitionMutation = useTransitionRuleGovernance();
   const previewRunMutation = useAuthoringPreviewRun();
+  const createConditionFragmentMutation = useCreateConditionFragment();
+  const updateConditionFragmentMutation = useUpdateConditionFragment();
+  const conditionFragmentImpactQuery = useConditionFragmentImpact(impactFragmentId, {
+    enabled: Boolean(impactFragmentId),
+  });
   const runBacktestMutation = useRunRuleBacktest();
   const captureDriftMutation = useCaptureRuleDriftSnapshot();
   const snapshotsQuery = useContextSnapshots(
@@ -685,6 +757,7 @@ export default function RuleDefinitions() {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
+    setSelectedFragmentId(undefined);
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
       ruleType: template.ruleType,
@@ -735,6 +808,7 @@ export default function RuleDefinitions() {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
+    setSelectedFragmentId(undefined);
     createForm.setFieldsValue({
       ruleType: template.ruleType,
       triggerPoint: nextTree.triggerPoint,
@@ -860,6 +934,85 @@ export default function RuleDefinitions() {
       return null;
     }
   }, [dslEditorValue]);
+  const currentFragmentBodyJson = createRulePreviewDsl.when;
+
+  const resetFragmentForm = () => {
+    const packageVersion = String(
+      createForm.getFieldValue("packageVersion") ?? currentCreatePackageVersion,
+    ).trim();
+    setEditingFragmentId(null);
+    setFragmentBodyJson(currentFragmentBodyJson);
+    fragmentForm.setFieldsValue({
+      fragmentCode: "",
+      fragmentName: "",
+      category: "",
+      versionNo: 1,
+      packageVersion,
+      status: "ACTIVE",
+    });
+  };
+
+  const openFragmentLibrary = () => {
+    setEditingFragmentId(null);
+    setFragmentBodyJson(currentFragmentBodyJson);
+    setFragmentLibraryOpen(true);
+  };
+
+  const refreshFragmentBodyFromCurrentTree = () => {
+    setFragmentBodyJson(currentFragmentBodyJson);
+    message.success("已使用当前条件树更新片段正文");
+  };
+
+  const editConditionFragment = (fragment: ConditionFragmentResponse) => {
+    setEditingFragmentId(fragment.fragmentId);
+    setFragmentBodyJson(fragment.bodyJson);
+    fragmentForm.setFieldsValue({
+      fragmentCode: fragment.fragmentCode,
+      fragmentName: fragment.name,
+      category: fragment.category ?? "",
+      versionNo: fragment.versionNo,
+      packageVersion: fragment.packageVersion,
+      status: fragment.status,
+    });
+  };
+
+  const saveConditionFragment = async () => {
+    const values = fragmentForm.getFieldsValue(true) as Partial<ConditionFragmentFormValue>;
+    const fragmentCode = values.fragmentCode?.trim() ?? "";
+    const name = values.fragmentName?.trim() ?? "";
+    const packageVersion =
+      values.packageVersion?.trim() ||
+      String(createForm.getFieldValue("packageVersion") ?? currentCreatePackageVersion).trim();
+    if (!fragmentCode || !name || !packageVersion) {
+      message.error("请填写片段编码、名称和包版本。");
+      return;
+    }
+    const payload = {
+      fragmentCode,
+      name,
+      category: values.category?.trim() || undefined,
+      versionNo: Number(values.versionNo ?? 1),
+      packageVersion,
+      status: values.status ?? "ACTIVE",
+      bodyJson: fragmentBodyJson ?? currentFragmentBodyJson,
+    };
+    try {
+      if (editingFragmentId) {
+        await updateConditionFragmentMutation.mutateAsync({
+          fragmentId: editingFragmentId,
+          body: payload,
+        });
+        message.success("条件片段已更新");
+      } else {
+        await createConditionFragmentMutation.mutateAsync(payload);
+        message.success("条件片段已保存");
+      }
+      resetFragmentForm();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(fragmentForm, error)) return;
+      message.error(getApiErrorMessage(error, "条件片段保存失败"));
+    }
+  };
 
   const updateTriggerPoint = (triggerPoint: ClinicalTriggerPoint) => {
     const nextTree = { ...conditionTree, triggerPoint };
@@ -927,6 +1080,39 @@ export default function RuleDefinitions() {
     updateRoot((root) => addNodeToGroup(root, groupId, createConditionGroup()));
 
   const removeNode = (id: string) => updateRoot((root) => removeConditionById(root, id));
+
+  const fragmentToRuleCondition = (fragment: ConditionFragmentResponse): RuleCondition =>
+    createConditionLeaf({
+      label: fragment.name,
+      fact: "",
+      operator: "exists",
+      valueKind: "empty",
+      fragment: {
+        fragmentId: fragment.fragmentId,
+        fragmentCode: fragment.fragmentCode,
+        name: fragment.name,
+        version: fragment.versionNo,
+        packageVersion: fragment.packageVersion,
+      },
+    });
+
+  const applyConditionFragment = (mode: "reference" | "copy") => {
+    const fragment = selectedConditionFragment;
+    if (!fragment) {
+      message.warning("请选择条件片段。");
+      return;
+    }
+    try {
+      const node =
+        mode === "reference"
+          ? fragmentToRuleCondition(fragment)
+          : dslToConditionNode(fragment.bodyJson);
+      updateRoot((root) => addNodeToGroup(root, root.id, node));
+      message.success(mode === "reference" ? "已引用条件片段" : "已拷贝条件片段正文");
+    } catch {
+      message.error("条件片段正文无法转成当前条件树。");
+    }
+  };
 
   const updateConditionValue = (condition: RuleCondition, patch: Record<string, unknown>) => {
     updateCondition(condition.id, {
@@ -1778,6 +1964,30 @@ export default function RuleDefinitions() {
   };
 
   const renderConditionLeaf = (condition: RuleCondition) => {
+    if (condition.fragment) {
+      return (
+        <div key={condition.id} className={styles.conditionCard}>
+          <div className={styles.conditionHeader}>
+            <Space>
+              <Tag color="green">条件片段</Tag>
+              <Text strong>
+                {condition.label || condition.fragment.name || condition.fragment.fragmentCode}
+              </Text>
+              <Text type="secondary">
+                {condition.fragment.fragmentCode} · v{condition.fragment.version} ·{" "}
+                {condition.fragment.packageVersion}
+              </Text>
+            </Space>
+            <Button
+              size="small"
+              aria-label="移除条件"
+              icon={<DeleteOutlined />}
+              onClick={() => removeNode(condition.id)}
+            />
+          </div>
+        </div>
+      );
+    }
     const needsValue = conditionNeedsValue(condition.operator);
     const isFirstLeaf = condition.id === firstLeafId;
     const expressionEnabled = Boolean(condition.expr);
@@ -2030,6 +2240,21 @@ export default function RuleDefinitions() {
             {node.children.map((child) => renderReadonlyNode(child))}
           </Space>
         </div>
+      );
+    }
+    if (node.fragment) {
+      return (
+        <Descriptions key={node.id} bordered column={2} size="small">
+          <Descriptions.Item label="类型">
+            <Tag color="green">条件片段</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="片段名称">
+            {node.label || node.fragment.name || node.fragment.fragmentCode}
+          </Descriptions.Item>
+          <Descriptions.Item label="片段编码">{node.fragment.fragmentCode}</Descriptions.Item>
+          <Descriptions.Item label="片段版本">v{node.fragment.version}</Descriptions.Item>
+          <Descriptions.Item label="包版本">{node.fragment.packageVersion}</Descriptions.Item>
+        </Descriptions>
       );
     }
     return (
@@ -2395,6 +2620,58 @@ export default function RuleDefinitions() {
       });
     }
   };
+
+  const conditionFragmentColumns: TableProps<ConditionFragmentResponse>["columns"] = [
+    {
+      title: "片段编码",
+      dataIndex: "fragmentCode",
+      key: "fragmentCode",
+      render: (text: string) => <Tag color="green">{text}</Tag>,
+    },
+    {
+      title: "片段名称",
+      dataIndex: "name",
+      key: "name",
+      className: styles.textStrong,
+    },
+    {
+      title: "版本",
+      dataIndex: "versionNo",
+      key: "versionNo",
+      render: (version: number) => `v${version}`,
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (status: ConditionFragmentStatus) => (
+        <Tag color={conditionFragmentStatusColor(status)}>{status}</Tag>
+      ),
+    },
+    {
+      title: "包版本",
+      dataIndex: "packageVersion",
+      key: "packageVersion",
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, fragment) => (
+        <Space>
+          <Button size="small" onClick={() => editConditionFragment(fragment)}>
+            编辑
+          </Button>
+          <Button
+            size="small"
+            icon={<FileSearchOutlined />}
+            onClick={() => setImpactFragmentId(fragment.fragmentId)}
+          >
+            影响
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   const columns: TableProps<RuleDefinition>["columns"] = [
     {
@@ -3781,6 +4058,79 @@ export default function RuleDefinitions() {
             description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
           />
 
+          <div className={styles.conditionCard}>
+            <div className={styles.conditionHeader}>
+              <Space direction="vertical" size={0}>
+                <Text strong>条件片段</Text>
+                <Text type="secondary">
+                  选择同包版本的 ACTIVE 片段，可引用联动或拷贝为本地条件。
+                </Text>
+              </Space>
+              <Tag color={currentCreatePackageVersion ? "green" : "default"}>
+                {currentCreatePackageVersion || "待填写包版本"}
+              </Tag>
+            </div>
+            <Space wrap className="mk-full-width">
+              <Select
+                aria-label="选择条件片段"
+                showSearch
+                allowClear
+                value={selectedConditionFragment ? selectedFragmentId : undefined}
+                loading={activeConditionFragmentsQuery.isLoading}
+                disabled={!currentCreatePackageVersion || activeConditionFragmentsQuery.isError}
+                options={conditionFragmentOptions}
+                optionFilterProp="label"
+                placeholder={
+                  currentCreatePackageVersion ? "选择可复用条件片段" : "先填写标准上下文包版本"
+                }
+                className={styles.fragmentSelect}
+                onChange={(value) => setSelectedFragmentId(value)}
+              />
+              <Button
+                icon={<BranchesOutlined />}
+                disabled={!selectedConditionFragment}
+                onClick={() => applyConditionFragment("reference")}
+              >
+                引用
+              </Button>
+              <Button
+                icon={<PlusOutlined />}
+                disabled={!selectedConditionFragment}
+                onClick={() => applyConditionFragment("copy")}
+              >
+                拷贝
+              </Button>
+              <Button icon={<FileSearchOutlined />} onClick={openFragmentLibrary}>
+                片段库
+              </Button>
+            </Space>
+            {!currentCreatePackageVersion && (
+              <Text type="secondary">标准上下文包版本用于约束片段、规则与运行期求值一致。</Text>
+            )}
+            {activeConditionFragmentsQuery.isError && (
+              <Alert
+                className={styles.marginTopSm}
+                type="error"
+                showIcon
+                message="条件片段暂不可用"
+                description={getApiErrorMessage(
+                  activeConditionFragmentsQuery.error,
+                  "条件片段列表加载失败，请稍后重试。",
+                )}
+              />
+            )}
+            {currentCreatePackageVersion &&
+              !activeConditionFragmentsQuery.isLoading &&
+              !activeConditionFragmentsQuery.isError &&
+              conditionFragmentOptions.length === 0 && (
+                <Empty
+                  className={styles.marginTopSm}
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="当前包版本暂无可用条件片段"
+                />
+              )}
+          </div>
+
           {renderConditionGroup(conditionRoot, 0)}
 
           <Space direction="vertical" size="middle" className="mk-full-width">
@@ -4564,6 +4914,164 @@ export default function RuleDefinitions() {
             onChange={(key) => setActiveCreateLayer(key as CreateLayerKey)}
           />
         </Form>
+      </Modal>
+
+      <Drawer
+        title="条件片段库"
+        width={980}
+        zIndex={1200}
+        open={fragmentLibraryOpen}
+        afterOpenChange={(open) => {
+          if (open && !editingFragmentId) resetFragmentForm();
+        }}
+        onClose={() => setFragmentLibraryOpen(false)}
+      >
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={10}>
+            <div className={styles.formSection}>
+              <Form form={fragmentForm} layout="vertical">
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="fragmentCode"
+                      label="片段编码"
+                      rules={[{ required: true, message: "请输入片段编码" }]}
+                    >
+                      <Input placeholder="FRAG_RENAL_IMPAIRED" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="fragmentName"
+                      label="片段名称"
+                      rules={[{ required: true, message: "请输入片段名称" }]}
+                    >
+                      <Input placeholder="肾功能受限" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item name="category" label="分类">
+                      <Input placeholder="如 肾病 / 抗凝" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="versionNo"
+                      label="片段版本"
+                      initialValue={1}
+                      rules={[{ required: true, message: "请输入片段版本" }]}
+                    >
+                      <InputNumber min={1} precision={0} className="mk-full-width" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="packageVersion"
+                      label="包版本"
+                      initialValue={currentCreatePackageVersion}
+                      rules={[{ required: true, message: "请输入包版本" }]}
+                    >
+                      <Input placeholder="pkg-2026.06" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="status"
+                      label="状态"
+                      initialValue="ACTIVE"
+                      rules={[{ required: true, message: "请选择状态" }]}
+                    >
+                      <Select>
+                        <Option value="DRAFT">DRAFT 草稿</Option>
+                        <Option value="ACTIVE">ACTIVE 可复用</Option>
+                        <Option value="RETIRED">RETIRED 退役</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="片段正文">
+                  <TextArea
+                    readOnly
+                    value={formatRuleJson(fragmentBodyJson ?? currentFragmentBodyJson)}
+                    autoSize={{ minRows: 5, maxRows: 10 }}
+                  />
+                </Form.Item>
+                <Space wrap>
+                  <Button icon={<SyncOutlined />} onClick={refreshFragmentBodyFromCurrentTree}>
+                    使用当前条件树
+                  </Button>
+                  <Button onClick={resetFragmentForm}>新建</Button>
+                  <Button
+                    type="primary"
+                    loading={
+                      createConditionFragmentMutation.isPending ||
+                      updateConditionFragmentMutation.isPending
+                    }
+                    onClick={saveConditionFragment}
+                  >
+                    {editingFragmentId ? "更新片段" : "保存片段"}
+                  </Button>
+                </Space>
+              </Form>
+            </div>
+          </Col>
+          <Col xs={24} lg={14}>
+            <Table
+              rowKey="fragmentId"
+              size="small"
+              loading={fragmentLibraryQuery.isLoading}
+              dataSource={fragmentLibraryItems}
+              columns={conditionFragmentColumns}
+              pagination={false}
+              locale={{ emptyText: "当前包版本暂无条件片段" }}
+            />
+          </Col>
+        </Row>
+      </Drawer>
+
+      <Modal
+        title="条件片段影响分析"
+        open={Boolean(impactFragmentId)}
+        footer={null}
+        onCancel={() => setImpactFragmentId("")}
+        width={760}
+        zIndex={1300}
+      >
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          <Descriptions bordered size="small" column={2}>
+            <Descriptions.Item label="片段编码">
+              {conditionFragmentImpactQuery.data?.fragmentCode ?? "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="片段版本">
+              {conditionFragmentImpactQuery.data
+                ? `v${conditionFragmentImpactQuery.data.versionNo}`
+                : "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="包版本">
+              {conditionFragmentImpactQuery.data?.packageVersion ?? "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="影响摘要">
+              {conditionFragmentImpactQuery.data?.impactDigest ?? "-"}
+            </Descriptions.Item>
+          </Descriptions>
+          <Table
+            rowKey={(item) => `${item.assetType}-${item.assetId}`}
+            size="small"
+            loading={conditionFragmentImpactQuery.isLoading}
+            dataSource={conditionFragmentImpactQuery.data?.affectedAssets ?? []}
+            pagination={false}
+            columns={[
+              { title: "资产类型", dataIndex: "assetType", key: "assetType" },
+              { title: "资产编码", dataIndex: "assetCode", key: "assetCode" },
+              { title: "名称", dataIndex: "displayName", key: "displayName" },
+              { title: "影响原因", dataIndex: "impactReason", key: "impactReason" },
+            ]}
+          />
+        </Space>
       </Modal>
 
       <Modal

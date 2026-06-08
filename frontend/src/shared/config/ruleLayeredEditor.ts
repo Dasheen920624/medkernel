@@ -54,6 +54,14 @@ export interface RuleParameterDefinition {
   description?: string;
 }
 
+export interface RuleConditionFragmentReference {
+  fragmentId?: string;
+  fragmentCode: string;
+  name?: string;
+  version: number;
+  packageVersion: string;
+}
+
 export interface RuleCondition {
   id: string;
   label: string;
@@ -62,6 +70,7 @@ export interface RuleCondition {
   operator: RuleOperator;
   value?: RuleConditionValue;
   valueKind: RuleValueKind;
+  fragment?: RuleConditionFragmentReference;
 }
 
 export interface RuleExpressionDraft {
@@ -193,6 +202,17 @@ type RuleDslCondition = {
     id?: string;
     label?: string;
     valueKind?: RuleValueKind;
+  };
+};
+
+type RuleDslConditionFragment = {
+  fragmentRef: string;
+  version: number;
+  packageVersion: string;
+  ui?: {
+    id?: string;
+    label?: string;
+    fragmentId?: string;
   };
 };
 
@@ -453,7 +473,11 @@ export function createExplanationTemplate(tree: RuleConditionTree) {
   const variables: Record<string, string> = {};
   const root = tree.root ?? flatToRootGroup(tree);
   for (const condition of collectConditionLeaves(root)) {
-    variables[condition.expr?.field ?? condition.fact] = "由 L2 条件树选择的真实上下文字段";
+    if (condition.fragment) {
+      variables[`fragment:${condition.fragment.fragmentCode}`] = "由条件片段库引用的命名条件组";
+    } else {
+      variables[condition.expr?.field ?? condition.fact] = "由 L2 条件树选择的真实上下文字段";
+    }
   }
 
   return {
@@ -524,6 +548,7 @@ export type RuleDslNode =
   | { all: RuleDslNode[] }
   | { any: RuleDslNode[] }
   | { not: RuleDslNode }
+  | RuleDslConditionFragment
   | RuleDslCondition;
 
 let nestedNodeSeq = 0;
@@ -547,6 +572,9 @@ export function conditionNodeToDsl(node: RuleConditionNode): RuleDslNode {
 export function dslToConditionNode(dsl: unknown, index = 0): RuleConditionNode {
   if (!isRecord(dsl)) {
     throw new Error("规则 DSL 条件节点必须为对象");
+  }
+  if (typeof dsl.fragmentRef === "string") {
+    return dslFragmentToTree(dsl, index);
   }
   if (Array.isArray(dsl.all)) {
     return {
@@ -604,7 +632,19 @@ function collectConditionLeaves(node: RuleConditionNode): RuleCondition[] {
   return node.children.flatMap((child) => collectConditionLeaves(child));
 }
 
-function conditionToDsl(condition: RuleCondition): RuleDslCondition {
+function conditionToDsl(condition: RuleCondition): RuleDslCondition | RuleDslConditionFragment {
+  if (condition.fragment) {
+    return {
+      fragmentRef: condition.fragment.fragmentCode,
+      version: condition.fragment.version,
+      packageVersion: condition.fragment.packageVersion,
+      ui: {
+        id: condition.id,
+        label: condition.label,
+        fragmentId: condition.fragment.fragmentId,
+      },
+    };
+  }
   const expr = normalizeConditionExpression(condition.expr);
   const node: RuleDslCondition = {
     operator: condition.operator,
@@ -649,6 +689,36 @@ function dslConditionToTree(condition: unknown, index: number): RuleCondition {
   };
 }
 
+function dslFragmentToTree(condition: Record<string, unknown>, index: number): RuleCondition {
+  const ui = isRecord(condition.ui) ? condition.ui : undefined;
+  const fragmentCode = readString(condition, "fragmentRef", "").trim();
+  const packageVersion = readString(condition, "packageVersion", "").trim();
+  const version = condition.version;
+  if (
+    !fragmentCode ||
+    !packageVersion ||
+    typeof version !== "number" ||
+    !Number.isInteger(version)
+  ) {
+    throw new Error("条件片段引用必须包含 fragmentRef、version 与 packageVersion");
+  }
+  const label = readString(ui, "label", `片段 ${fragmentCode}`);
+  return {
+    id: readString(ui, "id", `condition-${index + 1}`),
+    label,
+    fact: "",
+    operator: "exists",
+    valueKind: "empty",
+    fragment: {
+      fragmentId: optionalString(ui, "fragmentId"),
+      fragmentCode,
+      name: label,
+      version,
+      packageVersion,
+    },
+  };
+}
+
 function cloneTree(tree: RuleConditionTree): RuleConditionTree {
   return {
     triggerPoint: tree.triggerPoint,
@@ -658,6 +728,7 @@ function cloneTree(tree: RuleConditionTree): RuleConditionTree {
       ...condition,
       value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
       expr: condition.expr ? normalizeConditionExpression(condition.expr) : undefined,
+      fragment: condition.fragment ? { ...condition.fragment } : undefined,
     })),
     root: tree.root ? cloneConditionGroup(tree.root) : undefined,
     actions: tree.actions.map(cloneAction),
@@ -914,6 +985,7 @@ function cloneConditionGroup(group: RuleConditionGroup): RuleConditionGroup {
             ...child,
             value: cloneConditionValue(child.value),
             expr: child.expr ? normalizeConditionExpression(child.expr) : undefined,
+            fragment: child.fragment ? { ...child.fragment } : undefined,
           },
     ),
   };
