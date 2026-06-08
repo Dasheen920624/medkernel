@@ -33,7 +33,8 @@ class ClinicalEventEngineAdapterTest {
     @Test
     void ruleAdapterCallsRuleEngineWithSameEventContext() {
         RuleEngineService service = mock(RuleEngineService.class);
-        when(service.evaluateContext(any(String.class), any(JsonNode.class), any(String.class), any(List.class)))
+        when(service.evaluateContext(
+            any(String.class), any(JsonNode.class), any(String.class), any(List.class), any(String.class)))
             .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, List.of(), "trace-1"));
         var adapter = new ClinicalEventRuleEngineAdapter(service, json);
 
@@ -45,9 +46,12 @@ class ClinicalEventEngineAdapterTest {
         ArgumentCaptor<String> triggerCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<JsonNode> contextCap = ArgumentCaptor.forClass(JsonNode.class);
         ArgumentCaptor<String> eventCap = ArgumentCaptor.forClass(String.class);
-        verify(service).evaluateContext(triggerCap.capture(), contextCap.capture(), eventCap.capture(), any());
+        ArgumentCaptor<String> packageVersionCap = ArgumentCaptor.forClass(String.class);
+        verify(service).evaluateContext(
+            triggerCap.capture(), contextCap.capture(), eventCap.capture(), any(), packageVersionCap.capture());
         assertThat(eventCap.getValue()).isEqualTo("evt-1");
         assertThat(triggerCap.getValue()).isEqualTo("patient-view");
+        assertThat(packageVersionCap.getValue()).isEqualTo("pkg-2026.06");
         assertThat(contextCap.getValue().path("event").path("eventId").asText()).isEqualTo("evt-1");
         assertThat(contextCap.getValue().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
         assertThat(contextCap.getValue().path("patient").path("patientId").asText()).isEqualTo("MPI-1");

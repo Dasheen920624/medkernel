@@ -32,6 +32,7 @@ import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
+import com.medkernel.engine.pkg.PackageReferenceConsistency;
 import com.medkernel.engine.rule.ConditionEvaluation;
 import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
@@ -988,6 +989,12 @@ public class PathwayEngineService {
             : snapshot.resources().encounters().getFirst().encounterId();
         EffectivePathwayTemplate effective = findEffectiveTemplate(request.templateId(), tenantId);
         PathwayTemplate template = effective.template();
+        ensurePathwayRuntimePackageConsistency(
+            template,
+            effective.sourceTenantId(),
+            snapshot.packageVersion(),
+            ErrorCode.ENG_PATHWAY_001,
+            "患者入径包版本必须与路径模板所属包版本一致");
         requireActivePathwayAssetVersion(template);
         safetyGuard.assertPathwayTemplateAllowed(template);
         validateEntryCriteria(template, snapshot.resources());
@@ -1328,7 +1335,8 @@ public class PathwayEngineService {
             }
             List<PathwaySimulationReplayStep> replaySteps = replayIds.stream()
                 .map(snapshotId -> simulateStep(
-                    graph, startNodeCode, requestedTargets, contextSnapshots.findById(snapshotId)))
+                    graph, startNodeCode, requestedTargets,
+                    simulationSnapshot(template, effective.sourceTenantId(), snapshotId)))
                 .toList();
             PathwaySimulationReplayStep first = replaySteps.getFirst();
             return new PathwaySimulationResponse(
@@ -1346,7 +1354,7 @@ public class PathwayEngineService {
                 RequestContext.currentTraceId());
         }
         ContextSnapshotResponse snapshot = request == null || isBlank(request.snapshotId())
-            ? null : contextSnapshots.findById(request.snapshotId());
+            ? null : simulationSnapshot(template, effective.sourceTenantId(), request.snapshotId());
         PathwaySimulationReplayStep step = simulateStep(graph, startNodeCode, requestedTargets, snapshot);
         return new PathwaySimulationResponse(
             templateId,
@@ -1416,6 +1424,34 @@ public class PathwayEngineService {
         return List.copyOf(ids.values());
     }
 
+    private ContextSnapshotResponse simulationSnapshot(
+            PathwayTemplate template,
+            String sourceTenantId,
+            String snapshotId) {
+        return runtimeSnapshot(
+            template,
+            sourceTenantId,
+            snapshotId,
+            ErrorCode.ENG_PATHWAY_001,
+            "路径仿真包版本必须与上下文快照一致");
+    }
+
+    private ContextSnapshotResponse runtimeSnapshot(
+            PathwayTemplate template,
+            String sourceTenantId,
+            String snapshotId,
+            ErrorCode errorCode,
+            String message) {
+        ContextSnapshotResponse snapshot = contextSnapshots.findById(snapshotId);
+        ensurePathwayRuntimePackageConsistency(
+            template,
+            sourceTenantId,
+            snapshot.packageVersion(),
+            errorCode,
+            message);
+        return snapshot;
+    }
+
     /**
      * 推进患者路径节点，或登记变异、退出路径。
      *
@@ -1433,7 +1469,12 @@ public class PathwayEngineService {
         EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
         EffectivePathwayGraph graph = effectiveGraphFor(effective.template(), effective.sourceTenantId());
         ContextSnapshotResponse snapshot = isBlank(request.snapshotId())
-            ? null : contextSnapshots.findById(request.snapshotId());
+            ? null : runtimeSnapshot(
+                effective.template(),
+                effective.sourceTenantId(),
+                request.snapshotId(),
+                ErrorCode.ENG_PATHWAY_001,
+                "路径推进包版本必须与上下文快照一致");
         if (request.eventType() == PathwayAdvanceEventType.EXIT) {
             validateExitCriteria(effective.template(), snapshot == null ? null : snapshot.resources());
         }
@@ -1539,12 +1580,16 @@ public class PathwayEngineService {
         int terminalNodeCount = (int) safeNodes.stream()
             .filter(node -> Boolean.TRUE.equals(node.terminalFlag()))
             .count();
+        List<String> referencedAssets =
+            pathwayReferenceSummaries(template, safeNodes, safeEdges, safeOutcomeBindings);
         List<String> releaseEvidence = List.of(
             "阶段里程碑 " + safeMilestones.size() + " 个，拓扑节点 " + safeNodes.size()
                 + " 个，边 " + safeEdges.size() + " 条，终止节点 " + terminalNodeCount + " 个",
             "关键时钟节点 " + timedNodeCount + " 个，当前关联患者路径实例 "
                 + safeRuntimes.size() + " 条",
             "结局指标绑定 " + safeOutcomeBindings.size() + " 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
+            "引用资产 " + referencedAssets.size() + " 个"
+                + (referencedAssets.isEmpty() ? "" : "：" + String.join("、", referencedAssets)),
             "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本"
         );
         String impactDigest = digest(String.join("|",
@@ -1557,12 +1602,41 @@ public class PathwayEngineService {
             safeEdges.stream().map(this::edgeImpactSignature).sorted().toList().toString(),
             safeBindings.stream().map(this::bindingImpactSignature).sorted().toList().toString(),
             safeOutcomeBindings.stream().map(this::outcomeBindingImpactSignature).sorted().toList().toString(),
+            referencedAssets.toString(),
             safeRuntimes.stream().map(PatientPathway::patientPathwayId).sorted().toList().toString()
         ));
         return new PathwayTemplateImpactResponse(
             template.templateId(), "COMPLETE", safeRuntimes.size(), safeNodes.size(), safeEdges.size(),
             timedNodeCount, terminalNodeCount, safeOutcomeBindings.size(), DEFAULT_CANARY_PERCENT, impactDigest,
             releaseEvidence, RequestContext.currentTraceId());
+    }
+
+    private List<String> pathwayReferenceSummaries(
+            PathwayTemplate template,
+            List<PathwayNode> graphNodes,
+            List<PathwayEdge> graphEdges,
+            List<PathwayOutcomeBinding> graphOutcomeBindings) {
+        ArrayList<String> summaries = new ArrayList<>();
+        appendReferenceSummaries(summaries, template.entryCriteriaJson(), "路径模板入径条件 " + template.templateCode());
+        appendReferenceSummaries(summaries, template.exitCriteriaJson(), "路径模板出径条件 " + template.templateCode());
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            appendReferenceSummaries(summaries, node.configJson(), "路径节点配置 " + node.nodeCode());
+        }
+        for (PathwayEdge edge : nullToEmpty(graphEdges)) {
+            appendReferenceSummaries(summaries, edge.conditionJson(), "路径边条件 " + edge.edgeCode());
+        }
+        for (PathwayOutcomeBinding binding : nullToEmpty(graphOutcomeBindings)) {
+            if (!isBlank(binding.indicatorCode())) {
+                summaries.add("EVALUATION:" + binding.indicatorCode().trim()
+                    + (isBlank(binding.packageVersion()) ? "" : "@" + binding.packageVersion().trim()));
+            }
+        }
+        return summaries.stream().distinct().sorted().toList();
+    }
+
+    private void appendReferenceSummaries(List<String> target, String jsonText, String ownerLabel) {
+        target.addAll(PackageReferenceConsistency.referenceSummaries(
+            readJsonOrEmpty(jsonText, ownerLabel, ErrorCode.ENG_PATHWAY_004)));
     }
 
     private void validateReleaseGate(PathwayOperationRequest request, PathwayTemplateImpactResponse impact) {
@@ -1599,6 +1673,17 @@ public class PathwayEngineService {
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
                 "路径边条件 JSON 解析失败：" + edge.edgeCode(), exception);
+        }
+    }
+
+    private JsonNode readJsonOrEmpty(String jsonText, String ownerLabel, ErrorCode errorCode) {
+        if (isBlank(jsonText)) {
+            return json.createObjectNode();
+        }
+        try {
+            return json.readTree(jsonText);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(errorCode, ownerLabel + " JSON 解析失败", exception);
         }
     }
 
@@ -1946,6 +2031,8 @@ public class PathwayEngineService {
         validateRichNodeContracts(executableNodes, executableEdges);
         validatePathwayGraphAcyclic(executableNodes, executableEdges);
         validateSubPathwayCycleBoundary(template, executableNodes);
+        validatePathwayReferencePackageConsistency(
+            template, executableNodes, executableEdges, graphOutcomeBindings);
         validateClockBindings(executableNodes, graphBindings);
         validateEffectiveOutcomeBindings(graphOutcomeBindings, graphMilestones);
     }
@@ -2056,6 +2143,76 @@ public class PathwayEngineService {
         }
         return Objects.equals(ref, template.templateId())
             || Objects.equals(ref, template.templateCode());
+    }
+
+    private void validatePathwayReferencePackageConsistency(
+            PathwayTemplate template,
+            List<PathwayNode> graphNodes,
+            List<PathwayEdge> graphEdges,
+            List<PathwayOutcomeBinding> graphOutcomeBindings) {
+        String packageVersion = templatePackageVersion(
+            template, template.tenantId(), ErrorCode.ENG_PATHWAY_004);
+        PackageReferenceConsistency.requireReferencesSamePackage(
+            packageVersion,
+            readJsonOrEmpty(template.entryCriteriaJson(), "路径模板入径条件 " + template.templateCode(),
+                ErrorCode.ENG_PATHWAY_004),
+            ErrorCode.ENG_PATHWAY_004,
+            "路径模板 " + template.templateCode() + " 入径条件");
+        PackageReferenceConsistency.requireReferencesSamePackage(
+            packageVersion,
+            readJsonOrEmpty(template.exitCriteriaJson(), "路径模板出径条件 " + template.templateCode(),
+                ErrorCode.ENG_PATHWAY_004),
+            ErrorCode.ENG_PATHWAY_004,
+            "路径模板 " + template.templateCode() + " 出径条件");
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            PackageReferenceConsistency.requireReferencesSamePackage(
+                packageVersion,
+                readJsonOrEmpty(node.configJson(), "路径节点配置 " + node.nodeCode(),
+                    ErrorCode.ENG_PATHWAY_004),
+                ErrorCode.ENG_PATHWAY_004,
+                "路径节点 " + node.nodeCode());
+        }
+        for (PathwayEdge edge : nullToEmpty(graphEdges)) {
+            PackageReferenceConsistency.requireReferencesSamePackage(
+                packageVersion,
+                readJsonOrEmpty(edge.conditionJson(), "路径边条件 " + edge.edgeCode(),
+                    ErrorCode.ENG_PATHWAY_004),
+                ErrorCode.ENG_PATHWAY_004,
+                "路径边 " + edge.edgeCode());
+        }
+        for (PathwayOutcomeBinding binding : nullToEmpty(graphOutcomeBindings)) {
+            PackageReferenceConsistency.requireSamePackage(
+                packageVersion,
+                binding.packageVersion(),
+                ErrorCode.ENG_PATHWAY_004,
+                "路径结局指标绑定包版本必须与模板包版本一致",
+                "模板包版本",
+                "绑定包版本");
+        }
+    }
+
+    private void ensurePathwayRuntimePackageConsistency(
+            PathwayTemplate template,
+            String sourceTenantId,
+            String snapshotPackageVersion,
+            ErrorCode errorCode,
+            String message) {
+        PackageReferenceConsistency.requireRuntimePackage(
+            templatePackageVersion(template, sourceTenantId, errorCode),
+            snapshotPackageVersion,
+            errorCode,
+            message);
+    }
+
+    private String templatePackageVersion(PathwayTemplate template, String sourceTenantId, ErrorCode errorCode) {
+        if (isBlank(template.packageId())) {
+            throw new ApiException(errorCode, "路径模板缺少专病包归属: " + template.templateCode());
+        }
+        return packages.findByPackageIdAndTenantId(template.packageId(), sourceTenantId)
+            .map(SpecialtyPackage::packageVersion)
+            .filter(version -> !isBlank(version))
+            .orElseThrow(() -> new ApiException(errorCode,
+                "路径模板所属专病包不存在或缺少包版本: " + template.packageId()));
     }
 
     private void ensureRichNodeFeatureEnabledForTemplate(PathwayNode node) {

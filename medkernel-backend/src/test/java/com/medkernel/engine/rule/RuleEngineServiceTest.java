@@ -238,6 +238,43 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void draftTransitionRejectsCrossPackageValueSetReference() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersionWithDsl(
+            RuleVersionStatus.DRAFT,
+            dslWithCrossPackageValueSetReference("rpv-2"));
+        RuleGovernance draft = governance(RuleGovernanceState.DRAFT);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(draft);
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "跨包引用应被拒绝"
+                )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("包版本不一致")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_004);
+
+        verify(releasePort, never()).submitForReview(any());
+    }
+
+    @Test
     void signoffUsesAuthenticatedRoleInsteadOfRequestRoleCodes() {
         RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
         RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
@@ -819,6 +856,24 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void impactDigestChangesWhenReferencedValueSetChanges() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersionWithDsl(
+                RuleVersionStatus.DRAFT,
+                dslWithValueSetReference("VS.ANTICOAGULANT", "rpv-1"))))
+            .thenReturn(Optional.of(existingVersionWithDsl(
+                RuleVersionStatus.DRAFT,
+                dslWithValueSetReference("VS.ANTICOAGULANT.V2", "rpv-1"))));
+
+        RuleImpactResponse first = service.impact("rule-1");
+        RuleImpactResponse second = service.impact("rule-1");
+
+        assertThat(second.impactDigest()).isNotEqualTo(first.impactDigest());
+    }
+
+    @Test
     void highRiskPeerReviewWithoutImpactDigestIsDeniedBeforeTesting() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
@@ -1018,6 +1073,27 @@ class RuleEngineServiceTest {
 
         assertThat(response.items()).isEmpty();
         verify(contextSnapshots).findById("snapshot-1");
+    }
+
+    @Test
+    void evaluateRejectsSnapshotWithDifferentPackageVersionForExplicitRule() {
+        when(contextSnapshots.findById("snapshot-mismatch")).thenReturn(new ContextSnapshotResponse(
+            "snapshot-mismatch", ContextSnapshotStatus.ACTIVE, validResources(), "rpv-2",
+            QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-snapshot"));
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
+
+        assertThatThrownBy(() -> service.evaluate(new RuleEvaluateRequest(
+                "order-sign", "snapshot-mismatch", "evt-mismatch", List.of("rule-1"))))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("包版本必须与上下文快照一致")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_006);
+
+        verify(executions, never()).save(any());
     }
 
     @Test
@@ -1654,6 +1730,15 @@ class RuleEngineServiceTest {
             null, null, null, now, "tester", now, "tester", "trace-rule");
     }
 
+    private RuleVersion existingVersionWithDsl(RuleVersionStatus status, JsonNode dsl) {
+        Instant now = Instant.now();
+        return new RuleVersion(
+            1L, "version-1", "tenant-A", "rule-1", 1,
+            "院内抗凝用药管理规范 2026", "初始版本",
+            dsl.toString(), dsl.path("explain").toString(), status,
+            null, null, null, now, "tester", now, "tester", "trace-rule");
+    }
+
     private RuleVersion ruleVersionWithAction(
             String versionId, String ruleId, RuleVersionStatus status, String actionCode) {
         Instant now = Instant.now();
@@ -1728,6 +1813,23 @@ class RuleEngineServiceTest {
               }
             }
             """);
+    }
+
+    private JsonNode dslWithCrossPackageValueSetReference(String packageVersion) {
+        return dslWithValueSetReference("VS.ANTICOAGULANT", packageVersion);
+    }
+
+    private JsonNode dslWithValueSetReference(String valueSetCode, String packageVersion) {
+        JsonNode source = dsl().deepCopy();
+        com.fasterxml.jackson.databind.node.ObjectNode leaf =
+            (com.fasterxml.jackson.databind.node.ObjectNode) source.path("when").path("all").get(1);
+        com.fasterxml.jackson.databind.node.ObjectNode value = json.createObjectNode();
+        value.put("valueSet", valueSetCode);
+        value.put("packageVersion", packageVersion);
+        value.put("expandedCount", 1);
+        value.putArray("members").add("ANTICOAGULANT");
+        leaf.set("value", value);
+        return source;
     }
 
     private JsonNode hitContext() {
