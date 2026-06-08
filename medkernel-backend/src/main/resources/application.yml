@@ -119,6 +119,36 @@ medkernel:
         risk: HIGH
         owner: 安全组
         description: 控制 SM2、SM3、SM4 等国密算法能力是否纳入运行验收。
+      authoring-recursive-condition-tree:
+        display-name: 规则递归条件树
+        enabled: ${MEDKERNEL_AUTHORING_RECURSIVE_CONDITION_TREE_ENABLED:true}
+        risk: MEDIUM
+        owner: 医务处 / 信息科
+        description: 控制规则与路径条件是否允许嵌套条件组；关闭时单层条件继续可用。
+      authoring-clinical-operators:
+        display-name: 规则临床算子
+        enabled: ${MEDKERNEL_AUTHORING_CLINICAL_OPERATORS_ENABLED:true}
+        risk: HIGH
+        owner: 医务处 / 信息科
+        description: 控制区间、参考范围、单位、时序和受控公式等临床算子是否参与求值。
+      authoring-condition-fragment-library:
+        display-name: 条件片段库
+        enabled: ${MEDKERNEL_AUTHORING_CONDITION_FRAGMENT_LIBRARY_ENABLED:false}
+        risk: MEDIUM
+        owner: 医务处 / 信息科
+        description: 控制条件片段库的复用入口；未启用时不得按片段引用求值。
+      authoring-batch-authoring:
+        display-name: 批量创作
+        enabled: ${MEDKERNEL_AUTHORING_BATCH_AUTHORING_ENABLED:false}
+        risk: HIGH
+        owner: 医务处 / 信息科
+        description: 控制规则、路径和值集等资产的批量生成、导入、发布和分发入口。
+      authoring-pathway-rich-nodes:
+        display-name: 路径富节点
+        enabled: ${MEDKERNEL_AUTHORING_PATHWAY_RICH_NODES_ENABLED:true}
+        risk: HIGH
+        owner: 医务处 / 信息科
+        description: 控制决策、并行、等待计时、子路径、人工闸门和医嘱集节点是否可发布与推进。
     backup:
       enabled: ${MEDKERNEL_BACKUP_ENABLED:false}
       rpo: ${MEDKERNEL_BACKUP_RPO:未启用}

@@ -27,6 +27,7 @@
 - 2026-06-03 PR3 进展（`codex/d2-path-01-pr3-release-followup`）：路径发布前新增真实影响摘要接口 `GET /pathway-templates/{templateId}/impact`，摘要只来自路径拓扑、关键时钟绑定和患者路径实例事实，不把生命周期状态写入 digest，确保灰度后可基于同一影响摘要继续全量确认；草稿发布必须携带当前 `impactDigest` 与审核说明，进入 `canary_release` 默认 10% 灰度；已发布模板支持院级管理员 `full_rollout` 全量确认；当前已发布模板可回滚到同编码 `OFFLINE` 历史版本，当前版本下线、目标版本恢复发布并写 `ROLLBACK` 审计；列表接口补 `templateCode` 过滤，前端回滚候选来自同编码历史版本查询，不再依赖当前分页。患者路径 `COMPLETED` 后通过路径→随访端口生成 / 复用随访计划，`PathwayAdvanceResponse` 返回 `followupPlanId`、`followupTaskCount` 和交接状态。前端 `PathwayTemplates` 新增“7 步流发布”页签，标题栏按钮只跳页签，不再绕过影响摘要；页签展示 digest、灰度、全量和回滚操作。未冒领通用 SYS-04 泛化 `ReleasePort/ReplayPort`。
 - 2026-06-07 P10-3 进展：`PathwayTemplate.parentTemplateId` 与 `PathwayNode.disabledFlag` 已进入 5 方言迁移；后端提供继承解析与 `GET /api/v1/engine/pathway/pathway-templates/{templateId}/inheritance-diff`，支持下级覆盖、下级新增和禁用父级节点，返回差异项与合并后的有效节点/边；前端路径详情新增“继承差异”页签，创建模板可选择父级模板，禁用继承节点不进入画布、发布拓扑、指标绑定校验、仿真、患者入径和推进主链路。
 - 2026-06-08 P10-4 进展：新增 `pathway_outcome_binding` 五方言迁移，路径模板可按模板/阶段/里程碑绑定 ACTIVE `EvaluationIndicator`；创建、详情、发布影响、患者入径/详情/推进均返回结局闭环信息。仿真请求扩展为单快照、队列回放和时光机模式，回放只读不写库；患者多路径并行时检测 `ORDER_SET` 同医嘱引用冲突，仅在路径详情/推进响应提示协调，绝不自动改医嘱。
+- 2026-06-08 H-1 进展：路径富节点纳入统一 authoring 能力开关，支持系统默认与租户覆盖；关闭时模板发布门禁和患者路径推进均拒绝富节点，不继续解释高级节点语义；配置中心页面可配置租户覆盖。
 
 ## 功能要求（原子可测条目）
 
@@ -38,6 +39,7 @@
 - [x] **FR-6 随访接续**：患者出径 → 生成随访计划交接 D3 随访（FOLLOW），不断链。
 - [x] **FR-7 多级模板继承差异合并**：STANDARD→HOSPITAL→DEPARTMENT→SPECIALTY 下级可覆盖/新增/禁用上级节点；系统提供 diff 视图和有效图解析，避免重复维护。
 - [x] **FR-8 结局与多路径协调**：模板/阶段/里程碑可绑定结局指标；患者路径实例返回结局闭环；队列回放/时光机只读仿真；多路径 `ORDER_SET` 冲突仅提示协调不自动改医嘱。
+- [x] **FR-9 能力开关灰度**：路径富节点按系统默认 / 租户覆盖灰度；开关关闭时发布与推进均诚实拒绝富节点，不误算高级语义。
 
 ## 接口契约 / 页面契约
 

@@ -8,16 +8,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.AuthoringFeatureFlag;
+import com.medkernel.engine.authoring.AuthoringFeatureGate;
 import com.medkernel.engine.rule.ConditionEvaluation;
 import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.ConditionEvidence;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.config.SystemConfigService;
 
 /**
  * 路径确定性推进器。
@@ -30,10 +34,19 @@ public class PathwayProgressor {
 
     private final ObjectMapper json;
     private final ConditionEvaluator conditionEvaluator;
+    private final AuthoringFeatureGate featureGate;
 
     public PathwayProgressor(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
+        this(json, conditionEvaluator, AuthoringFeatureGate.alwaysEnabled());
+    }
+
+    @Autowired
+    public PathwayProgressor(ObjectMapper json,
+                             ConditionEvaluator conditionEvaluator,
+                             AuthoringFeatureGate featureGate) {
         this.json = json;
         this.conditionEvaluator = conditionEvaluator;
+        this.featureGate = featureGate == null ? AuthoringFeatureGate.alwaysEnabled() : featureGate;
     }
 
     PathwayProgressor() {
@@ -54,6 +67,7 @@ public class PathwayProgressor {
             throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径推进命令不完整");
         }
         PathwayNode current = findCurrentNode(command.graph(), command.currentNodeCode());
+        ensureRichNodeFeatureEnabled(current);
         if (command.eventType() == PathwayAdvanceEventType.EXIT) {
             return new PathwayProgressDecision(current.nodeCode(), null, PatientPathwayStatus.EXITED, null);
         }
@@ -179,6 +193,25 @@ public class PathwayProgressor {
 
     private boolean isWaitTimer(PathwayNode current) {
         return current.nodeType() == PathwayNodeType.WAIT_TIMER;
+    }
+
+    private void ensureRichNodeFeatureEnabled(PathwayNode current) {
+        if (!isRichNode(current.nodeType()) || featureGate.enabled(AuthoringFeatureFlag.PATHWAY_RICH_NODES)) {
+            return;
+        }
+        throw new ApiException(
+            ErrorCode.ENG_PATHWAY_006,
+            AuthoringFeatureFlag.PATHWAY_RICH_NODES.displayName()
+                + "能力开关未启用: "
+                + SystemConfigService.runtimeFeatureFlagConfigKey(AuthoringFeatureFlag.PATHWAY_RICH_NODES.key())
+                + "，当前节点类型 " + current.nodeType());
+    }
+
+    private boolean isRichNode(PathwayNodeType nodeType) {
+        return switch (nodeType) {
+            case DECISION, PARALLEL, WAIT_TIMER, SUBPATHWAY, MANUAL_GATE, ORDER_SET -> true;
+            default -> false;
+        };
     }
 
     private void validateSelectedEdge(PathwayGraph graph,

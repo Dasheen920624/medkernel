@@ -14,14 +14,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.AuthoringFeatureFlag;
+import com.medkernel.engine.authoring.AuthoringFeatureGate;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.config.SystemConfigService;
 
 /**
  * 规则与路径共用的确定性条件求值内核。
@@ -33,9 +37,16 @@ public class ConditionEvaluator {
 
     private final ObjectMapper json;
     private final ClinicalRuleOperatorSupport clinicalOperators;
+    private final AuthoringFeatureGate featureGate;
 
     public ConditionEvaluator(ObjectMapper json) {
+        this(json, AuthoringFeatureGate.alwaysEnabled());
+    }
+
+    @Autowired
+    public ConditionEvaluator(ObjectMapper json, AuthoringFeatureGate featureGate) {
         this.json = json;
+        this.featureGate = featureGate == null ? AuthoringFeatureGate.alwaysEnabled() : featureGate;
         this.clinicalOperators = new ClinicalRuleOperatorSupport(json);
     }
 
@@ -44,7 +55,7 @@ public class ConditionEvaluator {
             throw invalid("条件必须是 JSON 对象");
         }
         JsonNode evalContext = withDerivedFields(context == null ? json.createObjectNode() : context);
-        return evaluateConditionNode(condition, evalContext);
+        return evaluateConditionNode(condition, evalContext, 0);
     }
 
     private JsonNode withDerivedFields(JsonNode context) {
@@ -99,7 +110,10 @@ public class ConditionEvaluator {
         }
     }
 
-    private ConditionEvaluation evaluateConditionNode(JsonNode node, JsonNode context) {
+    private ConditionEvaluation evaluateConditionNode(JsonNode node, JsonNode context, int depth) {
+        if (depth > 0 && isConditionGroup(node)) {
+            requireFeatureEnabled(AuthoringFeatureFlag.RECURSIVE_CONDITION_TREE);
+        }
         JsonNode all = node.get("all");
         if (all != null) {
             if (!all.isArray()) {
@@ -107,7 +121,7 @@ public class ConditionEvaluator {
             }
             List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : all) {
-                ConditionEvaluation result = evaluateConditionNode(child, context);
+                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1);
                 evidence.addAll(result.evidence());
                 if (!result.matched()) {
                     return new ConditionEvaluation(false, evidence);
@@ -123,7 +137,7 @@ public class ConditionEvaluator {
             }
             List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : any) {
-                ConditionEvaluation result = evaluateConditionNode(child, context);
+                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1);
                 evidence.addAll(result.evidence());
                 if (result.matched()) {
                     return new ConditionEvaluation(true, evidence);
@@ -137,7 +151,7 @@ public class ConditionEvaluator {
             if (!not.isObject()) {
                 throw invalid("when.not 必须是对象");
             }
-            ConditionEvaluation result = evaluateConditionNode(not, context);
+            ConditionEvaluation result = evaluateConditionNode(not, context, depth + 1);
             return new ConditionEvaluation(!result.matched(), result.evidence());
         }
 
@@ -146,6 +160,9 @@ public class ConditionEvaluator {
 
     private ConditionEvaluation evaluateLeaf(JsonNode node, JsonNode context) {
         String operator = requiredText(node, "operator").toLowerCase(Locale.ROOT);
+        if (isClinicalOperator(operator)) {
+            requireFeatureEnabled(AuthoringFeatureFlag.CLINICAL_OPERATORS);
+        }
         LeafActual leaf = resolveLeafActual(node, context);
         String fact = leaf.fact();
         JsonNode actual = leaf.actual();
@@ -236,7 +253,10 @@ public class ConditionEvaluator {
         if (where != null) {
             requireObject(where, "expr.where");
             candidates = candidates.stream()
-                .filter(item -> evaluateConditionNode(where, singletonArrayContext(context, collection.arrayPath(), item.rawItem()))
+                .filter(item -> evaluateConditionNode(
+                    where,
+                    singletonArrayContext(context, collection.arrayPath(), item.rawItem()),
+                    0)
                     .matched())
                 .toList();
         }
@@ -640,6 +660,27 @@ public class ConditionEvaluator {
             case "lte" -> compared <= 0;
             default -> throw invalid("不支持的数值比较算子: " + operator);
         };
+    }
+
+    private boolean isConditionGroup(JsonNode node) {
+        return node != null && node.isObject() && (node.has("all") || node.has("any") || node.has("not"));
+    }
+
+    private boolean isClinicalOperator(String operator) {
+        return switch (operator) {
+            case "between", "not_between", "within_ref", "above_ref", "below_ref",
+                 "is_missing", "is_critical", "is_stale", "unit_compare", "temporal", "derived" -> true;
+            default -> false;
+        };
+    }
+
+    private void requireFeatureEnabled(AuthoringFeatureFlag flag) {
+        if (featureGate.enabled(flag)) {
+            return;
+        }
+        throw new ApiException(
+            ErrorCode.ENG_RULE_004,
+            flag.displayName() + "能力开关未启用: " + SystemConfigService.runtimeFeatureFlagConfigKey(flag.key()));
     }
 
     private void requireObject(JsonNode node, String label) {

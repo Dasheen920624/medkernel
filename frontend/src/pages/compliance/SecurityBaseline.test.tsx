@@ -11,7 +11,9 @@ import {
   useRuntimeOperations,
   useSecurityProfile,
   useSystemConfigs,
+  useTenantSystemConfigs,
   useUpdateSystemConfig,
+  useUpdateTenantSystemConfig,
   useUpsertDataPermissionPolicy,
   useUpsertMaskingRule,
 } from "@/shared/api/hooks";
@@ -26,7 +28,9 @@ vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSystemConfigs: vi.fn(),
+  useTenantSystemConfigs: vi.fn(),
   useUpdateSystemConfig: vi.fn(),
+  useUpdateTenantSystemConfig: vi.fn(),
   useUpsertDataPermissionPolicy: vi.fn(),
   useUpsertMaskingRule: vi.fn(),
 }));
@@ -53,6 +57,7 @@ function renderPage() {
 
 describe("SecurityBaseline", () => {
   const updateConfig = vi.fn();
+  const updateTenantConfig = vi.fn();
   const upsertPolicy = vi.fn();
   const upsertMasking = vi.fn();
 
@@ -189,6 +194,23 @@ describe("SecurityBaseline", () => {
         },
       ]) as never,
     );
+    vi.mocked(useTenantSystemConfigs).mockReturnValue(
+      query([
+        {
+          key: "medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
+          value: "false",
+          valueType: "BOOLEAN",
+          displayName: "规则临床算子",
+          risk: "HIGH",
+          owner: "医务处 / 信息科",
+          description: "控制临床算子是否参与求值",
+          source: "SYSTEM_INHERITED",
+          protectedConfig: true,
+          version: 1,
+          updatedAt: "2026-06-06T00:00:00Z",
+        },
+      ]) as never,
+    );
     vi.mocked(useDataPermissionPolicies).mockReturnValue(
       query([
         {
@@ -275,10 +297,15 @@ describe("SecurityBaseline", () => {
       }) as never,
     );
     updateConfig.mockResolvedValue({});
+    updateTenantConfig.mockResolvedValue({});
     upsertPolicy.mockResolvedValue({});
     upsertMasking.mockResolvedValue({});
     vi.mocked(useUpdateSystemConfig).mockReturnValue({
       mutateAsync: updateConfig,
+      isPending: false,
+    } as never);
+    vi.mocked(useUpdateTenantSystemConfig).mockReturnValue({
+      mutateAsync: updateTenantConfig,
       isPending: false,
     } as never);
     vi.mocked(useUpsertDataPermissionPolicy).mockReturnValue({
@@ -338,6 +365,39 @@ describe("SecurityBaseline", () => {
           value: "14",
           reason: "提升口令强度",
           expectedVersion: 1,
+          confirmedHighRisk: true,
+        },
+      }),
+    );
+  });
+
+  it("updates tenant feature flag override without inheriting the system version lock", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "系统配置" }));
+    await user.click(screen.getByText("租户覆盖"));
+    fireEvent.change(screen.getByRole("textbox", { name: "租户 ID" }), {
+      target: { value: "tenant-A" },
+    });
+    expect(screen.getByText("规则临床算子")).toBeInTheDocument();
+    expect(screen.getByText("继承系统")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "编辑 规则临床算子" }));
+    const dialog = screen.getByRole("dialog", { name: "编辑租户配置" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "变更原因" }), {
+      target: { value: "租户灰度回退" },
+    });
+    await user.click(within(dialog).getByRole("checkbox", { name: "确认高风险影响" }));
+    await user.click(within(dialog).getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() =>
+      expect(updateTenantConfig).toHaveBeenCalledWith({
+        tenantId: "tenant-A",
+        key: "medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
+        payload: {
+          value: "false",
+          reason: "租户灰度回退",
+          expectedVersion: undefined,
           confirmedHighRisk: true,
         },
       }),

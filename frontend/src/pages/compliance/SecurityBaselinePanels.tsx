@@ -10,6 +10,7 @@ import {
   Modal,
   Row,
   Select,
+  Segmented,
   Space,
   Statistic,
   Table,
@@ -30,7 +31,9 @@ import {
   useMaskingRules,
   useOrgUnits,
   useSystemConfigs,
+  useTenantSystemConfigs,
   useUpdateSystemConfig,
+  useUpdateTenantSystemConfig,
   useUpsertDataPermissionPolicy,
   useUpsertMaskingRule,
   type DataPermissionPolicy,
@@ -77,6 +80,15 @@ type SystemConfigForm = {
   confirmedHighRisk: boolean;
 };
 
+type SystemConfigScope = "system" | "tenant";
+
+function isHardLockedConfig(item: SystemConfigItem) {
+  return [
+    "medkernel.runtime.feature-flags.audit-persistence.enabled",
+    "medkernel.runtime.feature-flags.domestic-crypto.enabled",
+  ].includes(item.key);
+}
+
 function configInput(item: SystemConfigItem | null) {
   if (item?.valueType === "BOOLEAN") {
     return (
@@ -96,8 +108,13 @@ function configInput(item: SystemConfigItem | null) {
 
 export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
-  const configs = useSystemConfigs();
+  const [scope, setScope] = useState<SystemConfigScope>("system");
+  const [tenantId, setTenantId] = useState("default");
+  const systemConfigs = useSystemConfigs();
+  const tenantConfigs = useTenantSystemConfigs(tenantId, undefined, scope === "tenant");
+  const configs = scope === "tenant" ? tenantConfigs : systemConfigs;
   const update = useUpdateSystemConfig();
+  const updateTenant = useUpdateTenantSystemConfig();
   const [selected, setSelected] = useState<SystemConfigItem | null>(null);
   const [form] = Form.useForm<SystemConfigForm>();
 
@@ -115,16 +132,28 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
     if (!selected) return;
     try {
       const values = await form.validateFields();
-      await update.mutateAsync({
-        key: selected.key,
-        payload: {
-          value: String(values.value),
-          reason: values.reason.trim(),
-          expectedVersion: selected.version,
-          confirmedHighRisk: Boolean(values.confirmedHighRisk),
-        },
-      });
-      message.success("系统配置已保存并记录审计");
+      const payload = {
+        value: String(values.value),
+        reason: values.reason.trim(),
+        expectedVersion:
+          scope === "tenant" && selected.source === "SYSTEM_INHERITED"
+            ? undefined
+            : selected.version,
+        confirmedHighRisk: Boolean(values.confirmedHighRisk),
+      };
+      if (scope === "tenant") {
+        await updateTenant.mutateAsync({
+          tenantId: tenantId.trim(),
+          key: selected.key,
+          payload,
+        });
+      } else {
+        await update.mutateAsync({
+          key: selected.key,
+          payload,
+        });
+      }
+      message.success(scope === "tenant" ? "租户配置已保存并记录审计" : "系统配置已保存并记录审计");
       setSelected(null);
       form.resetFields();
     } catch (error: unknown) {
@@ -153,8 +182,27 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         type="info"
         showIcon
         message="配置以数据库为唯一运行来源"
-        description="高风险项必须确认影响；受保护配置由后端和界面双重阻断，不能关闭审计或国密安全底座。"
+        description="高风险项必须确认影响；审计持久化与国密安全底座保持红线锁定，其余运行能力可按系统默认或租户覆盖灰度。"
       />
+      <Space wrap>
+        <Segmented
+          value={scope}
+          options={[
+            { label: "系统默认", value: "system" },
+            { label: "租户覆盖", value: "tenant" },
+          ]}
+          onChange={(value) => setScope(value as SystemConfigScope)}
+        />
+        {scope === "tenant" && (
+          <Input
+            aria-label="租户 ID"
+            value={tenantId}
+            onChange={(event) => setTenantId(event.target.value)}
+            placeholder="tenant id"
+            className="mk-config-tenant-input"
+          />
+        )}
+      </Space>
       <Table<SystemConfigItem>
         rowKey="key"
         dataSource={configs.data ?? []}
@@ -184,6 +232,15 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
               ),
           },
           {
+            title: "来源",
+            dataIndex: "source",
+            render: (source) => (
+              <Tag color={source === "SYSTEM_INHERITED" ? "default" : "blue"}>
+                {source === "SYSTEM_INHERITED" ? "继承系统" : source}
+              </Tag>
+            ),
+          },
+          {
             title: "风险",
             dataIndex: "risk",
             render: (risk, item) => (
@@ -205,7 +262,9 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
               <Button
                 aria-label={`编辑 ${item.displayName}`}
                 icon={<EditOutlined />}
-                disabled={!canManage || item.protectedConfig}
+                disabled={
+                  !canManage || isHardLockedConfig(item) || (scope === "tenant" && !tenantId.trim())
+                }
                 onClick={() => openEdit(item)}
               />
             ),
@@ -213,11 +272,11 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         ]}
       />
       <Modal
-        title="编辑系统配置"
+        title={scope === "tenant" ? "编辑租户配置" : "编辑系统配置"}
         open={Boolean(selected)}
         okText="保存配置"
         okButtonProps={{ "aria-label": "保存配置" }}
-        confirmLoading={update.isPending}
+        confirmLoading={scope === "tenant" ? updateTenant.isPending : update.isPending}
         onOk={() => void save()}
         onCancel={() => setSelected(null)}
         destroyOnClose

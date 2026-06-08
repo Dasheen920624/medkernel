@@ -39,13 +39,21 @@ public class RuleApplicabilityEvaluator {
      * 创建生产判定器，所有日期边界统一按 UTC 计算。
      */
     @Autowired
+    public RuleApplicabilityEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
+        this(json, conditionEvaluator, Clock.systemUTC());
+    }
+
     public RuleApplicabilityEvaluator(ObjectMapper json) {
         this(json, Clock.systemUTC());
     }
 
     RuleApplicabilityEvaluator(ObjectMapper json, Clock clock) {
+        this(json, new ConditionEvaluator(json), clock);
+    }
+
+    RuleApplicabilityEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator, Clock clock) {
         this.json = json;
-        this.conditionEvaluator = new ConditionEvaluator(json);
+        this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
         this.clock = clock;
     }
 
