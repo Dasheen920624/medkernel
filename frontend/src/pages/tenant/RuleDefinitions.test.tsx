@@ -607,8 +607,17 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await waitFor(() => expect(apiMocks.createRule).toHaveBeenCalled());
       const payload = apiMocks.createRule.mock.calls[0][0] as {
         riskLevel: string;
+        parameterBindings?: Record<string, unknown>;
         dslJson: {
           trigger: string;
+          meta?: {
+            parameters?: Array<{
+              key: string;
+              label: string;
+              valueType: string;
+              required: boolean;
+            }>;
+          };
           when: {
             all?: Array<{
               expr?: { field?: string; select?: string };
@@ -620,7 +629,34 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         };
       };
       expect(payload.riskLevel).toBe("CRITICAL");
+      expect(payload.parameterBindings).toEqual({
+        observationCode: "K",
+        criticalThreshold: 6.5,
+        returnMinutes: 15,
+      });
       expect(payload.dslJson.trigger).toBe("result-review");
+      expect(payload.dslJson.meta?.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "observationCode",
+            label: "检验项",
+            valueType: "CODE",
+            required: true,
+          }),
+          expect.objectContaining({
+            key: "criticalThreshold",
+            label: "危急阈值",
+            valueType: "DECIMAL",
+            required: true,
+          }),
+          expect.objectContaining({
+            key: "returnMinutes",
+            label: "回报时限分钟",
+            valueType: "INTEGER",
+            required: true,
+          }),
+        ]),
+      );
       expect(payload.dslJson.when.all).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

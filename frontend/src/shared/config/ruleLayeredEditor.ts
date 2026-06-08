@@ -31,12 +31,28 @@ export type RuleActionCode =
   | "AUTO_DOCUMENT";
 export type RuleIndicator = "info" | "warning" | "critical";
 export type RuleClinicalSetting = "INPATIENT" | "OUTPATIENT" | "ED" | "FOLLOWUP";
+export type RuleParameterValueType =
+  | "CODE"
+  | "TEXT"
+  | "DECIMAL"
+  | "INTEGER"
+  | "BOOLEAN"
+  | "VALUE_SET"
+  | "ORG_SCOPE";
 export type RuleConditionValue =
   | string
   | number
   | boolean
   | Array<string | number | boolean>
   | Record<string, unknown>;
+
+export interface RuleParameterDefinition {
+  key: string;
+  label: string;
+  valueType: RuleParameterValueType;
+  required: boolean;
+  description?: string;
+}
 
 export interface RuleCondition {
   id: string;
@@ -136,6 +152,33 @@ export interface RuleLayerTemplate {
 }
 
 export const DEFAULT_CRITICAL_RETURN_MINUTES = 15;
+export const DEFAULT_CRITICAL_OBSERVATION_CODE = "K";
+
+export function createCriticalValueParameterDefinitions(): RuleParameterDefinition[] {
+  return [
+    {
+      key: "observationCode",
+      label: "检验项",
+      valueType: "CODE",
+      required: true,
+      description: "真实检验结果编码，如血钾 K。",
+    },
+    {
+      key: "criticalThreshold",
+      label: "危急阈值",
+      valueType: "DECIMAL",
+      required: true,
+      description: "达到或超过该数值后触发危急值回报。",
+    },
+    {
+      key: "returnMinutes",
+      label: "回报时限分钟",
+      valueType: "INTEGER",
+      required: true,
+      description: "命中后要求完成回报、确认与记录的时限。",
+    },
+  ];
+}
 
 export function criticalValueReportDetail(minutes = DEFAULT_CRITICAL_RETURN_MINUTES) {
   return `命中后须在 ${minutes} 分钟内完成危急值回报、确认与记录，不自动开立或修改医嘱。`;
@@ -158,6 +201,9 @@ export type RuleDsl = {
   applicability: RuleApplicability;
   when: Partial<Record<RuleLogic, RuleDslNode[]>> & { not?: RuleDslNode };
   then: RuleActionDraft[];
+  meta?: {
+    parameters?: RuleParameterDefinition[];
+  };
   explain: {
     summary: string;
     authoring: {

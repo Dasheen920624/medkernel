@@ -2953,6 +2953,7 @@ export function useCreateRule() {
       changeSummary: string;
       dslJson: unknown;
       explanationJson: unknown;
+      parameterBindings?: Record<string, unknown>;
     }) => {
       const { packageVersion, dslJson, explanationJson, ...rulePayload } = payload;
       const { data } = await apiClient.post<{ data: { ruleId: string } }>(

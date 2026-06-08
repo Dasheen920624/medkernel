@@ -27,7 +27,7 @@
 
 ## G3. 易配（Easy to configure）——配置即可，无需写逻辑
 
-1. **参数化规则（Parameterized Rule）**：规则模板把可调点暴露为**参数**（阈值、值集、目标时限、适用科室），普通用户只填参数表单即可生成可用规则，不触碰逻辑结构。参数 schema 存于 DSL `meta.parameters`，实例值落 `rule_parameter_binding`。
+1. **参数化规则（Parameterized Rule）**：规则模板把可调点暴露为**参数**（阈值、值集、目标时限、适用科室），普通用户只填参数表单即可生成可用规则，不触碰逻辑结构。参数 schema 存于 DSL `meta.parameters`，实例值落 `mk_engine_rule_parameter_binding`。
    例：「危急值回报」模板参数 = {检验项值集, 危急阈值, 回报时限}；填三项即成一条规则。
 2. **值集可视维护**：值集以列表编辑器维护，支持搜索、`$expand` 预览成员、外延/内涵切换、导入。
 3. **字段目录浏览器**：按资源类型浏览/搜索字段，查看数据类型、单位、绑定值集、是否派生。
@@ -70,7 +70,7 @@ CREATE TABLE condition_fragment (
   CONSTRAINT uk_frag UNIQUE (tenant_id, fragment_code, version)
 );
 -- 参数化规则的实例参数取值（schema 存于 DSL meta.parameters）
-CREATE TABLE rule_parameter_binding (
+CREATE TABLE mk_engine_rule_parameter_binding (
   id BIGINT PRIMARY KEY, rule_version_id VARCHAR(64) NOT NULL, tenant_id VARCHAR(64) NOT NULL,
   param_key VARCHAR(64) NOT NULL, param_value_json CLOB NOT NULL
 );

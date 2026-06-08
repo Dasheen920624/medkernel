@@ -105,10 +105,12 @@ import {
 } from "@/shared/config/ruleOperatorCatalog";
 import {
   RULE_LAYER_TEMPLATES,
+  DEFAULT_CRITICAL_OBSERVATION_CODE,
   DEFAULT_CRITICAL_RETURN_MINUTES,
   conditionNeedsValue,
   conditionTreeToDsl,
   criticalValueReportDetail,
+  createCriticalValueParameterDefinitions,
   createRuleActionDraft,
   createExplanationTemplate,
   dslToConditionTree,
@@ -125,6 +127,7 @@ import {
   type RuleConditionGroup,
   type RuleConditionNode,
   type RuleConditionTree,
+  type RuleDsl,
   type RuleLogic,
   type RuleIndicator,
   type RuleApplicability,
@@ -365,6 +368,20 @@ function createDefaultDslText() {
   return formatRuleJson(conditionTreeToDsl(createDefaultTree()));
 }
 
+function criticalObservationWhere(observationCode: string): Record<string, unknown> | undefined {
+  const trimmed = observationCode.trim();
+  if (!trimmed) return undefined;
+  return {
+    all: [
+      {
+        expr: { field: "observations[].code" },
+        operator: "equals",
+        value: { const: trimmed },
+      },
+    ],
+  };
+}
+
 function renderRiskTag(level: string) {
   const colors: Record<string, string> = {
     LOW: "green",
@@ -510,6 +527,9 @@ export default function RuleDefinitions() {
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
   const [criticalReturnMinutes, setCriticalReturnMinutes] = useState<number>(
     DEFAULT_CRITICAL_RETURN_MINUTES,
+  );
+  const [criticalObservationCode, setCriticalObservationCode] = useState(
+    DEFAULT_CRITICAL_OBSERVATION_CODE,
   );
   const [conditionTree, setConditionTree] = useState<RuleConditionTree>(createDefaultTree);
   const [populationIncludeTree, setPopulationIncludeTree] =
@@ -664,6 +684,7 @@ export default function RuleDefinitions() {
     setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
+    setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
       ruleType: template.ruleType,
@@ -713,6 +734,7 @@ export default function RuleDefinitions() {
     setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
+    setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
     createForm.setFieldsValue({
       ruleType: template.ruleType,
       triggerPoint: nextTree.triggerPoint,
@@ -727,8 +749,9 @@ export default function RuleDefinitions() {
     applicability: RuleApplicability,
     actions: RuleConditionTree["actions"],
     explanationSummary: string,
-  ) =>
-    conditionTreeToDsl({
+    meta?: RuleDsl["meta"],
+  ) => {
+    const dsl = conditionTreeToDsl({
       triggerPoint,
       applicability,
       logic: root.logic,
@@ -737,6 +760,16 @@ export default function RuleDefinitions() {
       actions,
       explanationSummary,
     });
+    return meta ? { ...dsl, meta } : dsl;
+  };
+
+  const createRuleMeta = useMemo<RuleDsl["meta"] | undefined>(
+    () =>
+      selectedTemplateKey === "critical_value_report"
+        ? { parameters: createCriticalValueParameterDefinitions() }
+        : undefined,
+    [selectedTemplateKey],
+  );
 
   const createActionsWithSource = (sourceRef?: string) =>
     conditionTree.actions.map((action) => ({
@@ -757,6 +790,7 @@ export default function RuleDefinitions() {
       conditionTree.applicability,
       createActionsWithSource(sourceRef),
       conditionTree.explanationSummary,
+      createRuleMeta,
     );
 
   const syncTreeToDsl = () => {
@@ -768,6 +802,7 @@ export default function RuleDefinitions() {
           conditionTree.applicability,
           conditionTree.actions,
           conditionTree.explanationSummary,
+          createRuleMeta,
         ),
       ),
     );
@@ -807,6 +842,7 @@ export default function RuleDefinitions() {
         conditionTree.applicability,
         conditionTree.actions,
         conditionTree.explanationSummary,
+        createRuleMeta,
       ),
     [
       conditionRoot,
@@ -814,6 +850,7 @@ export default function RuleDefinitions() {
       conditionTree.applicability,
       conditionTree.explanationSummary,
       conditionTree.triggerPoint,
+      createRuleMeta,
     ],
   );
   const createRulePreviewDslFromL3 = useMemo(() => {
@@ -1675,10 +1712,26 @@ export default function RuleDefinitions() {
         ? {
             field: trimmed,
             select: "latest",
+            where: criticalObservationWhere(criticalObservationCode),
           }
         : undefined,
       operator: "gte",
       valueKind: "number",
+    });
+  };
+
+  const updateCriticalObservationCode = (value: string) => {
+    setCriticalObservationCode(value);
+    if (!firstLeafId || !firstCondition) return;
+    const fieldPath = (firstCondition.expr?.field ?? firstCondition.fact).trim();
+    updateCondition(firstLeafId, {
+      expr: fieldPath.includes("[]")
+        ? {
+            field: fieldPath,
+            select: "latest",
+            where: criticalObservationWhere(value),
+          }
+        : undefined,
     });
   };
 
@@ -1703,6 +1756,26 @@ export default function RuleDefinitions() {
     const numeric = Number(firstCondition?.value);
     return Number.isFinite(numeric) ? numeric : undefined;
   })();
+
+  const buildCreateRuleParameterBindings = (): Record<string, unknown> | null | undefined => {
+    if (selectedTemplateKey !== "critical_value_report") return undefined;
+    const observationCode = criticalObservationCode.trim();
+    if (!observationCode) {
+      message.error("请填写检验项编码。");
+      setActiveCreateLayer("l1");
+      return null;
+    }
+    if (typeof criticalThresholdValue !== "number" || !Number.isFinite(criticalThresholdValue)) {
+      message.error("请填写危急阈值。");
+      setActiveCreateLayer("l1");
+      return null;
+    }
+    return {
+      observationCode,
+      criticalThreshold: criticalThresholdValue,
+      returnMinutes: criticalReturnMinutes,
+    };
+  };
 
   const renderConditionLeaf = (condition: RuleCondition) => {
     const needsValue = conditionNeedsValue(condition.operator);
@@ -2023,6 +2096,9 @@ export default function RuleDefinitions() {
         return;
       }
 
+      const parameterBindings = buildCreateRuleParameterBindings();
+      if (parameterBindings === null) return;
+
       await createRuleMutation.mutateAsync({
         ruleCode: values.ruleCode,
         name: values.name,
@@ -2040,6 +2116,7 @@ export default function RuleDefinitions() {
           ...submitTree,
           root: submitRoot,
         }),
+        ...(parameterBindings ? { parameterBindings } : {}),
       });
 
       message.success("新规则创建成功，状态为草稿");
@@ -3425,7 +3502,17 @@ export default function RuleDefinitions() {
           {selectedTemplateKey === "critical_value_report" && (
             <div className={styles.editorSection}>
               <Row gutter={16}>
-                <Col xs={24} md={10}>
+                <Col xs={24} md={6}>
+                  <Form.Item label="检验项编码" htmlFor="critical-observation-code">
+                    <Input
+                      id="critical-observation-code"
+                      value={criticalObservationCode}
+                      onChange={(event) => updateCriticalObservationCode(event.target.value)}
+                      placeholder="如 K"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={6}>
                   <Form.Item label="检验结果字段" htmlFor="critical-value-field">
                     <AutoComplete
                       id="critical-value-field"
@@ -3442,7 +3529,7 @@ export default function RuleDefinitions() {
                     />
                   </Form.Item>
                 </Col>
-                <Col xs={24} md={7}>
+                <Col xs={24} md={6}>
                   <Form.Item label="危急阈值" htmlFor="critical-threshold">
                     <InputNumber
                       id="critical-threshold"
@@ -3452,7 +3539,7 @@ export default function RuleDefinitions() {
                     />
                   </Form.Item>
                 </Col>
-                <Col xs={24} md={7}>
+                <Col xs={24} md={6}>
                   <Form.Item label="回报时限分钟" htmlFor="critical-return-minutes">
                     <InputNumber
                       id="critical-return-minutes"
