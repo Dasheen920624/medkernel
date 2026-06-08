@@ -35,6 +35,8 @@ public enum VersionedAssetType {
     CONDITION_FRAGMENT,
     /** 值集 */
     VALUE_SET,
+    /** 受控临床公式 */
+    FORMULA,
     /** 医嘱套餐 */
     ORDER_SET,
     /** 动作卡片 */

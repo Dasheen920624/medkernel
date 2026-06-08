@@ -4,8 +4,10 @@ import com.medkernel.engine.versioning.RolloutStrategy;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionDraftUpdateCommand;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
@@ -106,6 +108,14 @@ public class PackageEngineService {
     private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V2";
     private static final RolloutStrategy DEFAULT_GRAY_SCOPE_STRATEGY = RolloutStrategy.CANARY_BED_PERCENT;
     private static final int DEFAULT_GRAY_SCOPE_PERCENTAGE = 10;
+    private static final Set<VersionedAssetType> DECLARATIVE_PACKAGE_ASSET_TYPES = Set.of(
+        VersionedAssetType.FIELD_CATALOG,
+        VersionedAssetType.VALUE_SET,
+        VersionedAssetType.FORMULA,
+        VersionedAssetType.ORDER_SET,
+        VersionedAssetType.ACTION_CARD,
+        VersionedAssetType.SUBPATHWAY
+    );
 
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
@@ -1175,9 +1185,14 @@ public class PackageEngineService {
                         "离线导出条件片段不存在: " + item.assetId()
                     ))
             );
-            default -> throw new ApiException(
-                ErrorCode.ENG_PACKAGE_002,
-                "配置包包含不允许迁移的资产类型: " + item.assetType());
+            default -> {
+                if (isDeclarativePackageAssetType(item.assetType())) {
+                    yield buildDeclarativeAssetContent(item);
+                }
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "配置包包含不允许迁移的资产类型: " + item.assetType());
+            }
         };
         return new PackageOfflineAssetSnapshot(
             item.assetType(),
@@ -1267,6 +1282,23 @@ public class PackageEngineService {
                 fragment.traceId()
             )
         ));
+    }
+
+    private JsonNode buildDeclarativeAssetContent(EffectivePackageItem item) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineDeclarativeAssetContent(
+            item.assetType(),
+            item.assetId(),
+            item.effectiveVersion(),
+            item.effectiveVersion(),
+            item.sourceTenantId(),
+            item.sourceVersionId(),
+            item.contentHash(),
+            "DECLARATIVE_VERSIONED_ASSET"
+        ));
+    }
+
+    private boolean isDeclarativePackageAssetType(VersionedAssetType assetType) {
+        return DECLARATIVE_PACKAGE_ASSET_TYPES.contains(assetType);
     }
 
     private JsonNode buildPathwayAssetContent(
@@ -1537,9 +1569,16 @@ public class PackageEngineService {
             case TERMINOLOGY -> importOfflineTerminologySnapshot(assetId, assetVersion, content, tenantId, actor, now);
             case CONDITION_FRAGMENT -> importOfflineConditionFragmentSnapshot(
                 assetId, assetVersion, content, tenantId, actor, traceId, now);
-            default -> throw new ApiException(
-                ErrorCode.ENG_PACKAGE_002,
-                "配置包包含不允许迁移的资产类型: " + assetType);
+            default -> {
+                if (isDeclarativePackageAssetType(assetType)) {
+                    importOfflineDeclarativeAssetSnapshot(
+                        assetType, assetId, assetVersion, content, tenantId, actor, traceId, now);
+                    return;
+                }
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "配置包包含不允许迁移的资产类型: " + assetType);
+            }
         }
     }
 
@@ -1610,9 +1649,15 @@ public class PackageEngineService {
                 validateOfflineTerminologySnapshots(terminologyContent);
             }
             case CONDITION_FRAGMENT -> validateOfflineConditionFragmentContent(assetId, assetVersion, content);
-            default -> throw new ApiException(
-                ErrorCode.ENG_PACKAGE_002,
-                "配置包包含不允许迁移的资产类型: " + assetType);
+            default -> {
+                if (isDeclarativePackageAssetType(assetType)) {
+                    validateOfflineDeclarativeAssetContent(assetType, assetId, assetVersion, content);
+                    return;
+                }
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "配置包包含不允许迁移的资产类型: " + assetType);
+            }
         }
     }
 
@@ -1653,6 +1698,28 @@ public class PackageEngineService {
         if (status != ConditionFragmentStatus.ACTIVE) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包条件片段必须为 ACTIVE 状态, 当前: " + fragment.status());
+        }
+    }
+
+    private void validateOfflineDeclarativeAssetContent(
+            VersionedAssetType assetType,
+            String assetId,
+            String assetVersion,
+            JsonNode content) {
+        PackageOfflineDeclarativeAssetContent declarative =
+            readOfflineContent(content, PackageOfflineDeclarativeAssetContent.class);
+        if (declarative.assetType() != assetType
+                || !assetId.equals(declarative.assetId())
+                || !assetVersion.equals(declarative.versionNo())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包声明型资产快照与资产条目不一致");
+        }
+        if (!"DECLARATIVE_VERSIONED_ASSET".equals(declarative.migrationContract())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包声明型资产迁移契约不受支持");
+        }
+        if (normalizedText(declarative.packageVersion()) == null
+                || normalizedText(declarative.contentHash()) == null
+                || !declarative.contentHash().matches("[a-f0-9]{64}")) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包声明型资产缺少包版本或内容摘要");
         }
     }
 
@@ -2519,6 +2586,60 @@ public class PackageEngineService {
         ));
     }
 
+    private void importOfflineDeclarativeAssetSnapshot(
+            VersionedAssetType assetType,
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        PackageOfflineDeclarativeAssetContent declarative =
+            readOfflineContent(content, PackageOfflineDeclarativeAssetContent.class);
+        validateOfflineDeclarativeAssetContent(assetType, assetId, assetVersion, content);
+
+        Optional<AssetVersion> existing = assetVersions
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                tenantId, assetType, assetId, assetVersion);
+        if (existing.isPresent()) {
+            if (!declarative.contentHash().equals(existing.get().contentHash())) {
+                throw new ApiException(ErrorCode.CONFLICT, "本地声明型资产与离线包内容摘要不一致: " + assetId);
+            }
+            return;
+        }
+
+        AssetVersionStatus status = parseEnum(
+            AssetVersionStatus.class,
+            declarative.status(),
+            "声明型资产状态"
+        );
+        ensurePackageAssetPublished("声明型资产", status.name());
+        assetVersions.save(new AssetVersion(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            assetType,
+            assetId,
+            assetVersion,
+            "tenant:" + tenantId,
+            declarative.packageVersion(),
+            declarative.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            status,
+            "version:" + assetType + ":" + assetId + ":" + declarative.packageVersion(),
+            declarative.sourceRef(),
+            null,
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+    }
+
     private <T> T readOfflineContent(JsonNode content, Class<T> type) {
         try {
             return OFFLINE_EXPORT_MAPPER.treeToValue(content, type);
@@ -3129,6 +3250,42 @@ public class PackageEngineService {
         String updatedBy,
         String traceId
     ) {}
+
+    private record PackageOfflineDeclarativeAssetContent(
+        VersionedAssetType assetType,
+        String assetId,
+        String versionNo,
+        String packageVersion,
+        String sourceTenantId,
+        String sourceVersionId,
+        String contentHash,
+        String migrationContract,
+        String status,
+        String sourceRef
+    ) {
+        PackageOfflineDeclarativeAssetContent(
+                VersionedAssetType assetType,
+                String assetId,
+                String versionNo,
+                String packageVersion,
+                String sourceTenantId,
+                String sourceVersionId,
+                String contentHash,
+                String migrationContract) {
+            this(
+                assetType,
+                assetId,
+                versionNo,
+                packageVersion,
+                sourceTenantId,
+                sourceVersionId,
+                contentHash,
+                migrationContract,
+                AssetVersionStatus.ACTIVE.name(),
+                "declarative:" + assetType
+            );
+        }
+    }
 
     private record PackageOfflineKnowledgeContent(
         PackageOfflineKnowledgeIdentity identity,
@@ -4086,10 +4243,28 @@ public class PackageEngineService {
                     "随访计划属于患者运行数据，不允许作为配置包资产入包；请在 D3 FOLLOW-01 建立随访模板资产后再接入包发布"
                 );
             }
-            default -> throw new ApiException(
-                ErrorCode.ENG_PACKAGE_002,
-                "该资产类型尚未定义配置包迁移契约，不允许入包: " + type
-            );
+            default -> {
+                if (!isDeclarativePackageAssetType(type)) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "该资产类型尚未定义配置包迁移契约，不允许入包: " + type
+                    );
+                }
+                AssetVersion version = assetVersions
+                    .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                        tenantId, type, assetId, assetVersion)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包声明型配置资产版本不存在: " + type + ":" + assetId + "@" + assetVersion
+                    ));
+                if (version.status() != AssetVersionStatus.PUBLISHED
+                        && version.status() != AssetVersionStatus.ACTIVE) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许 PUBLISHED 或 ACTIVE 状态的声明型配置资产入包, 当前: " + version.status()
+                    );
+                }
+            }
         }
     }
 

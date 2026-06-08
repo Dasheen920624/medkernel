@@ -92,6 +92,75 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
+    void resolvesCkdSpecialtyPackageWithFormulaValueSetsFieldCatalogAndLocalOverride() {
+        KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.ACTIVE);
+        List<PackageItem> ckdItems = List.of(
+            platformItem(VersionedAssetType.PATHWAY, "PATH.CKD", "1"),
+            platformItem(VersionedAssetType.RULE, "RULE.CKD.NEPHROTOXIC", "1"),
+            platformItem(VersionedAssetType.VALUE_SET, "VS.ATC.NEPHROTOXIC", "2026.06"),
+            platformItem(VersionedAssetType.VALUE_SET, "VS.LOINC.CREATININE", "2026.06"),
+            platformItem(VersionedAssetType.FIELD_CATALOG, "FIELD.CKD.BINDING", "2026.06"),
+            platformItem(VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06"),
+            platformItem(VersionedAssetType.FORMULA, "COCKCROFT_GAULT_CRCL", "2026.06"),
+            platformItem(VersionedAssetType.CONDITION_FRAGMENT, "FRAG.RENAL_LIMITED", "1"),
+            platformItem(VersionedAssetType.EVALUATION, "EVAL.CKD.OUTCOME", "1")
+        );
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.CKD", "2026.06"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
+            .thenReturn(ckdItems);
+        when(inheritanceResolver.resolve(any())).thenAnswer(inv -> {
+            var query = (com.medkernel.engine.versioning.InheritanceResolveQuery) inv.getArgument(0);
+            String versionNo = query.assetIdentity().equals("RULE.CKD.NEPHROTOXIC")
+                ? "2"
+                : query.applicableScope();
+            boolean overridden = query.assetIdentity().equals("RULE.CKD.NEPHROTOXIC");
+            return new ResolvedAssetVersion(
+                assetVersion("av-" + query.assetType() + "-" + query.assetIdentity(),
+                    query.assetType(), query.assetIdentity(), versionNo),
+                overridden ? "/TENANT-A/HOSP-A/NEPH" : "/PLATFORM/CKD",
+                !overridden,
+                overridden,
+                false,
+                null,
+                overridden ? SourceTier.ORG : SourceTier.PLATFORM);
+        });
+
+        EffectivePackageSnapshot snapshot = EffectivePackageSnapshot.from(
+            resolver.resolve("tenant-A", "PKG.CKD", "2026.06", "dept-neph"));
+
+        assertThat(snapshot.items())
+            .extracting(EffectivePackageItem::assetType)
+            .containsExactly(
+                VersionedAssetType.PATHWAY,
+                VersionedAssetType.RULE,
+                VersionedAssetType.VALUE_SET,
+                VersionedAssetType.VALUE_SET,
+                VersionedAssetType.FIELD_CATALOG,
+                VersionedAssetType.FORMULA,
+                VersionedAssetType.FORMULA,
+                VersionedAssetType.CONDITION_FRAGMENT,
+                VersionedAssetType.EVALUATION);
+        assertThat(snapshot.items()).anySatisfy(item -> {
+            assertThat(item.assetType()).isEqualTo(VersionedAssetType.RULE);
+            assertThat(item.assetId()).isEqualTo("RULE.CKD.NEPHROTOXIC");
+            assertThat(item.declaredVersion()).isEqualTo("1");
+            assertThat(item.effectiveVersion()).isEqualTo("2");
+            assertThat(item.overridden()).isTrue();
+            assertThat(item.sourceOrgPath()).isEqualTo("/TENANT-A/HOSP-A/NEPH");
+        });
+        assertThat(snapshot.items()).anySatisfy(item -> {
+            assertThat(item.assetType()).isEqualTo(VersionedAssetType.FORMULA);
+            assertThat(item.assetId()).isEqualTo("CKD_EPI_2021_EGFR");
+            assertThat(item.inherited()).isTrue();
+            assertThat(item.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+        });
+        assertThat(snapshot.excludedItems()).isEmpty();
+        assertThat(snapshot.contentSha256()).matches("[a-f0-9]{64}");
+    }
+
+    @Test
     void rejectsPackageItemWhenUnifiedVersionMappingIsMissing() {
         KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.PUBLISHED);
         PackageItem evaluation = platformItem(VersionedAssetType.EVALUATION, "EVAL.VTE", "1");
