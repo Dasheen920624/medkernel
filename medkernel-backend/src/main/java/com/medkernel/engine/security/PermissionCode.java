@@ -76,6 +76,8 @@ public enum PermissionCode {
     // ─── 系统运维（GA-ENG-BASE-07）─────────────────────────────
     SYSTEM_READ("system.read", Risk.LOW, "查看系统状态 / Provider"),
     SYSTEM_MANAGE("system.manage", Risk.HIGH, "运维操作（重启、密钥轮换、降级开关）"),
+    PLATFORM_PUBLISH("platform.publish", Risk.HIGH, "发布 / 激活平台权威资产版本"),
+    TENANT_OVERRIDE("tenant.override", Risk.HIGH, "发布租户 / 机构资产覆盖"),
 
     // ─── 追加权限（保持已发布枚举顺序稳定）──────────────────────────
     RECOMMENDATION_WRITE("recommendation.write", Risk.MEDIUM, "创建推荐触发和候选提醒事实"),

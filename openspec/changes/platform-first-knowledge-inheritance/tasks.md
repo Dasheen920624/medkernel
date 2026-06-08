@@ -38,7 +38,7 @@
 
 ## P5 开通 + 治理 + 影响
 - [x] 6.1 租户开通改引用制（不实例化副本）；`PilotPackageTemplate` 改为推荐引用 + 可选初始覆盖
-- [ ] 6.2 权限分离：`platform.publish` / `tenant.override`（限自身 org 闭包）/ 高风险覆盖强制评审
+- [x] 6.2 权限分离：`platform.publish` / `tenant.override`（限自身 org 闭包）/ 高风险覆盖强制评审
 - [ ] 6.3 上游变更影响计算 + 继承差异视图 + rebase 提示（复用 PackageDiff/diff_summary）
 - [ ] 6.4 前端：平台/租户视角切换、覆盖编辑（REPLACE/DISABLE/ADD + 复用/独有）、有效版本来源标识、继承差异
 

@@ -2,6 +2,7 @@ package com.medkernel.engine.pkg;
 
 import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.engine.versioning.InheritanceOverrideMode;
+import com.medkernel.engine.versioning.InheritanceOverrideStatus;
 import com.medkernel.engine.versioning.InheritancePropagation;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
@@ -14,6 +15,7 @@ public record PilotPackageInitialOverrideResponse(
     String assetIdentity,
     InheritanceOverrideMode overrideMode,
     InheritancePropagation propagation,
+    InheritanceOverrideStatus lifecycleStatus,
     String orgPath
 ) {
     public static PilotPackageInitialOverrideResponse from(InheritanceOverride override) {
@@ -23,6 +25,7 @@ public record PilotPackageInitialOverrideResponse(
             override.assetIdentity(),
             override.overrideMode(),
             override.propagation(),
+            override.lifecycleStatus(),
             override.orgPath()
         );
     }

@@ -99,6 +99,7 @@ class InheritanceOverrideRepositoryTest {
             overrideVersionId,
             mode,
             InheritancePropagation.INHERITABLE,
+            InheritanceOverrideStatus.PUBLISHED,
             orgPath,
             "adult|inpatient",
             "本机构覆盖差异",

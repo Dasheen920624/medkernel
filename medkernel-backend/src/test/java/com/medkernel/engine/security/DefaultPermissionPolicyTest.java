@@ -19,13 +19,15 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
-    void groupAdminHasAllNonEmergencyPermissions() {
+    void groupAdminHasTenantGovernanceWithoutPlatformPublish() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.remove(PermissionCode.PLATFORM_PUBLISH);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+            .contains(PermissionCode.TENANT_OVERRIDE)
+            .doesNotContain(PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH);
     }
 
     @Test
@@ -41,7 +43,7 @@ class DefaultPermissionPolicyTest {
     @Test
     void hospitalAdminLacksPlatformOps() {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
-            .doesNotContain(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY)
+            .doesNotContain(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH)
             .contains(PermissionCode.RULE_PUBLISH, PermissionCode.PACKAGE_ROLLBACK);
     }
 

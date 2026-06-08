@@ -10,10 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.security.AuthenticatedRoleGuard;
-import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.PermissionCode;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
 /**
@@ -25,30 +27,35 @@ public class VersionReleaseService implements ReleasePort {
     private final AssetVersionRepository assetVersions;
     private final VersionReleasePlanRepository releasePlans;
     private final VersionActivationTransactionRepository activationTransactions;
+    private final PermissionEvaluator permissionEvaluator;
     private final Clock clock;
 
     @Autowired
     public VersionReleaseService(
             AssetVersionRepository assetVersions,
             VersionReleasePlanRepository releasePlans,
-            VersionActivationTransactionRepository activationTransactions) {
-        this(assetVersions, releasePlans, activationTransactions, Clock.systemUTC());
+            VersionActivationTransactionRepository activationTransactions,
+            PermissionEvaluator permissionEvaluator) {
+        this(assetVersions, releasePlans, activationTransactions, permissionEvaluator, Clock.systemUTC());
     }
 
     VersionReleaseService(
             AssetVersionRepository assetVersions,
             VersionReleasePlanRepository releasePlans,
             VersionActivationTransactionRepository activationTransactions,
+            PermissionEvaluator permissionEvaluator,
             Clock clock) {
         this.assetVersions = assetVersions;
         this.releasePlans = releasePlans;
         this.activationTransactions = activationTransactions;
+        this.permissionEvaluator = permissionEvaluator;
         this.clock = clock;
     }
 
     @Override
     @Transactional
     public VersionReleasePlan submitForReview(VersionReleaseCommand command) {
+        requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.DRAFT, "只有草稿版本可以提交审核");
         Instant now = clock.instant();
@@ -65,6 +72,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan rejectReview(VersionReleaseCommand command) {
+        requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.PENDING_REVIEW, "只有待审核版本可以驳回到草稿");
         Instant now = clock.instant();
@@ -84,6 +92,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan approveForSilentObservation(VersionReleaseCommand command) {
+        requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.PENDING_REVIEW, "只有待审核版本可以进入静默观察");
         Instant now = clock.instant();
@@ -103,6 +112,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan releaseGray(VersionReleaseCommand command) {
+        requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
         if (version.status() != AssetVersionStatus.PUBLISHED && version.status() != AssetVersionStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "只有已发布版本可以进入灰度");
@@ -117,7 +127,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan releaseFull(VersionReleaseCommand command) {
-        requireHospitalAdmin();
+        requireReleasePermission(command.tenantId());
         AssetVersion target = requireVersion(command);
         if (target.status() != AssetVersionStatus.PUBLISHED && target.status() != AssetVersionStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "只有已发布版本可以全量激活");
@@ -182,6 +192,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan rollback(VersionRollbackCommand command) {
+        requireReleasePermission(command.tenantId());
         AssetVersion current = requireVersion(
             command.tenantId(), command.assetType(), command.assetIdentity(), command.currentVersionId());
         AssetVersion target = requireVersion(
@@ -347,9 +358,19 @@ public class VersionReleaseService implements ReleasePort {
         }
     }
 
-    private void requireHospitalAdmin() {
-        if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "直接全量仅院级管理员可执行");
+    private void requireReleasePermission(String tenantId) {
+        OrgScope scope = RequestContext.currentOrgScope();
+        if (scope.hasTenant() && !tenantId.equals(scope.tenantId())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "版本发布只能作用于当前请求租户");
+        }
+        PermissionCode requiredPermission = PlatformAuthority.PLATFORM_TENANT_ID.equals(required(tenantId, "租户"))
+            ? PermissionCode.PLATFORM_PUBLISH
+            : PermissionCode.TENANT_OVERRIDE;
+        if (permissionEvaluator == null || !permissionEvaluator.has(requiredPermission)) {
+            throw new ApiException(
+                ErrorCode.FORBIDDEN,
+                "缺少 " + requiredPermission.code() + "，不能发布或激活该资产版本"
+            );
         }
     }
 

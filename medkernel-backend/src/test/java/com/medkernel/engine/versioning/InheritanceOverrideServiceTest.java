@@ -15,15 +15,21 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
+import com.medkernel.engine.security.PermissionCode;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgLevel;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
+import com.medkernel.shared.context.RequestContext;
 
 class InheritanceOverrideServiceTest {
 
@@ -32,6 +38,7 @@ class InheritanceOverrideServiceTest {
     private AssetVersionRepository assetVersions;
     private InheritanceOverrideRepository overrides;
     private OrgHierarchyRepository hierarchy;
+    private PermissionEvaluator permissionEvaluator;
     private InheritanceOverrideService service;
 
     @BeforeEach
@@ -39,7 +46,14 @@ class InheritanceOverrideServiceTest {
         assetVersions = mock(AssetVersionRepository.class);
         overrides = mock(InheritanceOverrideRepository.class);
         hierarchy = mock(OrgHierarchyRepository.class);
-        service = new InheritanceOverrideService(assetVersions, overrides, hierarchy, CLOCK);
+        permissionEvaluator = mock(PermissionEvaluator.class);
+        service = new InheritanceOverrideService(assetVersions, overrides, hierarchy, permissionEvaluator, CLOCK);
+        when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
+    }
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContext.clear();
     }
 
     @Test
@@ -78,6 +92,7 @@ class InheritanceOverrideServiceTest {
         assertThat(saved.impactScope()).isEqualTo("仅 HOSP-A 成人住院");
         assertThat(saved.createdAt()).isEqualTo(CLOCK.instant());
         assertThat(saved.propagation()).isEqualTo(InheritancePropagation.INHERITABLE);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
     }
 
     @Test
@@ -110,6 +125,159 @@ class InheritanceOverrideServiceTest {
         ));
 
         assertThat(saved.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+    }
+
+    @Test
+    void deniesOverrideWhenActorLacksTenantOverridePermission() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(false);
+        when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
+        when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+
+        assertThatThrownBy(() -> service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            inherited.versionId(),
+            local.versionId(),
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.REPLACE,
+            "本院阈值更严格",
+            "本院检验参考区间更新",
+            "HOSP-A",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("tenant.override")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(overrides, never()).save(any(InheritanceOverride.class));
+    }
+
+    @Test
+    void deniesOverrideOutsideActorOrganizationClosure() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospitalA = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        OrgUnit hospitalB = org("hospital-b", "group-1", "/TENANT-A/GROUP-A/HOSP-B", OrgLevel.FACILITY, "HOSP-B");
+        AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion local = version("av-hospital-b-v1p", "1.0.0-hosp-b", hospitalB.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-sys04",
+            new OrgScope("tenant-A", "group-1", "hospital-a", null, null, null, null),
+            "publisher-1"));
+        when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
+        when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospitalB.id())).thenReturn(List.of(group, hospitalB));
+        when(hierarchy.isDescendant("tenant-A", hospitalA.id(), hospitalB.id())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            inherited.versionId(),
+            local.versionId(),
+            hospitalB.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.REPLACE,
+            "跨院覆盖",
+            "不应允许越权配置其他机构",
+            "HOSP-B",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("自身组织闭包")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(overrides, never()).save(any(InheritanceOverride.class));
+    }
+
+    @Test
+    void reviewPolicyOverrideIsRegisteredAsInReviewInsteadOfPublished() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion inherited = version(
+            "av-group-v1", "1.0.0", group.orgPath(),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.REVIEW);
+        AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+
+        when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
+        when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InheritanceOverride saved = service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            inherited.versionId(),
+            local.versionId(),
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.REPLACE,
+            "给药剂量阈值更严格",
+            "本院药事会评审前置",
+            "HOSP-A 成人住院",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
+        ));
+
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.IN_REVIEW);
+        assertThat(saved.overrideReason()).contains("本院药事会");
+    }
+
+    @Test
+    void canRegisterTenantOverrideAgainstPlatformBaselineWithoutCopyingPlatformVersion() {
+        OrgUnit hospital = org("hospital-a", null, "/TENANT-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion platformBaseline = version(
+            "av-platform-v1",
+            PlatformTenant.ID,
+            "1.0.0",
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE);
+        AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+
+        when(assetVersions.findByVersionIdAndTenantId(platformBaseline.versionId(), "tenant-A"))
+            .thenReturn(Optional.empty());
+        when(assetVersions.findByVersionIdAndTenantId(platformBaseline.versionId(), PlatformTenant.ID))
+            .thenReturn(Optional.of(platformBaseline));
+        when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(hospital));
+        when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InheritanceOverride saved = service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            platformBaseline.versionId(),
+            local.versionId(),
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.REPLACE,
+            "平台规则首发后本院增加本地解释",
+            "首发开通初始覆盖",
+            "HOSP-A 成人住院",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
+        ));
+
+        assertThat(saved.inheritedVersionId()).isEqualTo(platformBaseline.versionId());
+        assertThat(saved.tenantId()).isEqualTo("tenant-A");
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
     }
 
     @Test
@@ -254,6 +422,39 @@ class InheritanceOverrideServiceTest {
             1L,
             versionId,
             "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            versionNo,
+            orgPath,
+            "adult|inpatient",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            safetyPolicy,
+            overridePolicy,
+            AssetVersionStatus.ACTIVE,
+            "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
+            "rule/RULE.VTE.RISK",
+            null,
+            null,
+            now,
+            "publisher-1",
+            now,
+            "publisher-1",
+            "trace-sys04"
+        );
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String tenantId,
+            String versionNo,
+            String orgPath,
+            AssetVersionSafetyPolicy safetyPolicy,
+            AssetVersionOverridePolicy overridePolicy) {
+        Instant now = CLOCK.instant();
+        return new AssetVersion(
+            1L,
+            versionId,
+            tenantId,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
             versionNo,

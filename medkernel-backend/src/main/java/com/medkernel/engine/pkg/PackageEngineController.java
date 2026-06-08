@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 知识包发布与同步 REST 控制器。
  *
- * <p>承担知识包创建、资产条目添加、差异计算与影响分析、多通道同步及回滚终点。
- * 权限分拆为 {@code package.read} / {@code package.publish} / {@code package.rollback}。
+ * <p>承担知识包创建、资产条目添加、首发平台包引用、差异计算与影响分析、多通道同步及回滚终点。
+ * 权限分拆为 {@code package.read} / {@code package.publish} / {@code package.rollback} / {@code tenant.override}。
  */
 @RestController
 @RequestMapping("/api/v1/engine/pkg/packages")
@@ -81,10 +81,10 @@ public class PackageEngineController {
     /**
      * 应用首发模板推荐的平台包引用，并可登记初始覆盖。
      *
-     * <p>权限：{@code package.publish}。
+     * <p>权限：{@code tenant.override}。
      */
     @PostMapping("/pilot-templates/{templateCode}/references")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('tenant.override')")
     public ResponseEntity<ApiResult<PilotPackageTemplateApplyResponse>> applyPilotTemplateReferences(
             @PathVariable String templateCode,
             @RequestBody @Valid PilotPackageTemplateApplyRequest request) {
