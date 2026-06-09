@@ -41,6 +41,7 @@ import type {
   AuthoringBatchJobResponse,
   AuthoringBatchRuleGenerateRow,
   AuthoringBatchRuleImpactItem,
+  ReleaseScopeType,
   RuleGovernanceState,
   RuleRiskLevel,
 } from "@/shared/api/hooks";
@@ -168,9 +169,7 @@ export default function AuthoringBatchDrawer({
   const [distributionStrategy, setDistributionStrategy] = useState<"GRAYSCALE" | "FULL">(
     "GRAYSCALE",
   );
-  const [distributionScope, setDistributionScope] = useState<
-    "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT"
-  >("HOSPITAL");
+  const [distributionScope, setDistributionScope] = useState<ReleaseScopeType>("FACILITY");
 
   const jobsQuery = useAuthoringBatchJobs({ enabled: open });
   const generateMutation = useGenerateAuthoringBatchRules();
@@ -638,11 +637,11 @@ export default function AuthoringBatchDrawer({
             onChange={setDistributionScope}
             options={[
               { value: "ALL", label: "全部" },
-              { value: "GROUP", label: "集团" },
-              { value: "HOSPITAL", label: "医院" },
+              { value: "REGION", label: "区域" },
+              { value: "FACILITY", label: "机构" },
               { value: "CAMPUS", label: "院区" },
-              { value: "SITE", label: "服务点" },
               { value: "DEPARTMENT", label: "科室" },
+              { value: "WARD", label: "病区" },
             ]}
           />
         </Form.Item>

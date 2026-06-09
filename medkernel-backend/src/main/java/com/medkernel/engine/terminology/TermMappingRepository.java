@@ -54,18 +54,27 @@ public interface TermMappingRepository extends ListCrudRepository<TermMapping, L
                                    String keyword, int offset, int limit);
 
     /**
-     * 查询给定租户和组织作用域下所有 CONFIRMED 状态映射，供 {@link TerminologyService#buildPackage} 构建术语包。
+     * 查询给定租户和组织作用域下所有 CONFIRMED 状态映射，
+     * 供 {@link TerminologyKnowledgePackageService#build} 构建统一术语知识包。
      *
-     * <p>当 scopeLevel = DEPARTMENT 时按 local_term.department_id 过滤；其他作用域（如 HOSPITAL）暂不区分子范围。
+     * <p>租户范围读取全部映射；其他组织范围通过组织闭包限定到该祖先节点下的科室。
      */
     @Query("""
         SELECT tm.* FROM term_mapping tm
         JOIN local_term lt ON lt.id = tm.local_term_id AND lt.tenant_id = tm.tenant_id
         WHERE tm.tenant_id = :tenantId
           AND tm.status = 'CONFIRMED'
-          AND (:scopeLevel IS NULL
-               OR (:scopeLevel = 'DEPARTMENT' AND lt.department_id = :scopeCode)
-               OR (:scopeLevel <> 'DEPARTMENT'))
+          AND (
+              :scopeLevel = 'TENANT'
+              OR (:scopeLevel = 'DEPARTMENT' AND lt.department_id = :scopeCode)
+              OR EXISTS (
+                  SELECT 1
+                  FROM org_closure oc
+                  WHERE oc.tenant_id = :tenantId
+                    AND oc.ancestor_id = :scopeCode
+                    AND oc.descendant_id = lt.department_id
+              )
+          )
         ORDER BY tm.updated_at DESC, tm.id DESC
         """)
     List<TermMapping> findConfirmedByTenantIdAndScope(String tenantId, String scopeLevel, String scopeCode);

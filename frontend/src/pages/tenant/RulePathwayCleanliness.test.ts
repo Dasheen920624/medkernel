@@ -74,6 +74,8 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
 
   it("uses the current rule and pathway customer API roots", () => {
     const hooksSource = readSource("src/shared/api/hooks.ts");
+    const pathwaySource = readSource("src/pages/tenant/PathwayTemplates.tsx");
+    const patientPathwaysSource = readSource("src/pages/clinical/PatientPathways.tsx");
 
     expect(hooksSource).not.toContain('"/engine/rules');
     expect(hooksSource).not.toContain("`/engine/rules");
@@ -82,6 +84,14 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).toContain("/engine/rule/rules");
     expect(hooksSource).toContain("/engine/pathway/pathway-templates");
     expect(hooksSource).toContain("/engine/pathway/patient-pathways");
+    expect(hooksSource).not.toContain("/engine/pathway/specialty-packages");
+    expect(hooksSource).not.toContain("SpecialtyPackageStatus");
+    expect(hooksSource).not.toContain("useSpecialtyPackages");
+    expect(hooksSource).not.toContain("useCreateSpecialtyPackage");
+    expect(hooksSource).toContain("useBuildPathwayKnowledgePackage");
+    expect(pathwaySource).toContain("usePackages");
+    expect(pathwaySource).toContain("useBuildPathwayKnowledgePackage");
+    expect(patientPathwaysSource).toContain("usePackages");
   });
 
   it("uses the engine tenant API roots for onboarding service package hooks", () => {
@@ -213,14 +223,23 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
 
   it("keeps terminology mapping wired to real API-04 safety flows instead of read-only samples", () => {
     const terminologySource = readSource("src/pages/tenant/TerminologyMapping.tsx");
+    const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
+    const hooksSource = readSource("src/shared/api/hooks.ts");
 
     expect(terminologySource).toContain("StepFlow");
     expect(terminologySource).toContain("useStandardTerms");
     expect(terminologySource).toContain("useLocalTerms");
     expect(terminologySource).toContain("useTerminologyCandidates");
     expect(terminologySource).toContain("useTerminologyConflicts");
-    expect(terminologySource).toContain("usePublishTerminologyPackage");
-    expect(terminologySource).toContain("useRollbackTerminologyPackage");
+    expect(terminologySource).toContain("useBuildTerminologyKnowledgePackage");
+    expect(terminologySource).toContain("useReleasePackage");
+    expect(terminologySource).toContain("useRollbackPackage");
+    expect(terminologySource).not.toContain("useTerminologyPackages");
+    expect(terminologySource).not.toContain("usePublishTerminologyPackage");
+    expect(terminologySource).not.toContain("useRollbackTerminologyPackage");
+    expect(configPackagesSource).not.toContain("TermMappingPackage");
+    expect(hooksSource).not.toContain("TermMappingPackage");
+    expect(hooksSource).not.toContain("/mapping-packages");
     expect(terminologySource).not.toContain("read-only");
     expect(terminologySource).not.toContain("experience sample");
     expect(terminologySource).not.toContain("style=");

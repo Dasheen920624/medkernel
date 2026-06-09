@@ -137,7 +137,7 @@ class TerminologyApiContractTest {
     }
 
     @Test
-    void conflictsAndMappingPackagesUseApi04Routes() throws Exception {
+    void conflictsRemainInApi04AndPackageLifecycleLeavesTerminologyController() throws Exception {
         when(terminologyService.pageConflicts(any(PageRequest.class), any(ConflictFilter.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
@@ -151,7 +151,7 @@ class TerminologyApiContractTest {
                     ,"releaseMode": "FULL",
                       "reason": "全量发布"
                     """)))
-            .andExpect(status().isOk());
+            .andExpect(status().isNotFound());
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor readJwt() {

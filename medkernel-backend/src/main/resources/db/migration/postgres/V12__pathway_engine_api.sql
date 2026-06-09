@@ -1,30 +1,5 @@
 -- MedKernel v1.0 GA · GA-ENG-API-06 路径引擎 API（PostgreSQL）
 
-CREATE TABLE IF NOT EXISTS specialty_package (
-    id                BIGSERIAL PRIMARY KEY,
-    package_id        VARCHAR(64)  NOT NULL,
-    tenant_id         VARCHAR(64)  NOT NULL,
-    package_code      VARCHAR(128) NOT NULL,
-    disease_code      VARCHAR(128) NOT NULL,
-    name              VARCHAR(256) NOT NULL,
-    package_version   VARCHAR(64)  NOT NULL,
-    status            VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
-    source_ref        VARCHAR(512) NOT NULL,
-    description       VARCHAR(1024) NULL,
-    published_at      TIMESTAMPTZ  NULL,
-    published_by      VARCHAR(64)  NULL,
-    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    created_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
-    trace_id          VARCHAR(128) NULL,
-    CONSTRAINT uk_specialty_package_tenant_code UNIQUE (tenant_id, package_code, package_version),
-    CONSTRAINT ck_specialty_package_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_specialty_package_tenant_status ON specialty_package (tenant_id, status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_specialty_package_disease       ON specialty_package (tenant_id, disease_code);
-
 CREATE TABLE IF NOT EXISTS specialty_profile (
     id                   BIGSERIAL PRIMARY KEY,
     profile_id           VARCHAR(64)  NOT NULL,
@@ -309,31 +284,12 @@ CREATE INDEX IF NOT EXISTS idx_pathway_outcome_indicator
     ON pathway_outcome_binding (tenant_id, indicator_code);
 
 -- ===== 路径引擎中文注释（GA-ENG-API-06）=====
-COMMENT ON TABLE specialty_package IS '专病包主表，保存专病路径资产的病种、版本、状态和发布来源';
-COMMENT ON COLUMN specialty_package.id IS '数据库自增主键';
-COMMENT ON COLUMN specialty_package.package_id IS '专病包业务 ID，用于 API 返回和路径模板关联';
-COMMENT ON COLUMN specialty_package.tenant_id IS '租户 ID，用于多租户数据隔离';
-COMMENT ON COLUMN specialty_package.package_code IS '专病包编码，同一租户同版本唯一';
-COMMENT ON COLUMN specialty_package.disease_code IS '病种编码，用于按疾病或专病范围检索路径资产';
-COMMENT ON COLUMN specialty_package.name IS '专病包名称';
-COMMENT ON COLUMN specialty_package.package_version IS '专病包版本号';
-COMMENT ON COLUMN specialty_package.status IS '专病包状态：DRAFT 草稿、PUBLISHED 已发布、OFFLINE 已下线、ARCHIVED 已归档';
-COMMENT ON COLUMN specialty_package.source_ref IS '专病包来源引用，记录指南、规范或内部版本来源';
-COMMENT ON COLUMN specialty_package.description IS '专病包说明';
-COMMENT ON COLUMN specialty_package.published_at IS '专病包发布时间';
-COMMENT ON COLUMN specialty_package.published_by IS '专病包发布人';
-COMMENT ON COLUMN specialty_package.created_at IS '创建时间';
-COMMENT ON COLUMN specialty_package.created_by IS '创建人';
-COMMENT ON COLUMN specialty_package.updated_at IS '更新时间';
-COMMENT ON COLUMN specialty_package.updated_by IS '更新人';
-COMMENT ON COLUMN specialty_package.trace_id IS '请求链路追踪 ID';
-
-COMMENT ON TABLE specialty_profile IS '专病画像表，保存专病包下的分型、风险分层、准入退出和随访计划摘要';
+COMMENT ON TABLE specialty_profile IS '专病画像表，保存路径知识包下的分型、风险分层、准入退出和随访计划摘要';
 COMMENT ON COLUMN specialty_profile.id IS '数据库自增主键';
 COMMENT ON COLUMN specialty_profile.profile_id IS '专病画像业务 ID';
 COMMENT ON COLUMN specialty_profile.tenant_id IS '租户 ID，用于多租户数据隔离';
-COMMENT ON COLUMN specialty_profile.package_id IS '关联专病包业务 ID';
-COMMENT ON COLUMN specialty_profile.profile_code IS '专病画像编码，同一专病包内唯一';
+COMMENT ON COLUMN specialty_profile.package_id IS '关联路径知识包业务 ID';
+COMMENT ON COLUMN specialty_profile.profile_code IS '专病画像编码，同一路径知识包内唯一';
 COMMENT ON COLUMN specialty_profile.name IS '专病画像名称';
 COMMENT ON COLUMN specialty_profile.stratification_json IS '风险分层或分型摘要 JSON';
 COMMENT ON COLUMN specialty_profile.entry_criteria_json IS '入径准入条件摘要 JSON';
@@ -349,7 +305,7 @@ COMMENT ON TABLE pathway_template IS '路径模板主表，保存专病路径模
 COMMENT ON COLUMN pathway_template.id IS '数据库自增主键';
 COMMENT ON COLUMN pathway_template.template_id IS '路径模板业务 ID，用于 API 返回、节点边关联和患者入径';
 COMMENT ON COLUMN pathway_template.tenant_id IS '租户 ID，用于多租户数据隔离';
-COMMENT ON COLUMN pathway_template.package_id IS '关联专病包业务 ID';
+COMMENT ON COLUMN pathway_template.package_id IS '关联路径知识包业务 ID';
 COMMENT ON COLUMN pathway_template.template_code IS '路径模板编码，同一租户同版本唯一';
 COMMENT ON COLUMN pathway_template.name IS '路径模板名称';
 COMMENT ON COLUMN pathway_template.disease_code IS '病种编码，用于按疾病或专病范围检索模板';
@@ -493,11 +449,11 @@ COMMENT ON COLUMN clinical_clock.updated_at IS '更新时间';
 COMMENT ON COLUMN clinical_clock.updated_by IS '更新人';
 COMMENT ON COLUMN clinical_clock.trace_id IS '请求链路追踪 ID';
 
-COMMENT ON TABLE specialty_metric_binding IS '专病指标绑定表，保存专病包、路径模板、节点和质控指标之间的关联';
+COMMENT ON TABLE specialty_metric_binding IS '专病指标绑定表，保存路径知识包、路径模板、节点和质控指标之间的关联';
 COMMENT ON COLUMN specialty_metric_binding.id IS '数据库自增主键';
 COMMENT ON COLUMN specialty_metric_binding.binding_id IS '专病指标绑定业务 ID';
 COMMENT ON COLUMN specialty_metric_binding.tenant_id IS '租户 ID，用于多租户数据隔离';
-COMMENT ON COLUMN specialty_metric_binding.package_id IS '关联专病包业务 ID';
+COMMENT ON COLUMN specialty_metric_binding.package_id IS '关联路径知识包业务 ID';
 COMMENT ON COLUMN specialty_metric_binding.template_id IS '关联路径模板业务 ID';
 COMMENT ON COLUMN specialty_metric_binding.node_code IS '关联路径节点编码';
 COMMENT ON COLUMN specialty_metric_binding.metric_code IS '质控指标编码';
@@ -516,7 +472,7 @@ COMMENT ON COLUMN pathway_outcome_binding.template_id IS '关联路径模板业�
 COMMENT ON COLUMN pathway_outcome_binding.scope IS '绑定作用域：TEMPLATE 模板、PHASE 阶段、MILESTONE 里程碑';
 COMMENT ON COLUMN pathway_outcome_binding.ref_code IS '作用域引用编码，模板级固定为 TEMPLATE';
 COMMENT ON COLUMN pathway_outcome_binding.indicator_code IS '评估指标编码，必须对应已激活 EvaluationIndicator';
-COMMENT ON COLUMN pathway_outcome_binding.package_version IS '绑定时使用的专病包版本';
+COMMENT ON COLUMN pathway_outcome_binding.package_version IS '绑定时使用的路径知识包版本';
 COMMENT ON COLUMN pathway_outcome_binding.created_at IS '创建时间';
 COMMENT ON COLUMN pathway_outcome_binding.created_by IS '创建人';
 COMMENT ON COLUMN pathway_outcome_binding.updated_at IS '更新时间';

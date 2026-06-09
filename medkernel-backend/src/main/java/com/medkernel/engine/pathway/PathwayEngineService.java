@@ -34,6 +34,8 @@ import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.event.ClockSlaBreachedEvent;
 import com.medkernel.engine.event.EngineDomainEventPort;
 import com.medkernel.engine.event.PathwayVarianceRecordedEvent;
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.pkg.PackageReferenceConsistency;
@@ -78,9 +80,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 路径引擎应用服务（GA-ENG-API-06 专病包 + 路径模板 + 患者路径实例 + 确定性推进）。
+ * 路径引擎应用服务（GA-ENG-API-06 路径知识包 + 路径模板 + 患者路径实例 + 确定性推进）。
  *
- * <p>聚合专病包、专病画像、路径模板、节点、边、患者路径、变异、关键时钟和指标绑定九类数据，
+ * <p>聚合路径知识包、专病画像、路径模板、节点、边、患者路径、变异、关键时钟和指标绑定九类数据，
  * 承担：
  * <ul>
  *   <li>专病路径资产的草稿创建、模板发布门禁和版本化查询；</li>
@@ -93,7 +95,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PathwayEngineService {
 
-    private static final String PACKAGE_ENTITY = "knowledge_package";
     private static final String TEMPLATE_ENTITY = "pathway_template";
     private static final String PATIENT_PATHWAY_ENTITY = "patient_pathway";
     private static final int DEFAULT_CANARY_PERCENT = 10;
@@ -101,7 +102,7 @@ public class PathwayEngineService {
     private static final String RELEASE_STEP_FULL = "full_rollout";
     private static final String RELEASE_STEP_ROLLBACK = "evidence_rollback";
 
-    private final SpecialtyPackageRepository packages;
+    private final KnowledgePackageRepository packages;
     private final SpecialtyProfileRepository profiles;
     private final PathwayTemplateRepository templates;
     private final PathwayNodeRepository nodes;
@@ -136,7 +137,7 @@ public class PathwayEngineService {
      * 注入路径引擎闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
      */
     @Autowired
-    public PathwayEngineService(SpecialtyPackageRepository packages,
+    public PathwayEngineService(KnowledgePackageRepository packages,
                                 SpecialtyProfileRepository profiles,
                                 PathwayTemplateRepository templates,
                                 PathwayNodeRepository nodes,
@@ -176,7 +177,7 @@ public class PathwayEngineService {
             versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
     }
 
-    PathwayEngineService(SpecialtyPackageRepository packages,
+    PathwayEngineService(KnowledgePackageRepository packages,
                          SpecialtyProfileRepository profiles,
                          PathwayTemplateRepository templates,
                          PathwayNodeRepository nodes,
@@ -211,7 +212,7 @@ public class PathwayEngineService {
             versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
     }
 
-    PathwayEngineService(SpecialtyPackageRepository packages,
+    PathwayEngineService(KnowledgePackageRepository packages,
                          SpecialtyProfileRepository profiles,
                          PathwayTemplateRepository templates,
                          PathwayNodeRepository nodes,
@@ -245,7 +246,7 @@ public class PathwayEngineService {
             inheritanceResolver);
     }
 
-    private PathwayEngineService(SpecialtyPackageRepository packages,
+    private PathwayEngineService(KnowledgePackageRepository packages,
                                  SpecialtyProfileRepository profiles,
                                  PathwayTemplateRepository templates,
                                  PathwayNodeRepository nodes,
@@ -311,7 +312,7 @@ public class PathwayEngineService {
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
     }
 
-    PathwayEngineService(SpecialtyPackageRepository packages,
+    PathwayEngineService(KnowledgePackageRepository packages,
                          SpecialtyProfileRepository profiles,
                          PathwayTemplateRepository templates,
                          PathwayNodeRepository nodes,
@@ -345,76 +346,9 @@ public class PathwayEngineService {
     }
 
     /**
-     * 创建专病包草稿，并保存请求中携带的专病画像。
-     *
-     * <p>成功后记录 {@code CREATE_SPECIALTY_PACKAGE} 状态迁移和创建审计事件。
-     */
-    @Transactional
-    public SpecialtyPackageResponse createPackage(SpecialtyPackageCreateRequest request) {
-        String tenantId = requireCurrentTenant();
-        String traceId = RequestContext.currentTraceId();
-        String actor = currentActor();
-        Instant now = Instant.now();
-        String packageId = "sp-" + UUID.randomUUID();
-
-        SpecialtyPackage savedPackage = packages.save(new SpecialtyPackage(
-            null, packageId, tenantId, request.packageCode(), request.diseaseCode(),
-            request.name(), request.packageVersion(), SpecialtyPackageStatus.DRAFT,
-            request.sourceRef(), request.description(), null, null,
-            now, actor, now, actor, traceId));
-        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
-            tenantId,
-            VersionedAssetType.PATHWAY,
-            savedPackage.packageCode(),
-            savedPackage.packageVersion(),
-            "tenant:" + tenantId,
-            "disease:" + savedPackage.diseaseCode(),
-            writeObject(new SpecialtyPackageAssetContent(
-                savedPackage.packageCode(),
-                savedPackage.diseaseCode(),
-                savedPackage.name(),
-                savedPackage.description(),
-                request.profiles()
-            )),
-            null,
-            savedPackage.sourceRef(),
-            actor,
-            traceId,
-            AssetVersionSafetyPolicy.NORMAL,
-            null
-        ));
-        packageItems.save(new PackageItem(
-            null,
-            "pi-" + UUID.randomUUID(),
-            tenantId,
-            packageId,
-            VersionedAssetType.PATHWAY,
-            savedPackage.packageCode(),
-            savedPackage.packageVersion(),
-            now,
-            actor,
-            now,
-            actor,
-            traceId
-        ));
-        for (SpecialtyProfileRequest profile : nullToEmpty(request.profiles())) {
-            profiles.save(new SpecialtyProfile(
-                null, "spr-" + UUID.randomUUID(), tenantId, packageId,
-                profile.profileCode(), profile.name(), writeJson(profile.stratification()),
-                writeJson(profile.entryCriteria()), writeJson(profile.exitCriteria()),
-                writeJson(profile.followupPlan()), now, actor, now, actor, traceId));
-        }
-        transitions.record(PACKAGE_ENTITY, packageId, null, SpecialtyPackageStatus.DRAFT.name(),
-            "CREATE_SPECIALTY_PACKAGE", null);
-        auditRecorder.record(AuditAction.CREATE, PACKAGE_ENTITY, packageId,
-            "创建专病包 " + request.packageCode());
-        return new SpecialtyPackageResponse(packageId, SpecialtyPackageStatus.DRAFT, traceId);
-    }
-
-    /**
      * 创建路径模板草稿，并一次性持久化模板节点、路径边和专病指标绑定。
      *
-     * <p>前置：关联专病包必须存在于当前租户；失败抛出 {@code ENG-PATHWAY-007}。
+     * <p>前置：关联路径知识包必须存在于当前租户；失败抛出 {@code ENG-PATHWAY-007}。
      */
     @Transactional
     public PathwayTemplateDetailResponse createTemplate(PathwayTemplateCreateRequest request) {
@@ -422,13 +356,13 @@ public class PathwayEngineService {
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
         Instant now = Instant.now();
-        SpecialtyPackage specialtyPackage = packages.findByPackageIdAndTenantId(request.packageId(), tenantId)
+        KnowledgePackage knowledgePackage = packages.findByPackageIdAndTenantId(request.packageId(), tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_007,
-                "专病包不存在: " + request.packageId()));
+                "路径知识包不存在: " + request.packageId()));
         validateParentTemplate(request, tenantId);
         String templateId = "pt-" + UUID.randomUUID();
         PathwayTemplate template = templates.save(new PathwayTemplate(
-            null, templateId, tenantId, specialtyPackage.packageId(), request.templateCode(),
+            null, templateId, tenantId, knowledgePackage.packageId(), request.templateCode(),
             request.name(), request.diseaseCode(), request.templateVersion(), request.templateLevel(),
             blankToNull(request.parentTemplateId()), PathwayTemplateStatus.DRAFT,
             request.entryMode(), request.startNodeCode(), request.sourceRef(),
@@ -462,11 +396,11 @@ public class PathwayEngineService {
             .toList();
         List<SpecialtyMetricBinding> savedBindings = nullToEmpty(request.metricBindings()).stream()
             .map(binding -> metricBindings.save(new SpecialtyMetricBinding(
-                null, "smb-" + UUID.randomUUID(), tenantId, specialtyPackage.packageId(),
+                null, "smb-" + UUID.randomUUID(), tenantId, knowledgePackage.packageId(),
                 templateId, binding.nodeCode(), binding.metricCode(),
                 Boolean.TRUE.equals(binding.required()), now, actor, now, actor, traceId)))
             .toList();
-        String effectivePackageVersion = notBlank(request.packageVersion(), specialtyPackage.packageVersion());
+        String effectivePackageVersion = notBlank(request.packageVersion(), knowledgePackage.packageVersion());
         List<PathwayOutcomeBinding> savedOutcomeBindings = nullToEmpty(request.outcomeBindings()).stream()
             .map(binding -> outcomeBindings.save(new PathwayOutcomeBinding(
                 null,
@@ -973,22 +907,7 @@ public class PathwayEngineService {
     }
 
     /**
-     * 分页查询当前租户下的专病包。
-     *
-     * <p>当调用方未传分页参数时使用 {@link PageRequest#defaults()}，结果按更新时间倒序返回。
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<SpecialtyPackage> listPackages(PageRequest page) {
-        PageRequest safePage = page == null ? PageRequest.defaults() : page;
-        String tenantId = requireCurrentTenant();
-        long total = packages.countByTenantId(tenantId);
-        List<SpecialtyPackage> rows = total == 0 ? List.of()
-            : packages.pageByTenantId(tenantId, safePage.offset(), safePage.safeSize());
-        return PageResponse.of(rows, safePage, total);
-    }
-
-    /**
-     * 按状态、病种、专病包和模板编码过滤分页查询路径模板。
+     * 按状态、病种、路径知识包和模板编码过滤分页查询路径模板。
      *
      * <p>过滤条件为 {@code null} 时不进入 SQL；分页总数与行集分别由仓库 count/page 查询提供。
      */
@@ -2312,13 +2231,13 @@ public class PathwayEngineService {
 
     private String templatePackageVersion(PathwayTemplate template, String sourceTenantId, ErrorCode errorCode) {
         if (isBlank(template.packageId())) {
-            throw new ApiException(errorCode, "路径模板缺少专病包归属: " + template.templateCode());
+            throw new ApiException(errorCode, "路径模板缺少路径知识包归属: " + template.templateCode());
         }
         return packages.findByPackageIdAndTenantId(template.packageId(), sourceTenantId)
-            .map(SpecialtyPackage::packageVersion)
+            .map(KnowledgePackage::packageVersion)
             .filter(version -> !isBlank(version))
             .orElseThrow(() -> new ApiException(errorCode,
-                "路径模板所属专病包不存在或缺少包版本: " + template.packageId()));
+                "路径模板所属路径知识包不存在或缺少包版本: " + template.packageId()));
     }
 
     private void ensureRichNodeFeatureEnabledForTemplate(PathwayNode node) {
@@ -3181,7 +3100,7 @@ public class PathwayEngineService {
         return packages.findByPackageIdAndTenantId(template.packageId(), tenantId)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_002,
-                "路径模板所属专病包不存在: " + template.packageId()))
+                "路径模板所属路径知识包不存在: " + template.packageId()))
             .packageVersion();
     }
 
@@ -3439,18 +3358,6 @@ public class PathwayEngineService {
             edges = edges == null ? List.of() : List.copyOf(edges);
             metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
             outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
-        }
-    }
-
-    private record SpecialtyPackageAssetContent(
-        String packageCode,
-        String diseaseCode,
-        String name,
-        String description,
-        List<SpecialtyProfileRequest> profiles
-    ) {
-        private SpecialtyPackageAssetContent {
-            profiles = profiles == null ? List.of() : List.copyOf(profiles);
         }
     }
 

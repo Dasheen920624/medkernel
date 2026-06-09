@@ -475,7 +475,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuKey: "terminology-mapping",
     menuLabel: "字典映射",
     requiredPermissions: ["menu.terminology-mapping", "term.read", "term.write", "term.publish"],
-    requiredRoles: ["it-ops", "specialist", "medical-admin"],
+    requiredRoles: ["it-ops", "specialist", "medical-affairs"],
     experience: terminologyMappingExperience,
     pageType: "configuration",
     stateMachine: "config",

@@ -41,7 +41,7 @@ import {
   useDisablePlugin,
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
-  useBuildTerminologyPackage,
+  useBuildTerminologyKnowledgePackage,
   useActivateEvaluationIndicator,
   useAuthoringAssets,
   useAuthoringBatchJobs,
@@ -101,7 +101,7 @@ import {
   usePackageSyncLogs,
   usePathwayTemplates,
   usePilotPackageTemplates,
-  usePublishTerminologyPackage,
+  useReleasePackage,
   useObserveReleaseRollout,
   usePreviewOverrideBatch,
   usePublishEvaluationIndicator,
@@ -126,7 +126,7 @@ import {
   useCaptureRuleDriftSnapshot,
   useReviewRectification,
   useReviewKnowledgeCandidate,
-  useRollbackTerminologyPackage,
+  useRollbackPackage,
   useReleaseSimulation,
   useRevokeOverrideBatch,
   useRollbackRollout,
@@ -141,7 +141,6 @@ import {
   useStartReleaseRollout,
   useTerminologyCandidates,
   useTerminologyConflicts,
-  useTerminologyPackages,
   useTestWebhookSignature,
   useTraceDiagnosis,
   useWebhooks,
@@ -1206,7 +1205,7 @@ describe("package export api helpers", () => {
           packageId: "package-1",
           targetOrgUnitId: "hospital-1",
           strategy: "FULL" as const,
-          scopeType: "HOSPITAL" as const,
+          scopeType: "FACILITY" as const,
           scopeValue: "hospital-1",
           adapterIds: ["fhir"],
           reason: "批量分发",
@@ -2538,7 +2537,7 @@ describe("terminology mapping api helpers", () => {
     });
   });
 
-  it("loads candidates, conflicts and mapping packages from the API-04 roots", async () => {
+  it("loads candidates, conflicts and terminology knowledge packages from unified roots", async () => {
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
       .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
@@ -2551,7 +2550,7 @@ describe("terminology mapping api helpers", () => {
       useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" }),
     );
     const packages = renderApiHook(() =>
-      useTerminologyPackages({ page: 0, size: 10, status: "DRAFT" }),
+      usePackages({ page: 0, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" }),
     );
 
     await waitFor(() => expect(candidates.result.current.data?.items).toEqual([]));
@@ -2563,8 +2562,8 @@ describe("terminology mapping api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/mappings/conflicts", {
       params: { page: 0, size: 10, status: "OPEN" },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/terminology/mapping-packages", {
-      params: { page: 0, size: 10, status: "DRAFT" },
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/pkg/packages", {
+      params: { page: 0, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" },
     });
   });
 
@@ -2632,43 +2631,50 @@ describe("terminology mapping api helpers", () => {
     );
   });
 
-  it("builds, publishes and rolls back terminology mapping packages through API-04 roots", async () => {
+  it("builds, publishes and rolls back terminology through the unified package API", async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({ data: { data: { id: 30, status: "DRAFT" } } })
       .mockResolvedValueOnce({ data: { data: { id: 30, status: "GRAY" } } })
       .mockResolvedValueOnce({ data: { data: { id: 30, status: "ROLLED_BACK" } } });
 
-    const build = renderApiHook(() => useBuildTerminologyPackage());
-    const publish = renderApiHook(() => usePublishTerminologyPackage());
-    const rollback = renderApiHook(() => useRollbackTerminologyPackage());
+    const build = renderApiHook(() => useBuildTerminologyKnowledgePackage());
+    const publish = renderApiHook(() => useReleasePackage());
+    const rollback = renderApiHook(() => useRollbackPackage());
 
     await build.result.current.mutateAsync({
       packageCode: "TERM.LAB",
       packageVersion: "2026.06",
-      scopeLevel: "HOSPITAL",
+      scopeLevel: "FACILITY",
       scopeCode: "hospital-A",
-      displayName: "检验字典映射包",
+      name: "检验字典映射包",
     });
     await publish.result.current.mutateAsync({
-      packageId: 30,
+      packageId: "pkg-30",
       request: {
         packageVersion: "2026.06",
-        releaseMode: "GRAY",
+        strategy: "GRAYSCALE",
+        targetOrgUnitId: "hospital-A",
+        scopeType: "FACILITY",
+        scopeValue: "hospital-A",
+        adapterIds: ["adapter-1"],
         reason: "首发检验字典灰度验证",
       },
     });
     await rollback.result.current.mutateAsync({
-      packageId: 30,
+      packageId: "pkg-30",
       request: {
         packageVersion: "2026.06",
-        targetPackageId: 29,
+        targetPackageId: "pkg-29",
+        confirmedCurrentVersion: "2026.06",
+        confirmedTargetVersion: "2026.05",
         reason: "灰度验证失败",
+        confirmedHighRisk: true,
       },
     });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
-      "/engine/terminology/mapping-packages",
+      "/engine/pkg/packages/terminology",
       expect.objectContaining({
         packageCode: "TERM.LAB",
         packageVersion: "2026.06",
@@ -2677,17 +2683,19 @@ describe("terminology mapping api helpers", () => {
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/engine/terminology/mapping-packages/30/publish",
+      "/engine/pkg/packages/pkg-30/release",
       expect.objectContaining({
-        releaseMode: "GRAY",
+        strategy: "GRAYSCALE",
+        adapterIds: ["adapter-1"],
         reason: "首发检验字典灰度验证",
       }),
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       3,
-      "/engine/terminology/mapping-packages/30/rollback",
+      "/engine/pkg/packages/pkg-30/rollback",
       expect.objectContaining({
-        targetPackageId: 29,
+        targetPackageId: "pkg-29",
+        confirmedHighRisk: true,
         reason: "灰度验证失败",
       }),
     );

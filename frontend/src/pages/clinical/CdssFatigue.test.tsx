@@ -19,6 +19,8 @@ import {
 
 import CdssFatigue from "./CdssFatigue";
 
+const CDSS_INTERACTION_TIMEOUT_MS = 15_000;
+
 vi.mock("@/shared/api/hooks", () => ({
   useClinicalRecommendationCards: vi.fn(),
   useContextSnapshotDetail: vi.fn(),
@@ -274,28 +276,32 @@ describe("CdssFatigue", () => {
     expect(screen.getByText("66.7%")).toBeInTheDocument();
   });
 
-  it("evaluates recommendations from a selected ACTIVE snapshot without manual JSON", async () => {
-    const user = userEvent.setup();
-    renderCdssFatigue();
+  it(
+    "evaluates recommendations from a selected ACTIVE snapshot without manual JSON",
+    async () => {
+      const user = userEvent.setup();
+      renderCdssFatigue();
 
-    await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
-    expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-rec-1" }));
-    await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
+      await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
+      expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
+      await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+      await user.click(screen.getByRole("button", { name: "选择 snapshot-rec-1" }));
+      await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
 
-    await waitFor(() =>
-      expect(evaluateRecommendations).toHaveBeenCalledWith({
-        triggerCode: "CDSS-MANUAL-order-sign",
-        triggerType: "order-sign",
-        scenarioCode: "order-sign",
-        contextSnapshotId: "snapshot-rec-1",
-        patientId: "patient-real-1",
-        encounterId: "enc-real-1",
-        packageVersion: "pkg-rec-2026.1",
-      }),
-    );
-  });
+      await waitFor(() =>
+        expect(evaluateRecommendations).toHaveBeenCalledWith({
+          triggerCode: "CDSS-MANUAL-order-sign",
+          triggerType: "order-sign",
+          scenarioCode: "order-sign",
+          contextSnapshotId: "snapshot-rec-1",
+          patientId: "patient-real-1",
+          encounterId: "enc-real-1",
+          packageVersion: "pkg-rec-2026.1",
+        }),
+      );
+    },
+    CDSS_INTERACTION_TIMEOUT_MS,
+  );
 
   it("shows persisted physician feedback identity and never submits operatorId from the browser", async () => {
     const user = userEvent.setup();

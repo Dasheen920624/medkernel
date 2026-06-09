@@ -14,7 +14,7 @@ import {
   usePatientPathwayVariances,
   usePathwayTemplateDetail,
   usePathwayTemplates,
-  useSpecialtyPackages,
+  usePackages,
 } from "@/shared/api/hooks";
 
 import PatientPathways from "./PatientPathways";
@@ -30,7 +30,7 @@ vi.mock("@/shared/api/hooks", () => ({
   usePatientPathwayVariances: vi.fn(),
   usePathwayTemplateDetail: vi.fn(),
   usePathwayTemplates: vi.fn(),
-  useSpecialtyPackages: vi.fn(),
+  usePackages: vi.fn(),
 }));
 
 const mockUseAdvancePatientPathway = vi.mocked(useAdvancePatientPathway);
@@ -43,7 +43,7 @@ const mockUsePatientPathways = vi.mocked(usePatientPathways);
 const mockUsePatientPathwayVariances = vi.mocked(usePatientPathwayVariances);
 const mockUsePathwayTemplateDetail = vi.mocked(usePathwayTemplateDetail);
 const mockUsePathwayTemplates = vi.mocked(usePathwayTemplates);
-const mockUseSpecialtyPackages = vi.mocked(useSpecialtyPackages);
+const mockUsePackages = vi.mocked(usePackages);
 
 function renderPatientPathways() {
   return render(
@@ -86,23 +86,36 @@ describe("PatientPathways", () => {
         total: 1,
       },
     } as unknown as ReturnType<typeof usePathwayTemplates>);
-    mockUseSpecialtyPackages.mockReturnValue({
+    mockUsePackages.mockReturnValue({
       data: {
         items: [
           {
+            id: 1,
             packageId: "sp-1",
+            tenantId: "tenant-A",
             packageCode: "PKG.STROKE",
-            diseaseCode: "STROKE",
-            name: "卒中专病包",
+            name: "卒中路径知识包",
             packageVersion: "2026.06",
             status: "PUBLISHED",
+            description: "卒中路径知识包",
+            accessPolicy: "OPEN",
+            createdAt: "2026-06-01T00:00:00Z",
+            createdBy: "tester",
+            updatedAt: "2026-06-01T00:00:00Z",
+            updatedBy: "tester",
+            traceId: "trace-package",
+            assetTypes: ["PATHWAY"],
+            primaryAssetId: "PKG.STROKE",
+            primaryAssetVersion: "2026.06",
+            itemCount: 1,
+            organizationScope: "tenant:tenant-A",
+            applicableScope: "disease:STROKE",
             sourceRef: "卒中路径指南 2026",
-            description: "卒中专病包",
           },
         ],
         total: 1,
       },
-    } as unknown as ReturnType<typeof useSpecialtyPackages>);
+    } as unknown as ReturnType<typeof usePackages>);
     mockUseContextSnapshots.mockReturnValue({
       data: {
         items: [

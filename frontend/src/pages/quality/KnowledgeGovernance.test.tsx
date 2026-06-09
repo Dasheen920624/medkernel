@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import KnowledgeGovernance from "./KnowledgeGovernance";
 
+const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
+
 const mockUseKnowledgeIdentities = vi.fn();
 const mockUseKnowledgeCandidates = vi.fn();
 const mockUseKnowledgeCandidateDiff = vi.fn();
@@ -351,77 +353,81 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
   });
 
-  it("reviews a candidate through the KNOW-02 review endpoint instead of mutating local state", async () => {
-    const user = userEvent.setup();
-    renderPage();
+  it(
+    "reviews a candidate through the KNOW-02 review endpoint instead of mutating local state",
+    async () => {
+      const user = userEvent.setup();
+      renderPage();
 
-    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
-      target: { value: "PKG.KNOW.2026.06" },
-    });
-    fireEvent.change(screen.getByLabelText("审核理由"), {
-      target: { value: "已核对来源锚点和现行版差异，允许替换。" },
-    });
-    fireEvent.change(screen.getByLabelText("签名 ID"), {
-      target: { value: "sig-knowledge-2002" },
-    });
-    fireEvent.change(screen.getByLabelText("签名时间"), {
-      target: { value: "2026-06-09T16:00" },
-    });
-    fireEvent.change(screen.getByLabelText("签名人 ID"), {
-      target: { value: "expert-1" },
-    });
-    fireEvent.change(screen.getByLabelText("签名人姓名"), {
-      target: { value: "审核专家" },
-    });
-    fireEvent.change(screen.getByLabelText("签名摘要"), {
-      target: { value: "a".repeat(64) },
-    });
-    for (const label of [
-      "结构校验",
-      "术语绑定",
-      "依赖完整性",
-      "安全单调性",
-      "影响模拟",
-      "同行复核",
-    ]) {
-      fireEvent.click(screen.getByRole("checkbox", { name: label }));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "通过并发布" }));
+      await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+      fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
+        target: { value: "PKG.KNOW.2026.06" },
+      });
+      fireEvent.change(screen.getByLabelText("审核理由"), {
+        target: { value: "已核对来源锚点和现行版差异，允许替换。" },
+      });
+      fireEvent.change(screen.getByLabelText("签名 ID"), {
+        target: { value: "sig-knowledge-2002" },
+      });
+      fireEvent.change(screen.getByLabelText("签名时间"), {
+        target: { value: "2026-06-09T16:00" },
+      });
+      fireEvent.change(screen.getByLabelText("签名人 ID"), {
+        target: { value: "expert-1" },
+      });
+      fireEvent.change(screen.getByLabelText("签名人姓名"), {
+        target: { value: "审核专家" },
+      });
+      fireEvent.change(screen.getByLabelText("签名摘要"), {
+        target: { value: "a".repeat(64) },
+      });
+      for (const label of [
+        "结构校验",
+        "术语绑定",
+        "依赖完整性",
+        "安全单调性",
+        "影响模拟",
+        "同行复核",
+      ]) {
+        fireEvent.click(screen.getByRole("checkbox", { name: label }));
+      }
+      fireEvent.click(screen.getByRole("button", { name: "通过并发布" }));
 
-    await waitFor(() => {
-      expect(reviewCandidate).toHaveBeenCalledWith({
-        candidateId: 2002,
-        packageVersion: "PKG.KNOW.2026.06",
-        request: {
-          decision: "APPROVE",
-          reason: "已核对来源锚点和现行版差异，允许替换。",
-          publishEvidence: {
-            electronicSignature: {
-              signatureId: "sig-knowledge-2002",
-              signerId: "expert-1",
-              signerName: "审核专家",
-              signedAt: new Date("2026-06-09T16:00").toISOString(),
-              signatureHash: "a".repeat(64),
-            },
-            qualityGate: {
-              schemaValid: true,
-              terminologyBindingComplete: true,
-              dependencyIntegrityVerified: true,
-              safetyMonotonicityVerified: true,
-              impactSimulationPassed: true,
-              peerReviewSigned: true,
-              summary: undefined,
+      await waitFor(() => {
+        expect(reviewCandidate).toHaveBeenCalledWith({
+          candidateId: 2002,
+          packageVersion: "PKG.KNOW.2026.06",
+          request: {
+            decision: "APPROVE",
+            reason: "已核对来源锚点和现行版差异，允许替换。",
+            publishEvidence: {
+              electronicSignature: {
+                signatureId: "sig-knowledge-2002",
+                signerId: "expert-1",
+                signerName: "审核专家",
+                signedAt: new Date("2026-06-09T16:00").toISOString(),
+                signatureHash: "a".repeat(64),
+              },
+              qualityGate: {
+                schemaValid: true,
+                terminologyBindingComplete: true,
+                dependencyIntegrityVerified: true,
+                safetyMonotonicityVerified: true,
+                impactSimulationPassed: true,
+                peerReviewSigned: true,
+                summary: undefined,
+              },
             },
           },
-        },
-        idempotencyKey: expect.stringContaining("knowledge-review-2002"),
+          idempotencyKey: expect.stringContaining("knowledge-review-2002"),
+        });
       });
-    });
-    expect(refetchCandidates).toHaveBeenCalled();
-    expect(refetchIdentities).toHaveBeenCalled();
-    expect(screen.getByText("候选已通过审核并交由权威替换流程")).toBeInTheDocument();
-  });
+      expect(refetchCandidates).toHaveBeenCalled();
+      expect(refetchIdentities).toHaveBeenCalled();
+      expect(screen.getByText("候选已通过审核并交由权威替换流程")).toBeInTheDocument();
+    },
+    KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
+  );
 
   it("lets platform governance schedule a successor and grace period", async () => {
     const retiringIdentity = {

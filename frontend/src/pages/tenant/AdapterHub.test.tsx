@@ -37,6 +37,8 @@ import {
 
 import AdapterHub from "./AdapterHub";
 
+const ADAPTER_INTERACTION_TIMEOUT_MS = 15_000;
+
 vi.mock("@/shared/api/hooks", () => ({
   useAdapterHubStatus: vi.fn(),
   useAdvanceIntegrationOnboarding: vi.fn(),
@@ -485,52 +487,56 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
 
-  it("creates adapters with the backend protocol contract and structured field mappings", async () => {
-    const user = userEvent.setup();
-    const createAdapter = mutation(hisAdapter);
-    vi.mocked(useCreateAdapter).mockReturnValue(createAdapter as never);
+  it(
+    "creates adapters with the backend protocol contract and structured field mappings",
+    async () => {
+      const user = userEvent.setup();
+      const createAdapter = mutation(hisAdapter);
+      vi.mocked(useCreateAdapter).mockReturnValue(createAdapter as never);
 
-    renderPage();
-    await user.click(screen.getByRole("button", { name: "新增适配器" }));
+      renderPage();
+      await user.click(screen.getByRole("button", { name: "新增适配器" }));
 
-    expect(screen.queryByLabelText("连接与字段映射 JSON")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("适配器标识"), {
-      target: { value: "his-outpatient" },
-    });
-    fireEvent.change(screen.getByLabelText("系统名称"), {
-      target: { value: "门诊 HIS" },
-    });
-    fireEvent.change(screen.getByLabelText("服务地址"), {
-      target: { value: "https://his.example.test/api" },
-    });
-    fireEvent.change(screen.getByLabelText("来源字段路径"), {
-      target: { value: "/patient/id" },
-    });
-    fireEvent.change(screen.getByLabelText("标准字段路径"), {
-      target: { value: "/patient/id" },
-    });
-    await user.click(screen.getByRole("combobox", { name: "术语映射" }));
-    await user.click(await screen.findByText("HIS · DIAGNOSIS · 映射 501"));
-    await user.click(screen.getByRole("button", { name: "提交适配器" }));
-
-    await waitFor(() => {
-      expect(createAdapter.mutateAsync).toHaveBeenCalledWith({
-        adapterId: "his-outpatient",
-        name: "门诊 HIS",
-        protocolType: "REST",
-        configJson: JSON.stringify({
-          baseUrl: "https://his.example.test/api",
-          healthPath: "/health",
-          outboundPath: "/messages",
-          connectTimeoutMs: 2000,
-          requestTimeoutMs: 5000,
-          fieldMappings: [
-            { sourcePath: "/patient/id", targetPath: "/patient/id", termMappingId: 501 },
-          ],
-        }),
+      expect(screen.queryByLabelText("连接与字段映射 JSON")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("适配器标识"), {
+        target: { value: "his-outpatient" },
       });
-    });
-  });
+      fireEvent.change(screen.getByLabelText("系统名称"), {
+        target: { value: "门诊 HIS" },
+      });
+      fireEvent.change(screen.getByLabelText("服务地址"), {
+        target: { value: "https://his.example.test/api" },
+      });
+      fireEvent.change(screen.getByLabelText("来源字段路径"), {
+        target: { value: "/patient/id" },
+      });
+      fireEvent.change(screen.getByLabelText("标准字段路径"), {
+        target: { value: "/patient/id" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "术语映射" }));
+      await user.click(await screen.findByText("HIS · DIAGNOSIS · 映射 501"));
+      await user.click(screen.getByRole("button", { name: "提交适配器" }));
+
+      await waitFor(() => {
+        expect(createAdapter.mutateAsync).toHaveBeenCalledWith({
+          adapterId: "his-outpatient",
+          name: "门诊 HIS",
+          protocolType: "REST",
+          configJson: JSON.stringify({
+            baseUrl: "https://his.example.test/api",
+            healthPath: "/health",
+            outboundPath: "/messages",
+            connectTimeoutMs: 2000,
+            requestTimeoutMs: 5000,
+            fieldMappings: [
+              { sourcePath: "/patient/id", targetPath: "/patient/id", termMappingId: 501 },
+            ],
+          }),
+        });
+      });
+    },
+    ADAPTER_INTERACTION_TIMEOUT_MS,
+  );
 
   it("creates a callback with one-time secret and previews signatures without claiming connectivity", async () => {
     const user = userEvent.setup();

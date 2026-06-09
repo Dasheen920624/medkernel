@@ -189,64 +189,6 @@ public class TerminologyController {
         return ApiResult.ok(service.resolveConflict(id, request));
     }
 
-    /**
-     * 分页查询当前租户的映射包，支持按 packageCode / status / scopeLevel / scopeCode 过滤。
-     */
-    @GetMapping("/mapping-packages")
-    @PreAuthorize("@perm.has('term.read')")
-    public ApiResult<PageResponse<TermMappingPackage>> packages(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String packageCode,
-            @RequestParam(required = false) TermMappingPackageStatus status,
-            @RequestParam(required = false) String scopeLevel,
-            @RequestParam(required = false) String scopeCode) {
-        return ApiResult.ok(service.pagePackages(
-            new PageRequest(page, size, sort),
-            new PackageFilter(packageCode, status, scopeLevel, scopeCode)
-        ));
-    }
-
-    /**
-     * 基于给定范围内的全部 CONFIRMED 映射构建一个新的 DRAFT 状态映射包。
-     *
-     * <p>范围内若无任何已确认映射则拒绝构包。
-     */
-    @PostMapping("/mapping-packages")
-    @PreAuthorize("@perm.has('term.write')")
-    public ApiResult<TermMappingPackage> buildPackage(@Valid @RequestBody BuildTerminologyPackageRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.buildPackage(request));
-    }
-
-    /**
-     * 把指定 DRAFT/GRAY 映射包升级为 GRAY 或 PUBLISHED。
-     *
-     * <p>FULL 模式发布时，会把同 (packageCode + scope) 下旧 PUBLISHED 包置为 SUPERSEDED；
-     * 同步写入一条 PUBLISH 发布事件流水。
-     */
-    @PostMapping("/mapping-packages/{id}/publish")
-    @PreAuthorize("@perm.has('term.publish')")
-    public ApiResult<TermMappingPackage> publishPackage(@PathVariable Long id,
-                                                        @Valid @RequestBody PublishTerminologyPackageRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.publishPackage(id, request));
-    }
-
-    /**
-     * 把当前 PUBLISHED/GRAY 的映射包回滚到指定历史版本，同时写一条 ROLLBACK 事件流水。
-     *
-     * <p>目标包必须与当前包同 (packageCode + scope)，且处于 PUBLISHED 或 SUPERSEDED 状态。
-     */
-    @PostMapping("/mapping-packages/{id}/rollback")
-    @PreAuthorize("@perm.has('package.rollback')")
-    public ApiResult<TermMappingPackage> rollbackPackage(@PathVariable Long id,
-                                                         @Valid @RequestBody RollbackTerminologyPackageRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.rollbackPackage(id, request));
-    }
-
     private void validateContext(TerminologyContextRequest request) {
         request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
     }

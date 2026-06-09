@@ -198,7 +198,7 @@ describe("AuthoringBatchDrawer", () => {
             packageId: "package-1",
             targetOrgUnitId: "hospital-1",
             strategy: "GRAYSCALE",
-            scopeType: "HOSPITAL",
+            scopeType: "FACILITY",
             scopeValue: "hospital-1",
             adapterIds: ["fhir", "webhook"],
             reason: "区域批量分发",

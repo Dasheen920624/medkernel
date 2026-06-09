@@ -42,6 +42,12 @@ public interface AssetVersionRepository extends ListCrudRepository<AssetVersion,
         String assetIdentity
     );
 
+    List<AssetVersion> findByTenantIdAndAssetTypeAndAssetIdentityIn(
+        String tenantId,
+        VersionedAssetType assetType,
+        Collection<String> assetIdentities
+    );
+
     List<AssetVersion> findByTenantIdAndAssetIdentityInAndStatusIn(
         String tenantId,
         Collection<String> assetIdentities,

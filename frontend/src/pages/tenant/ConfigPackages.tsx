@@ -66,7 +66,6 @@ import {
   useSecurityProfile,
   usePackageReleaseAdapters,
   useTenants,
-  useTerminologyPackages,
 } from "@/shared/api/hooks";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
 import type {
@@ -80,7 +79,6 @@ import type {
   PackageInheritanceImpactTarget,
   PilotPackageInitialOverrideRequest,
   SyncLogResponse,
-  TermMappingPackage,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
@@ -479,7 +477,10 @@ export default function ConfigPackages() {
     { size: 100 },
     { enabled: canReadEvaluations },
   );
-  const { data: activeTerminologyPackages } = useTerminologyPackages({ size: 100 });
+  const { data: terminologyPackagesData } = usePackages({
+    size: 100,
+    assetType: "TERMINOLOGY",
+  });
   const { data: orgUnitsData, isLoading: orgUnitsLoading } = useOrgUnits({
     page: 1,
     size: 100,
@@ -528,11 +529,11 @@ export default function ConfigPackages() {
     assetVersionPlaceholder = "选择资产后自动带出版本";
   }
 
-  const terminologyPackageOptions = (activeTerminologyPackages?.items ?? []).filter(
-    (item) => item.status === "PUBLISHED" || item.status === "GRAY",
+  const terminologyPackageOptions = (terminologyPackagesData?.items ?? []).filter(
+    (item) =>
+      Boolean(item.primaryAssetId) && (item.status === "PUBLISHED" || item.status === "ACTIVE"),
   );
-  const terminologyAssetId = (item: TermMappingPackage) =>
-    `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
+  const terminologyAssetId = (item: KnowledgePackage) => item.primaryAssetId ?? "";
   const authoringAssetOptions = (authoringAssets?.items ?? []).filter(
     (item) => item.status === "PUBLISHED" || item.status === "ACTIVE",
   );
@@ -2410,14 +2411,14 @@ export default function ConfigPackages() {
                           </Option>
                         ))}
                       {selectedAssetType === "TERMINOLOGY" &&
-                        terminologyPackageOptions.map((termPackage: TermMappingPackage) => (
+                        terminologyPackageOptions.map((termPackage: KnowledgePackage) => (
                           <Option
-                            key={`${termPackage.packageCode}-${termPackage.packageVersion}-${termPackage.scopeLevel}-${termPackage.scopeCode}`}
+                            key={termPackage.packageId}
                             value={terminologyAssetId(termPackage)}
-                            label={`${termPackage.displayName} ${termPackage.packageCode} ${termPackage.scopeLevel} ${termPackage.scopeCode}`}
+                            label={`${termPackage.name} ${termPackage.packageCode} ${termPackage.primaryAssetId ?? ""}`}
                           >
-                            {termPackage.displayName} ({termPackage.packageCode} /{" "}
-                            {termPackage.scopeLevel}:{termPackage.scopeCode})
+                            {termPackage.name} ({termPackage.packageCode} /{" "}
+                            {termPackage.primaryAssetId?.split("|").slice(1).join(":")})
                           </Option>
                         ))}
                     </Select>

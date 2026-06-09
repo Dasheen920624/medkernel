@@ -10,24 +10,25 @@ import {
   useSecurityProfile,
   useSubmitLargeListExport,
   useBatchConfirmTerminologyCandidates,
-  useBuildTerminologyPackage,
+  useBuildTerminologyKnowledgePackage,
   useConfirmTerminologyCandidate,
   useGenerateTerminologyCandidates,
   useLocalTerms,
-  usePublishTerminologyPackage,
-  useRollbackTerminologyPackage,
+  usePackages,
+  usePackageReleaseAdapters,
+  useReleasePackage,
+  useRollbackPackage,
   useStandardTerms,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyMappings,
-  useTerminologyPackages,
+  type KnowledgePackage,
   type LocalTerm,
   type MappingConflict,
   type StandardTerm,
   type SecurityProfile,
   type TermMapping,
   type TermMappingCandidate,
-  type TermMappingPackage,
 } from "@/shared/api/hooks";
 
 import TerminologyMapping from "./TerminologyMapping";
@@ -40,12 +41,14 @@ vi.mock("@/shared/api/hooks", () => ({
   ),
   useLargeListExportJob: vi.fn(),
   useBatchConfirmTerminologyCandidates: vi.fn(),
-  useBuildTerminologyPackage: vi.fn(),
+  useBuildTerminologyKnowledgePackage: vi.fn(),
   useConfirmTerminologyCandidate: vi.fn(),
   useGenerateTerminologyCandidates: vi.fn(),
   useLocalTerms: vi.fn(),
-  usePublishTerminologyPackage: vi.fn(),
-  useRollbackTerminologyPackage: vi.fn(),
+  usePackages: vi.fn(),
+  usePackageReleaseAdapters: vi.fn(),
+  useReleasePackage: vi.fn(),
+  useRollbackPackage: vi.fn(),
   useSaveView: vi.fn(),
   useSavedViews: vi.fn(),
   useSecurityProfile: vi.fn(),
@@ -54,7 +57,6 @@ vi.mock("@/shared/api/hooks", () => ({
   useTerminologyCandidates: vi.fn(),
   useTerminologyConflicts: vi.fn(),
   useTerminologyMappings: vi.fn(),
-  useTerminologyPackages: vi.fn(),
 }));
 
 const mapping: TermMapping = {
@@ -210,24 +212,25 @@ const openConflict: MappingConflict = {
   createdAt: "2026-06-01T00:00:00.000Z",
 };
 
-const mappingPackage: TermMappingPackage = {
+const mappingPackage: KnowledgePackage = {
   id: 30,
+  packageId: "term-pkg-30",
   tenantId: "tenant-1",
   packageCode: "TERM.LAB",
   packageVersion: "2026.06",
-  displayName: "检验字典映射包",
-  scopeLevel: "HOSPITAL",
-  scopeCode: "hospital-A",
+  name: "检验字典映射包",
+  description: "术语映射快照",
+  accessPolicy: "OPEN",
   status: "DRAFT",
-  mappingCount: 12,
-  contentHash: "a".repeat(64),
-  publishedBy: null,
-  publishedAt: null,
-  rollbackFromPackageId: null,
   createdAt: "2026-06-01T00:00:00.000Z",
   createdBy: "it.owner",
   updatedAt: "2026-06-01T00:00:00.000Z",
   updatedBy: "it.owner",
+  traceId: "trace-package",
+  assetTypes: ["TERMINOLOGY"],
+  primaryAssetId: "TERM.LAB|FACILITY|hospital-A",
+  primaryAssetVersion: "2026.06",
+  itemCount: 1,
 };
 
 const defaultData = {
@@ -290,9 +293,25 @@ function configureQuery(
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
   } as never);
-  vi.mocked(useBuildTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
-  vi.mocked(usePublishTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
-  vi.mocked(useRollbackTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
+    mutateAsync: vi.fn(),
+  } as never);
+  vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useRollbackPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(usePackageReleaseAdapters).mockReturnValue({
+    data: [
+      {
+        adapterId: "adapter-1",
+        adapterName: "院内配置同步",
+        protocolType: "REST",
+        status: "ACTIVE",
+        healthStatus: "HEALTHY",
+        rttMs: 12,
+        lastHeartbeatAt: "2026-06-01T00:00:00.000Z",
+        connectorAvailable: true,
+      },
+    ],
+  } as never);
   vi.mocked(useStandardTerms).mockReturnValue({
     data: pageData([standardTerm]),
     isLoading: false,
@@ -317,7 +336,7 @@ function configureQuery(
     isError: false,
     refetch: vi.fn(),
   } as never);
-  vi.mocked(useTerminologyPackages).mockReturnValue({
+  vi.mocked(usePackages).mockReturnValue({
     data: pageData([mappingPackage]),
     isLoading: false,
     isError: false,
@@ -380,7 +399,9 @@ describe("TerminologyMapping experience sample", () => {
     expect(useTerminologyConflicts).toHaveBeenCalledWith(
       expect.objectContaining({ status: "OPEN" }),
     );
-    expect(useTerminologyPackages).toHaveBeenCalledWith(expect.objectContaining({ size: 10 }));
+    expect(usePackages).toHaveBeenCalledWith(
+      expect.objectContaining({ size: 10, assetType: "TERMINOLOGY" }),
+    );
 
     expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
 
@@ -456,7 +477,7 @@ describe("TerminologyMapping experience sample", () => {
 
   it("builds a new terminology package with an explicit version and current scope", async () => {
     const buildPackage = vi.fn().mockResolvedValue(mappingPackage);
-    vi.mocked(useBuildTerminologyPackage).mockReturnValue({
+    vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
       mutateAsync: buildPackage,
     } as never);
 
@@ -471,7 +492,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(buildPackage).toHaveBeenCalledWith({
       packageCode: "TERM.LAB",
       packageVersion: "2026.06.1",
-      displayName: "检验字典映射包",
+      name: "检验字典映射包",
       scopeLevel: "TENANT",
       scopeCode: "tenant-1",
     });
@@ -480,8 +501,8 @@ describe("TerminologyMapping experience sample", () => {
   it(
     "publishes terminology packages through the governed release flow",
     async () => {
-      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "GRAY" });
-      vi.mocked(usePublishTerminologyPackage).mockReturnValue({
+      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "PUBLISHED" });
+      vi.mocked(useReleasePackage).mockReturnValue({
         mutateAsync: publishPackage,
       } as never);
 
@@ -494,13 +515,46 @@ describe("TerminologyMapping experience sample", () => {
       await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
 
       expect(publishPackage).toHaveBeenCalledWith({
-        packageId: 30,
+        packageId: "term-pkg-30",
         request: expect.objectContaining({
           packageVersion: "2026.06",
-          releaseMode: "GRAY",
+          strategy: "GRAYSCALE",
+          targetOrgUnitId: "hospital-A",
+          adapterIds: ["adapter-1"],
           reason: "首发检验字典灰度验证",
         }),
       });
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "blocks grayscale release when the package carries a legacy organization scope",
+    async () => {
+      const publishPackage = vi.fn();
+      vi.mocked(useReleasePackage).mockReturnValue({
+        mutateAsync: publishPackage,
+      } as never);
+      vi.mocked(usePackages).mockReturnValue({
+        data: pageData([
+          {
+            ...mappingPackage,
+            primaryAssetId: "TERM.LAB|HOSPITAL|hospital-A",
+          },
+        ]),
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as never);
+
+      renderPage();
+
+      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
+      await userEvent.type(screen.getByLabelText("发布原因"), "验证非法组织范围必须被阻断");
+      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
+
+      expect(await screen.findByText("知识包缺少有效组织作用域，无法灰度发布")).toBeInTheDocument();
+      expect(publishPackage).not.toHaveBeenCalled();
     },
     TERMINOLOGY_INTERACTION_TIMEOUT_MS,
   );
@@ -511,20 +565,21 @@ describe("TerminologyMapping experience sample", () => {
       const rollbackPackage = vi
         .fn()
         .mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
-      const current = { ...mappingPackage, status: "PUBLISHED" as const };
+      const current = { ...mappingPackage, status: "ACTIVE" as const };
       const target = {
         ...mappingPackage,
         id: 29,
+        packageId: "term-pkg-29",
         packageVersion: "2026.05",
-        status: "SUPERSEDED" as const,
+        status: "OFFLINE" as const,
       };
-      vi.mocked(useTerminologyPackages).mockReturnValue({
+      vi.mocked(usePackages).mockReturnValue({
         data: pageData([current, target]),
         isLoading: false,
         isError: false,
         refetch: vi.fn(),
       } as never);
-      vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
+      vi.mocked(useRollbackPackage).mockReturnValue({
         mutateAsync: rollbackPackage,
       } as never);
 
@@ -533,13 +588,16 @@ describe("TerminologyMapping experience sample", () => {
       await userEvent.click(screen.getByLabelText("回滚目标"));
       await userEvent.click(screen.getByText("2026.05 · 检验字典映射包"));
       await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
+      await userEvent.click(screen.getByLabelText("已确认回滚会切换当前生效术语版本"));
       await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
 
       expect(rollbackPackage).toHaveBeenCalledWith({
-        packageId: 30,
+        packageId: "term-pkg-30",
         request: expect.objectContaining({
           packageVersion: "2026.06",
-          targetPackageId: 29,
+          targetPackageId: "term-pkg-29",
+          confirmedTargetVersion: "2026.05",
+          confirmedHighRisk: true,
           reason: "灰度验证发现院内码需重裁",
         }),
       });

@@ -22,23 +22,6 @@ import com.medkernel.shared.context.RequestContext;
 @ActiveProfiles("dev")
 class PathwayEngineControllerSecurityTest {
 
-    private static final String PACKAGE_BODY = """
-        {
-          "packageCode": "PKG.COPD",
-          "diseaseCode": "COPD",
-          "name": "慢阻肺专病包",
-          "packageVersion": "1.0.0",
-          "sourceRef": "专病路径专家共识 2026",
-          "profiles": [
-            {
-              "profileCode": "DEFAULT",
-              "name": "默认画像",
-              "stratification": {"risk": "medium"}
-            }
-          ]
-        }
-        """;
-
     private static final String TEMPLATE_BODY = """
         {
           "packageId": "sp-1",
@@ -109,12 +92,6 @@ class PathwayEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanWritePathwayButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/pathway/specialty-packages")
-                .contentType("application/json")
-                .content(PACKAGE_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
-
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates")
                 .contentType("application/json")
                 .content(TEMPLATE_BODY))

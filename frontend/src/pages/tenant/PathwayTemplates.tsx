@@ -61,7 +61,7 @@ import {
   useContextSnapshotDetail,
   useContextSnapshots,
   useCreatePathwayTemplate,
-  useCreateSpecialtyPackage,
+  useBuildPathwayKnowledgePackage,
   useConditionFragments,
   useAuthoringPreviewRun,
   useEvaluationIndicators,
@@ -73,7 +73,7 @@ import {
   usePublishPathwayTemplate,
   useRollbackPathwayTemplate,
   useSimulatePathway,
-  useSpecialtyPackages,
+  usePackages,
 } from "@/shared/api/hooks";
 import type {
   ContextSnapshotSummary,
@@ -99,8 +99,8 @@ import type {
   PathwayTemplateInheritanceDiffItem,
   PathwayTemplateLevel,
   PathwayTemplateStatus,
+  KnowledgePackage,
   SpecialtyMetricBinding,
-  SpecialtyPackage,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import PathwayGraphEditor from "./PathwayGraphEditor";
@@ -423,6 +423,11 @@ const pathwayConditionValueKindOptions = [
 function cleanText(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function pathwayPackageDiseaseCode(pack: KnowledgePackage) {
+  const scope = pack.applicableScope?.trim();
+  return scope?.startsWith("disease:") ? scope.slice("disease:".length) : "全部病种";
 }
 
 function parseConditionJson(value?: string) {
@@ -1248,9 +1253,10 @@ export default function PathwayTemplates() {
     },
   );
 
-  const { data: packagesData, refetch: refetchPackages } = useSpecialtyPackages({
+  const { data: packagesData, refetch: refetchPackages } = usePackages({
     page: 1,
     size: 100,
+    assetType: "PATHWAY",
   });
   const { data: evaluationIndicatorsData } = useEvaluationIndicators(
     {
@@ -1290,7 +1296,7 @@ export default function PathwayTemplates() {
     useContextSnapshotDetail(selectedSnapshotId || "", { enabled: !!selectedSnapshotId });
   const snapshotList = snapshotsData?.items ?? [];
 
-  const createPackageMutation = useCreateSpecialtyPackage();
+  const createPackageMutation = useBuildPathwayKnowledgePackage();
   const createTemplateMutation = useCreatePathwayTemplate();
   const publishTemplateMutation = usePublishPathwayTemplate();
   const fullRolloutMutation = useFullRolloutPathwayTemplate();
@@ -1666,12 +1672,12 @@ export default function PathwayTemplates() {
     try {
       const values = await packageForm.validateFields();
       await createPackageMutation.mutateAsync(values);
-      messageApi.success("专病包资产草稿创建成功");
+      messageApi.success("路径知识包草稿创建成功");
       packageForm.resetFields();
       refetchPackages();
     } catch (error: unknown) {
       if (applyApiFieldErrors(packageForm, error)) return;
-      messageApi.error(getApiErrorMessage(error, "创建专病包失败，请检查参数"));
+      messageApi.error(getApiErrorMessage(error, "创建路径知识包失败，请检查参数"));
     }
   };
 
@@ -1964,7 +1970,7 @@ export default function PathwayTemplates() {
   const handleRunCreatePreview = async () => {
     const packageVersion = cleanText(createTemplatePackageVersion);
     if (!packageVersion) {
-      messageApi.error("请先选择专病包或填写模板版本。");
+      messageApi.error("请先选择路径知识包或填写模板版本。");
       return;
     }
     if (!selectedSnapshotId) {
@@ -2407,9 +2413,9 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item name="packageId" label="归属专病包" rules={[{ required: true }]}>
-                <Select placeholder="选择专病包">
-                  {packagesData?.items?.map((pkg: SpecialtyPackage) => (
+              <Form.Item name="packageId" label="归属路径知识包" rules={[{ required: true }]}>
+                <Select placeholder="选择路径知识包">
+                  {packagesData?.items?.map((pkg: KnowledgePackage) => (
                     <Option key={pkg.packageId} value={pkg.packageId}>
                       {pkg.name} (v{pkg.packageVersion})
                     </Option>
@@ -2770,7 +2776,7 @@ export default function PathwayTemplates() {
                             name={[field.name, "packageVersion"]}
                             label="指标包版本"
                           >
-                            <Input placeholder="默认使用专病包版本" />
+                            <Input placeholder="默认使用路径知识包版本" />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -3302,7 +3308,7 @@ export default function PathwayTemplates() {
                             </Text>
                           </Space>
                           <Tag color={conditionFragmentPackageVersion ? "green" : "default"}>
-                            {conditionFragmentPackageVersion || "待选择专病包"}
+                            {conditionFragmentPackageVersion || "待选择路径知识包"}
                           </Tag>
                         </div>
                         <Space wrap className="mk-full-width">
@@ -3325,7 +3331,7 @@ export default function PathwayTemplates() {
                               placeholder={
                                 conditionFragmentPackageVersion
                                   ? "选择可复用条件片段"
-                                  : "先选择专病包"
+                                  : "先选择路径知识包"
                               }
                               className={styles.fragmentSelect}
                             />
@@ -4248,15 +4254,15 @@ export default function PathwayTemplates() {
               className={styles.controlSm}
             />
           </Form.Item>
-          <Form.Item label="归属专病包">
+          <Form.Item label="归属路径知识包">
             <Select
-              placeholder="全部专病包"
+              placeholder="全部路径知识包"
               allowClear
               value={packageFilter}
               onChange={setPackageFilter}
               className={styles.controlLg}
             >
-              {packagesData?.items?.map((pkg: SpecialtyPackage) => (
+              {packagesData?.items?.map((pkg: KnowledgePackage) => (
                 <Option key={pkg.packageId} value={pkg.packageId}>
                   {pkg.name} ({pkg.packageVersion})
                 </Option>
@@ -4265,7 +4271,7 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Form.Item className={styles.toolbarActions}>
             <Button icon={<FolderOpenOutlined />} onClick={() => setPackageDrawerVisible(true)}>
-              管理专病包
+              管理路径知识包
             </Button>
             <Button
               type="primary"
@@ -4302,25 +4308,18 @@ export default function PathwayTemplates() {
       </div>
 
       <Drawer
-        title="租户专病包资产管理"
+        title="路径知识包"
         width={560}
         onClose={() => setPackageDrawerVisible(false)}
         open={packageDrawerVisible}
         destroyOnClose
       >
-        <Alert
-          message="专病包是临床路径和质控资产的容器实体，受租户级别数据隔离、版本升级和灰度发布控制。"
-          type="info"
-          showIcon
-          className={styles.marginBottomLg}
-        />
-
-        <Card title="新建专病包草稿" className={styles.marginBottomLg}>
+        <Card title="新建路径知识包" className={styles.marginBottomLg}>
           <Form form={packageForm} layout="vertical" onFinish={handleCreatePackage}>
             <Row gutter={12}>
               <Col xs={24} md={12}>
-                <Form.Item name="packageCode" label="专病包编码" rules={[{ required: true }]}>
-                  <Input placeholder="输入专病包编码" />
+                <Form.Item name="packageCode" label="包编码" rules={[{ required: true }]}>
+                  <Input placeholder="输入包编码" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
@@ -4329,8 +4328,8 @@ export default function PathwayTemplates() {
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="name" label="专病包名称" rules={[{ required: true }]}>
-              <Input placeholder="输入专病包名称" />
+            <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+              <Input placeholder="输入路径知识包名称" />
             </Form.Item>
             <Row gutter={12}>
               <Col xs={24} md={12}>
@@ -4345,7 +4344,7 @@ export default function PathwayTemplates() {
               </Col>
             </Row>
             <Form.Item name="description" label="功能说明与收治摘要">
-              <TextArea rows={2} placeholder="输入专病画像说明" />
+              <TextArea rows={2} placeholder="输入路径知识包功能说明与收治摘要" />
             </Form.Item>
             <Button
               type="primary"
@@ -4354,14 +4353,14 @@ export default function PathwayTemplates() {
               loading={createPackageMutation.isPending}
               className={`${styles.fullWidth} ${styles.marginTopSm}`}
             >
-              提交创建并留痕审计
+              创建草稿
             </Button>
           </Form>
         </Card>
 
-        <div className={`${styles.textStrong} ${styles.marginBottomMd}`}>已有专病包列表</div>
+        <div className={`${styles.textStrong} ${styles.marginBottomMd}`}>已有路径知识包</div>
         <Space direction="vertical" className={`mk-full-width ${styles.packageList}`}>
-          {packagesData?.items?.map((pkg: SpecialtyPackage) => (
+          {packagesData?.items?.map((pkg: KnowledgePackage) => (
             <Card key={pkg.packageId} size="small" className={styles.packageCard}>
               <Descriptions size="small" column={1} bordered={false}>
                 <Descriptions.Item label="名称">
@@ -4371,7 +4370,7 @@ export default function PathwayTemplates() {
                   <span className={styles.codeText}>{pkg.packageCode}</span>
                 </Descriptions.Item>
                 <Descriptions.Item label="病种/版本">
-                  <Tag color="cyan">{pkg.diseaseCode}</Tag>
+                  <Tag color="cyan">{pathwayPackageDiseaseCode(pkg)}</Tag>
                   <Tag color="purple">{pkg.packageVersion}</Tag>
                 </Descriptions.Item>
               </Descriptions>

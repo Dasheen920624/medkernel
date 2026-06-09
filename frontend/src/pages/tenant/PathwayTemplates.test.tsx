@@ -6,9 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import PathwayTemplates from "./PathwayTemplates";
 import type {
   EvaluationIndicator,
+  KnowledgePackage,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
-  SpecialtyPackage,
 } from "@/shared/api/hooks";
 
 const apiMocks = vi.hoisted(() => ({
@@ -84,7 +84,7 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: false,
     isError: false,
   }),
-  useSpecialtyPackages: () => ({
+  usePackages: () => ({
     data: apiMocks.packagesData,
     refetch: apiMocks.refetchPackages,
   }),
@@ -94,7 +94,7 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
     error: null,
   }),
-  useCreateSpecialtyPackage: () => ({
+  useBuildPathwayKnowledgePackage: () => ({
     mutateAsync: apiMocks.createPackage,
     isPending: false,
   }),
@@ -146,16 +146,28 @@ function renderPathwayTemplates() {
   );
 }
 
-const specialtyPackage: SpecialtyPackage = {
+const pathwayPackage: KnowledgePackage = {
   id: 1,
   packageId: "sp-path-1",
+  tenantId: "tenant-hospital",
   packageCode: "PKG.PATH.CARDIO",
-  diseaseCode: "CARDIO",
-  name: "心血管专病包",
+  name: "心血管路径知识包",
   packageVersion: "pkg-2026.06",
   status: "DRAFT",
-  sourceRef: "院内已审核路径制度",
   description: "院内路径配置包",
+  accessPolicy: "OPEN",
+  createdAt: "2026-06-01T00:00:00Z",
+  createdBy: "tester",
+  updatedAt: "2026-06-01T00:00:00Z",
+  updatedBy: "tester",
+  traceId: "trace-package",
+  assetTypes: ["PATHWAY"],
+  primaryAssetId: "PKG.PATH.CARDIO",
+  primaryAssetVersion: "pkg-2026.06",
+  itemCount: 1,
+  organizationScope: "tenant:tenant-hospital",
+  applicableScope: "disease:CARDIO",
+  sourceRef: "院内已审核路径制度",
 };
 
 const losOutcomeIndicator: EvaluationIndicator = {
@@ -326,10 +338,22 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.templateListParams = [];
   });
 
+  it("路径知识包表单使用统一知识包说明文案", async () => {
+    const user = userEvent.setup();
+    renderPathwayTemplates();
+
+    await user.click(screen.getByRole("button", { name: /管理路径知识包/ }));
+
+    expect(
+      await screen.findByPlaceholderText("输入路径知识包功能说明与收治摘要"),
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入专病画像说明")).toBeNull();
+  });
+
   it(
     "新建路径模板提供 L1 模板、L2 节点画布与 L3 DSL，不预置固定节点边 JSON",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
@@ -413,7 +437,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "创建路径草稿时可选择真实快照就地试运行并定位路径边证据",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.snapshotsData = {
         items: [
           {
@@ -505,7 +529,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "路径原型向导生成可提交的默认拓扑草稿",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
       renderPathwayTemplates();
@@ -526,7 +550,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         nodes: Array<{ nodeCode: string; terminal?: boolean }>;
         edges: Array<{ edgeCode: string; fromNodeCode: string; toNodeCode: string }>;
       };
-      expect(payload.packageId).toBe(specialtyPackage.packageId);
+      expect(payload.packageId).toBe(pathwayPackage.packageId);
       expect(payload.templateCode).toBe("PATH.ED.DISPOSITION");
       expect(payload.diseaseCode).toBe("ED");
       expect(payload.startNodeCode).toBe("ASSESS");
@@ -555,7 +579,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "路径边条件复用递归条件树构建器并同步为嵌套 guard",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
@@ -600,7 +624,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "路径边守卫可按引用复用同包版本条件片段",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.conditionFragmentsData = {
         items: [
           {
@@ -636,8 +660,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
 
       await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
@@ -664,15 +688,15 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "新建路径模板提交入径模式与入出径真实条件树",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
       renderPathwayTemplates();
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
         target: { value: "心血管路径复核" },
       });
@@ -737,7 +761,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "新建路径模板提交阶段里程碑、天序与节点里程碑绑定",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.evaluationIndicatorsData = { items: [losOutcomeIndicator], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
@@ -745,8 +769,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
         target: { value: "围手术期路径" },
       });
@@ -898,14 +922,14 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "新建路径模板拒绝关键时钟 SLA 最晚分钟早于目标分钟",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
         target: { value: "SLA 校验路径" },
       });
@@ -954,15 +978,15 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "富节点类型提供结构化配置并只暴露后端权威边类型",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
       renderPathwayTemplates();
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
         target: { value: "富节点路径" },
       });
@@ -1022,14 +1046,14 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "新建路径模板拒绝没有默认兜底边的决策节点",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
-      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
         target: { value: "决策守卫路径" },
       });
@@ -1132,7 +1156,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           },
         ],
       } as PathwayTemplateDetailResponse;
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
 
       const user = await openPathwayDrawer();
       await user.click(screen.getByRole("tab", { name: /L2 节点画布/ }));
@@ -1226,7 +1250,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         mergedEdges: [],
         traceId: "trace-inheritance",
       };
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
 
       const user = await openPathwayDrawer();
       await user.click(screen.getByRole("tab", { name: /继承差异/ }));
@@ -1245,7 +1269,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "路径关键字段提供简短示例与占位帮助",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
@@ -1280,7 +1304,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     async () => {
       apiMocks.templateListData = { items: [draftTemplate], total: 1 };
       apiMocks.templateDetailData = createTemplateDetail();
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.snapshotsData = {
         items: [
           {
@@ -1346,7 +1370,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     async () => {
       apiMocks.templateListData = { items: [draftTemplate], total: 1 };
       apiMocks.templateDetailData = createTemplateDetail();
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.snapshotsData = {
         items: [
           {
@@ -1451,7 +1475,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         ],
         traceId: "trace-impact",
       };
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.publishTemplate.mockResolvedValue({
         templateId: "pt-path-1",
         status: "PUBLISHED",
@@ -1508,7 +1532,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         releaseEvidence: ["GRAY 灰度发布"],
         traceId: "trace-impact",
       };
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.fullRolloutTemplate.mockResolvedValue({
         templateId: "pt-path-published",
         status: "PUBLISHED",
@@ -1581,7 +1605,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         releaseEvidence: ["灰度发布默认 10%，全量前必须保留本次 impactDigest"],
         traceId: "trace-impact",
       };
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       apiMocks.rollbackTemplate.mockResolvedValue({
         templateId: "pt-path-offline",
         status: "PUBLISHED",
@@ -1623,7 +1647,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "添加节点/边自动生成编码，边与起点从已建节点下拉选择",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
@@ -1649,7 +1673,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "图画布移动节点后将布局持久化到同一份 L3 DSL",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 
@@ -1678,7 +1702,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   it(
     "路径画布即时提示重复节点编码和缺少终止节点",
     async () => {
-      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
       const user = userEvent.setup();
       renderPathwayTemplates();
 

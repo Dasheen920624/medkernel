@@ -90,14 +90,12 @@ import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.engine.security.RoleCode;
-import com.medkernel.engine.terminology.TermMappingPackage;
 import com.medkernel.engine.terminology.TermMapping;
-import com.medkernel.engine.terminology.TermMappingPackageItem;
-import com.medkernel.engine.terminology.TermMappingPackageItemRepository;
-import com.medkernel.engine.terminology.TermMappingPackageRepository;
 import com.medkernel.engine.terminology.TermMappingRepository;
 import com.medkernel.engine.terminology.TermMappingSnapshot;
 import com.medkernel.engine.terminology.TermMappingSnapshotCodec;
+import com.medkernel.engine.terminology.TermMappingSnapshotEntity;
+import com.medkernel.engine.terminology.TermMappingSnapshotRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -141,8 +139,7 @@ class PackageEngineServiceTest {
     private EvaluationIndicatorRepository evaluationRepository;
     private KnowledgeIdentityRepository knowledgeIdentityRepository;
     private KnowledgeAssetVersionRepository knowledgeVersionRepository;
-    private TermMappingPackageRepository terminologyPackageRepository;
-    private TermMappingPackageItemRepository terminologyPackageItemRepository;
+    private TermMappingSnapshotRepository terminologySnapshotRepository;
     private TermMappingRepository terminologyMappingRepository;
     private PilotPackageTemplateRepository pilotTemplateRepository;
     private PilotPackageTemplateItemRepository pilotTemplateItemRepository;
@@ -179,8 +176,7 @@ class PackageEngineServiceTest {
         evaluationRepository = mock(EvaluationIndicatorRepository.class);
         knowledgeIdentityRepository = mock(KnowledgeIdentityRepository.class);
         knowledgeVersionRepository = mock(KnowledgeAssetVersionRepository.class);
-        terminologyPackageRepository = mock(TermMappingPackageRepository.class);
-        terminologyPackageItemRepository = mock(TermMappingPackageItemRepository.class);
+        terminologySnapshotRepository = mock(TermMappingSnapshotRepository.class);
         terminologyMappingRepository = mock(TermMappingRepository.class);
         pilotTemplateRepository = mock(PilotPackageTemplateRepository.class);
         pilotTemplateItemRepository = mock(PilotPackageTemplateItemRepository.class);
@@ -219,7 +215,7 @@ class PackageEngineServiceTest {
             pathwayNodeRepository, pathwayEdgeRepository, pathwayMetricBindingRepository,
             evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
-            terminologyPackageRepository, terminologyPackageItemRepository, terminologyMappingRepository,
+            terminologySnapshotRepository, terminologyMappingRepository,
             pilotTemplateRepository, pilotTemplateItemRepository, packageReferenceRepository,
             inheritanceOverrideService, entitlementService,
             syncPort, effectivePackageResolver, auditRecorder,
@@ -289,18 +285,6 @@ class PackageEngineServiceTest {
                 version.updatedAt(), version.updatedBy()
             , 12, null);
         });
-        when(terminologyPackageRepository.save(any())).thenAnswer(inv -> {
-            TermMappingPackage pkg = inv.getArgument(0);
-            if (pkg.id() != null) {
-                return pkg;
-            }
-            return TermMappingPackage.imported(
-                301L, pkg.tenantId(), pkg.packageCode(), pkg.packageVersion(), pkg.displayName(),
-                pkg.scopeLevel(), pkg.scopeCode(), pkg.statusName(), pkg.mappingCount(), pkg.contentHash(),
-                pkg.publishedBy(), pkg.publishedAt(), pkg.rollbackFromPackageId(),
-                pkg.createdAt(), pkg.createdBy()
-            );
-        });
         when(terminologyMappingRepository.save(any())).thenAnswer(inv -> {
             TermMapping mapping = inv.getArgument(0);
             if (mapping.id() != null) {
@@ -313,7 +297,7 @@ class PackageEngineServiceTest {
                 mapping.createdAt(), mapping.createdBy()
             );
         });
-        when(terminologyPackageItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(terminologySnapshotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pilotTemplateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pilotTemplateItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versionedAssets.registerDraft(any())).thenAnswer(invocation -> {
@@ -419,6 +403,46 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void listPackagesIncludesUnifiedPackageScopeMetadata() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-pathway", "tenant-A", "PKG.COPD", "1.0.0", "慢阻肺专病包", "稳定期路径",
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem marker = packageItem(
+            10L, "pkg-pathway", VersionedAssetType.PATHWAY, "PKG.COPD", "1.0.0");
+        AssetVersion version = declarativeAssetVersion(
+            VersionedAssetType.PACKAGE, "PKG.COPD", "1.0.0", AssetVersionStatus.DRAFT);
+        version = new AssetVersion(
+            version.id(), version.versionId(), version.tenantId(), version.assetType(),
+            version.assetIdentity(), version.versionNo(), "tenant:tenant-A", "disease:COPD",
+            version.contentHash(), version.safetyPolicy(), version.overridePolicy(), version.status(),
+            version.activeScopeKey(), "专病路径专家共识 2026", version.effectiveFrom(),
+            version.effectiveTo(), version.createdAt(), version.createdBy(), version.updatedAt(),
+            version.updatedBy(), version.traceId()
+        );
+        when(packageRepository.pageByFilter("tenant-A", null, null, "PATHWAY", 0, 20))
+            .thenReturn(List.of(pack));
+        when(packageRepository.countByFilter("tenant-A", null, null, "PATHWAY"))
+            .thenReturn(1L);
+        when(itemRepository.findByTenantIdAndPackageIdIn("tenant-A", Set.of("pkg-pathway")))
+            .thenReturn(List.of(marker));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityIn(
+            "tenant-A", VersionedAssetType.PACKAGE, Set.of("PKG.COPD")))
+            .thenReturn(List.of(version));
+
+        PageResponse<PackageSummaryResponse> response = service.listPackages(
+            new PageRequest(1, 20, null),
+            new PackageListFilter(null, null, VersionedAssetType.PATHWAY)
+        );
+
+        assertThat(response.items()).singleElement().satisfies(summary -> {
+            assertThat(summary.applicableScope()).isEqualTo("disease:COPD");
+            assertThat(summary.organizationScope()).isEqualTo("tenant:tenant-A");
+            assertThat(summary.sourceRef()).isEqualTo("专病路径专家共识 2026");
+        });
+    }
+
+    @Test
     void validatePackageReturnsBlockingIssueWhenPackageHasNoItems() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-empty", "tenant-A", "PKG.EMPTY", "1.0.0", "空配置包", null,
@@ -520,10 +544,19 @@ class PackageEngineServiceTest {
                 "v1",
                 AssetVersionStatus.PUBLISHED
             )));
-        when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
-                "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
-            .thenReturn(Optional.of(publishedTerminologyPackage(
-                "TERM.LAB", "2026.06", "DEPARTMENT", "CARD")));
+        KnowledgePackage terminologyPackage = new KnowledgePackage(
+            2L, "term-pkg", "tenant-A", "TERM.LAB", "2026.06", "检验术语包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.of(terminologyPackage));
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+                "tenant-A", "term-pkg", VersionedAssetType.TERMINOLOGY,
+                "TERM.LAB|DEPARTMENT|CARD"))
+            .thenReturn(Optional.of(packageItem(
+                12L, "term-pkg", VersionedAssetType.TERMINOLOGY,
+                "TERM.LAB|DEPARTMENT|CARD", "2026.06")));
 
         PackageValidateResponse response = service.validatePackage("pkg-assets");
 
@@ -1404,14 +1437,20 @@ class PackageEngineServiceTest {
             packageItem(1L, "pkg-all-assets", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
             packageItem(2L, "pkg-all-assets", VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06")
         );
-        TermMappingPackage terminologyPackage = publishedTerminologyPackage(
-            301L, "TERM.LAB", "2026.06", "DEPARTMENT", "CARD");
-        TermMapping termMapping = publishedTermMapping(401L);
+        KnowledgePackage terminologyPackage = new KnowledgePackage(
+            301L, "term-pkg-301", "tenant-A", "TERM.LAB", "2026.06", "检验术语映射包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem terminologyMarker = new PackageItem(
+            302L, "pi-term-lab", "tenant-A", "term-pkg-301", VersionedAssetType.TERMINOLOGY,
+            "TERM.LAB|DEPARTMENT|CARD", "2026.06",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
         TermMappingSnapshot terminologySnapshot = new TermMappingSnapshot(
             401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
             1.0D, "LOW", "CONFIRMED", "人工确认", "tester", "2026-06-01T00:00:00Z"
         );
-        TermMappingPackageItem terminologyItem = new TermMappingPackageItem(
+        TermMappingSnapshotEntity terminologyItem = new TermMappingSnapshotEntity(
             501L, "tenant-A", "pi-term-lab", 401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
             TermMappingSnapshotCodec.write(terminologySnapshot),
             Instant.parse("2026-06-01T00:00:00Z"), "tester"
@@ -1425,15 +1464,25 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
         when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
             .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
-        when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
-                "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "TERM.LAB", "2026.06"))
             .thenReturn(Optional.of(terminologyPackage));
-        when(terminologyPackageRepository.packageItemId("tenant-A", 301L))
-            .thenReturn("pi-term-lab");
-        when(terminologyPackageItemRepository.findByTenantIdAndPackageItemId("tenant-A", "pi-term-lab"))
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+                "tenant-A", "term-pkg-301", VersionedAssetType.TERMINOLOGY,
+                "TERM.LAB|DEPARTMENT|CARD"))
+            .thenReturn(Optional.of(terminologyMarker));
+        when(terminologySnapshotRepository.findByTenantIdAndPackageItemId("tenant-A", "pi-term-lab"))
             .thenReturn(List.of(terminologyItem));
-        when(terminologyMappingRepository.findByTenantIdAndId("tenant-A", 401L))
-            .thenReturn(Optional.of(termMapping));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.PACKAGE, "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.of(new AssetVersion(
+                null, "av-term-package", "tenant-A", VersionedAssetType.PACKAGE,
+                "TERM.LAB", "2026.06", "DEPARTMENT:CARD", "ALL", "b".repeat(64),
+                AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+                AssetVersionStatus.PUBLISHED, "TERM.LAB|DEPARTMENT:CARD|ALL",
+                "knowledge-package:term-pkg-301", null, null,
+                Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
         when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.1.0", "hospital-1"))
             .thenReturn(effectiveResponse("pkg-all-assets", "PKG.TEST", "3.1.0", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1", "knowledge-source-version-v1", "e".repeat(64)),
@@ -1455,7 +1504,7 @@ class PackageEngineServiceTest {
         assertThat(snapshots).anySatisfy(snapshot -> {
             assertThat(snapshot.path("assetType").asText()).isEqualTo("TERMINOLOGY");
             assertThat(snapshot.path("assetId").asText()).isEqualTo("TERM.LAB|DEPARTMENT|CARD");
-            assertThat(snapshot.path("content").path("terminologyPackage").path("packageCode").asText())
+            assertThat(snapshot.path("content").path("knowledgePackage").path("packageCode").asText())
                 .isEqualTo("TERM.LAB");
             assertThat(snapshot.path("content").path("mappings")).hasSize(1);
             assertThat(snapshot.path("content").path("mappings").get(0).path("localTermId").asLong())
@@ -1667,6 +1716,21 @@ class PackageEngineServiceTest {
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
             "tenant-A", "PKG.ALL.IMPORT", "2026.06.03"))
             .thenReturn(Optional.empty());
+        KnowledgePackage importedTerminologyPackage = new KnowledgePackage(
+            301L, "term-pkg-imported", "tenant-A", "TERM.LAB", "2026.06", "检验术语包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.empty(), Optional.of(importedTerminologyPackage));
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+                "tenant-A", "term-pkg-imported", VersionedAssetType.TERMINOLOGY,
+                "TERM.LAB|DEPARTMENT|CARD"))
+            .thenReturn(Optional.of(new PackageItem(
+                302L, "pi-term-imported", "tenant-A", "term-pkg-imported",
+                VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06",
+                Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
         when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
             .thenReturn(Optional.empty())
             .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
@@ -1681,13 +1745,6 @@ class PackageEngineServiceTest {
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"))
             .thenReturn(Optional.empty(), Optional.of(importedKnowledgeVersion));
-        when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
-                "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
-            .thenReturn(Optional.empty())
-            .thenReturn(Optional.of(publishedTerminologyPackage(
-                301L, "TERM.LAB", "2026.06", "DEPARTMENT", "CARD")));
-        when(terminologyPackageRepository.packageItemId("tenant-A", 301L))
-            .thenReturn("pi-term-lab");
         when(terminologyMappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("tenant-A", 11L, 22L))
             .thenReturn(Optional.empty());
 
@@ -1706,12 +1763,16 @@ class PackageEngineServiceTest {
                 && version.status() == AssetVersionStatus.PUBLISHED
                 && version.contentHash().equals("a".repeat(64))
         ));
-        verify(terminologyPackageRepository).save(any(TermMappingPackage.class));
+        verify(packageRepository).save(argThat(pack ->
+            pack.packageCode().equals("TERM.LAB")
+                && pack.packageVersion().equals("2026.06")
+                && pack.status() == KnowledgePackageStatus.PUBLISHED
+        ));
         verify(terminologyMappingRepository).save(any(TermMapping.class));
-        verify(terminologyPackageItemRepository).save(any(TermMappingPackageItem.class));
+        verify(terminologySnapshotRepository).save(any(TermMappingSnapshotEntity.class));
         verify(assetVersions).save(argThat(version ->
-            version.assetType() == VersionedAssetType.TERMINOLOGY
-                && version.assetIdentity().equals("TERM.LAB|DEPARTMENT|CARD")
+            version.assetType() == VersionedAssetType.PACKAGE
+                && version.assetIdentity().equals("TERM.LAB")
                 && version.versionNo().equals("2026.06")
                 && version.organizationScope().equals("DEPARTMENT:CARD")
                 && version.status() == AssetVersionStatus.PUBLISHED
@@ -1719,9 +1780,13 @@ class PackageEngineServiceTest {
         ));
 
         ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
-        verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());
+        verify(itemRepository, org.mockito.Mockito.times(3)).save(itemCap.capture());
         assertThat(itemCap.getAllValues()).extracting(PackageItem::assetType)
-            .containsExactly(VersionedAssetType.KNOWLEDGE, VersionedAssetType.TERMINOLOGY);
+            .containsExactly(
+                VersionedAssetType.TERMINOLOGY,
+                VersionedAssetType.KNOWLEDGE,
+                VersionedAssetType.TERMINOLOGY
+            );
     }
 
     @Test
@@ -1760,6 +1825,32 @@ class PackageEngineServiceTest {
             edge.templateId().equals("pathway-stable") && edge.edgeCode().equals("START_END")));
         verify(pathwayMetricBindingRepository).save(argThat(binding ->
             binding.templateId().equals("pathway-stable") && binding.metricCode().equals("METRIC.QC")));
+    }
+
+    @Test
+    void importOfflinePackageReportsMissingPathwayKnowledgePackage() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "PATHWAY", "pathway-stable", "1"));
+        ObjectNode content = offlinePathwayContent("pathway-stable");
+        ((ObjectNode) content.path("template")).putNull("packageId");
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot("tenant-A", "PATHWAY", "pathway-stable", "1", content));
+        String offlineJson = offlinePackageJson(
+            "PKG.BAD.PATHWAY.PACKAGE", "2026.06.04", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD.PATHWAY.PACKAGE", "2026.06.04"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.importOfflinePackage(new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
+                assertThat(api.getMessage()).contains("离线包路径模板缺少路径知识包、模板编码或起始节点");
+            });
+
+        verify(pathwayRepository, never()).save(any());
     }
 
     @Test
@@ -1926,7 +2017,6 @@ class PackageEngineServiceTest {
             });
 
         verify(packageRepository, never()).save(any());
-        verify(terminologyPackageRepository, never()).save(any());
         verify(terminologyMappingRepository, never()).save(any());
         verify(itemRepository, never()).save(any());
     }
@@ -1959,7 +2049,6 @@ class PackageEngineServiceTest {
             });
 
         verify(packageRepository, never()).save(any());
-        verify(terminologyPackageRepository, never()).save(any());
         verify(terminologyMappingRepository, never()).save(any());
         verify(itemRepository, never()).save(any());
     }
@@ -3394,17 +3483,16 @@ class PackageEngineServiceTest {
     }
 
     private ObjectNode offlineTerminologyContent() {
-        ObjectNode terminologyPackage = TEST_MAPPER.createObjectNode();
-        terminologyPackage.put("packageCode", "TERM.LAB");
-        terminologyPackage.put("packageVersion", "2026.06");
-        terminologyPackage.put("displayName", "检验术语映射包");
-        terminologyPackage.put("scopeLevel", "DEPARTMENT");
-        terminologyPackage.put("scopeCode", "CARD");
-        terminologyPackage.put("status", "PUBLISHED");
-        terminologyPackage.put("mappingCount", 1);
-        terminologyPackage.put("contentHash", "b".repeat(64));
-        terminologyPackage.put("publishedBy", "tester");
-        terminologyPackage.put("publishedAt", "2026-06-01T00:00:00Z");
+        ObjectNode knowledgePackage = TEST_MAPPER.createObjectNode();
+        knowledgePackage.put("packageId", "term-pkg-offline");
+        knowledgePackage.put("packageCode", "TERM.LAB");
+        knowledgePackage.put("packageVersion", "2026.06");
+        knowledgePackage.put("name", "检验术语映射包");
+        knowledgePackage.put("description", "检验术语映射不可变快照");
+        knowledgePackage.put("status", "PUBLISHED");
+        knowledgePackage.put("scopeLevel", "DEPARTMENT");
+        knowledgePackage.put("scopeCode", "CARD");
+        knowledgePackage.put("contentHash", "b".repeat(64));
 
         ObjectNode mapping = TEST_MAPPER.createObjectNode();
         mapping.put("localTermId", 11L);
@@ -3440,7 +3528,7 @@ class PackageEngineServiceTest {
         );
 
         ObjectNode content = TEST_MAPPER.createObjectNode();
-        content.set("terminologyPackage", terminologyPackage);
+        content.set("knowledgePackage", knowledgePackage);
         content.set("mappings", TEST_MAPPER.createArrayNode().add(mapping));
         content.set("items", TEST_MAPPER.createArrayNode().add(packageItem));
         return content;
@@ -3819,45 +3907,4 @@ class PackageEngineServiceTest {
         , 12, null);
     }
 
-    private TermMappingPackage publishedTerminologyPackage(
-            String packageCode,
-            String packageVersion,
-            String scopeLevel,
-            String scopeCode) {
-        return publishedTerminologyPackage(null, packageCode, packageVersion, scopeLevel, scopeCode);
-    }
-
-    private TermMappingPackage publishedTerminologyPackage(
-            Long id,
-            String packageCode,
-            String packageVersion,
-            String scopeLevel,
-            String scopeCode) {
-        return TermMappingPackage.imported(
-            id,
-            "tenant-A", packageCode, packageVersion, "检验术语映射包",
-            scopeLevel, scopeCode, "PUBLISHED", 1, "b".repeat(64),
-            "tester", Instant.parse("2026-06-01T00:00:00Z"),
-            null, Instant.now(), "tester"
-        );
-    }
-
-    private TermMapping publishedTermMapping(Long id) {
-        return TermMapping.imported(
-            id,
-            "tenant-A",
-            11L,
-            22L,
-            "LIS",
-            "LAB",
-            0.98,
-            "HIGH",
-            "CONFIRMED",
-            "来源编码一致且人工确认",
-            "tester",
-            Instant.parse("2026-06-01T00:00:00Z"),
-            Instant.now(),
-            "tester"
-        );
-    }
 }

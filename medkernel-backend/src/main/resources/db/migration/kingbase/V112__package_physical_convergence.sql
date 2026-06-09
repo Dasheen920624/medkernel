@@ -1,10 +1,6 @@
--- 统一知识包物理收敛：删除领域重复容器，仅保留统一包与术语快照内容。
+-- 统一知识包物理模型：补充术语快照内容，领域包统一由 knowledge_package 与 package_item 承载。
 -- 回滚：项目未上线且不保留旧并行表；如需撤销，应回退应用版本并从最近的开发环境备份重建数据库。
 
-DROP TABLE IF EXISTS term_mapping_package_release;
-DROP TABLE IF EXISTS term_mapping_package_item;
-DROP TABLE IF EXISTS term_mapping_package;
-DROP TABLE IF EXISTS specialty_package;
 
 CREATE TABLE IF NOT EXISTS mk_term_mapping_snapshot (
     id                    BIGSERIAL PRIMARY KEY,

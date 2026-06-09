@@ -19,7 +19,7 @@
 
 本卡＝**框架抽取/统一**，当前散落无统一框架：
 
-- 版本字段散落多引擎：`engine/context`（`PackageVersionPort`）、`engine/knowledge`（`KnowledgeAssetVersion` + 状态机 + `activate/withdraw`）、`engine/pathway`（`SpecialtyPackage`）、`engine/pkg`（`ReleasePlan/PackageSyncPort/KnowledgePackage`）、`engine/evaluation`（版本字段）。
+- 版本字段分布于多个引擎：`engine/context`（`PackageVersionPort`）、`engine/knowledge`（`KnowledgeAssetVersion` + 状态机 + `activate/withdraw`）、`engine/pathway`（引用统一 `KnowledgePackage`）、`engine/pkg`（`ReleasePlan/PackageSyncPort/KnowledgePackage`）、`engine/evaluation`（版本字段）。
 - `engine/pkg` 的 `ReleasePlan` / `PackageSyncPort` / `PackageEngineService` 属包级投放；外部连接统一复用 `integration_adapter` 与 `IntegrationConnector`，不维护包域同步目标。
 - **缺口**：无统一的「不可变版本 + 七层继承解析 + 变更类发布流 + 灰度/回滚/历史重放」框架；各引擎各写版本与发布。本卡抽取为复用框架（Port/SPI），各引擎接入，**不推翻已有 `engine/knowledge` 的 `activate` 主干**（[SYS-08](SYS-08.md) 在其上专项化）。
 

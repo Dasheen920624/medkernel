@@ -23,17 +23,16 @@ public class EffectiveTermMappingResolver {
 
     private static final Map<String, Integer> SCOPE_RANK = Map.of(
         "TENANT", 1,
-        "GROUP", 2,
-        "HOSPITAL", 3,
+        "REGION", 2,
+        "FACILITY", 3,
         "CAMPUS", 4,
-        "SITE", 5,
-        "DEPARTMENT", 6
+        "DEPARTMENT", 5
     );
 
-    private final TermMappingPackageItemRepository packageItems;
+    private final TermMappingSnapshotRepository snapshots;
 
-    public EffectiveTermMappingResolver(TermMappingPackageItemRepository packageItems) {
-        this.packageItems = packageItems;
+    public EffectiveTermMappingResolver(TermMappingSnapshotRepository snapshots) {
+        this.snapshots = snapshots;
     }
 
     public List<EffectiveTermMapping> resolve(
@@ -43,13 +42,12 @@ public class EffectiveTermMappingResolver {
             String targetDictionaryKey,
             String category) {
         OrgScope scope = effectiveScope(tenantId);
-        List<EffectiveTermMappingCandidate> candidates = packageItems.findEffectiveByAnchor(
+        List<EffectiveTermMappingCandidate> candidates = snapshots.findEffectiveByAnchor(
             tenantId,
             scope.tenantId(),
             scope.groupId(),
-            scope.hospitalId(),
+            facilityId(scope),
             scope.campusId(),
-            scope.siteId(),
             scope.departmentId(),
             sourceSystem,
             localCode,
@@ -61,13 +59,12 @@ public class EffectiveTermMappingResolver {
 
     public int countByStandardCode(String tenantId, String targetDictionaryKey, String standardCode) {
         OrgScope scope = effectiveScope(tenantId);
-        return resolveMostSpecific(packageItems.findEffectiveByStandardCode(
+        return resolveMostSpecific(snapshots.findEffectiveByStandardCode(
             tenantId,
             scope.tenantId(),
             scope.groupId(),
-            scope.hospitalId(),
+            facilityId(scope),
             scope.campusId(),
-            scope.siteId(),
             scope.departmentId(),
             targetDictionaryKey,
             standardCode
@@ -110,6 +107,13 @@ public class EffectiveTermMappingResolver {
             throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "术语映射租户与当前组织上下文不一致");
         }
         return current;
+    }
+
+    private static String facilityId(OrgScope scope) {
+        if (scope.siteId() != null && !scope.siteId().isBlank()) {
+            return scope.siteId();
+        }
+        return scope.hospitalId();
     }
 
     private static int scopeRank(String scopeLevel) {

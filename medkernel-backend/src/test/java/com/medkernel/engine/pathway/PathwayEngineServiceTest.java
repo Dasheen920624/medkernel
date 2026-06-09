@@ -35,6 +35,10 @@ import com.medkernel.engine.evaluation.EvaluationSubjectType;
 import com.medkernel.engine.event.ClockSlaBreachedEvent;
 import com.medkernel.engine.event.EngineDomainEventPort;
 import com.medkernel.engine.event.PathwayVarianceRecordedEvent;
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.pkg.PackageAccessPolicy;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
@@ -77,7 +81,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 class PathwayEngineServiceTest {
 
-    private SpecialtyPackageRepository packages;
+    private KnowledgePackageRepository packages;
     private SpecialtyProfileRepository profiles;
     private PathwayTemplateRepository templates;
     private PathwayNodeRepository nodes;
@@ -107,7 +111,7 @@ class PathwayEngineServiceTest {
 
     @BeforeEach
     void setUp() {
-        packages = mock(SpecialtyPackageRepository.class);
+        packages = mock(KnowledgePackageRepository.class);
         profiles = mock(SpecialtyProfileRepository.class);
         templates = mock(PathwayTemplateRepository.class);
         nodes = mock(PathwayNodeRepository.class);
@@ -142,7 +146,6 @@ class PathwayEngineServiceTest {
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
             packageItems, inheritanceResolver);
 
-        when(packages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(profiles.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(templates.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(nodes.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -162,9 +165,9 @@ class PathwayEngineServiceTest {
                 "av-pathway-default", VersionedAssetType.PATHWAY, "TPL.COPD", "1",
                 AssetVersionStatus.DRAFT)));
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(specialtyPackage("pkg-2026.06")));
+            .thenReturn(Optional.of(knowledgePackage("pkg-2026.06")));
         when(packages.findByPackageIdAndTenantId("sp-1", "t-1"))
-            .thenReturn(Optional.of(specialtyPackage("t-1", "pkg-2026.06")));
+            .thenReturn(Optional.of(knowledgePackage("t-1", "pkg-2026.06")));
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway", OrgScope.tenant("tenant-A"), "tester"));
@@ -178,37 +181,9 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void createSpecialtyPackagePersistsPackageAndProfiles() {
-        SpecialtyPackageResponse response = service.createPackage(new SpecialtyPackageCreateRequest(
-            "PKG.COPD", "COPD", "慢阻肺专病包", "1.0.0", "专病路径专家共识 2026",
-            "稳定期路径", List.of(new SpecialtyProfileRequest(
-                "DEFAULT", "默认画像", json("{\"risk\":\"medium\"}"),
-                json("{\"diagnosis\":\"COPD\"}"), json("{\"status\":\"stable\"}"),
-                json("{\"days\":30}")))));
-
-        assertThat(response.packageId()).startsWith("sp-");
-        assertThat(response.status()).isEqualTo(SpecialtyPackageStatus.DRAFT);
-        assertThat(response.traceId()).isEqualTo("trace-pathway");
-        ArgumentCaptor<SpecialtyPackage> packageCap = ArgumentCaptor.forClass(SpecialtyPackage.class);
-        ArgumentCaptor<SpecialtyProfile> profileCap = ArgumentCaptor.forClass(SpecialtyProfile.class);
-        ArgumentCaptor<PackageItem> packageItemCap = ArgumentCaptor.forClass(PackageItem.class);
-        verify(packages).save(packageCap.capture());
-        verify(profiles).save(profileCap.capture());
-        verify(packageItems).save(packageItemCap.capture());
-        assertThat(packageCap.getValue().tenantId()).isEqualTo("tenant-A");
-        assertThat(profileCap.getValue().packageId()).isEqualTo(response.packageId());
-        assertThat(packageItemCap.getValue().assetType()).isEqualTo(VersionedAssetType.PATHWAY);
-        assertThat(packageItemCap.getValue().assetId()).isEqualTo("PKG.COPD");
-        assertThat(packageItemCap.getValue().assetVersion()).isEqualTo("1.0.0");
-        verify(versionedAssets).registerDraft(any());
-        verify(auditRecorder).record(AuditAction.CREATE, "knowledge_package",
-            response.packageId(), "创建专病包 PKG.COPD");
-    }
-
-    @Test
     void createTemplatePersistsNodesEdgesAndMetricBindings() {
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+            .thenReturn(Optional.of(packageAsset(KnowledgePackageStatus.DRAFT)));
 
         PathwayTemplateDetailResponse response = service.createTemplate(templateRequest());
 
@@ -245,7 +220,7 @@ class PathwayEngineServiceTest {
     @Test
     void createTemplatePersistsOutcomeBindingsAndRegistersThemInPathwayAsset() {
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+            .thenReturn(Optional.of(packageAsset(KnowledgePackageStatus.DRAFT)));
         when(evaluationIndicators.findByTenantIdAndIndicatorCodeAndStatus(
             "tenant-A", "QI_COPD_LOS", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of(evaluationIndicator("QI_COPD_LOS", EvaluationSubjectType.PATHWAY)));
@@ -269,7 +244,7 @@ class PathwayEngineServiceTest {
     @Test
     void createTemplateRejectsOutcomeBindingWhenEvaluationIndicatorIsNotActive() {
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+            .thenReturn(Optional.of(packageAsset(KnowledgePackageStatus.DRAFT)));
         when(evaluationIndicators.findByTenantIdAndIndicatorCodeAndStatus(
             "tenant-A", "QI_COPD_LOS", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of());
@@ -285,7 +260,7 @@ class PathwayEngineServiceTest {
     @Test
     void createTemplatePersistsPhaseMilestonesAndBindsNodesToDaySequence() {
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+            .thenReturn(Optional.of(packageAsset(KnowledgePackageStatus.DRAFT)));
 
         PathwayTemplateDetailResponse response = service.createTemplate(templateRequestWithMilestones());
 
@@ -449,7 +424,7 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void createTemplateBridgesSpecialtyPackageToUnifiedPackageItem() {
+    void createTemplateAddsPathwayAssetToUnifiedKnowledgePackage() {
         PackageItemRepository packageItems = mock(PackageItemRepository.class);
         PathwayEngineService bridgedService = new PathwayEngineService(
             packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
@@ -459,7 +434,7 @@ class PathwayEngineServiceTest {
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
             packageItems, inheritanceResolver);
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+            .thenReturn(Optional.of(packageAsset(KnowledgePackageStatus.DRAFT)));
         when(packageItems.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
             "tenant-A", "sp-1", VersionedAssetType.PATHWAY, "pt-fixed"))
             .thenReturn(Optional.empty());
@@ -1868,7 +1843,7 @@ class PathwayEngineServiceTest {
     @Test
     void simulateRejectsSnapshotWithDifferentPackageVersionFromTemplatePackage() {
         when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
-            .thenReturn(Optional.of(specialtyPackage("pkg-2026.07")));
+            .thenReturn(Optional.of(knowledgePackage("pkg-2026.07")));
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
@@ -2137,12 +2112,12 @@ class PathwayEngineServiceTest {
         );
     }
 
-    private SpecialtyPackage packageAsset(SpecialtyPackageStatus status) {
+    private KnowledgePackage packageAsset(KnowledgePackageStatus status) {
         Instant now = Instant.now();
-        return new SpecialtyPackage(
-            1L, "sp-1", "tenant-A", "PKG.COPD", "COPD", "慢阻肺专病包",
-            "1.0.0", status, "专病路径专家共识 2026", "稳定期路径",
-            null, null, now, "tester", now, "tester", "trace-pathway");
+        return new KnowledgePackage(
+            1L, "sp-1", "tenant-A", "PKG.COPD", "1.0.0", "慢阻肺路径知识包",
+            "稳定期路径", PackageAccessPolicy.OPEN, status,
+            now, "tester", now, "tester", "trace-pathway");
     }
 
     private EvaluationIndicator evaluationIndicator(String indicatorCode, EvaluationSubjectType subjectType) {
@@ -2242,25 +2217,22 @@ class PathwayEngineServiceTest {
             now, "tester", now, "tester", "trace-pathway");
     }
 
-    private SpecialtyPackage specialtyPackage(String packageVersion) {
-        return specialtyPackage("tenant-A", packageVersion);
+    private KnowledgePackage knowledgePackage(String packageVersion) {
+        return knowledgePackage("tenant-A", packageVersion);
     }
 
-    private SpecialtyPackage specialtyPackage(String tenantId, String packageVersion) {
+    private KnowledgePackage knowledgePackage(String tenantId, String packageVersion) {
         Instant now = Instant.now();
-        return new SpecialtyPackage(
+        return new KnowledgePackage(
             1L,
             "sp-1",
             tenantId,
             "PKG.COPD",
-            "COPD",
-            "慢阻肺专病包",
             packageVersion,
-            SpecialtyPackageStatus.PUBLISHED,
-            "专病路径专家共识 2026",
+            "慢阻肺路径知识包",
             "用于路径 API 测试",
-            now,
-            "tester",
+            PackageAccessPolicy.OPEN,
+            KnowledgePackageStatus.ACTIVE,
             now,
             "tester",
             now,

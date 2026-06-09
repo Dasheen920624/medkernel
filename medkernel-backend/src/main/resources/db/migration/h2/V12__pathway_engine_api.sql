@@ -1,30 +1,5 @@
 -- MedKernel v1.0 GA · GA-ENG-API-06 路径引擎 API（H2 baseline，MODE=PostgreSQL 兼容）
 
-CREATE TABLE IF NOT EXISTS specialty_package (
-    id                BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    package_id        VARCHAR(64)  NOT NULL,
-    tenant_id         VARCHAR(64)  NOT NULL,
-    package_code      VARCHAR(128) NOT NULL,
-    disease_code      VARCHAR(128) NOT NULL,
-    name              VARCHAR(256) NOT NULL,
-    package_version   VARCHAR(64)  NOT NULL,
-    status            VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
-    source_ref        VARCHAR(512) NOT NULL,
-    description       VARCHAR(1024) NULL,
-    published_at      TIMESTAMP    NULL,
-    published_by      VARCHAR(64)  NULL,
-    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
-    updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
-    trace_id          VARCHAR(128) NULL,
-    CONSTRAINT uk_specialty_package_tenant_code UNIQUE (tenant_id, package_code, package_version),
-    CONSTRAINT ck_specialty_package_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_specialty_package_tenant_status ON specialty_package (tenant_id, status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_specialty_package_disease       ON specialty_package (tenant_id, disease_code);
-
 CREATE TABLE IF NOT EXISTS specialty_profile (
     id                   BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     profile_id           VARCHAR(64)  NOT NULL,

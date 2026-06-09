@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 专病画像仓库。
  *
- * <p>保存专病包下的分型、风险分层、准入、退出和随访计划摘要。
+ * <p>保存路径知识包下的分型、风险分层、准入、退出和随访计划摘要。
  */
 @Repository
 public interface SpecialtyProfileRepository extends ListCrudRepository<SpecialtyProfile, Long> {
@@ -20,7 +20,7 @@ public interface SpecialtyProfileRepository extends ListCrudRepository<Specialty
     Optional<SpecialtyProfile> findByProfileIdAndTenantId(String profileId, String tenantId);
 
     /**
-     * 查询专病包下所有画像，并按画像编码升序排列。
+     * 查询路径知识包下所有画像，并按画像编码升序排列。
      */
     List<SpecialtyProfile> findByPackageIdAndTenantIdOrderByProfileCodeAsc(String packageId, String tenantId);
 }

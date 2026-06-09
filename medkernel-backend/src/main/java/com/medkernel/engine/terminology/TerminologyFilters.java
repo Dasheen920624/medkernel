@@ -46,10 +46,3 @@ record ConflictFilter(MappingConflictStatus status, TermRiskLevel riskLevel, Map
         return new ConflictFilter(null, null, null);
     }
 }
-
-/** 术语映射包分页过滤：包编码 / 状态 / 作用域层级 / 作用域编码。 */
-record PackageFilter(String packageCode, TermMappingPackageStatus status, String scopeLevel, String scopeCode) {
-    static PackageFilter empty() {
-        return new PackageFilter(null, null, null, null);
-    }
-}

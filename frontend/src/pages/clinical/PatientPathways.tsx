@@ -30,7 +30,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
-  useSpecialtyPackages,
+  usePackages,
   useContextSnapshotDetail,
   useContextSnapshots,
   usePathwayTemplates,
@@ -151,9 +151,10 @@ export default function PatientPathways() {
     page: 1,
     size: 100,
   });
-  const { data: packagesData } = useSpecialtyPackages({
+  const { data: packagesData } = usePackages({
     page: 1,
     size: 100,
+    assetType: "PATHWAY",
   });
   const hasEnterSnapshotFilter = Boolean(enterPatientFilter.trim() || enterEncounterFilter.trim());
   const enterSnapshotsQuery = useContextSnapshots(
@@ -226,10 +227,10 @@ export default function PatientPathways() {
       selectedTemplate?.templateId === templateId
         ? selectedTemplate
         : templatesData?.items?.find((item) => item.templateId === templateId);
-    const specialtyPackage = packagesData?.items?.find(
+    const knowledgePackage = packagesData?.items?.find(
       (item) => item.packageId === template?.packageId,
     );
-    return specialtyPackage?.packageVersion ?? (template ? String(template.templateVersion) : "");
+    return knowledgePackage?.packageVersion ?? (template ? String(template.templateVersion) : "");
   };
 
   const selectedTemplatePackageVersion = () =>

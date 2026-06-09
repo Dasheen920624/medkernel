@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 专病指标绑定。
  *
- * <p>保存专病包、路径模板、节点和质控指标之间的关联，以及是否为必填指标。
+ * <p>保存路径知识包、路径模板、节点和质控指标之间的关联，以及是否为必填指标。
  */
 @Table("specialty_metric_binding")
 public record SpecialtyMetricBinding(

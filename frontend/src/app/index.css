@@ -248,6 +248,10 @@ body,
   padding: 0;
 }
 
+.ant-drawer-content-wrapper {
+  max-width: 100vw;
+}
+
 .mk-app-header {
   padding: 0 16px;
   background: var(--ant-color-bg-container);

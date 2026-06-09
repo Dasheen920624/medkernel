@@ -206,7 +206,7 @@ MedKernel 中文产品名固定为 **集团医疗智能中枢**。本产品不�
 | 随访计划 | `POST /api/v1/engine/followup/plans/generate` | 出院、病种、风险、路径 | 计划、任务、问卷、异常规则 |
 | 解释追溯 | 当前使用各引擎诊断端点，如 `GET /api/v1/engine/rule/rules/executions/{executionId}/explain`、`GET /api/v1/engine/recommendations/triggers/{triggerId}/diagnose` | traceId / 推荐 / 规则 ID | 来源、规则、路径、图谱、审计 |
 | 权威知识解析 | `GET /api/v1/engine/knowledge/identities/{id}/active`、`GET /api/v1/engine/knowledge/identities/{id}/lineage` | 知识身份、组织、适用条件、事件时间 | 唯一有效版本、来源、核验时点、替代链 |
-| 包同步 | `POST /api/v1/engine/packages/{packageId}/sync` | 包版本、组织、策略 | 进度、失败项、回滚点 |
+| 包同步 | `POST /api/v1/engine/pkg/packages/{packageId}/sync` | 包版本、组织、策略 | 进度、失败项、回滚点 |
 
 #### 1.5.3 第三方对接能力全景
 
@@ -538,7 +538,7 @@ S0-S40 是业务能力场景，不等于 41 组独立后端服务。当前 0 业
 | 主流程 | 选专病模板 → 配入径条件 → 配节点 → 配分支 → 配变异 → 配随访 → 仿真 → 发布 |
 | 节点类型 | 筛查、评估、检查、检验、用药、手术、护理、康复、出院、随访、质控 |
 | 分支 | 条件分支、风险分层、患者选择、资源不可用、医生决策、异常回退 |
-| API 归类 | 当前引擎 API：`/api/v1/engine/pathway/specialty-packages`、`/api/v1/engine/pathway/pathway-templates`、`/api/v1/engine/pathway/pathway-templates/{templateId}/simulate`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance` |
+| API 归类 | 当前引擎 API：`/api/v1/engine/pkg/packages/pathway`、`/api/v1/engine/pathway/pathway-templates`、`/api/v1/engine/pathway/pathway-templates/{templateId}/simulate`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance` |
 | 验收 | 路径必须能表达入径、退径、变异、超时、出院、随访和结局评估 |
 
 ### S7 图谱与来源追溯
@@ -605,7 +605,7 @@ S0-S40 是业务能力场景，不等于 41 组独立后端服务。当前 0 业
 |---|---|
 | 目标 | 将知识、字典、规则、路径、图谱、评估、随访打包发布到院内 |
 | 主流程 | 选资产 → 差异 → 看影响 → 审核 → 灰度 → 全量 → 同步 → 证据 |
-| API 归类 | 当前引擎 API：`/api/v1/engine/packages`、`/api/v1/engine/packages/{packageId}/diff`、`/api/v1/engine/packages/{packageId}/sync` |
+| API 归类 | 当前引擎 API：`/api/v1/engine/pkg/packages`、`/api/v1/engine/pkg/packages/{packageId}/diff`、`/api/v1/engine/pkg/packages/{packageId}/sync` |
 | 验收 | 包可导入、导出、签名、校验、灰度、回滚、离线安装 |
 
 ### S14 用户、权限与合规
@@ -1417,7 +1417,7 @@ flowchart TB
 | 来源知识 | `source_document`、`source_version`、`source_fragment`、`citation`、`knowledge_identity`、`knowledge_asset_version`、`knowledge_supersession` | 来源级别、知识身份、版本、片段锚点、替代关系、hash、语言 |
 | AI 治理 | `model_provider`、`model_capability_policy`、`prompt_template`、`model_invocation`、`generation_job`、`candidate_asset`、`safety_check`、`review_task` | 能力代码、模型/提示词/工具版本、数据策略、来源、置信、风险、降级、审核 |
 | 术语映射 | `standard_term`、`local_term`、`term_mapping`、`mapping_conflict` | 标准体系、编码、版本、确认人 |
-| 规则路径与专病包 | `rule_set`、`rule_version`、`rule_test_case`、`specialty_package`、`specialty_profile`、`pathway_template`、`pathway_node`、`patient_pathway`、`clinical_clock`、`specialty_metric_binding` | 组织范围、资产版本、状态、来源、专病分支、关键时间窗 |
+| 规则路径与路径知识包 | `rule_set`、`rule_version`、`rule_test_case`、`knowledge_package`、`package_item`、`specialty_profile`、`pathway_template`、`pathway_node`、`patient_pathway`、`clinical_clock`、`specialty_metric_binding` | 组织范围、资产版本、状态、来源、专病分支、关键时间窗 |
 | 临床智能 | `recommendation`、`recommendation_evidence`、`clinical_decision`、`alert_feedback` | 触发点、建议、证据、医生反馈 |
 | 质控评估 | `indicator`、`quality_finding`、`rectification_task`、`evaluation_result` | 级别、责任、闭环、病例证据 |
 | 随访 | `followup_plan`、`followup_task`、`followup_event`、`outcome_measure` | 时间窗、结果、异常、接续 |

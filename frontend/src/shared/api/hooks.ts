@@ -870,26 +870,6 @@ export interface MappingConflict {
   updatedBy?: string;
 }
 
-export interface TermMappingPackage {
-  id: number;
-  tenantId: string;
-  packageCode: string;
-  packageVersion: string;
-  displayName: string;
-  scopeLevel: string;
-  scopeCode: string;
-  status: "DRAFT" | "GRAY" | "PUBLISHED" | "SUPERSEDED" | "ROLLED_BACK" | "ARCHIVED";
-  mappingCount: number;
-  contentHash: string;
-  publishedBy?: string | null;
-  publishedAt?: string | null;
-  rollbackFromPackageId?: number | null;
-  createdAt: string;
-  createdBy: string;
-  updatedAt: string;
-  updatedBy: string;
-}
-
 export interface TerminologyCandidateGenerationResponse {
   generatedCount: number;
   candidates: TermMappingCandidate[];
@@ -1689,29 +1669,6 @@ export function useTerminologyConflicts(params: TerminologyConflictsParams = {})
   });
 }
 
-export interface TerminologyPackagesParams {
-  page?: number;
-  size?: number;
-  packageCode?: string;
-  status?: TermMappingPackage["status"];
-  scopeLevel?: string;
-  scopeCode?: string;
-}
-
-export function useTerminologyPackages(params?: TerminologyPackagesParams) {
-  const requestParams = compactParams(params ?? {});
-  return useQuery({
-    queryKey: ["terminology", "packages", requestParams],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<TermMappingPackage> }>(
-        `${TERMINOLOGY_API_ROOT}/mapping-packages`,
-        { params: requestParams },
-      );
-      return data.data;
-    },
-  });
-}
-
 export function useGenerateTerminologyCandidates() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
@@ -1791,7 +1748,7 @@ export function useBatchConfirmTerminologyCandidates() {
   });
 }
 
-export function useBuildTerminologyPackage() {
+export function useBuildTerminologyKnowledgePackage() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
@@ -1800,63 +1757,16 @@ export function useBuildTerminologyPackage() {
       packageVersion: string;
       scopeLevel: string;
       scopeCode: string;
-      displayName: string;
+      name: string;
     }) => {
-      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
-        `${TERMINOLOGY_API_ROOT}/mapping-packages`,
+      const { data } = await apiClient.post<{ data: PackageResponse }>(
+        `${PACKAGE_API_ROOT}/terminology`,
         withStandardApiContext(payload, security.data, payload.packageVersion),
       );
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
-    },
-  });
-}
-
-export function usePublishTerminologyPackage() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      packageId: number;
-      request: {
-        packageVersion: string;
-        releaseMode: "GRAY" | "FULL";
-        reason: string;
-        publishEvidence?: VersionPublishEvidence;
-      };
-    }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
-        `${TERMINOLOGY_API_ROOT}/mapping-packages/${payload.packageId}/publish`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
-    },
-  });
-}
-
-export function useRollbackTerminologyPackage() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      packageId: number;
-      request: { packageVersion: string; targetPackageId: number; reason: string };
-    }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
-        `${TERMINOLOGY_API_ROOT}/mapping-packages/${payload.packageId}/rollback`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
+      queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
     },
   });
 }
@@ -3190,13 +3100,15 @@ export interface AuthoringBatchRulePublishRequest {
   }>;
 }
 
+export type ReleaseScopeType = "ALL" | "REGION" | "FACILITY" | "CAMPUS" | "DEPARTMENT" | "WARD";
+
 export interface AuthoringBatchPackageDistributeRequest {
   items: Array<{
     itemId: string;
     packageId: string;
     targetOrgUnitId: string;
     strategy: "GRAYSCALE" | "FULL";
-    scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT";
+    scopeType: ReleaseScopeType;
     scopeValue?: string;
     adapterIds: string[];
     reason: string;
@@ -3861,7 +3773,6 @@ export function useCaptureRuleDriftSnapshot() {
 
 // ==================== Pathway 引擎相关的实体及 DTO 契约 ====================
 
-export type SpecialtyPackageStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
 export type PathwayTemplateStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
 export type PathwayEntryMode = "AUTO_SUGGEST" | "MANUAL_CONFIRM";
 export type PathwayTemplateLevel =
@@ -3914,23 +3825,6 @@ export type PathwayAdvanceEventType = "COMPLETE" | "VARIANCE" | "EXIT";
 export type PathwayOutcomeScope = "TEMPLATE" | "PHASE" | "MILESTONE";
 export type PathwaySimulationMode = "SINGLE_SNAPSHOT" | "QUEUE_REPLAY" | "TIME_MACHINE";
 export type PathwayCoordinationWarningType = "ORDER_SET_CONFLICT" | "CLOCK_WINDOW_OVERLAP" | string;
-
-export interface SpecialtyPackage {
-  id?: number;
-  packageId: string;
-  packageCode: string;
-  diseaseCode: string;
-  name: string;
-  packageVersion: string;
-  status: SpecialtyPackageStatus;
-  sourceRef: string;
-  description: string;
-  publishedAt?: string;
-  publishedBy?: string;
-  createdAt?: string;
-  createdBy?: string;
-  traceId?: string;
-}
 
 export interface PathwayTemplate {
   id?: number;
@@ -4024,12 +3918,6 @@ export interface PathwayOutcomeBinding {
   indicatorCode: string;
   packageVersion?: string | null;
   createdAt?: string;
-}
-
-export interface SpecialtyPackageResponse {
-  packageId: string;
-  status: SpecialtyPackageStatus;
-  traceId: string;
 }
 
 export interface PathwayTemplateDetailResponse {
@@ -4245,41 +4133,7 @@ export interface PathwayAdvanceResponse {
   traceId: string;
 }
 
-// 1. SpecialtyPackage Hooks
-export function useSpecialtyPackages(params?: { page?: number; size?: number; sort?: string }) {
-  return useQuery({
-    queryKey: ["pathways", "packages", params ?? {}],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<SpecialtyPackage> }>(
-        "/engine/pathway/specialty-packages",
-        { params },
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useCreateSpecialtyPackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: {
-      packageCode: string;
-      diseaseCode: string;
-      name: string;
-      packageVersion: string;
-      sourceRef: string;
-      description: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: SpecialtyPackageResponse }>(
-        "/engine/pathway/specialty-packages",
-        withStandardApiContext(payload, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-// 2. PathwayTemplate Hooks
+// 1. PathwayTemplate Hooks
 export function usePathwayTemplates(
   params?: {
     status?: PathwayTemplateStatus;
@@ -6451,6 +6305,13 @@ export interface KnowledgePackage {
   updatedAt: string;
   updatedBy: string;
   traceId: string;
+  assetTypes: EngineAssetType[];
+  primaryAssetId?: string | null;
+  primaryAssetVersion?: string | null;
+  itemCount: number;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  sourceRef?: string | null;
 }
 
 export interface PackageItem {
@@ -6545,7 +6406,7 @@ export interface PackageSyncRequest {
   reason: string;
   targetOrgUnitId: string;
   strategy: "GRAYSCALE" | "FULL" | string;
-  scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | string;
+  scopeType: ReleaseScopeType;
   scopeValue: string;
   adapterIds: string[];
   publishEvidence?: VersionPublishEvidence;
@@ -6730,12 +6591,47 @@ export function useCreatePackage() {
   });
 }
 
+export interface PathwayPackageBuildRequest {
+  packageCode: string;
+  diseaseCode: string;
+  name: string;
+  packageVersion: string;
+  sourceRef: string;
+  description: string;
+  profiles?: Array<{
+    profileCode: string;
+    name: string;
+    stratification?: Record<string, unknown>;
+    entryCriteria?: Record<string, unknown>;
+    exitCriteria?: Record<string, unknown>;
+    followupPlan?: Record<string, unknown>;
+  }>;
+}
+
+export function useBuildPathwayKnowledgePackage() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PathwayPackageBuildRequest) => {
+      const { data } = await apiClient.post<{ data: PackageResponse }>(
+        `${PACKAGE_API_ROOT}/pathway`,
+        withStandardApiContext(payload, security.data, payload.packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
+    },
+  });
+}
+
 // 3. 分页查询知识包列表
 export interface PackageListParams {
   page?: number;
   size?: number;
   keyword?: string;
   status?: string;
+  assetType?: EngineAssetType;
 }
 
 export function usePackages(params: PackageListParams = {}) {
@@ -6744,6 +6640,7 @@ export function usePackages(params: PackageListParams = {}) {
     size: params.size ?? 10,
     ...(params.keyword ? { keyword: params.keyword } : {}),
     ...(params.status ? { status: params.status } : {}),
+    ...(params.assetType ? { assetType: params.assetType } : {}),
   };
   return useQuery({
     queryKey: ["packages", "list", requestParams],

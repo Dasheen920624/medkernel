@@ -20,7 +20,7 @@
 
 `engine/pathway` **后端已实质建成**，本卡＝**契约化 + 三层前端 + 仿真/随访接续补全**：
 
-- 已有（后端）：`PathwayTemplate`(+`Level`/`Status`/`Detail`)、`PathwayNode`/`PathwayEdge`/`PathwayGraph`(+`NodeType`/`EdgeType`)、`PatientPathway`(+`Status`/`Enter`/`Detail`)、`PathwayProgressor`/`PathwayProgressDecision`/`PathwayAdvanceRequest`、`PathwayVariance`、`ClinicalClock`(+`Status`)、`SpecialtyPackage`、`SpecialtyMetricBinding`、`PathwaySimulateRequest`/`Response`、`PathwayEngineService`/`Controller`(+ 安全测试)。
+- 已有（后端）：`PathwayTemplate`(+`Level`/`Status`/`Detail`)、`PathwayNode`/`PathwayEdge`/`PathwayGraph`(+`NodeType`/`EdgeType`)、`PatientPathway`(+`Status`/`Enter`/`Detail`)、`PathwayProgressor`/`PathwayProgressDecision`/`PathwayAdvanceRequest`、`PathwayVariance`、`ClinicalClock`(+`Status`)、`KnowledgePackage`/`PathwayKnowledgePackageService`、`SpecialtyMetricBinding`、`PathwaySimulateRequest`/`Response`、`PathwayEngineService`/`Controller`(+ 安全测试)。
 - 缺口（本卡补）：① **三层前端**（L1 模板 / L2 React Flow 节点画布 / L3 DSL）；② **仿真**接 [API-01](API-01.md) 真实快照；③ 发布 **7 步流 + §3 状态机** 接 [SYS-04](SYS-04.md)；④ **关键时钟绑定质控**（[SYS-04](SYS-04.md)/D4 评估消费）；⑤ **随访接续**（出径 → 随访计划交接 D3 FOLLOW）。
 - 2026-06-02 PR1 进展（`codex/d2-path-01-backend-contracts`）：后端仿真与实时推进新增 `snapshotId`，通过 `ContextSnapshotService.findById` 消费 [API-01](API-01.md) 真实快照，返回 `contextQualityStatus`、`missingFields`、`mappingStatus`、`contextResourceCounts`；`PathwayProgressor` 支持从快照事实评估 `condition_json`（如检验值条件），默认边仅作 fallback，不再抢走已满足条件边；`PathwayProgressDecision` / `PathwayAdvanceResponse` 携带命中边与事实证据；有时窗节点发布时必须绑定质控指标，缺失返回 `PATHWAY_CLOCK_MISSING`，入径 / 推进创建的 `ClinicalClock.metricCode` 来自真实 `SpecialtyMetricBinding`。未冒领三层前端、7 步发布、随访接续和 D4 超时信号闭环。
 - 2026-06-02 PR2 与 2026-06-07 统一验收：`PathwayTemplates` 已清理旧 `DEFAULT_NODES_JSON` / `DEFAULT_EDGES_JSON`、伪画布与粘贴式快照入口，形成 L1 模板、L2 React Flow 节点画布、L3 DSL 三层编辑；支持节点拖拽 / 键盘移动、连线、节点 / 边删除和布局持久化，所有操作回写同一份 `PathwayTemplate` 表单与 DSL。详情抽屉展示 L1 / L2 / L3 与真实快照试运行，仿真从 [API-01](API-01.md) ACTIVE 快照列表 / 详情选择 `snapshotId`，展示后端返回的快照质量、映射状态和节点轨迹；`DEFER-017` 已关闭。
@@ -30,7 +30,7 @@
 - 2026-06-08 H-1 进展：路径富节点纳入统一 authoring 能力开关，支持系统默认与租户覆盖；关闭时模板发布门禁和患者路径推进均拒绝富节点，不继续解释高级节点语义；配置中心页面可配置租户覆盖。
 - 2026-06-08 H-2 进展：临床事件触发路径推进与规则、CDSS 共用 `medkernel.events.sync-timeout-ms` 同步求值预算；预算耗尽或下游不可用时事件进入 `FAILED/ENG-SYS-002` 人工核查，不继续误推进路径。
 - 2026-06-08 H-4 / P12-5 进展：路径发布门禁拒绝可达有向环；`SUBPATHWAY` 不能引用当前路径模板；仿真超过节点数最大步数即拒绝，避免旧图无限推进。条件片段库已具备运行模型，保存时拒绝缺失引用、跨包引用与循环引用，路径守卫可按引用复用同包 ACTIVE 片段。
-- 2026-06-08 H-5 进展：路径发布门禁统一校验模板入 / 出径条件、节点配置、边条件和结局指标绑定的显式包版本；入径、推进、单快照仿真和队列回放按模板所属专病包版本校验上下文快照；引用字段、子路径、医嘱集和结局指标摘要进入影响 `digest`。
+- 2026-06-08 H-5 进展：路径发布门禁统一校验模板入 / 出径条件、节点配置、边条件和结局指标绑定的显式包版本；入径、推进、单快照仿真和队列回放按模板所属路径知识包版本校验上下文快照；引用字段、子路径、医嘱集和结局指标摘要进入影响 `digest`。
 - 2026-06-08 H-6 进展：路径变异发出 `PathwayVarianceRecorded` 并进入待办 / 通知；关键时钟 SLA 从 RUNNING 投影到 TIMEOUT 时发出 `ClockSlaBreached` 并进入待办 / 通知 / 质控驾驶舱，事件统一携带 `tenantId`、`traceId`、`packageVersion`。
 
 ## 功能要求（原子可测条目）
@@ -46,7 +46,7 @@
 - [x] **FR-9 能力开关灰度**：路径富节点按系统默认 / 租户覆盖灰度；开关关闭时发布与推进均诚实拒绝富节点，不误算高级语义。
 - [x] **FR-10 事件触发硬超时**：临床事件触发路径推进必须在配置预算内完成；超时或下游不可用时不推进节点，事件转人工核查。
 - [x] **FR-11 环与步数护栏**：路径模板发布拒绝可达有向环和当前模板自引用子路径；仿真运行期有最大步数护栏，旧坏图不能无限推进。
-- [x] **FR-12 引用包版本一致性**：路径模板引用的字段、条件、子路径、医嘱集和结局指标必须与模板所属专病包版本一致；发布门禁与运行期同时拒绝跨包版本引用；引用资产变更进入影响分析。
+- [x] **FR-12 引用包版本一致性**：路径模板引用的字段、条件、子路径、医嘱集和结局指标必须与模板所属路径知识包版本一致；发布门禁与运行期同时拒绝跨包版本引用；引用资产变更进入影响分析。
 - [x] **FR-13 领域事件协同**：路径变异与 SLA 超时只从后端真实路径事实发出，统一对接现有待办、通知与质控驾驶舱，不由前端伪造提醒。
 
 ## 接口契约 / 页面契约
@@ -68,7 +68,7 @@
 
 ## 数据与迁移
 
-- 表族：`pathway_template`（含 `parent_template_id`）/`pathway_node`（含 `disabled_flag`）/`pathway_edge`/`patient_pathway`/`pathway_variance`/`clinical_clock`/`specialty_package`/`specialty_metric_binding`/`pathway_outcome_binding`。
+- 表族：`knowledge_package`/`package_item`/`pathway_template`（含 `parent_template_id`）/`pathway_node`（含 `disabled_flag`）/`pathway_edge`/`patient_pathway`/`pathway_variance`/`clinical_clock`/`specialty_metric_binding`/`pathway_outcome_binding`。
 - 主键 ULID；唯一约束：`(pathway_identity, org_scope, version)` ACTIVE 唯一（[SYS-04](SYS-04.md)）；索引：`status`、`specialty`、`org_path`。
 - 5 方言迁移一致 + 中文注释。
 
