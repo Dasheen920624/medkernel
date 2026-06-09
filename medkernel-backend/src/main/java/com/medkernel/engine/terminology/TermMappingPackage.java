@@ -25,7 +25,6 @@ public record TermMappingPackage(
     @Column("status") TermMappingPackageStatus status,
     @Column("mapping_count") Integer mappingCount,
     @Column("content_hash") String contentHash,
-    @Column("gray_scope_json") String grayScopeJson,
     @Column("published_by") String publishedBy,
     @Column("published_at") Instant publishedAt,
     @Column("rollback_from_package_id") Long rollbackFromPackageId,
@@ -45,7 +44,6 @@ public record TermMappingPackage(
             String status,
             Integer mappingCount,
             String contentHash,
-            String grayScopeJson,
             String publishedBy,
             Instant publishedAt,
             Long rollbackFromPackageId,
@@ -62,7 +60,6 @@ public record TermMappingPackage(
             status,
             mappingCount,
             contentHash,
-            grayScopeJson,
             publishedBy,
             publishedAt,
             rollbackFromPackageId,
@@ -82,7 +79,6 @@ public record TermMappingPackage(
             String status,
             Integer mappingCount,
             String contentHash,
-            String grayScopeJson,
             String publishedBy,
             Instant publishedAt,
             Long rollbackFromPackageId,
@@ -99,7 +95,6 @@ public record TermMappingPackage(
             parseStatus(status),
             mappingCount,
             contentHash,
-            grayScopeJson,
             publishedBy,
             publishedAt,
             rollbackFromPackageId,
@@ -128,25 +123,17 @@ public record TermMappingPackage(
     TermMappingPackage withStatus(TermMappingPackageStatus nextStatus, String userId, Instant now) {
         return new TermMappingPackage(
             id, tenantId, packageCode, packageVersion, displayName, scopeLevel, scopeCode,
-            nextStatus, mappingCount, contentHash, grayScopeJson,
+            nextStatus, mappingCount, contentHash,
             nextStatus == TermMappingPackageStatus.PUBLISHED || nextStatus == TermMappingPackageStatus.GRAY ? userId : publishedBy,
             nextStatus == TermMappingPackageStatus.PUBLISHED || nextStatus == TermMappingPackageStatus.GRAY ? now : publishedAt,
             rollbackFromPackageId, createdAt, createdBy, now, userId
         );
     }
 
-    TermMappingPackage withGrayScope(String newGrayScopeJson) {
-        return new TermMappingPackage(
-            id, tenantId, packageCode, packageVersion, displayName, scopeLevel, scopeCode,
-            status, mappingCount, contentHash, newGrayScopeJson, publishedBy, publishedAt,
-            rollbackFromPackageId, createdAt, createdBy, updatedAt, updatedBy
-        );
-    }
-
     TermMappingPackage rolledBack(String userId, Instant now) {
         return new TermMappingPackage(
             id, tenantId, packageCode, packageVersion, displayName, scopeLevel, scopeCode,
-            TermMappingPackageStatus.ROLLED_BACK, mappingCount, contentHash, grayScopeJson,
+            TermMappingPackageStatus.ROLLED_BACK, mappingCount, contentHash,
             publishedBy, publishedAt, rollbackFromPackageId, createdAt, createdBy, now, userId
         );
     }
@@ -154,7 +141,7 @@ public record TermMappingPackage(
     TermMappingPackage restoredFromRollback(Long sourcePackageId, String userId, Instant now) {
         return new TermMappingPackage(
             id, tenantId, packageCode, packageVersion, displayName, scopeLevel, scopeCode,
-            TermMappingPackageStatus.PUBLISHED, mappingCount, contentHash, null,
+            TermMappingPackageStatus.PUBLISHED, mappingCount, contentHash,
             userId, now, sourcePackageId, createdAt, createdBy, now, userId
         );
     }

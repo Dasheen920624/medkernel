@@ -53,6 +53,7 @@ import com.medkernel.engine.versioning.InheritanceResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
@@ -561,9 +562,9 @@ public class PathwayEngineService {
             releaseApplicableScope(template),
             null,
             null,
+            RolloutPolicy.canaryBedPercent(impact.canaryPercent()),
             impact.impactDigest(),
             releaseReason(request, "路径发布门禁通过"),
-            request == null ? List.of() : request.roleCodes(),
             actor,
             RequestContext.currentTraceId(),
             request == null ? null : request.publishEvidence().electronicSignature(),
@@ -587,9 +588,9 @@ public class PathwayEngineService {
             releaseApplicableScope(template),
             VersionReleaseScopeType.ALL,
             null,
+            RolloutPolicy.all(),
             impact.impactDigest(),
             releaseReason(request, "路径全量发布门禁通过"),
-            request == null ? List.of() : request.roleCodes(),
             actor,
             RequestContext.currentTraceId(),
             request == null ? null : request.publishEvidence().electronicSignature(),

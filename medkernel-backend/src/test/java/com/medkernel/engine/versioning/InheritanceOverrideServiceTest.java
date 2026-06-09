@@ -426,6 +426,48 @@ class InheritanceOverrideServiceTest {
         verify(overrides, never()).save(any(InheritanceOverride.class));
     }
 
+    @Test
+    void retiresExactOverrideAndKeepsAuditIdentity() {
+        InheritanceOverride existing = new InheritanceOverride(
+            1L,
+            "io-1",
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "av-platform-v1",
+            "av-local-v1",
+            InheritanceOverrideMode.REPLACE,
+            InheritancePropagation.INHERITABLE,
+            InheritanceOverrideStatus.PUBLISHED,
+            "/TENANT-A/HOSP-A",
+            "adult|inpatient",
+            "本地阈值",
+            "本院制度",
+            "HOSP-A",
+            CLOCK.instant(),
+            "publisher-1",
+            CLOCK.instant(),
+            "publisher-1",
+            "trace-old"
+        );
+        when(overrides.findByTenantIdAndOverrideId("tenant-A", "io-1"))
+            .thenReturn(Optional.of(existing));
+        when(overrides.save(any(InheritanceOverride.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        InheritanceOverride retired = service.retireOverride(
+            "tenant-A",
+            "io-1",
+            "operator-2",
+            "trace-retire"
+        );
+
+        assertThat(retired.overrideId()).isEqualTo("io-1");
+        assertThat(retired.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.RETIRED);
+        assertThat(retired.updatedBy()).isEqualTo("operator-2");
+        assertThat(retired.traceId()).isEqualTo("trace-retire");
+    }
+
     private OrgUnit org(String id, String parentId, String orgPath, OrgLevel level, String code) {
         return new OrgUnit(
             id,

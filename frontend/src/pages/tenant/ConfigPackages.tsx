@@ -29,6 +29,7 @@ import {
   CloudSyncOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  ExperimentOutlined,
   FileProtectOutlined,
   HistoryOutlined,
   PlusOutlined,
@@ -1619,6 +1620,9 @@ export default function ConfigPackages() {
       }
       extras={
         <Space wrap>
+          <Button icon={<ExperimentOutlined aria-hidden="true" />} href="/config/releases">
+            发布治理
+          </Button>
           <Button
             icon={<UploadOutlined aria-hidden="true" />}
             onClick={() => setOfflineImportModalVisible(true)}

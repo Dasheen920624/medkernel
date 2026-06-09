@@ -1,6 +1,5 @@
 package com.medkernel.engine.pkg;
 
-import com.medkernel.engine.versioning.RolloutStrategy;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionDraftUpdateCommand;
@@ -13,6 +12,7 @@ import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
 import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionRollbackCommand;
@@ -109,7 +109,6 @@ public class PackageEngineService {
     private static final ObjectMapper PACKAGE_JSON_MAPPER = new ObjectMapper();
     private static final ObjectMapper OFFLINE_EXPORT_MAPPER = new ObjectMapper();
     private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V2";
-    private static final RolloutStrategy DEFAULT_GRAY_SCOPE_STRATEGY = RolloutStrategy.CANARY_BED_PERCENT;
     private static final int DEFAULT_GRAY_SCOPE_PERCENTAGE = 10;
     private static final Set<VersionedAssetType> DECLARATIVE_PACKAGE_ASSET_TYPES = Set.of(
         VersionedAssetType.FIELD_CATALOG,
@@ -1417,7 +1416,6 @@ public class PackageEngineService {
                 terminologyPackage.statusName(),
                 terminologyPackage.mappingCount(),
                 terminologyPackage.contentHash(),
-                terminologyPackage.grayScopeJson(),
                 terminologyPackage.publishedBy(),
                 instantText(terminologyPackage.publishedAt()),
                 terminologyPackage.rollbackFromPackageId()
@@ -2457,7 +2455,6 @@ public class PackageEngineService {
             importedPackage.status(),
             importedPackage.mappingCount(),
             importedPackage.contentHash(),
-            importedPackage.grayScopeJson(),
             importedPackage.publishedBy(),
             parseInstant(importedPackage.publishedAt()),
             importedPackage.rollbackFromPackageId(),
@@ -3321,7 +3318,6 @@ public class PackageEngineService {
         String status,
         Integer mappingCount,
         String contentHash,
-        String grayScopeJson,
         String publishedBy,
         String publishedAt,
         Long rollbackFromPackageId
@@ -3600,9 +3596,11 @@ public class PackageEngineService {
                 ? VersionReleaseScopeType.ALL
                 : VersionReleaseScopeType.valueOf(scope.scopeType().name()),
             request.strategy() == ReleaseStrategy.FULL ? null : scope.scopeValue(),
+            request.strategy() == ReleaseStrategy.FULL
+                ? RolloutPolicy.all()
+                : RolloutPolicy.canaryBedPercent(DEFAULT_GRAY_SCOPE_PERCENTAGE),
             snapshot.contentSha256(),
             request.reason().trim(),
-            List.of(),
             actor,
             traceId,
             request.publishEvidence().electronicSignature(),
@@ -3654,11 +3652,7 @@ public class PackageEngineService {
 
     private ReleaseScope defaultGrayScope(String targetOrgUnitId) {
         String scopeCode = normalizedText(targetOrgUnitId);
-        ObjectNode scope = PACKAGE_JSON_MAPPER.createObjectNode();
-        scope.put("rolloutStrategy", DEFAULT_GRAY_SCOPE_STRATEGY.name());
-        scope.put("percentage", DEFAULT_GRAY_SCOPE_PERCENTAGE);
-        scope.put("scopeCode", scopeCode);
-        return new ReleaseScope(ReleaseScopeType.FACILITY, scope.toString());
+        return new ReleaseScope(ReleaseScopeType.FACILITY, scopeCode);
     }
 
     private String normalizedText(String value) {

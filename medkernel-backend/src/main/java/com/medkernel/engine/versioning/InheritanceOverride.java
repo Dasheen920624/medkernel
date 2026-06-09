@@ -31,4 +31,33 @@ public record InheritanceOverride(
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
-) {}
+) {
+    public InheritanceOverride withLifecycleStatus(
+            InheritanceOverrideStatus status,
+            Instant now,
+            String actor,
+            String newTraceId) {
+        return new InheritanceOverride(
+            id,
+            overrideId,
+            tenantId,
+            assetType,
+            assetIdentity,
+            inheritedVersionId,
+            overrideVersionId,
+            overrideMode,
+            propagation,
+            status,
+            orgPath,
+            applicableScope,
+            diffSummary,
+            overrideReason,
+            impactScope,
+            createdAt,
+            createdBy,
+            now,
+            actor,
+            newTraceId
+        );
+    }
+}

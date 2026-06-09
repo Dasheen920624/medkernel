@@ -68,6 +68,7 @@ import {
   useInsuranceIssues,
   useReplayDeadLetter,
   useImplementationSteps,
+  useApplyOverrideBatch,
   useApplyPilotTemplateReferences,
   useSignoffRule,
   useTransitionRuleGovernance,
@@ -98,6 +99,8 @@ import {
   usePathwayTemplates,
   usePilotPackageTemplates,
   usePublishTerminologyPackage,
+  useObserveReleaseRollout,
+  usePreviewOverrideBatch,
   usePublishEvaluationIndicator,
   useQualityFindings,
   useRegionalSources,
@@ -121,6 +124,9 @@ import {
   useReviewRectification,
   useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
+  useReleaseSimulation,
+  useRevokeOverrideBatch,
+  useRollbackRollout,
   useRunDrgGrouping,
   useRunInsuranceAudit,
   useRunQualityCaseReview,
@@ -129,6 +135,7 @@ import {
   useSyncPackage,
   useStandardTerms,
   useSubmitEvaluationIndicator,
+  useStartReleaseRollout,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyPackages,
@@ -2575,7 +2582,6 @@ describe("terminology mapping api helpers", () => {
         packageVersion: "2026.06",
         releaseMode: "GRAY",
         reason: "首发检验字典灰度验证",
-        grayScopeJson: '{"percent":10}',
       },
     });
     await rollback.result.current.mutateAsync({
@@ -2611,6 +2617,103 @@ describe("terminology mapping api helpers", () => {
         targetPackageId: 29,
         reason: "灰度验证失败",
       }),
+    );
+  });
+});
+
+describe("release governance api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("uses the canonical simulation, rollout, rollback and override operation endpoints", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
+    const simulation = {
+      assetType: "RULE" as const,
+      assetIdentity: "RULE.VTE.RISK",
+      candidateVersionId: "version-a",
+      targetOrgUnitIds: ["org-a"],
+      targetOrgPath: "/tenant-a/org-a",
+      applicableScope: "ALL",
+      rolloutPolicy: {
+        strategy: "CANARY_BED_PERCENT" as const,
+        orgUnitIds: [],
+        bedPercent: 10,
+        stages: [],
+      },
+      replayDays: 30,
+      replayLimit: 100,
+    };
+    const preview = {
+      templateId: "template-a",
+      targetOrgUnitIds: ["org-a"],
+      targetVersionIds: {},
+    };
+
+    await renderApiHook(() => useReleaseSimulation()).result.current.mutateAsync(simulation);
+    await renderApiHook(() => useStartReleaseRollout()).result.current.mutateAsync({
+      simulation,
+      confirmedSimulationDigest: "simulation-digest",
+      reviewConclusion: "已完成临床与依赖复核",
+    });
+    await renderApiHook(() => useObserveReleaseRollout()).result.current.mutateAsync({
+      planId: "plan-a",
+      request: {
+        stageIndex: 0,
+        sampleCount: 100,
+        hitCount: 20,
+        blockCount: 1,
+        manualRejectionCount: 2,
+        anomalyCount: 0,
+        observedAt: "2026-06-09T00:00:00Z",
+      },
+    });
+    await renderApiHook(() => useRollbackRollout()).result.current.mutateAsync({
+      planId: "plan-a",
+      reason: "灰度观察异常",
+      confirmedHighRisk: true,
+    });
+    await renderApiHook(() => usePreviewOverrideBatch()).result.current.mutateAsync(preview);
+    await renderApiHook(() => useApplyOverrideBatch()).result.current.mutateAsync({
+      preview,
+      confirmedPreviewDigest: "preview-digest",
+    });
+    await renderApiHook(() => useRevokeOverrideBatch()).result.current.mutateAsync("operation-a");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/versioning/releases/simulations",
+      simulation,
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/versioning/releases/rollouts",
+      expect.objectContaining({ confirmedSimulationDigest: "simulation-digest" }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/versioning/releases/rollouts/plan-a/observations",
+      expect.objectContaining({ stageIndex: 0, sampleCount: 100 }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      4,
+      "/engine/versioning/releases/rollouts/plan-a:rollback",
+      expect.objectContaining({ reason: "灰度观察异常", confirmedHighRisk: true }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      5,
+      "/engine/versioning/releases/override-batches:preview",
+      preview,
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      6,
+      "/engine/versioning/releases/override-batches:apply",
+      expect.objectContaining({ confirmedPreviewDigest: "preview-digest" }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      7,
+      "/engine/versioning/releases/override-batches/operation-a:revoke",
     );
   });
 });

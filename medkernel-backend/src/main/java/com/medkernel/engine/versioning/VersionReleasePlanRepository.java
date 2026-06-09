@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface VersionReleasePlanRepository extends ListCrudRepository<VersionReleasePlan, Long> {
+    Optional<VersionReleasePlan> findByPlanIdAndTenantId(String planId, String tenantId);
+
     Optional<VersionReleasePlan> findFirstByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdAndStatusAndTargetOrgPathAndApplicableScopeOrderByCreatedAtDesc(
         String tenantId,
         VersionedAssetType assetType,

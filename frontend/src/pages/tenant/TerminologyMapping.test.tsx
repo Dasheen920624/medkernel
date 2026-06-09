@@ -221,7 +221,6 @@ const mappingPackage: TermMappingPackage = {
   status: "DRAFT",
   mappingCount: 12,
   contentHash: "a".repeat(64),
-  grayScopeJson: null,
   publishedBy: null,
   publishedAt: null,
   rollbackFromPackageId: null,

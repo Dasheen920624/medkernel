@@ -9,6 +9,7 @@ public enum VersionReleaseStatus {
     APPROVED,
     PUBLISHED,
     GRAY,
+    PAUSED,
     ROLLED_BACK,
     FAILED
 }

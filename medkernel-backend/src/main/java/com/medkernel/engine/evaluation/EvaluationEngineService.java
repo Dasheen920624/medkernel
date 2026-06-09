@@ -32,6 +32,7 @@ import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
@@ -261,7 +262,8 @@ public class EvaluationEngineService {
         releasePort.releaseGray(releaseCommand(
             indicator,
             requireAssetVersion(indicator),
-            request
+            request,
+            RolloutPolicy.canaryBedPercent(10)
         ));
         EvaluationIndicator gray = saveIndicatorStatus(
             indicator, EvaluationIndicatorStatus.GRAY, indicator.publishedAt(), null);
@@ -1234,11 +1236,20 @@ public class EvaluationEngineService {
             EvaluationIndicator indicator,
             AssetVersion assetVersion,
             EvaluationIndicatorReleaseRequest request) {
+        return releaseCommand(indicator, assetVersion, request, RolloutPolicy.all());
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            EvaluationIndicator indicator,
+            AssetVersion assetVersion,
+            EvaluationIndicatorReleaseRequest request,
+            RolloutPolicy rolloutPolicy) {
         return releaseCommand(
             indicator,
             assetVersion,
             requireReleaseReason(request),
-            request.publishEvidence()
+            request.publishEvidence(),
+            rolloutPolicy
         );
     }
 
@@ -1247,6 +1258,15 @@ public class EvaluationEngineService {
             AssetVersion assetVersion,
             String reason,
             VersionPublishEvidence publishEvidence) {
+        return releaseCommand(indicator, assetVersion, reason, publishEvidence, RolloutPolicy.all());
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            EvaluationIndicator indicator,
+            AssetVersion assetVersion,
+            String reason,
+            VersionPublishEvidence publishEvidence,
+            RolloutPolicy rolloutPolicy) {
         return new VersionReleaseCommand(
             indicator.tenantId(),
             VersionedAssetType.EVALUATION,
@@ -1256,9 +1276,9 @@ public class EvaluationEngineService {
             evaluationApplicableScope(indicator),
             null,
             null,
+            rolloutPolicy,
             assetVersion.contentHash(),
             reason,
-            List.of(),
             actor(),
             traceId(),
             publishEvidence == null ? null : publishEvidence.electronicSignature(),

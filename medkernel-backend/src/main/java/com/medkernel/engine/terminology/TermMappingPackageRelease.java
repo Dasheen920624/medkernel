@@ -22,7 +22,6 @@ public record TermMappingPackageRelease(
     @Column("event_type") TermPackageReleaseEventType eventType,
     @Column("release_mode") PackageReleaseMode releaseMode,
     @Column("reason") String reason,
-    @Column("gray_scope_json") String grayScopeJson,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy
 ) {

@@ -12,9 +12,18 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface InheritanceOverrideRepository extends ListCrudRepository<InheritanceOverride, Long> {
 
+    Optional<InheritanceOverride> findByTenantIdAndOverrideId(String tenantId, String overrideId);
+
     Optional<InheritanceOverride> findByTenantIdAndOverrideVersionId(String tenantId, String overrideVersionId);
 
     List<InheritanceOverride> findByAssetTypeAndAssetIdentityAndLifecycleStatus(
+        VersionedAssetType assetType,
+        String assetIdentity,
+        InheritanceOverrideStatus lifecycleStatus
+    );
+
+    List<InheritanceOverride> findByTenantIdAndAssetTypeAndAssetIdentityAndLifecycleStatus(
+        String tenantId,
         VersionedAssetType assetType,
         String assetIdentity,
         InheritanceOverrideStatus lifecycleStatus
@@ -31,6 +40,21 @@ public interface InheritanceOverrideRepository extends ListCrudRepository<Inheri
         String orgPath,
         String applicableScope,
         InheritanceOverrideMode overrideMode
+    );
+
+    List<InheritanceOverride> findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndLifecycleStatus(
+        String tenantId,
+        VersionedAssetType assetType,
+        String assetIdentity,
+        String orgPath,
+        String applicableScope,
+        InheritanceOverrideStatus lifecycleStatus
+    );
+
+    List<InheritanceOverride> findByTenantIdAndOrgPathAndLifecycleStatus(
+        String tenantId,
+        String orgPath,
+        InheritanceOverrideStatus lifecycleStatus
     );
 
     List<InheritanceOverride> findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(

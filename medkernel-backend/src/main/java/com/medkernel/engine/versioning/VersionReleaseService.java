@@ -130,10 +130,22 @@ public class VersionReleaseService implements ReleasePort {
         if (version.status() != AssetVersionStatus.APPROVED && version.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(ErrorCode.CONFLICT, "只有已批准或已发布版本可以进入灰度");
         }
+        requireGrayRolloutPolicy(command.rolloutPolicy());
         Instant now = clock.instant();
         ReleaseScope scope = normalizeGrayScope(command);
+        String activeScopeKey = activeScopeKey(command);
+        String fromVersionId = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+                command.tenantId(),
+                command.assetType(),
+                activeScopeKey,
+                AssetVersionStatus.PUBLISHED
+            ).stream()
+            .filter(active -> !active.versionId().equals(version.versionId()))
+            .map(AssetVersion::versionId)
+            .findFirst()
+            .orElse(null);
         String evidence = "GRAY 灰度发布：" + required(command.impactDigest(), "影响摘要");
-        return savePlan(command, version, null, VersionReleaseStatus.GRAY,
+        return savePlan(command, version, fromVersionId, VersionReleaseStatus.GRAY,
             scope.scopeType(), scope.scopeValue(), evidence, now);
     }
 
@@ -429,17 +441,75 @@ public class VersionReleaseService implements ReleasePort {
 
     private ReleaseScope normalizeGrayScope(VersionReleaseCommand command) {
         if (command.scopeType() == null || command.scopeType() == VersionReleaseScopeType.ALL) {
-            return defaultCanaryBedPercentScope(command.targetOrgPath());
+            return new ReleaseScope(
+                VersionReleaseScopeType.FACILITY,
+                required(command.targetOrgPath(), "目标组织路径")
+            );
         }
         return new ReleaseScope(command.scopeType(), required(command.scopeValue(), "灰度范围"));
     }
 
-    private ReleaseScope defaultCanaryBedPercentScope(String targetOrgPath) {
-        return new ReleaseScope(
-            VersionReleaseScopeType.FACILITY,
-            "{\"rolloutStrategy\":\"" + RolloutStrategy.CANARY_BED_PERCENT
-                + "\",\"percentage\":10,\"scopeCode\":\"" + required(targetOrgPath, "目标组织路径") + "\"}"
-        );
+    private void requireGrayRolloutPolicy(RolloutPolicy policy) {
+        if (policy == null || policy.strategy() == null || policy.strategy() == RolloutStrategy.ALL) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "灰度发布必须选择非全量放量策略");
+        }
+        switch (policy.strategy()) {
+            case ORG_LIST -> {
+                if (policy.orgUnitIds().isEmpty()) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "机构清单灰度至少选择一个组织");
+                }
+            }
+            case ORG_SUBTREE -> {
+                if (policy.orgUnitIds().size() != 1) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "组织子树灰度必须且只能选择一个根组织");
+                }
+            }
+            case CANARY_BED_PERCENT -> {
+                if (policy.bedPercent() == null || policy.bedPercent() < 1 || policy.bedPercent() > 99) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, "床位比例灰度必须在 1 到 99 之间");
+                }
+            }
+            case STAGED -> requireStagedPolicy(policy);
+            case ALL -> throw new ApiException(ErrorCode.VALIDATION_FAILED, "灰度发布不能使用全量策略");
+        }
+        requireThresholdRates(policy.thresholds());
+    }
+
+    private void requireStagedPolicy(RolloutPolicy policy) {
+        List<Integer> stages = policy.stages();
+        if (stages.size() < 2 || stages.get(stages.size() - 1) != 100) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "分批放量至少需要两批且最后一批必须为 100%");
+        }
+        int previous = 0;
+        for (Integer stage : stages) {
+            if (stage == null || stage <= previous || stage > 100) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "分批放量比例必须在 1 到 100 之间严格递增");
+            }
+            previous = stage;
+        }
+        if (policy.observationMinutes() == null || policy.observationMinutes() < 1) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "分批放量必须配置正数观察窗");
+        }
+        if (policy.thresholds() == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "分批放量必须配置自动暂停阈值");
+        }
+    }
+
+    private void requireThresholdRates(RolloutThresholds thresholds) {
+        if (thresholds == null) {
+            return;
+        }
+        Double[] rates = {
+            thresholds.maxHitRate(),
+            thresholds.maxBlockRate(),
+            thresholds.maxManualRejectionRate(),
+            thresholds.maxAnomalyRate()
+        };
+        for (Double rate : rates) {
+            if (rate != null && (rate < 0 || rate > 1)) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "灰度暂停阈值必须在 0 到 1 之间");
+            }
+        }
     }
 
     private VersionReleasePlan savePlan(
@@ -454,6 +524,9 @@ public class VersionReleaseService implements ReleasePort {
         String actor = required(command.actor(), "操作人");
         VersionElectronicSignature signature = command.electronicSignature();
         VersionPublishQualityGate qualityGate = command.qualityGate();
+        RolloutPolicy rolloutPolicy = status == VersionReleaseStatus.GRAY
+            ? command.rolloutPolicy()
+            : RolloutPolicy.all();
         return releasePlans.save(new VersionReleasePlan(
             null,
             "vrl-" + Ulid.newUlid(),
@@ -466,6 +539,10 @@ public class VersionReleaseService implements ReleasePort {
             command.applicableScope(),
             scopeType,
             scopeValue,
+            rolloutPolicy.strategy(),
+            status == VersionReleaseStatus.GRAY ? RolloutPolicyJson.encode(rolloutPolicy) : null,
+            0,
+            null,
             status,
             command.impactDigest(),
             command.reviewConclusion(),

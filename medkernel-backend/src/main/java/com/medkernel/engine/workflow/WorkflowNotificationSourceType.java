@@ -9,5 +9,6 @@ public enum WorkflowNotificationSourceType {
     WORKFLOW_TODO,
     SYNC_EVENT,
     RULE_EVENT,
-    PATHWAY_EVENT
+    PATHWAY_EVENT,
+    RELEASE_ROLLOUT
 }

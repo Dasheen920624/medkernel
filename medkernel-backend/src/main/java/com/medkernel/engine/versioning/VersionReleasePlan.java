@@ -22,6 +22,10 @@ public record VersionReleasePlan(
     @Column("applicable_scope") String applicableScope,
     @Column("scope_type") VersionReleaseScopeType scopeType,
     @Column("scope_value") String scopeValue,
+    @Column("rollout_strategy") RolloutStrategy rolloutStrategy,
+    @Column("rollout_config_json") String rolloutConfigJson,
+    @Column("rollout_stage_index") Integer rolloutStageIndex,
+    @Column("rollout_paused_reason") String rolloutPausedReason,
     VersionReleaseStatus status,
     @Column("impact_digest") String impactDigest,
     @Column("review_conclusion") String reviewConclusion,
@@ -37,6 +41,91 @@ public record VersionReleasePlan(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
+    public VersionReleasePlan withRolloutState(
+            VersionReleaseStatus rolloutStatus,
+            int stageIndex,
+            String pausedReason,
+            Instant now,
+            String actor,
+            String traceId) {
+        return new VersionReleasePlan(
+            id,
+            planId,
+            tenantId,
+            assetType,
+            assetIdentity,
+            versionId,
+            fromVersionId,
+            targetOrgPath,
+            applicableScope,
+            scopeType,
+            scopeValue,
+            rolloutStrategy,
+            rolloutConfigJson,
+            stageIndex,
+            pausedReason,
+            rolloutStatus,
+            impactDigest,
+            reviewConclusion,
+            evidenceSummary,
+            electronicSignatureId,
+            electronicSignatureSubject,
+            electronicSignatureHash,
+            electronicSignatureSignedAt,
+            qualityGateSummary,
+            createdAt,
+            createdBy,
+            now,
+            actor,
+            traceId
+        );
+    }
+
+    public VersionReleasePlan withRolloutRollback(
+            String reason,
+            Instant now,
+            String actor,
+            String traceId) {
+        String rollbackAction = fromVersionId == null || fromVersionId.isBlank()
+            ? "停止本次灰度，无上一钉点"
+            : "恢复上一钉点 " + fromVersionId;
+        String rollbackEvidence = "ROLLBACK 灰度回退：" + rollbackAction + "；原因：" + reason;
+        String evidence = evidenceSummary == null || evidenceSummary.isBlank()
+            ? rollbackEvidence
+            : evidenceSummary + "；" + rollbackEvidence;
+        return new VersionReleasePlan(
+            id,
+            planId,
+            tenantId,
+            assetType,
+            assetIdentity,
+            versionId,
+            fromVersionId,
+            targetOrgPath,
+            applicableScope,
+            scopeType,
+            scopeValue,
+            rolloutStrategy,
+            rolloutConfigJson,
+            rolloutStageIndex,
+            null,
+            VersionReleaseStatus.ROLLED_BACK,
+            impactDigest,
+            reviewConclusion,
+            evidence,
+            electronicSignatureId,
+            electronicSignatureSubject,
+            electronicSignatureHash,
+            electronicSignatureSignedAt,
+            qualityGateSummary,
+            createdAt,
+            createdBy,
+            now,
+            actor,
+            traceId
+        );
+    }
+
     public VersionReleasePlan(
             Long id,
             String planId,
@@ -70,6 +159,10 @@ public record VersionReleasePlan(
             applicableScope,
             scopeType,
             scopeValue,
+            RolloutStrategy.ALL,
+            null,
+            0,
+            null,
             status,
             impactDigest,
             reviewConclusion,

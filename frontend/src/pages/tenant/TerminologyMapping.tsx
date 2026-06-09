@@ -544,7 +544,6 @@ export default function TerminologyMapping() {
         packageVersion: currentPackageVersion,
         releaseMode: values.releaseMode,
         reason: values.reason,
-        grayScopeJson: values.releaseMode === "GRAY" ? '{"percent":10}' : undefined,
       },
     });
     setPublishOpen(false);
