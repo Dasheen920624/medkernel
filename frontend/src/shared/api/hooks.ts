@@ -2355,10 +2355,12 @@ export function useInteropAssessment(standardVersion: string) {
 
 export function useExportApprovals(
   params: { resourceType?: string; status?: ExportApprovalStatus } = {},
+  enabled = true,
 ) {
   return useQuery({
     queryKey: ["compliance", "export-approvals", params],
     queryFn: () => fetchExportApprovals(params),
+    enabled,
   });
 }
 

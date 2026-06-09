@@ -78,6 +78,42 @@ describe("route metadata", () => {
     });
   });
 
+  it("requires evaluation read permission for every quality read workspace", () => {
+    const routes = [
+      ["/qc/dashboard", "qc-dashboard"],
+      ["/qc/alerts", "qc-alerts"],
+      ["/qc/insurance", "insurance-audit"],
+      ["/qc/eval/sets", "qc-eval-sets"],
+      ["/qc/eval/results", "qc-eval-results"],
+    ] as const;
+
+    routes.forEach(([path, menuKey]) => {
+      const route = findRouteByPath(path);
+      expect(route?.requiredPermissions).toEqual([`menu.${menuKey}`, "evaluation.read"]);
+      expect(
+        canAccessRoute(route, {
+          roles: [{ code: "it-ops" }],
+          permissions: [],
+          menuKeys: [menuKey],
+        }),
+        path,
+      ).toBe(false);
+    });
+  });
+
+  it("requires audit read permission for the audit workspace", () => {
+    const route = findRouteByPath("/admin/audit");
+
+    expect(route?.requiredPermissions).toEqual(["menu.admin-audit", "audit.read"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [],
+        menuKeys: ["admin-audit"],
+      }),
+    ).toBe(false);
+  });
+
   it("lets the built-in superadmin use every backend-granted authenticated route", () => {
     const authenticatedRoutes = routeMetas.filter((route) => route.requireAuth);
     const permissions = Array.from(
@@ -219,6 +255,17 @@ describe("route metadata", () => {
         menuKeys: ["config-packages"],
       }),
     ).toBe(false);
+  });
+
+  it("requires domain read permissions for rule and pathway configuration workspaces", () => {
+    expect(findRouteByPath("/pathway/templates")?.requiredPermissions).toEqual([
+      "menu.pathway-templates",
+      "pathway.read",
+    ]);
+    expect(findRouteByPath("/rule/definitions")?.requiredPermissions).toEqual([
+      "menu.rule-definitions",
+      "rule.read",
+    ]);
   });
 
   it("keeps unified authoring assets as a governed pilot setup route without adding a second-level menu", () => {
@@ -396,7 +443,7 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(findRouteByPath("/qc/eval/results"), {
         roles: [{ code: "qa-manager" }],
-        permissions: [],
+        permissions: [{ code: "evaluation.read" }],
         menuKeys: ["qc-eval-results"],
       }),
     ).toBe(true);
@@ -580,6 +627,7 @@ describe("route metadata", () => {
         title: "安全基线与系统配置",
         pageType: "system",
         requiresStepFlow: false,
+        requiredPermissions: ["menu.security-baseline", "system.read"],
       }),
     );
     expect(route?.experience?.goal).toContain("管理");

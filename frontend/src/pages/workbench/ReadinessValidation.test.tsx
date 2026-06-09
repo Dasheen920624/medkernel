@@ -213,6 +213,16 @@ describe("ReadinessValidation", () => {
     expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
   });
 
+  it("uses the canonical route contract for governance administrators", () => {
+    setLoadedState("group-admin");
+
+    renderPage();
+
+    expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+    expect(screen.getByText("2 就绪 / 3 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
+  });
+
   it("keeps blockers actionable with Chinese reasons and real repair links", () => {
     renderPage();
 

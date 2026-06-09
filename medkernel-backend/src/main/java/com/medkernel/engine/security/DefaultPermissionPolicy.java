@@ -55,7 +55,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, CONTEXT_WRITE,
             EVENT_READ, EVENT_WRITE,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE,
-            EVALUATION_EXECUTE,
+            EVALUATION_READ, EVALUATION_EXECUTE,
             SYSTEM_READ, SYSTEM_MANAGE, TENANT_OVERRIDE,
             AUDIT_READ,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
@@ -294,7 +294,6 @@ public final class DefaultPermissionPolicy {
             FOLLOWUP_READ, WORKFLOW_READ, NOTIFICATION_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_ADMIN_AUDIT,
-            MENU_SECURITY_BASELINE,
             MENU_PROVENANCE));
 
         // 实施工程师：试点准备阶段的接入与配置 + 临床上下文接入
@@ -325,8 +324,6 @@ public final class DefaultPermissionPolicy {
             MENU_IMPLEMENTATION_GUIDE,
             MENU_TENANT_ONBOARDING,
             MENU_CONFIG_PACKAGES,
-            MENU_PATHWAY_TEMPLATES,
-            MENU_RULE_DEFINITIONS,
             MENU_ADAPTER_HUB,
             MENU_ADMIN_AUDIT,
             MENU_SYSTEM_PROVIDERS,

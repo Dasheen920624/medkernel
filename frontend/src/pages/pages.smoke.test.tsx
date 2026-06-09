@@ -379,7 +379,8 @@ describe("page smoke coverage", () => {
   it("renders the compliance admin-audit console", () => {
     renderPage(<AdminAudit />);
     expect(screen.getByRole("heading", { name: "审计日志" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "申请导出" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "审计事件" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "申请导出" })).not.toBeInTheDocument();
   });
 
   it("renders the tenant terminology-mapping console", () => {

@@ -103,6 +103,33 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void informationTechnologyQualityMenusHaveTheirRequiredReadPermission() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .contains(
+                PermissionCode.MENU_QC_DASHBOARD,
+                PermissionCode.MENU_QC_EVAL_RESULTS,
+                PermissionCode.EVALUATION_READ,
+                PermissionCode.EVALUATION_EXECUTE);
+    }
+
+    @Test
+    void clinicalAssetConfigurationMenusAlwaysHaveTheirRequiredReadPermission() {
+        for (RoleCode role : RoleCode.values()) {
+            var permissions = DefaultPermissionPolicy.permissionsOf(role);
+            if (permissions.contains(PermissionCode.MENU_PATHWAY_TEMPLATES)) {
+                assertThat(permissions)
+                    .as("%s 的路径配置菜单必须同时具备路径读取权限", role.code())
+                    .contains(PermissionCode.PATHWAY_READ);
+            }
+            if (permissions.contains(PermissionCode.MENU_RULE_DEFINITIONS)) {
+                assertThat(permissions)
+                    .as("%s 的规则库菜单必须同时具备规则读取权限", role.code())
+                    .contains(PermissionCode.RULE_READ);
+            }
+        }
+    }
+
+    @Test
     void auditComplianceIsReadOnly() {
         var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE);
         for (PermissionCode p : perms) {
@@ -116,6 +143,7 @@ class DefaultPermissionPolicyTest {
             .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
             .doesNotContain(
                 PermissionCode.MENU_IDENTITY_BINDINGS,
+                PermissionCode.MENU_SECURITY_BASELINE,
                 PermissionCode.MENU_SYSTEM_PROVIDERS);
     }
 

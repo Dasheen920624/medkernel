@@ -3,7 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   canAccessRoute,
   routeMetas,
-  type RouteMeta,
   type RoutePermissionProfile,
 } from "../src/shared/config/routes";
 import {
@@ -17,14 +16,25 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("全部 done 功能真实路由验收", () => {
-  test("每个受保护页面至少由一个真实角色打开且没有系统级错误", async ({ page }) => {
-    test.setTimeout(600_000);
+  test("每个真实角色打开全部授权页面且没有系统级错误", async ({ page }) => {
+    test.setTimeout(1_200_000);
     const profiles = await loadRoleProfiles(page);
-    const assignments = assignRoutes(profiles);
     const browserErrors = collectBrowserErrors(page);
     const serverErrors = collectServerErrors(page);
+    const protectedRoutes = routeMetas.filter((route) => route.requireAuth && route.path !== "/");
+    const uncoveredRoutes = protectedRoutes.filter(
+      (route) => ![...profiles.values()].some((profile) => canAccessRoute(route, profile)),
+    );
 
-    for (const [role, routes] of assignments) {
+    expect(
+      uncoveredRoutes.map((route) => route.path),
+      "每个受保护页面都必须至少有一个真实角色可访问",
+    ).toEqual([]);
+
+    for (const role of roleAccounts) {
+      const profile = profiles.get(role);
+      expect(profile, `${role} 应具有真实权限画像`).toBeDefined();
+      const routes = protectedRoutes.filter((route) => canAccessRoute(route, profile));
       await ensureReadySession(page, role);
       for (const route of routes) {
         browserErrors.length = 0;
@@ -41,9 +51,9 @@ test.describe("全部 done 功能真实路由验收", () => {
           page.getByText("当前权限不足", { exact: true }),
           `${role} 打开 ${route.path} 不应进入无权限态`,
         ).toHaveCount(0);
-        await expectNoRootOverflow(page, route.path);
-        expect(serverErrors, `${route.path} 不应产生 HTTP 错误`).toEqual([]);
-        expect(browserErrors, `${route.path} 不应产生浏览器错误`).toEqual([]);
+        await expectNoRootOverflow(page, `${role} 打开 ${route.path}`);
+        expect(serverErrors, `${role} 打开 ${route.path} 不应产生 HTTP 错误`).toEqual([]);
+        expect(browserErrors, `${role} 打开 ${route.path} 不应产生浏览器错误`).toEqual([]);
       }
     }
   });
@@ -60,34 +70,6 @@ async function loadRoleProfiles(page: Page) {
     profiles.set(role, (await response.json()).data as RoutePermissionProfile);
   }
   return profiles;
-}
-
-function assignRoutes(profiles: Map<RoleAccount, RoutePermissionProfile>) {
-  const uncovered = new Map(
-    routeMetas
-      .filter((route) => route.requireAuth && route.path !== "/")
-      .map((route) => [route.path, route]),
-  );
-  const assignments = new Map<RoleAccount, RouteMeta[]>();
-
-  while (uncovered.size > 0) {
-    const best = [...profiles.entries()]
-      .map(([role, profile]) => ({
-        role,
-        routes: [...uncovered.values()].filter((route) => canAccessRoute(route, profile)),
-      }))
-      .sort((left, right) => right.routes.length - left.routes.length)[0];
-
-    expect(
-      best?.routes.length ?? 0,
-      `以下路由没有任何真实角色可访问: ${[...uncovered.keys()].join(", ")}`,
-    ).toBeGreaterThan(0);
-
-    assignments.set(best.role, best.routes);
-    best.routes.forEach((route) => uncovered.delete(route.path));
-  }
-
-  return assignments;
 }
 
 function collectBrowserErrors(page: Page) {

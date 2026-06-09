@@ -185,6 +185,8 @@ export default function AdminAudit() {
   const [reviewForm] = Form.useForm<{ comment: string }>();
 
   const security = useSecurityProfile();
+  const canExport = hasPermission(security.data, "list.export");
+  const canApproveExport = hasPermission(security.data, "audit.export");
   const currentCursor = cursorHistory[cursorHistory.length - 1];
   const auditQuery = buildAuditEventQuery(filters);
   const events = useLargeAuditEvents({
@@ -195,15 +197,13 @@ export default function AdminAudit() {
   });
   const submitExport = useSubmitLargeListExport();
   const pollExport = useLargeListExportJob();
-  const approvals = useExportApprovals({ resourceType: "AUDIT_EVENT" });
+  const approvals = useExportApprovals({ resourceType: "AUDIT_EVENT" }, canApproveExport);
   const requestApproval = useRequestExportApproval();
   const reviewApproval = useReviewExportApproval();
   const completeApproval = useCompleteApprovedExportJob();
   const verifyEvidence = useVerifyEvidence();
 
   const routeAllowed = !security.data || canAccessRoute(route, security.data);
-  const canExport = hasPermission(security.data, "list.export");
-  const canApproveExport = hasPermission(security.data, "audit.export");
   const rows = events.data?.items ?? [];
 
   let pageState: "loading" | "empty" | "error" | "forbidden" | "ready" = "ready";
@@ -523,17 +523,18 @@ export default function AdminAudit() {
       expertMode={expertMode}
       onExpertModeChange={setExpertMode}
       extras={
-        <Button
-          aria-label="申请导出"
-          icon={<ExportOutlined />}
-          disabled={!canApproveExport}
-          onClick={() => {
-            requestForm.setFieldsValue({ reason: "导出当前审计日志筛选结果" });
-            setRequestOpen(true);
-          }}
-        >
-          申请导出
-        </Button>
+        canApproveExport ? (
+          <Button
+            aria-label="申请导出"
+            icon={<ExportOutlined />}
+            onClick={() => {
+              requestForm.setFieldsValue({ reason: "导出当前审计日志筛选结果" });
+              setRequestOpen(true);
+            }}
+          >
+            申请导出
+          </Button>
+        ) : undefined
       }
     >
       <Space direction="vertical" size="middle" className="mk-full-width">
@@ -625,11 +626,15 @@ export default function AdminAudit() {
                 </Space>
               ),
             },
-            {
-              key: "approvals",
-              label: "导出审批",
-              children: renderApprovalContent(),
-            },
+            ...(canApproveExport
+              ? [
+                  {
+                    key: "approvals",
+                    label: "导出审批",
+                    children: renderApprovalContent(),
+                  },
+                ]
+              : []),
           ]}
         />
       </Space>
