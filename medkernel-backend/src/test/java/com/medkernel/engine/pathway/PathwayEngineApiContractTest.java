@@ -1,5 +1,6 @@
 package com.medkernel.engine.pathway;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +45,12 @@ class PathwayEngineApiContractTest {
     }
 
     @Test
-    void createPackageRequiresUnifiedContextFields() throws Exception {
+    void pathwayPackageNotFoundUsesUnifiedKnowledgePackageWording() {
+        assertThat(ErrorCode.ENG_PATHWAY_007.defaultMessage()).isEqualTo("路径知识包不存在");
+    }
+
+    @Test
+    void oldSpecialtyPackageRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/specialty-packages")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -56,8 +63,7 @@ class PathwayEngineApiContractTest {
                       "sourceRef": "专病路径专家共识 2026"
                     }
                     """))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+            .andExpect(status().isNotFound());
     }
 
     @Test

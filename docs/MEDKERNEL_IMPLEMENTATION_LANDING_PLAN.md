@@ -597,7 +597,7 @@ flowchart TB
 | 字典映射 | `standard_term`、`local_term`、`term_mapping`、`mapping_candidate`、`mapping_conflict` |
 | 规则 | `rule_definition`、`rule_version`、`rule_test_case`、`rule_execution_log` |
 | 路径 | `pathway_template`、`pathway_node`、`pathway_edge`、`patient_pathway`、`pathway_variance` |
-| 专病包 | `specialty_package`、`specialty_profile`、`clinical_clock`、`specialty_metric_binding` |
+| 路径知识包 | `knowledge_package`、`package_item`、`specialty_profile`、`clinical_clock`、`specialty_metric_binding` |
 | 图谱 | `graph_version`、`graph_node`、`graph_edge`、`graph_citation` |
 | 推荐 | `clinical_event`、`patient_context_snapshot`、`recommendation`、`recommendation_decision` |
 | 护理与报告服务 | `nursing_assessment`、`nursing_plan`、`nursing_reassessment`、`report_interpretation`、`knowledge_query_log` |
@@ -725,13 +725,13 @@ flowchart TB
 | 标准上下文 | `/api/v1/engine/context/snapshots`、`/api/v1/engine/context/snapshots/{snapshotId}/diagnose` |
 | 临床事件 | `/api/v1/engine/events`、`/api/v1/engine/events/async`、`/api/v1/engine/events/batch`、`/api/v1/engine/events/{eventId}/payload`、`/api/v1/engine/events/{eventId}/diagnose`、`/api/v1/engine/events/{eventId}/replay` |
 | 知识资产 | `/api/v1/engine/knowledge/identities`、`/api/v1/engine/knowledge/identities/{id}/active`、`/api/v1/engine/knowledge/identities/{id}/lineage`、`/api/v1/engine/knowledge/identities/{identityId}/versions`、`/api/v1/engine/knowledge/exports` |
-| 字典映射 | `/api/v1/engine/terminology/standard-terms`、`/api/v1/engine/terminology/local-terms`、`/api/v1/engine/terminology/mappings`、`/api/v1/engine/terminology/candidates`、`/api/v1/engine/terminology/conflicts`、`/api/v1/engine/terminology/packages` |
+| 字典映射 | `/api/v1/engine/terminology/standard-terms`、`/api/v1/engine/terminology/local-terms`、`/api/v1/engine/terminology/mappings`、`/api/v1/engine/terminology/candidates`、`/api/v1/engine/terminology/conflicts`、`/api/v1/engine/pkg/packages/terminology` |
 | 规则 | `/api/v1/engine/rule/rules`、`/api/v1/engine/rule/rules/{ruleId}/test-cases`、`/api/v1/engine/rule/rules/{ruleId}/test`、`/api/v1/engine/rule/rules/{ruleId}/simulate`、`/api/v1/engine/rule/rules/{ruleId}/impact`、`/api/v1/engine/rule/rules/{ruleId}/governance/signoffs`、`/api/v1/engine/rule/rules/{ruleId}/governance/transitions`、`/api/v1/engine/rule/rules/evaluate`、`/api/v1/engine/rule/rules/executions/{executionId}/explain` |
-| 路径与专病包 | `/api/v1/engine/pathway/specialty-packages`、`/api/v1/engine/pathway/pathway-templates`、`/api/v1/engine/pathway/pathway-templates/{templateId}/simulate`、`/api/v1/engine/pathway/patient-pathways/enter`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/variances`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/clocks` |
+| 路径与路径知识包 | `/api/v1/engine/pkg/packages/pathway`、`/api/v1/engine/pathway/pathway-templates`、`/api/v1/engine/pathway/pathway-templates/{templateId}/simulate`、`/api/v1/engine/pathway/patient-pathways/enter`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/variances`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/clocks` |
 | 推荐/CDSS | `/api/v1/engine/recommendations/triggers`、`/api/v1/engine/recommendations/cards`、`/api/v1/engine/recommendations/cards/{cardId}/sources`、`/api/v1/engine/recommendations/cards/{cardId}/feedback`、`/api/v1/engine/recommendations/fatigue-signals` |
 | 评估质控 | `/api/v1/engine/evaluations/indicators`、`/api/v1/engine/evaluations/run`、`/api/v1/engine/evaluations/results`、`/api/v1/engine/evaluations/findings`、`/api/v1/engine/evaluations/runs/{runId}/diagnose` |
 | 随访 | `/api/v1/engine/followup/plans/generate`、`/api/v1/engine/followup/plans`、`/api/v1/engine/followup/tasks/{taskId}/questionnaires`、`/api/v1/engine/followup/events/report-abnormal` |
-| 包发布 | `/api/v1/engine/packages`、`/api/v1/engine/packages/{packageId}/items`、`/api/v1/engine/packages/{packageId}/diff`、`/api/v1/engine/packages/{packageId}/sync`、`/api/v1/engine/packages/{packageId}/rollback` |
+| 包发布 | `/api/v1/engine/pkg/packages`、`/api/v1/engine/pkg/packages/{packageId}/items`、`/api/v1/engine/pkg/packages/{packageId}/diff`、`/api/v1/engine/pkg/packages/{packageId}/sync`、`/api/v1/engine/pkg/packages/{packageId}/rollback` |
 | 嵌入 | `/api/v1/engine/embed/launch-tokens`、`/api/v1/engine/embed/launch`、`/api/v1/engine/embed/feedback`、`/api/v1/engine/embed/origins` |
 | 模型能力网关 | `/api/v1/model-capabilities/status`、`/api/v1/model-capabilities/tasks`、`/api/v1/model-capabilities/tasks/{id}`、`/api/v1/model-capabilities/tasks/{id}/retry`、`/api/v1/model-capabilities/policies/validate` |
 | 大规模列表 | `/api/v1/large-lists/audit-events/list`、`/api/v1/large-lists/exports`、`/api/v1/large-lists/exports/{id}`、`/api/v1/large-lists/exports/{id}/download` |

@@ -12,16 +12,16 @@
 - owner / reviewer：待派单（owner ≠ reviewer）
 
 ## 目标
-提供路径引擎**统一 REST 客户面**：模板 · 专病包 · 患者路径 · 节点推进 · 变异 · 关键时钟。本卡只立 **API 契约**，能力在 [PATH-01](PATH-01.md)、发布在 [SYS-04](SYS-04.md)。
+提供路径引擎**统一 REST 客户面**：模板 · 路径知识包 · 患者路径 · 节点推进 · 变异 · 关键时钟。本卡只立 **API 契约**，能力在 [PATH-01](PATH-01.md)、发布在 [SYS-04](SYS-04.md)。
 
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
 `engine/pathway` **控制器已建**，本卡＝**契约化 + 统一入参/分页对齐**：
-- 已有：`PathwayEngineController`(+ 安全测试)、`PathwayEngineService`、`PathwayTemplateCreateRequest`/`Detail`/`Filter`/`PublishResponse`、`PatientPathwayEnterRequest`/`Detail`、`PathwayAdvanceRequest`/`Response`、`PathwaySimulateRequest`/`Response`、`SpecialtyPackageCreateRequest`、`SpecialtyMetricBindingRequest`、`ClinicalClock`。
+- 已有：`PathwayEngineController`(+ 安全测试)、`PathwayEngineService`、`PathwayTemplateCreateRequest`/`Detail`/`Filter`/`PublishResponse`、`PatientPathwayEnterRequest`/`Detail`、`PathwayAdvanceRequest`/`Response`、`PathwaySimulateRequest`/`Response`、`PathwayPackageBuildRequest`、`SpecialtyMetricBindingRequest`、`ClinicalClock`。
 - 2026-06-02 本卡补齐：① 统一 12 字段入参 + `ApiResult`/`ProblemDetail`；② `/api/v1/engine/pathway/**` 客户面；③ `patient-pathways/{id}/advance` 路径参数合同；④ `variances`/`clocks` 独立查询；⑤ 前端共享 hooks 和消费页清理旧 `/engine/rules/**`、`/engine/pathways/**` 口径。
-- 2026-06-02 PATH-01 PR1 追加：`POST /pathway-templates/{id}/simulate` 与 `POST /patient-pathways/{id}/advance` 支持 `snapshotId` 读取 [API-01](API-01.md) 真实上下文快照；响应追加快照质量 / 缺失字段 / 映射状态 / 资源计数，推进响应追加 `edgeCode`、`edgeType`、`decisionEvidence`。条件边推进可消费快照事实证据；旧只按起点 / 目标序列或人工指定目标的结构化路径仍保留为兼容路径，但后续页面必须优先选择真实快照。
+- 2026-06-02 PATH-01 PR1 追加：`POST /pathway-templates/{id}/simulate` 与 `POST /patient-pathways/{id}/advance` 支持 `snapshotId` 读取 [API-01](API-01.md) 真实上下文快照；响应追加快照质量 / 缺失字段 / 映射状态 / 资源计数，推进响应追加 `edgeCode`、`edgeType`、`decisionEvidence`。条件边消费快照事实证据；无条件默认边仅在条件边均未命中时执行确定性兜底。
 
 ## 功能要求（原子可测条目）
-- [x] **FR-1 模板/专病包**：`GET/POST /pathway-templates`、`POST /specialty-packages`；列表分页（[API-13](../D0/API-13.md)）。
+- [x] **FR-1 模板/路径知识包**：`GET/POST /pathway-templates`；`POST /api/v1/engine/pkg/packages/pathway` 创建草稿，`GET /api/v1/engine/pkg/packages?assetType=PATHWAY` 分页查询（[API-13](../D0/API-13.md)）。
 - [x] **FR-2 患者路径**：`POST /patient-pathways/enter`、`GET /patient-pathways/{id}`（节点/变异/时钟状态）。
 - [x] **FR-3 节点推进**：`POST /patient-pathways/{id}/advance`（幂等，返回 `PathwayProgressDecision` + 解释）。
 - [x] **FR-4 变异/时钟**：`GET /patient-pathways/{id}/variances`、`GET /patient-pathways/{id}/clocks`（超时状态）。
@@ -30,7 +30,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`/api/v1/engine/pathway/**`（pathway-templates、specialty-packages、patient-pathways、advance、variances、clocks、simulate、publish）。
+- 端点：`/api/v1/engine/pathway/**`（pathway-templates、patient-pathways、advance、variances、clocks、simulate、publish）+ `/api/v1/engine/pkg/packages/pathway`（路径知识包草稿）。
 - DTO：复用 `PathwayTemplateCreateRequest`/`Detail`/`PatientPathwayEnterRequest`/`PathwayAdvanceRequest`/`Response`/`PathwaySimulateRequest`。
 - 响应信封：`ApiResult` / `ProblemDetail`；大列表 `PageResult`（[API-13](../D0/API-13.md)）。
 - 状态机：路径版本核心 §3；患者路径运行态 `PatientPathwayStatus`。
@@ -48,7 +48,7 @@ N·A —— 本卡无页面。被 [PATH-01](PATH-01.md) 路径配置页 + D3 患
 4. **临床医疗安全**：变异/时钟状态如实暴露；超时不静默。
 5. **知识与数据治理**：路径版本/变异可溯。
 6. **安全合规与监管**：入径/推进/变异留审计（[BASE-04](../D0/BASE-04.md)）。
-7. **集团化与多租户治理**：按 `OrgContext` 作用域；专病包继承。
+7. **集团化与多租户治理**：按 `OrgContext` 作用域；路径知识包继承。
 8. **集成与互操作**：推进输入为标准上下文（[API-01](API-01.md)）。
 9. **运维 / SRE / 国产化**：灰度/回滚；大列表分页稳定。
 10. **质量与真实性审计**：无伪造推进/时钟；端点真实连引擎（铁律 #1）。
@@ -59,7 +59,7 @@ N·A —— 本卡无页面。被 [PATH-01](PATH-01.md) 路径配置页 + D3 患
 - 本卡落点：路径能力以统一契约对外，配置与运行共用一套端点。
 
 ## 验收 + 验证
-- [x] **AC-1（FR-1/2）**：模板/专病包 CRUD + 患者入径，统一信封；分页稳定。
+- [x] **AC-1（FR-1/2）**：模板/路径知识包 CRUD + 患者入径，统一信封；分页稳定。
 - [x] **AC-2（FR-3/4）**：节点推进幂等 + 解释；变异/时钟状态可查。
 - [x] **AC-3（FR-5）**：仿真不写库；7 步流发布灰度→全量→回滚。
 - [x] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。

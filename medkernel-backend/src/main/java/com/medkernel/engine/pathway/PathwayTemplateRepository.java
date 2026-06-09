@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 路径模板仓库。
  *
- * <p>保存专病路径模板主数据，支持按状态、病种、专病包和模板编码进行租户内分页检索。
+ * <p>保存专病路径模板主数据，支持按状态、病种、路径知识包和模板编码进行租户内分页检索。
  */
 @Repository
 public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTemplate, Long> {
@@ -32,7 +32,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
     List<PathwayTemplate> findByTenantIdAndSourceRef(String tenantId, String sourceRef);
 
     /**
-     * 按可选状态、病种、专病包和模板编码分页查询路径模板。
+     * 按可选状态、病种、路径知识包和模板编码分页查询路径模板。
      */
     @Query("""
         SELECT * FROM pathway_template

@@ -4,6 +4,7 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Repository;
 public interface PackageItemRepository extends ListCrudRepository<PackageItem, Long> {
 
     List<PackageItem> findByTenantIdAndPackageId(String tenantId, String packageId);
+
+    List<PackageItem> findByTenantIdAndPackageIdIn(String tenantId, Set<String> packageIds);
 
     Optional<PackageItem> findByItemIdAndTenantId(String itemId, String tenantId);
 

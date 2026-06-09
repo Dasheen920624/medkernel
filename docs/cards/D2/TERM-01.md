@@ -42,7 +42,7 @@
 N·A —— 本卡无页面。字典映射工作台在 **D2 字典映射页**呈现（高危行红标 + 禁批量 UI）；本卡供引擎与判别。
 
 ## 数据与迁移
-- 表族（已有 + 补）：`local_term`/`standard_term`/`term_mapping`/`mapping_candidate`/`mapping_conflict`/`term_mapping_package`(+`item`/`release`)；新增 `mk_term_high_risk_rule`（高危近似规则集）· 映射增 `risk_level`/`high_risk_flag`。
+- 表族（已有 + 补）：`local_term`/`standard_term`/`term_mapping`/`mapping_conflict`/`knowledge_package`/`package_item`/`term_mapping_snapshot`；新增 `mk_term_high_risk_rule`（高危近似规则集）· 映射增 `risk_level`/`high_risk_flag`。
 - 主键 ULID；唯一约束：`(local_term, standard_system, package_version)`；索引：`standard_code`、`risk_level`、`org_path`。
 - 组织字段：`tenant_id` + `org_path` + 审计；5 方言迁移一致 + 中文注释。
 

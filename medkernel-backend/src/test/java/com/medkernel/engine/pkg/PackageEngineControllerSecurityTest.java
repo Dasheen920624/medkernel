@@ -29,6 +29,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.pathway.PathwayKnowledgePackageService;
+import com.medkernel.engine.terminology.TerminologyKnowledgePackageService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -163,6 +165,34 @@ class PackageEngineControllerSecurityTest {
             """.formatted(standardContextFields(tenantId));
     }
 
+    private static String terminologyPackageBody(String tenantId) {
+        return """
+            {
+              %s,
+              "packageCode": "TERM.LIS.CARD",
+              "packageVersion": "2026.06.1",
+              "name": "心内科术语映射",
+              "scopeLevel": "DEPARTMENT",
+              "scopeCode": "dept-A"
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
+    private static String pathwayPackageBody(String tenantId) {
+        return """
+            {
+              %s,
+              "packageCode": "PKG.COPD",
+              "diseaseCode": "COPD",
+              "name": "慢阻肺专病包",
+              "packageVersion": "1.0.0",
+              "sourceRef": "专病路径专家共识 2026",
+              "description": "稳定期路径",
+              "profiles": []
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
     @Autowired
     MockMvc mvc;
 
@@ -174,6 +204,12 @@ class PackageEngineControllerSecurityTest {
 
     @MockBean
     PackageEntitlementService entitlementService;
+
+    @MockBean
+    TerminologyKnowledgePackageService terminologyPackageService;
+
+    @MockBean
+    PathwayKnowledgePackageService pathwayPackageService;
 
     @AfterEach
     void clearAll() {
@@ -262,6 +298,29 @@ class PackageEngineControllerSecurityTest {
     }
 
     @Test
+    void domainReadersCanOnlyListPackagesForTheirExplicitAssetType() throws Exception {
+        mvc.perform(get(PKG_ROOT)
+                .param("assetType", "PATHWAY")
+                .with(jwt()
+                    .jwt(token -> token.subject("specialist-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+            .andExpect(status().isOk());
+
+        mvc.perform(get(PKG_ROOT)
+                .with(jwt()
+                    .jwt(token -> token.subject("specialist-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(get(PKG_ROOT)
+                .param("assetType", "TERMINOLOGY")
+                .with(jwt()
+                    .jwt(token -> token.subject("doctor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void onlyPlatformAdminCanManagePackageEntitlements() throws Exception {
         Instant now = Instant.parse("2026-06-09T06:00:00Z");
         PackageEntitlementResponse response = new PackageEntitlementResponse(
@@ -338,6 +397,31 @@ class PackageEngineControllerSecurityTest {
                 .contentType("application/json")
                 .content(SYNC_BODY))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void terminologyPackageBuildUsesUnifiedPackageRoot() throws Exception {
+        mvc.perform(post(PKG_ROOT + "/terminology")
+                .contentType("application/json")
+                .content(terminologyPackageBody("tenant-A"))
+                .with(jwt()
+                    .jwt(token -> token.subject("specialist").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+            .andExpect(status().isCreated());
+    }
+
+    @Test
+    void pathwayPackageBuildUsesUnifiedPackageRoot() throws Exception {
+        mvc.perform(post(PKG_ROOT + "/pathway")
+                .with(jwt().jwt(token -> token
+                        .subject("pathway-author")
+                        .claim("tenant_id", "tenant-A")
+                        .claim("roles", List.of("hospital-admin")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN")))
+                .contentType("application/json")
+                .content(pathwayPackageBody("tenant-A")))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test

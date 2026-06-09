@@ -13,7 +13,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * {@code mapping_snapshot} 保留构包时的完整不可变 JSON，确保映射后续改动或回滚时仍可复现。
  */
 @Table("mk_term_mapping_snapshot")
-public record TermMappingPackageItem(
+public record TermMappingSnapshotEntity(
     @Id Long id,
     @Column("tenant_id") String tenantId,
     @Column("package_item_id") String packageItemId,
@@ -30,7 +30,7 @@ public record TermMappingPackageItem(
     @Column("created_by") String createdBy
 ) {
 
-    public static TermMappingPackageItem fromSnapshot(
+    public static TermMappingSnapshotEntity fromSnapshot(
             String tenantId,
             String packageItemId,
             Long persistedMappingId,
@@ -38,7 +38,7 @@ public record TermMappingPackageItem(
             String mappingSnapshot,
             Instant now,
             String actor) {
-        return new TermMappingPackageItem(
+        return new TermMappingSnapshotEntity(
             null,
             tenantId,
             packageItemId,

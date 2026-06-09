@@ -219,10 +219,17 @@ describe("route metadata", () => {
       "term.write",
       "term.publish",
     ]);
-    expect(route?.requiredRoles).toEqual(["it-ops", "specialist", "medical-admin"]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "specialist", "medical-affairs"]);
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "medical-affairs" }],
         permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
         menuKeys: ["terminology-mapping"],
       }),

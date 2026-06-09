@@ -102,19 +102,3 @@ enum MappingConflictStatus {
     RESOLVED,
     IGNORED
 }
-
-/** 术语映射包生命周期状态：草稿/灰度/已发布/被替换/已回滚/已归档。 */
-enum TermMappingPackageStatus {
-    DRAFT,
-    GRAY,
-    PUBLISHED,
-    SUPERSEDED,
-    ROLLED_BACK,
-    ARCHIVED
-}
-
-/** 包发布模式：GRAY 灰度发布到部分作用域 / FULL 全量发布替换旧版。 */
-enum PackageReleaseMode {
-    GRAY,
-    FULL
-}

@@ -1,30 +1,5 @@
 -- MedKernel v1.0 GA · GA-ENG-API-06 路径引擎 API（达梦）
 
-CREATE TABLE specialty_package (
-    id                NUMBER(19)    IDENTITY PRIMARY KEY,
-    package_id        VARCHAR2(64)  NOT NULL,
-    tenant_id         VARCHAR2(64)  NOT NULL,
-    package_code      VARCHAR2(128) NOT NULL,
-    disease_code      VARCHAR2(128) NOT NULL,
-    name              VARCHAR2(256) NOT NULL,
-    package_version   VARCHAR2(64)  NOT NULL,
-    status            VARCHAR2(32)  DEFAULT 'DRAFT' NOT NULL,
-    source_ref        VARCHAR2(512) NOT NULL,
-    description       VARCHAR2(1024) NULL,
-    published_at      TIMESTAMP     NULL,
-    published_by      VARCHAR2(64)  NULL,
-    created_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL,
-    updated_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL,
-    trace_id          VARCHAR2(128) NULL,
-    CONSTRAINT uk_specialty_package_tenant_code UNIQUE (tenant_id, package_code, package_version),
-    CONSTRAINT ck_specialty_package_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
-);
-
-CREATE INDEX idx_specialty_package_tenant_status ON specialty_package (tenant_id, status, updated_at);
-CREATE INDEX idx_specialty_package_disease       ON specialty_package (tenant_id, disease_code);
-
 CREATE TABLE specialty_profile (
     id                   NUMBER(19)    IDENTITY PRIMARY KEY,
     profile_id           VARCHAR2(64)  NOT NULL,
@@ -316,7 +291,7 @@ COMMENT ON COLUMN pathway_outcome_binding.template_id IS '关联路径模板业�
 COMMENT ON COLUMN pathway_outcome_binding.scope IS '绑定作用域：TEMPLATE 模板、PHASE 阶段、MILESTONE 里程碑';
 COMMENT ON COLUMN pathway_outcome_binding.ref_code IS '作用域引用编码，模板级固定为 TEMPLATE';
 COMMENT ON COLUMN pathway_outcome_binding.indicator_code IS '评估指标编码，必须对应已激活 EvaluationIndicator';
-COMMENT ON COLUMN pathway_outcome_binding.package_version IS '绑定时使用的专病包版本';
+COMMENT ON COLUMN pathway_outcome_binding.package_version IS '绑定时使用的路径知识包版本';
 COMMENT ON COLUMN pathway_outcome_binding.created_at IS '创建时间';
 COMMENT ON COLUMN pathway_outcome_binding.created_by IS '创建人';
 COMMENT ON COLUMN pathway_outcome_binding.updated_at IS '更新时间';

@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 专病画像。
  *
- * <p>保存专病包下的分型、风险分层、准入条件、退出条件和随访计划摘要。
+ * <p>保存路径知识包下的分型、风险分层、准入条件、退出条件和随访计划摘要。
  */
 @Table("specialty_profile")
 public record SpecialtyProfile(

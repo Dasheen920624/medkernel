@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.BatchResolvedAsset;
@@ -36,6 +37,7 @@ class EffectiveKnowledgePackageResolverTest {
     private PackageItemRepository itemRepository;
     private InheritanceResolver inheritanceResolver;
     private PackageEntitlementService entitlementService;
+    private AssetVersionRepository assetVersionRepository;
     private EffectiveKnowledgePackageResolver resolver;
 
     @BeforeEach
@@ -44,8 +46,10 @@ class EffectiveKnowledgePackageResolverTest {
         itemRepository = mock(PackageItemRepository.class);
         inheritanceResolver = mock(InheritanceResolver.class);
         entitlementService = mock(PackageEntitlementService.class);
+        assetVersionRepository = mock(AssetVersionRepository.class);
         resolver = new EffectiveKnowledgePackageResolver(
-            packageRepository, itemRepository, inheritanceResolver, entitlementService);
+            packageRepository, itemRepository, inheritanceResolver, entitlementService,
+            assetVersionRepository);
     }
 
     @Test
@@ -155,7 +159,68 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
-    void resolvesCkdSpecialtyPackageWithFormulaValueSetsFieldCatalogAndLocalOverride() {
+    void resolvesTenantTerminologySnapshotFromOwningPackageVersion() {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        KnowledgePackage pack = new KnowledgePackage(
+            2L,
+            "pkg-term-local",
+            "tenant-A",
+            "TERM.LAB",
+            "2026.06",
+            "检验术语映射",
+            "术语快照",
+            PackageAccessPolicy.OPEN,
+            KnowledgePackageStatus.DRAFT,
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-term"
+        );
+        PackageItem terminology = new PackageItem(
+            3L,
+            "item-term-local",
+            "tenant-A",
+            "pkg-term-local",
+            VersionedAssetType.TERMINOLOGY,
+            "TERM.LAB|HOSPITAL|hospital-A",
+            "2026.06",
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-term"
+        );
+        AssetVersion packageVersion = assetVersion(
+            "av-term-package",
+            VersionedAssetType.PACKAGE,
+            "TERM.LAB",
+            "2026.06"
+        );
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-term-local"))
+            .thenReturn(List.of(terminology));
+        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.PACKAGE, "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.of(packageVersion));
+
+        EffectiveKnowledgePackageResponse response =
+            resolver.resolve("tenant-A", "TERM.LAB", "2026.06", "hospital-A");
+
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.assetType()).isEqualTo(VersionedAssetType.TERMINOLOGY);
+            assertThat(item.assetId()).isEqualTo("TERM.LAB|HOSPITAL|hospital-A");
+            assertThat(item.sourceVersionId()).isEqualTo("av-term-package");
+            assertThat(item.sourceTier()).isEqualTo(SourceTier.ORG);
+        });
+        verify(inheritanceResolver, never()).resolveBatch(any());
+        verify(entitlementService, never()).assertUsable(any(), any());
+    }
+
+    @Test
+    void resolvesCkdPathwayKnowledgePackageWithFormulaValueSetsFieldCatalogAndLocalOverride() {
         KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.ACTIVE);
         List<PackageItem> ckdItems = List.of(
             platformItem(VersionedAssetType.PATHWAY, "PATH.CKD", "1"),

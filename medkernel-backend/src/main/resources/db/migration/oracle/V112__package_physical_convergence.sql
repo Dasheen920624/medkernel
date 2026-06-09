@@ -1,10 +1,6 @@
--- 统一知识包物理收敛：删除领域重复容器，仅保留统一包与术语快照内容。
+-- 统一知识包物理模型：补充术语快照内容，领域包统一由 knowledge_package 与 package_item 承载。
 -- 回滚：项目未上线且不保留旧并行表；如需撤销，应回退应用版本并从最近的开发环境备份重建数据库。
 
-DROP TABLE term_mapping_package_release CASCADE CONSTRAINTS;
-DROP TABLE term_mapping_package_item CASCADE CONSTRAINTS;
-DROP TABLE term_mapping_package CASCADE CONSTRAINTS;
-DROP TABLE specialty_package CASCADE CONSTRAINTS;
 
 ALTER TABLE package_item DROP CONSTRAINT uk_package_item_id;
 ALTER TABLE package_item

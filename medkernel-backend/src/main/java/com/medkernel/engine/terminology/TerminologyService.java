@@ -1,11 +1,7 @@
 package com.medkernel.engine.terminology;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,20 +10,8 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.security.AuthenticatedRoleGuard;
-import com.medkernel.engine.security.RoleCode;
-import com.medkernel.engine.versioning.AssetVersion;
-import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
-import com.medkernel.engine.versioning.AssetVersionRepository;
-import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.PlatformAuthority;
-import com.medkernel.engine.versioning.ReleasePort;
-import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.RolloutStrategy;
-import com.medkernel.engine.versioning.VersionReleaseCommand;
-import com.medkernel.engine.versioning.VersionReleaseScopeType;
-import com.medkernel.engine.versioning.VersionRollbackCommand;
-import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -36,7 +20,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * GA-ENG-API-04 字典映射应用服务：分页查询、候选生成、候选确认、冲突处置、映射包构建/发布/回滚。
+ * GA-ENG-API-04 字典映射应用服务：分页查询、候选生成、候选确认、冲突处置与运行时解析。
  *
  * <p>所有写操作都在 {@link Transactional} 事务内推进；
  * 租户上下文从 {@link RequestContext#currentOrgScope()} 获取，缺失时直接抛
@@ -51,12 +35,7 @@ public class TerminologyService {
     private final EffectiveTermMappingResolver effectiveMappings;
     private final MappingCandidateRepository candidateRepository;
     private final MappingConflictRepository conflictRepository;
-    private final TermMappingPackageRepository packageRepository;
-    private final TermMappingPackageItemRepository packageItemRepository;
     private final HighRiskRuleRepository highRiskRuleRepository;
-    private final TerminologyVersionedAssetAdapter versionedAssets;
-    private final AssetVersionRepository assetVersions;
-    private final ReleasePort releasePort;
 
     public TerminologyService(StandardTermRepository standardTermRepository,
                               LocalTermRepository localTermRepository,
@@ -64,24 +43,14 @@ public class TerminologyService {
                               EffectiveTermMappingResolver effectiveMappings,
                               MappingCandidateRepository candidateRepository,
                               MappingConflictRepository conflictRepository,
-                              TermMappingPackageRepository packageRepository,
-                              TermMappingPackageItemRepository packageItemRepository,
-                              HighRiskRuleRepository highRiskRuleRepository,
-                              TerminologyVersionedAssetAdapter versionedAssets,
-                              AssetVersionRepository assetVersions,
-                              ReleasePort releasePort) {
+                              HighRiskRuleRepository highRiskRuleRepository) {
         this.standardTermRepository = standardTermRepository;
         this.localTermRepository = localTermRepository;
         this.mappingRepository = mappingRepository;
         this.effectiveMappings = effectiveMappings;
         this.candidateRepository = candidateRepository;
         this.conflictRepository = conflictRepository;
-        this.packageRepository = packageRepository;
-        this.packageItemRepository = packageItemRepository;
         this.highRiskRuleRepository = highRiskRuleRepository;
-        this.versionedAssets = versionedAssets;
-        this.assetVersions = assetVersions;
-        this.releasePort = releasePort;
     }
 
     /**
@@ -168,23 +137,6 @@ public class TerminologyService {
         }
         return PageResponse.of(conflictRepository.pageByFilter(
             tenantId, status, riskLevel, conflictType, request.offset(), request.safeSize()
-        ), request, total);
-    }
-
-    /**
-     * 按租户 + 过滤条件分页查询术语映射包。
-     */
-    public PageResponse<TermMappingPackage> pagePackages(PageRequest request, PackageFilter filter) {
-        String tenantId = requireCurrentTenant();
-        String status = name(filter.status());
-        long total = packageRepository.countByFilter(
-            tenantId, filter.packageCode(), status, filter.scopeLevel(), filter.scopeCode());
-        if (total == 0) {
-            return PageResponse.empty(request);
-        }
-        return PageResponse.of(packageRepository.pageByFilter(
-            tenantId, filter.packageCode(), status, filter.scopeLevel(), filter.scopeCode(),
-            request.offset(), request.safeSize()
         ), request, total);
     }
 
@@ -338,133 +290,6 @@ public class TerminologyService {
     }
 
     /**
-     * 基于当前租户 + 范围内所有 CONFIRMED 映射构建一个新的 DRAFT 状态术语映射包。
-     *
-     * <p>范围内若无任何已确认映射则抛冲突错误；包条目逐条以快照形式落 {@code mk_term_mapping_snapshot}。
-     */
-    @Transactional
-    public TermMappingPackage buildPackage(BuildTerminologyPackageRequest request) {
-        String tenantId = requireValidatedTenant(request.context());
-        String userId = currentUserId();
-        Instant now = Instant.now();
-        PackageScope packageScope = requireCurrentPackageScope(
-            tenantId, request.scopeLevel(), request.scopeCode());
-        List<TermMapping> mappings = mappingRepository.findConfirmedByTenantIdAndScope(
-            tenantId, packageScope.level(), packageScope.code());
-        if (mappings.isEmpty()) {
-            throw ApiException.conflict("当前范围没有已确认映射，无法构建映射包");
-        }
-        List<TermMappingSnapshot> snapshots = mappings.stream()
-            .map(mapping -> mappingSnapshot(tenantId, mapping))
-            .toList();
-        String contentHash = hashMappings(request, packageScope, snapshots);
-        TermMappingPackage saved = packageRepository.save(new TermMappingPackage(
-            null, tenantId, request.packageCode(), request.packageVersion(), request.displayName(),
-            packageScope.level(), packageScope.code(), TermMappingPackageStatus.DRAFT,
-            mappings.size(), contentHash, null, null, null, now, userId, now, userId
-        ));
-        String packageItemId = packageRepository.packageItemId(tenantId, saved.id());
-        for (TermMappingSnapshot snapshot : snapshots) {
-            String mappingSnapshot = TermMappingSnapshotCodec.write(snapshot);
-            packageItemRepository.save(TermMappingPackageItem.fromSnapshot(
-                tenantId, packageItemId, snapshot.mappingId(), snapshot, mappingSnapshot, now, userId
-            ));
-        }
-        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
-            tenantId,
-            VersionedAssetType.TERMINOLOGY,
-            terminologyAssetIdentity(saved),
-            saved.packageVersion(),
-            releaseOrgScope(saved),
-            "ALL",
-            null,
-            saved.contentHash(),
-            terminologySourceRef(saved),
-            userId,
-            RequestContext.currentTraceId()
-        ));
-        return saved;
-    }
-
-    /**
-     * 把指定术语映射包升级为 GRAY 或 PUBLISHED；ROLLED_BACK / ARCHIVED 状态拒绝发布。
-     *
-     * <p>FULL 模式发布时把同 (packageCode + scope) 下旧 PUBLISHED/GRAY 包置为 SUPERSEDED；
-     * 同步写入一条 PUBLISH 发布事件流水。
-     */
-    @Transactional
-    public TermMappingPackage publishPackage(Long packageId, PublishTerminologyPackageRequest request) {
-        TerminologyApiContext context = request.context();
-        String tenantId = requireValidatedTenant(context);
-        String userId = currentUserId();
-        Instant now = Instant.now();
-        TermMappingPackage pkg = packageRepository.findByTenantIdAndId(tenantId, packageId)
-            .orElseThrow(() -> ApiException.notFound("映射包 id=" + packageId));
-        if (pkg.status() == TermMappingPackageStatus.ROLLED_BACK || pkg.status() == TermMappingPackageStatus.ARCHIVED) {
-            throw ApiException.conflict("映射包 id=" + packageId + " 已不可发布");
-        }
-        ensurePublishTransition(pkg, request);
-        AssetVersion assetVersion = requireAssetVersion(pkg);
-        VersionReleaseCommand releaseCommand = releaseCommand(pkg, assetVersion, request, userId);
-        advanceRelease(assetVersion, releaseCommand, request.releaseMode());
-        TermMappingPackage next = pkg.withStatus(request.releaseMode() == PackageReleaseMode.FULL
-            ? TermMappingPackageStatus.PUBLISHED
-            : TermMappingPackageStatus.GRAY, userId, now);
-        if (request.releaseMode() == PackageReleaseMode.FULL) {
-            for (TermMappingPackage active : packageRepository.findActiveByTenantIdAndPackageCodeAndScope(
-                    tenantId, pkg.packageCode(), pkg.scopeLevel(), pkg.scopeCode())) {
-                if (!Objects.equals(active.id(), pkg.id())) {
-                    packageRepository.save(active.withStatus(TermMappingPackageStatus.SUPERSEDED, userId, now));
-                }
-            }
-        }
-        return packageRepository.save(next);
-    }
-
-    /**
-     * 把当前 PUBLISHED 的映射包回滚到指定历史版本，同时写一条 ROLLBACK 事件流水。
-     *
-     * <p>目标包必须与当前包同 (packageCode + scope)，且处于 SUPERSEDED 状态。
-     * 操作后当前包置 ROLLED_BACK，目标包重新置 PUBLISHED。
-     */
-    @Transactional
-    public TermMappingPackage rollbackPackage(Long packageId, RollbackTerminologyPackageRequest request) {
-        String tenantId = requireValidatedTenant(request.context());
-        String userId = currentUserId();
-        Instant now = Instant.now();
-        TermMappingPackage current = packageRepository.findByTenantIdAndId(tenantId, packageId)
-            .orElseThrow(() -> ApiException.notFound("当前映射包 id=" + packageId));
-        TermMappingPackage target = packageRepository.findByTenantIdAndId(tenantId, request.targetPackageId())
-            .orElseThrow(() -> ApiException.notFound("目标映射包 id=" + request.targetPackageId()));
-        if (!sameScope(current, target)) {
-            throw ApiException.conflict("回滚目标必须与当前映射包同编码、同范围");
-        }
-        if (current.status() != TermMappingPackageStatus.PUBLISHED) {
-            throw ApiException.conflict("当前映射包不是全量发布状态，无法执行版本回滚");
-        }
-        if (target.status() != TermMappingPackageStatus.SUPERSEDED) {
-            throw ApiException.conflict("目标映射包不是可回滚发布点");
-        }
-        AssetVersion currentVersion = requireAssetVersion(current);
-        AssetVersion targetVersion = requireAssetVersion(target);
-        releasePort.rollback(new VersionRollbackCommand(
-            tenantId,
-            VersionedAssetType.TERMINOLOGY,
-            terminologyAssetIdentity(current),
-            currentVersion.versionId(),
-            targetVersion.versionId(),
-            current.packageVersion(),
-            target.packageVersion(),
-            request.reason(),
-            true,
-            userId,
-            RequestContext.currentTraceId()
-        ));
-        packageRepository.save(current.rolledBack(userId, now));
-        return packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
-    }
-
-    /**
      * 评估一组标准编码的院内→标准对照覆盖情况（P5 对照覆盖分析，advisory）。
      *
      * @param standardSystem 标准字典/编码系统（如 ICD-10）
@@ -558,171 +383,6 @@ public class TerminologyService {
                 || request.highRiskReason().isBlank()) {
             throw new ApiException(ErrorCode.MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED);
         }
-    }
-
-    private boolean sameScope(TermMappingPackage current, TermMappingPackage target) {
-        return current.packageCode().equals(target.packageCode())
-            && current.scopeLevel().equals(target.scopeLevel())
-            && current.scopeCode().equals(target.scopeCode());
-    }
-
-    private void ensurePublishTransition(TermMappingPackage pkg,
-                                         PublishTerminologyPackageRequest request) {
-        if (pkg.status() == TermMappingPackageStatus.DRAFT) {
-            if (request.releaseMode() == PackageReleaseMode.FULL
-                    && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-                throw new ApiException(ErrorCode.FORBIDDEN, "只有医院管理员可跳过灰度直接全量发布");
-            }
-            return;
-        }
-        if (pkg.status() == TermMappingPackageStatus.GRAY
-                && request.releaseMode() == PackageReleaseMode.FULL) {
-            return;
-        }
-        if (pkg.status() != TermMappingPackageStatus.DRAFT) {
-            throw ApiException.conflict("映射包必须处于草稿或灰度状态，才能继续发布");
-        }
-    }
-
-    private AssetVersion requireAssetVersion(TermMappingPackage pkg) {
-        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            pkg.tenantId(),
-            VersionedAssetType.TERMINOLOGY,
-            terminologyAssetIdentity(pkg),
-            pkg.packageVersion()
-        ).orElseThrow(() -> new ApiException(
-            ErrorCode.CONFLICT,
-            "术语映射包缺少统一资产版本，禁止发布或回滚"
-        ));
-    }
-
-    private VersionReleaseCommand releaseCommand(
-            TermMappingPackage pkg,
-            AssetVersion assetVersion,
-            PublishTerminologyPackageRequest request,
-            String actor) {
-        return new VersionReleaseCommand(
-            pkg.tenantId(),
-            VersionedAssetType.TERMINOLOGY,
-            terminologyAssetIdentity(pkg),
-            assetVersion.versionId(),
-            releaseOrgScope(pkg),
-            "ALL",
-            request.releaseMode() == PackageReleaseMode.GRAY
-                ? releaseScopeType(pkg.scopeLevel())
-                : VersionReleaseScopeType.ALL,
-            request.releaseMode() == PackageReleaseMode.GRAY ? pkg.scopeCode().trim() : null,
-            request.releaseMode() == PackageReleaseMode.GRAY
-                ? RolloutPolicy.canaryBedPercent(10)
-                : RolloutPolicy.all(),
-            pkg.contentHash(),
-            request.reason(),
-            actor,
-            RequestContext.currentTraceId(),
-            request.publishEvidence().electronicSignature(),
-            request.publishEvidence().qualityGate()
-        );
-    }
-
-    private void advanceRelease(
-            AssetVersion assetVersion,
-            VersionReleaseCommand command,
-            PackageReleaseMode mode) {
-        if (assetVersion.status() == AssetVersionStatus.DRAFT) {
-            releasePort.submitForReview(command);
-            releasePort.approveReview(command);
-        } else if (assetVersion.status() == AssetVersionStatus.IN_REVIEW) {
-            releasePort.approveReview(command);
-        } else if (assetVersion.status() != AssetVersionStatus.APPROVED
-                && assetVersion.status() != AssetVersionStatus.PUBLISHED) {
-            throw ApiException.conflict("统一术语资产版本状态不允许发布");
-        }
-        if (mode == PackageReleaseMode.GRAY) {
-            releasePort.releaseGray(command);
-        } else {
-            releasePort.publish(command);
-        }
-    }
-
-    private String releaseOrgScope(TermMappingPackage pkg) {
-        return pkg.scopeLevel().trim().toUpperCase() + ":" + pkg.scopeCode().trim();
-    }
-
-    private VersionReleaseScopeType releaseScopeType(String scopeLevel) {
-        if ("TENANT".equalsIgnoreCase(scopeLevel)) {
-            return VersionReleaseScopeType.ALL;
-        }
-        try {
-            return VersionReleaseScopeType.valueOf(scopeLevel.trim().toUpperCase());
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "术语映射包范围层级不受支持: " + scopeLevel);
-        }
-    }
-
-    private String terminologySourceRef(TermMappingPackage pkg) {
-        return "term-mapping-package:" + pkg.packageCode() + ":" + pkg.packageVersion();
-    }
-
-    private String terminologyAssetIdentity(TermMappingPackage pkg) {
-        return pkg.packageCode() + "|" + pkg.scopeLevel() + "|" + pkg.scopeCode();
-    }
-
-    private String hashMappings(
-            BuildTerminologyPackageRequest request,
-            PackageScope packageScope,
-            List<TermMappingSnapshot> mappings) {
-        StringBuilder payload = new StringBuilder()
-            .append(request.packageCode()).append('|')
-            .append(request.packageVersion()).append('|')
-            .append(packageScope.level()).append('|')
-            .append(packageScope.code());
-        mappings.forEach(mapping -> payload.append('|')
-            .append(TermMappingSnapshotCodec.write(mapping)));
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(payload.toString().getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 not available", ex);
-        }
-    }
-
-    private TermMappingSnapshot mappingSnapshot(String tenantId, TermMapping mapping) {
-        LocalTerm localTerm = localTermRepository.findByTenantIdAndId(tenantId, mapping.localTermId())
-            .orElseThrow(() -> ApiException.notFound("院内术语 id=" + mapping.localTermId()));
-        StandardTerm standardTerm = findEffectiveStandardTermById(tenantId, mapping.standardTermId())
-            .orElseThrow(() -> ApiException.notFound("标准术语 id=" + mapping.standardTermId()));
-        return TermMappingSnapshot.from(mapping, localTerm, standardTerm);
-    }
-
-    private PackageScope requireCurrentPackageScope(
-            String tenantId,
-            String rawLevel,
-            String rawCode) {
-        String level = rawLevel == null ? "" : rawLevel.trim().toUpperCase();
-        String code = rawCode == null ? "" : rawCode.trim();
-        OrgScope current = RequestContext.currentOrgScope();
-        String expectedCode = switch (level) {
-            case "TENANT" -> tenantId;
-            case "GROUP" -> current.groupId();
-            case "HOSPITAL" -> current.hospitalId();
-            case "CAMPUS" -> current.campusId();
-            case "SITE" -> current.siteId();
-            case "DEPARTMENT" -> current.departmentId();
-            default -> throw new ApiException(
-                ErrorCode.VALIDATION_FAILED,
-                "术语映射包范围层级不受支持: " + rawLevel
-            );
-        };
-        if (expectedCode == null || expectedCode.isBlank() || !expectedCode.equals(code)) {
-            throw new ApiException(
-                ErrorCode.ORG_SCOPE_DENIED,
-                "术语映射包范围必须与当前组织上下文一致"
-            );
-        }
-        return new PackageScope(level, code);
-    }
-
-    private record PackageScope(String level, String code) {
     }
 
     /**

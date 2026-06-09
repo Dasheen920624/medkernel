@@ -22,18 +22,7 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
-import com.medkernel.engine.versioning.AssetVersion;
-import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
-import com.medkernel.engine.versioning.AssetVersionRepository;
-import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
-import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
-import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.PlatformAuthority;
-import com.medkernel.engine.versioning.ReleasePort;
-import com.medkernel.engine.versioning.RolloutStrategy;
-import com.medkernel.engine.versioning.VersionReleaseCommand;
-import com.medkernel.engine.versioning.VersionRollbackCommand;
-import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -53,12 +42,7 @@ class TerminologyServiceTest {
     private EffectiveTermMappingResolver effectiveMappings;
     private MappingCandidateRepository candidateRepository;
     private MappingConflictRepository conflictRepository;
-    private TermMappingPackageRepository packageRepository;
-    private TermMappingPackageItemRepository packageItemRepository;
     private HighRiskRuleRepository highRiskRuleRepository;
-    private TerminologyVersionedAssetAdapter versionedAssets;
-    private AssetVersionRepository assetVersionRepository;
-    private ReleasePort releasePort;
     private TerminologyService service;
 
     @BeforeEach
@@ -69,12 +53,7 @@ class TerminologyServiceTest {
         effectiveMappings = Mockito.mock(EffectiveTermMappingResolver.class);
         candidateRepository = Mockito.mock(MappingCandidateRepository.class);
         conflictRepository = Mockito.mock(MappingConflictRepository.class);
-        packageRepository = Mockito.mock(TermMappingPackageRepository.class);
-        packageItemRepository = Mockito.mock(TermMappingPackageItemRepository.class);
         highRiskRuleRepository = Mockito.mock(HighRiskRuleRepository.class);
-        versionedAssets = Mockito.mock(TerminologyVersionedAssetAdapter.class);
-        assetVersionRepository = Mockito.mock(AssetVersionRepository.class);
-        releasePort = Mockito.mock(ReleasePort.class);
         service = new TerminologyService(
             standardTermRepository,
             localTermRepository,
@@ -82,12 +61,7 @@ class TerminologyServiceTest {
             effectiveMappings,
             candidateRepository,
             conflictRepository,
-            packageRepository,
-            packageItemRepository,
-            highRiskRuleRepository,
-            versionedAssets,
-            assetVersionRepository,
-            releasePort
+            highRiskRuleRepository
         );
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory(any(), any())).thenReturn(List.of());
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
@@ -404,228 +378,6 @@ class TerminologyServiceTest {
     }
 
     @Test
-    void buildPackageSnapshotsConfirmedMappings() {
-        RequestContext.restore(new RequestContext.Snapshot(
-            "trace-build",
-            new OrgScope("t-1", null, null, null, null, "CARD", null),
-            "u-99"
-        ));
-        when(mappingRepository.findConfirmedByTenantIdAndScope("t-1", "DEPARTMENT", "CARD"))
-            .thenReturn(List.of(mapping(100L, TermMappingStatus.CONFIRMED)));
-        when(localTermRepository.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(localTerm(1L)));
-        when(standardTermRepository.findFirstByTenantIdsAndId(standardSources(), "t-1", 2L))
-            .thenReturn(Optional.of(standardTerm(2L, TermCategory.LAB)));
-        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packageRepository.packageItemId("t-1", null)).thenReturn("pi-term-card");
-        when(packageItemRepository.save(any(TermMappingPackageItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TermMappingPackage pkg = service.buildPackage(buildPackageRequest());
-
-        assertThat(pkg.status()).isEqualTo(TermMappingPackageStatus.DRAFT);
-        assertThat(pkg.mappingCount()).isEqualTo(1);
-        assertThat(pkg.contentHash()).hasSize(64);
-
-        ArgumentCaptor<TermMappingPackageItem> itemCaptor = ArgumentCaptor.forClass(TermMappingPackageItem.class);
-        verify(packageItemRepository).save(itemCaptor.capture());
-        assertThat(itemCaptor.getValue().packageItemId()).isEqualTo("pi-term-card");
-        assertThat(itemCaptor.getValue().mappingId()).isEqualTo(100L);
-        assertThat(itemCaptor.getValue().localCode()).isEqualTo("LIS-TNT");
-        assertThat(itemCaptor.getValue().targetDictionaryKey()).isEqualTo("LOINC");
-        assertThat(itemCaptor.getValue().standardCode()).isEqualTo("718-7");
-        assertThat(itemCaptor.getValue().mappingSnapshot()).contains("\"mappingId\":100");
-        verify(versionedAssets).registerDraft(Mockito.argThat(command ->
-            command.assetType() == VersionedAssetType.TERMINOLOGY
-                && command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
-                && command.versionNo().equals("2026.05.25")
-                && command.organizationScope().equals("DEPARTMENT:CARD")
-                && command.contentHash().equals(pkg.contentHash())
-        ));
-    }
-
-    @Test
-    void buildPackageRejectsPlaceholderScopeThatCannotMatchRuntimeContext() {
-        BuildTerminologyPackageRequest request = new BuildTerminologyPackageRequest(
-            "req-1", "trace-1", "t-1", null, null, null, null, null, null,
-            "u-99", List.of(RoleCode.HOSPITAL_ADMIN.name()), "AUTHORING",
-            "TERM.LAB", "2026.06", "HOSPITAL", "CURRENT", "检验映射包"
-        );
-
-        assertThatThrownBy(() -> service.buildPackage(request))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
-        verify(mappingRepository, Mockito.never())
-            .findConfirmedByTenantIdAndScope(any(), any(), any());
-    }
-
-    @Test
-    void publishPackageFullFromGraySupersedesPreviousActivePackageAndRecordsEvent() {
-        TermMappingPackage gray = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.GRAY);
-        TermMappingPackage previous = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.PUBLISHED);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(gray));
-        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
-        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.PUBLISHED)));
-        when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
-            .thenReturn(List.of(previous));
-        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TermMappingPackage published = service.publishPackage(
-            30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "全量发布")
-        );
-
-        assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
-        assertThat(published.publishedBy()).isEqualTo("u-99");
-        assertThat(published.publishedAt()).isNotNull();
-
-        ArgumentCaptor<TermMappingPackage> packageCaptor = ArgumentCaptor.forClass(TermMappingPackage.class);
-        verify(packageRepository, Mockito.times(2)).save(packageCaptor.capture());
-        assertThat(packageCaptor.getAllValues())
-            .extracting(TermMappingPackage::status)
-            .contains(TermMappingPackageStatus.SUPERSEDED, TermMappingPackageStatus.PUBLISHED);
-
-        verify(releasePort).publish(Mockito.argThat(command ->
-            command.assetType() == VersionedAssetType.TERMINOLOGY
-                && command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
-                && command.versionId().equals("av-term-30")
-        ));
-    }
-
-    @Test
-    void publishPackageGrayUsesStructuredTenPercentBedPolicy() {
-        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
-        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
-        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.DRAFT)));
-        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TermMappingPackage gray = service.publishPackage(
-            30L,
-            publishPackageRequest(PackageReleaseMode.GRAY, "灰度发布")
-        );
-
-        assertThat(gray.status()).isEqualTo(TermMappingPackageStatus.GRAY);
-        verify(releasePort).submitForReview(any());
-        verify(releasePort).approveReview(any());
-        ArgumentCaptor<VersionReleaseCommand> commandCaptor =
-            ArgumentCaptor.forClass(VersionReleaseCommand.class);
-        verify(releasePort).releaseGray(commandCaptor.capture());
-        assertThat(commandCaptor.getValue().rolloutPolicy().strategy())
-            .isEqualTo(RolloutStrategy.CANARY_BED_PERCENT);
-        assertThat(commandCaptor.getValue().rolloutPolicy().bedPercent()).isEqualTo(10);
-    }
-
-    @Test
-    void publishPackageFullFromDraftRejectsNonHospitalAdmin() {
-        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
-        authenticate(RoleCode.IT_OPS);
-
-        assertThatThrownBy(() -> service.publishPackage(
-            30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "绕过灰度直接全量")
-        ))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    void publishPackageFullFromDraftAllowsHospitalAdminDirectRelease() {
-        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
-        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
-        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.DRAFT)));
-        when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
-            .thenReturn(List.of());
-        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TermMappingPackage published = service.publishPackage(
-            30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "院级管理员确认直接全量", List.of("hospital-admin"))
-        );
-
-        assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
-        verify(releasePort).submitForReview(any());
-        verify(releasePort).approveReview(any());
-        verify(releasePort).publish(any());
-    }
-
-    @Test
-    void rollbackPackageMarksCurrentRolledBackAndReactivatesTarget() {
-        TermMappingPackage current = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.PUBLISHED);
-        TermMappingPackage target = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.SUPERSEDED);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(current));
-        when(packageRepository.findByTenantIdAndId("t-1", 29L)).thenReturn(Optional.of(target));
-        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
-        )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.PUBLISHED)));
-        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.01"
-        )).thenReturn(Optional.of(assetVersion("av-term-29", "2026.05.01", AssetVersionStatus.DEPRECATED)));
-        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        TermMappingPackage restored = service.rollbackPackage(
-            30L,
-            rollbackPackageRequest(29L, "发现院内码映射异常")
-        );
-
-        assertThat(restored.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
-        assertThat(restored.publishedBy()).isEqualTo("u-99");
-
-        ArgumentCaptor<TermMappingPackage> packageCaptor = ArgumentCaptor.forClass(TermMappingPackage.class);
-        verify(packageRepository, Mockito.times(2)).save(packageCaptor.capture());
-        assertThat(packageCaptor.getAllValues())
-            .extracting(TermMappingPackage::status)
-            .contains(TermMappingPackageStatus.ROLLED_BACK, TermMappingPackageStatus.PUBLISHED);
-
-        assertThat(restored.rollbackFromPackageId()).isEqualTo(30L);
-        verify(releasePort).rollback(Mockito.argThat(command ->
-            command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
-                && command.currentVersionId().equals("av-term-30")
-                && command.targetVersionId().equals("av-term-29")
-        ));
-    }
-
-    @Test
-    void rollbackPackageRejectsGrayPackageBecauseGrayCancellationIsNotVersionRollback() {
-        TermMappingPackage current = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.GRAY);
-        TermMappingPackage target = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.SUPERSEDED);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(current));
-        when(packageRepository.findByTenantIdAndId("t-1", 29L)).thenReturn(Optional.of(target));
-
-        assertThatThrownBy(() -> service.rollbackPackage(
-            30L,
-            rollbackPackageRequest(29L, "灰度异常")
-        ))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.CONFLICT);
-
-        verify(releasePort, Mockito.never()).rollback(any(VersionRollbackCommand.class));
-    }
-
-    @Test
-    void rollbackPackageRejectsNonRollbackPointTarget() {
-        TermMappingPackage current = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.PUBLISHED);
-        TermMappingPackage target = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.DRAFT);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(current));
-        when(packageRepository.findByTenantIdAndId("t-1", 29L)).thenReturn(Optional.of(target));
-
-        assertThatThrownBy(() -> service.rollbackPackage(
-            30L,
-            rollbackPackageRequest(29L, "草稿不能作为回滚点")
-        ))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.CONFLICT);
-    }
-
-    @Test
     void evaluateCoverageUsesPlatformStandardTermAndActivePackageMappingCount() {
         List<String> standardSources = standardSources();
         when(standardTermRepository.findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
@@ -763,27 +515,6 @@ class TerminologyServiceTest {
             id, "t-1", localTermId, standardTermId, "LIS", category, 0.96,
             riskLevel, status, "同义词 + 单位一致", "u-99", now,
             now, "system", now, "system"
-        );
-    }
-
-    private TermMappingPackage pkg(Long id, String packageCode, String version, TermMappingPackageStatus status) {
-        Instant now = Instant.now();
-        return new TermMappingPackage(
-            id, "t-1", packageCode, version, "检验映射包", "DEPARTMENT", "CARD",
-            status, 1, "0".repeat(64), null, null, null,
-            now, "system", now, "system"
-        );
-    }
-
-    private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {
-        Instant now = Instant.now();
-        return new AssetVersion(
-            null, versionId, "t-1", VersionedAssetType.TERMINOLOGY,
-            "PKG-LAB-CARD|DEPARTMENT|CARD", versionNo,
-            "DEPARTMENT:CARD", "ALL", "0".repeat(64),
-            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
-            status, "version:" + versionId, "term-mapping-package:PKG-LAB-CARD:" + versionNo,
-            null, null, now, "u-99", now, "u-99", "trace"
         );
     }
 
@@ -1168,42 +899,11 @@ class TerminologyServiceTest {
         );
     }
 
-    private BuildTerminologyPackageRequest buildPackageRequest() {
-        return new BuildTerminologyPackageRequest(
-            "req-api04-package", "trace-api04-package", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
-            "PKG-LAB-CARD", "2026.05.25", "DEPARTMENT", "CARD", "检验映射包"
-        );
-    }
-
     private ResolveConflictRequest resolveConflictRequest(String resolutionNote) {
         return new ResolveConflictRequest(
             "req-api04-conflict", "trace-api04-conflict", "t-1", "g-1", "h-1", "c-1", "s-1",
             "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
             resolutionNote
-        );
-    }
-
-    private PublishTerminologyPackageRequest publishPackageRequest(PackageReleaseMode mode, String reason) {
-        return publishPackageRequest(mode, reason, List.of("it-ops"));
-    }
-
-    private PublishTerminologyPackageRequest publishPackageRequest(
-            PackageReleaseMode mode,
-            String reason,
-            List<String> roleCodes) {
-        return new PublishTerminologyPackageRequest(
-            "req-api04-publish", "trace-api04-publish", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", roleCodes, "pkg-2026.06",
-            mode, reason
-        );
-    }
-
-    private RollbackTerminologyPackageRequest rollbackPackageRequest(Long targetPackageId, String reason) {
-        return new RollbackTerminologyPackageRequest(
-            "req-api04-rollback", "trace-api04-rollback", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
-            targetPackageId, reason
         );
     }
 

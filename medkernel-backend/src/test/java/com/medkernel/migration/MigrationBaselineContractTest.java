@@ -148,8 +148,7 @@ class MigrationBaselineContractTest {
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule",
-        "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
-        "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
+        "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment", "tenant_user",
         "mk_plugin_registry", "mk_plugin_grant",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
@@ -160,7 +159,7 @@ class MigrationBaselineContractTest {
         "mk_engine_authoring_batch_job", "mk_engine_authoring_batch_item",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
+        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -246,9 +245,7 @@ class MigrationBaselineContractTest {
         "idx_local_term_tenant_source", "idx_local_term_department",
         "idx_term_mapping_tenant_status", "idx_term_mapping_local_standard",
         "idx_mapping_candidate_tenant_status", "idx_mapping_conflict_tenant_status",
-        "idx_term_pkg_tenant_status", "idx_term_pkg_scope", "idx_term_pkg_item_package",
-        "idx_term_pkg_item_anchor",
-        "idx_term_pkg_release_package", "idx_sys_role_tenant_active", "idx_sys_permission_dimension",
+        "idx_sys_role_tenant_active", "idx_sys_permission_dimension",
         "idx_role_permission_tenant_role",
         "idx_user_role_assignment_user",
         "idx_context_snapshot_tenant_patient", "idx_context_snapshot_tenant_enc",
@@ -281,7 +278,6 @@ class MigrationBaselineContractTest {
         "idx_rule_shadow_feedback_rule_time", "idx_rule_shadow_feedback_decision",
         "idx_rule_backtest_rule_time", "idx_rule_backtest_version_time",
         "idx_rule_drift_rule_time", "idx_rule_drift_status",
-        "idx_specialty_package_tenant_status", "idx_specialty_package_disease",
         "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
         "idx_pathway_template_package", "idx_pathway_template_disease",
         "idx_pathway_template_parent",
@@ -431,8 +427,6 @@ class MigrationBaselineContractTest {
         "ck_term_mapping_status", "ck_term_mapping_risk",
         "ck_mapping_candidate_status", "ck_mapping_candidate_source", "ck_mapping_candidate_risk",
         "ck_mapping_conflict_type", "ck_mapping_conflict_status", "ck_mapping_conflict_risk",
-        "uk_term_mapping_package", "ck_term_mapping_package_status",
-        "ck_term_pkg_release_event", "ck_term_pkg_release_mode",
         "uk_sys_role_tenant_code", "uk_sys_permission_code",
         "ck_sys_role_builtin", "ck_sys_role_active", "ck_sys_permission_dimension", "ck_sys_permission_risk",
         "ck_sys_permission_active", "uk_role_permission", "ck_role_permission_effect",
@@ -479,7 +473,6 @@ class MigrationBaselineContractTest {
         "ck_rule_backtest_rates",
         "uk_rule_drift_snapshot_id", "ck_rule_drift_window", "ck_rule_drift_sample",
         "ck_rule_drift_rates", "ck_rule_drift_status",
-        "uk_specialty_package_tenant_code", "ck_specialty_package_status",
         "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
         "ck_pathway_template_level", "ck_pathway_template_status", "ck_pathway_entry_mode",
         "uk_pathway_milestone_template_code", "ck_pathway_milestone_day", "ck_pathway_milestone_expected",
@@ -652,15 +645,14 @@ class MigrationBaselineContractTest {
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
-        "mapping_conflict", "term_mapping_package", "term_mapping_package_item",
-        "term_mapping_package_release", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
+        "mapping_conflict", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
         "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
+        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -702,10 +694,10 @@ class MigrationBaselineContractTest {
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
-        "term_mapping_package", "sys_role", "sys_permission", "role_permission", "user_role_assignment",
+        "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
         "mk_engine_condition_fragment",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
+        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -748,7 +740,6 @@ class MigrationBaselineContractTest {
         Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
         Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
         Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
-        Map.entry("term_mapping_package_release", Set.of("created_at", "created_by")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
         Map.entry("rule_applicability", Set.of(
@@ -760,7 +751,6 @@ class MigrationBaselineContractTest {
         Map.entry("rule_shadow_feedback", Set.of("assessed_by", "assessed_at", "created_at")),
         Map.entry("rule_backtest_run", Set.of("created_at", "created_by")),
         Map.entry("rule_drift_snapshot", Set.of("created_at", "created_by")),
-        Map.entry("specialty_package", Set.of("published_at", "published_by")),
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
         Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
         Map.entry("sys_task_dead_letter", Set.of("trace_id", "replayed_at")),
@@ -790,7 +780,6 @@ class MigrationBaselineContractTest {
         Map.entry("term_mapping", Set.of("status")),
         Map.entry("mapping_candidate", Set.of("status")),
         Map.entry("mapping_conflict", Set.of("status")),
-        Map.entry("term_mapping_package", Set.of("package_version", "status")),
         Map.entry("sys_role", Set.of("active_flag")),
         Map.entry("sys_permission", Set.of("dimension", "active_flag")),
         Map.entry("mk_security_bootstrap_init_token", Set.of("status")),
@@ -808,7 +797,6 @@ class MigrationBaselineContractTest {
         Map.entry("rule_shadow_feedback", Set.of("decision")),
         Map.entry("rule_backtest_run", Set.of("sample_count")),
         Map.entry("rule_drift_snapshot", Set.of("status")),
-        Map.entry("specialty_package", Set.of("package_version", "status")),
         Map.entry("pathway_template", Set.of("template_version", "status")),
         Map.entry("pathway_node", Set.of("node_type")),
         Map.entry("pathway_edge", Set.of("edge_type")),
@@ -2397,7 +2385,7 @@ class MigrationBaselineContractTest {
     @Test
     void v12ShouldDeclarePathwayEngineApiTablesAndColumns() {
         String h2 = readMigration("h2", "V12__pathway_engine_api.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_package");
+        assertThat(h2).doesNotContain("specialty_package");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_profile");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_template");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_milestone");
@@ -2442,15 +2430,21 @@ class MigrationBaselineContractTest {
     @Test
     void packageBaselinesShouldUseOnlyUnifiedContainerForAllDialects() {
         for (String dialect : DIALECTS) {
+            String terminologyBaseline = readMigration(
+                dialect, "V4__terminology_mapping_baseline.sql");
+            String pathwayBaseline = readMigration(
+                dialect, "V12__pathway_engine_api.sql");
             String convergence = readMigration(dialect, "V112__package_physical_convergence.sql");
 
+            assertThat(terminologyBaseline)
+                .as("%s 初始术语迁移不得创建独立包容器", dialect)
+                .doesNotContain("term_mapping_package");
+            assertThat(pathwayBaseline)
+                .as("%s 初始路径迁移不得创建独立专病包容器", dialect)
+                .doesNotContain("specialty_package");
             assertThat(convergence)
-                .as("%s 应物理删除旧包容器并保留统一条目下的术语快照", dialect)
-                .contains("DROP TABLE")
-                .contains("term_mapping_package_release")
-                .contains("term_mapping_package_item")
-                .contains("term_mapping_package")
-                .contains("specialty_package")
+                .as("%s 应只新增统一条目下的术语快照", dialect)
+                .doesNotContain("DROP TABLE")
                 .contains("mk_term_mapping_snapshot")
                 .contains("package_item_id")
                 .contains("mapping_snapshot")

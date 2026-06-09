@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 路径引擎 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathway/**}）。
  *
- * <p>承担专病包、路径模板、发布、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
+ * <p>承担路径模板、发布、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
  * 权限由 {@code pathway.read}/{@code pathway.write}/{@code pathway.publish} 拆分控制，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
@@ -41,37 +41,9 @@ public class PathwayEngineController {
     }
 
     /**
-     * 创建专病包及其可选专病画像草稿。
-     *
-     * <p>权限：{@code pathway.write}；请求必须包含病种、包编码、版本、名称和来源引用。
-     */
-    @PostMapping("/specialty-packages")
-    @PreAuthorize("@perm.has('pathway.write')")
-    public ResponseEntity<ApiResult<SpecialtyPackageResponse>> createPackage(
-            @RequestBody @Valid SpecialtyPackageCreateRequest request) {
-        validateContext(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(ApiResult.ok(service.createPackage(request)));
-    }
-
-    /**
-     * 分页查询当前租户下的专病包。
-     *
-     * <p>权限：{@code pathway.read}；分页参数缺省时使用系统默认页大小。
-     */
-    @GetMapping("/specialty-packages")
-    @PreAuthorize("@perm.has('pathway.read')")
-    public ApiResult<PageResponse<SpecialtyPackage>> listPackages(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) String sort) {
-        return ApiResult.ok(service.listPackages(new PageRequest(page, size, sort)));
-    }
-
-    /**
      * 创建路径模板草稿，并一次性保存节点、边和质控指标绑定。
      *
-     * <p>权限：{@code pathway.write}；模板必须关联当前租户下存在的专病包。
+     * <p>权限：{@code pathway.write}；模板必须关联当前租户下存在的路径知识包。
      */
     @PostMapping("/pathway-templates")
     @PreAuthorize("@perm.has('pathway.write')")
@@ -83,7 +55,7 @@ public class PathwayEngineController {
     }
 
     /**
-     * 按状态、病种、专病包和模板编码过滤分页查询路径模板。
+     * 按状态、病种、路径知识包和模板编码过滤分页查询路径模板。
      *
      * <p>权限：{@code pathway.read}；过滤参数均可选，{@code null} 表示不过滤。
      */

@@ -41,4 +41,57 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
         WHERE tenant_id = :tenantId
         """)
     long countByTenantId(String tenantId);
+
+    @Query("""
+        SELECT kp.* FROM knowledge_package kp
+        WHERE kp.tenant_id = :tenantId
+          AND (:status IS NULL OR kp.status = :status)
+          AND (
+               :keyword IS NULL
+            OR LOWER(kp.package_code) LIKE :keyword
+            OR LOWER(kp.package_version) LIKE :keyword
+            OR LOWER(kp.name) LIKE :keyword
+          )
+          AND (
+               :assetType IS NULL
+            OR EXISTS (
+                SELECT 1 FROM package_item item
+                WHERE item.tenant_id = kp.tenant_id
+                  AND item.package_id = kp.package_id
+                  AND item.asset_type = :assetType
+            )
+          )
+        ORDER BY kp.updated_at DESC, kp.id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgePackage> pageByFilter(
+        String tenantId,
+        String keyword,
+        String status,
+        String assetType,
+        int offset,
+        int limit
+    );
+
+    @Query("""
+        SELECT COUNT(*) FROM knowledge_package kp
+        WHERE kp.tenant_id = :tenantId
+          AND (:status IS NULL OR kp.status = :status)
+          AND (
+               :keyword IS NULL
+            OR LOWER(kp.package_code) LIKE :keyword
+            OR LOWER(kp.package_version) LIKE :keyword
+            OR LOWER(kp.name) LIKE :keyword
+          )
+          AND (
+               :assetType IS NULL
+            OR EXISTS (
+                SELECT 1 FROM package_item item
+                WHERE item.tenant_id = kp.tenant_id
+                  AND item.package_id = kp.package_id
+                  AND item.asset_type = :assetType
+            )
+          )
+        """)
+    long countByFilter(String tenantId, String keyword, String status, String assetType);
 }

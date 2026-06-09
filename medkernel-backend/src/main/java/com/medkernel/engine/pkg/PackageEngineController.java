@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
+import com.medkernel.engine.pathway.PathwayKnowledgePackageService;
+import com.medkernel.engine.terminology.TerminologyKnowledgePackageService;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
@@ -37,14 +39,20 @@ public class PackageEngineController {
     private final PackageEngineService service;
     private final PackageInheritanceImpactService inheritanceImpactService;
     private final PackageEntitlementService entitlementService;
+    private final TerminologyKnowledgePackageService terminologyPackageService;
+    private final PathwayKnowledgePackageService pathwayPackageService;
 
     public PackageEngineController(
             PackageEngineService service,
             PackageInheritanceImpactService inheritanceImpactService,
-            PackageEntitlementService entitlementService) {
+            PackageEntitlementService entitlementService,
+            TerminologyKnowledgePackageService terminologyPackageService,
+            PathwayKnowledgePackageService pathwayPackageService) {
         this.service = service;
         this.inheritanceImpactService = inheritanceImpactService;
         this.entitlementService = entitlementService;
+        this.terminologyPackageService = terminologyPackageService;
+        this.pathwayPackageService = pathwayPackageService;
     }
 
     /**
@@ -62,17 +70,57 @@ public class PackageEngineController {
     }
 
     /**
+     * 把当前组织范围的已确认术语映射冻结为知识包草稿。
+     *
+     * <p>权限：{@code term.write}。
+     */
+    @PostMapping("/terminology")
+    @PreAuthorize("@perm.has('term.write')")
+    public ResponseEntity<ApiResult<PackageResponse>> buildTerminologyPackage(
+            @RequestBody @Valid TerminologyPackageBuildRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(terminologyPackageService.build(request)));
+    }
+
+    /**
+     * 把专病画像定义保存为统一路径知识包草稿。
+     *
+     * <p>权限：{@code pathway.write}。
+     */
+    @PostMapping("/pathway")
+    @PreAuthorize("@perm.has('pathway.write')")
+    public ResponseEntity<ApiResult<PackageResponse>> buildPathwayPackage(
+            @RequestBody @Valid PathwayPackageBuildRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(pathwayPackageService.build(request)));
+    }
+
+    /**
      * 分页查询当前租户下的知识包列表。
      *
-     * <p>权限：{@code package.read}。
+     * <p>权限：通用查询需要 {@code package.read}；显式查询术语或路径包时可使用对应领域读权限。
      */
     @GetMapping
-    @PreAuthorize("@perm.has('package.read')")
-    public ApiResult<PageResponse<KnowledgePackage>> listPackages(
+    @PreAuthorize("""
+        @perm.has('package.read')
+        || (#assetType == T(com.medkernel.engine.versioning.VersionedAssetType).TERMINOLOGY
+            && @perm.has('term.read'))
+        || (#assetType == T(com.medkernel.engine.versioning.VersionedAssetType).PATHWAY
+            && @perm.has('pathway.read'))
+        """)
+    public ApiResult<PageResponse<PackageSummaryResponse>> listPackages(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) String sort) {
-        return ApiResult.ok(service.listPackages(new PageRequest(page, size, sort)));
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) KnowledgePackageStatus status,
+            @RequestParam(required = false) VersionedAssetType assetType) {
+        return ApiResult.ok(service.listPackages(
+            new PageRequest(page, size, sort),
+            new PackageListFilter(keyword, status, assetType)
+        ));
     }
 
     /**

@@ -28,14 +28,14 @@ import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import org.junit.jupiter.api.Test;
 
-class CkdSpecialtyPackageEndToEndTest {
+class CkdPathwayKnowledgePackageEndToEndTest {
 
     private final ObjectMapper json = new ObjectMapper();
     private final RuleDslEvaluator rules = new RuleDslEvaluator(json, new ConditionEvaluator(json));
     private final PathwayProgressor pathways = new PathwayProgressor(json, new ConditionEvaluator(json));
 
     @Test
-    void ckdSpecialtyPackageCoversEntryStagingOrderBlockVarianceAndOutcomeLoop() throws Exception {
+    void ckdPathwayKnowledgePackageCoversEntryStagingOrderBlockVarianceAndOutcomeLoop() throws Exception {
         EffectivePackageSnapshot packageSnapshot = ckdPackageSnapshot();
 
         assertThat(packageSnapshot.items())

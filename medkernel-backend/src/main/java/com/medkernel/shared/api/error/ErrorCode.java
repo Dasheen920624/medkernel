@@ -75,7 +75,7 @@ public enum ErrorCode {
     ENG_PATHWAY_004("ENG-PATHWAY-004", 409, "路径模板发布门禁失败", ErrorClass.DATA, false),
     ENG_PATHWAY_005("ENG-PATHWAY-005", 409, "当前路径状态不允许该操作", ErrorClass.DATA, false),
     ENG_PATHWAY_006("ENG-PATHWAY-006", 400, "路径推进事件不合法", ErrorClass.INPUT, false),
-    ENG_PATHWAY_007("ENG-PATHWAY-007", 404, "专病包不存在", ErrorClass.DATA, false),
+    ENG_PATHWAY_007("ENG-PATHWAY-007", 404, "路径知识包不存在", ErrorClass.DATA, false),
     PATHWAY_CLOCK_MISSING("PATHWAY_CLOCK_MISSING", 409, "路径关键时钟缺少质控指标绑定", ErrorClass.DATA, false),
 
     ENG_REC_001("ENG-REC-001", 400, "推荐触发请求校验失败", ErrorClass.INPUT, false),

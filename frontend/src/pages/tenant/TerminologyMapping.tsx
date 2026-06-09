@@ -29,12 +29,14 @@ import type { ColumnsType } from "antd/es/table";
 import {
   parseSavedExperienceView,
   useBatchConfirmTerminologyCandidates,
-  useBuildTerminologyPackage,
+  useBuildTerminologyKnowledgePackage,
   useConfirmTerminologyCandidate,
   useLargeListExportJob,
   useLocalTerms,
-  usePublishTerminologyPackage,
-  useRollbackTerminologyPackage,
+  usePackages,
+  usePackageReleaseAdapters,
+  useReleasePackage,
+  useRollbackPackage,
   useSaveView,
   useSavedViews,
   useSecurityProfile,
@@ -43,12 +45,11 @@ import {
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyMappings,
-  useTerminologyPackages,
   type MappingConflict,
+  type ReleaseScopeType,
   type SecurityProfile,
   type TermMapping,
   type TermMappingCandidate,
-  type TermMappingPackage,
 } from "@/shared/api/hooks";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
@@ -120,14 +121,30 @@ const RISK_LABEL: Record<TermMapping["riskLevel"], string> = {
   LOW: "低",
 };
 
-const PACKAGE_STATUS_LABEL: Record<TermMappingPackage["status"], string> = {
+const PACKAGE_STATUS_LABEL: Record<string, string> = {
   DRAFT: "草稿",
-  GRAY: "灰度",
   PUBLISHED: "已发布",
-  SUPERSEDED: "已替换",
-  ROLLED_BACK: "已回滚",
+  ACTIVE: "生效中",
+  OFFLINE: "已下线",
   ARCHIVED: "已归档",
 };
+
+function parseReleaseScopeType(value: string | undefined): ReleaseScopeType | undefined {
+  switch (value?.trim().toUpperCase()) {
+    case "REGION":
+      return "REGION";
+    case "FACILITY":
+      return "FACILITY";
+    case "CAMPUS":
+      return "CAMPUS";
+    case "DEPARTMENT":
+      return "DEPARTMENT";
+    case "WARD":
+      return "WARD";
+    default:
+      return undefined;
+  }
+}
 
 const tableColumns: Array<ExperienceColumn<TermMapping>> = [
   { key: "sourceSystem", title: "来源系统", dataIndex: "sourceSystem", always: true },
@@ -230,12 +247,12 @@ function hasHospitalAdminRole(roles: SecurityProfile["roles"] | undefined) {
 function packageScopeOptions(profile: SecurityProfile | undefined) {
   const scope = profile?.dataScope;
   if (!scope) return [];
+  const facilityId = scope.siteId ?? scope.hospitalId;
   return [
     { level: "DEPARTMENT", code: scope.departmentId, label: "当前科室" },
-    { level: "SITE", code: scope.siteId, label: "当前站点" },
     { level: "CAMPUS", code: scope.campusId, label: "当前院区" },
-    { level: "HOSPITAL", code: scope.hospitalId, label: "当前医院" },
-    { level: "GROUP", code: scope.groupId, label: "当前集团" },
+    { level: "FACILITY", code: facilityId, label: "当前机构" },
+    { level: "REGION", code: scope.groupId, label: "当前区域" },
     { level: "TENANT", code: scope.tenantId, label: "当前租户" },
   ]
     .filter((item): item is { level: string; code: string; label: string } => Boolean(item.code))
@@ -303,12 +320,13 @@ export default function TerminologyMapping() {
     riskLevel: "HIGH",
   });
   const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
-  const packages = useTerminologyPackages({ page: 0, size: 10 });
+  const packages = usePackages({ page: 0, size: 10, assetType: "TERMINOLOGY" });
+  const releaseAdapters = usePackageReleaseAdapters();
   const confirmCandidate = useConfirmTerminologyCandidate();
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
-  const buildPackage = useBuildTerminologyPackage();
-  const publishPackage = usePublishTerminologyPackage();
-  const rollbackPackage = useRollbackTerminologyPackage();
+  const buildPackage = useBuildTerminologyKnowledgePackage();
+  const publishPackage = useReleasePackage();
+  const rollbackPackage = useRollbackPackage();
 
   useEffect(() => {
     if (savedViewApplied.current || !savedViews.data || savedViews.data.length === 0) {
@@ -384,17 +402,20 @@ export default function TerminologyMapping() {
   const rollbackCandidates = selectedPackage
     ? packageItems.filter(
         (item) =>
-          item.id !== selectedPackage.id &&
+          item.packageId !== selectedPackage.packageId &&
           item.packageCode === selectedPackage.packageCode &&
-          item.scopeLevel === selectedPackage.scopeLevel &&
-          item.scopeCode === selectedPackage.scopeCode &&
-          item.status === "SUPERSEDED",
+          item.status === "OFFLINE",
       )
     : [];
   const canReleaseSelected =
-    selectedPackage?.status === "DRAFT" || selectedPackage?.status === "GRAY";
-  const canRollbackSelected =
-    selectedPackage?.status === "PUBLISHED" && rollbackCandidates.length > 0;
+    selectedPackage?.status === "DRAFT" || selectedPackage?.status === "PUBLISHED";
+  const canRollbackSelected = selectedPackage?.status === "ACTIVE" && rollbackCandidates.length > 0;
+  const usableReleaseAdapters = (releaseAdapters.data ?? []).filter(
+    (adapter) =>
+      adapter.status === "ACTIVE" &&
+      adapter.healthStatus === "HEALTHY" &&
+      adapter.connectorAvailable,
+  );
 
   let pageState: PageStateKind = "ready";
   if (!routeAllowed) pageState = "forbidden";
@@ -514,7 +535,7 @@ export default function TerminologyMapping() {
     buildForm.setFieldsValue({
       packageCode: selectedPackage?.packageCode ?? "TERM.MAPPING",
       packageVersion: undefined,
-      displayName: selectedPackage?.displayName ?? "术语映射包",
+      name: selectedPackage?.name ?? "术语映射包",
       scopeKey: defaultScope.value,
     });
     setBuildOpen(true);
@@ -529,7 +550,7 @@ export default function TerminologyMapping() {
       packageVersion: values.packageVersion.trim(),
       scopeLevel: scope.level,
       scopeCode: scope.code,
-      displayName: values.displayName.trim(),
+      name: values.name.trim(),
     });
     setBuildOpen(false);
     buildForm.resetFields();
@@ -538,11 +559,27 @@ export default function TerminologyMapping() {
   async function submitPublish() {
     if (!selectedPackage || !currentPackageVersion) return;
     const values = await publishForm.validateFields();
+    const [, rawScopeLevel, scopeCode] = (selectedPackage.primaryAssetId ?? "").split("|");
+    const scopeType = values.releaseMode === "FULL" ? "ALL" : parseReleaseScopeType(rawScopeLevel);
+    if (!scopeType) {
+      publishForm.setFields([
+        {
+          name: "targetOrgUnitId",
+          errors: ["知识包缺少有效组织作用域，无法灰度发布"],
+        },
+      ]);
+      return;
+    }
+    publishForm.setFields([{ name: "targetOrgUnitId", errors: [] }]);
     await publishPackage.mutateAsync({
-      packageId: selectedPackage.id,
+      packageId: selectedPackage.packageId,
       request: {
         packageVersion: currentPackageVersion,
-        releaseMode: values.releaseMode,
+        strategy: values.releaseMode === "FULL" ? "FULL" : "GRAYSCALE",
+        targetOrgUnitId: values.targetOrgUnitId,
+        scopeType,
+        scopeValue: values.releaseMode === "FULL" ? "" : (scopeCode ?? values.targetOrgUnitId),
+        adapterIds: values.adapterIds,
         reason: values.reason,
       },
     });
@@ -554,11 +591,14 @@ export default function TerminologyMapping() {
     if (!selectedPackage || !currentPackageVersion) return;
     const values = await rollbackForm.validateFields();
     await rollbackPackage.mutateAsync({
-      packageId: selectedPackage.id,
+      packageId: selectedPackage.packageId,
       request: {
         packageVersion: currentPackageVersion,
         targetPackageId: values.targetPackageId,
+        confirmedCurrentVersion: currentPackageVersion,
+        confirmedTargetVersion: values.confirmedTargetVersion,
         reason: values.reason,
+        confirmedHighRisk: values.confirmedHighRisk,
       },
     });
     setRollbackOpen(false);
@@ -603,7 +643,17 @@ export default function TerminologyMapping() {
             aria-label="发布映射包"
             icon={<CloudUploadOutlined aria-hidden="true" />}
             disabled={!canPublish || !selectedPackage || !canReleaseSelected}
-            onClick={() => setPublishOpen(true)}
+            onClick={() => {
+              const [, , scopeCode] = (selectedPackage?.primaryAssetId ?? "").split("|");
+              publishForm.setFieldsValue({
+                targetOrgUnitId:
+                  scopeCode ??
+                  security.data?.dataScope.departmentId ??
+                  security.data?.dataScope.hospitalId,
+                adapterIds: usableReleaseAdapters.map((adapter) => adapter.adapterId),
+              });
+              setPublishOpen(true);
+            }}
           >
             发布映射包
           </Button>
@@ -724,9 +774,7 @@ export default function TerminologyMapping() {
               {selectedPackage ? (
                 <div className={styles.descriptionScroll}>
                   <Descriptions column={3} size="small" bordered>
-                    <Descriptions.Item label="名称">
-                      {selectedPackage.displayName}
-                    </Descriptions.Item>
+                    <Descriptions.Item label="名称">{selectedPackage.name}</Descriptions.Item>
                     <Descriptions.Item label="版本">
                       {selectedPackage.packageVersion}
                     </Descriptions.Item>
@@ -734,13 +782,13 @@ export default function TerminologyMapping() {
                       <Tag>{PACKAGE_STATUS_LABEL[selectedPackage.status]}</Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="范围">
-                      {selectedPackage.scopeLevel}:{selectedPackage.scopeCode}
+                      {selectedPackage.primaryAssetId?.split("|").slice(1).join(":") ?? "未声明"}
                     </Descriptions.Item>
-                    <Descriptions.Item label="映射数">
-                      {selectedPackage.mappingCount}
+                    <Descriptions.Item label="资产数">
+                      {selectedPackage.itemCount}
                     </Descriptions.Item>
-                    <Descriptions.Item label="证据哈希">
-                      <Text code>{selectedPackage.contentHash.slice(0, 12)}</Text>
+                    <Descriptions.Item label="包编码">
+                      <Text code>{selectedPackage.packageCode}</Text>
                     </Descriptions.Item>
                   </Descriptions>
                 </div>
@@ -814,7 +862,7 @@ export default function TerminologyMapping() {
             <Input maxLength={64} placeholder="例如 2026.06.1" />
           </Form.Item>
           <Form.Item
-            name="displayName"
+            name="name"
             label="名称"
             rules={[{ required: true, whitespace: true, message: "请输入名称" }]}
           >
@@ -847,6 +895,26 @@ export default function TerminologyMapping() {
               </Radio>
             </Radio.Group>
           </Form.Item>
+          <Form.Item
+            name="targetOrgUnitId"
+            label="目标组织"
+            rules={[{ required: true, whitespace: true, message: "请输入目标组织" }]}
+          >
+            <Input maxLength={128} />
+          </Form.Item>
+          <Form.Item
+            name="adapterIds"
+            label="同步通道"
+            rules={[{ required: true, type: "array", min: 1, message: "请选择至少一个可用通道" }]}
+          >
+            <Select
+              mode="multiple"
+              options={usableReleaseAdapters.map((adapter) => ({
+                value: adapter.adapterId,
+                label: adapter.adapterName,
+              }))}
+            />
+          </Form.Item>
           <Form.Item name="reason" label="发布原因" rules={[{ required: true }]}>
             <Input.TextArea rows={3} maxLength={500} />
           </Form.Item>
@@ -868,13 +936,32 @@ export default function TerminologyMapping() {
           >
             <Select
               options={rollbackCandidates.map((item) => ({
-                value: item.id,
-                label: `${item.packageVersion} · ${item.displayName}`,
+                value: item.packageId,
+                label: `${item.packageVersion} · ${item.name}`,
               }))}
+              onChange={(packageId) => {
+                const target = rollbackCandidates.find((item) => item.packageId === packageId);
+                rollbackForm.setFieldValue("confirmedTargetVersion", target?.packageVersion);
+              }}
             />
+          </Form.Item>
+          <Form.Item name="confirmedTargetVersion" hidden>
+            <Input />
           </Form.Item>
           <Form.Item name="reason" label="回滚原因" rules={[{ required: true }]}>
             <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+          <Form.Item
+            name="confirmedHighRisk"
+            valuePropName="checked"
+            rules={[
+              {
+                validator: (_, value) =>
+                  value ? Promise.resolve() : Promise.reject(new Error("请确认高危回滚影响")),
+              },
+            ]}
+          >
+            <Checkbox>已确认回滚会切换当前生效术语版本</Checkbox>
           </Form.Item>
         </Form>
       </Modal>

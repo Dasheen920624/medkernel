@@ -67,21 +67,19 @@ class TerminologyControllerSecurityTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
-    void itOpsCanReachPackagePublishButStillNeedsTenant() throws Exception {
+    void oldMappingPackagePublishRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/publish")
                 .contentType("application/json")
                 .content("{\"releaseMode\":\"FULL\",\"reason\":\"全量发布\"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+            .andExpect(status().isNotFound());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
-    void itOpsCanReachPackageRollbackButStillNeedsTenant() throws Exception {
+    void oldMappingPackageRollbackRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/rollback")
                 .contentType("application/json")
                 .content("{\"targetPackageId\":29,\"reason\":\"发现映射异常\"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+            .andExpect(status().isNotFound());
     }
 }

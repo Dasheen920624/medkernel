@@ -314,7 +314,8 @@ public final class ServiceContractCatalog {
         contract("package", "配置包服务",
             "com.medkernel.engine.pkg.PackageEngineController", "/api/v1/engine/pkg/packages",
             permissions(
-                "package.publish", "package.read", "package.rollback", "tenant.override", "platform.publish"),
+                "package.publish", "package.read", "package.rollback", "tenant.override", "platform.publish",
+                "term.read", "term.write", "pathway.read", "pathway.write"),
             audits(
                 audit(AuditAction.CREATE, "knowledge_package", "创建配置包和包条目"),
                 audit(AuditAction.PERMISSION_CHANGE, "package_entitlement", "开通、续期和撤销受限平台包授权"),

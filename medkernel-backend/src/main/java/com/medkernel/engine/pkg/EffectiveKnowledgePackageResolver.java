@@ -11,6 +11,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.BatchResolvedAsset;
 import com.medkernel.engine.versioning.InheritanceBatchResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
@@ -32,16 +33,19 @@ public class EffectiveKnowledgePackageResolver {
     private final PackageItemRepository itemRepository;
     private final InheritanceResolver inheritanceResolver;
     private final PackageEntitlementService entitlementService;
+    private final AssetVersionRepository assetVersionRepository;
 
     public EffectiveKnowledgePackageResolver(
             KnowledgePackageRepository packageRepository,
             PackageItemRepository itemRepository,
             InheritanceResolver inheritanceResolver,
-            PackageEntitlementService entitlementService) {
+            PackageEntitlementService entitlementService,
+            AssetVersionRepository assetVersionRepository) {
         this.packageRepository = packageRepository;
         this.itemRepository = itemRepository;
         this.inheritanceResolver = inheritanceResolver;
         this.entitlementService = entitlementService;
+        this.assetVersionRepository = assetVersionRepository;
     }
 
     public EffectiveKnowledgePackageResponse resolve(
@@ -65,35 +69,80 @@ public class EffectiveKnowledgePackageResolver {
         String effectiveTargetOrgUnitId = required(targetOrgUnitId, "目标组织 ID");
 
         KnowledgePackage pack = packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
-                PlatformTenant.ID, effectivePackageCode, effectivePackageVersion)
-            .orElseThrow(() -> new ApiException(
-                ErrorCode.NOT_FOUND,
-                "平台基线知识包不存在: " + effectivePackageCode + "@" + effectivePackageVersion));
-        if (pack.status() != KnowledgePackageStatus.PUBLISHED && pack.status() != KnowledgePackageStatus.ACTIVE) {
+                effectiveTenantId, effectivePackageCode, effectivePackageVersion)
+            .orElseGet(() -> packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                    PlatformTenant.ID, effectivePackageCode, effectivePackageVersion)
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.NOT_FOUND,
+                    "知识包不存在: " + effectivePackageCode + "@" + effectivePackageVersion)));
+        boolean platformPackage = PlatformTenant.ID.equals(pack.tenantId());
+        if (platformPackage
+                && pack.status() != KnowledgePackageStatus.PUBLISHED
+                && pack.status() != KnowledgePackageStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "平台基线知识包尚未发布，不能解析有效包: " + pack.packageId());
         }
-        entitlementService.assertUsable(effectiveTenantId, pack);
+        if (platformPackage) {
+            entitlementService.assertUsable(effectiveTenantId, pack);
+        }
 
         List<PackageItem> declaredItems =
-            itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, pack.packageId());
+            itemRepository.findByTenantIdAndPackageId(pack.tenantId(), pack.packageId());
         Map<VersionedAssetIdentity, PackageItem> declaredByIdentity = new LinkedHashMap<>();
+        List<PackageItem> embeddedItems = new ArrayList<>();
         for (PackageItem item : declaredItems) {
-            declaredByIdentity.put(new VersionedAssetIdentity(item.assetType(), item.assetId()), item);
+            if (embeddedTerminologyItem(pack, item)) {
+                embeddedItems.add(item);
+            } else {
+                declaredByIdentity.put(new VersionedAssetIdentity(item.assetType(), item.assetId()), item);
+            }
         }
-        List<BatchResolvedAsset> batch = inheritanceResolver.resolveBatch(new InheritanceBatchResolveQuery(
-            effectiveTenantId,
-            List.copyOf(declaredByIdentity.keySet()),
-            scopes(applicableScope, effectivePackageVersion),
-            effectiveTargetOrgUnitId,
-            effectiveAt));
+        List<BatchResolvedAsset> batch = declaredByIdentity.isEmpty()
+            ? List.of()
+            : inheritanceResolver.resolveBatch(new InheritanceBatchResolveQuery(
+                effectiveTenantId,
+                List.copyOf(declaredByIdentity.keySet()),
+                scopes(applicableScope, effectivePackageVersion),
+                effectiveTargetOrgUnitId,
+                effectiveAt));
         Map<VersionedAssetIdentity, BatchResolvedAsset> resolvedByIdentity = new LinkedHashMap<>();
         for (BatchResolvedAsset item : batch) {
             resolvedByIdentity.put(item.identity(), item);
         }
         List<EffectivePackageItem> effectiveItems = new ArrayList<>();
         List<EffectivePackageExclusion> excludedItems = new ArrayList<>();
+        AssetVersion packageAssetVersion = embeddedItems.isEmpty()
+            ? null
+            : assetVersionRepository
+                .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                    pack.tenantId(),
+                    com.medkernel.engine.versioning.VersionedAssetType.PACKAGE,
+                    pack.packageCode(),
+                    pack.packageVersion()
+                )
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.NOT_FOUND,
+                    "术语知识包缺少统一 PACKAGE 版本: "
+                        + pack.packageCode() + "@" + pack.packageVersion()
+                ));
+        for (PackageItem embeddedItem : embeddedItems) {
+            effectiveItems.add(new EffectivePackageItem(
+                embeddedItem.assetType(),
+                embeddedItem.assetId(),
+                embeddedItem.assetVersion(),
+                pack.packageVersion(),
+                pack.tenantId(),
+                packageAssetVersion.organizationScope(),
+                platformPackage ? com.medkernel.engine.versioning.SourceTier.PLATFORM
+                    : com.medkernel.engine.versioning.SourceTier.ORG,
+                platformPackage,
+                false,
+                true,
+                packageAssetVersion.versionId(),
+                packageAssetVersion.contentHash()
+            ));
+        }
 
-        for (PackageItem declaredItem : declaredItems) {
+        for (PackageItem declaredItem : declaredByIdentity.values()) {
             VersionedAssetIdentity identity =
                 new VersionedAssetIdentity(declaredItem.assetType(), declaredItem.assetId());
             BatchResolvedAsset batchItem = resolvedByIdentity.get(identity);
@@ -186,6 +235,13 @@ public class EffectiveKnowledgePackageResolver {
 
     private String itemIdentity(PackageItem item) {
         return item.assetType() + ":" + item.assetId() + "@" + item.assetVersion();
+    }
+
+    private boolean embeddedTerminologyItem(KnowledgePackage pack, PackageItem item) {
+        return item.assetType() == com.medkernel.engine.versioning.VersionedAssetType.TERMINOLOGY
+            && item.packageId().equals(pack.packageId())
+            && item.assetVersion().equals(pack.packageVersion())
+            && item.assetId().startsWith(pack.packageCode() + "|");
     }
 
     private static String required(String value, String label) {
