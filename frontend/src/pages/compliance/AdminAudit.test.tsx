@@ -232,6 +232,24 @@ describe("AdminAudit", () => {
     );
   });
 
+  it("keeps audit readers out of export approval queries and controls", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue(
+      query({
+        userId: "it-ops-1",
+        username: "it-ops",
+        permissions: [{ code: "list.export" }, { code: "audit.read" }],
+        menuKeys: ["admin-audit"],
+      }) as never,
+    );
+
+    render(<AdminAudit />);
+
+    expect(screen.getByText("auditor-1")).toBeInTheDocument();
+    expect(useExportApprovals).toHaveBeenCalledWith({ resourceType: "AUDIT_EVENT" }, false);
+    expect(screen.queryByRole("button", { name: "申请导出" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "导出审批" })).not.toBeInTheDocument();
+  });
+
   it("maps time, actor, action, object and failure filters to the audit query contract", async () => {
     const from = new Date("2026-06-01T00:00:00").toISOString();
     const to = new Date("2026-07-01T00:00:00").toISOString();

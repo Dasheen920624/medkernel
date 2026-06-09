@@ -10,8 +10,8 @@ import {
   type RuntimeDependencyStatus,
   type RuntimeFeatureFlag,
   type RuntimeOperationsSnapshot,
-  type SecurityProfile,
 } from "@/shared/api/hooks";
+import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { PageShell } from "@/shared/ui/PageShell";
 import { WorkbenchTabs } from "@/widgets/WorkbenchTabs";
 
@@ -42,20 +42,14 @@ const STATUS_COLOR: Record<ReadinessStatus, string> = {
 };
 
 const STATUS_FILTERS: ReadinessStatus[] = ["blocked", "ready", "disabled"];
-
-const ALLOWED_ROLES = new Set([
-  "implementation-engineer",
-  "it-ops",
-  "hospital-admin",
-  "platform-admin",
-]);
+const READINESS_ROUTE = findRouteByPath("/workbench/readiness-validation");
 
 export default function ReadinessValidation() {
   const navigate = useNavigate();
   const [activeStatuses, setActiveStatuses] = useState<ReadinessStatus[]>(STATUS_FILTERS);
   const security = useSecurityProfile();
   const profile = security.data;
-  const canQueryRuntime = Boolean(profile && canOpenReadinessValidation(profile));
+  const canQueryRuntime = Boolean(profile && canAccessRoute(READINESS_ROUTE, profile));
   const runtime = useRuntimeOperations(canQueryRuntime);
   const retryButton = canQueryRuntime ? (
     <Button
@@ -94,7 +88,7 @@ export default function ReadinessValidation() {
     );
   }
 
-  if (!profile || !canOpenReadinessValidation(profile)) {
+  if (!profile || !canQueryRuntime) {
     return (
       <PageShell
         title="验收自检"
@@ -102,7 +96,7 @@ export default function ReadinessValidation() {
         state="forbidden"
         stateProps={{
           title: "当前权限不足",
-          description: "验收自检仅开放给实施、信息科、医院管理员和平台管理员。",
+          description: "当前账号缺少验收自检页面所需权限。",
         }}
       >
         <></>
@@ -258,18 +252,6 @@ export default function ReadinessValidation() {
         </Card>
       </Space>
     </PageShell>
-  );
-}
-
-function canOpenReadinessValidation(profile: SecurityProfile): boolean {
-  const roles = new Set(profile.roles.map((role) => role.code));
-  const permissions = new Set(profile.permissions.map((permission) => permission.code));
-  const hasWorkbenchMenu =
-    profile.menuKeys.includes("workbench") || permissions.has("menu.workbench");
-  return (
-    hasWorkbenchMenu &&
-    permissions.has("workbench:readiness:view") &&
-    [...roles].some((role) => ALLOWED_ROLES.has(role))
   );
 }
 

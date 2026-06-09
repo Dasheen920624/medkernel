@@ -169,6 +169,7 @@ function actionPermission(code: string) {
 function permissionProfile(menuKeys: string[]) {
   const hasTerminologyMapping = menuKeys.includes("terminology-mapping");
   const hasAdapterHub = menuKeys.includes("adapter-hub");
+  const hasQualityDashboard = menuKeys.includes("qc-dashboard");
   return {
     userId: "doctor-1",
     username: "chen.ming",
@@ -186,6 +187,7 @@ function permissionProfile(menuKeys: string[]) {
       ...(hasAdapterHub
         ? ["integration.read", "integration.write", "integration.execute"].map(actionPermission)
         : []),
+      ...(hasQualityDashboard ? [actionPermission("evaluation.read")] : []),
     ],
     environmentKeys: ["production"],
     dataScope: { tenantId: "t-1", hospitalId: "h-1", departmentId: "d-1" },
