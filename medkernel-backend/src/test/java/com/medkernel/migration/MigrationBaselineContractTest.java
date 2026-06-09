@@ -1936,15 +1936,15 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void v44ShouldSeedSystemSuperAdminForAllDialects() {
+    void v44ShouldSeedOnlySystemSuperAdminRoleForAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V44__system_superadmin_seed.sql");
             assertThat(ddl).as("%s 内置超级管理员种子", dialect)
                 .contains("system-superadmin")
                 .contains("内置超级管理员")
                 .contains("sys_role")
-                .contains("user_role_assignment")
-                .contains("system-superadmin-1");
+                .doesNotContain("user_role_assignment")
+                .doesNotContain("system-superadmin-1");
         }
     }
 

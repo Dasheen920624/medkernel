@@ -1,6 +1,7 @@
 package com.medkernel.engine.security.bootstrap;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,11 @@ public class BootstrapController {
     public BootstrapController(BootstrapIdentityService service, MfaPolicyService mfaPolicyService) {
         this.service = service;
         this.mfaPolicyService = mfaPolicyService;
+    }
+
+    @GetMapping("/status")
+    public ApiResult<BootstrapStatusResponse> status() {
+        return ApiResult.ok(service.status());
     }
 
     @PostMapping("/init-token")

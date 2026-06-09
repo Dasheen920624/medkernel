@@ -84,6 +84,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/v1/system/ping",
+                    "/api/v1/bootstrap/status",
                     "/api/v1/bootstrap/init-token",
                     "/api/v1/bootstrap/password",
                     "/api/v1/auth/login",

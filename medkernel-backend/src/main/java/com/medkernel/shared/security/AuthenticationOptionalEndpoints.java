@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 final class AuthenticationOptionalEndpoints {
 
     private static final Set<String> PATHS = Set.of(
+        "/api/v1/bootstrap/status",
         "/api/v1/bootstrap/init-token",
         "/api/v1/bootstrap/password",
         "/api/v1/auth/login",

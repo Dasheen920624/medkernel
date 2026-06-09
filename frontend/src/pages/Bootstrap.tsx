@@ -7,6 +7,7 @@ import {
   QRCode,
   Result,
   Space,
+  Spin,
   Steps,
   Tag,
   Typography,
@@ -19,6 +20,7 @@ import {
   LockOutlined,
   LoginOutlined,
   QrcodeOutlined,
+  ReloadOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -27,13 +29,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/features/theme-switcher/ThemeSwitcher";
 import {
   useBindBootstrapMfa,
+  useBootstrapStatus,
   useChangePassword,
   useCheckBootstrapInitToken,
   useCreateBootstrapAdmin,
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import { defaultTenantId } from "@/shared/config/tenantDictionary";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -122,7 +124,6 @@ export default function Bootstrap() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [tokenForm] = Form.useForm<{ token: string }>();
   const [adminForm] = Form.useForm<{
-    tenantId?: string;
     username: string;
     password: string;
     confirmPassword: string;
@@ -137,6 +138,7 @@ export default function Bootstrap() {
   const createAdmin = useCreateBootstrapAdmin();
   const changePassword = useChangePassword();
   const bindMfa = useBindBootstrapMfa();
+  const bootstrapStatus = useBootstrapStatus(!accountSecuritySetup);
   const { token } = theme.useToken();
 
   const pageStyle = {
@@ -208,7 +210,6 @@ export default function Bootstrap() {
   }
 
   async function submitAdmin(values: {
-    tenantId?: string;
     username: string;
     password: string;
     confirmPassword: string;
@@ -217,7 +218,6 @@ export default function Bootstrap() {
     try {
       const result = await createAdmin.mutateAsync({
         token: initToken,
-        tenantId: defaultTenantId,
         username: values.username.trim(),
         password: values.password,
       });
@@ -302,6 +302,81 @@ export default function Bootstrap() {
       }
       setGlobalError(errorMessage);
     }
+  }
+
+  if (!accountSecuritySetup && bootstrapStatus.isLoading) {
+    return (
+      <main className={styles.page} style={pageStyle}>
+        <div className={styles.themeSwitcher}>
+          <ThemeSwitcher syncRemote={false} />
+        </div>
+        <Card className={styles.statusPanel} bordered={false}>
+          <Spin size="large" />
+          <Title level={2} className={styles.stepTitle}>
+            正在确认首次部署状态
+          </Title>
+          <Text type="secondary">状态确认完成前不会开放接管操作。</Text>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!accountSecuritySetup && (bootstrapStatus.isError || !bootstrapStatus.data)) {
+    return (
+      <main className={styles.page} style={pageStyle}>
+        <div className={styles.themeSwitcher}>
+          <ThemeSwitcher syncRemote={false} />
+        </div>
+        <Card className={styles.statusPanel} bordered={false}>
+          <Result
+            status="error"
+            title="首次部署状态读取失败"
+            subTitle="当前无法确认系统是否已完成初始化，接管入口已暂时关闭。"
+            extra={[
+              <Button
+                type="primary"
+                key="retry"
+                icon={<ReloadOutlined />}
+                onClick={() => void bootstrapStatus.refetch()}
+              >
+                重新读取
+              </Button>,
+              <Button key="login" icon={<ArrowLeftOutlined />} onClick={goLogin}>
+                返回登录
+              </Button>,
+            ]}
+          />
+        </Card>
+      </main>
+    );
+  }
+
+  if (!accountSecuritySetup && bootstrapStatus.data?.initialized) {
+    return (
+      <main className={styles.page} style={pageStyle}>
+        <div className={styles.themeSwitcher}>
+          <ThemeSwitcher syncRemote={false} />
+        </div>
+        <Card className={styles.statusPanel} bordered={false}>
+          <Result
+            status="success"
+            title="系统已完成首次部署"
+            subTitle="首发管理员已经建立，请返回登录。后续账号与租户统一在工作台内维护。"
+            extra={[
+              <Button
+                aria-label="返回登录"
+                type="primary"
+                key="login"
+                icon={<ArrowLeftOutlined />}
+                onClick={goLogin}
+              >
+                返回登录
+              </Button>,
+            ]}
+          />
+        </Card>
+      </main>
+    );
   }
 
   return (

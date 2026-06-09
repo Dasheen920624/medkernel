@@ -413,7 +413,10 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "bootstrap_init_token", "校验首次部署令牌"),
                 audit(AuditAction.PERMISSION_CHANGE, "platform_credential", "创建首发管理员和绑定 MFA")),
-            publicEndpoints("POST /api/v1/bootstrap/init-token", "POST /api/v1/bootstrap/password")),
+            publicEndpoints(
+                "GET /api/v1/bootstrap/status",
+                "POST /api/v1/bootstrap/init-token",
+                "POST /api/v1/bootstrap/password")),
         contract("tenant-engine", "租户开通与实施服务包",
             "com.medkernel.engine.tenant.TenantEngineController", "/api/v1/engine/tenant",
             permissions("tenant.read", "tenant.write"),

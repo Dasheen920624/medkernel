@@ -11,9 +11,16 @@ const apiMocks = vi.hoisted(() => ({
   createAdmin: vi.fn(),
   changePassword: vi.fn(),
   bindMfa: vi.fn(),
+  bootstrapStatus: {
+    data: { initialized: false },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useBootstrapStatus: () => apiMocks.bootstrapStatus,
   useCheckBootstrapInitToken: () => ({ mutateAsync: apiMocks.checkInitToken, isPending: false }),
   useCreateBootstrapAdmin: () => ({ mutateAsync: apiMocks.createAdmin, isPending: false }),
   useChangePassword: () => ({ mutateAsync: apiMocks.changePassword, isPending: false }),
@@ -56,6 +63,10 @@ describe("Bootstrap", () => {
     apiMocks.createAdmin.mockReset();
     apiMocks.changePassword.mockReset();
     apiMocks.bindMfa.mockReset();
+    apiMocks.bootstrapStatus.data = { initialized: false };
+    apiMocks.bootstrapStatus.isLoading = false;
+    apiMocks.bootstrapStatus.isError = false;
+    apiMocks.bootstrapStatus.refetch.mockReset();
   });
 
   it("首次接管页使用客户可见话术并可返回登录", () => {
@@ -75,6 +86,35 @@ describe("Bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "返回登录" }));
 
     expect(screen.getByText("登录页占位")).toBeInTheDocument();
+  });
+
+  it("系统已初始化时直接访问接管页只允许返回登录", () => {
+    apiMocks.bootstrapStatus.data = { initialized: true };
+
+    renderBootstrap();
+
+    expect(screen.getByText("系统已完成首次部署")).toBeInTheDocument();
+    expect(screen.queryByLabelText("部署接管码")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "返回登录" }));
+    expect(screen.getByText("登录页占位")).toBeInTheDocument();
+  });
+
+  it("账号安全设置不受首次部署完成状态影响", () => {
+    apiMocks.bootstrapStatus.data = { initialized: true };
+
+    renderBootstrap({
+      phase: "change-password",
+      login: {
+        userId: "hospital-admin",
+        tenantId: "t-hospital",
+        mustChangePwd: true,
+        mfaRequired: false,
+        mfaBound: false,
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "完成首次改密" })).toBeInTheDocument();
+    expect(screen.queryByText("系统已完成首次部署")).not.toBeInTheDocument();
   });
 
   it("部署接管码错误按字段回显", async () => {
@@ -123,7 +163,6 @@ describe("Bootstrap", () => {
     expect(await screen.findByText(/请使用首发账号登录并完成首次改密/)).toBeInTheDocument();
     expect(apiMocks.createAdmin).toHaveBeenCalledWith({
       token: "raw-init-token",
-      tenantId: "t-1",
       username: "platform-owner",
       password: "Init@2026pw",
     });
