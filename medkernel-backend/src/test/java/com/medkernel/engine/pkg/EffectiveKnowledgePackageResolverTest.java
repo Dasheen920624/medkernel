@@ -19,9 +19,12 @@ import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.BatchResolvedAsset;
+import com.medkernel.engine.versioning.InheritanceBatchResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.VersionedAssetIdentity;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -55,27 +58,29 @@ class EffectiveKnowledgePackageResolverTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
             .thenReturn(List.of(rule, pathway));
-        when(inheritanceResolver.resolve(any())).thenAnswer(inv -> {
-            var query = (com.medkernel.engine.versioning.InheritanceResolveQuery) inv.getArgument(0);
-            if (query.assetType() == VersionedAssetType.RULE) {
-                return new ResolvedAssetVersion(
+        when(inheritanceResolver.resolveBatch(any())).thenReturn(List.of(
+            new BatchResolvedAsset(
+                new VersionedAssetIdentity(VersionedAssetType.RULE, "RULE.VTE"),
+                new ResolvedAssetVersion(
                     assetVersion("av-rule-2", VersionedAssetType.RULE, "RULE.VTE", "2"),
                     "/TENANT-A/HOSP-A",
                     false,
                     true,
                     false,
                     null,
-                    SourceTier.ORG);
-            }
-            return new ResolvedAssetVersion(
-                null,
-                "/TENANT-A/HOSP-A",
-                false,
-                true,
-                true,
-                null,
-                SourceTier.ORG);
-        });
+                    SourceTier.ORG),
+                false),
+            new BatchResolvedAsset(
+                new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "PATH.COPD"),
+                new ResolvedAssetVersion(
+                    null,
+                    "/TENANT-A/HOSP-A",
+                    false,
+                    true,
+                    true,
+                    null,
+                    SourceTier.ORG),
+                false)));
 
         EffectiveKnowledgePackageResponse response =
             resolver.resolve("tenant-A", "PKG.BASELINE", "2026.06", "dept-1");
@@ -97,6 +102,59 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
+    void resolvesDeclaredItemsAndTenantAddsThroughOneBatchResolution() {
+        KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.ACTIVE);
+        PackageItem declaredRule = platformItem(VersionedAssetType.RULE, "RULE.BASELINE", "1");
+        VersionedAssetIdentity declaredIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.RULE, "RULE.BASELINE");
+        VersionedAssetIdentity addedIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "PATH.LOCAL.ADD");
+        AssetVersion declaredVersion =
+            assetVersion("av-rule-baseline", VersionedAssetType.RULE, "RULE.BASELINE", "2");
+        AssetVersion addedVersion =
+            assetVersion("av-path-local", VersionedAssetType.PATHWAY, "PATH.LOCAL.ADD", "1");
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.BASELINE", "2026.06"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
+            .thenReturn(List.of(declaredRule));
+        when(inheritanceResolver.resolveBatch(any())).thenReturn(List.of(
+            new BatchResolvedAsset(
+                declaredIdentity,
+                new ResolvedAssetVersion(
+                    declaredVersion,
+                    "/TENANT-A/HOSP-A",
+                    false,
+                    true,
+                    false,
+                    null,
+                    SourceTier.ORG),
+                false),
+            new BatchResolvedAsset(
+                addedIdentity,
+                new ResolvedAssetVersion(
+                    addedVersion,
+                    "/TENANT-A/HOSP-A",
+                    false,
+                    true,
+                    false,
+                    null,
+                    SourceTier.ORG),
+                true)));
+
+        EffectiveKnowledgePackageResponse response =
+            resolver.resolve("tenant-A", "PKG.BASELINE", "2026.06", "dept-1");
+
+        assertThat(response.items()).extracting(EffectivePackageItem::assetId)
+            .containsExactly("RULE.BASELINE", "PATH.LOCAL.ADD");
+        assertThat(response.items().get(0).declaredVersion()).isEqualTo("1");
+        assertThat(response.items().get(1).declaredVersion()).isEqualTo("1");
+        assertThat(response.items().get(1).sourceVersionId()).isEqualTo("av-path-local");
+        verify(inheritanceResolver).resolveBatch(any());
+        verify(inheritanceResolver, never()).resolve(any());
+    }
+
+    @Test
     void resolvesCkdSpecialtyPackageWithFormulaValueSetsFieldCatalogAndLocalOverride() {
         KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.ACTIVE);
         List<PackageItem> ckdItems = List.of(
@@ -115,21 +173,26 @@ class EffectiveKnowledgePackageResolverTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
             .thenReturn(ckdItems);
-        when(inheritanceResolver.resolve(any())).thenAnswer(inv -> {
-            var query = (com.medkernel.engine.versioning.InheritanceResolveQuery) inv.getArgument(0);
-            String versionNo = query.assetIdentity().equals("RULE.CKD.NEPHROTOXIC")
+        when(inheritanceResolver.resolveBatch(any())).thenAnswer(inv -> {
+            InheritanceBatchResolveQuery query = inv.getArgument(0);
+            return query.declaredAssets().stream().map(identity -> {
+                String versionNo = identity.assetIdentity().equals("RULE.CKD.NEPHROTOXIC")
                 ? "2"
-                : query.applicableScope();
-            boolean overridden = query.assetIdentity().equals("RULE.CKD.NEPHROTOXIC");
-            return new ResolvedAssetVersion(
-                assetVersion("av-" + query.assetType() + "-" + query.assetIdentity(),
-                    query.assetType(), query.assetIdentity(), versionNo),
-                overridden ? "/TENANT-A/HOSP-A/NEPH" : "/PLATFORM/CKD",
-                !overridden,
-                overridden,
-                false,
-                null,
-                overridden ? SourceTier.ORG : SourceTier.PLATFORM);
+                : "2026.06";
+                boolean overridden = identity.assetIdentity().equals("RULE.CKD.NEPHROTOXIC");
+                return new BatchResolvedAsset(
+                    identity,
+                    new ResolvedAssetVersion(
+                        assetVersion("av-" + identity.assetType() + "-" + identity.assetIdentity(),
+                            identity.assetType(), identity.assetIdentity(), versionNo),
+                        overridden ? "/TENANT-A/HOSP-A/NEPH" : "/PLATFORM/CKD",
+                        !overridden,
+                        overridden,
+                        false,
+                        null,
+                        overridden ? SourceTier.ORG : SourceTier.PLATFORM),
+                    false);
+            }).toList();
         });
 
         EffectivePackageSnapshot snapshot = EffectivePackageSnapshot.from(
@@ -174,8 +237,7 @@ class EffectiveKnowledgePackageResolverTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
             .thenReturn(List.of(evaluation));
-        when(inheritanceResolver.resolve(any()))
-            .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 ACTIVE 资产版本"));
+        when(inheritanceResolver.resolveBatch(any())).thenReturn(List.of());
 
         assertThatThrownBy(() -> resolver.resolve("tenant-A", "PKG.BASELINE", "2026.06", "dept-1"))
             .isInstanceOf(ApiException.class)
@@ -217,6 +279,7 @@ class EffectiveKnowledgePackageResolverTest {
 
         verify(itemRepository, never()).findByTenantIdAndPackageId(any(), any());
         verify(inheritanceResolver, never()).resolve(any());
+        verify(inheritanceResolver, never()).resolveBatch(any());
     }
 
     private KnowledgePackage platformPackage(String packageId, KnowledgePackageStatus status) {

@@ -1,6 +1,6 @@
 # MedKernel · 运维手册
 
-> 状态：骨架占位 · 待 E4 嵌入与模型上线后正式填充
+> 状态：持续有效 · 当前底座与统一知识运行期已纳入
 > 适用：v1.0 GA · 院方信息科 / 乙方 SRE / 国产化驻场运维
 
 ---
@@ -21,13 +21,11 @@
 
 ---
 
-## 2. 启用阶段
+## 2. 维护原则
 
-| 阶段 | 触发条件 |
-|---|---|
-| 骨架占位（当前） | E0/E1 完成 |
-| 正式填充 | E4 嵌入与模型上线 + Provider/模型审计链路验收 |
-| 内容来源 | 引用 [详细规范](../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md) 中合规运维子包；不另起方案 |
+- 只登记真实健康、迁移、同步、审计和降级证据；外部资源不可达时不得显示成功。
+- 统一知识包、规则、路径、术语和字段目录共用同一版本、继承、发布与回滚主链路。
+- 本手册只保留可执行运维口径；产品方案引用 [详细规范](../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md)，不另起平行文档。
 
 ---
 
@@ -119,7 +117,21 @@ PostgreSQL / Kingbase / 达梦 / H2 不受影响（不区分大小写或同为�
 
 ---
 
-## 7. 关联文档
+## 7. 统一知识运行巡检
+
+知识包有效解析按一次组织闭包、一次租户覆盖批读、一次租户版本批读和一次平台版本批读完成，资产数量增加不得产生逐项查询。数据库迁移必须到 V113，五方言均应存在 `idx_av_batch_identity` 与 `idx_io_batch_scope`。
+
+| 看板信号 | 真实来源 | 异常判定 | 处理动作 |
+| --- | --- | --- | --- |
+| 有效包解析 | `GET /api/v1/engine/integration/knowledge-runtime/effective-package` | `NOT_FOUND`、`warnings` 非空、应生效资产进入 `excludedItems` | 核对平台包状态、租户授权、目标组织闭包、覆盖生效窗和资产版本 |
+| 继承漂移 | 有效包条目的 `sourceTier`、`sourceOrgPath`、`contentHash` 与覆盖记录 | REPLACE/DISABLE/ADD 突增，或同机构哈希无发布原因变化 | 查看覆盖理由、差异摘要、评审证据；必要时退役覆盖或回滚版本 |
+| 字典就绪度 | `/api/v1/engine/terminology/mappings/coverage` 与上下文 `mappingStatus` | `UNMAPPED`、`NO_STANDARD_TERM` | 补齐院内词条、确认映射并发布统一知识包；禁止人工改写为成功 |
+| 包分发对账 | `/knowledge-runtime/packages/{packageId}/reconciliation` | `NOT_DISTRIBUTED`、`NOT_SYNCED`、`FAILED` 长时间未恢复 | 核对 SyncTarget、真实连接器、同步日志和重试/死信证据 |
+| 服务与数据库 | `/actuator/health`、`/actuator/prometheus`、`flyway_schema_history` | 服务非 UP、数据库不可达、迁移版本低于 V113 | 先停止发布与覆盖变更，再按升级回滚手册恢复 |
+
+看板不得用静态百分比或样例数据填充。当前没有专用解析时延指标时，只展示可核验的请求、审计和数据库事实，不伪造 P50/P99；性能验收以批量解析回归和实际压测证据为准。
+
+## 8. 关联文档
 
 - [产品宪法](../CONSTITUTION.md)
 - [基础底座与引擎服务能力总览](../MEDKERNEL_FOUNDATION_AND_SERVICES.md)

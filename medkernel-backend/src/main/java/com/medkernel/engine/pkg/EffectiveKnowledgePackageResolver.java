@@ -2,16 +2,20 @@ package com.medkernel.engine.pkg;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.versioning.AssetVersion;
-import com.medkernel.engine.versioning.InheritanceResolveQuery;
+import com.medkernel.engine.versioning.BatchResolvedAsset;
+import com.medkernel.engine.versioning.InheritanceBatchResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.VersionedAssetIdentity;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.PlatformTenant;
@@ -72,17 +76,33 @@ public class EffectiveKnowledgePackageResolver {
 
         List<PackageItem> declaredItems =
             itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, pack.packageId());
+        Map<VersionedAssetIdentity, PackageItem> declaredByIdentity = new LinkedHashMap<>();
+        for (PackageItem item : declaredItems) {
+            declaredByIdentity.put(new VersionedAssetIdentity(item.assetType(), item.assetId()), item);
+        }
+        List<BatchResolvedAsset> batch = inheritanceResolver.resolveBatch(new InheritanceBatchResolveQuery(
+            effectiveTenantId,
+            List.copyOf(declaredByIdentity.keySet()),
+            scopes(applicableScope, effectivePackageVersion),
+            effectiveTargetOrgUnitId,
+            effectiveAt));
+        Map<VersionedAssetIdentity, BatchResolvedAsset> resolvedByIdentity = new LinkedHashMap<>();
+        for (BatchResolvedAsset item : batch) {
+            resolvedByIdentity.put(item.identity(), item);
+        }
         List<EffectivePackageItem> effectiveItems = new ArrayList<>();
         List<EffectivePackageExclusion> excludedItems = new ArrayList<>();
 
         for (PackageItem declaredItem : declaredItems) {
-            ResolvedAssetVersion resolved = resolveDeclaredItem(
-                effectiveTenantId,
-                effectivePackageVersion,
-                effectiveTargetOrgUnitId,
-                applicableScope,
-                effectiveAt,
-                declaredItem);
+            VersionedAssetIdentity identity =
+                new VersionedAssetIdentity(declaredItem.assetType(), declaredItem.assetId());
+            BatchResolvedAsset batchItem = resolvedByIdentity.get(identity);
+            if (batchItem == null) {
+                throw new ApiException(
+                    ErrorCode.NOT_FOUND,
+                    "有效包条目未接入统一版本资产: " + itemIdentity(declaredItem));
+            }
+            ResolvedAssetVersion resolved = batchItem.resolution();
             if (resolved.disabled()) {
                 excludedItems.add(new EffectivePackageExclusion(
                     declaredItem.assetType(),
@@ -96,19 +116,31 @@ public class EffectiveKnowledgePackageResolver {
             if (version == null) {
                 throw new ApiException(ErrorCode.CONFLICT, "统一继承解析返回空版本: " + itemIdentity(declaredItem));
             }
-            effectiveItems.add(new EffectivePackageItem(
-                declaredItem.assetType(),
-                declaredItem.assetId(),
-                declaredItem.assetVersion(),
-                version.versionNo(),
-                version.tenantId(),
-                resolved.sourceOrgPath(),
-                resolved.sourceTier(),
-                resolved.inherited(),
-                resolved.overridden(),
-                true,
-                version.versionId(),
-                version.contentHash()));
+            effectiveItems.add(toEffectiveItem(identity, declaredItem.assetVersion(), resolved));
+        }
+
+        for (BatchResolvedAsset batchItem : batch) {
+            if (!batchItem.added() || declaredByIdentity.containsKey(batchItem.identity())) {
+                continue;
+            }
+            ResolvedAssetVersion resolved = batchItem.resolution();
+            if (resolved.disabled()) {
+                excludedItems.add(new EffectivePackageExclusion(
+                    batchItem.identity().assetType(),
+                    batchItem.identity().assetIdentity(),
+                    null,
+                    "机构独有资产已被下级覆盖停用",
+                    resolved.sourceOrgPath()));
+                continue;
+            }
+            AssetVersion version = resolved.version();
+            if (version == null) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "ADD 独有资产解析返回空版本: "
+                        + batchItem.identity().assetType() + ":" + batchItem.identity().assetIdentity());
+            }
+            effectiveItems.add(toEffectiveItem(batchItem.identity(), version.versionNo(), resolved));
         }
 
         return new EffectiveKnowledgePackageResponse(
@@ -122,34 +154,24 @@ public class EffectiveKnowledgePackageResolver {
             List.of());
     }
 
-    private ResolvedAssetVersion resolveDeclaredItem(
-            String tenantId,
-            String packageVersion,
-            String targetOrgUnitId,
-            String applicableScope,
-            Instant effectiveAt,
-            PackageItem declaredItem) {
-        ApiException lastNotFound = null;
-        for (String scope : scopes(applicableScope, packageVersion)) {
-            try {
-                return inheritanceResolver.resolve(new InheritanceResolveQuery(
-                    tenantId,
-                    declaredItem.assetType(),
-                    declaredItem.assetId(),
-                    scope,
-                    targetOrgUnitId,
-                    effectiveAt));
-            } catch (ApiException ex) {
-                if (ex.errorCode() != ErrorCode.NOT_FOUND || isMissingOrg(ex)) {
-                    throw ex;
-                }
-                lastNotFound = ex;
-            }
-        }
-        String detail = lastNotFound == null ? "" : "，原因: " + lastNotFound.getMessage();
-        throw new ApiException(
-            ErrorCode.NOT_FOUND,
-            "有效包条目未接入统一版本资产: " + itemIdentity(declaredItem) + detail);
+    private EffectivePackageItem toEffectiveItem(
+            VersionedAssetIdentity identity,
+            String declaredVersion,
+            ResolvedAssetVersion resolved) {
+        AssetVersion version = resolved.version();
+        return new EffectivePackageItem(
+            identity.assetType(),
+            identity.assetIdentity(),
+            declaredVersion,
+            version.versionNo(),
+            version.tenantId(),
+            resolved.sourceOrgPath(),
+            resolved.sourceTier(),
+            resolved.inherited(),
+            resolved.overridden(),
+            true,
+            version.versionId(),
+            version.contentHash());
     }
 
     private List<String> scopes(String applicableScope, String packageVersion) {
@@ -160,10 +182,6 @@ public class EffectiveKnowledgePackageResolver {
         values.add(required(packageVersion, "知识包版本"));
         values.add(GLOBAL_SCOPE);
         return List.copyOf(values);
-    }
-
-    private boolean isMissingOrg(ApiException ex) {
-        return ex.getMessage() != null && ex.getMessage().contains("组织不存在");
     }
 
     private String itemIdentity(PackageItem item) {

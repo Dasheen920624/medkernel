@@ -78,21 +78,41 @@ class InheritanceOverrideRepositoryTest {
             .hasRootCauseInstanceOf(JdbcSQLIntegrityConstraintViolationException.class);
     }
 
+    @Test
+    void batchOrgPathQueryNeverReturnsAnotherTenantRows() {
+        InheritanceOverride tenantA = repository.save(disable("tenant-A", "io-disable-a", HOSP_PATH));
+        repository.save(disable("tenant-B", "io-disable-b", HOSP_PATH));
+
+        assertThat(repository.findByTenantIdAndOrgPathInAndLifecycleStatusIn(
+            "tenant-A",
+            List.of(HOSP_PATH),
+            List.of(InheritanceOverrideStatus.PUBLISHED)))
+            .containsExactly(tenantA);
+    }
+
     private InheritanceOverride disable(String overrideId, String orgPath) {
-        return override(overrideId, InheritanceOverrideMode.DISABLE, null, orgPath);
+        return disable("tenant-A", overrideId, orgPath);
+    }
+
+    private InheritanceOverride disable(String tenantId, String overrideId, String orgPath) {
+        return override(tenantId, overrideId, InheritanceOverrideMode.DISABLE, null, orgPath);
     }
 
     private InheritanceOverride replace(String overrideId, String orgPath, String overrideVersionId) {
-        return override(overrideId, InheritanceOverrideMode.REPLACE, overrideVersionId, orgPath);
+        return override("tenant-A", overrideId, InheritanceOverrideMode.REPLACE, overrideVersionId, orgPath);
     }
 
     private InheritanceOverride override(
-            String overrideId, InheritanceOverrideMode mode, String overrideVersionId, String orgPath) {
+            String tenantId,
+            String overrideId,
+            InheritanceOverrideMode mode,
+            String overrideVersionId,
+            String orgPath) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new InheritanceOverride(
             null,
             overrideId,
-            "tenant-A",
+            tenantId,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
             "av-group-inherited",

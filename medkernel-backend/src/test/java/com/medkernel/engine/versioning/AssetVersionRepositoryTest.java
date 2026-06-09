@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -71,7 +72,38 @@ class AssetVersionRepositoryTest {
             .hasRootCauseInstanceOf(JdbcSQLIntegrityConstraintViolationException.class);
     }
 
+    @Test
+    void batchIdentityQueryNeverReturnsAnotherTenantRows() {
+        AssetVersion tenantA = repository.save(sample(
+            "tenant-A",
+            newVersionId(),
+            "1.0.0",
+            AssetVersionStatus.PUBLISHED,
+            "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient"));
+        repository.save(sample(
+            "tenant-B",
+            newVersionId(),
+            "1.0.0",
+            AssetVersionStatus.PUBLISHED,
+            "RULE.VTE.RISK|/GROUP/g-2/HOSPITAL/h-2|adult|inpatient"));
+
+        assertThat(repository.findByTenantIdAndAssetIdentityInAndStatusIn(
+            "tenant-A",
+            List.of("RULE.VTE.RISK"),
+            List.of(AssetVersionStatus.PUBLISHED)))
+            .containsExactly(tenantA);
+    }
+
     private AssetVersion sample(
+            String versionId,
+            String versionNo,
+            AssetVersionStatus status,
+            String activeScopeKey) {
+        return sample("tenant-A", versionId, versionNo, status, activeScopeKey);
+    }
+
+    private AssetVersion sample(
+            String tenantId,
             String versionId,
             String versionNo,
             AssetVersionStatus status,
@@ -80,7 +112,7 @@ class AssetVersionRepositoryTest {
         return new AssetVersion(
             null,
             versionId,
-            "tenant-A",
+            tenantId,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
             versionNo,

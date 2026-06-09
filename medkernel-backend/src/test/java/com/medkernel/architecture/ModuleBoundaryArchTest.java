@@ -13,6 +13,14 @@ class ModuleBoundaryArchTest {
     private static final String ENGINE_PACKAGE = "com.medkernel.engine..";
     private static final String SHARED_PACKAGE = "com.medkernel.shared..";
     private static final String BUSINESS_PACKAGE = "com.medkernel.compliance..";
+    private static final String VERSIONING_PACKAGE = "com.medkernel.engine.versioning..";
+    private static final String[] VERSIONING_CONSUMER_PACKAGES = {
+        "com.medkernel.engine.pkg..",
+        "com.medkernel.engine.knowledge..",
+        "com.medkernel.engine.terminology..",
+        "com.medkernel.engine.pathway..",
+        "com.medkernel.engine.recommendation.."
+    };
 
     private final JavaClasses classes = new ClassFileImporter()
         .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
@@ -33,6 +41,15 @@ class ModuleBoundaryArchTest {
             .that().resideInAPackage(SHARED_PACKAGE)
             .should().dependOnClassesThat().resideInAPackage(ENGINE_PACKAGE)
             .because("shared 是最底层公共契约，不能反向依赖 engine")
+            .check(classes);
+    }
+
+    @Test
+    void versioningCoreMustNotDependOnItsConsumerDomains() {
+        noClasses()
+            .that().resideInAPackage(VERSIONING_PACKAGE)
+            .should().dependOnClassesThat().resideInAnyPackage(VERSIONING_CONSUMER_PACKAGES)
+            .because("统一版本与继承解析是底座，消费域只能单向依赖底座")
             .check(classes);
     }
 

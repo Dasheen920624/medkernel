@@ -138,7 +138,8 @@ class MigrationBaselineContractTest {
         "V109__knowledge_evidence_governance.sql",
         "V110__release_simulation_rollout.sql",
         "V111__package_entitlement.sql",
-        "V112__package_physical_convergence.sql"
+        "V112__package_physical_convergence.sql",
+        "V113__batch_inheritance_resolution_indexes.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -377,8 +378,9 @@ class MigrationBaselineContractTest {
         "idx_mk_projection_sync_tenant_target_ts", "idx_mk_projection_sync_tenant_status",
         "idx_mk_projection_snapshot_tenant_target",
         "idx_mk_version_asset_version_tenant_status", "idx_mk_version_asset_version_identity",
-        "idx_mk_version_asset_version_active_scope",
+        "idx_mk_version_asset_version_active_scope", "idx_av_batch_identity",
         "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
+        "idx_io_batch_scope",
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
         "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
         "idx_mk_version_asset_dependency_owner", "idx_mk_version_asset_dependency_target",
@@ -2453,6 +2455,26 @@ class MigrationBaselineContractTest {
                 .contains("package_item_id")
                 .contains("mapping_snapshot")
                 .contains("fk_term_mapping_snapshot_item");
+        }
+    }
+
+    @Test
+    void batchInheritanceResolutionIndexesShouldExistInAllFiveDialects() {
+        for (String dialect : DIALECTS) {
+            String migration = readMigration(
+                dialect, "V113__batch_inheritance_resolution_indexes.sql");
+
+            assertThat(migration)
+                .as("%s 应为集合解析提供租户、身份、组织闭包与生命周期联合索引", dialect)
+                .contains("idx_av_batch_identity")
+                .contains("mk_version_asset_version")
+                .contains("tenant_id")
+                .contains("asset_identity")
+                .contains("status")
+                .contains("idx_io_batch_scope")
+                .contains("mk_version_inheritance_override")
+                .contains("org_path")
+                .contains("lifecycle_status");
         }
     }
 
