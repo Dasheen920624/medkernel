@@ -105,6 +105,7 @@ import {
   useReleasePackage,
   useObserveReleaseRollout,
   usePreviewOverrideBatch,
+  usePublishDiagnosis,
   usePublishEvaluationIndicator,
   useQualityFindings,
   useRegionalSources,
@@ -3305,6 +3306,36 @@ describe("knowledge review api helpers", () => {
         },
       }),
       { headers: { "Idempotency-Key": "idem-knowledge-review-2002" } },
+    );
+  });
+
+  it("publishes diagnosis knowledge with the governed request body", async () => {
+    const published = { id: 10, status: "ACTIVE" };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: published } });
+    const hook = renderApiHook(() => usePublishDiagnosis());
+    const publishEvidence = {
+      electronicSignature: {
+        signatureId: "sig-diagnosis-10",
+        signerId: "expert-1",
+        signerName: "审核专家",
+        signedAt: "2026-06-09T08:00:00.000Z",
+        signatureHash: "a".repeat(64),
+      },
+    };
+
+    await hook.result.current.mutateAsync({
+      identityId: 42,
+      versionId: 10,
+      reason: "已核对来源、回归病例和发布范围。",
+      publishEvidence,
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge/diagnosis/identities/42/versions/10/publish",
+      {
+        reason: "已核对来源、回归病例和发布范围。",
+        publishEvidence,
+      },
     );
   });
 });

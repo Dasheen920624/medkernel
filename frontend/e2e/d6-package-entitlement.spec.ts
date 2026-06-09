@@ -4,8 +4,8 @@ import {
   apiBase,
   ensureReadySession,
   expectOk,
+  loginFromPlatformPage,
   postApi,
-  stablePassword,
 } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
@@ -21,15 +21,7 @@ test.describe("D6 受限平台包租户授权真实验收", () => {
 
     await ensureReadySession(page, "platform-admin");
     await ensureTargetTenant(page, targetTenantId, targetTenantName);
-    await page.context().clearCookies();
-
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
-    await page.getByRole("button", { name: "主平台户" }).click();
-    await page.getByLabel("工号 / 账号").fill("platform-admin");
-    await page.getByLabel("密码").fill(stablePassword("platform-admin"));
-    await page.getByRole("button", { name: "进入工作台" }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await loginFromPlatformPage(page, "platform-admin");
 
     await page.goto("/config/packages");
     await expect(page.getByRole("heading", { name: "配置包中心" })).toBeVisible();

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { ensureReadySession, stablePassword } from "./support/auth";
+import { ensureReadySession, loginFromPlatformPage } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
@@ -8,14 +8,7 @@ test.describe("D6 AI 工作流真实验收", () => {
   test("实施工程师从登录页查看真实能力状态且没有执行或管理入口", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await ensureReadySession(page, "implementation-engineer");
-    await page.context().clearCookies();
-
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
-    await page.getByLabel("工号 / 账号").fill("implementation-engineer");
-    await page.getByLabel("密码").fill(stablePassword("implementation-engineer"));
-    await page.getByRole("button", { name: "进入工作台" }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await loginFromPlatformPage(page, "implementation-engineer");
 
     await page.goto("/advanced/ai-workflows");
     await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();

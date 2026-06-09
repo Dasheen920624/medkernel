@@ -45,9 +45,12 @@ class ConditionFragmentServiceTest {
     private final RuleVersionRepository ruleVersions = mock(RuleVersionRepository.class);
     private final PathwayTemplateRepository pathwayTemplates = mock(PathwayTemplateRepository.class);
     private final PathwayEdgeRepository pathwayEdges = mock(PathwayEdgeRepository.class);
+    private final ConditionFragmentAssetVersionProjector versionProjector =
+        mock(ConditionFragmentAssetVersionProjector.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final ConditionFragmentService service = new ConditionFragmentService(
-        json, fragments, ruleDefinitions, ruleVersions, pathwayTemplates, pathwayEdges, auditRecorder);
+        json, fragments, ruleDefinitions, ruleVersions, pathwayTemplates, pathwayEdges,
+        versionProjector, auditRecorder);
 
     @BeforeEach
     void setUp() {
@@ -130,9 +133,12 @@ class ConditionFragmentServiceTest {
     @Test
     void rejectsIndirectFragmentCycleOnSave() throws Exception {
         when(fragments.findByFragmentIdAndTenantId("frag-a", "tenant-A"))
-            .thenReturn(Optional.of(fragment("frag-a", "FRAG_A", 1, body("""
-                {"all":[{"fact":"patient.age","operator":"gte","value":65}]}
-                """))));
+            .thenReturn(Optional.of(fragment(
+                "frag-a", "FRAG_A", 1,
+                body("""
+                    {"all":[{"fact":"patient.age","operator":"gte","value":65}]}
+                    """),
+                ConditionFragmentStatus.DRAFT)));
         when(fragments.findLatestByTenantIdAndFragmentCode("tenant-A", "FRAG_B"))
             .thenReturn(Optional.of(fragment("frag-b", "FRAG_B", 1, body("""
                 {"fragmentRef":"FRAG_A","version":1,"packageVersion":"pkg-2026.06"}
@@ -154,11 +160,43 @@ class ConditionFragmentServiceTest {
             .hasMessageContaining("条件片段循环引用");
     }
 
+    @Test
+    void rejectsInPlaceMutationOfActiveFragment() throws Exception {
+        when(fragments.findByFragmentIdAndTenantId("frag-a", "tenant-A"))
+            .thenReturn(Optional.of(fragment("frag-a", "FRAG_A", 1, body("""
+                {"all":[{"fact":"patient.age","operator":"gte","value":65}]}
+                """))));
+
+        assertThatThrownBy(() -> service.update("frag-a", new ConditionFragmentUpsertRequest(
+            "FRAG_A",
+            "片段 A",
+            null,
+            body("""
+                {"all":[{"fact":"patient.age","operator":"gte","value":18}]}
+                """),
+            1,
+            "pkg-2026.06",
+            ConditionFragmentStatus.ACTIVE
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("不可原地修改")
+            .hasMessageContaining("新建更高版本");
+    }
+
     private ConditionFragment fragment(String fragmentId, String code, int versionNo, com.fasterxml.jackson.databind.JsonNode body) {
+        return fragment(fragmentId, code, versionNo, body, ConditionFragmentStatus.ACTIVE);
+    }
+
+    private ConditionFragment fragment(
+            String fragmentId,
+            String code,
+            int versionNo,
+            com.fasterxml.jackson.databind.JsonNode body,
+            ConditionFragmentStatus status) {
         Instant now = Instant.parse("2026-06-08T00:00:00Z");
         return new ConditionFragment(
             1L, fragmentId, "tenant-A", code, code + " 名称", "通用",
-            body.toString(), versionNo, ConditionFragmentStatus.ACTIVE, "pkg-2026.06",
+            body.toString(), versionNo, status, "pkg-2026.06",
             now, "author-1", now, "author-1", "trace-fragment");
     }
 

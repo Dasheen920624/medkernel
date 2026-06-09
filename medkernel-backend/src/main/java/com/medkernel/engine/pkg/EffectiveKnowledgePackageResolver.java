@@ -75,8 +75,52 @@ public class EffectiveKnowledgePackageResolver {
                 .orElseThrow(() -> new ApiException(
                     ErrorCode.NOT_FOUND,
                     "知识包不存在: " + effectivePackageCode + "@" + effectivePackageVersion)));
+        return resolveSelectedPackage(
+            effectiveTenantId,
+            effectiveTargetOrgUnitId,
+            pack,
+            applicableScope,
+            effectiveAt,
+            true);
+    }
+
+    /**
+     * 解析当前租户自己拥有的包生命周期候选快照。
+     *
+     * <p>发布、离线导出和回滚需要在状态切换前读取候选包；该入口不回退平台基线，
+     * 并通过包归属校验避免未发布平台包被下游租户消费。
+     */
+    public EffectiveKnowledgePackageResponse resolveOwnedLifecycleCandidate(
+            String tenantId,
+            KnowledgePackage pack,
+            String targetOrgUnitId) {
+        String effectiveTenantId = required(tenantId, "租户 ID");
+        String effectiveTargetOrgUnitId = required(targetOrgUnitId, "目标组织 ID");
+        if (pack == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "知识包不能为空");
+        }
+        if (!effectiveTenantId.equals(pack.tenantId())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "只能解析当前租户自己拥有的生命周期候选包");
+        }
+        return resolveSelectedPackage(
+            effectiveTenantId,
+            effectiveTargetOrgUnitId,
+            pack,
+            null,
+            null,
+            false);
+    }
+
+    private EffectiveKnowledgePackageResponse resolveSelectedPackage(
+            String effectiveTenantId,
+            String effectiveTargetOrgUnitId,
+            KnowledgePackage pack,
+            String applicableScope,
+            Instant effectiveAt,
+            boolean requireReleasedPlatformBaseline) {
         boolean platformPackage = PlatformTenant.ID.equals(pack.tenantId());
-        if (platformPackage
+        if (requireReleasedPlatformBaseline
+                && platformPackage
                 && pack.status() != KnowledgePackageStatus.PUBLISHED
                 && pack.status() != KnowledgePackageStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "平台基线知识包尚未发布，不能解析有效包: " + pack.packageId());
@@ -101,7 +145,7 @@ public class EffectiveKnowledgePackageResolver {
             : inheritanceResolver.resolveBatch(new InheritanceBatchResolveQuery(
                 effectiveTenantId,
                 List.copyOf(declaredByIdentity.keySet()),
-                scopes(applicableScope, effectivePackageVersion),
+                scopes(applicableScope, pack.packageVersion()),
                 effectiveTargetOrgUnitId,
                 effectiveAt));
         Map<VersionedAssetIdentity, BatchResolvedAsset> resolvedByIdentity = new LinkedHashMap<>();

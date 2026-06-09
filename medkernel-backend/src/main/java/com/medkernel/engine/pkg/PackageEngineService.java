@@ -3572,11 +3572,11 @@ public class PackageEngineService {
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
         PackageSyncRequest releaseRequest = requireSyncRequest(request);
-        validateReleaseAuthorization(releaseRequest);
         ReleaseScope normalizedScope = normalizeReleaseScope(releaseRequest);
 
         KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
+        validateReleaseAuthorization(pack, releaseRequest);
 
         assertPackageReadyForRelease(packageId);
         EffectivePackageSnapshot effectiveSnapshot = buildEffectiveSnapshot(
@@ -3852,10 +3852,21 @@ public class PackageEngineService {
         return "tenant:" + pack.tenantId();
     }
 
-    private void validateReleaseAuthorization(PackageSyncRequest request) {
-        if (request.strategy() == ReleaseStrategy.FULL
-                && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "配置包直接全量发布必须由院级管理员确认");
+    private void validateReleaseAuthorization(
+            KnowledgePackage pack,
+            PackageSyncRequest request) {
+        if (request.strategy() != ReleaseStrategy.FULL) {
+            return;
+        }
+        RoleCode requiredRole = PlatformTenant.ID.equals(pack.tenantId())
+            ? RoleCode.PLATFORM_ADMIN
+            : RoleCode.HOSPITAL_ADMIN;
+        if (!AuthenticatedRoleGuard.has(requiredRole)) {
+            String roleName = requiredRole == RoleCode.PLATFORM_ADMIN ? "平台管理员" : "医院管理员";
+            throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "配置包直接全量发布必须由" + roleName + "确认"
+            );
         }
     }
 
@@ -4210,8 +4221,8 @@ public class PackageEngineService {
             String tenantId,
             KnowledgePackage pack,
             String targetOrgUnitId) {
-        return EffectivePackageSnapshot.from(effectivePackageResolver.resolve(
-            tenantId, pack.packageCode(), pack.packageVersion(), targetOrgUnitId));
+        return EffectivePackageSnapshot.from(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+            tenantId, pack, targetOrgUnitId));
     }
 
     private String syncEvidenceWithSnapshot(String adapterEvidence, EffectivePackageSnapshot snapshot) {
@@ -4552,6 +4563,20 @@ public class PackageEngineService {
                     throw new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
                         "只允许 ACTIVE 状态的条件片段入包, 当前: " + fragment.status()
+                    );
+                }
+                AssetVersion unifiedVersion = assetVersions
+                    .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                        tenantId, VersionedAssetType.CONDITION_FRAGMENT, assetId, assetVersion)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "统一条件片段版本不存在: " + assetId + "@" + assetVersion
+                    ));
+                if (unifiedVersion.status() != AssetVersionStatus.PUBLISHED) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许统一底座 PUBLISHED 状态的条件片段入包, 当前: "
+                            + unifiedVersion.status()
                     );
                 }
             }

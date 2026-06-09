@@ -494,7 +494,7 @@ public class PathwayEngineService {
             template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
             graph.outcomeBindings(),
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
-        validateReleaseGate(request, impact);
+        validateReleaseGate(template, request, impact);
         ensureTerminologyCoverage(graph.edges());
 
         Instant now = Instant.now();
@@ -619,14 +619,31 @@ public class PathwayEngineService {
         );
     }
 
-    private AssetVersion requirePublishedPathwayAssetVersion(PathwayTemplate template) {
-        return findPathwayAssetVersion(template)
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
+    private AssetVersion requireRuntimePathwayAssetVersion(PathwayTemplate template, String patientId) {
+        AssetVersion assetVersion = findPathwayAssetVersion(template)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_005,
-                "路径模板统一版本尚未发布，不能入径: "
+                "路径模板缺少统一资产版本，不能入径: "
                     + template.templateCode() + "@" + template.templateVersion()
             ));
+        if (assetVersion.status() == AssetVersionStatus.PUBLISHED) {
+            return assetVersion;
+        }
+        if (assetVersion.status() == AssetVersionStatus.APPROVED) {
+            if (isCanaryEligible(patientId, template.templateCode())) {
+                return assetVersion;
+            }
+            throw new ApiException(
+                ErrorCode.ENG_PATHWAY_005,
+                "患者不在路径灰度范围，不能入径: "
+                    + template.templateCode() + "@" + template.templateVersion()
+            );
+        }
+        throw new ApiException(
+            ErrorCode.ENG_PATHWAY_005,
+            "路径模板统一版本尚未发布，不能入径: "
+                + template.templateCode() + "@" + template.templateVersion()
+        );
     }
 
     private boolean hasActivePathwayAssetVersion(PathwayTemplate template) {
@@ -837,8 +854,8 @@ public class PathwayEngineService {
         PathwayTemplate template = findTemplate(templateId, tenantId);
         ensureTemplatePublished(template, "当前路径模板状态不允许全量发布");
         PathwayTemplateImpactResponse impact = templateImpact(templateId);
-        validateReleaseGate(request, impact);
-        requireHospitalAdminRole(request);
+        validateReleaseGate(template, request, impact);
+        requireReleaseCoordinator(template);
 
         Instant now = Instant.now();
         String actor = currentActor();
@@ -867,8 +884,8 @@ public class PathwayEngineService {
         PathwayTemplate current = findTemplate(templateId, tenantId);
         ensureTemplatePublished(current, "当前路径模板状态不允许回滚");
         PathwayTemplateImpactResponse impact = templateImpact(templateId);
-        validateReleaseGate(request, impact);
-        requireHospitalAdminRole(request);
+        validateReleaseGate(current, request, impact);
+        requireReleaseCoordinator(current);
         if (request == null || isBlank(request.rollbackTargetTemplateId())) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径回滚必须指定目标模板版本");
         }
@@ -999,7 +1016,7 @@ public class PathwayEngineService {
             snapshot.packageVersion(),
             ErrorCode.ENG_PATHWAY_001,
             "患者入径包版本必须与路径模板所属包版本一致");
-        requirePublishedPathwayAssetVersion(template);
+        requireRuntimePathwayAssetVersion(template, patientId);
         safetyGuard.assertPathwayTemplateAllowed(template);
         validateEntryCriteria(template, snapshot.resources());
         EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
@@ -1664,7 +1681,10 @@ public class PathwayEngineService {
             readJsonOrEmpty(jsonText, ownerLabel, ErrorCode.ENG_PATHWAY_004)));
     }
 
-    private void validateReleaseGate(PathwayOperationRequest request, PathwayTemplateImpactResponse impact) {
+    private void validateReleaseGate(
+            PathwayTemplate template,
+            PathwayOperationRequest request,
+            PathwayTemplateImpactResponse impact) {
         if (request == null || isBlank(request.impactDigest())
                 || !Objects.equals(request.impactDigest(), impact.impactDigest())) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径发布前必须提交当前影响分析摘要");
@@ -1672,9 +1692,8 @@ public class PathwayEngineService {
         if (isBlank(request.reason())) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径发布前必须填写审核说明");
         }
-        if (Boolean.TRUE.equals(request.directFullRollout())
-                && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径全量发布必须由院级管理员确认");
+        if (Boolean.TRUE.equals(request.directFullRollout())) {
+            requireReleaseCoordinator(template);
         }
     }
 
@@ -1712,9 +1731,33 @@ public class PathwayEngineService {
         }
     }
 
-    private void requireHospitalAdminRole(PathwayOperationRequest request) {
-        if (request == null || !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径全量或回滚必须由院级管理员确认");
+    private void requireReleaseCoordinator(PathwayTemplate template) {
+        RoleCode requiredRole = PlatformTenant.isPlatformTenant(template.tenantId())
+            ? RoleCode.PLATFORM_ADMIN
+            : RoleCode.HOSPITAL_ADMIN;
+        if (!AuthenticatedRoleGuard.has(requiredRole)) {
+            String roleName = requiredRole == RoleCode.PLATFORM_ADMIN ? "平台管理员" : "医院管理员";
+            throw new ApiException(
+                ErrorCode.ENG_PATHWAY_004,
+                "路径全量或回滚必须由" + roleName + "确认"
+            );
+        }
+    }
+
+    private boolean isCanaryEligible(String patientId, String templateCode) {
+        if (isBlank(patientId) || isBlank(templateCode)) {
+            return false;
+        }
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                .digest((patientId + "|" + templateCode).getBytes(StandardCharsets.UTF_8));
+            int prefix = (hash[0] & 0xff) << 24
+                | (hash[1] & 0xff) << 16
+                | (hash[2] & 0xff) << 8
+                | (hash[3] & 0xff);
+            return Integer.remainderUnsigned(prefix, 100) < DEFAULT_CANARY_PERCENT;
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "无法计算路径灰度分桶", exception);
         }
     }
 

@@ -323,6 +323,23 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
+    void resolvesOwnedPlatformDraftAsLifecycleCandidate() {
+        KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.DRAFT);
+        when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform"))
+            .thenReturn(List.of());
+
+        EffectiveKnowledgePackageResponse response = resolver.resolveOwnedLifecycleCandidate(
+            PlatformTenant.ID, pack, "platform-root");
+
+        assertThat(response.tenantId()).isEqualTo(PlatformTenant.ID);
+        assertThat(response.targetOrgUnitId()).isEqualTo("platform-root");
+        assertThat(response.packageId()).isEqualTo("pkg-platform");
+        assertThat(response.items()).isEmpty();
+        verify(packageRepository, never())
+            .findByTenantIdAndPackageCodeAndPackageVersion(any(), any(), any());
+    }
+
+    @Test
     void rejectsRestrictedPackageBeforeLoadingDeclaredItems() {
         KnowledgePackage pack = platformPackage(
             "pkg-platform",

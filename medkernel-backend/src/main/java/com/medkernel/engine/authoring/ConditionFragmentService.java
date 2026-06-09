@@ -47,6 +47,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
     private final RuleVersionRepository ruleVersions;
     private final PathwayTemplateRepository pathwayTemplates;
     private final PathwayEdgeRepository pathwayEdges;
+    private final ConditionFragmentAssetVersionProjector versionProjector;
     private final AuditRecorder auditRecorder;
 
     public ConditionFragmentService(
@@ -56,6 +57,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             RuleVersionRepository ruleVersions,
             PathwayTemplateRepository pathwayTemplates,
             PathwayEdgeRepository pathwayEdges,
+            ConditionFragmentAssetVersionProjector versionProjector,
             AuditRecorder auditRecorder) {
         this.json = json;
         this.fragments = fragments;
@@ -63,6 +65,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
         this.ruleVersions = ruleVersions;
         this.pathwayTemplates = pathwayTemplates;
         this.pathwayEdges = pathwayEdges;
+        this.versionProjector = versionProjector;
         this.auditRecorder = auditRecorder;
     }
 
@@ -99,6 +102,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             now,
             actor,
             traceId));
+        versionProjector.project(saved);
         auditRecorder.record(AuditAction.CREATE, ENTITY, saved.fragmentId(), "创建条件片段 " + saved.fragmentCode());
         return response(saved);
     }
@@ -111,6 +115,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
         String tenantId = requireCurrentTenant();
         ConditionFragment existing = findFragment(fragmentId, tenantId);
         FragmentInput input = input(request);
+        validateImmutableVersion(existing, input);
         optional(fragments.findByTenantIdAndFragmentCodeAndVersionNo(
             tenantId, input.fragmentCode(), input.versionNo()))
             .filter(candidate -> !Objects.equals(candidate.fragmentId(), existing.fragmentId()))
@@ -137,6 +142,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             now,
             actor,
             RequestContext.currentTraceId()));
+        versionProjector.project(saved);
         auditRecorder.record(AuditAction.UPDATE, ENTITY, saved.fragmentId(), "更新条件片段 " + saved.fragmentCode());
         return response(saved);
     }
@@ -409,6 +415,26 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             versionNo,
             packageVersion,
             status);
+    }
+
+    private void validateImmutableVersion(ConditionFragment existing, FragmentInput input) {
+        if (!Objects.equals(existing.fragmentCode(), input.fragmentCode())
+                || !Objects.equals(existing.versionNo(), input.versionNo())) {
+            throw invalid("条件片段编码和版本号不可原地修改，请新建版本");
+        }
+        if (existing.status() == ConditionFragmentStatus.RETIRED) {
+            throw invalid("已退役条件片段版本不可修改");
+        }
+        if (existing.status() != ConditionFragmentStatus.ACTIVE) {
+            return;
+        }
+        boolean unchanged = Objects.equals(existing.name(), input.name())
+            && Objects.equals(existing.category(), input.category())
+            && Objects.equals(existing.packageVersion(), input.packageVersion())
+            && readJson(existing.bodyJson(), "条件片段正文 JSON 解析失败").equals(input.bodyJson());
+        if (input.status() != ConditionFragmentStatus.RETIRED || !unchanged) {
+            throw invalid("已激活条件片段版本不可原地修改，请新建更高版本");
+        }
     }
 
     private ConditionFragmentResponse response(ConditionFragment fragment) {

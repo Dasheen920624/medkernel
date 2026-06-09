@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -109,6 +110,8 @@ class EngineWorkflowDomainEventAdapterTest {
         assertThat(alertCap.getValue().sourceType()).isEqualTo("pathway_variance");
         assertThat(alertCap.getValue().sourceId()).isEqualTo("pv-1");
         assertThat(alertCap.getValue().severity()).isEqualTo("P2");
+        assertThat(alertCap.getValue().thresholdValue()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(alertCap.getValue().actualValue()).isEqualByComparingTo(BigDecimal.ONE);
         assertThat(alertCap.getValue().evidenceSummary()).contains("pkg-2026.06", "HOLD");
     }
 

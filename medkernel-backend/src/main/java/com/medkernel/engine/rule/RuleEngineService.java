@@ -120,6 +120,7 @@ public class RuleEngineService {
     private enum RuleRuntimeMode {
         ACTIVE,
         SHADOW,
+        CANARY,
         INACTIVE
     }
 
@@ -579,7 +580,7 @@ public class RuleEngineService {
                 || target == RuleGovernanceState.FULL) {
             validateGovernanceImpact(rule, request, impact);
         }
-        ensureGovernanceReleaseCoordinator(current, target);
+        ensureGovernanceReleaseCoordinator(rule, current, target);
 
         RuleGovernance updated = governanceService.transition(
             tenantId,
@@ -809,8 +810,22 @@ public class RuleEngineService {
     }
 
     private static void ensureGovernanceReleaseCoordinator(
+            RuleDefinition rule,
             RuleGovernance current,
             RuleGovernanceState target) {
+        if (PlatformTenant.isPlatformTenant(rule.tenantId())) {
+            boolean submitForReview = current.state() == RuleGovernanceState.DRAFT
+                && target == RuleGovernanceState.PEER_REVIEW;
+            boolean coordinateRelease = target == RuleGovernanceState.SHADOW
+                || target == RuleGovernanceState.CANARY
+                || target == RuleGovernanceState.FULL
+                || target == RuleGovernanceState.MONITOR
+                || target == RuleGovernanceState.RETIRED;
+            if (submitForReview || coordinateRelease) {
+                requireAnyRole("平台规则治理推进仅平台管理员可执行", RoleCode.PLATFORM_ADMIN);
+            }
+            return;
+        }
         if (current.state() == RuleGovernanceState.DRAFT
                 && target == RuleGovernanceState.PEER_REVIEW) {
             requireAnyRole(
@@ -961,13 +976,15 @@ public class RuleEngineService {
             .map(rule -> effectiveVersions.resolve(
                     tenantId, rule, releaseApplicableScope(rule))
                 .map(resolved -> runtimeCandidate(resolved.rule(), resolved.version()))
-                .or(() -> shadowRuntimeCandidate(rule)))
+                .or(() -> governedPrePublicationCandidate(rule)))
             .flatMap(Optional::stream)
             .map(candidate -> {
                 ensureRuleRuntimePackageConsistency(candidate.rule(), contextPackageVersion);
                 return candidate;
             })
             .filter(candidate -> candidate.mode() != RuleRuntimeMode.INACTIVE)
+            .filter(candidate -> candidate.mode() != RuleRuntimeMode.CANARY
+                || isCanaryEligible(candidate.rule(), context))
             .filter(candidate -> triggerMatches(candidate.version(), triggerPoint))
             .toList();
         executable = executable.stream()
@@ -1042,7 +1059,7 @@ public class RuleEngineService {
         return new RuleRuntimeCandidate(rule, version, mode);
     }
 
-    private Optional<RuleRuntimeCandidate> shadowRuntimeCandidate(RuleDefinition rule) {
+    private Optional<RuleRuntimeCandidate> governedPrePublicationCandidate(RuleDefinition rule) {
         if (rule == null || rule.activeVersionId() == null || rule.activeVersionId().isBlank()) {
             return Optional.empty();
         }
@@ -1053,9 +1070,32 @@ public class RuleEngineService {
                     rule.ruleCode(),
                     String.valueOf(version.versionNo()))
                 .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.APPROVED)
-                .filter(assetVersion -> governanceService.requireGovernance(
-                    rule.tenantId(), version.versionId()).state() == RuleGovernanceState.SHADOW)
-                .map(assetVersion -> new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.SHADOW)));
+                .map(assetVersion -> governanceService.requireGovernance(
+                    rule.tenantId(), version.versionId()).state())
+                .map(state -> switch (state) {
+                    case SHADOW -> new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.SHADOW);
+                    case CANARY -> new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.CANARY);
+                    default -> new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.INACTIVE);
+                }));
+    }
+
+    private static boolean isCanaryEligible(RuleDefinition rule, JsonNode context) {
+        String mpi = patientId(context);
+        if (mpi == null) {
+            return false;
+        }
+        byte[] hash;
+        try {
+            hash = MessageDigest.getInstance("SHA-256")
+                .digest((mpi + "|" + rule.ruleCode()).getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("当前运行时不支持 SHA-256", exception);
+        }
+        int prefix = (hash[0] & 0xff) << 24
+            | (hash[1] & 0xff) << 16
+            | (hash[2] & 0xff) << 8
+            | (hash[3] & 0xff);
+        return Integer.remainderUnsigned(prefix, 100) < 10;
     }
 
     /**
