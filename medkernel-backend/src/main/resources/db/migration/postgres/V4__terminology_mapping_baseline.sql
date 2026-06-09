@@ -130,7 +130,6 @@ CREATE TABLE IF NOT EXISTS term_mapping_package (
     status                   VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
     mapping_count            INT          NOT NULL DEFAULT 0,
     content_hash             VARCHAR(128) NOT NULL,
-    gray_scope_json          VARCHAR(2048) NULL,
     published_by             VARCHAR(64)  NULL,
     published_at             TIMESTAMPTZ  NULL,
     rollback_from_package_id BIGINT       NULL,
@@ -172,7 +171,6 @@ CREATE TABLE IF NOT EXISTS term_mapping_package_release (
     event_type        VARCHAR(32)  NOT NULL,
     release_mode      VARCHAR(16)  NOT NULL,
     reason            VARCHAR(500) NOT NULL,
-    gray_scope_json   VARCHAR(2048) NULL,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     created_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
     CONSTRAINT ck_term_pkg_release_event CHECK (event_type IN ('PUBLISH','ROLLBACK')),
@@ -256,7 +254,6 @@ COMMENT ON COLUMN term_mapping_package.scope_code               IS '组织作用
 COMMENT ON COLUMN term_mapping_package.status                   IS '生命周期：DRAFT 草稿 / GRAY 灰度发布中 / PUBLISHED 全量发布 / SUPERSEDED 被替换 / ROLLED_BACK 已回滚 / ARCHIVED 已归档';
 COMMENT ON COLUMN term_mapping_package.mapping_count            IS '包内 CONFIRMED 映射条数';
 COMMENT ON COLUMN term_mapping_package.content_hash             IS '包内容 SHA-256 摘要，构包时定格';
-COMMENT ON COLUMN term_mapping_package.gray_scope_json          IS '灰度作用域 JSON（仅灰度发布时使用）';
 COMMENT ON COLUMN term_mapping_package.published_by             IS '发布人 user_id';
 COMMENT ON COLUMN term_mapping_package.published_at             IS '发布时间';
 COMMENT ON COLUMN term_mapping_package.rollback_from_package_id IS '回滚来源包 → term_mapping_package.id（可空）';
@@ -281,4 +278,3 @@ COMMENT ON COLUMN term_mapping_package_release.target_package_id IS '目标包 �
 COMMENT ON COLUMN term_mapping_package_release.event_type        IS '事件类型：PUBLISH 发布 / ROLLBACK 回滚';
 COMMENT ON COLUMN term_mapping_package_release.release_mode      IS '发布模式：GRAY 灰度 / FULL 全量';
 COMMENT ON COLUMN term_mapping_package_release.reason            IS '发布或回滚原因（必填留痕）';
-COMMENT ON COLUMN term_mapping_package_release.gray_scope_json   IS '灰度作用域 JSON（仅灰度发布使用）';

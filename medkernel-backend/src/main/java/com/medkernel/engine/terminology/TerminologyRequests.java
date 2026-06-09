@@ -261,7 +261,7 @@ record BuildTerminologyPackageRequest(
 /**
  * 发布术语映射包请求体。
  *
- * <p>releaseMode GRAY/FULL；reason 必填留痕；grayScopeJson 灰度发布时声明灰度作用域 JSON。
+ * <p>releaseMode GRAY/FULL；reason 必填留痕；灰度策略由统一发布治理服务生成。
  */
 record PublishTerminologyPackageRequest(
     @JsonProperty("request_id") String requestId,
@@ -278,7 +278,6 @@ record PublishTerminologyPackageRequest(
     @JsonProperty("package_version") String packageVersion,
     @NotNull PackageReleaseMode releaseMode,
     @NotBlank @Size(max = 500) String reason,
-    @Size(max = 2048) String grayScopeJson,
     VersionPublishEvidence publishEvidence
 ) implements TerminologyContextRequest {
     PublishTerminologyPackageRequest {
@@ -300,12 +299,11 @@ record PublishTerminologyPackageRequest(
             List<String> roleCodes,
             String packageVersion,
             PackageReleaseMode releaseMode,
-            String reason,
-            String grayScopeJson) {
+            String reason) {
         this(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
             departmentId, specialtyId, userId, roleCodes, packageVersion,
-            releaseMode, reason, grayScopeJson, VersionPublishEvidence.empty()
+            releaseMode, reason, VersionPublishEvidence.empty()
         );
     }
 

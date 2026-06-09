@@ -30,6 +30,8 @@ import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutStrategy;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
@@ -473,7 +475,7 @@ class TerminologyServiceTest {
 
         TermMappingPackage published = service.publishPackage(
             30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "全量发布", null)
+            publishPackageRequest(PackageReleaseMode.FULL, "全量发布")
         );
 
         assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
@@ -498,7 +500,7 @@ class TerminologyServiceTest {
     }
 
     @Test
-    void publishPackageGrayWithoutScopeUsesDefaultTenPercentBedScope() {
+    void publishPackageGrayUsesStructuredTenPercentBedPolicy() {
         TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
         when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
@@ -509,18 +511,21 @@ class TerminologyServiceTest {
 
         TermMappingPackage gray = service.publishPackage(
             30L,
-            publishPackageRequest(PackageReleaseMode.GRAY, "灰度发布", null)
+            publishPackageRequest(PackageReleaseMode.GRAY, "灰度发布")
         );
 
         assertThat(gray.status()).isEqualTo(TermMappingPackageStatus.GRAY);
-        assertThat(gray.grayScopeJson()).contains("CANARY_BED_PERCENT", "10");
         ArgumentCaptor<TermMappingPackageRelease> releaseCaptor =
             ArgumentCaptor.forClass(TermMappingPackageRelease.class);
         verify(packageReleaseRepository).save(releaseCaptor.capture());
-        assertThat(releaseCaptor.getValue().grayScopeJson()).contains("CANARY_BED_PERCENT", "10");
         verify(releasePort).submitForReview(any());
         verify(releasePort).approveReview(any());
-        verify(releasePort).releaseGray(any());
+        ArgumentCaptor<VersionReleaseCommand> commandCaptor =
+            ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).releaseGray(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().rolloutPolicy().strategy())
+            .isEqualTo(RolloutStrategy.CANARY_BED_PERCENT);
+        assertThat(commandCaptor.getValue().rolloutPolicy().bedPercent()).isEqualTo(10);
     }
 
     @Test
@@ -531,7 +536,7 @@ class TerminologyServiceTest {
 
         assertThatThrownBy(() -> service.publishPackage(
             30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "绕过灰度直接全量", null)
+            publishPackageRequest(PackageReleaseMode.FULL, "绕过灰度直接全量")
         ))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
@@ -552,7 +557,7 @@ class TerminologyServiceTest {
 
         TermMappingPackage published = service.publishPackage(
             30L,
-            publishPackageRequest(PackageReleaseMode.FULL, "院级管理员确认直接全量", null, List.of("hospital-admin"))
+            publishPackageRequest(PackageReleaseMode.FULL, "院级管理员确认直接全量", List.of("hospital-admin"))
         );
 
         assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
@@ -781,7 +786,7 @@ class TerminologyServiceTest {
         Instant now = Instant.now();
         return new TermMappingPackage(
             id, "t-1", packageCode, version, "检验映射包", "DEPARTMENT", "CARD",
-            status, 1, "0".repeat(64), null, null, null, null,
+            status, 1, "0".repeat(64), null, null, null,
             now, "system", now, "system"
         );
     }
@@ -1194,19 +1199,18 @@ class TerminologyServiceTest {
         );
     }
 
-    private PublishTerminologyPackageRequest publishPackageRequest(PackageReleaseMode mode, String reason, String grayScopeJson) {
-        return publishPackageRequest(mode, reason, grayScopeJson, List.of("it-ops"));
+    private PublishTerminologyPackageRequest publishPackageRequest(PackageReleaseMode mode, String reason) {
+        return publishPackageRequest(mode, reason, List.of("it-ops"));
     }
 
     private PublishTerminologyPackageRequest publishPackageRequest(
             PackageReleaseMode mode,
             String reason,
-            String grayScopeJson,
             List<String> roleCodes) {
         return new PublishTerminologyPackageRequest(
             "req-api04-publish", "trace-api04-publish", "t-1", "g-1", "h-1", "c-1", "s-1",
             "d-1", "sp-1", "u-99", roleCodes, "pkg-2026.06",
-            mode, reason, grayScopeJson
+            mode, reason
         );
     }
 

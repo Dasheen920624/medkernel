@@ -1,5 +1,6 @@
 package com.medkernel.engine.context;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,4 +41,18 @@ public interface ContextSnapshotRepository extends ListCrudRepository<ContextSna
 
     @Query("SELECT COUNT(*) FROM context_snapshot WHERE tenant_id = :tenantId AND encounter_id = :encounterId")
     long countByTenantIdAndEncounterId(String tenantId, String encounterId);
+
+    @Query("""
+        SELECT * FROM context_snapshot
+        WHERE tenant_id = :tenantId
+          AND status = 'ACTIVE'
+          AND created_at >= :since
+        ORDER BY created_at DESC
+        OFFSET 0 ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<ContextSnapshot> findRecentActiveByTenantId(
+        String tenantId,
+        Instant since,
+        int limit
+    );
 }

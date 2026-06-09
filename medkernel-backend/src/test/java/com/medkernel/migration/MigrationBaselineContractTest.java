@@ -135,7 +135,8 @@ class MigrationBaselineContractTest {
         "V106__platform_tenant_governance_permissions.sql",
         "V107__asset_dependency_integrity.sql",
         "V108__asset_lifecycle_quality_gate.sql",
-        "V109__knowledge_evidence_governance.sql"
+        "V109__knowledge_evidence_governance.sql",
+        "V110__release_simulation_rollout.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -169,6 +170,8 @@ class MigrationBaselineContractTest {
         "knowledge_package", "package_item", "release_plan", "sync_log",
         "mk_pkg_tenant_package_reference",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
+        "mk_version_rollout_observation", "mk_version_override_template",
+        "mk_version_override_template_item", "mk_version_override_operation",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
@@ -201,6 +204,15 @@ class MigrationBaselineContractTest {
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
         "mk_diagnosis_test_case", "mk_diagnosis_confidence_policy"
     );
+
+    @Test
+    void terminologyBaselineMustNotRetainLegacyGrayScopeJson() throws IOException {
+        for (String dialect : DIALECTS) {
+            assertThat(Files.readString(migrationPathFor(dialect, "V4__terminology_mapping_baseline.sql")))
+                .as("%s 术语基线不得保留旧灰度 JSON 双轨字段", dialect)
+                .doesNotContainIgnoringCase("gray_scope_json");
+        }
+    }
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
         "idx_org_closure_ancestor", "idx_org_closure_descendant",
@@ -366,6 +378,10 @@ class MigrationBaselineContractTest {
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
         "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
         "idx_mk_version_asset_dependency_owner", "idx_mk_version_asset_dependency_target",
+        "idx_mk_version_rollout_plan",
+        "idx_mk_version_override_template_tenant",
+        "idx_mk_version_override_template_item",
+        "idx_mk_version_override_operation_tenant",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
         "idx_mk_ctx_field_catalog_tenant",
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
@@ -583,6 +599,7 @@ class MigrationBaselineContractTest {
         "ck_mk_version_inheritance_override_lifecycle",
         "uk_mk_version_release_plan_id", "ck_mk_version_release_plan_type",
         "ck_mk_version_release_plan_scope", "ck_mk_version_release_plan_status",
+        "ck_mk_version_release_rollout_strategy",
         "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
         "ck_mk_version_activation_transaction_type", "ck_mk_version_activation_transaction_action",
         "uk_mk_version_replay_binding_id", "uk_mk_version_replay_binding_event",
@@ -590,6 +607,19 @@ class MigrationBaselineContractTest {
         "uk_mk_version_asset_dependency_id", "uk_mk_version_asset_dependency_edge",
         "ck_mk_version_asset_dependency_owner_type", "ck_mk_version_asset_dependency_target_type",
         "ck_mk_version_asset_dependency_kind",
+        "uk_mk_version_rollout_observation_id",
+        "ck_mk_version_rollout_observation_counts",
+        "ck_mk_version_rollout_observation_rates",
+        "uk_mk_version_override_template_id",
+        "uk_mk_version_override_template_name",
+        "ck_mk_version_override_template_status",
+        "uk_mk_version_override_template_item_id",
+        "uk_mk_version_override_template_asset",
+        "ck_mk_version_override_template_mode",
+        "ck_mk_version_override_template_propagation",
+        "uk_mk_version_override_operation_id",
+        "ck_mk_version_override_operation_type",
+        "ck_mk_version_override_operation_status",
         "uk_mk_fhir_res_map_fhir", "uk_mk_fhir_res_map_canon",
         "ck_mk_fhir_res_map_ver", "ck_mk_fhir_res_map_status",
         "ck_mk_fhir_res_map_rate", "ck_mk_fhir_res_map_missing",
@@ -2506,6 +2536,32 @@ class MigrationBaselineContractTest {
                 .contains("SET next_review_at")
                 .contains("status = 'ACTIVE'")
                 .contains("next_review_at IS NULL");
+        }
+    }
+
+    @Test
+    void v110MustPersistStructuredRolloutAndOverrideReuseForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V110__release_simulation_rollout.sql");
+            assertThat(ddl)
+                .as("%s 发布模拟、灰度与覆盖复用迁移", dialect)
+                .contains("rollout_strategy")
+                .contains("rollout_config_json")
+                .contains("rollout_stage_index")
+                .contains("rollout_paused_reason")
+                .contains("PAUSED")
+                .contains("RELEASE_ROLLOUT")
+                .contains("mk_version_rollout_observation")
+                .contains("mk_version_override_template")
+                .contains("mk_version_override_template_item")
+                .contains("mk_version_override_operation")
+                .contains("ck_mk_version_release_rollout_strategy")
+                .contains("ck_mk_version_rollout_observation_rates")
+                .contains("idx_mk_version_rollout_plan")
+                .contains("idx_mk_version_override_template_tenant")
+                .contains("COMMENT ON TABLE mk_version_rollout_observation")
+                .contains("COMMENT ON TABLE mk_version_override_template")
+                .contains("COMMENT ON TABLE mk_version_override_operation");
         }
     }
 

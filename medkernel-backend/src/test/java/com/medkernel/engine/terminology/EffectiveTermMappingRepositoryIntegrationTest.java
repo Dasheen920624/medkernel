@@ -104,7 +104,6 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             TermMappingPackageStatus.PUBLISHED,
             1,
             "a".repeat(64),
-            null,
             "admin-1",
             now,
             null,

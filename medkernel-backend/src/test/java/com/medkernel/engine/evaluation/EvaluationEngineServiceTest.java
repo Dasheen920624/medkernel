@@ -3,6 +3,7 @@ package com.medkernel.engine.evaluation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -35,6 +36,7 @@ import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutStrategy;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,7 +155,10 @@ class EvaluationEngineServiceTest {
             new EvaluationIndicatorReleaseRequest("先按默认 10% 床位灰度")
         );
         assertThat(gray.status()).isEqualTo(EvaluationIndicatorStatus.GRAY);
-        verify(releasePort).releaseGray(any());
+        verify(releasePort).releaseGray(argThat(command ->
+            command.rolloutPolicy().strategy() == RolloutStrategy.CANARY_BED_PERCENT
+                && command.rolloutPolicy().bedPercent() == 10
+        ));
 
         EvaluationIndicator oldActive = indicator("ei-old", 1, EvaluationIndicatorStatus.ACTIVE);
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))

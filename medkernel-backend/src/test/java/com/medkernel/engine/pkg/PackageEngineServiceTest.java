@@ -13,6 +13,7 @@ import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
 import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.InheritancePropagation;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutStrategy;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
@@ -292,7 +293,7 @@ class PackageEngineServiceTest {
             return TermMappingPackage.imported(
                 301L, pkg.tenantId(), pkg.packageCode(), pkg.packageVersion(), pkg.displayName(),
                 pkg.scopeLevel(), pkg.scopeCode(), pkg.statusName(), pkg.mappingCount(), pkg.contentHash(),
-                pkg.grayScopeJson(), pkg.publishedBy(), pkg.publishedAt(), pkg.rollbackFromPackageId(),
+                pkg.publishedBy(), pkg.publishedAt(), pkg.rollbackFromPackageId(),
                 pkg.createdAt(), pkg.createdBy()
             );
         });
@@ -2052,10 +2053,12 @@ class PackageEngineServiceTest {
         verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
         ReleasePlan executingPlan = planCap.getAllValues().get(0);
         assertThat(executingPlan.scopeType()).isEqualTo(ReleaseScopeType.FACILITY);
-        assertThat(executingPlan.scopeValue())
-            .contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"")
-            .contains("\"percentage\":10")
-            .contains("\"scopeCode\":\"hospital-1\"");
+        assertThat(executingPlan.scopeValue()).isEqualTo("hospital-1");
+        verify(releasePort).releaseGray(argThat(command ->
+            command.scopeValue().equals("hospital-1")
+                && command.rolloutPolicy().strategy() == RolloutStrategy.CANARY_BED_PERCENT
+                && command.rolloutPolicy().bedPercent() == 10
+        ));
         verify(packageRepository).save(argThat(saved ->
             saved.packageId().equals("pkg-gray-default") && saved.status() == KnowledgePackageStatus.PUBLISHED));
     }
@@ -3549,7 +3552,7 @@ class PackageEngineServiceTest {
             id,
             "tenant-A", packageCode, packageVersion, "检验术语映射包",
             scopeLevel, scopeCode, "PUBLISHED", 1, "b".repeat(64),
-            null, "tester", Instant.parse("2026-06-01T00:00:00Z"),
+            "tester", Instant.parse("2026-06-01T00:00:00Z"),
             null, Instant.now(), "tester"
         );
     }

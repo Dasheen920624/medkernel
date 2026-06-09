@@ -155,6 +155,29 @@ public class InheritanceOverrideService {
         ));
     }
 
+    @Transactional
+    public InheritanceOverride retireOverride(
+            String tenantId,
+            String overrideId,
+            String actor,
+            String traceId) {
+        String effectiveTenantId = required(tenantId, "租户 ID");
+        requireTenantOverridePermission(effectiveTenantId);
+        InheritanceOverride existing = overrides.findByTenantIdAndOverrideId(
+            effectiveTenantId,
+            required(overrideId, "覆盖 ID")
+        ).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "覆盖不存在: " + overrideId));
+        if (existing.lifecycleStatus() == InheritanceOverrideStatus.RETIRED) {
+            return existing;
+        }
+        return overrides.save(existing.withLifecycleStatus(
+            InheritanceOverrideStatus.RETIRED,
+            Instant.now(clock),
+            required(actor, "操作人"),
+            blankToNull(traceId)
+        ));
+    }
+
     private void requireTenantOverridePermission(String tenantId) {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope.hasTenant() && !tenantId.equals(scope.tenantId())) {

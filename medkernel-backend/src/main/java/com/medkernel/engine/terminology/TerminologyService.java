@@ -22,6 +22,7 @@ import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.RolloutStrategy;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
@@ -44,8 +45,6 @@ import com.medkernel.shared.context.RequestContext;
 @Service
 public class TerminologyService {
 
-    private static final String DEFAULT_GRAY_SCOPE_JSON = "{\"rolloutStrategy\":\""
-        + RolloutStrategy.CANARY_BED_PERCENT + "\",\"percentage\":10}";
     private final StandardTermRepository standardTermRepository;
     private final LocalTermRepository localTermRepository;
     private final TermMappingRepository mappingRepository;
@@ -365,7 +364,7 @@ public class TerminologyService {
         TermMappingPackage saved = packageRepository.save(new TermMappingPackage(
             null, tenantId, request.packageCode(), request.packageVersion(), request.displayName(),
             packageScope.level(), packageScope.code(), TermMappingPackageStatus.DRAFT,
-            mappings.size(), contentHash, null, null, null, null, now, userId, now, userId
+            mappings.size(), contentHash, null, null, null, now, userId, now, userId
         ));
         for (TermMappingSnapshot snapshot : snapshots) {
             String mappingSnapshot = TermMappingSnapshotCodec.write(snapshot);
@@ -407,14 +406,12 @@ public class TerminologyService {
             throw ApiException.conflict("映射包 id=" + packageId + " 已不可发布");
         }
         ensurePublishTransition(pkg, request);
-        String grayScopeJson = normalizedGrayScope(request);
         AssetVersion assetVersion = requireAssetVersion(pkg);
-        VersionReleaseCommand releaseCommand = releaseCommand(pkg, assetVersion, request, grayScopeJson, userId);
+        VersionReleaseCommand releaseCommand = releaseCommand(pkg, assetVersion, request, userId);
         advanceRelease(assetVersion, releaseCommand, request.releaseMode());
-        TermMappingPackage next = pkg.withGrayScope(grayScopeJson)
-            .withStatus(request.releaseMode() == PackageReleaseMode.FULL
-                ? TermMappingPackageStatus.PUBLISHED
-                : TermMappingPackageStatus.GRAY, userId, now);
+        TermMappingPackage next = pkg.withStatus(request.releaseMode() == PackageReleaseMode.FULL
+            ? TermMappingPackageStatus.PUBLISHED
+            : TermMappingPackageStatus.GRAY, userId, now);
         if (request.releaseMode() == PackageReleaseMode.FULL) {
             for (TermMappingPackage active : packageRepository.findActiveByTenantIdAndPackageCodeAndScope(
                     tenantId, pkg.packageCode(), pkg.scopeLevel(), pkg.scopeCode())) {
@@ -426,7 +423,7 @@ public class TerminologyService {
         TermMappingPackage saved = packageRepository.save(next);
         packageReleaseRepository.save(new TermMappingPackageRelease(
             null, tenantId, pkg.id(), null, TermPackageReleaseEventType.PUBLISH,
-            request.releaseMode(), request.reason(), grayScopeJson, now, userId
+            request.releaseMode(), request.reason(), now, userId
         ));
         return saved;
     }
@@ -474,7 +471,7 @@ public class TerminologyService {
         TermMappingPackage restored = packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
         packageReleaseRepository.save(new TermMappingPackageRelease(
             null, tenantId, current.id(), target.id(), TermPackageReleaseEventType.ROLLBACK,
-            PackageReleaseMode.FULL, request.reason(), null, now, userId
+            PackageReleaseMode.FULL, request.reason(), now, userId
         ));
         return restored;
     }
@@ -615,7 +612,6 @@ public class TerminologyService {
             TermMappingPackage pkg,
             AssetVersion assetVersion,
             PublishTerminologyPackageRequest request,
-            String grayScopeJson,
             String actor) {
         return new VersionReleaseCommand(
             pkg.tenantId(),
@@ -627,10 +623,12 @@ public class TerminologyService {
             request.releaseMode() == PackageReleaseMode.GRAY
                 ? releaseScopeType(pkg.scopeLevel())
                 : VersionReleaseScopeType.ALL,
-            grayScopeJson,
+            request.releaseMode() == PackageReleaseMode.GRAY ? pkg.scopeCode().trim() : null,
+            request.releaseMode() == PackageReleaseMode.GRAY
+                ? RolloutPolicy.canaryBedPercent(10)
+                : RolloutPolicy.all(),
             pkg.contentHash(),
             request.reason(),
-            List.of(),
             actor,
             RequestContext.currentTraceId(),
             request.publishEvidence().electronicSignature(),
@@ -675,16 +673,6 @@ public class TerminologyService {
 
     private String terminologySourceRef(TermMappingPackage pkg) {
         return "term-mapping-package:" + pkg.packageCode() + ":" + pkg.packageVersion();
-    }
-
-    private String normalizedGrayScope(PublishTerminologyPackageRequest request) {
-        if (request.releaseMode() != PackageReleaseMode.GRAY) {
-            return null;
-        }
-        if (request.grayScopeJson() == null || request.grayScopeJson().isBlank()) {
-            return DEFAULT_GRAY_SCOPE_JSON;
-        }
-        return request.grayScopeJson().trim();
     }
 
     private String hashMappings(

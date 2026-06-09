@@ -47,6 +47,7 @@ import com.medkernel.engine.versioning.InheritanceResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
@@ -670,7 +671,16 @@ public class RuleEngineService {
             RuleGovernanceTransitionRequest request,
             String actor) {
         return governanceReleaseCommand(
-            rule, version, impact, request.reason(), request.publishEvidence(), actor);
+            rule,
+            version,
+            impact,
+            request.reason(),
+            request.publishEvidence(),
+            request.targetState() == RuleGovernanceState.CANARY
+                ? RolloutPolicy.canaryBedPercent(10)
+                : RolloutPolicy.all(),
+            actor
+        );
     }
 
     private VersionReleaseCommand governanceReleaseCommand(
@@ -680,7 +690,14 @@ public class RuleEngineService {
             String reason,
             String actor) {
         return governanceReleaseCommand(
-            rule, version, impact, reason, VersionPublishEvidence.empty(), actor);
+            rule,
+            version,
+            impact,
+            reason,
+            VersionPublishEvidence.empty(),
+            RolloutPolicy.all(),
+            actor
+        );
     }
 
     private VersionReleaseCommand governanceReleaseCommand(
@@ -689,6 +706,7 @@ public class RuleEngineService {
             RuleImpactResponse impact,
             String reason,
             VersionPublishEvidence publishEvidence,
+            RolloutPolicy rolloutPolicy,
             String actor) {
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
         return new VersionReleaseCommand(
@@ -700,9 +718,9 @@ public class RuleEngineService {
             releaseApplicableScope(rule),
             null,
             null,
+            rolloutPolicy,
             impact.impactDigest(),
             reason.trim(),
-            authenticatedRoleCodes(),
             actor,
             RequestContext.currentTraceId(),
             publishEvidence.electronicSignature(),
@@ -821,13 +839,6 @@ public class RuleEngineService {
         if (!allowed) {
             throw new ApiException(ErrorCode.FORBIDDEN, message);
         }
-    }
-
-    private static List<String> authenticatedRoleCodes() {
-        return java.util.Arrays.stream(RoleCode.values())
-            .filter(AuthenticatedRoleGuard::has)
-            .map(RoleCode::code)
-            .toList();
     }
 
     private AssetVersion requireRuleAssetVersion(RuleDefinition rule, RuleVersion version) {

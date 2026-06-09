@@ -104,37 +104,38 @@ class VersionReleaseServiceTest {
             "av-v2",
             null,
             null,
-            "影响摘要 d1",
-            List.of("IMPLEMENTER")
+            "影响摘要 d1"
         ));
         VersionReleasePlan observation = service.approveReview(releaseCommand(
             "av-v2",
             null,
             null,
-            "影响摘要 d1",
-            List.of("IMPLEMENTER")
+            "影响摘要 d1"
         ));
         VersionReleasePlan gray = service.releaseGray(releaseCommand(
             "av-v2",
             null,
             null,
-            "影响摘要 d1",
-            List.of("IMPLEMENTER")
+            "影响摘要 d1"
         ));
         VersionReleasePlan full = service.publish(releaseCommand(
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
-            "影响摘要 d1",
-            List.of("HOSPITAL_ADMIN")
+            "影响摘要 d1"
         ));
 
         assertThat(review.status()).isEqualTo(VersionReleaseStatus.IN_REVIEW);
         assertThat(observation.status()).isEqualTo(VersionReleaseStatus.APPROVED);
         assertThat(gray.status()).isEqualTo(VersionReleaseStatus.GRAY);
         assertThat(gray.scopeType()).isEqualTo(VersionReleaseScopeType.FACILITY);
-        assertThat(gray.scopeValue()).contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"");
-        assertThat(gray.scopeValue()).contains("\"percentage\":10");
+        assertThat(gray.scopeValue()).isEqualTo("/TENANT-A/GROUP-A/HOSP-A");
+        assertThat(gray.rolloutStrategy()).isEqualTo(RolloutStrategy.CANARY_BED_PERCENT);
+        assertThat(gray.rolloutConfigJson()).contains("\"strategy\":\"CANARY_BED_PERCENT\"");
+        assertThat(gray.rolloutConfigJson()).contains("\"bedPercent\":10");
+        assertThat(gray.rolloutStageIndex()).isZero();
+        assertThat(gray.rolloutPausedReason()).isNull();
+        assertThat(gray.fromVersionId()).isEqualTo("av-v1");
         assertThat(full.status()).isEqualTo(VersionReleaseStatus.PUBLISHED);
         assertThat(full.evidenceSummary()).contains("PUBLISHED").contains("影响摘要 d1");
 
@@ -171,8 +172,7 @@ class VersionReleaseServiceTest {
             "av-v2",
             null,
             null,
-            "影响摘要 d1",
-            List.of("MEDICAL_AFFAIRS")
+            "影响摘要 d1"
         ));
 
         assertThat(rejected.status()).isEqualTo(VersionReleaseStatus.REJECTED);
@@ -182,6 +182,52 @@ class VersionReleaseServiceTest {
                 && saved.status() == AssetVersionStatus.DRAFT
                 && saved.activeScopeKey().equals("version:av-v2")
         ));
+    }
+
+    @Test
+    void rejectsInvalidStagedRolloutBeforeSavingReleasePlan() {
+        AssetVersion approved = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(approved));
+
+        RolloutPolicy invalid = new RolloutPolicy(
+            RolloutStrategy.STAGED,
+            List.of(),
+            null,
+            List.of(5, 5, 80),
+            0,
+            new RolloutThresholds(null, null, 0.2, 0.1)
+        );
+
+        assertThatThrownBy(() -> service.releaseGray(releaseCommandWithPolicy(invalid)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("分批")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(releasePlans, never()).save(any(VersionReleasePlan.class));
+    }
+
+    @Test
+    void persistsValidStagedRolloutAsStructuredConfiguration() {
+        AssetVersion approved = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(approved));
+        when(releasePlans.save(any(VersionReleasePlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RolloutPolicy staged = new RolloutPolicy(
+            RolloutStrategy.STAGED,
+            List.of(),
+            null,
+            List.of(5, 25, 100),
+            60,
+            new RolloutThresholds(null, 0.15, 0.2, 0.05)
+        );
+
+        VersionReleasePlan plan = service.releaseGray(releaseCommandWithPolicy(staged));
+
+        assertThat(plan.rolloutStrategy()).isEqualTo(RolloutStrategy.STAGED);
+        assertThat(plan.rolloutConfigJson()).contains("\"stages\":[5,25,100]");
+        assertThat(plan.rolloutConfigJson()).contains("\"observationMinutes\":60");
+        assertThat(plan.scopeValue()).isEqualTo("/TENANT-A/GROUP-A/HOSP-A");
     }
 
     @Test
@@ -195,8 +241,7 @@ class VersionReleaseServiceTest {
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
-            "影响摘要 d1",
-            List.of("hospital-admin")
+            "影响摘要 d1"
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("tenant.override")
@@ -219,8 +264,7 @@ class VersionReleaseServiceTest {
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
-            "影响摘要 d1",
-            List.of("hospital-admin")
+            "影响摘要 d1"
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("当前请求租户")
@@ -252,11 +296,13 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             VersionReleaseScopeType.ALL,
             null,
+            RolloutPolicy.all(),
             "平台发布影响摘要",
             "平台审核结论",
-            List.of("platform-admin"),
             "platform-publisher",
-            "trace-platform"
+            "trace-platform",
+            null,
+            null
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("platform.publish")
@@ -356,9 +402,9 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             VersionReleaseScopeType.ALL,
             null,
+            RolloutPolicy.all(),
             "平台发布影响摘要",
             "平台审核结论",
-            List.of("platform-admin"),
             "platform-publisher",
             "trace-platform",
             electronicSignature(),
@@ -405,9 +451,9 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             VersionReleaseScopeType.ALL,
             null,
+            RolloutPolicy.all(),
             "平台发布影响摘要",
             "平台审核结论",
-            List.of("platform-admin"),
             "platform-publisher",
             "trace-platform",
             electronicSignature(),
@@ -432,8 +478,7 @@ class VersionReleaseServiceTest {
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
-            "影响摘要 d1",
-            List.of("HOSPITAL_ADMIN")
+            "影响摘要 d1"
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("引用完整性")
@@ -500,8 +545,7 @@ class VersionReleaseServiceTest {
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
-            "影响摘要 d1",
-            List.of("HOSPITAL_ADMIN")
+            "影响摘要 d1"
         ));
 
         assertThat(result).isEqualTo(existingPlan);
@@ -612,8 +656,7 @@ class VersionReleaseServiceTest {
             String versionId,
             VersionReleaseScopeType scopeType,
             String scopeValue,
-            String impactDigest,
-            List<String> roleCodes) {
+            String impactDigest) {
         return new VersionReleaseCommand(
             "tenant-A",
             VersionedAssetType.RULE,
@@ -623,11 +666,15 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             scopeType,
             scopeValue,
+            scopeType == VersionReleaseScopeType.ALL
+                ? RolloutPolicy.all()
+                : RolloutPolicy.canaryBedPercent(10),
             impactDigest,
             "审核结论：规则测试全绿",
-            roleCodes,
             "publisher-1",
-            "trace-sys04-pr3"
+            "trace-sys04-pr3",
+            null,
+            null
         );
     }
 
@@ -645,13 +692,33 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             VersionReleaseScopeType.ALL,
             null,
+            RolloutPolicy.all(),
             impactDigest,
             "审核结论：规则测试全绿",
-            List.of("HOSPITAL_ADMIN"),
             "publisher-1",
             "trace-sys04-pr3",
             electronicSignature,
             qualityGate
+        );
+    }
+
+    private VersionReleaseCommand releaseCommandWithPolicy(RolloutPolicy policy) {
+        return new VersionReleaseCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "av-v2",
+            "/TENANT-A/GROUP-A/HOSP-A",
+            "adult|inpatient",
+            VersionReleaseScopeType.FACILITY,
+            "/TENANT-A/GROUP-A/HOSP-A",
+            policy,
+            "影响摘要 d1",
+            "审核结论：规则测试全绿",
+            "publisher-1",
+            "trace-sys04-pr3",
+            null,
+            null
         );
     }
 

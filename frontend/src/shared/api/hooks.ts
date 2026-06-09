@@ -878,7 +878,6 @@ export interface TermMappingPackage {
   status: "DRAFT" | "GRAY" | "PUBLISHED" | "SUPERSEDED" | "ROLLED_BACK" | "ARCHIVED";
   mappingCount: number;
   contentHash: string;
-  grayScopeJson?: string | null;
   publishedBy?: string | null;
   publishedAt?: string | null;
   rollbackFromPackageId?: number | null;
@@ -1818,7 +1817,6 @@ export function usePublishTerminologyPackage() {
         packageVersion: string;
         releaseMode: "GRAY" | "FULL";
         reason: string;
-        grayScopeJson?: string;
         publishEvidence?: VersionPublishEvidence;
       };
     }) => {
@@ -6919,6 +6917,285 @@ export function useReleasePackage() {
       const { data } = await apiClient.post<{ data: PackageSyncResponse }>(
         `${PACKAGE_API_ROOT}/${payload.packageId}/release`,
         withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+  });
+}
+
+// ──────────────────────────────────────────
+// 统一发布治理 · 影响模拟 / 灰度 / 覆盖复用
+// ──────────────────────────────────────────
+const RELEASE_GOVERNANCE_API_ROOT = "/engine/versioning/releases";
+
+export type RolloutStrategy = "ALL" | "ORG_SUBTREE" | "ORG_LIST" | "CANARY_BED_PERCENT" | "STAGED";
+
+export interface RolloutThresholds {
+  maxHitRate?: number;
+  maxBlockRate?: number;
+  maxManualRejectionRate?: number;
+  maxAnomalyRate?: number;
+}
+
+export interface RolloutPolicy {
+  strategy: RolloutStrategy;
+  orgUnitIds: string[];
+  bedPercent?: number;
+  stages: number[];
+  observationMinutes?: number;
+  thresholds?: RolloutThresholds;
+}
+
+export interface ReleaseSimulationRequest {
+  candidateTenantId?: string;
+  assetType: EngineAssetType;
+  assetIdentity: string;
+  candidateVersionId: string;
+  targetOrgUnitIds: string[];
+  targetOrgPath: string;
+  applicableScope: string;
+  rolloutPolicy: RolloutPolicy;
+  replayDays: number;
+  replayLimit: number;
+}
+
+export interface ReleaseSimulationResult {
+  simulationDigest: string;
+  generatedAt: string;
+  candidateVersionId: string;
+  currentVersionId?: string | null;
+  affectedOrganizations: Array<{ orgUnitId: string; orgPath: string; orgName: string }>;
+  applicableDimensions: string[];
+  diff: {
+    changeType: "ADDED" | "UNCHANGED" | "MODIFIED" | string;
+    currentVersionNo?: string | null;
+    candidateVersionNo: string;
+    currentContentHash?: string | null;
+    candidateContentHash: string;
+  };
+  replay: {
+    status: "SUPPORTED" | "NO_DATA" | "UNSUPPORTED" | string;
+    sampledCases: number;
+    changedCases: number;
+    triggerIncreases: number;
+    triggerDecreases: number;
+    severityIncreases: number;
+    severityDecreases: number;
+    highRiskSnapshotIds: string[];
+    reason?: string | null;
+  };
+  safety: { passed: boolean; issues: string[] };
+  dependencies: { passed: boolean; issues: string[] };
+  conflicts: Array<{
+    overrideId: string;
+    orgPath: string;
+    overrideMode: string;
+    resultingSource: string;
+  }>;
+  releasable: boolean;
+}
+
+export interface VersionReleasePlan {
+  planId: string;
+  assetType: EngineAssetType;
+  assetIdentity: string;
+  versionId: string;
+  fromVersionId?: string | null;
+  rolloutStrategy: RolloutStrategy;
+  rolloutStageIndex: number;
+  rolloutPausedReason?: string | null;
+  status: "GRAY" | "PAUSED" | "PUBLISHED" | "ROLLED_BACK" | string;
+  impactDigest: string;
+}
+
+export interface VersionRolloutObservationResult {
+  plan: VersionReleasePlan;
+  paused: boolean;
+  readyForFullRelease: boolean;
+  currentStagePercent: number;
+}
+
+export interface OverrideTemplateItemInput {
+  assetType: EngineAssetType;
+  assetIdentity: string;
+  inheritedVersionId?: string;
+  sourceOverrideVersionId?: string;
+  overrideMode: "REPLACE" | "DISABLE" | "ADD";
+  propagation: "INHERITABLE" | "EXCLUSIVE";
+  applicableScope: string;
+  diffSummary: string;
+  overrideReason: string;
+}
+
+export interface OverrideTemplate {
+  templateId: string;
+  templateName: string;
+  description?: string | null;
+  applicableScope: string;
+  status: "ACTIVE" | "RETIRED" | string;
+  updatedAt: string;
+}
+
+export interface OverrideBatchPreviewRequest {
+  templateId?: string;
+  sourceOrgUnitId?: string;
+  targetOrgUnitIds: string[];
+  targetVersionIds: Record<string, string>;
+}
+
+export interface OverrideBatchPreviewResult {
+  previewDigest: string;
+  operationType: "TEMPLATE_APPLY" | "CLONE" | string;
+  rows: Array<{
+    targetOrgUnitId: string;
+    assetType: EngineAssetType;
+    assetIdentity: string;
+    overrideMode: string;
+    propagation: string;
+    targetVersionId?: string | null;
+    status: string;
+    issue?: string | null;
+  }>;
+  releasable: boolean;
+}
+
+export interface OverrideBatchOperationResult {
+  operationId: string;
+  status: "APPLIED" | "REVOKED" | "FAILED" | string;
+  overrideIds: string[];
+  previewDigest: string;
+}
+
+export function useReleaseSimulation() {
+  return useMutation({
+    mutationFn: async (request: ReleaseSimulationRequest) => {
+      const { data } = await apiClient.post<{ data: ReleaseSimulationResult }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/simulations`,
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useStartReleaseRollout() {
+  return useMutation({
+    mutationFn: async (request: {
+      simulation: ReleaseSimulationRequest;
+      confirmedSimulationDigest: string;
+      reviewConclusion: string;
+      electronicSignature?: VersionElectronicSignature;
+      qualityGate?: VersionPublishQualityGate;
+    }) => {
+      const { data } = await apiClient.post<{ data: VersionReleasePlan }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts`,
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useObserveReleaseRollout() {
+  return useMutation({
+    mutationFn: async (payload: {
+      planId: string;
+      request: {
+        stageIndex: number;
+        sampleCount: number;
+        hitCount: number;
+        blockCount: number;
+        manualRejectionCount: number;
+        anomalyCount: number;
+        observedAt: string;
+      };
+    }) => {
+      const { data } = await apiClient.post<{ data: VersionRolloutObservationResult }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts/${payload.planId}/observations`,
+        payload.request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRollbackRollout() {
+  return useMutation({
+    mutationFn: async (request: { planId: string; reason: string; confirmedHighRisk: boolean }) => {
+      const { planId, ...body } = request;
+      const { data } = await apiClient.post<{ data: VersionReleasePlan }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts/${planId}:rollback`,
+        body,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useOverrideTemplates() {
+  return useQuery({
+    queryKey: ["release-governance", "override-templates"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: OverrideTemplate[] }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/override-templates`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCreateOverrideTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: {
+      templateName: string;
+      description?: string;
+      applicableScope: string;
+      items: OverrideTemplateItemInput[];
+    }) => {
+      const { data } = await apiClient.post<{ data: unknown }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/override-templates`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["release-governance", "override-templates"] }),
+  });
+}
+
+export function usePreviewOverrideBatch() {
+  return useMutation({
+    mutationFn: async (request: OverrideBatchPreviewRequest) => {
+      const { data } = await apiClient.post<{ data: OverrideBatchPreviewResult }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches:preview`,
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useApplyOverrideBatch() {
+  return useMutation({
+    mutationFn: async (request: {
+      preview: OverrideBatchPreviewRequest;
+      confirmedPreviewDigest: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: OverrideBatchOperationResult }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches:apply`,
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRevokeOverrideBatch() {
+  return useMutation({
+    mutationFn: async (operationId: string) => {
+      const { data } = await apiClient.post<{ data: OverrideBatchOperationResult }>(
+        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches/${operationId}:revoke`,
       );
       return data.data;
     },
