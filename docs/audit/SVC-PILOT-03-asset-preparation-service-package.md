@@ -31,6 +31,6 @@
 - 中文注释：`scripts/check-comment-zh.sh --self-test`（6/6 通过）、`scripts/check-comment-zh.sh`（0 fail / 0 warn）。
 - 提交后 changed-mode：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`（17 文件）、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`（15 文件）、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`（5 文件）均通过。
 - 空白检查：`git diff --check` 与 `git diff --check origin/main..HEAD` 均通过。
-- 2026-06-09 引用制收敛补充：`mvn -q test`、`npm run verify`（81 files / 578 tests）、`openspec validate platform-first-knowledge-inheritance --strict`、`openspec validate --all --strict`、`git diff --check`、`scripts/check-comment-zh.sh`、真实性/配置边界/迁移规约 all 模式均通过；当前 6.1 触碰范围旧 `instantiate` 入口扫描无命中。
+- 2026-06-09 引用制收敛补充：`mvn -q test`、`npm run verify`（81 files / 578 tests）、`openspec validate medkernel --strict`、`git diff --check`、`scripts/check-comment-zh.sh`、真实性/配置边界/迁移规约 all 模式均通过；当前触碰范围旧 `instantiate` 入口扫描无命中。
 
 PR、远端 CI 与合并状态以 `_HANDOFF.md` 后续更新为准。

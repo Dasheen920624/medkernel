@@ -408,7 +408,7 @@
 
 ### Requirement: 规则必须遵循临床知识治理生命周期
 
-系统 SHALL 在草稿与发布之间扩展临床知识治理：同行评审 → 临床委员会会签（高危规则多签）→ 影子/静默运行（monitor-only，只记录不动作）→ 灰度 → 全量 → 监测 → 退役。退役 SHALL 封存而非删除，保证医legal 可追溯。
+平台版本与机构覆盖 SHALL 共用 DRAFT→IN_REVIEW→APPROVED→PUBLISHED→DEPRECATED→RETIRED 生命周期；仅 PUBLISHED 参与解析，RETIRED 保留历史重放但不参与新决策。高危资产发布 SHALL 经过独立会签和电子签名；影子/静默运行、灰度、全量与监测属于发布策略，不得另建并行状态机。资产 SHALL 携带来源、证据等级与复审周期，临近或超过复审日期时进入待复审队列。
 
 #### Scenario: 高危规则需会签与影子验证
 
@@ -568,7 +568,7 @@
 
 ### Requirement: 路径必须支持多级模板继承与差异合并
 
-路径模板 SHALL 支持 STANDARD→HOSPITAL→DEPARTMENT→SPECIALTY 四级继承：下级可覆盖/新增/禁用上级节点。系统 SHALL 提供继承差异（diff）视图与合并解析，避免重复维护。
+路径模板 SHALL 以 PLATFORM 权威版本为基线，沿租户组织树按目标节点闭包应用 REPLACE、DISABLE、ADD 覆盖，最具体且可适用的覆盖优先。组织层级 SHALL 可跳级；专病 SHALL 通过 `applicableScope` 横切组织树，不得作为继承树节点。系统 SHALL 提供继承差异视图与惰性合并解析，未覆盖资产恒引用平台版本，不得整包复制。
 
 #### Scenario: 科室级覆盖标准节点
 
@@ -655,9 +655,9 @@
 - **WHEN** 尝试一键批量确认
 - **THEN** 系统 SHALL 拒绝并要求高危项逐条二次确认。
 
-### Requirement: 资产必须可复用、可编目、可克隆
+### Requirement: 资产必须可复用、可编目、按需新增
 
-系统 SHALL 提供条件片段库：把命名条件组在多条规则 `when` 与路径 `guard` 中按引用复用，片段更新经影响分析向引用处传播；用户可选择「引用（联动）」或「拷贝为本地副本（脱钩）」。系统 SHALL 提供统一资产库（规则/路径/片段/值集/医嘱套餐/动作卡片/子路径）支持分类、标签、搜索、收藏，并支持任意资产克隆/另存为。集团级权威资产 SHALL 可被下级组织订阅或克隆后本地覆盖。
+系统 SHALL 提供条件片段库：把命名条件组在多条规则 `when` 与路径 `guard` 中按引用复用，片段更新经影响分析向引用处传播。系统 SHALL 提供统一资产库（规则/路径/片段/值集/医嘱套餐/动作卡片/子路径）支持分类、标签、搜索、收藏。平台或上级权威资产 SHALL 通过身份引用复用；机构仅在确有独有内容时以 ADD 创建新身份，或以 REPLACE 保存差异覆盖，不得以兼容或开通为由复制整份资产。
 
 #### Scenario: 复用条件片段
 
@@ -666,11 +666,12 @@
 - **THEN** 两处 SHALL 引用同一片段定义
 - **AND** 片段更新 SHALL 经影响分析提示受影响资产。
 
-#### Scenario: 克隆资产作为起点
+#### Scenario: 显式新增独有资产
 
-- **GIVEN** 一条已有规则
-- **WHEN** 用户克隆/另存为
-- **THEN** 系统 SHALL 生成可独立编辑的新草稿，不影响原资产。
+- **GIVEN** 机构需要一个平台不存在的本地规则
+- **WHEN** 用户明确选择新增独有资产
+- **THEN** 系统 SHALL 分配新的 `asset_identity` 并创建本机构草稿
+- **AND** SHALL NOT 复制或改变平台资产。
 
 
 ### Requirement: 院内系统接入必须经适配器且健康状态诚实
@@ -713,12 +714,12 @@
 
 ### Requirement: 专病包必须作为规则/路径/值集的复用与分发载体
 
-专病诊疗场景 SHALL 以 `KnowledgePackage`（专病包）封装路径模板、规则集、值集、字段绑定与受控公式，支持跨组织分发（复用 `SyncTarget`）、版本锁定与回滚；下级组织 SHALL 可订阅或克隆后本地覆盖，且继承与版本 SHALL 可追溯。
+专病诊疗场景 SHALL 由统一 `KnowledgePackage` 按专病横切作用域筛选形成视图，封装路径模板、规则集、值集、字段绑定与受控公式，并支持跨组织分发、版本锁定与回滚。机构 SHALL 引用平台包并以差异覆盖定制，不得建立独立专病包模型、状态机或复制整包；继承、来源与版本 SHALL 可追溯。
 
 #### Scenario: CKD 专病包跨院分发与本地覆盖
 
 - **GIVEN** 集团发布「CKD 专病」知识包
-- **WHEN** 下级医院订阅并本地覆盖院内剂量阈值
+- **WHEN** 下级医院引用该包并以 REPLACE 覆盖院内剂量阈值
 - **THEN** 系统 SHALL 保留继承关系与版本可追溯
 - **AND** SHALL 支持回滚到分发前状态。
 
@@ -779,3 +780,170 @@
 - **GIVEN** 一条锁定某 packageVersion 的规则引用了另一版本的值集
 - **WHEN** 发布或运行期校验
 - **THEN** 系统 SHALL 拒绝并提示版本不一致。
+
+<!-- 平台权威资产、继承与统一分发 -->
+
+### Requirement: 平台版本必须是唯一默认权威
+
+知识、字典、规则、路径、字段目录、评估与随访资产 SHALL 统一登记为 `AssetVersion(asset_identity, version_no, content_hash)`。任意机构的解析起点 SHALL 为 PLATFORM 层 PUBLISHED 版本；平台基线和机构独有版本均不存在时 SHALL 返回 NOT_FOUND，不得回退遗留模型、复制数据或伪造结果。
+
+#### Scenario: 未覆盖机构自动读取平台版本
+
+- **WHEN** 机构 O 未对身份 A 建立覆盖
+- **THEN** `resolve(A, O)` SHALL 返回平台当前 PUBLISHED 版本
+- **AND** `sourceTier` SHALL 为 PLATFORM。
+
+#### Scenario: 平台缺失时诚实失败
+
+- **WHEN** 身份 A 不存在平台版本且机构 O 不存在 ADD 版本
+- **THEN** 解析 SHALL 返回 NOT_FOUND
+- **AND** SHALL NOT 读取遗留版本或构造默认内容。
+
+### Requirement: 平台更新必须自动惠及未覆盖机构
+
+平台激活同一身份的新版本后，所有未对该身份 REPLACE 的机构 SHALL 在下次解析时自动获得新版本，无需租户复制、同步或重建包。
+
+#### Scenario: 未定制机构跟随平台升级
+
+- **WHEN** 平台将身份 A 从 v1 激活为 v2，机构 B 未覆盖 A
+- **THEN** 机构 B 下次解析 SHALL 返回 v2。
+
+### Requirement: 继承作用域必须分离为四个正交轴
+
+系统 SHALL 分离权威层（PLATFORM、TENANT）、可跳级组织树、横切适用维度与发布策略。组织根 SHALL 为 TENANT，PLATFORM SHALL 独立高于所有租户；专病、场景、人群与角色 SHALL 通过 `applicableScope` 横切组织树；床位比例 SHALL 属于灰度策略，不得混入组织作用域。
+
+#### Scenario: 科室跳过可选层级
+
+- **WHEN** 无独立院区的医院将科室直接挂在 FACILITY 下
+- **THEN** 组织校验 SHALL 通过。
+
+#### Scenario: 专病覆盖跨科室生效
+
+- **WHEN** FACILITY 在房颤专病维度建立覆盖
+- **THEN** 覆盖 SHALL 对该机构内命中房颤适用域的相关科室生效
+- **AND** SHALL NOT 依赖专病在组织树中的位置。
+
+### Requirement: 机构定制必须使用按需差异覆盖
+
+租户或机构 SHALL 仅为实际改动创建 `InheritanceOverride`，不得预置平台资产副本。覆盖模式 SHALL 为 REPLACE、DISABLE、ADD；传播语义 SHALL 为 INHERITABLE 或 EXCLUSIVE，默认 INHERITABLE。REPLACE 与 DISABLE 作用于既有身份，ADD 创建本组织拥有的新身份。
+
+#### Scenario: 单资产定制不复制整包
+
+- **WHEN** 机构仅对身份 A 建立 REPLACE
+- **THEN** A SHALL 解析为机构版本
+- **AND** 其他身份 SHALL 继续引用平台版本。
+
+#### Scenario: 独有资产不得跨租户泄露
+
+- **WHEN** 租户 T1 的机构以 ADD 创建身份 X
+- **THEN** X SHALL 仅在 T1 的适用组织闭包内可解析
+- **AND** 平台与其他租户 SHALL 不可见。
+
+#### Scenario: 下级覆盖最具体优先
+
+- **WHEN** REGION 对 A 建立 INHERITABLE 覆盖，科室再对 A 建立 REPLACE
+- **THEN** 科室解析 SHALL 返回科室版本。
+
+### Requirement: 有效版本必须按组织闭包惰性解析
+
+`InheritanceResolver` SHALL 在读取或运行时，以平台版本为基线，沿目标组织闭包从一般到具体应用命中 `org_path`、`applicableScope`、生效期与传播规则的 PUBLISHED 覆盖。解析不得落地中间副本，并 SHALL 防止跨租户候选进入结果。
+
+#### Scenario: 过期覆盖回退上级版本
+
+- **WHEN** 机构覆盖的 `effective_to` 已过
+- **THEN** 解析 SHALL 忽略该覆盖并返回上一层适用版本。
+
+#### Scenario: 批量解析读取次数固定
+
+- **WHEN** 有效知识包包含任意数量的平台条目与机构 ADD 条目
+- **THEN** 解析 SHALL 使用集合查询完成组织闭包、覆盖与版本读取
+- **AND** 查询次数 SHALL NOT 随条目数量线性增长。
+
+### Requirement: 解析结果必须可解释、可审计、可重放
+
+解析结果 SHALL 返回来源层级、覆盖标识、版本与 `content_hash`，并随 `trace_id` 和 resolution epoch 记录审计。单次临床决策或有效包合成中的资产及依赖 SHALL 使用同一 epoch，禁止撕裂读。
+
+#### Scenario: 平台更新不影响进行中的决策
+
+- **WHEN** 平台在一次决策解析过程中激活依赖资产的新版本
+- **THEN** 本次决策 SHALL 继续使用进入时 epoch 的版本组合
+- **AND** 结果 SHALL 可按 epoch 与 `content_hash` 重放。
+
+### Requirement: 所有资产域必须共用单一版本类型与发布管线
+
+rule、knowledge、terminology、pathway、context-field、evaluation 与 followup 域 SHALL 通过 `VersionedAssetPort` 登记版本，并共用唯一 `VersionedAssetType`。发布、激活、重放与回滚 SHALL 统一走 `VersionReleaseService`、`VersionActivationTransaction`、`VersionReplayService` 与 `VersionRollbackCommand`；不得保留并行资产类型、私有生效语义、双写或遗留回退。
+
+#### Scenario: 任意资产统一回滚
+
+- **WHEN** 对任意 `assetType` 的激活执行回滚
+- **THEN** 系统 SHALL 走统一 `VersionRollbackCommand`
+- **AND** SHALL 记录同一格式的审计证据。
+
+### Requirement: 统一知识包必须是唯一权威分发容器
+
+`KnowledgePackage` 与 `PackageItem(asset_type, asset_identity, version_no)` SHALL 作为平台到租户的唯一分发模型。术语包、专病包等业务视图 SHALL 仅由 `PackageItem` 条件筛选产生，不得拥有独立数据模型、状态机、仓储或兼容 API。
+
+#### Scenario: 专病视图来自统一包
+
+- **WHEN** 查询某专病的路径资产
+- **THEN** 系统 SHALL 从统一知识包按 `assetType=PATHWAY` 与专病适用域筛选
+- **AND** SHALL NOT 查询独立专病包存储。
+
+### Requirement: 有效知识包必须按需合成
+
+机构有效知识包 SHALL 等于平台包条目逐条继承解析后的结果，加上组织闭包内可适用的 ADD 资产；REPLACE 替换对应身份，DISABLE 剔除对应身份。系统 SHALL 按需合成且不得为机构预先落地副本。
+
+#### Scenario: 覆盖与新增共同形成有效包
+
+- **WHEN** 平台包含 A、B、C，机构 REPLACE A、DISABLE B、ADD X
+- **THEN** 机构有效包 SHALL 为机构版 A、平台版 C 与独有 X。
+
+### Requirement: 离线分发必须下发解析后的可追溯快照
+
+`SyncTarget` 与离线导入 SHALL 下发目标机构的有效包快照，并携带每项 `content_hash`、来源版本指针与 resolution epoch。平台版本与覆盖增量仍为权威源；离线快照 SHALL 可验签、可回滚且不可反向成为权威。
+
+#### Scenario: 断网机构获得有效包
+
+- **WHEN** 向断网机构生成离线包
+- **THEN** 内容 SHALL 为该机构解析后的有效快照
+- **AND** 每项 SHALL 可追溯到平台版本或机构覆盖。
+
+### Requirement: 资产依赖必须完整且协同解析
+
+系统 SHALL 维护资产依赖图；发布、覆盖、停用与分发前 SHALL 校验依赖在目标作用域可解析且满足版本范围。解析资产时，其字段、字典、子规则等依赖 SHALL 在相同组织闭包、适用维度与 epoch 中协同解析；在用依赖不得被静默 DISABLE。
+
+#### Scenario: 停用在用字典被阻断
+
+- **WHEN** PUBLISHED 规则依赖某字典且机构尝试 DISABLE 该字典
+- **THEN** 操作 SHALL 被阻断
+- **AND** 响应 SHALL 指明依赖来源。
+
+### Requirement: 发布前必须模拟影响并支持可逆灰度
+
+平台发布或机构覆盖生效前 SHALL 提供只读影响预演，包含组织与适用维度、现状差异、真实脱敏病例回放、LOCKED 安全检查与依赖完整性。高风险发布 SHALL 支持按机构清单、子树、床位比例或批次灰度；关键指标越阈值时 SHALL 自动暂停，并可回退到上一钉点。
+
+#### Scenario: 覆盖预演不写入生产状态
+
+- **WHEN** 机构预演剂量阈值覆盖
+- **THEN** 系统 SHALL 返回影响范围、决策变化与安全结果
+- **AND** SHALL NOT 激活或写入生效覆盖。
+
+### Requirement: 租户开通必须只创建组织与引用能力
+
+租户开通 SHALL 仅创建租户组织根及所选平台包引用，并授予覆盖能力，不得实例化任何平台资产副本。平台版本发布 SHALL 需要 `platform.publish`；机构覆盖 SHALL 需要 `tenant.override` 且只能作用于本租户组织闭包；高风险覆盖 SHALL 强制独立评审。
+
+#### Scenario: 开通不产生平台副本
+
+- **WHEN** 新租户完成多机构开通
+- **THEN** 系统 SHALL 仅创建组织节点与平台包引用
+- **AND** SHALL 不存在由开通动作生成的平台资产副本。
+
+### Requirement: 互操作必须以统一模型和授权结果为准
+
+平台资产 SHALL 支持 CDS Hooks、FHIR PlanDefinition/ActivityDefinition、受控 CQL 与标准编码系统互操作；导入 SHALL 经过质量门，导出 SHALL 携带 `content_hash` 与溯源。对外契约 SHALL 直接暴露统一解析、覆盖、分发与对账能力并登记到 `ServiceContractCatalog`，不得保留遗留契约别名。受限包在解析与分发前 SHALL 校验 entitlement，未授权或已到期时 SHALL 诚实拒绝或仅保留只读历史。
+
+#### Scenario: 未授权包不可解析或下发
+
+- **WHEN** 租户未获得某受限指南包授权
+- **THEN** 该包 SHALL 不出现在有效包中
+- **AND** SHALL NOT 被分发到该租户。
