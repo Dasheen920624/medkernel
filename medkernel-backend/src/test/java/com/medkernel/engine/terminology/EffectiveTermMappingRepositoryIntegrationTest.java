@@ -1,6 +1,7 @@
 package com.medkernel.engine.terminology;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
@@ -11,8 +12,11 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -24,6 +28,7 @@ import com.medkernel.shared.context.RequestContext;
 
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
+@Import(TermMappingPackageRepository.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:effective-term-mapping-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
@@ -44,8 +49,18 @@ class EffectiveTermMappingRepositoryIntegrationTest {
     @Autowired
     AssetVersionRepository versions;
 
+    @Autowired
+    PackageItemRepository packageItems;
+
+    @Autowired
+    KnowledgePackageRepository knowledgePackages;
+
     @AfterEach
     void clearContext() {
+        items.deleteAll();
+        packageItems.deleteAll();
+        versions.deleteAll();
+        knowledgePackages.deleteAll();
         RequestContext.clear();
     }
 
@@ -55,12 +70,12 @@ class EffectiveTermMappingRepositoryIntegrationTest {
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
         savePackage("TERM.LAB.HOSPITAL", "1", "HOSPITAL", "hospital-1", "718-7", 201L, now);
         versions.save(version(
-            "av-hospital", "TERM.LAB.HOSPITAL", "1", "HOSPITAL:hospital-1",
+            "av-hospital", "TERM.LAB.HOSPITAL|HOSPITAL|hospital-1", "1", "HOSPITAL:hospital-1",
             AssetVersionStatus.PUBLISHED, now
         ));
         savePackage("TERM.LAB.DEPARTMENT", "1", "DEPARTMENT", "department-1", "4548-4", 202L, now);
         AssetVersion departmentVersion = versions.save(version(
-            "av-department", "TERM.LAB.DEPARTMENT", "1", "DEPARTMENT:department-1",
+            "av-department", "TERM.LAB.DEPARTMENT|DEPARTMENT|department-1", "1", "DEPARTMENT:department-1",
             AssetVersionStatus.APPROVED, now
         ));
         RequestContext.restore(new RequestContext.Snapshot(
@@ -83,6 +98,54 @@ class EffectiveTermMappingRepositoryIntegrationTest {
         assertThat(resolver.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
             .extracting(EffectiveTermMapping::standardCode)
             .containsExactly("4548-4");
+    }
+
+    @Test
+    void terminologyPackageIdCannotBeReusedAcrossTenants() {
+        Instant now = Instant.parse("2026-06-06T08:00:00Z");
+        TermMappingPackage tenantA = packages.save(new TermMappingPackage(
+            null,
+            "tenant-A",
+            "TERM.LAB",
+            "1",
+            "检验术语包",
+            "HOSPITAL",
+            "hospital-1",
+            TermMappingPackageStatus.DRAFT,
+            0,
+            "a".repeat(64),
+            null,
+            null,
+            null,
+            now,
+            "admin-1",
+            now,
+            "admin-1"
+        ));
+        TermMappingPackage tenantBOverwrite = new TermMappingPackage(
+            tenantA.id(),
+            "tenant-B",
+            tenantA.packageCode(),
+            tenantA.packageVersion(),
+            tenantA.displayName(),
+            tenantA.scopeLevel(),
+            tenantA.scopeCode(),
+            tenantA.status(),
+            tenantA.mappingCount(),
+            tenantA.contentHash(),
+            tenantA.publishedBy(),
+            tenantA.publishedAt(),
+            tenantA.rollbackFromPackageId(),
+            tenantA.createdAt(),
+            tenantA.createdBy(),
+            tenantA.updatedAt(),
+            tenantA.updatedBy()
+        );
+
+        assertThatThrownBy(() -> packages.save(tenantBOverwrite))
+            .hasMessageContaining("术语映射包不存在");
+        assertThat(knowledgePackages.findById(tenantA.id()).orElseThrow().tenantId())
+            .isEqualTo("tenant-A");
     }
 
     private void savePackage(
@@ -128,9 +191,10 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             "admin-1",
             now.toString()
         );
+        String packageItemId = packages.packageItemId("tenant-A", pack.id());
         items.save(TermMappingPackageItem.fromSnapshot(
             "tenant-A",
-            pack.id(),
+            packageItemId,
             snapshot.mappingId(),
             snapshot,
             TermMappingSnapshotCodec.write(snapshot),

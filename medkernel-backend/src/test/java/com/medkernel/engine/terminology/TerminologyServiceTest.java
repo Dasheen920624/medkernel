@@ -55,7 +55,6 @@ class TerminologyServiceTest {
     private MappingConflictRepository conflictRepository;
     private TermMappingPackageRepository packageRepository;
     private TermMappingPackageItemRepository packageItemRepository;
-    private TermMappingPackageReleaseRepository packageReleaseRepository;
     private HighRiskRuleRepository highRiskRuleRepository;
     private TerminologyVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersionRepository;
@@ -72,7 +71,6 @@ class TerminologyServiceTest {
         conflictRepository = Mockito.mock(MappingConflictRepository.class);
         packageRepository = Mockito.mock(TermMappingPackageRepository.class);
         packageItemRepository = Mockito.mock(TermMappingPackageItemRepository.class);
-        packageReleaseRepository = Mockito.mock(TermMappingPackageReleaseRepository.class);
         highRiskRuleRepository = Mockito.mock(HighRiskRuleRepository.class);
         versionedAssets = Mockito.mock(TerminologyVersionedAssetAdapter.class);
         assetVersionRepository = Mockito.mock(AssetVersionRepository.class);
@@ -86,7 +84,6 @@ class TerminologyServiceTest {
             conflictRepository,
             packageRepository,
             packageItemRepository,
-            packageReleaseRepository,
             highRiskRuleRepository,
             versionedAssets,
             assetVersionRepository,
@@ -420,6 +417,7 @@ class TerminologyServiceTest {
         when(standardTermRepository.findFirstByTenantIdsAndId(standardSources(), "t-1", 2L))
             .thenReturn(Optional.of(standardTerm(2L, TermCategory.LAB)));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packageRepository.packageItemId("t-1", null)).thenReturn("pi-term-card");
         when(packageItemRepository.save(any(TermMappingPackageItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TermMappingPackage pkg = service.buildPackage(buildPackageRequest());
@@ -430,6 +428,7 @@ class TerminologyServiceTest {
 
         ArgumentCaptor<TermMappingPackageItem> itemCaptor = ArgumentCaptor.forClass(TermMappingPackageItem.class);
         verify(packageItemRepository).save(itemCaptor.capture());
+        assertThat(itemCaptor.getValue().packageItemId()).isEqualTo("pi-term-card");
         assertThat(itemCaptor.getValue().mappingId()).isEqualTo(100L);
         assertThat(itemCaptor.getValue().localCode()).isEqualTo("LIS-TNT");
         assertThat(itemCaptor.getValue().targetDictionaryKey()).isEqualTo("LOINC");
@@ -437,7 +436,7 @@ class TerminologyServiceTest {
         assertThat(itemCaptor.getValue().mappingSnapshot()).contains("\"mappingId\":100");
         verify(versionedAssets).registerDraft(Mockito.argThat(command ->
             command.assetType() == VersionedAssetType.TERMINOLOGY
-                && command.assetIdentity().equals("PKG-LAB-CARD")
+                && command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
                 && command.versionNo().equals("2026.05.25")
                 && command.organizationScope().equals("DEPARTMENT:CARD")
                 && command.contentHash().equals(pkg.contentHash())
@@ -466,12 +465,11 @@ class TerminologyServiceTest {
         TermMappingPackage previous = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.PUBLISHED);
         when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(gray));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.25"
+            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
         )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.PUBLISHED)));
         when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
             .thenReturn(List.of(previous));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TermMappingPackage published = service.publishPackage(
             30L,
@@ -488,13 +486,9 @@ class TerminologyServiceTest {
             .extracting(TermMappingPackage::status)
             .contains(TermMappingPackageStatus.SUPERSEDED, TermMappingPackageStatus.PUBLISHED);
 
-        ArgumentCaptor<TermMappingPackageRelease> releaseCaptor =
-            ArgumentCaptor.forClass(TermMappingPackageRelease.class);
-        verify(packageReleaseRepository).save(releaseCaptor.capture());
-        assertThat(releaseCaptor.getValue().eventType()).isEqualTo(TermPackageReleaseEventType.PUBLISH);
-        assertThat(releaseCaptor.getValue().releaseMode()).isEqualTo(PackageReleaseMode.FULL);
         verify(releasePort).publish(Mockito.argThat(command ->
             command.assetType() == VersionedAssetType.TERMINOLOGY
+                && command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
                 && command.versionId().equals("av-term-30")
         ));
     }
@@ -504,10 +498,9 @@ class TerminologyServiceTest {
         TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
         when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.25"
+            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
         )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.DRAFT)));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TermMappingPackage gray = service.publishPackage(
             30L,
@@ -515,9 +508,6 @@ class TerminologyServiceTest {
         );
 
         assertThat(gray.status()).isEqualTo(TermMappingPackageStatus.GRAY);
-        ArgumentCaptor<TermMappingPackageRelease> releaseCaptor =
-            ArgumentCaptor.forClass(TermMappingPackageRelease.class);
-        verify(packageReleaseRepository).save(releaseCaptor.capture());
         verify(releasePort).submitForReview(any());
         verify(releasePort).approveReview(any());
         ArgumentCaptor<VersionReleaseCommand> commandCaptor =
@@ -548,12 +538,11 @@ class TerminologyServiceTest {
         TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
         when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.25"
+            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
         )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.DRAFT)));
         when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
             .thenReturn(List.of());
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TermMappingPackage published = service.publishPackage(
             30L,
@@ -573,13 +562,12 @@ class TerminologyServiceTest {
         when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(current));
         when(packageRepository.findByTenantIdAndId("t-1", 29L)).thenReturn(Optional.of(target));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.25"
+            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.25"
         )).thenReturn(Optional.of(assetVersion("av-term-30", "2026.05.25", AssetVersionStatus.PUBLISHED)));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", "2026.05.01"
+            "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD|DEPARTMENT|CARD", "2026.05.01"
         )).thenReturn(Optional.of(assetVersion("av-term-29", "2026.05.01", AssetVersionStatus.DEPRECATED)));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TermMappingPackage restored = service.rollbackPackage(
             30L,
@@ -595,14 +583,10 @@ class TerminologyServiceTest {
             .extracting(TermMappingPackage::status)
             .contains(TermMappingPackageStatus.ROLLED_BACK, TermMappingPackageStatus.PUBLISHED);
 
-        ArgumentCaptor<TermMappingPackageRelease> releaseCaptor =
-            ArgumentCaptor.forClass(TermMappingPackageRelease.class);
-        verify(packageReleaseRepository).save(releaseCaptor.capture());
-        assertThat(releaseCaptor.getValue().eventType()).isEqualTo(TermPackageReleaseEventType.ROLLBACK);
-        assertThat(releaseCaptor.getValue().targetPackageId()).isEqualTo(29L);
         assertThat(restored.rollbackFromPackageId()).isEqualTo(30L);
         verify(releasePort).rollback(Mockito.argThat(command ->
-            command.currentVersionId().equals("av-term-30")
+            command.assetIdentity().equals("PKG-LAB-CARD|DEPARTMENT|CARD")
+                && command.currentVersionId().equals("av-term-30")
                 && command.targetVersionId().equals("av-term-29")
         ));
     }
@@ -794,7 +778,8 @@ class TerminologyServiceTest {
     private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {
         Instant now = Instant.now();
         return new AssetVersion(
-            null, versionId, "t-1", VersionedAssetType.TERMINOLOGY, "PKG-LAB-CARD", versionNo,
+            null, versionId, "t-1", VersionedAssetType.TERMINOLOGY,
+            "PKG-LAB-CARD|DEPARTMENT|CARD", versionNo,
             "DEPARTMENT:CARD", "ALL", "0".repeat(64),
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
             status, "version:" + versionId, "term-mapping-package:PKG-LAB-CARD:" + versionNo,

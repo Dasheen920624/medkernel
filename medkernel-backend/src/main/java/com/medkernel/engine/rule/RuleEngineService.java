@@ -45,6 +45,7 @@ import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.InheritanceResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
+import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.RolloutPolicy;
@@ -111,6 +112,7 @@ public class RuleEngineService {
     private final ReleasePort releasePort;
     private final RuleGovernanceService governanceService;
     private final InheritanceResolver inheritanceResolver;
+    private final RuleEffectiveVersionResolver effectiveVersions;
     private final ContextSnapshotService contextSnapshots;
     private final EngineDomainEventPort domainEvents;
     private final RuleConflictDetector conflictDetector = new RuleConflictDetector();
@@ -251,6 +253,8 @@ public class RuleEngineService {
         this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
         this.governanceService = Objects.requireNonNull(governanceService, "规则治理服务不能为空");
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
+        this.effectiveVersions =
+            new RuleEffectiveVersionResolver(definitions, versions, assetVersions, inheritanceResolver);
         this.contextSnapshots = Objects.requireNonNull(contextSnapshots, "标准上下文快照服务不能为空");
         this.domainEvents = domainEvents == null ? EngineDomainEventPort.noop() : domainEvents;
     }
@@ -863,6 +867,9 @@ public class RuleEngineService {
     }
 
     private static String releaseOrgScope(RuleDefinition rule) {
+        if (PlatformTenant.isPlatformTenant(rule.tenantId())) {
+            return PlatformAuthority.PLATFORM_ORG_PATH;
+        }
         return notBlank(rule.applicableOrgUnitId(), "tenant:" + rule.tenantId());
     }
 
@@ -951,9 +958,14 @@ public class RuleEngineService {
             : selectedRuleIds.stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
         List<RuleRuntimeCandidate> executable = candidates.stream()
-            .map(rule -> {
-                ensureRuleRuntimePackageConsistency(rule, contextPackageVersion);
-                return runtimeCandidate(rule, findVersion(rule.activeVersionId(), rule.tenantId()));
+            .map(rule -> effectiveVersions.resolve(
+                    tenantId, rule, releaseApplicableScope(rule))
+                .map(resolved -> runtimeCandidate(resolved.rule(), resolved.version()))
+                .or(() -> shadowRuntimeCandidate(rule)))
+            .flatMap(Optional::stream)
+            .map(candidate -> {
+                ensureRuleRuntimePackageConsistency(candidate.rule(), contextPackageVersion);
+                return candidate;
             })
             .filter(candidate -> candidate.mode() != RuleRuntimeMode.INACTIVE)
             .filter(candidate -> triggerMatches(candidate.version(), triggerPoint))
@@ -1028,6 +1040,22 @@ public class RuleEngineService {
             })
             .orElse(RuleRuntimeMode.INACTIVE);
         return new RuleRuntimeCandidate(rule, version, mode);
+    }
+
+    private Optional<RuleRuntimeCandidate> shadowRuntimeCandidate(RuleDefinition rule) {
+        if (rule == null || rule.activeVersionId() == null || rule.activeVersionId().isBlank()) {
+            return Optional.empty();
+        }
+        return versions.findByVersionIdAndTenantId(rule.activeVersionId(), rule.tenantId())
+            .flatMap(version -> assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                    rule.tenantId(),
+                    VersionedAssetType.RULE,
+                    rule.ruleCode(),
+                    String.valueOf(version.versionNo()))
+                .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.APPROVED)
+                .filter(assetVersion -> governanceService.requireGovernance(
+                    rule.tenantId(), version.versionId()).state() == RuleGovernanceState.SHADOW)
+                .map(assetVersion -> new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.SHADOW)));
     }
 
     /**
@@ -2158,12 +2186,6 @@ public class RuleEngineService {
     private RuleDefinition findEffectiveRule(String ruleId, String tenantId) {
         Optional<RuleDefinition> direct = definitions.findByRuleIdAndTenantId(ruleId, tenantId)
             .or(() -> findPlatformRuleForTenant(ruleId, tenantId));
-        if (direct.isPresent()) {
-            Optional<RuleDefinition> resolved = resolveEffectiveRuleForCurrentOrg(direct.get(), tenantId);
-            if (resolved.isPresent()) {
-                return resolved.get();
-            }
-        }
         return direct
             .or(() -> findPlatformRuleForTenant(ruleId, tenantId))
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则不存在: " + ruleId));
@@ -2221,47 +2243,22 @@ public class RuleEngineService {
     }
 
     private List<RuleDefinition> effectiveActiveRules(String tenantId) {
-        String targetOrgUnitId = targetOrgUnitId();
-        if (targetOrgUnitId != null) {
-            LinkedHashMap<String, RuleDefinition> candidates = new LinkedHashMap<>();
-            definitions.findPublishedByTenantId(tenantId)
-                .forEach(rule -> candidates.put(rule.ruleCode(), rule));
-            if (!PlatformTenant.isPlatformTenant(tenantId)) {
-                definitions.findPublishedByTenantId(PlatformTenant.ID)
-                    .forEach(rule -> candidates.putIfAbsent(rule.ruleCode(), rule));
-            }
-            return candidates.values().stream()
-                .map(rule -> {
-                    try {
-                        return resolveEffectiveRuleForOrg(rule, tenantId, targetOrgUnitId, false);
-                    } catch (ApiException exception) {
-                        if (exception.errorCode() == ErrorCode.NOT_FOUND) {
-                            return Optional.<RuleDefinition>empty();
-                        }
-                        throw exception;
-                    }
-                })
-                .flatMap(Optional::stream)
-                .filter(this::hasPublishedUnifiedVersion)
-                .toList();
-        }
         LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
-        definitions.findPublishedByTenantId(tenantId).stream()
-            .filter(this::hasPublishedUnifiedVersion)
+        definitions.findPublishedByTenantId(tenantId)
             .forEach(rule -> byCode.put(rule.ruleCode(), rule));
         if (!PlatformTenant.isPlatformTenant(tenantId)) {
             for (RuleDefinition rule : definitions.findPublishedByTenantId(PlatformTenant.ID)) {
-                if (!byCode.containsKey(rule.ruleCode()) && hasPublishedUnifiedVersion(rule)) {
-                    byCode.put(rule.ruleCode(), rule);
-                }
+                byCode.putIfAbsent(rule.ruleCode(), rule);
             }
         }
         return List.copyOf(byCode.values());
     }
 
     private boolean hasPublishedUnifiedVersion(RuleDefinition rule) {
-        RuleVersion version = findVersion(rule.activeVersionId(), rule.tenantId());
-        return runtimeCandidate(rule, version).mode() != RuleRuntimeMode.INACTIVE;
+        return effectiveVersions.resolve(
+                rule.tenantId(), rule, releaseApplicableScope(rule))
+            .filter(resolved -> rule.tenantId().equals(resolved.assetVersion().tenantId()))
+            .isPresent();
     }
 
     private List<RuleDefinition> effectiveRulesByFilter(String tenantId, String status, String ruleType, String riskLevel) {

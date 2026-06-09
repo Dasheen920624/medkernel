@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.engine.versioning.InheritanceOverrideRepository;
 import com.medkernel.engine.versioning.InheritanceOverrideStatus;
@@ -32,6 +35,8 @@ public class KnowledgeRetirementService {
     private final KnowledgeAssetVersionRepository versions;
     private final KnowledgeSupersessionRepository supersessions;
     private final InheritanceOverrideRepository overrides;
+    private final KnowledgeEffectiveVersionResolver effectiveVersions;
+    private final AssetVersionRepository assetVersions;
     private final AuditRecorder audit;
     private final Clock clock;
 
@@ -41,8 +46,12 @@ public class KnowledgeRetirementService {
             KnowledgeAssetVersionRepository versions,
             KnowledgeSupersessionRepository supersessions,
             InheritanceOverrideRepository overrides,
+            KnowledgeEffectiveVersionResolver effectiveVersions,
+            AssetVersionRepository assetVersions,
             AuditRecorder audit) {
-        this(identities, versions, supersessions, overrides, audit, Clock.systemUTC());
+        this(
+            identities, versions, supersessions, overrides, effectiveVersions, assetVersions,
+            audit, Clock.systemUTC());
     }
 
     KnowledgeRetirementService(
@@ -50,8 +59,12 @@ public class KnowledgeRetirementService {
             KnowledgeAssetVersionRepository versions,
             KnowledgeSupersessionRepository supersessions,
             InheritanceOverrideRepository overrides,
+            KnowledgeEffectiveVersionResolver effectiveVersions,
+            AssetVersionRepository assetVersions,
             Clock clock) {
-        this(identities, versions, supersessions, overrides, null, clock);
+        this(
+            identities, versions, supersessions, overrides, effectiveVersions, assetVersions,
+            null, clock);
     }
 
     KnowledgeRetirementService(
@@ -59,12 +72,16 @@ public class KnowledgeRetirementService {
             KnowledgeAssetVersionRepository versions,
             KnowledgeSupersessionRepository supersessions,
             InheritanceOverrideRepository overrides,
+            KnowledgeEffectiveVersionResolver effectiveVersions,
+            AssetVersionRepository assetVersions,
             AuditRecorder audit,
             Clock clock) {
         this.identities = identities;
         this.versions = versions;
         this.supersessions = supersessions;
         this.overrides = overrides;
+        this.effectiveVersions = effectiveVersions;
+        this.assetVersions = assetVersions;
         this.audit = audit;
         this.clock = clock == null ? Clock.systemUTC() : clock;
     }
@@ -84,23 +101,27 @@ public class KnowledgeRetirementService {
         }
         KnowledgeIdentity current = identities.findByTenantIdAndIdForUpdate(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        if (current.status() != KnowledgeIdentityStatus.ACTIVE || current.currentVersionId() == null) {
+        KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion currentVersion =
+            effectiveVersion(tenantId, current);
+        if (current.status() != KnowledgeIdentityStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "只有存在权威版本的有效知识身份可以安排弃用");
         }
         KnowledgeIdentity successor = identities.findByTenantIdAndId(tenantId, request.successorIdentityId())
             .orElseThrow(() -> ApiException.notFound("后继知识身份 id=" + request.successorIdentityId()));
+        KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion successorVersion =
+            effectiveVersion(tenantId, successor);
         if (successor.status() != KnowledgeIdentityStatus.ACTIVE
-                || successor.currentVersionId() == null
                 || successor.domain() != current.domain()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "后继知识必须是同域且存在权威版本的有效身份");
         }
         String actor = currentActor();
         identities.save(new KnowledgeIdentity(
             current.id(), current.tenantId(), current.identityCode(), current.domain(), current.subject(),
-            current.specialtyId(), current.description(), KnowledgeIdentityStatus.DEPRECATED, current.currentVersionId(),
+            current.specialtyId(), current.description(), KnowledgeIdentityStatus.DEPRECATED,
+            currentVersion.version().id(),
             current.createdAt(), current.createdBy(), now, actor));
         KnowledgeSupersession transition = supersessions.save(new KnowledgeSupersession(
-            null, tenantId, current.id(), current.currentVersionId(), successor.currentVersionId(),
+            null, tenantId, current.id(), currentVersion.version().id(), successorVersion.version().id(),
             SupersessionType.DEPRECATE, "知识身份进入迁移宽限期", now, actor,
             successor.id(), request.gracePeriodEnd(), request.migrationGuidance().trim()));
         recordAudit(AuditAction.UPDATE, current.id(), "安排知识身份弃用并指定后继 " + successor.identityCode());
@@ -138,12 +159,31 @@ public class KnowledgeRetirementService {
     }
 
     private void withdrawCurrentVersion(KnowledgeIdentity identity, KnowledgeSupersession due, Instant now) {
-        if (identity.currentVersionId() == null) {
+        if (due.oldVersionId() == null) {
             return;
         }
-        versions.findByTenantIdAndId(identity.tenantId(), identity.currentVersionId())
+        versions.findByTenantIdAndId(identity.tenantId(), due.oldVersionId())
             .filter(version -> version.status() == KnowledgeVersionStatus.ACTIVE)
-            .ifPresent(version -> versions.save(new KnowledgeAssetVersion(
+            .ifPresent(version -> {
+                AssetVersion unified = assetVersions
+                    .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                        identity.tenantId(),
+                        VersionedAssetType.KNOWLEDGE,
+                        identity.identityCode(),
+                        version.versionNo())
+                    .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.CONFLICT,
+                        "知识退役缺少统一已发布版本: "
+                            + identity.identityCode() + "@" + version.versionNo()));
+                assetVersions.save(unified.withStatusAndWindow(
+                    AssetVersionStatus.DEPRECATED,
+                    "version:" + unified.versionId(),
+                    unified.effectiveFrom(),
+                    now,
+                    now,
+                    SYSTEM_ACTOR));
+                versions.save(new KnowledgeAssetVersion(
                 version.id(), version.tenantId(), version.identityId(), version.versionNo(), version.versionLabel(),
                 version.sourceDocumentId(), version.sourceVersionId(), version.contentHash(), version.anchors(),
                 KnowledgeVersionStatus.WITHDRAWN, version.riskLevel(), version.authorityLevel(),
@@ -154,7 +194,20 @@ public class KnowledgeRetirementService {
                 version.activatedAt(), version.supersededAt(), now,
                 "知识身份退役：" + due.migrationGuidance(),
                 version.createdAt(), version.createdBy(), now, SYSTEM_ACTOR,
-                version.reviewCycleMonths(), version.nextReviewAt())));
+                version.reviewCycleMonths(), version.nextReviewAt()));
+            });
+    }
+
+    private KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion effectiveVersion(
+            String tenantId,
+            KnowledgeIdentity identity) {
+        String applicableScope = identity.specialtyId() == null || identity.specialtyId().isBlank()
+            ? KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+            : "specialty:" + identity.specialtyId().trim();
+        return effectiveVersions.resolve(tenantId, identity.identityCode(), applicableScope)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.CONFLICT,
+                "知识身份缺少统一已发布版本: " + identity.identityCode()));
     }
 
     private void suspendOverrides(KnowledgeIdentity identity, KnowledgeSupersession due, Instant now) {

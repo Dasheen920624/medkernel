@@ -9,9 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 知识身份（跨版本的稳定主题，比如"药品说明书" / "专科诊疗指南"）。
  *
- * <p>{@code current_version_id} 由 Service 层在激活/替换/撤回时维护，
- * 表示无适用域参数旧入口的默认当前权威版本；适用域内权威性由版本表 scope 字段判定。
- * 客户端不应直接修改它。
+ * <p>{@code current_version_id} 仅保留为编辑态最近版本元数据；运行时哪个版本生效统一由
+ * {@code AssetVersion + InheritanceResolver} 判定，客户端不得把该字段当作权威读入口。
  */
 @Table("knowledge_identity")
 public record KnowledgeIdentity(

@@ -1,6 +1,7 @@
 package com.medkernel.engine.pathway;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,10 +16,22 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
+
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.PackageItem;
+import com.medkernel.engine.pkg.PackageItemRepository;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
+@Import(SpecialtyPackageRepository.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:pathway-repo-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
@@ -31,6 +44,9 @@ import org.springframework.test.context.TestPropertySource;
 class PathwayRepositoryTest {
 
     @Autowired SpecialtyPackageRepository packages;
+    @Autowired KnowledgePackageRepository knowledgePackages;
+    @Autowired PackageItemRepository packageItems;
+    @Autowired AssetVersionRepository assetVersions;
     @Autowired SpecialtyProfileRepository profiles;
     @Autowired PathwayTemplateRepository templates;
     @Autowired PathwayNodeRepository nodes;
@@ -50,7 +66,9 @@ class PathwayRepositoryTest {
         nodes.deleteAll();
         templates.deleteAll();
         profiles.deleteAll();
-        packages.deleteAll();
+        packageItems.deleteAll();
+        assetVersions.deleteAll();
+        knowledgePackages.deleteAll();
     }
 
     @Test
@@ -60,6 +78,7 @@ class PathwayRepositoryTest {
         String patientPathwayId = "pp-" + UUID.randomUUID();
 
         SpecialtyPackage savedPackage = packages.save(samplePackage(packageId, "tenant-A", "COPD"));
+        savePackageMarker(savedPackage);
         SpecialtyProfile savedProfile = profiles.save(sampleProfile("profile-" + UUID.randomUUID(), "tenant-A", packageId));
         PathwayTemplate savedTemplate = templates.save(sampleTemplate(templateId, "tenant-A", packageId, "COPD"));
         PathwayNode start = nodes.save(sampleNode("pn-1", "tenant-A", templateId, "ASSESS", 10, false));
@@ -115,6 +134,36 @@ class PathwayRepositoryTest {
     }
 
     @Test
+    void specialtyPackageIdCannotBeReusedAcrossTenants() {
+        SpecialtyPackage tenantA = packages.save(samplePackage(
+            "sp-" + UUID.randomUUID(), "tenant-A", "COPD"));
+        SpecialtyPackage tenantBOverwrite = new SpecialtyPackage(
+            tenantA.id(),
+            tenantA.packageId(),
+            "tenant-B",
+            tenantA.packageCode(),
+            tenantA.diseaseCode(),
+            tenantA.name(),
+            tenantA.packageVersion(),
+            tenantA.status(),
+            tenantA.sourceRef(),
+            tenantA.description(),
+            tenantA.publishedAt(),
+            tenantA.publishedBy(),
+            tenantA.createdAt(),
+            tenantA.createdBy(),
+            tenantA.updatedAt(),
+            tenantA.updatedBy(),
+            tenantA.traceId()
+        );
+
+        assertThatThrownBy(() -> packages.save(tenantBOverwrite))
+            .hasMessageContaining("专病包不存在");
+        assertThat(knowledgePackages.findById(tenantA.id()).orElseThrow().tenantId())
+            .isEqualTo("tenant-A");
+    }
+
+    @Test
     void pagesTemplatesByStatusDiseaseAndPackage() {
         templates.save(sampleTemplate("pt-a", "tenant-A", "sp-a", "COPD"));
         templates.save(sampleTemplate("pt-b", "tenant-A", "sp-a", "COPD"));
@@ -165,6 +214,47 @@ class PathwayRepositoryTest {
             diseaseCode + " 专病包", "1.0.0", SpecialtyPackageStatus.DRAFT,
             "专病路径专家共识 2026", "用于路径 API 测试", null, null,
             now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private void savePackageMarker(SpecialtyPackage specialtyPackage) {
+        Instant now = Instant.now();
+        assetVersions.save(new AssetVersion(
+            null,
+            "av-" + specialtyPackage.packageId(),
+            specialtyPackage.tenantId(),
+            VersionedAssetType.PATHWAY,
+            specialtyPackage.packageCode(),
+            specialtyPackage.packageVersion(),
+            "tenant:" + specialtyPackage.tenantId(),
+            "disease:" + specialtyPackage.diseaseCode(),
+            "0".repeat(64),
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.DRAFT,
+            "draft:av-" + specialtyPackage.packageId(),
+            specialtyPackage.sourceRef(),
+            null,
+            null,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-pathway"
+        ));
+        packageItems.save(new PackageItem(
+            null,
+            "pi-" + specialtyPackage.packageId(),
+            specialtyPackage.tenantId(),
+            specialtyPackage.packageId(),
+            VersionedAssetType.PATHWAY,
+            specialtyPackage.packageCode(),
+            specialtyPackage.packageVersion(),
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-pathway"
+        ));
     }
 
     private SpecialtyProfile sampleProfile(String profileId, String tenantId, String packageId) {

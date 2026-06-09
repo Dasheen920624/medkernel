@@ -106,7 +106,7 @@ class KnowledgeIdentityControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
     void medicalAffairsCanReachActivateButDataScopeFails() throws Exception {
-        when(versionService.activate(eq(1L), eq(10L), any()))
+        when(versionService.activate(eq(1L), eq(10L), any(), any()))
             .thenReturn(null);
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions/10/activate"))
             .andExpect(status().isBadRequest())

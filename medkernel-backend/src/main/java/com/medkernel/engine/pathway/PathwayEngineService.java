@@ -93,7 +93,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PathwayEngineService {
 
-    private static final String PACKAGE_ENTITY = "specialty_package";
+    private static final String PACKAGE_ENTITY = "knowledge_package";
     private static final String TEMPLATE_ENTITY = "pathway_template";
     private static final String PATIENT_PATHWAY_ENTITY = "patient_pathway";
     private static final int DEFAULT_CANARY_PERCENT = 10;
@@ -357,11 +357,46 @@ public class PathwayEngineService {
         Instant now = Instant.now();
         String packageId = "sp-" + UUID.randomUUID();
 
-        packages.save(new SpecialtyPackage(
+        SpecialtyPackage savedPackage = packages.save(new SpecialtyPackage(
             null, packageId, tenantId, request.packageCode(), request.diseaseCode(),
             request.name(), request.packageVersion(), SpecialtyPackageStatus.DRAFT,
             request.sourceRef(), request.description(), null, null,
             now, actor, now, actor, traceId));
+        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.PATHWAY,
+            savedPackage.packageCode(),
+            savedPackage.packageVersion(),
+            "tenant:" + tenantId,
+            "disease:" + savedPackage.diseaseCode(),
+            writeObject(new SpecialtyPackageAssetContent(
+                savedPackage.packageCode(),
+                savedPackage.diseaseCode(),
+                savedPackage.name(),
+                savedPackage.description(),
+                request.profiles()
+            )),
+            null,
+            savedPackage.sourceRef(),
+            actor,
+            traceId,
+            AssetVersionSafetyPolicy.NORMAL,
+            null
+        ));
+        packageItems.save(new PackageItem(
+            null,
+            "pi-" + UUID.randomUUID(),
+            tenantId,
+            packageId,
+            VersionedAssetType.PATHWAY,
+            savedPackage.packageCode(),
+            savedPackage.packageVersion(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
         for (SpecialtyProfileRequest profile : nullToEmpty(request.profiles())) {
             profiles.save(new SpecialtyProfile(
                 null, "spr-" + UUID.randomUUID(), tenantId, packageId,
@@ -449,7 +484,7 @@ public class PathwayEngineService {
                 traceId)))
             .toList();
 
-        bridgePathwayTemplateToPackageItem(template, actor, now, traceId);
+        ensurePathwayPackageItem(template, actor, now, traceId);
         AssetVersion assetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
             template.tenantId(),
             VersionedAssetType.PATHWAY,
@@ -474,7 +509,7 @@ public class PathwayEngineService {
             assetVersion.status(), traceId);
     }
 
-    private void bridgePathwayTemplateToPackageItem(
+    private void ensurePathwayPackageItem(
             PathwayTemplate template,
             String actor,
             Instant now,
@@ -3404,6 +3439,18 @@ public class PathwayEngineService {
             edges = edges == null ? List.of() : List.copyOf(edges);
             metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
             outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
+        }
+    }
+
+    private record SpecialtyPackageAssetContent(
+        String packageCode,
+        String diseaseCode,
+        String name,
+        String description,
+        List<SpecialtyProfileRequest> profiles
+    ) {
+        private SpecialtyPackageAssetContent {
+            profiles = profiles == null ? List.of() : List.copyOf(profiles);
         }
     }
 

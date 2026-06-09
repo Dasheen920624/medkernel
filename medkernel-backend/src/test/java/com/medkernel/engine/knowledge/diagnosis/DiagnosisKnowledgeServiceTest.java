@@ -328,12 +328,13 @@ class DiagnosisKnowledgeServiceTest {
         when(testCases.findByTenantIdAndDiagnosisVersionId("t-dept", 10L))
             .thenReturn(List.of(testCase("CASE-1", "FEVER,COUGH", DiagnosisConfidence.WEAK)));
 
-        assertThatThrownBy(() -> service.publishDiagnosis(1L, 10L, "上线"))
+        assertThatThrownBy(() -> service.publishDiagnosis(
+            1L, 10L, "上线", com.medkernel.engine.versioning.VersionPublishEvidence.empty()))
             .isInstanceOf(ApiException.class)
             .extracting(e -> ((ApiException) e).errorCode())
             .isEqualTo(ErrorCode.ENG_DX_006);
         // 门禁真正生效：分级不符时绝不触达版本激活。
-        verify(knowledgeVersions, never()).activate(any(), any(), any());
+        verify(knowledgeVersions, never()).activate(any(), any(), any(), any());
     }
 
     private void stubVersionCriteria() {

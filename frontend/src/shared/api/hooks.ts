@@ -1275,7 +1275,11 @@ export function useReviewKnowledgeCandidate() {
     mutationFn: async (payload: {
       candidateId: number;
       packageVersion: string;
-      request: { decision: KnowledgeCandidateReviewDecision; reason?: string };
+      request: {
+        decision: KnowledgeCandidateReviewDecision;
+        reason?: string;
+        publishEvidence?: VersionPublishEvidence;
+      };
       idempotencyKey?: string;
     }) => {
       const headers = payload.idempotencyKey

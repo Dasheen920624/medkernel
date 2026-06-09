@@ -512,6 +512,14 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
         when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
             .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"))
+            .thenReturn(Optional.of(declarativeAssetVersion(
+                VersionedAssetType.KNOWLEDGE,
+                "KNOW.COPD.GUIDE",
+                "v1",
+                AssetVersionStatus.PUBLISHED
+            )));
         when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
                 "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
             .thenReturn(Optional.of(publishedTerminologyPackage(
@@ -521,6 +529,61 @@ class PackageEngineServiceTest {
 
         assertThat(response.valid()).isTrue();
         assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
+    void validatePackageAcceptsUnifiedKnowledgeVersionWhenLegacyPointerIsStale() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-knowledge", "tenant-A", "PKG.KNOWLEDGE", "1.0.0", "知识配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-knowledge", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-knowledge"))
+            .thenReturn(List.of(
+                packageItem(10L, "pkg-knowledge", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v2")
+            ));
+        when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
+            .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
+        when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v2"))
+            .thenReturn(Optional.of(activeKnowledgeVersion(202L, 101L, "v2")));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v2"))
+            .thenReturn(Optional.of(declarativeAssetVersion(
+                VersionedAssetType.KNOWLEDGE,
+                "KNOW.COPD.GUIDE",
+                "v2",
+                AssetVersionStatus.PUBLISHED
+            )));
+
+        PackageValidateResponse response = service.validatePackage("pkg-knowledge");
+
+        assertThat(response.valid()).isTrue();
+        assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
+    void validatePackageBlocksKnowledgeVersionMissingFromUnifiedAuthority() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-knowledge", "tenant-A", "PKG.KNOWLEDGE", "1.0.0", "知识配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-knowledge", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-knowledge"))
+            .thenReturn(List.of(
+                packageItem(10L, "pkg-knowledge", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1")
+            ));
+        when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
+            .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
+        when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
+            .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
+
+        PackageValidateResponse response = service.validatePackage("pkg-knowledge");
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).anySatisfy(issue ->
+            assertThat(issue.message()).contains("统一知识版本不存在"));
     }
 
     @Test
@@ -1349,7 +1412,7 @@ class PackageEngineServiceTest {
             1.0D, "LOW", "CONFIRMED", "人工确认", "tester", "2026-06-01T00:00:00Z"
         );
         TermMappingPackageItem terminologyItem = new TermMappingPackageItem(
-            501L, "tenant-A", 301L, 401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
+            501L, "tenant-A", "pi-term-lab", 401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
             TermMappingSnapshotCodec.write(terminologySnapshot),
             Instant.parse("2026-06-01T00:00:00Z"), "tester"
         );
@@ -1365,7 +1428,9 @@ class PackageEngineServiceTest {
         when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
                 "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
             .thenReturn(Optional.of(terminologyPackage));
-        when(terminologyPackageItemRepository.findByTenantIdAndPackageId("tenant-A", 301L))
+        when(terminologyPackageRepository.packageItemId("tenant-A", 301L))
+            .thenReturn("pi-term-lab");
+        when(terminologyPackageItemRepository.findByTenantIdAndPackageItemId("tenant-A", "pi-term-lab"))
             .thenReturn(List.of(terminologyItem));
         when(terminologyMappingRepository.findByTenantIdAndId("tenant-A", 401L))
             .thenReturn(Optional.of(termMapping));
@@ -1607,11 +1672,22 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
         when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
             .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
+        AssetVersion importedKnowledgeVersion = declarativeAssetVersion(
+            VersionedAssetType.KNOWLEDGE,
+            "KNOW.COPD.GUIDE",
+            "v1",
+            AssetVersionStatus.PUBLISHED
+        );
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"))
+            .thenReturn(Optional.empty(), Optional.of(importedKnowledgeVersion));
         when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
                 "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
             .thenReturn(Optional.empty())
             .thenReturn(Optional.of(publishedTerminologyPackage(
                 301L, "TERM.LAB", "2026.06", "DEPARTMENT", "CARD")));
+        when(terminologyPackageRepository.packageItemId("tenant-A", 301L))
+            .thenReturn("pi-term-lab");
         when(terminologyMappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("tenant-A", 11L, 22L))
             .thenReturn(Optional.empty());
 
@@ -1622,9 +1698,25 @@ class PackageEngineServiceTest {
         assertThat(response.itemCount()).isEqualTo(2);
         verify(knowledgeIdentityRepository, org.mockito.Mockito.atLeastOnce()).save(any(KnowledgeIdentity.class));
         verify(knowledgeVersionRepository).save(any(KnowledgeAssetVersion.class));
+        verify(assetVersions).save(argThat(version ->
+            version.assetType() == VersionedAssetType.KNOWLEDGE
+                && version.assetIdentity().equals("KNOW.COPD.GUIDE")
+                && version.versionNo().equals("v1")
+                && version.organizationScope().equals("tenant:tenant-A")
+                && version.status() == AssetVersionStatus.PUBLISHED
+                && version.contentHash().equals("a".repeat(64))
+        ));
         verify(terminologyPackageRepository).save(any(TermMappingPackage.class));
         verify(terminologyMappingRepository).save(any(TermMapping.class));
         verify(terminologyPackageItemRepository).save(any(TermMappingPackageItem.class));
+        verify(assetVersions).save(argThat(version ->
+            version.assetType() == VersionedAssetType.TERMINOLOGY
+                && version.assetIdentity().equals("TERM.LAB|DEPARTMENT|CARD")
+                && version.versionNo().equals("2026.06")
+                && version.organizationScope().equals("DEPARTMENT:CARD")
+                && version.status() == AssetVersionStatus.PUBLISHED
+                && version.contentHash().equals("b".repeat(64))
+        ));
 
         ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
         verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());

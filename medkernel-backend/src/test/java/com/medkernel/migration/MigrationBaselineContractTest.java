@@ -137,7 +137,8 @@ class MigrationBaselineContractTest {
         "V108__asset_lifecycle_quality_gate.sql",
         "V109__knowledge_evidence_governance.sql",
         "V110__release_simulation_rollout.sql",
-        "V111__package_entitlement.sql"
+        "V111__package_entitlement.sql",
+        "V112__package_physical_convergence.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -168,7 +169,8 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "mk_pkg_package_entitlement", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_term_mapping_snapshot",
+        "mk_pkg_package_entitlement", "release_plan", "sync_log",
         "mk_pkg_tenant_package_reference",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "mk_version_rollout_observation", "mk_version_override_template",
@@ -312,6 +314,7 @@ class MigrationBaselineContractTest {
         "idx_rect_task_finding", "idx_rect_task_department_status",
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
+        "idx_term_mapping_snapshot_item", "idx_term_mapping_snapshot_anchor",
         "idx_release_plan_pkg", "idx_sync_log_plan",
         "idx_pkg_tpref_tenant_status", "idx_pkg_tpref_package",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
@@ -513,6 +516,7 @@ class MigrationBaselineContractTest {
         "ck_eval_idempotency_finding_status", "ck_eval_idempotency_task_status",
         "uk_knowledge_package_id", "uk_knowledge_package_tenant_version", "ck_knowledge_package_status",
         "uk_package_item_id", "uk_package_item_tenant_asset", "ck_package_item_asset_type",
+        "uk_term_mapping_snapshot", "fk_term_mapping_snapshot_item",
         "uk_release_plan_id", "ck_release_plan_strategy", "ck_release_plan_scope_type", "ck_release_plan_status",
         "uk_sync_log_id", "ck_sync_log_status",
         "uk_pkg_tpref_id", "uk_pkg_tpref_scope", "fk_pkg_tpref_platform_package", "ck_pkg_tpref_status",
@@ -2431,6 +2435,25 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("'TEMPLATE','PHASE','MILESTONE'");
         assertThat(h2).contains("idx_pathway_outcome_template");
         assertThat(h2).contains("idx_pathway_outcome_indicator");
+    }
+
+    @Test
+    void packageBaselinesShouldUseOnlyUnifiedContainerForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String convergence = readMigration(dialect, "V112__package_physical_convergence.sql");
+
+            assertThat(convergence)
+                .as("%s 应物理删除旧包容器并保留统一条目下的术语快照", dialect)
+                .contains("DROP TABLE")
+                .contains("term_mapping_package_release")
+                .contains("term_mapping_package_item")
+                .contains("term_mapping_package")
+                .contains("specialty_package")
+                .contains("mk_term_mapping_snapshot")
+                .contains("package_item_id")
+                .contains("mapping_snapshot")
+                .contains("fk_term_mapping_snapshot_item");
+        }
     }
 
     @Test

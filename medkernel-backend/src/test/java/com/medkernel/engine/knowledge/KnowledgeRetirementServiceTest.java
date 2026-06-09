@@ -16,6 +16,11 @@ import org.mockito.Mockito;
 import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.engine.versioning.InheritanceOverrideRepository;
 import com.medkernel.engine.versioning.InheritanceOverrideStatus;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -34,6 +39,8 @@ class KnowledgeRetirementServiceTest {
     private KnowledgeAssetVersionRepository versions;
     private KnowledgeSupersessionRepository supersessions;
     private InheritanceOverrideRepository overrides;
+    private KnowledgeEffectiveVersionResolver effectiveVersions;
+    private AssetVersionRepository assetVersions;
     private KnowledgeRetirementService service;
 
     @BeforeEach
@@ -42,14 +49,17 @@ class KnowledgeRetirementServiceTest {
         versions = Mockito.mock(KnowledgeAssetVersionRepository.class);
         supersessions = Mockito.mock(KnowledgeSupersessionRepository.class);
         overrides = Mockito.mock(InheritanceOverrideRepository.class);
+        effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
+        assetVersions = Mockito.mock(AssetVersionRepository.class);
         service = new KnowledgeRetirementService(
-            identities, versions, supersessions, overrides,
+            identities, versions, supersessions, overrides, effectiveVersions, assetVersions,
             Clock.fixed(NOW, ZoneOffset.UTC));
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "platform-admin"));
         when(identities.save(any(KnowledgeIdentity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(versions.save(any(KnowledgeAssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(supersessions.save(any(KnowledgeSupersession.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(assetVersions.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @AfterEach
@@ -63,6 +73,8 @@ class KnowledgeRetirementServiceTest {
         KnowledgeIdentity successor = identity(2L, "plat:drug:new-guide", KnowledgeIdentityStatus.ACTIVE, 20L);
         when(identities.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(current));
         when(identities.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(successor));
+        stubEffective(current, version(10L, 1L));
+        stubEffective(successor, version(20L, 2L));
 
         KnowledgeSupersession result = service.deprecate(
             1L,
@@ -98,6 +110,9 @@ class KnowledgeRetirementServiceTest {
         when(supersessions.findDueDeprecations(NOW)).thenReturn(List.of(due));
         when(identities.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(current));
         when(versions.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(active));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, current.identityCode(), active.versionNo()))
+            .thenReturn(Optional.of(unified(current, active)));
         when(overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
             VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.PUBLISHED))
             .thenReturn(List.of(published, publishedWithoutReason));
@@ -109,6 +124,9 @@ class KnowledgeRetirementServiceTest {
         verify(versions).save(version.capture());
         assertThat(version.getValue().status()).isEqualTo(KnowledgeVersionStatus.WITHDRAWN);
         assertThat(version.getValue().withdrawnReason()).contains("请迁移到新版指南");
+        ArgumentCaptor<AssetVersion> unified = ArgumentCaptor.forClass(AssetVersion.class);
+        verify(assetVersions).save(unified.capture());
+        assertThat(unified.getValue().status()).isEqualTo(AssetVersionStatus.DEPRECATED);
         ArgumentCaptor<KnowledgeIdentity> identity = ArgumentCaptor.forClass(KnowledgeIdentity.class);
         verify(identities).save(identity.capture());
         assertThat(identity.getValue().status()).isEqualTo(KnowledgeIdentityStatus.WITHDRAWN);
@@ -130,7 +148,7 @@ class KnowledgeRetirementServiceTest {
     void scheduledFinalizationWritesAuditInRetiredIdentityTenantContext() {
         AuditRecorder audit = Mockito.mock(AuditRecorder.class);
         service = new KnowledgeRetirementService(
-            identities, versions, supersessions, overrides, audit,
+            identities, versions, supersessions, overrides, effectiveVersions, assetVersions, audit,
             Clock.fixed(NOW, ZoneOffset.UTC));
         KnowledgeSupersession due = new KnowledgeSupersession(
             100L, "t-1", 1L, null, 20L, SupersessionType.DEPRECATE, "计划弃用",
@@ -183,5 +201,27 @@ class KnowledgeRetirementServiceTest {
             com.medkernel.engine.versioning.InheritancePropagation.INHERITABLE,
             InheritanceOverrideStatus.PUBLISHED, "/hospital-a", "ALL", "本地差异", "本地适配",
             "医院范围", NOW.minusSeconds(86400), "tenant-admin", NOW.minusSeconds(86400), "tenant-admin", "trace");
+    }
+
+    private void stubEffective(KnowledgeIdentity identity, KnowledgeAssetVersion version) {
+        when(effectiveVersions.resolve(
+            "t-1", identity.identityCode(), KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(
+                new KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion(
+                    identity, version, unified(identity, version), null)));
+    }
+
+    private AssetVersion unified(KnowledgeIdentity identity, KnowledgeAssetVersion version) {
+        return new AssetVersion(
+            1L, "av-" + identity.id() + "-" + version.versionNo(), identity.tenantId(),
+            VersionedAssetType.KNOWLEDGE, identity.identityCode(), version.versionNo(),
+            "/__platform__", version.applicableScope(), version.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            identity.identityCode() + "|/__platform__|" + version.applicableScope(),
+            "knowledge-version:" + identity.identityCode() + ":" + version.versionNo(),
+            NOW.minusSeconds(86400), null,
+            NOW.minusSeconds(86400), "platform-admin",
+            NOW.minusSeconds(86400), "platform-admin", "trace");
     }
 }

@@ -17,6 +17,11 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetIdentityAllocator;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,6 +39,7 @@ class KnowledgeIdentityServiceTest {
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
+    private KnowledgeEffectiveVersionResolver effectiveVersions;
     private KnowledgeIdentityService service;
 
     @BeforeEach
@@ -45,9 +51,10 @@ class KnowledgeIdentityServiceTest {
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
         service = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
-            new AssetIdentityAllocator()
+            new AssetIdentityAllocator(), effectiveVersions
         );
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -173,11 +180,12 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
-    void getActiveVersionPrefersCurrentVersionPointerForMultiScopeActiveIdentities() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 22L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 22L))
-            .thenReturn(Optional.of(versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE)));
+    void getActiveVersionUsesUnifiedEffectiveVersionInsteadOfLegacyPointer() {
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", 99L);
+        KnowledgeAssetVersion resolved = versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, resolved)));
 
         KnowledgeAssetVersion active = service.getActiveVersion(1L);
 
@@ -486,10 +494,11 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void listCitationsReadsCurrentActiveVersionOnly() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 20L))
-            .thenReturn(Optional.of(versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE)));
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", null);
+        KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
             .thenReturn(List.of(citation(8L, 20L, 90)));
 
@@ -500,11 +509,12 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
-    void listCitationsPrefersCurrentVersionPointerForMultiScopeActiveIdentities() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 22L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 22L))
-            .thenReturn(Optional.of(versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE)));
+    void listCitationsUsesUnifiedEffectiveVersionForMultiScopeIdentity() {
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", 99L);
+        KnowledgeAssetVersion active = versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
             .thenReturn(List.of(citation(8L, 22L, 90)));
 
@@ -516,10 +526,11 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void listSourceEvidenceRanksHighAuthorityAsPrimaryAndLabelsLowAuthoritySupplemental() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 20L))
-            .thenReturn(Optional.of(versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE)));
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", null);
+        KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
             .thenReturn(List.of(
                 citation(1L, 20L, 100, 100L),
@@ -562,12 +573,13 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void provenanceReturnsExactAnchorAndMarksUnresolvedCitationAsPartial() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L))
-            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
+        KnowledgeIdentity identity = identityRow(1L, "t-1", "DRUG.X", 99L);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
         KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
         KnowledgeAssetVersion historical = versionRow(19L, 1L, KnowledgeVersionStatus.SUPERSEDED);
         when(versionRepo.listByIdentity("t-1", 1L)).thenReturn(List.of(active, historical));
-        when(versionRepo.findByTenantIdAndId("t-1", 20L)).thenReturn(Optional.of(active));
+        when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
         Citation resolved = new Citation(
             1L, "t-1", 20L, 100L, CitationRelation.SUPPORTS, 90, 2, 12, Instant.now(), "u");
         Citation unresolved = new Citation(
@@ -653,6 +665,37 @@ class KnowledgeIdentityServiceTest {
             null, null,
             now, "init", now, "init"
         , 12, null);
+    }
+
+    private KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion resolvedKnowledge(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion version) {
+        Instant now = Instant.now();
+        AssetVersion unified = new AssetVersion(
+            null,
+            "av-" + identity.identityCode() + "-" + version.versionNo(),
+            version.tenantId(),
+            VersionedAssetType.KNOWLEDGE,
+            identity.identityCode(),
+            version.versionNo(),
+            version.organizationScope(),
+            version.applicableScope(),
+            version.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            identity.identityCode() + "|" + version.organizationScope() + "|" + version.applicableScope(),
+            "knowledge-version:" + identity.identityCode() + ":" + version.versionNo(),
+            now,
+            null,
+            now,
+            "init",
+            now,
+            "init",
+            "trace"
+        );
+        return new KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion(
+            identity, version, unified, null);
     }
 
     private KnowledgeAssetVersion versionRowWithSource(Long id, Long identityId, Long sourceVersionId) {

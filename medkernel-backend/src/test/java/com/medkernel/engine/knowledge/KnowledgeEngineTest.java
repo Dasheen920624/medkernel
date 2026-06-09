@@ -14,6 +14,8 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.ReleasePort;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,6 +50,10 @@ class KnowledgeEngineTest {
     private ReviewAssignmentRepository reviewAssignmentRepo;
     private KnowledgeInvalidationRepository invalidationRepo;
     private AffectedCaseTaskRepository affectedCaseTaskRepo;
+    private KnowledgeVersionedAssetAdapter versionedAssets;
+    private AssetVersionRepository assetVersions;
+    private ReleasePort releasePort;
+    private KnowledgeEffectiveVersionResolver effectiveVersions;
 
     private KnowledgeIdentityService identityService;
     private KnowledgeVersionService versionService;
@@ -66,15 +72,20 @@ class KnowledgeEngineTest {
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
         invalidationRepo = Mockito.mock(KnowledgeInvalidationRepository.class);
         affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
+        versionedAssets = Mockito.mock(KnowledgeVersionedAssetAdapter.class);
+        assetVersions = Mockito.mock(AssetVersionRepository.class);
+        releasePort = Mockito.mock(ReleasePort.class);
+        effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
-            new com.medkernel.engine.versioning.AssetIdentityAllocator()
+            new com.medkernel.engine.versioning.AssetIdentityAllocator(), effectiveVersions
         );
 
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
-            candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo
+            candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
+            versionedAssets, assetVersions, releasePort
         );
 
         // 初始化租户与用户上下文环境

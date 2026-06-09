@@ -20,6 +20,18 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 /**
  * 知识版本业务服务，承载详细规范 §1.4 / §1797-1806 的核心状态机：
@@ -56,6 +68,9 @@ public class KnowledgeVersionService {
     private final ReviewAssignmentRepository reviewAssignmentRepository;
     private final KnowledgeInvalidationRepository invalidationRepository;
     private final AffectedCaseTaskRepository affectedCaseTaskRepository;
+    private final KnowledgeVersionedAssetAdapter versionedAssets;
+    private final AssetVersionRepository assetVersions;
+    private final ReleasePort releasePort;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -67,7 +82,10 @@ public class KnowledgeVersionService {
                                    CandidateClassificationRepository candidateClassificationRepository,
                                    ReviewAssignmentRepository reviewAssignmentRepository,
                                    KnowledgeInvalidationRepository invalidationRepository,
-                                   AffectedCaseTaskRepository affectedCaseTaskRepository) {
+                                   AffectedCaseTaskRepository affectedCaseTaskRepository,
+                                   KnowledgeVersionedAssetAdapter versionedAssets,
+                                   AssetVersionRepository assetVersions,
+                                   ReleasePort releasePort) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -79,6 +97,9 @@ public class KnowledgeVersionService {
         this.reviewAssignmentRepository = reviewAssignmentRepository;
         this.invalidationRepository = invalidationRepository;
         this.affectedCaseTaskRepository = affectedCaseTaskRepository;
+        this.versionedAssets = versionedAssets;
+        this.assetVersions = assetVersions;
+        this.releasePort = releasePort;
     }
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
@@ -139,7 +160,7 @@ public class KnowledgeVersionService {
     public KnowledgeAssetVersion submit(Long identityId, Long versionId, KnowledgeActionRequest request) {
         String tenantId = requireCurrentTenant();
         validateContext(request.context(), tenantId);
-        identityRepository.findByTenantIdAndId(tenantId, identityId)
+        KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
         KnowledgeAssetVersion target = versionRepository.findByTenantIdAndId(tenantId, versionId)
             .orElseThrow(() -> ApiException.notFound("知识版本 id=" + versionId));
@@ -152,6 +173,9 @@ public class KnowledgeVersionService {
         if (target.status() != KnowledgeVersionStatus.DRAFT && target.status() != KnowledgeVersionStatus.CANDIDATE) {
             throw new ApiException(ErrorCode.CONFLICT, "版本当前状态 " + target.status() + " 不可提交审核");
         }
+        AssetVersion assetVersion = requireUnifiedAssetVersion(identity, target);
+        releasePort.submitForReview(knowledgeReleaseCommand(
+            identity, target, assetVersion, request.reason(), VersionPublishEvidence.empty()));
         Instant now = Instant.now();
         KnowledgeAssetVersion submitted = new KnowledgeAssetVersion(
             target.id(), target.tenantId(), target.identityId(),
@@ -318,6 +342,21 @@ public class KnowledgeVersionService {
             actor,
             request.reviewCycleMonths(),
             null));
+        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.KNOWLEDGE,
+            identity.identityCode(),
+            candidate.versionNo(),
+            candidate.effectiveOrganizationScope(),
+            candidate.effectiveApplicableScope(),
+            null,
+            candidate.contentHash(),
+            "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo(),
+            actor,
+            RequestContext.currentTraceId(),
+            AssetVersionSafetyPolicy.NORMAL,
+            candidate.isHighRisk() ? AssetVersionOverridePolicy.REVIEW : AssetVersionOverridePolicy.FREE
+        ));
         CandidateClassificationType classificationType = candidateClassificationType(active, sourceDocument);
         String diffSummary = diffSummary(active.orElse(null), candidate, sourceDocument);
         CandidateClassification classification = candidateClassificationRepository.save(new CandidateClassification(
@@ -373,7 +412,11 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.CONFLICT, "候选当前状态 " + classification.reviewStatus() + " 不可重复审核");
         }
         if (request.decision() == KnowledgeCandidateReviewDecision.APPROVE) {
-            KnowledgeAssetVersion activated = activate(classification.identityId(), classification.candidateVersionId(), request.reason());
+            KnowledgeAssetVersion activated = activate(
+                classification.identityId(),
+                classification.candidateVersionId(),
+                request.reason(),
+                request.publishEvidence());
             CandidateClassification approved = candidateClassificationRepository.save(classificationWithStatus(
                 classification,
                 CandidateReviewStatus.APPROVED,
@@ -468,7 +511,11 @@ public class KnowledgeVersionService {
      * @return 激活后的新版（status=ACTIVE）
      */
     @Transactional
-    public KnowledgeAssetVersion activate(Long identityId, Long versionId, String reason) {
+    public KnowledgeAssetVersion activate(
+            Long identityId,
+            Long versionId,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
         String tenantId = requireCurrentTenant();
         String actor = currentActor();
         Instant now = Instant.now();
@@ -501,6 +548,11 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
         requireCitation(tenantId, target.id());
+        publishUnifiedVersion(
+            identity,
+            target,
+            normalizedReason,
+            VersionPublishEvidence.orEmpty(publishEvidence));
 
         // 3) 同一完整适用域内的当前 ACTIVE 版本（如有）→ SUPERSEDED
         String organizationScope = target.effectiveOrganizationScope();
@@ -589,6 +641,76 @@ public class KnowledgeVersionService {
             RequestContext.currentTraceId());
 
         return saved;
+    }
+
+    private void publishUnifiedVersion(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion target,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
+        AssetVersion assetVersion = requireUnifiedAssetVersion(identity, target);
+        VersionReleaseCommand command = knowledgeReleaseCommand(
+            identity, target, assetVersion, reason, publishEvidence);
+        switch (assetVersion.status()) {
+            case DRAFT -> {
+                releasePort.submitForReview(command);
+                releasePort.approveReview(command);
+                releasePort.publish(command);
+            }
+            case IN_REVIEW -> {
+                releasePort.approveReview(command);
+                releasePort.publish(command);
+            }
+            case APPROVED -> releasePort.publish(command);
+            case PUBLISHED -> {
+                // 已发布版本重复激活保持幂等，领域内容状态随后对齐。
+            }
+            case DEPRECATED, RETIRED ->
+                throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已下线，不能直接激活");
+        }
+    }
+
+    private AssetVersion requireUnifiedAssetVersion(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion version) {
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                identity.tenantId(),
+                VersionedAssetType.KNOWLEDGE,
+                identity.identityCode(),
+                version.versionNo())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.CONFLICT,
+                "知识版本缺少统一资产版本登记: "
+                    + identity.identityCode() + "@" + version.versionNo()));
+    }
+
+    private VersionReleaseCommand knowledgeReleaseCommand(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion version,
+            AssetVersion assetVersion,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
+        String conclusion = reason == null || reason.isBlank()
+            ? "知识版本审核通过"
+            : reason.trim();
+        return new VersionReleaseCommand(
+            identity.tenantId(),
+            VersionedAssetType.KNOWLEDGE,
+            identity.identityCode(),
+            assetVersion.versionId(),
+            assetVersion.organizationScope(),
+            assetVersion.applicableScope(),
+            null,
+            null,
+            RolloutPolicy.all(),
+            "知识版本 " + identity.identityCode() + "@" + version.versionNo()
+                + "；content_hash=" + version.contentHash(),
+            conclusion,
+            currentActor(),
+            RequestContext.currentTraceId(),
+            publishEvidence.electronicSignature(),
+            publishEvidence.qualityGate()
+        );
     }
 
     private String transitionReason(String reason, ConflictArbitration arbitration) {
@@ -728,6 +850,10 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.CONFLICT,
                 "仅 ACTIVE 版本可撤回，当前状态 " + target.status());
         }
+        AssetVersion unified = requireUnifiedAssetVersion(identity, target);
+        if (unified.status() != AssetVersionStatus.PUBLISHED) {
+            throw new ApiException(ErrorCode.CONFLICT, "仅统一底座已发布的知识版本可撤回");
+        }
 
         KnowledgeAssetVersion withdrawn = new KnowledgeAssetVersion(
             target.id(), target.tenantId(), target.identityId(),
@@ -747,6 +873,13 @@ public class KnowledgeVersionService {
             target.reviewCycleMonths(), target.nextReviewAt()
         );
         KnowledgeAssetVersion saved = versionRepository.save(withdrawn);
+        assetVersions.save(unified.withStatusAndWindow(
+            AssetVersionStatus.DEPRECATED,
+            "version:" + unified.versionId(),
+            unified.effectiveFrom(),
+            now,
+            now,
+            actor));
 
         // 身份 current_version_id 置 null（视为暂无权威版本）
         KnowledgeIdentity updatedIdentity = new KnowledgeIdentity(
@@ -859,6 +992,9 @@ public class KnowledgeVersionService {
     }
 
     private String organizationScope(KnowledgeApiContext context, String tenantId) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return PlatformAuthority.PLATFORM_ORG_PATH;
+        }
         OrgScope scope = new OrgScope(
             tenantId,
             context.groupId(),

@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -24,11 +25,13 @@ public record KnowledgeCandidateReviewRequest(
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String packageVersion,
     @NotNull KnowledgeCandidateReviewDecision decision,
-    @Size(max = 500) String reason
+    @Size(max = 500) String reason,
+    VersionPublishEvidence publishEvidence
 ) {
 
     public KnowledgeCandidateReviewRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
     }
 
     public KnowledgeApiContext context() {
