@@ -401,7 +401,7 @@ describe("KnowledgeGovernance", () => {
               signatureId: "sig-knowledge-2002",
               signerId: "expert-1",
               signerName: "审核专家",
-              signedAt: "2026-06-09T08:00:00.000Z",
+              signedAt: new Date("2026-06-09T16:00").toISOString(),
               signatureHash: "a".repeat(64),
             },
             qualityGate: {
@@ -421,7 +421,7 @@ describe("KnowledgeGovernance", () => {
     expect(refetchCandidates).toHaveBeenCalled();
     expect(refetchIdentities).toHaveBeenCalled();
     expect(screen.getByText("候选已通过审核并交由权威替换流程")).toBeInTheDocument();
-  }, 15_000);
+  });
 
   it("lets platform governance schedule a successor and grace period", async () => {
     const retiringIdentity = {
