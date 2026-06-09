@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -146,6 +148,7 @@ class PackageEngineServiceTest {
     private PilotPackageTemplateItemRepository pilotTemplateItemRepository;
     private TenantPackageReferenceRepository packageReferenceRepository;
     private InheritanceOverrideService inheritanceOverrideService;
+    private PackageEntitlementService entitlementService;
 
     private PackageSyncPort syncPort;
     private EffectiveKnowledgePackageResolver effectivePackageResolver;
@@ -183,6 +186,7 @@ class PackageEngineServiceTest {
         pilotTemplateItemRepository = mock(PilotPackageTemplateItemRepository.class);
         packageReferenceRepository = mock(TenantPackageReferenceRepository.class);
         inheritanceOverrideService = mock(InheritanceOverrideService.class);
+        entitlementService = mock(PackageEntitlementService.class);
 
         syncPort = mock(PackageSyncPort.class);
         effectivePackageResolver = mock(EffectiveKnowledgePackageResolver.class);
@@ -217,7 +221,7 @@ class PackageEngineServiceTest {
             knowledgeIdentityRepository, knowledgeVersionRepository,
             terminologyPackageRepository, terminologyPackageItemRepository, terminologyMappingRepository,
             pilotTemplateRepository, pilotTemplateItemRepository, packageReferenceRepository,
-            inheritanceOverrideService,
+            inheritanceOverrideService, entitlementService,
             syncPort, effectivePackageResolver, auditRecorder,
             transactionTemplate, versionedAssets, assetVersions, releasePort
         );
@@ -368,6 +372,34 @@ class PackageEngineServiceTest {
                 && command.applicableScope().equals("ALL")
         ));
         verify(auditRecorder).record(eq(AuditAction.CREATE), eq("knowledge_package"), any(), any());
+    }
+
+    @Test
+    void platformTenantCanCreateRestrictedPackage() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-pkg", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.COMMERCIAL", "2026.06"))
+            .thenReturn(Optional.empty());
+
+        PackageResponse response = service.createPackage(packageCreateRequest(
+            "PKG.COMMERCIAL", "2026.06", PackageAccessPolicy.ENTITLED));
+
+        assertThat(response.accessPolicy()).isEqualTo(PackageAccessPolicy.ENTITLED);
+        verify(packageRepository).save(argThat(pack ->
+            PlatformTenant.ID.equals(pack.tenantId())
+                && pack.accessPolicy() == PackageAccessPolicy.ENTITLED));
+    }
+
+    @Test
+    void customerTenantCannotCreateRestrictedPackage() {
+        assertThatThrownBy(() -> service.createPackage(packageCreateRequest(
+                "PKG.COMMERCIAL", "2026.06", PackageAccessPolicy.ENTITLED)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(packageRepository, never()).save(any(KnowledgePackage.class));
     }
 
     @Test
@@ -844,6 +876,95 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void listPilotTemplatesHidesRequiredRestrictedPackageWithoutEntitlement() {
+        PilotPackageTemplate template = activePilotTemplate(
+            PlatformTenant.ID, "tpl-entitled", "TPL.ENTITLED", "受限平台包模板");
+        PilotPackageTemplateItem item = new PilotPackageTemplateItem(
+            "tpl-item-entitled",
+            PlatformTenant.ID,
+            template.templateId(),
+            VersionedAssetType.PACKAGE,
+            "PKG.COMMERCIAL",
+            "2026.06",
+            true,
+            10,
+            "商业指南包",
+            Instant.now(),
+            "platform-admin",
+            Instant.now(),
+            "platform-admin",
+            "trace-pkg");
+        KnowledgePackage platformPackage = new KnowledgePackage(
+            1L,
+            "pkg-platform-commercial",
+            PlatformTenant.ID,
+            "PKG.COMMERCIAL",
+            "2026.06",
+            "商业指南包",
+            "受许可约束的平台知识包",
+            PackageAccessPolicy.ENTITLED,
+            KnowledgePackageStatus.ACTIVE,
+            Instant.now(),
+            "platform-admin",
+            Instant.now(),
+            "platform-admin",
+            "trace-pkg");
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "tenant-A", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of());
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                PlatformTenant.ID, PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of(template));
+        when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc(
+                PlatformTenant.ID, template.templateId()))
+            .thenReturn(List.of(item));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.COMMERCIAL", "2026.06"))
+            .thenReturn(Optional.of(platformPackage));
+        doThrow(new ApiException(ErrorCode.NOT_FOUND, "平台知识包不可用"))
+            .when(entitlementService)
+            .assertUsable("tenant-A", platformPackage);
+
+        assertThat(service.listPilotTemplates()).isEmpty();
+    }
+
+    @Test
+    void applyPilotTemplateReferencesRejectsPlatformPackageWithoutEntitlement() {
+        PilotPackageTemplate template = activePilotTemplate(
+            "t-1", "tpl-entitled", "TPL.ENTITLED", "受限平台包模板");
+        KnowledgePackage platformPackage = packageVersionForTenant(
+            "pkg-platform-commercial",
+            PlatformTenant.ID,
+            "PKG.COMMERCIAL",
+            "2026.06",
+            KnowledgePackageStatus.ACTIVE);
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "tenant-A", "TPL.ENTITLED", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                PlatformTenant.ID, "TPL.ENTITLED", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.of(template));
+        when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc(
+                PlatformTenant.ID, "tpl-entitled"))
+            .thenReturn(List.of(pilotTemplateItem(
+                "tpl-entitled", 10, VersionedAssetType.PACKAGE, "PKG.COMMERCIAL", "2026.06")));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.COMMERCIAL", "2026.06"))
+            .thenReturn(Optional.of(platformPackage));
+        doThrow(new ApiException(ErrorCode.NOT_FOUND, "平台知识包不可用"))
+            .when(entitlementService)
+            .assertUsable("tenant-A", platformPackage);
+
+        assertThatThrownBy(() -> service.applyPilotTemplateReferences(
+                "TPL.ENTITLED",
+                new PilotPackageTemplateApplyRequest("facility-1", List.of())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("平台知识包不可用");
+
+        verify(packageReferenceRepository, never()).save(any(TenantPackageReference.class));
+    }
+
+    @Test
     void getAssetReadinessReflectsReleasedPackagesAndGrayscaleEvidence() {
         when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
                 "tenant-A", PilotPackageTemplateStatus.ACTIVE))
@@ -882,6 +1003,12 @@ class PackageEngineServiceTest {
 
     @Test
     void getAssetReadinessTreatsActivePlatformReferencesAsReadyAssets() {
+        KnowledgePackage platformPackage = packageVersionForTenant(
+            "pkg-platform-ckd",
+            PlatformTenant.ID,
+            "PKG.CKD",
+            "2026.06",
+            KnowledgePackageStatus.ACTIVE);
         when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
                 "tenant-A", PilotPackageTemplateStatus.ACTIVE))
             .thenReturn(List.of());
@@ -909,6 +1036,11 @@ class PackageEngineServiceTest {
                 "tester",
                 "trace"
             )));
+        when(packageRepository.findByTenantIdAndPackageIdIn(
+                PlatformTenant.ID, Set.of("pkg-platform-ckd")))
+            .thenReturn(List.of(platformPackage));
+        when(entitlementService.usablePackageIds("tenant-A", List.of(platformPackage)))
+            .thenReturn(Set.of("pkg-platform-ckd"));
         when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
             .thenReturn(List.of(new ReleasePlan(
                 1L, "plan-gray", "tenant-A", "pkg-platform-ckd", "facility-1",
@@ -925,6 +1057,58 @@ class PackageEngineServiceTest {
         assertThat(readiness.activePackageReferenceCount()).isEqualTo(1);
         assertThat(readiness.readyPackageId()).isEqualTo("pkg-platform-ckd");
         assertThat(readiness.blockers()).isEmpty();
+    }
+
+    @Test
+    void getAssetReadinessDoesNotCountUnavailablePlatformReferences() {
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "tenant-A", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of());
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                PlatformTenant.ID, PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of(activePilotTemplate(
+                PlatformTenant.ID, "tpl-platform", "TPL.PLATFORM", "平台模板")));
+        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
+            .thenReturn(List.of());
+        when(packageReferenceRepository.findByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", TenantPackageReferenceStatus.ACTIVE))
+            .thenReturn(List.of(new TenantPackageReference(
+                1L,
+                "ref-pkg-commercial",
+                "tenant-A",
+                PlatformTenant.ID,
+                "pkg-platform-commercial",
+                "PKG.COMMERCIAL",
+                "2026.06",
+                "facility-1",
+                "TPL.PLATFORM",
+                TenantPackageReferenceStatus.ACTIVE,
+                Instant.now(),
+                "tester",
+                Instant.now(),
+                "tester",
+                "trace"
+            )));
+        when(packageRepository.findByTenantIdAndPackageIdIn(
+                PlatformTenant.ID, Set.of("pkg-platform-commercial")))
+            .thenReturn(List.of());
+        when(entitlementService.usablePackageIds("tenant-A", List.of()))
+            .thenReturn(Set.of());
+        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
+            .thenReturn(List.of(new ReleasePlan(
+                1L, "plan-gray", "tenant-A", "pkg-platform-commercial", "facility-1",
+                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
+                "facility-1",
+                ReleasePlanStatus.SUCCESS,
+                Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
+
+        PackageAssetReadinessResponse readiness = service.getAssetReadiness();
+
+        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.activePackageReferenceCount()).isZero();
+        assertThat(readiness.readyPackageId()).isNull();
+        assertThat(readiness.blockers()).contains("尚未引用平台配置资产包");
     }
 
     @Test
@@ -2711,6 +2895,15 @@ class PackageEngineServiceTest {
             1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
             status, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
+    }
+
+    private PackageCreateRequest packageCreateRequest(
+            String packageCode,
+            String packageVersion,
+            PackageAccessPolicy accessPolicy) {
+        return new PackageCreateRequest(
+            null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            packageCode, packageVersion, "平台知识包", "平台知识包说明", accessPolicy);
     }
 
     private KnowledgePackage packageVersionForTenant(

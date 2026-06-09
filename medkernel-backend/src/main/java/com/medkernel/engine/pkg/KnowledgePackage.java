@@ -20,6 +20,7 @@ public record KnowledgePackage(
     @Column("package_version") String packageVersion,
     String name,
     String description,
+    @Column("access_policy") PackageAccessPolicy accessPolicy,
     KnowledgePackageStatus status,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
@@ -27,10 +28,29 @@ public record KnowledgePackage(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
+    public KnowledgePackage(
+            Long id,
+            String packageId,
+            String tenantId,
+            String packageCode,
+            String packageVersion,
+            String name,
+            String description,
+            KnowledgePackageStatus status,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(
+            id, packageId, tenantId, packageCode, packageVersion, name, description,
+            PackageAccessPolicy.OPEN, status, createdAt, createdBy, updatedAt, updatedBy, traceId);
+    }
+
     public KnowledgePackage withStatus(KnowledgePackageStatus newStatus) {
         return new KnowledgePackage(
             id, packageId, tenantId, packageCode, packageVersion,
-            name, description, newStatus,
+            name, description, accessPolicy, newStatus,
             createdAt, createdBy, Instant.now(), updatedBy, traceId
         );
     }

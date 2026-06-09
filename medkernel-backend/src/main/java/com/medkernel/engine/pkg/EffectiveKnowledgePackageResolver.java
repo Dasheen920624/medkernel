@@ -27,14 +27,17 @@ public class EffectiveKnowledgePackageResolver {
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
     private final InheritanceResolver inheritanceResolver;
+    private final PackageEntitlementService entitlementService;
 
     public EffectiveKnowledgePackageResolver(
             KnowledgePackageRepository packageRepository,
             PackageItemRepository itemRepository,
-            InheritanceResolver inheritanceResolver) {
+            InheritanceResolver inheritanceResolver,
+            PackageEntitlementService entitlementService) {
         this.packageRepository = packageRepository;
         this.itemRepository = itemRepository;
         this.inheritanceResolver = inheritanceResolver;
+        this.entitlementService = entitlementService;
     }
 
     public EffectiveKnowledgePackageResponse resolve(
@@ -65,6 +68,7 @@ public class EffectiveKnowledgePackageResolver {
         if (pack.status() != KnowledgePackageStatus.PUBLISHED && pack.status() != KnowledgePackageStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "平台基线知识包尚未发布，不能解析有效包: " + pack.packageId());
         }
+        entitlementService.assertUsable(effectiveTenantId, pack);
 
         List<PackageItem> declaredItems =
             itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, pack.packageId());

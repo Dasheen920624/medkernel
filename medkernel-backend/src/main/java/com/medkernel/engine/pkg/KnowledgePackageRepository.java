@@ -2,6 +2,7 @@ package com.medkernel.engine.pkg;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
@@ -24,6 +25,8 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
         String tenantId, KnowledgePackageStatus status);
 
     List<KnowledgePackage> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
+
+    List<KnowledgePackage> findByTenantIdAndPackageIdIn(String tenantId, Set<String> packageIds);
 
     @Query("""
         SELECT * FROM knowledge_package

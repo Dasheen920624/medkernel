@@ -37,7 +37,7 @@
 | `AssetVersion.lifecycle_state` | 列 | 生命周期 |
 | `applicable_scope` 编码 | 约定 | 键值集（附录 O3b） |
 | `asset_dependency` | 表 | 依赖图（附录 D6） |
-| `package_entitlement` | 表 | 授权（附录 I5） |
+| `mk_pkg_package_entitlement` | 表 | 授权（附录 I5） |
 | `RolloutStrategy` / `UpgradeMode` | 枚举 | 策略与通道 |
 | `ScopeMatcher` / `SafetyMonotonicityCheck` / `DependencyValidator` | 组件 | 解析层/各域 |
 

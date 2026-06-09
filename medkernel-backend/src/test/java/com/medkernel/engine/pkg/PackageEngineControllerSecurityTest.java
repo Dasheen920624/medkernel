@@ -43,7 +43,8 @@ class PackageEngineControllerSecurityTest {
           "packageCode": "PKG.COPD",
           "packageVersion": "1.0.0",
           "name": "慢阻肺专病包",
-          "description": "慢阻肺资产包"
+          "description": "慢阻肺资产包",
+          "accessPolicy": "OPEN"
         }
         """;
 
@@ -104,7 +105,8 @@ class PackageEngineControllerSecurityTest {
               "packageCode": "PKG.COPD",
               "packageVersion": "1.0.0",
               "name": "慢阻肺专病包",
-              "description": "慢阻肺资产包"
+              "description": "慢阻肺资产包",
+              "accessPolicy": "OPEN"
             }
             """.formatted(standardContextFields(tenantId));
     }
@@ -141,6 +143,26 @@ class PackageEngineControllerSecurityTest {
             """.formatted(standardContextFields(tenantId));
     }
 
+    private static String grantEntitlementBody(String tenantId) {
+        return """
+            {
+              %s,
+              "targetTenantId": "tenant-A",
+              "expiresAt": "2026-12-31T15:59:59Z",
+              "reason": "商业许可已完成审批"
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
+    private static String revokeEntitlementBody(String tenantId) {
+        return """
+            {
+              %s,
+              "reason": "商业许可终止"
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
     @Autowired
     MockMvc mvc;
 
@@ -149,6 +171,9 @@ class PackageEngineControllerSecurityTest {
 
     @MockBean
     PackageInheritanceImpactService inheritanceImpactService;
+
+    @MockBean
+    PackageEntitlementService entitlementService;
 
     @AfterEach
     void clearAll() {
@@ -234,6 +259,73 @@ class PackageEngineControllerSecurityTest {
 
         mvc.perform(get(PKG_ROOT + "/asset-readiness"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void onlyPlatformAdminCanManagePackageEntitlements() throws Exception {
+        Instant now = Instant.parse("2026-06-09T06:00:00Z");
+        PackageEntitlementResponse response = new PackageEntitlementResponse(
+            "entitlement-1",
+            "tenant-A",
+            "pkg-commercial",
+            "PKG.COMMERCIAL@2026.06",
+            PackageEntitlementViewStatus.ACTIVE,
+            now,
+            Instant.parse("2026-12-31T15:59:59Z"),
+            "商业许可已完成审批",
+            now,
+            "platform-admin");
+        when(entitlementService.list(eq("pkg-commercial"), any()))
+            .thenReturn(new com.medkernel.shared.api.PageResponse<>(
+                List.of(response), 1, 20, 1, false, false));
+        when(entitlementService.grant(eq("pkg-commercial"), any(PackageEntitlementGrantRequest.class)))
+            .thenReturn(response);
+        when(entitlementService.revoke(
+                eq("pkg-commercial"), eq("tenant-A"), any(PackageEntitlementRevokeRequest.class)))
+            .thenReturn(new PackageEntitlementResponse(
+                response.entitlementId(),
+                response.tenantId(),
+                response.platformPackageId(),
+                response.packageIdentity(),
+                PackageEntitlementViewStatus.REVOKED,
+                response.grantedAt(),
+                response.expiresAt(),
+                "商业许可终止",
+                now,
+                "platform-admin"));
+
+        mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
+                .with(jwt()
+                    .jwt(token -> token.subject("it-ops").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isForbidden());
+
+        var platformJwt = jwt()
+            .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+
+        mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
+                .with(platformJwt))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].status").value("ACTIVE"));
+
+        mvc.perform(post(PKG_ROOT + "/pkg-commercial/entitlements")
+                .contentType("application/json")
+                .content(grantEntitlementBody("t-1"))
+                .with(jwt()
+                    .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.tenantId").value("tenant-A"));
+
+        mvc.perform(post(PKG_ROOT + "/pkg-commercial/entitlements/tenant-A:revoke")
+                .contentType("application/json")
+                .content(revokeEntitlementBody("t-1"))
+                .with(jwt()
+                    .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("REVOKED"));
     }
 
     @Test

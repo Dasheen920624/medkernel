@@ -36,12 +36,15 @@ public class PackageEngineController {
 
     private final PackageEngineService service;
     private final PackageInheritanceImpactService inheritanceImpactService;
+    private final PackageEntitlementService entitlementService;
 
     public PackageEngineController(
             PackageEngineService service,
-            PackageInheritanceImpactService inheritanceImpactService) {
+            PackageInheritanceImpactService inheritanceImpactService,
+            PackageEntitlementService entitlementService) {
         this.service = service;
         this.inheritanceImpactService = inheritanceImpactService;
+        this.entitlementService = entitlementService;
     }
 
     /**
@@ -107,6 +110,51 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.read')")
     public ApiResult<PackageAssetReadinessResponse> assetReadiness() {
         return ApiResult.ok(service.getAssetReadiness());
+    }
+
+    /**
+     * 分页查询受限平台包的租户授权。
+     *
+     * <p>权限：{@code platform.publish}。
+     */
+    @GetMapping("/{packageId}/entitlements")
+    @PreAuthorize("@perm.has('platform.publish')")
+    public ApiResult<PageResponse<PackageEntitlementResponse>> listEntitlements(
+            @PathVariable String packageId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(entitlementService.list(packageId, new PageRequest(page, size, sort)));
+    }
+
+    /**
+     * 为目标租户开通或续期受限平台包授权。
+     *
+     * <p>权限：{@code platform.publish}。
+     */
+    @PostMapping("/{packageId}/entitlements")
+    @PreAuthorize("@perm.has('platform.publish')")
+    public ResponseEntity<ApiResult<PackageEntitlementResponse>> grantEntitlement(
+            @PathVariable String packageId,
+            @RequestBody @Valid PackageEntitlementGrantRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(entitlementService.grant(packageId, request)));
+    }
+
+    /**
+     * 撤销目标租户的受限平台包授权。
+     *
+     * <p>权限：{@code platform.publish}。
+     */
+    @PostMapping("/{packageId}/entitlements/{tenantId}:revoke")
+    @PreAuthorize("@perm.has('platform.publish')")
+    public ApiResult<PackageEntitlementResponse> revokeEntitlement(
+            @PathVariable String packageId,
+            @PathVariable String tenantId,
+            @RequestBody @Valid PackageEntitlementRevokeRequest request) {
+        validateContext(request);
+        return ApiResult.ok(entitlementService.revoke(packageId, tenantId, request));
     }
 
     /**

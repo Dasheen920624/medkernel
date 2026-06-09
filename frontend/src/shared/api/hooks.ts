@@ -6401,6 +6401,8 @@ export function useSaveWorkflowSystemNotificationSettings() {
 
 const PACKAGE_API_ROOT = "/engine/pkg/packages";
 
+export type PackageAccessPolicy = "OPEN" | "ENTITLED";
+
 export interface PackageReleaseAdapter {
   adapterId: string;
   adapterName: string;
@@ -6417,6 +6419,7 @@ export interface PackageCreateRequest {
   packageVersion: string;
   name: string;
   description: string;
+  accessPolicy: PackageAccessPolicy;
 }
 
 export interface PackageResponse {
@@ -6424,9 +6427,9 @@ export interface PackageResponse {
   packageCode: string;
   packageVersion: string;
   name: string;
+  description: string;
+  accessPolicy: PackageAccessPolicy;
   status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
-  createdAt: string;
-  createdBy: string;
 }
 
 export interface KnowledgePackage {
@@ -6437,6 +6440,7 @@ export interface KnowledgePackage {
   packageVersion: string;
   name: string;
   description: string;
+  accessPolicy: PackageAccessPolicy;
   status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
   createdAt: string;
   createdBy: string;
@@ -6463,8 +6467,30 @@ export interface PackageDetailResponse {
   packageVersion: string;
   name: string;
   description: string;
+  accessPolicy: PackageAccessPolicy;
   status: string;
   items: PackageItem[];
+}
+
+export type PackageEntitlementStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
+
+export interface PackageEntitlement {
+  entitlementId: string;
+  tenantId: string;
+  platformPackageId: string;
+  packageIdentity: string;
+  status: PackageEntitlementStatus;
+  grantedAt: string;
+  expiresAt: string;
+  reason: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface PackageEntitlementGrantRequest {
+  targetTenantId: string;
+  expiresAt: string;
+  reason: string;
 }
 
 export interface PackageItemRequest {
@@ -6732,6 +6758,69 @@ export function usePackages(params: PackageListParams = {}) {
           totalEstimated: false,
         }
       );
+    },
+  });
+}
+
+export function usePackageEntitlements(packageId: string, enabled = true, page = 1, size = 20) {
+  return useQuery({
+    queryKey: ["packages", packageId, "entitlements", page, size],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<PackageEntitlement> }>(
+        `${PACKAGE_API_ROOT}/${packageId}/entitlements`,
+        { params: { page, size } },
+      );
+      return data.data;
+    },
+    enabled: enabled && Boolean(packageId),
+  });
+}
+
+export function useGrantPackageEntitlement() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageId: string;
+      packageVersion: string;
+      request: PackageEntitlementGrantRequest;
+    }) => {
+      const { data } = await apiClient.post<{ data: PackageEntitlement }>(
+        `${PACKAGE_API_ROOT}/${payload.packageId}/entitlements`,
+        withStandardApiContext(payload.request, security.data, payload.packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: async (_result, payload) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["packages", payload.packageId, "entitlements"],
+      });
+    },
+  });
+}
+
+export function useRevokePackageEntitlement() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageId: string;
+      packageVersion: string;
+      tenantId: string;
+      reason: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: PackageEntitlement }>(
+        `${PACKAGE_API_ROOT}/${payload.packageId}/entitlements/${encodeURIComponent(
+          payload.tenantId,
+        )}:revoke`,
+        withStandardApiContext({ reason: payload.reason }, security.data, payload.packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: async (_result, payload) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["packages", payload.packageId, "entitlements"],
+      });
     },
   });
 }
@@ -9053,13 +9142,14 @@ export interface ProvisionTenantResult {
   tempPassword: string | null;
 }
 
-export function useTenants() {
+export function useTenants(enabled = true) {
   return useQuery({
     queryKey: ["platform-tenants"],
     queryFn: async () => {
       const resp = await apiClient.get<{ data: TenantSummary[] }>("/admin/tenants");
       return resp.data.data;
     },
+    enabled,
   });
 }
 

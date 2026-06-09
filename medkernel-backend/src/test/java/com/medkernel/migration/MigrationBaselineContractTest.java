@@ -136,7 +136,8 @@ class MigrationBaselineContractTest {
         "V107__asset_dependency_integrity.sql",
         "V108__asset_lifecycle_quality_gate.sql",
         "V109__knowledge_evidence_governance.sql",
-        "V110__release_simulation_rollout.sql"
+        "V110__release_simulation_rollout.sql",
+        "V111__package_entitlement.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -167,7 +168,7 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_pkg_package_entitlement", "release_plan", "sync_log",
         "mk_pkg_tenant_package_reference",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "mk_version_rollout_observation", "mk_version_override_template",
@@ -381,6 +382,8 @@ class MigrationBaselineContractTest {
         "idx_mk_version_rollout_plan",
         "idx_mk_version_override_template_tenant",
         "idx_mk_version_override_operation_tenant",
+        "idx_package_entitlement_package_status",
+        "idx_package_entitlement_tenant_status",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
         "idx_mk_ctx_field_catalog_tenant",
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
@@ -388,6 +391,12 @@ class MigrationBaselineContractTest {
         "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
+        "ck_knowledge_package_access_policy",
+        "uk_package_entitlement_id",
+        "uk_package_entitlement_tenant_package",
+        "fk_package_entitlement_platform_package",
+        "ck_package_entitlement_status",
+        "ck_package_entitlement_expiry",
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
         "ck_org_unit_facility_type", "pk_mk_org_secondary_membership",
         "fk_mk_org_secondary_child", "fk_mk_org_secondary_parent",
@@ -2563,6 +2572,26 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_version_rollout_observation")
                 .contains("COMMENT ON TABLE mk_version_override_template")
                 .contains("COMMENT ON TABLE mk_version_override_operation");
+        }
+    }
+
+    @Test
+    void v111MustPersistPackageAccessPolicyAndTenantEntitlementForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V111__package_entitlement.sql");
+            assertThat(ddl)
+                .as("%s 平台包授权迁移", dialect)
+                .contains("access_policy")
+                .contains("mk_pkg_package_entitlement")
+                .contains("package_identity")
+                .contains("platform_package_id")
+                .contains("expires_at")
+                .contains("GRANTED")
+                .contains("REVOKED")
+                .contains("uk_package_entitlement_tenant_package")
+                .contains("idx_package_entitlement_package_status")
+                .contains("COMMENT ON TABLE mk_pkg_package_entitlement")
+                .contains("COMMENT ON COLUMN knowledge_package.access_policy");
         }
     }
 
