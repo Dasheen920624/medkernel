@@ -55,22 +55,35 @@ const { Text, Title } = Typography;
 type OrgLevelCode = OrgUnit["level"];
 
 const levelRank: Record<OrgLevelCode, number> = {
-  TENANT: 0,
-  GROUP: 1,
-  HOSPITAL: 2,
-  CAMPUS: 3,
-  SITE: 4,
+  PLATFORM: 0,
+  TENANT: 1,
+  REGION: 2,
+  FACILITY: 3,
+  CAMPUS: 4,
   DEPARTMENT: 5,
+  WARD: 6,
 };
 
 const levelLabel: Record<OrgLevelCode, string> = {
+  PLATFORM: "平台权威层",
   TENANT: "租户根",
-  GROUP: "集团",
-  HOSPITAL: "医院",
+  REGION: "区域/联合体",
+  FACILITY: "医疗机构",
   CAMPUS: "院区",
-  SITE: "社区服务点",
   DEPARTMENT: "科室",
+  WARD: "病区/护理单元",
 };
+
+const facilityTypeOptions: Array<{
+  value: NonNullable<OrgUnit["facilityType"]>;
+  label: string;
+}> = [
+  { value: "HOSPITAL", label: "医院" },
+  { value: "COMMUNITY_HEALTH_CENTER", label: "社区卫生服务中心" },
+  { value: "TOWNSHIP_CLINIC", label: "乡镇卫生院" },
+  { value: "STATION", label: "卫生服务站" },
+  { value: "OTHER", label: "其他医疗机构" },
+];
 
 const themeOptions = [
   { name: "深蓝", color: "var(--mk-theme-navy)", className: styles.themeNavy },
@@ -418,6 +431,7 @@ function CustomerTenantImplementation() {
       await createOrgMutation.mutateAsync({
         parentId: values.parentId || null,
         level: values.level,
+        facilityType: values.level === "FACILITY" ? values.facilityType : null,
         code: values.code,
         name: values.name,
         namePinyin: values.namePinyin || null,
@@ -625,15 +639,28 @@ function CustomerTenantImplementation() {
                       >
                         <Select
                           placeholder="请选择组织层级"
-                          onChange={() => form.setFieldValue("parentId", undefined)}
+                          onChange={() => {
+                            form.setFieldValue("parentId", undefined);
+                            form.setFieldValue("facilityType", undefined);
+                          }}
                         >
-                          <Option value="GROUP">集团</Option>
-                          <Option value="HOSPITAL">医院</Option>
+                          <Option value="REGION">区域/联合体</Option>
+                          <Option value="FACILITY">医疗机构</Option>
                           <Option value="CAMPUS">院区</Option>
-                          <Option value="SITE">社区服务点</Option>
                           <Option value="DEPARTMENT">科室</Option>
+                          <Option value="WARD">病区/护理单元</Option>
                         </Select>
                       </Form.Item>
+
+                      {selectedLevel === "FACILITY" && (
+                        <Form.Item
+                          name="facilityType"
+                          label="机构类型"
+                          rules={[{ required: true, message: "请选择机构类型" }]}
+                        >
+                          <Select placeholder="请选择医疗机构类型" options={facilityTypeOptions} />
+                        </Form.Item>
+                      )}
 
                       <Form.Item
                         name="code"
@@ -694,7 +721,7 @@ function CustomerTenantImplementation() {
                         onClick={handleOrgSubmit}
                         loading={createOrgMutation.isPending}
                       >
-                        新增组织节点
+                        保存组织节点
                       </Button>
                     </Form>
                   </Card>

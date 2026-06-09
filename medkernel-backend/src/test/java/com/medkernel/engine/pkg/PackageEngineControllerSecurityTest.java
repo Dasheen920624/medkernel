@@ -211,6 +211,12 @@ class PackageEngineControllerSecurityTest {
     @MockBean
     PathwayKnowledgePackageService pathwayPackageService;
 
+    @Autowired
+    KnowledgePackageRepository packageRepository;
+
+    @Autowired
+    PackageItemRepository itemRepository;
+
     @AfterEach
     void clearAll() {
         RequestContext.clear();
@@ -408,6 +414,61 @@ class PackageEngineControllerSecurityTest {
                     .jwt(token -> token.subject("specialist").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
             .andExpect(status().isCreated());
+    }
+
+    @Test
+    void medicalAffairsCanReleaseTerminologyPackageThroughUnifiedPackageRoot() throws Exception {
+        Instant now = Instant.parse("2026-06-09T00:00:00Z");
+        packageRepository.save(new KnowledgePackage(
+            null,
+            "term-pkg-1",
+            "tenant-A",
+            "TERM.TEST",
+            "1.0.0",
+            "测试术语包",
+            "领域发布权限测试",
+            KnowledgePackageStatus.DRAFT,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-term-1"));
+        itemRepository.save(new PackageItem(
+            null,
+            "item-term-1",
+            "tenant-A",
+            "term-pkg-1",
+            VersionedAssetType.TERMINOLOGY,
+            "TERM.TEST|DEPARTMENT|dept-A",
+            "1.0.0",
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-term-1"));
+        when(service.releasePackage(eq("term-pkg-1"), any(PackageSyncRequest.class)))
+            .thenReturn(new PackageSyncResponse(
+                "plan-term-1",
+                "term-pkg-1",
+                ReleasePlanStatus.NOT_SYNCED,
+                List.of()));
+        when(service.listReleaseAdapters()).thenReturn(List.of());
+
+        mvc.perform(post(PKG_ROOT + "/term-pkg-1/release")
+                .contentType("application/json")
+                .content(syncBodyWithContext("tenant-A")
+                    .replace("[\"it-ops\"]", "[\"medical-affairs\"]"))
+                .with(jwt()
+                    .jwt(token -> token.subject("medical-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.packageId").value("term-pkg-1"));
+
+        mvc.perform(get(PKG_ROOT + "/release-adapters")
+                .with(jwt()
+                    .jwt(token -> token.subject("medical-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"))))
+            .andExpect(status().isOk());
     }
 
     @Test

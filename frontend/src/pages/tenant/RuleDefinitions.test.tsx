@@ -28,21 +28,22 @@ const apiMocks = vi.hoisted(() => ({
     items: [
       {
         id: "group-1",
-        level: "GROUP",
+        level: "REGION",
         code: "GROUP-A",
         name: "华东集团",
         status: "ACTIVE",
       },
       {
         id: "group-2",
-        level: "GROUP",
+        level: "REGION",
         code: "GROUP-B",
         name: "华南集团",
         status: "ACTIVE",
       },
       {
         id: "hospital-1",
-        level: "HOSPITAL",
+        level: "FACILITY",
+        facilityType: "HOSPITAL",
         code: "HOSP-A",
         name: "第一医院",
         status: "ACTIVE",
@@ -1016,7 +1017,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           size: 50,
           sort: "name,asc",
           keyword: "华北",
-          level: "GROUP",
+          level: "REGION",
           status: "ACTIVE",
         }),
       );

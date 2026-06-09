@@ -78,6 +78,7 @@ import type {
   PackageInheritanceImpactQuery,
   PackageInheritanceImpactTarget,
   PilotPackageInitialOverrideRequest,
+  OrgUnit,
   SyncLogResponse,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -131,6 +132,28 @@ const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }>
   { value: "ACTIVE", label: "生效中" },
   { value: "OFFLINE", label: "已下线" },
 ];
+
+const orgLevelLabel: Record<OrgUnit["level"], string> = {
+  PLATFORM: "平台",
+  TENANT: "租户",
+  REGION: "区域/联合体",
+  FACILITY: "医疗机构",
+  CAMPUS: "院区",
+  DEPARTMENT: "科室",
+  WARD: "病区/护理单元",
+};
+
+const facilityTypeLabel: Record<NonNullable<OrgUnit["facilityType"]>, string> = {
+  HOSPITAL: "医院",
+  COMMUNITY_HEALTH_CENTER: "社区卫生服务中心",
+  TOWNSHIP_CLINIC: "乡镇卫生院",
+  STATION: "卫生服务站",
+  OTHER: "其他医疗机构",
+};
+
+function orgUnitTypeLabel(unit: OrgUnit) {
+  return unit.facilityType ? facilityTypeLabel[unit.facilityType] : orgLevelLabel[unit.level];
+}
 
 const inheritancePerspectiveOptions: Array<{ value: InheritancePerspective; label: string }> = [
   { value: "PLATFORM", label: "平台视角" },
@@ -490,7 +513,7 @@ export default function ConfigPackages() {
     .filter((unit) => unit.status === "ACTIVE" && Boolean(unit.id))
     .map((unit) => ({
       value: unit.id as string,
-      label: `${unit.name} · ${unit.level} · ${unit.code}`,
+      label: `${unit.name} · ${orgUnitTypeLabel(unit)} · ${unit.code}`,
     }));
 
   const createPackageMutation = useCreatePackage();

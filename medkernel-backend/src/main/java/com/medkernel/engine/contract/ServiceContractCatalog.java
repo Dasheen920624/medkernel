@@ -315,7 +315,9 @@ public final class ServiceContractCatalog {
             "com.medkernel.engine.pkg.PackageEngineController", "/api/v1/engine/pkg/packages",
             permissions(
                 "package.publish", "package.read", "package.rollback", "tenant.override", "platform.publish",
-                "term.read", "term.write", "pathway.read", "pathway.write"),
+                "term.read", "term.write", "term.publish",
+                "pathway.read", "pathway.write", "pathway.publish",
+                "rule.publish", "knowledge.publish", "evaluation.publish"),
             audits(
                 audit(AuditAction.CREATE, "knowledge_package", "创建配置包和包条目"),
                 audit(AuditAction.PERMISSION_CHANGE, "package_entitlement", "开通、续期和撤销受限平台包授权"),
@@ -420,11 +422,8 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.UPDATE, "tenant_lifecycle", "推进租户生命周期"))),
         contract("terminology", "字典映射服务",
             "com.medkernel.engine.terminology.TerminologyController", "/api/v1/engine/terminology",
-            permissions("term.read", "term.write", "term.publish", "package.rollback"),
-            audits(
-                audit(AuditAction.CREATE, "term_mapping", "确认和解决字典映射"),
-                audit(AuditAction.PUBLISH, "term_package", "发布字典包"),
-                audit(AuditAction.ROLLBACK, "term_package", "回滚字典包"))),
+            permissions("term.read", "term.write"),
+            audits(audit(AuditAction.CREATE, "term_mapping", "确认和解决字典映射"))),
         contract("developer-console", "开发者控制台服务",
             "com.medkernel.engine.developer.DeveloperConsoleController", "/api/v1/system/dev-console",
             permissions("system.read"),

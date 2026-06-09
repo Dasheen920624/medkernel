@@ -116,7 +116,8 @@ vi.mock("@/shared/api/hooks", () => ({
           id: "hospital-1",
           tenantId: "tenant-A",
           orgPath: "tenant-A/hospital-1",
-          level: "HOSPITAL",
+          level: "FACILITY",
+          facilityType: "HOSPITAL",
           code: "HOSPITAL-1",
           name: "总院",
           status: "ACTIVE",
@@ -607,7 +608,7 @@ describe("ConfigPackages offline package export", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "导出离线包" }));
       fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
-      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.click(await screen.findByText("总院 · 医院 · HOSPITAL-1"));
       await userEvent.click(screen.getByRole("button", { name: "导出有效快照" }));
 
       await waitFor(() => {
@@ -1054,7 +1055,7 @@ describe("ConfigPackages offline package export", () => {
       fireEvent.mouseDown(screen.getByLabelText("选择发布适配器"));
       await userEvent.click(await screen.findByText(/院内 HIS 同步通道/));
       fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
-      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.click(await screen.findByText("总院 · 医院 · HOSPITAL-1"));
       await userEvent.type(screen.getByLabelText("发布说明"), "先按默认灰度验证");
       await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
 
@@ -1116,7 +1117,7 @@ describe("ConfigPackages offline package export", () => {
       fireEvent.mouseDown(screen.getByLabelText("选择发布适配器"));
       await userEvent.click(await screen.findByText(/院内 HIS 同步通道/));
       fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
-      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.click(await screen.findByText("总院 · 医院 · HOSPITAL-1"));
       await userEvent.type(screen.getByLabelText("发布说明"), "验证失败适配器证据");
       await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
 

@@ -114,7 +114,9 @@ class DefaultPermissionPolicyTest {
         }
         assertThat(perms)
             .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
-            .doesNotContain(PermissionCode.MENU_SYSTEM_PROVIDERS);
+            .doesNotContain(
+                PermissionCode.MENU_IDENTITY_BINDINGS,
+                PermissionCode.MENU_SYSTEM_PROVIDERS);
     }
 
     @Test
@@ -128,13 +130,42 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
-    void medicalAffairsCanPublishKnowledgeAndPathways() {
+    void implementationMenusBelongToImplementationAndAdministratorRoles() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+            .contains(
+                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+                PermissionCode.MENU_TENANT_ONBOARDING);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .doesNotContain(
+                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+                PermissionCode.MENU_TENANT_ONBOARDING);
+    }
+
+    @Test
+    void medicalAffairsCanPublishGovernedClinicalAssetsWithoutAuthoringTerminology() {
         var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS);
         assertThat(perms).contains(
             PermissionCode.KNOWLEDGE_REVIEW, PermissionCode.KNOWLEDGE_PUBLISH,
-            PermissionCode.KNOWLEDGE_WITHDRAW, PermissionCode.KNOWLEDGE_EXPORT,
+            PermissionCode.KNOWLEDGE_WITHDRAW, PermissionCode.KNOWLEDGE_EXPORT, PermissionCode.TERM_PUBLISH,
             PermissionCode.PATHWAY_PUBLISH, PermissionCode.RULE_PUBLISH);
-        assertThat(perms).doesNotContain(PermissionCode.SYSTEM_MANAGE);
+        assertThat(perms).doesNotContain(PermissionCode.TERM_WRITE, PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
+    void terminologyMenuMatchesTheThreeResponsibleRoles() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
+                PermissionCode.TERM_WRITE, PermissionCode.TERM_PUBLISH);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.SPECIALIST))
+            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
+                PermissionCode.TERM_WRITE)
+            .doesNotContain(PermissionCode.TERM_PUBLISH);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS))
+            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
+                PermissionCode.TERM_PUBLISH)
+            .doesNotContain(PermissionCode.TERM_WRITE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+            .doesNotContain(PermissionCode.MENU_TERMINOLOGY_MAPPING);
     }
 
     @Test

@@ -297,6 +297,7 @@ export default function TerminologyMapping() {
   const [rollbackForm] = Form.useForm();
 
   const security = useSecurityProfile();
+  const canPublish = hasPermission(security.data, "term.publish");
   const query = useTerminologyMappings({
     page: request.pageNumber,
     size: request.pageSize,
@@ -321,7 +322,7 @@ export default function TerminologyMapping() {
   });
   const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
   const packages = usePackages({ page: 0, size: 10, assetType: "TERMINOLOGY" });
-  const releaseAdapters = usePackageReleaseAdapters();
+  const releaseAdapters = usePackageReleaseAdapters(canPublish);
   const confirmCandidate = useConfirmTerminologyCandidate();
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
   const buildPackage = useBuildTerminologyKnowledgePackage();
@@ -384,7 +385,6 @@ export default function TerminologyMapping() {
   const routeAllowed = !security.data || canAccessRoute(route, security.data);
   const canExport = hasPermission(security.data, "list.export");
   const canWrite = hasPermission(security.data, "term.write");
-  const canPublish = hasPermission(security.data, "term.publish");
   const canRollback = hasPermission(security.data, "package.rollback");
   const mappingItems = query.data?.items ?? [];
   const standardItems = standardTerms.data?.items ?? [];

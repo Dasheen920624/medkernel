@@ -198,9 +198,13 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     const onboardingSource = readSource("src/pages/tenant/TenantOnboarding.tsx");
 
     expect(onboardingSource).not.toContain('value="TENANT"');
-    for (const level of ["GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT"]) {
+    for (const level of ["REGION", "FACILITY", "CAMPUS", "DEPARTMENT", "WARD"]) {
       expect(onboardingSource).toContain(`value="${level}"`);
     }
+    for (const legacyLevel of ["GROUP", "HOSPITAL", "SITE"]) {
+      expect(onboardingSource).not.toContain(`value="${legacyLevel}"`);
+    }
+    expect(onboardingSource).toContain('value: "HOSPITAL", label: "医院"');
     expect(onboardingSource).not.toContain('value="SPECIALTY"');
     expect(onboardingSource).not.toContain("SPECIALTY");
     expect(onboardingSource).toContain("专病适用维度");

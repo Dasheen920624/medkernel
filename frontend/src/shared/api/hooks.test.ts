@@ -2155,6 +2155,24 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("queries organization units with the canonical region and facility levels", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { data: { items: [], total: 0 } } });
+
+    const region = renderApiHook(() => useOrgUnits({ level: "REGION" }));
+    await waitFor(() => expect(region.result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/engine/org/org-units", {
+      params: { level: "REGION" },
+    });
+
+    const facility = renderApiHook(() => useOrgUnits({ level: "FACILITY" }));
+    await waitFor(() => expect(facility.result.current.isSuccess).toBe(true));
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenLastCalledWith("/engine/org/org-units", {
+        params: { level: "FACILITY" },
+      }),
+    );
+  });
+
   it("loads the active organization user directory without using the admin user API", async () => {
     const page = {
       items: [{ userId: "doctor-1", displayName: "王医生" }],

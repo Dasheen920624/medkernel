@@ -253,10 +253,22 @@ describe("SecurityBaseline", () => {
     vi.mocked(useOrgUnits).mockReturnValue(
       query({
         items: [
-          { id: "g-1", level: "GROUP", code: "GROUP-1", name: "第一医疗集团" },
-          { id: "h-1", level: "HOSPITAL", code: "HOSP-1", name: "集团总院" },
+          { id: "g-1", level: "REGION", code: "GROUP-1", name: "第一医疗集团" },
+          {
+            id: "h-1",
+            level: "FACILITY",
+            facilityType: "HOSPITAL",
+            code: "HOSP-1",
+            name: "集团总院",
+          },
           { id: "c-1", level: "CAMPUS", code: "CAMPUS-1", name: "东院区" },
-          { id: "s-1", level: "SITE", code: "SITE-1", name: "门诊服务点" },
+          {
+            id: "s-1",
+            level: "FACILITY",
+            facilityType: "STATION",
+            code: "SITE-1",
+            name: "门诊服务点",
+          },
           {
             id: "d-1",
             level: "DEPARTMENT",
@@ -412,10 +424,10 @@ describe("SecurityBaseline", () => {
     await user.click(screen.getByRole("button", { name: /新增策略/ }));
     const dialog = screen.getByRole("dialog", { name: "新增数据权限策略" });
 
-    expect(within(dialog).getByRole("combobox", { name: "集团" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "集团/联合体" })).toBeInTheDocument();
     expect(within(dialog).getByRole("combobox", { name: "医院" })).toBeInTheDocument();
     expect(within(dialog).getByRole("combobox", { name: "院区" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("combobox", { name: "服务点" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "基层服务点" })).toBeInTheDocument();
     expect(within(dialog).getByRole("combobox", { name: "科室" })).toBeInTheDocument();
     expect(within(dialog).getByRole("combobox", { name: "专科" })).toBeInTheDocument();
 
