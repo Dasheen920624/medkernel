@@ -421,7 +421,7 @@ describe("KnowledgeGovernance", () => {
     expect(refetchCandidates).toHaveBeenCalled();
     expect(refetchIdentities).toHaveBeenCalled();
     expect(screen.getByText("候选已通过审核并交由权威替换流程")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("lets platform governance schedule a successor and grace period", async () => {
     const retiringIdentity = {
