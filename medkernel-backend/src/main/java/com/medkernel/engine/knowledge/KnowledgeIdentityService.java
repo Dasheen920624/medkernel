@@ -15,6 +15,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.AssetIdentityAllocator;
 
 /**
  * 知识身份业务服务。
@@ -39,6 +40,7 @@ public class KnowledgeIdentityService {
     private final SourceVersionRepository sourceVersionRepository;
     private final SourceFragmentRepository sourceFragmentRepository;
     private final CitationRepository citationRepository;
+    private final AssetIdentityAllocator identityAllocator;
 
     public KnowledgeIdentityService(KnowledgeIdentityRepository identityRepository,
                                     KnowledgeAssetVersionRepository versionRepository,
@@ -46,7 +48,8 @@ public class KnowledgeIdentityService {
                                     SourceDocumentRepository sourceDocumentRepository,
                                     SourceVersionRepository sourceVersionRepository,
                                     SourceFragmentRepository sourceFragmentRepository,
-                                    CitationRepository citationRepository) {
+                                    CitationRepository citationRepository,
+                                    AssetIdentityAllocator identityAllocator) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -54,6 +57,7 @@ public class KnowledgeIdentityService {
         this.sourceVersionRepository = sourceVersionRepository;
         this.sourceFragmentRepository = sourceFragmentRepository;
         this.citationRepository = citationRepository;
+        this.identityAllocator = identityAllocator;
     }
 
     public PageResponse<KnowledgeIdentity> page(PageRequest request, KnowledgeIdentityFilter filter) {
@@ -156,9 +160,16 @@ public class KnowledgeIdentityService {
         identityRepository.listByFilter(tenantId, domain, specialtyId, status, keyword)
             .forEach(identity -> byCode.put(identity.identityCode(), identity));
         if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            String platformStatus = status == null ? KnowledgeIdentityStatus.ACTIVE.name() : status;
-            if (KnowledgeIdentityStatus.ACTIVE.name().equals(platformStatus)) {
-                identityRepository.listByFilter(PlatformTenant.ID, domain, specialtyId, platformStatus, keyword)
+            if (status == null) {
+                identityRepository.listByFilter(
+                        PlatformTenant.ID, domain, specialtyId, KnowledgeIdentityStatus.ACTIVE.name(), keyword)
+                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
+                identityRepository.listByFilter(
+                        PlatformTenant.ID, domain, specialtyId, KnowledgeIdentityStatus.DEPRECATED.name(), keyword)
+                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
+            } else if (KnowledgeIdentityStatus.ACTIVE.name().equals(status)
+                    || KnowledgeIdentityStatus.DEPRECATED.name().equals(status)) {
+                identityRepository.listByFilter(PlatformTenant.ID, domain, specialtyId, status, keyword)
                     .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
             }
         }
@@ -205,7 +216,8 @@ public class KnowledgeIdentityService {
     public KnowledgeIdentity createIdentity(KnowledgeIdentityCreateRequest request) {
         String tenantId = requireCurrentTenant();
         validateContext(request.context(), tenantId);
-        String identityCode = request.identityCode().trim();
+        String identityCode = identityAllocator.allocate(
+            tenantId, request.domain().name(), request.identitySlug());
         identityRepository.findByTenantIdAndIdentityCode(tenantId, identityCode)
             .ifPresent(existing -> {
                 throw new ApiException(ErrorCode.CONFLICT, "知识身份编码已存在: " + identityCode);

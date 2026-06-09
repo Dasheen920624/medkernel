@@ -26,6 +26,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -51,6 +53,9 @@ class KnowledgeAssetApiContractTest {
     @MockBean
     KnowledgeExportService exportService;
 
+    @MockBean
+    KnowledgeRetirementService retirementService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -63,7 +68,7 @@ class KnowledgeAssetApiContractTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "identityCode": "DRUG.ROSUVA",
+                      "identitySlug": "rosuvastatin-guide",
                       "domain": "DRUG",
                       "subject": "瑞舒伐他汀说明书"
                     }
@@ -92,7 +97,7 @@ class KnowledgeAssetApiContractTest {
                       "user_id": "u-99",
                       "role_codes": ["medical-affairs"],
                       "package_version": "pkg-2026.06",
-                      "identityCode": "DRUG.ROSUVA",
+                      "identitySlug": "rosuvastatin-guide",
                       "domain": "DRUG",
                       "subject": "瑞舒伐他汀说明书"
                     }
@@ -154,7 +159,8 @@ class KnowledgeAssetApiContractTest {
                       "anchors": "[]",
                       "riskLevel": "LOW",
                       "gradeQuality": "HIGH",
-                      "gradeStrength": "STRONG"
+                      "gradeStrength": "STRONG",
+                      "reviewCycleMonths": 12
                     }
                     """))
             .andExpect(status().isOk());
@@ -223,7 +229,7 @@ class KnowledgeAssetApiContractTest {
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance")
                 .with(readJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.identity.identityCode").value("DRUG.ROSUVA"))
+            .andExpect(jsonPath("$.data.identity.identityCode").value("plat:drug:rosuvastatin-guide"))
             .andExpect(jsonPath("$.data.currentVersionId").value(22))
             .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionNo").value("2026.1"))
             .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionHash").value("source-version-hash"))
@@ -234,6 +240,61 @@ class KnowledgeAssetApiContractTest {
             .andExpect(jsonPath("$.data.sourceEvidence[0].endOffset").value(12))
             .andExpect(jsonPath("$.data.unresolvedCitationCount").value(1))
             .andExpect(jsonPath("$.data.partial").value(true));
+    }
+
+    @Test
+    void reviewQueueRouteReturnsDueStatusAndReviewMetadata() throws Exception {
+        KnowledgeIdentity identity = identity(1L);
+        KnowledgeAssetVersion version = provenance().versions().getFirst();
+        PageRequest pageRequest = new PageRequest(1, 20, "nextReviewAt,asc");
+        when(versionService.listReviewQueue(eq(45), any())).thenReturn(PageResponse.of(List.of(
+            new KnowledgeReviewQueueItem(identity, version, KnowledgeReviewStatus.OVERDUE, -3)), pageRequest, 1L));
+
+        mvc.perform(get("/api/v1/engine/knowledge/review-queue")
+                .queryParam("withinDays", "45")
+                .queryParam("page", "1")
+                .queryParam("size", "20")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].identity.identityCode")
+                .value("plat:drug:rosuvastatin-guide"))
+            .andExpect(jsonPath("$.data.items[0].version.reviewCycleMonths").value(12))
+            .andExpect(jsonPath("$.data.items[0].status").value("OVERDUE"))
+            .andExpect(jsonPath("$.data.items[0].daysUntilDue").value(-3))
+            .andExpect(jsonPath("$.data.total").value(1));
+    }
+
+    @Test
+    void deprecateRouteAcceptsSuccessorGracePeriodAndMigrationGuidance() throws Exception {
+        Instant gracePeriodEnd = Instant.parse("2099-07-09T00:00:00Z");
+        KnowledgeSupersession transition = new KnowledgeSupersession(
+            9L, "t-1", 1L, 22L, 23L, SupersessionType.DEPRECATE,
+            "进入迁移宽限期", Instant.parse("2026-06-09T00:00:00Z"), "u-99",
+            2L, gracePeriodEnd, "迁移到新版指南并重新核对本地覆盖");
+        when(retirementService.deprecate(eq(1L), any())).thenReturn(transition);
+
+        mvc.perform(post("/api/v1/engine/knowledge/identities/1/deprecate")
+                .with(medicalAffairsJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "successorIdentityId": 2,
+                      "gracePeriodEnd": "2099-07-09T00:00:00Z",
+                      "migrationGuidance": "迁移到新版指南并重新核对本地覆盖"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.transitionType").value("DEPRECATE"))
+            .andExpect(jsonPath("$.data.successorIdentityId").value(2))
+            .andExpect(jsonPath("$.data.gracePeriodEnd").value("2099-07-09T00:00:00Z"))
+            .andExpect(jsonPath("$.data.migrationGuidance")
+                .value("迁移到新版指南并重新核对本地覆盖"));
+
+        ArgumentCaptor<KnowledgeRetirementRequest> requestCaptor =
+            ArgumentCaptor.forClass(KnowledgeRetirementRequest.class);
+        verify(retirementService).deprecate(eq(1L), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().successorIdentityId()).isEqualTo(2L);
+        assertThat(requestCaptor.getValue().gracePeriodEnd()).isEqualTo(gracePeriodEnd);
     }
 
     @Test
@@ -376,7 +437,7 @@ class KnowledgeAssetApiContractTest {
                 : "version:22",
             null, null, null, null, null, null, null, null,
             now, "u-99", now, "u-99"
-        );
+        , 12, null);
         CandidateClassification classification = new CandidateClassification(
             77L, "t-1", "tenant:t-1", 1L, 22L, 5L, type, status,
             candidate.contentHash(), "content_hash 与身份匹配", "当前 ACTIVE 与候选对照",
@@ -443,7 +504,7 @@ class KnowledgeAssetApiContractTest {
                 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             null, null, null, null, now, null, null, null,
             now, "u-99", now, "u-99"
-        );
+        , 12, null);
         return new KnowledgeProvenanceResponse(
             identity,
             active.id(),
@@ -458,7 +519,7 @@ class KnowledgeAssetApiContractTest {
     private static KnowledgeIdentity identity(Long id) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
-            id, "t-1", "DRUG.ROSUVA", KnowledgeDomain.DRUG, "瑞舒伐他汀说明书",
+            id, "t-1", "plat:drug:rosuvastatin-guide", KnowledgeDomain.DRUG, "瑞舒伐他汀说明书",
             "sp-1", "真实来源说明书", KnowledgeIdentityStatus.ACTIVE, 22L,
             now, "u-99", now, "u-99"
         );

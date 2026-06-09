@@ -133,7 +133,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "role_codes": ["medical-affairs"],
                       "package_version": "pkg-2026.06",
                       "identity": {
-                        "identityCode": "DX.CKD",
+                        "identitySlug": "chronic-kidney-disease",
                         "subject": "慢性肾脏病"
                       },
                       "source": {
@@ -148,7 +148,9 @@ class DiagnosisKnowledgeApiContractTest {
                       },
                       "version": {
                         "versionNo": "2026",
-                        "riskLevel": "HIGH"
+                        "riskLevel": "HIGH",
+                        "gradeQuality": "HIGH",
+                        "reviewCycleMonths": 12
                       },
                       "evidence": {
                         "anchorPath": "section-1",
@@ -184,7 +186,9 @@ class DiagnosisKnowledgeApiContractTest {
                       },
                       "version": {
                         "versionNo": "2027",
-                        "riskLevel": "HIGH"
+                        "riskLevel": "HIGH",
+                        "gradeQuality": "HIGH",
+                        "reviewCycleMonths": 12
                       },
                       "evidence": {
                         "anchorPath": "section-1",

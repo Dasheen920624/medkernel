@@ -12,8 +12,11 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceType;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 一次创建证据完整的诊断知识草稿，统一复用知识身份、版本、来源和引用模型。
@@ -48,7 +51,7 @@ public record DiagnosisAssetCreateRequest(
 
     /** 诊断知识身份。 */
     public record IdentityInput(
-        @NotBlank String identityCode,
+        @NotBlank @Size(max = 43) String identitySlug,
         @NotBlank String subject,
         String assetSpecialtyId,
         String description
@@ -75,8 +78,9 @@ public record DiagnosisAssetCreateRequest(
         @NotBlank String versionNo,
         String versionLabel,
         @NotNull KnowledgeRiskLevel riskLevel,
-        GradeEvidenceQuality gradeQuality,
-        GradeRecommendationStrength gradeStrength
+        @NotNull GradeEvidenceQuality gradeQuality,
+        GradeRecommendationStrength gradeStrength,
+        @NotNull @Min(1) @Max(60) Integer reviewCycleMonths
     ) {}
 
     /** 首个真实来源锚点。 */

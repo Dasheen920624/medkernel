@@ -126,7 +126,7 @@ class KnowledgeProjectionSourceTest {
             "A 法规优先", "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
             KnowledgeAssetVersion.activeScopeKey(1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             now, null, "reviewer", now, now, null, null, null,
-            now, "tester", now, "tester");
+            now, "tester", now, "tester", 12, null);
     }
 
     private Citation citation() {

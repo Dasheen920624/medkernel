@@ -269,6 +269,6 @@ class DiagnosisAssistServiceTest {
             KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, authority,
             GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
             "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE, "scope-" + id,
-            null, null, null, null, now, null, null, null, now, "system", now, "system");
+            null, null, null, null, now, null, null, null, now, "system", now, "system", 12, null);
     }
 }

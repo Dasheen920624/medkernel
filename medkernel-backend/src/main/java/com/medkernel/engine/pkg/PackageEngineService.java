@@ -1368,7 +1368,9 @@ public class PackageEngineService {
                 instantText(version.activatedAt()),
                 instantText(version.supersededAt()),
                 instantText(version.withdrawnAt()),
-                version.withdrawnReason()
+                version.withdrawnReason(),
+                version.reviewCycleMonths(),
+                instantText(version.nextReviewAt())
             )
         ));
     }
@@ -2400,7 +2402,9 @@ public class PackageEngineService {
             now,
             actor,
             now,
-            actor
+            actor,
+            version.reviewCycleMonths(),
+            parseInstant(version.nextReviewAt())
         ));
         if (savedVersion.id() != null && savedVersion.status() == KnowledgeVersionStatus.ACTIVE) {
             knowledgeIdentityRepository.save(new KnowledgeIdentity(
@@ -3292,7 +3296,9 @@ public class PackageEngineService {
         String activatedAt,
         String supersededAt,
         String withdrawnAt,
-        String withdrawnReason
+        String withdrawnReason,
+        Integer reviewCycleMonths,
+        String nextReviewAt
     ) {}
 
     private record PackageOfflineTerminologyContent(

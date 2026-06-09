@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -53,6 +55,16 @@ public class KnowledgeVersionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeAssetVersion> get(@PathVariable Long versionId) {
         return ApiResult.ok(versionService.getVersion(versionId));
+    }
+
+    @GetMapping("/review-queue")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<PageResponse<KnowledgeReviewQueueItem>> reviewQueue(
+            @RequestParam(defaultValue = "30") int withinDays,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(versionService.listReviewQueue(withinDays, new PageRequest(page, size, sort)));
     }
 
     @PostMapping("/identities/{identityId}/versions/{versionId}/submit")

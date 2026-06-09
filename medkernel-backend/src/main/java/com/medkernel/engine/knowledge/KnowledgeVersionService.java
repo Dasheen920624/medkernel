@@ -2,12 +2,18 @@ package com.medkernel.engine.knowledge;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditEvent;
@@ -88,6 +94,44 @@ public class KnowledgeVersionService {
             .orElseThrow(() -> ApiException.notFound("知识版本 id=" + versionId));
     }
 
+    public PageResponse<KnowledgeReviewQueueItem> listReviewQueue(int withinDays, PageRequest request) {
+        if (withinDays < 0 || withinDays > 365) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "复审队列时间窗必须为 0 至 365 天");
+        }
+        String tenantId = requireCurrentTenant();
+        Instant now = Instant.now();
+        Instant threshold = now.plus(Duration.ofDays(withinDays));
+        long total = versionRepository.countReviewDueByTenantId(tenantId, threshold);
+        if (total == 0L) {
+            return PageResponse.empty(request);
+        }
+        List<KnowledgeAssetVersion> dueVersions =
+            versionRepository.pageReviewDueByTenantId(
+                tenantId,
+                threshold,
+                request.offset(),
+                request.safeSize());
+        List<Long> identityIds = dueVersions.stream()
+            .map(KnowledgeAssetVersion::identityId)
+            .distinct()
+            .toList();
+        Map<Long, KnowledgeIdentity> identitiesById =
+            identityRepository.findByTenantIdAndIdIn(tenantId, identityIds).stream()
+                .collect(Collectors.toMap(KnowledgeIdentity::id, Function.identity()));
+        List<KnowledgeReviewQueueItem> items = dueVersions.stream()
+            .map(version -> {
+                KnowledgeIdentity identity = Optional.ofNullable(identitiesById.get(version.identityId()))
+                    .orElseThrow(() -> ApiException.notFound("知识身份 id=" + version.identityId()));
+                KnowledgeReviewStatus status = !version.nextReviewAt().isAfter(now)
+                    ? KnowledgeReviewStatus.OVERDUE
+                    : KnowledgeReviewStatus.UPCOMING;
+                long daysUntilDue = Duration.between(now, version.nextReviewAt()).toDays();
+                return new KnowledgeReviewQueueItem(identity, version, status, daysUntilDue);
+            })
+            .toList();
+        return PageResponse.of(items, request, total);
+    }
+
     /**
      * 提交版本进入审核态。已有 UNDER_REVIEW 版本幂等返回，避免重复点击造成状态冲突。
      */
@@ -123,7 +167,8 @@ public class KnowledgeVersionService {
             target.activatedAt(), target.supersededAt(),
             target.withdrawnAt(), target.withdrawnReason(),
             target.createdAt(), target.createdBy(),
-            now, currentActor()
+            now, currentActor(),
+            target.reviewCycleMonths(), target.nextReviewAt()
         );
         return versionRepository.save(submitted);
     }
@@ -270,7 +315,9 @@ public class KnowledgeVersionService {
             now,
             actor,
             now,
-            actor));
+            actor,
+            request.reviewCycleMonths(),
+            null));
         CandidateClassificationType classificationType = candidateClassificationType(active, sourceDocument);
         String diffSummary = diffSummary(active.orElse(null), candidate, sourceDocument);
         CandidateClassification classification = candidateClassificationRepository.save(new CandidateClassification(
@@ -364,7 +411,8 @@ public class KnowledgeVersionService {
             candidate.activatedAt(), candidate.supersededAt(),
             candidate.withdrawnAt(), candidate.withdrawnReason(),
             candidate.createdAt(), candidate.createdBy(),
-            now, actor
+            now, actor,
+            candidate.reviewCycleMonths(), candidate.nextReviewAt()
         );
         KnowledgeAssetVersion saved = versionRepository.save(rejected);
         CandidateClassification rejectedClassification = candidateClassificationRepository.save(classificationWithStatus(
@@ -490,7 +538,8 @@ public class KnowledgeVersionService {
                 oldActive.activatedAt(), now /* superseded_at */,
                 oldActive.withdrawnAt(), oldActive.withdrawnReason(),
                 oldActive.createdAt(), oldActive.createdBy(),
-                now, actor
+                now, actor,
+                oldActive.reviewCycleMonths(), oldActive.nextReviewAt()
             );
             versionRepository.save(superseded);
         }
@@ -509,7 +558,9 @@ public class KnowledgeVersionService {
             actor, now /* reviewed_at */,
             now /* activated_at */, null, null, null,
             target.createdAt(), target.createdBy(),
-            now, actor
+            now, actor,
+            target.reviewCycleMonths(),
+            nextReviewAt(now, target.reviewCycleMonths())
         );
         KnowledgeAssetVersion saved = versionRepository.save(activated);
 
@@ -527,7 +578,7 @@ public class KnowledgeVersionService {
         KnowledgeSupersession transition = new KnowledgeSupersession(
             null, tenantId, identityId, oldVersionId, saved.id(),
             transitionType, transitionReason(normalizedReason, arbitration),
-            now, actor
+            now, actor, null, null, null
         );
         supersessionRepository.save(transition);
         projectionRefreshPort.refreshPublishedVersion(
@@ -555,6 +606,13 @@ public class KnowledgeVersionService {
             return null;
         }
         return sourceVersionRepository.findByTenantIdAndId(tenantId, sourceVersionId).orElse(null);
+    }
+
+    private Instant nextReviewAt(Instant reviewedAt, Integer reviewCycleMonths) {
+        if (reviewCycleMonths == null || reviewCycleMonths < 1 || reviewCycleMonths > 60) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "复审周期必须为 1 至 60 个月");
+        }
+        return reviewedAt.atZone(ZoneOffset.UTC).plusMonths(reviewCycleMonths).toInstant();
     }
 
     private CandidateClassificationType candidateClassificationType(Optional<KnowledgeAssetVersion> active,
@@ -685,7 +743,8 @@ public class KnowledgeVersionService {
             target.activatedAt(), target.supersededAt(),
             now /* withdrawn_at */, reason.trim(),
             target.createdAt(), target.createdBy(),
-            now, actor
+            now, actor,
+            target.reviewCycleMonths(), target.nextReviewAt()
         );
         KnowledgeAssetVersion saved = versionRepository.save(withdrawn);
 
@@ -702,7 +761,7 @@ public class KnowledgeVersionService {
         supersessionRepository.save(new KnowledgeSupersession(
             null, tenantId, identityId, saved.id(), null,
             SupersessionType.WITHDRAW, reason.trim(),
-            now, actor
+            now, actor, null, null, null
         ));
         KnowledgeInvalidation invalidation = invalidationRepository.save(new KnowledgeInvalidation(
             null,

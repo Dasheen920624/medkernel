@@ -1,4 +1,4 @@
-import { AuditOutlined, ReloadOutlined } from "@ant-design/icons";
+import { AuditOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -9,6 +9,7 @@ import {
   Drawer,
   Form,
   Input,
+  Modal,
   Row,
   Select,
   Space,
@@ -23,10 +24,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
+  useDeprecateKnowledgeIdentity,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useKnowledgeIdentities,
   useReviewKnowledgeCandidate,
+  useSecurityProfile,
   type CandidateClassification,
   type KnowledgeAssetVersion,
   type KnowledgeCandidateReviewDecision,
@@ -38,6 +41,7 @@ import {
   KNOWLEDGE_DOMAIN_OPTIONS,
   KNOWLEDGE_IDENTITY_STATUS_OPTIONS,
 } from "@/shared/config/knowledgeReview";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
@@ -81,6 +85,18 @@ type ReviewFormValues = {
   reason: string;
 };
 
+type RetirementFormValues = {
+  successorIdentityId?: number;
+  gracePeriodEnd: string;
+  migrationGuidance: string;
+};
+
+const EMPTY_RETIREMENT_FORM: RetirementFormValues = {
+  successorIdentityId: undefined,
+  gracePeriodEnd: "",
+  migrationGuidance: "",
+};
+
 function versionTitle(version?: KnowledgeAssetVersion) {
   if (!version) return "未返回版本";
   return version.versionLabel || `v${version.versionNo}`;
@@ -112,15 +128,21 @@ export default function KnowledgeGovernance() {
   const [domain, setDomain] = useState<KnowledgeDomain>("GUIDELINE");
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
   const [keyword, setKeyword] = useState("");
+  const [identityPage, setIdentityPage] = useState(1);
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
+  const [retirementIdentity, setRetirementIdentity] = useState<KnowledgeIdentity>();
+  const [retirementDraft, setRetirementDraft] =
+    useState<RetirementFormValues>(EMPTY_RETIREMENT_FORM);
+  const [successorKeyword, setSuccessorKeyword] = useState("");
   const [reviewForm] = Form.useForm<ReviewFormValues>();
+  const security = useSecurityProfile();
 
   const identitiesQuery = useKnowledgeIdentities({
     domain,
     status,
     keyword: keyword.trim() || undefined,
-    page: 1,
+    page: identityPage,
     size: 20,
     sort: "updatedAt,desc",
   });
@@ -128,16 +150,46 @@ export default function KnowledgeGovernance() {
     () => identitiesQuery.data?.items ?? [],
     [identitiesQuery.data?.items],
   );
+  const successorsQuery = useKnowledgeIdentities({
+    domain: retirementIdentity?.domain,
+    status: "ACTIVE",
+    keyword: successorKeyword.trim() || undefined,
+    page: 1,
+    size: 20,
+    sort: "updatedAt,desc",
+    enabled: Boolean(retirementIdentity),
+  });
+  const successorOptions = useMemo(
+    () =>
+      (successorsQuery.data?.items ?? [])
+        .filter(
+          (identity) =>
+            identity.id !== retirementIdentity?.id &&
+            identity.status === "ACTIVE" &&
+            Boolean(identity.currentVersionId),
+        )
+        .map((identity) => ({
+          value: identity.id,
+          label: `${identity.subject} · ${identity.identityCode}`,
+        })),
+    [retirementIdentity?.id, successorsQuery.data?.items],
+  );
+  const canScheduleRetirement =
+    security.data?.dataScope.tenantId === platformTenantId &&
+    security.data.permissions.some((permission) => permission.code === "knowledge.publish");
 
   useEffect(() => {
     if (identities.length === 0) {
       setSelectedIdentityId(undefined);
+      if (identityPage > 1 && (identitiesQuery.data?.total ?? 0) > 0) {
+        setIdentityPage(1);
+      }
       return;
     }
     if (!selectedIdentityId || !identities.some((identity) => identity.id === selectedIdentityId)) {
       setSelectedIdentityId(identities[0].id);
     }
-  }, [identities, selectedIdentityId]);
+  }, [identities, identitiesQuery.data?.total, identityPage, selectedIdentityId]);
 
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
   const candidatesQuery = useKnowledgeCandidates(selectedIdentityId);
@@ -150,6 +202,7 @@ export default function KnowledgeGovernance() {
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
   const diffQuery = useKnowledgeCandidateDiff(selectedCandidateId);
   const reviewMutation = useReviewKnowledgeCandidate();
+  const retirementMutation = useDeprecateKnowledgeIdentity();
 
   const diffCandidates = diffQuery.data?.candidates ?? [];
   const diffClassifications = diffQuery.data?.classifications ?? classifications;
@@ -204,6 +257,44 @@ export default function KnowledgeGovernance() {
     }
   }
 
+  function openRetirement(identity: KnowledgeIdentity) {
+    setRetirementIdentity(identity);
+    setRetirementDraft(EMPTY_RETIREMENT_FORM);
+    setSuccessorKeyword("");
+  }
+
+  async function scheduleRetirement() {
+    if (!retirementIdentity) return;
+    try {
+      if (!retirementDraft.successorIdentityId) {
+        message.error("请选择同域且已发布的后继知识身份");
+        return;
+      }
+      if (!retirementDraft.migrationGuidance.trim()) {
+        message.error("请填写面向引用方的迁移指引");
+        return;
+      }
+      const gracePeriodEnd = new Date(retirementDraft.gracePeriodEnd);
+      if (Number.isNaN(gracePeriodEnd.getTime()) || gracePeriodEnd.getTime() <= Date.now()) {
+        message.error("宽限期结束时间必须晚于当前时间");
+        return;
+      }
+      await retirementMutation.mutateAsync({
+        identityId: retirementIdentity.id,
+        successorIdentityId: retirementDraft.successorIdentityId,
+        gracePeriodEnd: gracePeriodEnd.toISOString(),
+        migrationGuidance: retirementDraft.migrationGuidance.trim(),
+      });
+      message.success("知识身份已进入迁移宽限期");
+      setRetirementIdentity(undefined);
+      setRetirementDraft(EMPTY_RETIREMENT_FORM);
+      setSuccessorKeyword("");
+      await identitiesQuery.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "安排知识弃用失败"));
+    }
+  }
+
   const identityColumns: ColumnsType<KnowledgeIdentity> = [
     {
       title: "知识身份",
@@ -240,13 +331,24 @@ export default function KnowledgeGovernance() {
       title: "操作",
       key: "action",
       render: (_, record) => (
-        <Button
-          aria-label="查看候选"
-          type={record.id === selectedIdentityId ? "primary" : "default"}
-          onClick={() => setSelectedIdentityId(record.id)}
-        >
-          查看候选
-        </Button>
+        <Space wrap>
+          <Button
+            aria-label="查看候选"
+            type={record.id === selectedIdentityId ? "primary" : "default"}
+            onClick={() => setSelectedIdentityId(record.id)}
+          >
+            查看候选
+          </Button>
+          {canScheduleRetirement && record.status === "ACTIVE" && (
+            <Button
+              aria-label={`安排弃用：${record.subject}`}
+              icon={<SwapOutlined />}
+              onClick={() => openRetirement(record)}
+            >
+              安排弃用
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -409,73 +511,91 @@ export default function KnowledgeGovernance() {
             {
               key: "review",
               label: "候选审核",
-              children:
-                pageState === "ready" ? (
-                  <Space direction="vertical" size="large" className="mk-full-width">
-                    <Card>
-                      <Row gutter={[16, 16]}>
-                        <Col xs={24} md={8}>
-                          <Statistic
-                            title="待审核候选总数"
-                            value={pendingCount}
-                            prefix={<AuditOutlined />}
-                          />
-                        </Col>
-                        <Col xs={24} md={8}>
-                          <Statistic title="冲突候选" value={conflictCount} />
-                        </Col>
-                        <Col xs={24} md={8}>
-                          <Statistic title="高风险候选" value={highRiskCount} />
-                        </Col>
-                      </Row>
-                    </Card>
+              children: (
+                <Space direction="vertical" size="large" className="mk-full-width">
+                  <Card title="默认筛选">
+                    <Row gutter={[16, 16]}>
+                      <Col xs={24} md={8}>
+                        <Select
+                          aria-label="知识域"
+                          className="mk-full-width"
+                          value={domain}
+                          options={KNOWLEDGE_DOMAIN_OPTIONS}
+                          onChange={(value) => {
+                            setDomain(value);
+                            setIdentityPage(1);
+                          }}
+                        />
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Select
+                          aria-label="身份状态"
+                          className="mk-full-width"
+                          value={status}
+                          options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
+                          onChange={(value) => {
+                            setStatus(value);
+                            setIdentityPage(1);
+                          }}
+                        />
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Input.Search
+                          aria-label="知识关键词"
+                          placeholder="按主题或编码搜索"
+                          allowClear
+                          onSearch={(value) => {
+                            setKeyword(value);
+                            setIdentityPage(1);
+                          }}
+                        />
+                      </Col>
+                    </Row>
+                  </Card>
 
-                    <Card title="默认筛选">
-                      <Row gutter={[16, 16]}>
-                        <Col xs={24} md={8}>
-                          <Select
-                            aria-label="知识域"
-                            className="mk-full-width"
-                            value={domain}
-                            options={KNOWLEDGE_DOMAIN_OPTIONS}
-                            onChange={(value) => setDomain(value)}
-                          />
-                        </Col>
-                        <Col xs={24} md={8}>
-                          <Select
-                            aria-label="身份状态"
-                            className="mk-full-width"
-                            value={status}
-                            options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
-                            onChange={(value) => setStatus(value)}
-                          />
-                        </Col>
-                        <Col xs={24} md={8}>
-                          <Input.Search
-                            aria-label="知识关键词"
-                            placeholder="按主题或编码搜索"
-                            allowClear
-                            onSearch={(value) => setKeyword(value)}
-                          />
-                        </Col>
-                      </Row>
-                    </Card>
+                  {pageState === "ready" ? (
+                    <>
+                      <Card>
+                        <Row gutter={[16, 16]}>
+                          <Col xs={24} md={8}>
+                            <Statistic
+                              title="待审核候选总数"
+                              value={pendingCount}
+                              prefix={<AuditOutlined />}
+                            />
+                          </Col>
+                          <Col xs={24} md={8}>
+                            <Statistic title="冲突候选" value={conflictCount} />
+                          </Col>
+                          <Col xs={24} md={8}>
+                            <Statistic title="高风险候选" value={highRiskCount} />
+                          </Col>
+                        </Row>
+                      </Card>
 
-                    <Card title="知识身份台账">
-                      <Table
-                        rowKey="id"
-                        columns={identityColumns}
-                        dataSource={identities}
-                        pagination={false}
-                        size="middle"
-                      />
-                    </Card>
+                      <Card title="知识身份台账">
+                        <Table
+                          rowKey="id"
+                          columns={identityColumns}
+                          dataSource={identities}
+                          pagination={{
+                            current: identityPage,
+                            pageSize: identitiesQuery.data?.size ?? 20,
+                            total: identitiesQuery.data?.total ?? 0,
+                            showSizeChanger: false,
+                            onChange: setIdentityPage,
+                          }}
+                          size="middle"
+                        />
+                      </Card>
 
-                    <Card title="待审候选">{candidatePanel}</Card>
-                  </Space>
-                ) : (
-                  <PageState state={pageState} {...pageStateProps} />
-                ),
+                      <Card title="待审候选">{candidatePanel}</Card>
+                    </>
+                  ) : (
+                    <PageState state={pageState} {...pageStateProps} />
+                  )}
+                </Space>
+              ),
             },
             {
               key: "diagnosis",
@@ -588,6 +708,77 @@ export default function KnowledgeGovernance() {
           </Form>
         </Space>
       </Drawer>
+
+      <Modal
+        title="安排知识身份弃用"
+        open={Boolean(retirementIdentity)}
+        okText="确认安排弃用"
+        cancelText="取消"
+        confirmLoading={retirementMutation.isPending}
+        onOk={() => void scheduleRetirement()}
+        onCancel={() => {
+          setRetirementIdentity(undefined);
+          setRetirementDraft(EMPTY_RETIREMENT_FORM);
+          setSuccessorKeyword("");
+        }}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          <Alert
+            type="warning"
+            showIcon
+            message={retirementIdentity?.subject ?? "未选择知识身份"}
+            description="宽限期内旧身份继续可读并显示迁移提示；到期后旧版本撤回，租户覆盖进入迁移悬置态。"
+          />
+          <Form layout="vertical">
+            <Form.Item label="后继知识身份" required>
+              <Select
+                aria-label="后继知识身份"
+                className="mk-full-width"
+                showSearch
+                filterOption={false}
+                options={successorOptions}
+                loading={successorsQuery.isLoading}
+                placeholder="选择后继知识身份"
+                onSearch={setSuccessorKeyword}
+                value={retirementDraft.successorIdentityId}
+                onChange={(successorIdentityId) =>
+                  setRetirementDraft((current) => ({ ...current, successorIdentityId }))
+                }
+              />
+            </Form.Item>
+            <Form.Item label="宽限期结束时间" required>
+              <Input
+                aria-label="宽限期结束时间"
+                type="datetime-local"
+                value={retirementDraft.gracePeriodEnd}
+                onChange={(event) =>
+                  setRetirementDraft((current) => ({
+                    ...current,
+                    gracePeriodEnd: event.target.value,
+                  }))
+                }
+              />
+            </Form.Item>
+            <Form.Item label="迁移指引" required>
+              <Input.TextArea
+                aria-label="迁移指引"
+                rows={4}
+                maxLength={1000}
+                showCount
+                placeholder="说明替代范围、覆盖复核要求和迁移完成条件"
+                value={retirementDraft.migrationGuidance}
+                onChange={(event) =>
+                  setRetirementDraft((current) => ({
+                    ...current,
+                    migrationGuidance: event.target.value,
+                  }))
+                }
+              />
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
     </>
   );
 }

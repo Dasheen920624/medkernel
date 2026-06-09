@@ -22,6 +22,9 @@ public record KnowledgeSupersession(
     @Column("transition_type") SupersessionType transitionType,
     @Column("transition_reason") String transitionReason,
     @Column("transitioned_at") Instant transitionedAt,
-    @Column("transitioned_by") String transitionedBy
+    @Column("transitioned_by") String transitionedBy,
+    @Column("successor_identity_id") Long successorIdentityId,
+    @Column("grace_period_end") Instant gracePeriodEnd,
+    @Column("migration_guidance") String migrationGuidance
 ) {
 }

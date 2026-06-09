@@ -635,7 +635,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuKey: "knowledge-governance",
     menuLabel: "知识治理",
     requiredPermissions: ["menu.knowledge-governance", "knowledge.read"],
-    requiredRoles: ["medical-affairs", "qa-manager", "dept-head", "specialist"],
+    requiredRoles: ["platform-admin", "medical-affairs", "qa-manager", "dept-head", "specialist"],
     experience: readonlyExperience(
       "医务处 / 专科专家",
       "审核知识候选并维护结构化诊断知识",

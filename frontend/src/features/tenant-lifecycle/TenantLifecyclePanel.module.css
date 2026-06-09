@@ -42,7 +42,8 @@
 
 .stepDesc {
   font-size: var(--ant-font-size-sm);
-  white-space: nowrap;
+  line-height: var(--ant-line-height);
+  overflow-wrap: anywhere;
 }
 
 .progressContainer {

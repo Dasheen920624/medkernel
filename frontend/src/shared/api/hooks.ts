@@ -951,7 +951,7 @@ export type KnowledgeDomain =
   | "DIAGNOSIS"
   | string;
 
-export type KnowledgeIdentityStatus = "ACTIVE" | "WITHDRAWN" | "ARCHIVED" | string;
+export type KnowledgeIdentityStatus = "ACTIVE" | "DEPRECATED" | "WITHDRAWN" | "ARCHIVED" | string;
 
 export type KnowledgeVersionStatus =
   | "DRAFT"
@@ -1027,6 +1027,8 @@ export interface KnowledgeAssetVersion {
   createdBy?: string;
   updatedAt?: string;
   updatedBy?: string;
+  reviewCycleMonths?: number | null;
+  nextReviewAt?: string | null;
 }
 
 export interface KnowledgeSupersession {
@@ -1039,6 +1041,32 @@ export interface KnowledgeSupersession {
   transitionReason?: string | null;
   transitionedAt?: string | null;
   transitionedBy?: string | null;
+  successorIdentityId?: number | null;
+  gracePeriodEnd?: string | null;
+  migrationGuidance?: string | null;
+}
+
+export type KnowledgeReviewStatus = "UPCOMING" | "OVERDUE";
+
+export interface KnowledgeReviewQueueItem {
+  identity: KnowledgeIdentity;
+  version: KnowledgeAssetVersion;
+  status: KnowledgeReviewStatus;
+  daysUntilDue: number;
+}
+
+export interface KnowledgeReviewQueueQueryParams {
+  withinDays?: number;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+export interface KnowledgeRetirementPayload {
+  identityId: number;
+  successorIdentityId: number;
+  gracePeriodEnd: string;
+  migrationGuidance: string;
 }
 
 export interface KnowledgeSourceEvidence {
@@ -1121,6 +1149,7 @@ export interface KnowledgeIdentityQueryParams {
   page?: number;
   size?: number;
   sort?: string;
+  enabled?: boolean;
 }
 
 const EMPTY_KNOWLEDGE_CANDIDATES: KnowledgeCandidateResponse = {
@@ -1144,6 +1173,7 @@ export function useKnowledgeIdentities(params: KnowledgeIdentityQueryParams = {}
   });
   return useQuery({
     queryKey: ["knowledge", "identities", requestParams],
+    enabled: params.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgeIdentity> }>(
         `${KNOWLEDGE_API_ROOT}/identities`,
@@ -1166,6 +1196,44 @@ export function useKnowledgeProvenance(identityId?: number) {
         `${KNOWLEDGE_API_ROOT}/identities/${identityId}/provenance`,
       );
       return data.data;
+    },
+  });
+}
+
+export function useKnowledgeReviewQueue(params: KnowledgeReviewQueueQueryParams = {}) {
+  const requestParams = compactParams({
+    withinDays: params.withinDays ?? 30,
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+    sort: params.sort ?? "nextReviewAt,asc",
+  });
+  return useQuery({
+    queryKey: ["knowledge", "review-queue", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeReviewQueueItem> }>(
+        `${KNOWLEDGE_API_ROOT}/review-queue`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useDeprecateKnowledgeIdentity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ identityId, ...payload }: KnowledgeRetirementPayload) => {
+      const { data } = await apiClient.post<{ data: KnowledgeSupersession }>(
+        `${KNOWLEDGE_API_ROOT}/identities/${identityId}/deprecate`,
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] }),
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "provenance"] }),
+      ]);
     },
   });
 }
@@ -1279,7 +1347,7 @@ export interface DiagnosisTestCase {
 
 export interface DiagnosisAssetCreatePayload {
   identity: {
-    identityCode: string;
+    identitySlug: string;
     subject: string;
     assetSpecialtyId?: string;
     description?: string;
@@ -1302,8 +1370,9 @@ export interface DiagnosisAssetCreatePayload {
     versionNo: string;
     versionLabel?: string;
     riskLevel: string;
-    gradeQuality?: string;
+    gradeQuality: string;
     gradeStrength?: string;
+    reviewCycleMonths: number;
   };
   evidence: {
     anchorPath: string;

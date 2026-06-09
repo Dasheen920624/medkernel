@@ -46,7 +46,9 @@ public record KnowledgeAssetVersion(
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
-    @Column("updated_by") String updatedBy
+    @Column("updated_by") String updatedBy,
+    @Column("review_cycle_months") Integer reviewCycleMonths,
+    @Column("next_review_at") Instant nextReviewAt
 ) {
 
     public static final String DEFAULT_APPLICABLE_SCOPE = "ALL";

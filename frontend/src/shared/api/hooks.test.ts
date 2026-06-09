@@ -73,8 +73,10 @@ import {
   useTransitionRuleGovernance,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
+  useDeprecateKnowledgeIdentity,
   useKnowledgeIdentities,
   useKnowledgeProvenance,
+  useKnowledgeReviewQueue,
   useLargeAuditEvents,
   useLocalTerms,
   useCreateMpiPatient,
@@ -2967,6 +2969,19 @@ describe("knowledge review api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/knowledge/candidates/2002/diff");
   });
 
+  it("does not load knowledge identities while an optional selector is closed", () => {
+    const identities = renderApiHook(() =>
+      useKnowledgeIdentities({
+        domain: "DRUG",
+        status: "ACTIVE",
+        enabled: false,
+      }),
+    );
+
+    expect(identities.result.current.fetchStatus).toBe("idle");
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("loads the exact provenance chain for one knowledge identity", async () => {
     const provenance = {
       identity: {
@@ -2990,6 +3005,47 @@ describe("knowledge review api helpers", () => {
 
     await waitFor(() => expect(hook.result.current.data).toBe(provenance));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/provenance");
+  });
+
+  it("loads the review queue and schedules a governed successor migration", async () => {
+    const reviewQueue = [{ identity: { id: 42 }, status: "OVERDUE", daysUntilDue: -3 }];
+    const reviewQueuePage = {
+      items: reviewQueue,
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    const transition = {
+      identityId: 42,
+      successorIdentityId: 43,
+      transitionType: "DEPRECATE",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: reviewQueuePage } });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: transition } });
+
+    const queueHook = renderApiHook(() =>
+      useKnowledgeReviewQueue({ withinDays: 45, page: 1, size: 20 }),
+    );
+    await waitFor(() => expect(queueHook.result.current.data).toBe(reviewQueuePage));
+
+    const deprecateHook = renderApiHook(() => useDeprecateKnowledgeIdentity());
+    await deprecateHook.result.current.mutateAsync({
+      identityId: 42,
+      successorIdentityId: 43,
+      gracePeriodEnd: "2026-07-09T00:00:00.000Z",
+      migrationGuidance: "迁移到新版指南并重新核对本地覆盖",
+    });
+
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/review-queue", {
+      params: { withinDays: 45, page: 1, size: 20, sort: "nextReviewAt,asc" },
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/knowledge/identities/42/deprecate", {
+      successorIdentityId: 43,
+      gracePeriodEnd: "2026-07-09T00:00:00.000Z",
+      migrationGuidance: "迁移到新版指南并重新核对本地覆盖",
+    });
   });
 
   it("reviews a candidate with standard context and an idempotency key", async () => {

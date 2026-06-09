@@ -12,6 +12,7 @@ import {
   Alert,
   message,
   Divider,
+  Grid,
 } from "antd";
 import {
   ArrowRightOutlined,
@@ -35,6 +36,8 @@ const getThemeStyle = (color: string) => ({
 export function TenantLifecyclePanel() {
   const { data, isLoading, error, refetch } = useSuccessPlan();
   const transitionMutation = useTransitionSuccessStage();
+  const screens = Grid.useBreakpoint();
+  const desktopSteps = Boolean(screens.lg);
 
   if (isLoading) {
     return (
@@ -118,7 +121,8 @@ export function TenantLifecyclePanel() {
           <Steps
             current={currentStepSafe}
             size="small"
-            labelPlacement="vertical"
+            direction={desktopSteps ? "horizontal" : "vertical"}
+            labelPlacement={desktopSteps ? "vertical" : "horizontal"}
             items={tenantLifecycleStages.map((s, index) => {
               let status: "process" | "finish" | "wait" = "wait";
               if (index === currentStepSafe) {

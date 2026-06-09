@@ -14,6 +14,7 @@ export const KNOWLEDGE_IDENTITY_STATUS_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "ACTIVE", label: "有效身份" },
+  { value: "DEPRECATED", label: "迁移宽限期" },
   { value: "WITHDRAWN", label: "已撤回" },
   { value: "ARCHIVED", label: "已归档" },
 ];
