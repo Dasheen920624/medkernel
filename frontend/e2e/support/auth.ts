@@ -66,6 +66,22 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
   }
 }
 
+export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
+
+  const platformTenantSwitch = page.getByRole("button", { name: "主平台户" });
+  if (await platformTenantSwitch.isVisible()) {
+    await platformTenantSwitch.click();
+  }
+
+  await page.getByLabel("工号 / 账号").fill(role);
+  await page.getByLabel("密码").fill(stablePassword(role));
+  await page.getByRole("button", { name: "进入工作台" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+}
+
 export async function loginWith(page: Page, username: string, password: string) {
   return postApi(page, "/auth/login", { username, password, tenantId });
 }

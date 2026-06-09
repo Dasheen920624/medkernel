@@ -1514,15 +1514,19 @@ export function usePublishDiagnosis() {
       identityId,
       versionId,
       reason,
+      publishEvidence,
     }: {
       identityId: number;
       versionId: number;
       reason: string;
+      publishEvidence?: VersionPublishEvidence;
     }) => {
       const { data } = await apiClient.post<{ data: KnowledgeAssetVersion }>(
         `${DIAGNOSIS_API_ROOT}/identities/${identityId}/versions/${versionId}/publish`,
-        null,
-        { params: { reason } },
+        {
+          reason,
+          ...(publishEvidence ? { publishEvidence } : {}),
+        },
       );
       return data.data;
     },

@@ -309,6 +309,60 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void platformRuleDraftTransitionAllowsPlatformAdminCoordinator() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-rule", OrgScope.tenant(PlatformTenant.ID), "platform-publisher"));
+        authenticate(RoleCode.PLATFORM_ADMIN);
+        RuleDefinition rule = existingRule(
+            "rule-platform", PlatformTenant.ID, "RULE.PLATFORM.BASELINE",
+            "平台基线规则", "version-platform", RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(
+            "version-platform", PlatformTenant.ID, "rule-platform", RuleVersionStatus.DRAFT);
+        RuleGovernance draft = governance(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.DRAFT);
+        RuleGovernance peerReview = governance(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.PEER_REVIEW);
+        when(definitions.findByRuleIdAndTenantId("rule-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(version));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(
+                "version-platform", PlatformTenant.ID))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        when(governanceService.requireGovernance(PlatformTenant.ID, "version-platform"))
+            .thenReturn(draft, peerReview);
+        when(governanceService.transition(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.PEER_REVIEW,
+            "提交平台规则同行评审", "platform-publisher", "trace-platform-rule"))
+            .thenReturn(peerReview);
+        when(governanceService.signoffs(PlatformTenant.ID, "version-platform"))
+            .thenReturn(List.of());
+        stubRuleAssetStatus(
+            PlatformTenant.ID, "RULE.PLATFORM.BASELINE", "1", AssetVersionStatus.DRAFT);
+        when(releasePort.submitForReview(any())).thenReturn(releasePlan(
+            "av-platform-rule", VersionedAssetType.RULE, "RULE.PLATFORM.BASELINE",
+            VersionReleaseStatus.IN_REVIEW, "IN_REVIEW 提交评审：平台规则影响摘要"));
+        RuleImpactResponse impact = service.impact("rule-platform");
+
+        RuleGovernanceResponse response = service.transitionGovernance(
+            "rule-platform",
+            new RuleGovernanceTransitionRequest(
+                RuleGovernanceState.PEER_REVIEW,
+                impact.impactDigest(),
+                "提交平台规则同行评审"
+            )
+        );
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.PEER_REVIEW);
+        verify(releasePort).submitForReview(any());
+    }
+
+    @Test
     void draftTransitionRejectsCrossPackageValueSetReference() {
         RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
         RuleVersion version = existingVersionWithDsl(
@@ -921,6 +975,70 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void platformRuleFullTransitionAllowsPlatformAdminAndRejectsHospitalAdmin() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-rule", OrgScope.tenant(PlatformTenant.ID), "platform-publisher"));
+        RuleDefinition rule = existingRule(
+            "rule-platform", PlatformTenant.ID, "RULE.PLATFORM.BASELINE",
+            "平台基线规则", "version-platform", RuleDefinitionStatus.PUBLISHED);
+        RuleVersion version = existingVersion(
+            "version-platform", PlatformTenant.ID, "rule-platform", RuleVersionStatus.PUBLISHED);
+        RuleGovernance canary = governance(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.CANARY);
+        RuleGovernance full = governance(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.FULL);
+        when(definitions.findByRuleIdAndTenantId("rule-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(version));
+        when(governanceService.requireGovernance(PlatformTenant.ID, "version-platform"))
+            .thenReturn(canary, canary, full);
+        when(governanceService.transition(
+            PlatformTenant.ID, "version-platform", RuleGovernanceState.FULL,
+            "平台管理员确认全量激活", "platform-publisher", "trace-platform-rule"))
+            .thenReturn(full);
+        when(governanceService.signoffs(PlatformTenant.ID, "version-platform"))
+            .thenReturn(List.of());
+        stubRuleAssetStatus(
+            PlatformTenant.ID, "RULE.PLATFORM.BASELINE", "1", AssetVersionStatus.PUBLISHED);
+        when(releasePort.publish(any())).thenReturn(releasePlan(
+            "av-platform-rule", VersionedAssetType.RULE, "RULE.PLATFORM.BASELINE",
+            VersionReleaseStatus.PUBLISHED, "FULL 全量激活：平台规则影响摘要"));
+        RuleImpactResponse impact = service.impact("rule-platform");
+        RuleGovernanceTransitionRequest request = new RuleGovernanceTransitionRequest(
+            RuleGovernanceState.FULL,
+            impact.impactDigest(),
+            "平台管理员确认全量激活",
+            new VersionPublishEvidence(
+                new VersionElectronicSignature(
+                    "sig-platform-rule",
+                    "platform-publisher",
+                    "平台发布人",
+                    Instant.parse("2026-06-08T08:00:00Z"),
+                    "a".repeat(64)
+                ),
+                new VersionPublishQualityGate(
+                    true, true, true, true, true, true, "平台规则发布质量门全部通过"
+                )
+            )
+        );
+
+        authenticate(RoleCode.HOSPITAL_ADMIN);
+        assertThatThrownBy(() -> service.transitionGovernance("rule-platform", request))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("平台管理员")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+        verify(releasePort, never()).publish(any());
+
+        authenticate(RoleCode.PLATFORM_ADMIN);
+        RuleGovernanceResponse response = service.transitionGovernance("rule-platform", request);
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.FULL);
+        verify(releasePort).publish(any());
+    }
+
+    @Test
     void impactReturnsPartialKnownObjectsAndDigest() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
@@ -1124,6 +1242,31 @@ class RuleEngineServiceTest {
         assertThat(executionCap.getValue().actionsJson()).contains("STRONG_REMINDER");
         assertThat(executionCap.getValue().explanationJson()).contains("\"shadowMode\":true");
         verify(executions, org.mockito.Mockito.never()).findRecentSuccessful(any(), any(), any(), any());
+    }
+
+    @Test
+    void evaluateCanaryRuleOnlyActivatesStableTenPercentCohort() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.APPROVED);
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(governance(RuleGovernanceState.CANARY));
+
+        RuleEvaluateResponse included = service.evaluateContext(
+            "order-sign", hitContextWithPatient("MPI-CANARY-0"), "evt-canary-in", List.of("rule-1"));
+        RuleEvaluateResponse excluded = service.evaluateContext(
+            "order-sign", hitContextWithPatient("MPI-1"), "evt-canary-out", List.of("rule-1"));
+
+        assertThat(included.items()).singleElement().satisfies(item -> {
+            assertThat(item.hit()).isTrue();
+            assertThat(item.status()).isEqualTo(RuleExecutionStatus.SUCCESS);
+            assertThat(item.actions()).hasSize(1);
+        });
+        assertThat(included.cards()).hasSize(1);
+        assertThat(excluded.items()).isEmpty();
+        assertThat(excluded.cards()).isEmpty();
     }
 
     @Test
@@ -1838,11 +1981,18 @@ class RuleEngineServiceTest {
     }
 
     private RuleGovernance governance(String versionId, RuleGovernanceState state) {
+        return governance("tenant-A", versionId, state);
+    }
+
+    private RuleGovernance governance(
+            String tenantId,
+            String versionId,
+            RuleGovernanceState state) {
         Instant now = Instant.parse("2026-06-07T13:30:00Z");
         return new RuleGovernance(
             1L,
             "rg-1",
-            "tenant-A",
+            tenantId,
             versionId,
             state,
             2,
@@ -2037,13 +2187,17 @@ class RuleEngineServiceTest {
     }
 
     private JsonNode hitContextWithPatient() {
+        return hitContextWithPatient("MPI-1");
+    }
+
+    private JsonNode hitContextWithPatient(String patientId) {
         return read("""
             {
-              "patient": {"mpi": "MPI-1", "age": 72},
+              "patient": {"mpi": "%s", "age": 72},
               "encounters": [{"encounterId": "ENC-1", "encounterType": "INPATIENT"}],
               "order": {"drugClass": "ANTICOAGULANT"}
             }
-            """);
+            """.formatted(patientId));
     }
 
     private JsonNode boundaryContext() {

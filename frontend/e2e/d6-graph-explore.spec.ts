@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 import {
   apiBase,
   ensureReadySession,
   expectOk,
+  loginFromPlatformPage,
   patchApi,
   postApi,
-  stablePassword,
 } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
@@ -25,13 +26,7 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
 
     await ensureReadySession(page, "specialist");
-    await page.context().clearCookies();
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
-    await page.getByLabel("工号 / 账号").fill("specialist");
-    await page.getByLabel("密码").fill(stablePassword("specialist"));
-    await page.getByRole("button", { name: "进入工作台" }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await loginFromPlatformPage(page, "specialist");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -116,7 +111,7 @@ async function seedActiveKnowledge(page: Page) {
     role_codes: ["medical-affairs"],
     package_version: "2026.06",
     identity: {
-      identityCode: `E2E.GRAPH.${suffix}`,
+      identitySlug: `e2e-graph-${suffix}`,
       subject: "图谱真实链路验收知识",
       assetSpecialtyId: "GENERAL",
       description: "用于验证关系库权威知识到图投影查询的真实链路",
@@ -141,6 +136,7 @@ async function seedActiveKnowledge(page: Page) {
       riskLevel: "HIGH",
       gradeQuality: "HIGH",
       gradeStrength: "STRONG",
+      reviewCycleMonths: 12,
     },
     evidence: {
       anchorPath: "section-1",
@@ -177,10 +173,34 @@ async function seedActiveKnowledge(page: Page) {
   );
   await expectOk(testCase, "新增知识发布回归病例");
 
+  const publishReason = "真实图谱链路验收";
+  await ensureReadySession(page, "platform-admin");
   const publish = await postApi(
     page,
-    `/engine/knowledge/diagnosis/identities/${identityId}/versions/${versionId}/publish?reason=${encodeURIComponent("真实图谱链路验收")}`,
-    {},
+    `/engine/knowledge/diagnosis/identities/${identityId}/versions/${versionId}/publish`,
+    {
+      reason: publishReason,
+      publishEvidence: {
+        electronicSignature: {
+          signatureId: `sig-e2e-graph-${suffix}`,
+          signerId: "platform-admin-1",
+          signerName: "平台管理员验收账号",
+          signedAt: new Date().toISOString(),
+          signatureHash: createHash("sha256")
+            .update(`${identityId}|${versionId}|${publishReason}`)
+            .digest("hex"),
+        },
+        qualityGate: {
+          schemaValid: true,
+          terminologyBindingComplete: true,
+          dependencyIntegrityVerified: true,
+          safetyMonotonicityVerified: true,
+          impactSimulationPassed: true,
+          peerReviewSigned: true,
+          summary: "E2E 已完成结构、术语、依赖、安全、影响模拟与同行复核门禁",
+        },
+      },
+    },
   );
   await expectOk(publish, "发布真实知识资产");
 }

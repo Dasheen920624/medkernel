@@ -13,7 +13,7 @@ target/
 *.mv.db
 *.trace.db
 /runtime/
-var/audit-fallback/
+**/var/audit-fallback/
 
 # Local environment and secrets
 .env

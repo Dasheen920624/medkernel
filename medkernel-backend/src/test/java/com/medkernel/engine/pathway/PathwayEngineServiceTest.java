@@ -67,6 +67,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -916,6 +917,57 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void platformFullRolloutRequiresPlatformAdminInsteadOfHospitalAdmin() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-pathway", OrgScope.tenant(PlatformTenant.ID), "platform-publisher"));
+        PathwayTemplate platformTemplate = template(
+            "pt-platform", PlatformTenant.ID, "TPL.PLATFORM.BASELINE", 1,
+            PathwayTemplateStatus.PUBLISHED);
+        when(templates.findByTemplateIdAndTenantId("pt-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(platformTemplate));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-platform", PlatformTenant.ID))
+            .thenReturn(List.of(
+                node("pt-platform", PlatformTenant.ID, "ASSESS", 10, false),
+                node("pt-platform", PlatformTenant.ID, "FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-platform", PlatformTenant.ID))
+            .thenReturn(List.of(edge(
+                "pt-platform", PlatformTenant.ID, "E.ASSESS.FOLLOWUP",
+                "ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+                "pt-platform", PlatformTenant.ID))
+            .thenReturn(List.of(
+                binding("pt-platform", PlatformTenant.ID, "ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("pt-platform", PlatformTenant.ID, "FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(
+                "pt-platform", PlatformTenant.ID))
+            .thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                PlatformTenant.ID, VersionedAssetType.PATHWAY, "TPL.PLATFORM.BASELINE", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                PlatformTenant.ID, "av-platform-pathway", VersionedAssetType.PATHWAY,
+                "TPL.PLATFORM.BASELINE", "1", AssetVersionStatus.APPROVED)));
+        when(releasePort.publish(any())).thenReturn(releasePlan(
+            "av-platform-pathway", VersionedAssetType.PATHWAY, "TPL.PLATFORM.BASELINE",
+            VersionReleaseStatus.PUBLISHED, "FULL 全量激活：平台路径影响摘要"));
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-platform");
+
+        authenticate(RoleCode.HOSPITAL_ADMIN);
+        assertThatThrownBy(() -> service.fullRolloutTemplate(
+                "pt-platform",
+                operationRequest(impact.impactDigest(), "平台路径全量发布", List.of(), null)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("平台管理员");
+
+        authenticate(RoleCode.PLATFORM_ADMIN);
+        PathwayTemplatePublishResponse response = service.fullRolloutTemplate(
+            "pt-platform",
+            operationRequest(impact.impactDigest(), "平台路径全量发布", List.of(), null));
+
+        assertThat(response.releaseStep()).isEqualTo("full_rollout");
+        assertThat(response.releaseEvidence()).contains("FULL 全量激活：平台路径影响摘要");
+    }
+
+    @Test
     void fullRolloutTemplateMirrorsUnifiedVersionReleasePlan() {
         PathwayVersionedAssetAdapter versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
@@ -1318,7 +1370,7 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void enterPatientPathwayRejectsReviewedTemplateBeforeUnifiedActivation() {
+    void enterPatientPathwayRejectsPatientOutsideCanaryCohort() {
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
@@ -1327,12 +1379,34 @@ class PathwayEngineServiceTest {
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "pt-1", null, "pkg-2026.06")))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("尚未发布")
+            .hasMessageContaining("灰度范围")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_005);
 
         verify(patientPathways, never()).save(any());
         verify(clocks, never()).save(any());
+    }
+
+    @Test
+    void enterPatientPathwayAllowsStableCanaryCohort() {
+        when(contextSnapshots.findById("ctx-canary-in"))
+            .thenReturn(contextSnapshot("ctx-canary-in", "patient-canary-2"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node(
+                "ASSESS", PathwayNodeType.ASSESSMENT, 10, false,
+                clockSlaConfig("ADMISSION", 0, 120, 180), "医生", 120)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.APPROVED);
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(
+            new PatientPathwayEnterRequest("ctx-canary-in", "pt-1", null, "pkg-2026.06"));
+
+        assertThat(response.patientPathway().patientId()).isEqualTo("patient-canary-2");
+        assertThat(response.patientPathway().status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        assertThat(response.clocks()).hasSize(1);
     }
 
     @Test
@@ -2467,17 +2541,26 @@ class PathwayEngineServiceTest {
     }
 
     private SpecialtyMetricBinding binding(String nodeCode, String metricCode, boolean required) {
+        return binding("pt-1", "tenant-A", nodeCode, metricCode, required);
+    }
+
+    private SpecialtyMetricBinding binding(String templateId, String tenantId, String nodeCode,
+                                            String metricCode, boolean required) {
         Instant now = Instant.now();
         return new SpecialtyMetricBinding(
-            1L, "smb-" + nodeCode, "tenant-A", "sp-1", "pt-1", nodeCode, metricCode,
+            1L, "smb-" + nodeCode, tenantId, "sp-1", templateId, nodeCode, metricCode,
             required, now, "tester", now, "tester", "trace-pathway");
     }
 
     private ContextSnapshotResponse contextSnapshot(String snapshotId) {
+        return contextSnapshot(snapshotId, "patient-1");
+    }
+
+    private ContextSnapshotResponse contextSnapshot(String snapshotId, String patientId) {
         Instant now = Instant.now();
         ContextSnapshotResources resources = new ContextSnapshotResources(
             new CanonicalPatient(
-                "patient-1", "脱敏患者", LocalDate.of(1980, 1, 1), "F",
+                patientId, "脱敏患者", LocalDate.of(1980, 1, 1), "F",
                 List.of(), "MPI", "p-1", "v1", now, now, QualityStatus.VALID),
             List.of(),
             List.of(new CanonicalEncounter(

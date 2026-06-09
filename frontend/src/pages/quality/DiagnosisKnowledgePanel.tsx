@@ -4,7 +4,9 @@ import {
   App as AntdApp,
   Button,
   Card,
+  Checkbox,
   Descriptions,
+  Divider,
   Drawer,
   Form,
   Input,
@@ -44,7 +46,10 @@ import {
   type DiagnosisDifferential,
   type DiagnosisTestCase,
   type KnowledgeAssetVersion,
+  type VersionPublishEvidence,
 } from "@/shared/api/hooks";
+import { KNOWLEDGE_QUALITY_GATE_OPTIONS } from "@/shared/config/knowledgeReview";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { PageState } from "@/shared/ui/PageState";
 
 import styles from "./DiagnosisKnowledgePanel.module.css";
@@ -82,6 +87,17 @@ function versionLabel(version: KnowledgeAssetVersion) {
     VERSION_STATUS_LABEL[version.status] ?? version.status
   }`;
 }
+
+type DiagnosisPublishFormValues = {
+  reason: string;
+  signatureId?: string;
+  signedAt?: string;
+  signerId?: string;
+  signerName?: string;
+  signatureHash?: string;
+  qualityGates?: string[];
+  qualitySummary?: string;
+};
 
 export default function DiagnosisKnowledgePanel() {
   const { message } = AntdApp.useApp();
@@ -167,14 +183,46 @@ export default function DiagnosisKnowledgePanel() {
   const [differentialOpen, setDifferentialOpen] = useState(false);
   const [pointerOpen, setPointerOpen] = useState(false);
   const [testCaseOpen, setTestCaseOpen] = useState(false);
-  const [publishReason, setPublishReason] = useState("");
   const [assetForm] = Form.useForm<DiagnosisAssetCreatePayload>();
   const [criterionForm] = Form.useForm();
   const [differentialForm] = Form.useForm();
   const [pointerForm] = Form.useForm();
   const [testCaseForm] = Form.useForm();
+  const [publishForm] = Form.useForm<DiagnosisPublishFormValues>();
   const pointerType = Form.useWatch("pointerType", pointerForm);
   const pointerTargetType = Form.useWatch("targetType", pointerForm);
+  const publishReason = Form.useWatch("reason", publishForm);
+  const publishSignatureId = Form.useWatch("signatureId", publishForm);
+  const publishSignedAt = Form.useWatch("signedAt", publishForm);
+  const publishSignerId = Form.useWatch("signerId", publishForm);
+  const publishSignerName = Form.useWatch("signerName", publishForm);
+  const publishSignatureHash = Form.useWatch("signatureHash", publishForm);
+  const publishQualityGates = Form.useWatch("qualityGates", publishForm);
+  const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
+  const canPublishSelected =
+    can(security.data, "knowledge.publish") &&
+    (!platformPublishing || can(security.data, "platform.publish"));
+  const publishEvidenceRequired = platformPublishing || selectedVersion?.riskLevel === "HIGH";
+  const publishQualityGateComplete =
+    !platformPublishing || publishQualityGates?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length;
+  const publishEvidenceComplete =
+    !publishEvidenceRequired ||
+    Boolean(
+      publishSignatureId?.trim() &&
+        publishSignedAt?.trim() &&
+        publishSignerId?.trim() &&
+        publishSignerName?.trim() &&
+        publishSignatureHash?.trim(),
+    );
+  const publishDisabled =
+    testCases.length === 0 ||
+    !publishReason?.trim() ||
+    !publishEvidenceComplete ||
+    !publishQualityGateComplete;
+
+  useEffect(() => {
+    publishForm.resetFields();
+  }, [publishForm, versionId]);
   const careTargetOptions = useMemo(() => {
     if (pointerTargetType === "RULE") {
       return (rulesQuery.data?.items ?? []).map((item) => ({
@@ -267,11 +315,58 @@ export default function DiagnosisKnowledgePanel() {
   }
 
   async function publishSelected() {
-    if (!identityId || !versionId || !publishReason.trim()) return;
+    if (!identityId || !versionId) return;
     try {
-      await publish.mutateAsync({ identityId, versionId, reason: publishReason.trim() });
+      const fields = ["reason"];
+      if (publishEvidenceRequired) {
+        fields.push("signatureId", "signedAt", "signerId", "signerName", "signatureHash");
+      }
+      if (platformPublishing) {
+        fields.push("qualityGates", "qualitySummary");
+      }
+      const values = await publishForm.validateFields(fields);
+      let publishEvidence: VersionPublishEvidence | undefined;
+      if (publishEvidenceRequired) {
+        const signatureId = values.signatureId?.trim();
+        const signedAt = values.signedAt?.trim();
+        const signerId = values.signerId?.trim();
+        const signerName = values.signerName?.trim();
+        const signatureHash = values.signatureHash?.trim();
+        if (!signatureId || !signedAt || !signerId || !signerName || !signatureHash) {
+          throw new Error("电子签名信息不完整");
+        }
+        const qualityGates = new Set(values.qualityGates ?? []);
+        publishEvidence = {
+          electronicSignature: {
+            signatureId,
+            signerId,
+            signerName,
+            signedAt: new Date(signedAt).toISOString(),
+            signatureHash,
+          },
+          ...(platformPublishing
+            ? {
+                qualityGate: {
+                  schemaValid: qualityGates.has("schemaValid"),
+                  terminologyBindingComplete: qualityGates.has("terminologyBindingComplete"),
+                  dependencyIntegrityVerified: qualityGates.has("dependencyIntegrityVerified"),
+                  safetyMonotonicityVerified: qualityGates.has("safetyMonotonicityVerified"),
+                  impactSimulationPassed: qualityGates.has("impactSimulationPassed"),
+                  peerReviewSigned: qualityGates.has("peerReviewSigned"),
+                  summary: values.qualitySummary?.trim() || undefined,
+                },
+              }
+            : {}),
+        };
+      }
+      await publish.mutateAsync({
+        identityId,
+        versionId,
+        reason: values.reason.trim(),
+        publishEvidence,
+      });
       message.success("诊断知识已通过病例门禁并生效");
-      setPublishReason("");
+      publishForm.resetFields();
     } catch (error) {
       message.error(getApiErrorMessage(error, "发布诊断知识失败"));
     }
@@ -533,9 +628,9 @@ export default function DiagnosisKnowledgePanel() {
           )}
         </Card>
         <Tabs items={tabs} />
-        {editable && can(security.data, "knowledge.publish") && (
+        {editable && canPublishSelected && (
           <Card title="发布诊断知识">
-            <Space direction="vertical" className="mk-full-width">
+            <Form form={publishForm} layout="vertical" initialValues={{ qualityGates: [] }}>
               <Alert
                 type={testCases.length === 0 ? "error" : "warning"}
                 showIcon
@@ -545,31 +640,113 @@ export default function DiagnosisKnowledgePanel() {
                     : "发布前将复算全部回归病例；任一置信分级不一致都会阻断。"
                 }
               />
-              <Input.TextArea
-                aria-label="发布说明"
-                rows={3}
-                value={publishReason}
-                placeholder="填写来源核验、病例门禁和发布结论"
-                onChange={(event) => setPublishReason(event.target.value)}
-              />
+              <Form.Item
+                name="reason"
+                label="发布说明"
+                rules={[{ required: true, message: "请填写发布说明" }]}
+              >
+                <Input.TextArea rows={3} placeholder="填写来源核验、病例门禁和发布结论" />
+              </Form.Item>
+              {publishEvidenceRequired && (
+                <>
+                  <Divider orientation="left">
+                    {platformPublishing ? "平台发布签名" : "高风险发布签名"}
+                  </Divider>
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={
+                      platformPublishing
+                        ? "平台权威知识发布必须提供真实电子签名证据。"
+                        : "高风险诊断知识必须提供真实电子签名证据。"
+                    }
+                  />
+                  <div className={styles.formGrid}>
+                    <Form.Item
+                      name="signatureId"
+                      label="签名 ID"
+                      rules={[{ required: true, message: "请填写签名 ID" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                    <Form.Item
+                      name="signedAt"
+                      label="签名时间"
+                      rules={[{ required: true, message: "请选择签名时间" }]}
+                    >
+                      <Input type="datetime-local" />
+                    </Form.Item>
+                    <Form.Item
+                      name="signerId"
+                      label="签名人 ID"
+                      rules={[{ required: true, message: "请填写签名人 ID" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                    <Form.Item
+                      name="signerName"
+                      label="签名人姓名"
+                      rules={[{ required: true, message: "请填写签名人姓名" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                    <Form.Item
+                      className={styles.fullRow}
+                      name="signatureHash"
+                      label="签名摘要"
+                      rules={[
+                        { required: true, message: "请填写签名摘要" },
+                        {
+                          pattern: /^[0-9a-f]{64}$/,
+                          message: "签名摘要必须是 64 位小写 SHA-256",
+                        },
+                      ]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </div>
+                </>
+              )}
+              {platformPublishing && (
+                <>
+                  <Divider orientation="left">平台发布质量门</Divider>
+                  <Form.Item
+                    name="qualityGates"
+                    label="质量门"
+                    rules={[
+                      {
+                        validator: (_, value?: string[]) =>
+                          value?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length
+                            ? Promise.resolve()
+                            : Promise.reject(new Error("请确认全部平台发布质量门")),
+                      },
+                    ]}
+                  >
+                    <Checkbox.Group options={KNOWLEDGE_QUALITY_GATE_OPTIONS} />
+                  </Form.Item>
+                  <Form.Item name="qualitySummary" label="质量门摘要">
+                    <Input.TextArea rows={2} />
+                  </Form.Item>
+                </>
+              )}
               <Popconfirm
                 title="确认发布该诊断知识版本？"
                 description="发布后当前版本不可继续修改。"
                 okText="确认发布"
                 cancelText="取消"
-                disabled={!publishReason.trim() || testCases.length === 0}
+                disabled={publishDisabled}
                 onConfirm={() => void publishSelected()}
               >
                 <Button
                   type="primary"
                   icon={<CheckCircleOutlined />}
                   loading={publish.isPending}
-                  disabled={!publishReason.trim() || testCases.length === 0}
+                  disabled={publishDisabled}
                 >
                   通过门禁并发布
                 </Button>
               </Popconfirm>
-            </Space>
+            </Form>
           </Card>
         )}
       </>

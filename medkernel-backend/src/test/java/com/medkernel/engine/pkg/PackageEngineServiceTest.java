@@ -257,6 +257,32 @@ class PackageEngineServiceTest {
                     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")),
                 List.of(),
                 List.of()));
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                any(), any(KnowledgePackage.class), any()))
+            .thenAnswer(inv -> {
+                KnowledgePackage pack = inv.getArgument(1);
+                return new EffectiveKnowledgePackageResponse(
+                    inv.getArgument(0),
+                    inv.getArgument(2),
+                    pack.packageId(),
+                    pack.packageCode(),
+                    pack.packageVersion(),
+                    List.of(new EffectivePackageItem(
+                        VersionedAssetType.RULE,
+                        "RULE.BASELINE",
+                        "1",
+                        "1",
+                        inv.getArgument(0),
+                        "/TENANT-A/HOSP-A",
+                        SourceTier.ORG,
+                        false,
+                        false,
+                        true,
+                        "av-baseline",
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")),
+                    List.of(),
+                    List.of());
+            });
         when(knowledgeIdentityRepository.save(any())).thenAnswer(inv -> {
             KnowledgeIdentity identity = inv.getArgument(0);
             if (identity.id() != null) {
@@ -633,11 +659,41 @@ class PackageEngineServiceTest {
             ));
         when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
             .thenReturn(Optional.of(activeConditionFragment("frag-ckd", "FRAG.CKD", 1)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1"))
+            .thenReturn(Optional.of(declarativeAssetVersion(
+                VersionedAssetType.CONDITION_FRAGMENT,
+                "frag-ckd",
+                "1",
+                AssetVersionStatus.PUBLISHED
+            )));
 
         PackageValidateResponse response = service.validatePackage("pkg-fragment");
 
         assertThat(response.valid()).isTrue();
         assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
+    void validatePackageBlocksConditionFragmentMissingFromUnifiedAuthority() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-fragment", "tenant-A", "PKG.FRAGMENT", "1.0.0", "条件片段配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-fragment", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-fragment"))
+            .thenReturn(List.of(
+                packageItem(12L, "pkg-fragment", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1")
+            ));
+        when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
+            .thenReturn(Optional.of(activeConditionFragment("frag-ckd", "FRAG.CKD", 1)));
+
+        PackageValidateResponse response = service.validatePackage("pkg-fragment");
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).anySatisfy(issue ->
+            assertThat(issue.message()).contains("统一条件片段版本不存在"));
     }
 
     @Test
@@ -735,6 +791,14 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
             .thenReturn(Optional.of(activeConditionFragment("frag-ckd", "FRAG.CKD", 1)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1"))
+            .thenReturn(Optional.of(declarativeAssetVersion(
+                VersionedAssetType.CONDITION_FRAGMENT,
+                "frag-ckd",
+                "1",
+                AssetVersionStatus.PUBLISHED
+            )));
         when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
             "tenant-A", "pkg-fragment", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd"))
             .thenReturn(Optional.empty());
@@ -1372,7 +1436,10 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(publishedRuleVersion("rule-stable", "rule-version-2", 2)));
         when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
             .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.0.0", "hospital-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-offline".equals(candidate.packageId())),
+                eq("hospital-1")))
             .thenReturn(effectiveResponse("pkg-offline", "PKG.TEST", "3.0.0", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.RULE, "rule-stable", "2", "rule-source-version-2", "c".repeat(64)),
                 effectiveItem(VersionedAssetType.EVALUATION, "eval-stable", "1", "eval-source-version-1", "d".repeat(64))
@@ -1483,7 +1550,10 @@ class PackageEngineServiceTest {
                 "knowledge-package:term-pkg-301", null, null,
                 Instant.now(), "tester", Instant.now(), "tester", "trace"
             )));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.1.0", "hospital-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-all-assets".equals(candidate.packageId())),
+                eq("hospital-1")))
             .thenReturn(effectiveResponse("pkg-all-assets", "PKG.TEST", "3.1.0", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1", "knowledge-source-version-v1", "e".repeat(64)),
                 effectiveItem(VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06", "term-source-version-202606", "f".repeat(64))
@@ -1533,7 +1603,10 @@ class PackageEngineServiceTest {
             "pathway-stable", "tenant-A")).thenReturn(List.of(pathwayEdge("edge-start-end")));
         when(pathwayMetricBindingRepository.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
             "pathway-stable", "tenant-A")).thenReturn(List.of(pathwayBinding("binding-1")));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.2.0", "hospital-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-pathway".equals(candidate.packageId())),
+                eq("hospital-1")))
             .thenReturn(effectiveResponse("pkg-pathway", "PKG.TEST", "3.2.0", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.PATHWAY, "pathway-stable", "1",
                     "pathway-source-version-1", "e".repeat(64))
@@ -1568,7 +1641,10 @@ class PackageEngineServiceTest {
             ));
         when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
             .thenReturn(Optional.of(fragment));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.3.0", "hospital-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-fragment".equals(candidate.packageId())),
+                eq("hospital-1")))
             .thenReturn(effectiveResponse("pkg-fragment", "PKG.TEST", "3.3.0", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1",
                     "fragment-source-version-1", "a".repeat(64))
@@ -1600,7 +1676,10 @@ class PackageEngineServiceTest {
                 packageItem(2L, "pkg-ckd", VersionedAssetType.FIELD_CATALOG, "FIELD.CKD.BINDING", "2026.06"),
                 packageItem(3L, "pkg-ckd", VersionedAssetType.FORMULA, "CKD_EPI_2021_EGFR", "2026.06")
             ));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "2026.06", "hospital-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-ckd".equals(candidate.packageId())),
+                eq("hospital-1")))
             .thenReturn(effectiveResponse("pkg-ckd", "PKG.TEST", "2026.06", "hospital-1", List.of(
                 effectiveItem(VersionedAssetType.VALUE_SET, "VS.ATC.NEPHROTOXIC", "2026.06",
                     "value-set-source-version", "1".repeat(64)),
@@ -2307,7 +2386,10 @@ class PackageEngineServiceTest {
         );
         when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
-        when(effectivePackageResolver.resolve("tenant-A", "PKG.COPD", "1.0.0", "org-1"))
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-1".equals(candidate.packageId())),
+                eq("org-1")))
             .thenReturn(new EffectiveKnowledgePackageResponse(
                 "tenant-A",
                 "org-1",
@@ -2382,6 +2464,84 @@ class PackageEngineServiceTest {
 
         verify(planRepository, never()).save(any(ReleasePlan.class));
         verify(syncPort, never()).sync(any(), any(), any(), any());
+    }
+
+    @Test
+    void releasePlatformPackageAllowsPlatformAdminToPublishFull() throws Exception {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
+        authenticate(RoleCode.PLATFORM_ADMIN);
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-platform-full", PlatformTenant.ID, "PKG.BASELINE", "2026.06",
+            "平台基线包", null, KnowledgePackageStatus.PUBLISHED,
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-platform-full", PlatformTenant.ID))
+            .thenReturn(Optional.of(pack));
+        PackageItem ruleItem = new PackageItem(
+            900L, "item-platform-rule", PlatformTenant.ID, "pkg-platform-full",
+            VersionedAssetType.RULE, "rule-platform-ready", "1",
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+        );
+        when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform-full"))
+            .thenReturn(List.of(ruleItem));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-platform-ready", PlatformTenant.ID))
+            .thenReturn(Optional.of(publishedRule("rule-platform-ready", "dept-platform")));
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-platform", PlatformTenant.ID, "平台配置库", "REST", "config",
+            "ACTIVE", Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+        );
+        when(adapterRepository.findByAdapterIdAndTenantId("target-platform", PlatformTenant.ID))
+            .thenReturn(Optional.of(target));
+        when(syncPort.sync(
+                eq(PlatformTenant.ID),
+                any(ReleasePlan.class),
+                eq(target),
+                any(EffectivePackageSnapshot.class)))
+            .thenReturn("EVIDENCE-PLATFORM-FULL");
+
+        PackageSyncResponse response = service.releasePackage(
+            "pkg-platform-full",
+            new PackageSyncRequest(
+                "req-platform-release", "trace-platform-release", PlatformTenant.ID,
+                null, null, null, null, null, null, "platform-admin",
+                List.of(RoleCode.PLATFORM_ADMIN.code()), "2026.06",
+                "批准平台基线全量发布", "platform-root", ReleaseStrategy.FULL,
+                ReleaseScopeType.ALL, null, List.of("target-platform")
+            )
+        );
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
+        verify(releasePort).publish(any());
+    }
+
+    @Test
+    void releasePlatformPackageRejectsHospitalAdmin() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "hospital-admin"));
+        authenticate(RoleCode.HOSPITAL_ADMIN);
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-platform-denied", PlatformTenant.ID, "PKG.BASELINE", "2026.06",
+            "平台基线包", null, KnowledgePackageStatus.PUBLISHED,
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-platform-denied", PlatformTenant.ID))
+            .thenReturn(Optional.of(pack));
+
+        PackageSyncRequest request = new PackageSyncRequest(
+            "req-platform-release", "trace-platform-release", PlatformTenant.ID,
+            null, null, null, null, null, null, "hospital-admin",
+            List.of(RoleCode.HOSPITAL_ADMIN.code()), "2026.06",
+            "申请平台基线全量发布", "platform-root", ReleaseStrategy.FULL,
+            ReleaseScopeType.ALL, null, List.of("target-platform")
+        );
+
+        assertThatThrownBy(() -> service.releasePackage("pkg-platform-denied", request))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("平台管理员");
+
+        verify(itemRepository, never()).findByTenantIdAndPackageId(any(), any());
+        verify(planRepository, never()).save(any(ReleasePlan.class));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.medkernel.engine.workflow;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -285,8 +286,8 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             severity,
             existing == null ? QualityDashboardAlertStatus.OPEN : existing.status(),
             thresholdCode,
-            null,
-            null,
+            existing == null ? BigDecimal.ZERO : existing.thresholdValue(),
+            existing == null ? BigDecimal.ONE : existing.actualValue(),
             title,
             evidenceSummary,
             existing == null ? now : existing.createdAt(),

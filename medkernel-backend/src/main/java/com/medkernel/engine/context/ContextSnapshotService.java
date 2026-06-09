@@ -121,7 +121,7 @@ public class ContextSnapshotService {
         List<MissingFieldEntry> missing = validator.findMissingFields(req.resources());
         QualityStatus quality = validator.computeQuality(req.resources());
         if (quality == QualityStatus.INVALID) {
-            publishFailureAudit(ErrorCode.ENG_CONTEXT_003,
+            publishFailureAudit(ErrorCode.ENG_CONTEXT_003, req,
                 "INVALID quality 拒绝创建 patient=" + req.patientId());
             throw new ApiException(ErrorCode.ENG_CONTEXT_003, "INVALID quality 拒绝创建");
         }
@@ -232,21 +232,25 @@ public class ContextSnapshotService {
 
     private void validateRequestScope(OrgScope currentScope, ContextSnapshotRequest req) {
         if (hasText(req.tenantId()) && !req.tenantId().equals(currentScope.tenantId())) {
-            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED,
+            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED, req,
                 "请求租户越权 current=" + currentScope.tenantId() + " request=" + req.tenantId());
             throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求组织作用域超出当前租户");
         }
-        rejectMismatchedOrgLayer("group", currentScope.groupId(), req.groupId());
-        rejectMismatchedOrgLayer("hospital", currentScope.hospitalId(), req.hospitalId());
-        rejectMismatchedOrgLayer("campus", currentScope.campusId(), req.campusId());
-        rejectMismatchedOrgLayer("site", currentScope.siteId(), req.siteId());
-        rejectMismatchedOrgLayer("department", currentScope.departmentId(), req.departmentId());
-        rejectMismatchedOrgLayer("specialty", currentScope.specialtyId(), req.specialtyId());
+        rejectMismatchedOrgLayer("group", currentScope.groupId(), req.groupId(), req);
+        rejectMismatchedOrgLayer("hospital", currentScope.hospitalId(), req.hospitalId(), req);
+        rejectMismatchedOrgLayer("campus", currentScope.campusId(), req.campusId(), req);
+        rejectMismatchedOrgLayer("site", currentScope.siteId(), req.siteId(), req);
+        rejectMismatchedOrgLayer("department", currentScope.departmentId(), req.departmentId(), req);
+        rejectMismatchedOrgLayer("specialty", currentScope.specialtyId(), req.specialtyId(), req);
     }
 
-    private void rejectMismatchedOrgLayer(String layer, String currentValue, String requestValue) {
+    private void rejectMismatchedOrgLayer(
+            String layer,
+            String currentValue,
+            String requestValue,
+            ContextSnapshotRequest req) {
         if (hasText(currentValue) && hasText(requestValue) && !currentValue.equals(requestValue)) {
-            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED,
+            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED, req,
                 "请求组织层级越权 layer=" + layer + " current=" + currentValue + " request=" + requestValue);
             throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求组织作用域超出当前授权范围");
         }
@@ -254,7 +258,10 @@ public class ContextSnapshotService {
 
     private void validatePackageVersions(String tenantId, ContextSnapshotRequest req) {
         if (!versions.exists(tenantId, req.packageVersion())) {
-            publishFailureAudit(ErrorCode.ENG_CONTEXT_002, "包版本不存在 patient=" + req.patientId());
+            publishFailureAudit(
+                ErrorCode.ENG_CONTEXT_002,
+                req,
+                "包版本不存在 patient=" + req.patientId());
             throw new ApiException(ErrorCode.ENG_CONTEXT_002, "包版本不存在");
         }
     }
@@ -447,9 +454,18 @@ public class ContextSnapshotService {
         }
     }
 
-    private void publishFailureAudit(ErrorCode code, String summary) {
+    private void publishFailureAudit(
+            ErrorCode code,
+            ContextSnapshotRequest req,
+            String summary) {
+        String resourceId = ContextSnapshotRequest.firstNonBlank(
+            req == null ? null : req.requestId(),
+            req == null ? null : req.patientId(),
+            req == null ? null : req.encounterId(),
+            "rejected-request"
+        );
         isolatedAudit.publishInNewTx(AuditEvent.failure(
-            AuditAction.EXECUTE, "context_snapshot", null, code.code(), summary));
+            AuditAction.EXECUTE, "context_snapshot", resourceId, code.code(), summary));
     }
 
     private static boolean hasText(String value) {

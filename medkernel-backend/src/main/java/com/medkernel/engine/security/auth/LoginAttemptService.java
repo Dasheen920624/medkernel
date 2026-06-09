@@ -1,8 +1,8 @@
 package com.medkernel.engine.security.auth;
 
 import java.time.Instant;
-import java.util.UUID;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,13 +19,16 @@ import com.medkernel.shared.context.RequestContext;
 public class LoginAttemptService {
 
     private final LoginAttemptStateRepository attempts;
+    private final LoginAttemptStateInitializer attemptInitializer;
     private final PlatformCredentialRepository credentials;
     private final SystemConfigService configService;
 
     public LoginAttemptService(LoginAttemptStateRepository attempts,
+                               LoginAttemptStateInitializer attemptInitializer,
                                PlatformCredentialRepository credentials,
                                SystemConfigService configService) {
         this.attempts = attempts;
+        this.attemptInitializer = attemptInitializer;
         this.credentials = credentials;
         this.configService = configService;
     }
@@ -34,7 +37,7 @@ public class LoginAttemptService {
     public FailureOutcome recordFailure(String tenantId, String username, PlatformCredential credential) {
         AuthLoginPolicy policy = configService.runtimeAuthLoginPolicy();
         Instant now = Instant.now();
-        LoginAttemptState current = attempts.findByTenantIdAndUsername(tenantId, username).orElse(null);
+        LoginAttemptState current = lockOrInitialize(tenantId, username, credential, now);
         int previousCount = withinWindow(current, policy, now) ? current.failedCount() : 0;
         int failedCount = previousCount + 1;
         Instant lockedUntil = null;
@@ -59,27 +62,51 @@ public class LoginAttemptService {
             return credential;
         }
         LoginAttemptState attempt = attempts
-            .findByTenantIdAndUsername(credential.tenantId(), credential.username())
+            .findByTenantIdAndUsernameForUpdate(credential.tenantId(), credential.username())
             .orElse(null);
         Instant now = Instant.now();
         if (attempt == null || attempt.lockedUntil() == null || attempt.lockedUntil().isAfter(now)) {
             return credential;
         }
-        resetOnSuccess(credential.tenantId(), credential.username());
+        attempts.save(resetAttempt(attempt, "auth-login"));
         PlatformCredential active = rewriteCredential(credential, "ACTIVE", now);
         return credentials.save(active);
     }
 
     @Transactional
     public void resetOnSuccess(String tenantId, String username) {
-        attempts.findByTenantIdAndUsername(tenantId, username)
+        attempts.findByTenantIdAndUsernameForUpdate(tenantId, username)
             .ifPresent(attempt -> attempts.save(resetAttempt(attempt, "auth-login")));
     }
 
     @Transactional
     public void clearStateForCredential(PlatformCredential credential, String actor) {
-        attempts.findByTenantIdAndUsername(credential.tenantId(), credential.username())
+        attempts.findByTenantIdAndUsernameForUpdate(credential.tenantId(), credential.username())
             .ifPresent(attempt -> attempts.save(resetAttempt(attempt, actor)));
+    }
+
+    private LoginAttemptState lockOrInitialize(String tenantId,
+                                               String username,
+                                               PlatformCredential credential,
+                                               Instant now) {
+        LoginAttemptState current = attempts
+            .findByTenantIdAndUsernameForUpdate(tenantId, username)
+            .orElse(null);
+        if (current != null) {
+            return current;
+        }
+        try {
+            attemptInitializer.initialize(
+                tenantId,
+                username,
+                credential == null ? null : credential.credentialId(),
+                now,
+                RequestContext.currentTraceId());
+        } catch (DuplicateKeyException alreadyInitialized) {
+            // 并发请求已创建同一聚合行，继续锁定该唯一状态即可。
+        }
+        return attempts.findByTenantIdAndUsernameForUpdate(tenantId, username)
+            .orElseThrow(() -> new IllegalStateException("登录尝试状态初始化后不可见"));
     }
 
     private boolean withinWindow(LoginAttemptState attempt, AuthLoginPolicy policy, Instant now) {
@@ -95,22 +122,6 @@ public class LoginAttemptService {
                                       int failedCount,
                                       Instant lockedUntil,
                                       Instant now) {
-        if (current == null) {
-            return new LoginAttemptState(
-                null,
-                "lat-" + UUID.randomUUID(),
-                tenantId,
-                username,
-                credential == null ? null : credential.credentialId(),
-                failedCount,
-                lockedUntil,
-                now,
-                now,
-                "auth-login",
-                now,
-                "auth-login",
-                RequestContext.currentTraceId());
-        }
         return new LoginAttemptState(
             current.id(),
             current.attemptId(),

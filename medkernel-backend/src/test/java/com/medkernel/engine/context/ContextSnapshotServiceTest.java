@@ -478,6 +478,7 @@ class ContextSnapshotServiceTest {
         assertThat(ev.errorCode()).isEqualTo(ErrorCode.ENG_CONTEXT_002.code());
         assertThat(ev.action()).isEqualTo(AuditAction.EXECUTE);
         assertThat(ev.resourceType()).isEqualTo("context_snapshot");
+        assertThat(ev.resourceId()).isEqualTo("MPI-1");
     }
 
     @Test
