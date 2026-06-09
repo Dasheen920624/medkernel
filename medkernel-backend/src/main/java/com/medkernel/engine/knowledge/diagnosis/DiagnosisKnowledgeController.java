@@ -6,6 +6,7 @@ import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -117,7 +118,21 @@ public class DiagnosisKnowledgeController {
     @PostMapping("/identities/{identityId}/versions/{versionId}/publish")
     @PreAuthorize("@perm.has('knowledge.publish')")
     public ApiResult<KnowledgeAssetVersion> publish(@PathVariable Long identityId,
-            @PathVariable Long versionId, @RequestParam(required = false) String reason) {
-        return ApiResult.ok(service.publishDiagnosis(identityId, versionId, reason));
+            @PathVariable Long versionId,
+            @RequestBody(required = false) @Valid DiagnosisPublishRequest request) {
+        String reason = request == null ? null : request.reason();
+        VersionPublishEvidence evidence = request == null
+            ? VersionPublishEvidence.empty()
+            : request.publishEvidence();
+        return ApiResult.ok(service.publishDiagnosis(identityId, versionId, reason, evidence));
+    }
+
+    public record DiagnosisPublishRequest(
+        String reason,
+        VersionPublishEvidence publishEvidence
+    ) {
+        public DiagnosisPublishRequest {
+            publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
+        }
     }
 }

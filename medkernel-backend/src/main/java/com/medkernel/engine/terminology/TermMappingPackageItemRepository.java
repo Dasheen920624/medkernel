@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface TermMappingPackageItemRepository extends ListCrudRepository<TermMappingPackageItem, Long> {
-    List<TermMappingPackageItem> findByTenantIdAndPackageId(String tenantId, Long packageId);
+    List<TermMappingPackageItem> findByTenantIdAndPackageItemId(String tenantId, String packageItemId);
 
     /**
      * 查询当前组织编码锚点可见的全量激活映射快照；灰度、草稿和已下线版本均不参与运行时。
@@ -21,30 +21,40 @@ public interface TermMappingPackageItemRepository extends ListCrudRepository<Ter
                item.mapping_id,
                item.standard_term_id,
                item.standard_code,
-               package.scope_level
-          FROM term_mapping_package_item item
-          JOIN term_mapping_package package
-            ON package.id = item.package_id
-           AND package.tenant_id = item.tenant_id
+               CASE
+                   WHEN version.org_path = 'DEPARTMENT:' || :departmentScope THEN 'DEPARTMENT'
+                   WHEN version.org_path = 'SITE:' || :siteScope THEN 'SITE'
+                   WHEN version.org_path = 'CAMPUS:' || :campusScope THEN 'CAMPUS'
+                   WHEN version.org_path = 'HOSPITAL:' || :hospitalScope THEN 'HOSPITAL'
+                   WHEN version.org_path = 'GROUP:' || :groupScope THEN 'GROUP'
+                   ELSE 'TENANT'
+               END AS scope_level
+          FROM mk_term_mapping_snapshot item
+          JOIN package_item package_item
+            ON package_item.item_id = item.package_item_id
+           AND package_item.tenant_id = item.tenant_id
+          JOIN knowledge_package package
+            ON package.package_id = package_item.package_id
+           AND package.tenant_id = package_item.tenant_id
           JOIN mk_version_asset_version version
             ON version.tenant_id = package.tenant_id
            AND version.asset_type = 'TERMINOLOGY'
-           AND version.asset_identity = package.package_code
-           AND version.version_no = package.package_version
+           AND version.asset_identity = package_item.asset_id
+           AND version.version_no = package_item.asset_version
          WHERE item.tenant_id = :tenantId
-           AND package.status = 'PUBLISHED'
+           AND package.status = 'ACTIVE'
            AND version.status = 'PUBLISHED'
            AND item.local_code = :localCode
            AND (:sourceSystem IS NULL OR item.source_system = :sourceSystem)
            AND (:targetDictionaryKey IS NULL OR item.target_dictionary_key = :targetDictionaryKey)
            AND (:category IS NULL OR item.category = :category)
            AND (
-                (package.scope_level = 'TENANT' AND package.scope_code = :tenantScope)
-             OR (package.scope_level = 'GROUP' AND package.scope_code = :groupScope)
-             OR (package.scope_level = 'HOSPITAL' AND package.scope_code = :hospitalScope)
-             OR (package.scope_level = 'CAMPUS' AND package.scope_code = :campusScope)
-             OR (package.scope_level = 'SITE' AND package.scope_code = :siteScope)
-             OR (package.scope_level = 'DEPARTMENT' AND package.scope_code = :departmentScope)
+                version.org_path = 'TENANT:' || :tenantScope
+             OR version.org_path = 'GROUP:' || :groupScope
+             OR version.org_path = 'HOSPITAL:' || :hospitalScope
+             OR version.org_path = 'CAMPUS:' || :campusScope
+             OR version.org_path = 'SITE:' || :siteScope
+             OR version.org_path = 'DEPARTMENT:' || :departmentScope
            )
          ORDER BY item.mapping_id
         """)
@@ -70,28 +80,38 @@ public interface TermMappingPackageItemRepository extends ListCrudRepository<Ter
                item.mapping_id,
                item.standard_term_id,
                item.standard_code,
-               package.scope_level
-          FROM term_mapping_package_item item
-          JOIN term_mapping_package package
-            ON package.id = item.package_id
-           AND package.tenant_id = item.tenant_id
+               CASE
+                   WHEN version.org_path = 'DEPARTMENT:' || :departmentScope THEN 'DEPARTMENT'
+                   WHEN version.org_path = 'SITE:' || :siteScope THEN 'SITE'
+                   WHEN version.org_path = 'CAMPUS:' || :campusScope THEN 'CAMPUS'
+                   WHEN version.org_path = 'HOSPITAL:' || :hospitalScope THEN 'HOSPITAL'
+                   WHEN version.org_path = 'GROUP:' || :groupScope THEN 'GROUP'
+                   ELSE 'TENANT'
+               END AS scope_level
+          FROM mk_term_mapping_snapshot item
+          JOIN package_item package_item
+            ON package_item.item_id = item.package_item_id
+           AND package_item.tenant_id = item.tenant_id
+          JOIN knowledge_package package
+            ON package.package_id = package_item.package_id
+           AND package.tenant_id = package_item.tenant_id
           JOIN mk_version_asset_version version
             ON version.tenant_id = package.tenant_id
            AND version.asset_type = 'TERMINOLOGY'
-           AND version.asset_identity = package.package_code
-           AND version.version_no = package.package_version
+           AND version.asset_identity = package_item.asset_id
+           AND version.version_no = package_item.asset_version
          WHERE item.tenant_id = :tenantId
-           AND package.status = 'PUBLISHED'
+           AND package.status = 'ACTIVE'
            AND version.status = 'PUBLISHED'
            AND item.target_dictionary_key = :targetDictionaryKey
            AND item.standard_code = :standardCode
            AND (
-                (package.scope_level = 'TENANT' AND package.scope_code = :tenantScope)
-             OR (package.scope_level = 'GROUP' AND package.scope_code = :groupScope)
-             OR (package.scope_level = 'HOSPITAL' AND package.scope_code = :hospitalScope)
-             OR (package.scope_level = 'CAMPUS' AND package.scope_code = :campusScope)
-             OR (package.scope_level = 'SITE' AND package.scope_code = :siteScope)
-             OR (package.scope_level = 'DEPARTMENT' AND package.scope_code = :departmentScope)
+                version.org_path = 'TENANT:' || :tenantScope
+             OR version.org_path = 'GROUP:' || :groupScope
+             OR version.org_path = 'HOSPITAL:' || :hospitalScope
+             OR version.org_path = 'CAMPUS:' || :campusScope
+             OR version.org_path = 'SITE:' || :siteScope
+             OR version.org_path = 'DEPARTMENT:' || :departmentScope
            )
          ORDER BY item.mapping_id
         """)

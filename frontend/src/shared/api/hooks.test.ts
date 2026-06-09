@@ -3243,6 +3243,15 @@ describe("knowledge review api helpers", () => {
       request: {
         decision: "APPROVE",
         reason: "已核对来源锚点和差异。",
+        publishEvidence: {
+          electronicSignature: {
+            signatureId: "sig-knowledge-2002",
+            signerId: "expert-1",
+            signerName: "审核专家",
+            signedAt: "2026-06-09T08:00:00.000Z",
+            signatureHash: "a".repeat(64),
+          },
+        },
       },
       idempotencyKey: "idem-knowledge-review-2002",
     });
@@ -3258,6 +3267,15 @@ describe("knowledge review api helpers", () => {
         package_version: "PKG.KNOW.2026.06",
         decision: "APPROVE",
         reason: "已核对来源锚点和差异。",
+        publishEvidence: {
+          electronicSignature: {
+            signatureId: "sig-knowledge-2002",
+            signerId: "expert-1",
+            signerName: "审核专家",
+            signedAt: "2026-06-09T08:00:00.000Z",
+            signatureHash: "a".repeat(64),
+          },
+        },
       }),
       { headers: { "Idempotency-Key": "idem-knowledge-review-2002" } },
     );

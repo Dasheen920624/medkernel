@@ -1,11 +1,11 @@
-// 术语映射模块全部枚举类型聚合：术语分类、风险等级、各类状态机及发布事件类型。
+// 术语映射模块全部枚举类型聚合：术语分类、风险等级及各类状态机。
 // 这里所有枚举值与 db/migration/.../V4__terminology_mapping_baseline.sql 的 CHECK 约束严格对齐。
 package com.medkernel.engine.terminology;
 
 /**
  * 术语映射模块全部枚举类型聚合（Terminology Enums）。
  *
- * <p>这里定义了术语分类、风险等级、各类状态机及发布事件类型。
+ * <p>这里定义了术语分类、风险等级及各类状态机。
  * 所有枚举值与 db/migration/.../V4__terminology_mapping_baseline.sql 的 CHECK 约束严格对齐。
  */
 public final class TerminologyEnums {
@@ -117,10 +117,4 @@ enum TermMappingPackageStatus {
 enum PackageReleaseMode {
     GRAY,
     FULL
-}
-
-/** 包发布事件类型：PUBLISH 发布 / ROLLBACK 回滚。 */
-enum TermPackageReleaseEventType {
-    PUBLISH,
-    ROLLBACK
 }

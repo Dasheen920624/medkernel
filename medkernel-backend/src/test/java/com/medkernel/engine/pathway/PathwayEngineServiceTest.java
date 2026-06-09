@@ -191,11 +191,17 @@ class PathwayEngineServiceTest {
         assertThat(response.traceId()).isEqualTo("trace-pathway");
         ArgumentCaptor<SpecialtyPackage> packageCap = ArgumentCaptor.forClass(SpecialtyPackage.class);
         ArgumentCaptor<SpecialtyProfile> profileCap = ArgumentCaptor.forClass(SpecialtyProfile.class);
+        ArgumentCaptor<PackageItem> packageItemCap = ArgumentCaptor.forClass(PackageItem.class);
         verify(packages).save(packageCap.capture());
         verify(profiles).save(profileCap.capture());
+        verify(packageItems).save(packageItemCap.capture());
         assertThat(packageCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(profileCap.getValue().packageId()).isEqualTo(response.packageId());
-        verify(auditRecorder).record(AuditAction.CREATE, "specialty_package",
+        assertThat(packageItemCap.getValue().assetType()).isEqualTo(VersionedAssetType.PATHWAY);
+        assertThat(packageItemCap.getValue().assetId()).isEqualTo("PKG.COPD");
+        assertThat(packageItemCap.getValue().assetVersion()).isEqualTo("1.0.0");
+        verify(versionedAssets).registerDraft(any());
+        verify(auditRecorder).record(AuditAction.CREATE, "knowledge_package",
             response.packageId(), "创建专病包 PKG.COPD");
     }
 

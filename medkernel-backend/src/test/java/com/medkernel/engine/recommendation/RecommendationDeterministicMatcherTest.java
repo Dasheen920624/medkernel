@@ -2,7 +2,8 @@ package com.medkernel.engine.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,10 +24,9 @@ import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
 import com.medkernel.engine.knowledge.GradeRecommendationStrength;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.KnowledgeEffectiveVersionResolver;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
-import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
@@ -47,19 +47,16 @@ import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.rule.RuleEffectiveVersionResolver;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
-import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.engine.safety.ClinicalRedlineMatcher;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
-import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
-import com.medkernel.engine.versioning.InheritanceResolveQuery;
-import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -73,31 +70,27 @@ class RecommendationDeterministicMatcherTest {
 
     private final ContextSnapshotService snapshots = mock(ContextSnapshotService.class);
     private final RuleDefinitionRepository ruleDefinitions = mock(RuleDefinitionRepository.class);
-    private final RuleVersionRepository ruleVersions = mock(RuleVersionRepository.class);
+    private final RuleEffectiveVersionResolver effectiveRuleVersions =
+        mock(RuleEffectiveVersionResolver.class);
     private final RuleApplicabilityRepository ruleApplicabilities =
         mock(RuleApplicabilityRepository.class);
-    private final AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
     private final PatientPathwayRepository patientPathways = mock(PatientPathwayRepository.class);
     private final PathwayTemplateRepository pathwayTemplates = mock(PathwayTemplateRepository.class);
-    private final KnowledgeIdentityRepository knowledgeIdentities = mock(KnowledgeIdentityRepository.class);
-    private final KnowledgeAssetVersionRepository knowledgeVersions = mock(KnowledgeAssetVersionRepository.class);
+    private final KnowledgeEffectiveVersionResolver effectiveKnowledgeVersions =
+        mock(KnowledgeEffectiveVersionResolver.class);
     private final ClinicalRedlineMatcher redlineMatcher = mock(ClinicalRedlineMatcher.class);
-    private final InheritanceResolver inheritanceResolver = mock(InheritanceResolver.class);
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final RecommendationDeterministicMatcher matcher = new RecommendationDeterministicMatcher(
         snapshots,
         ruleDefinitions,
-        ruleVersions,
-        assetVersions,
+        effectiveRuleVersions,
         new RuleDslEvaluator(json),
         new RuleApplicabilityService(
             ruleApplicabilities, new RuleApplicabilityEvaluator(json), json),
         patientPathways,
         pathwayTemplates,
-        knowledgeIdentities,
-        knowledgeVersions,
+        effectiveKnowledgeVersions,
         redlineMatcher,
-        inheritanceResolver,
         json
     );
 
@@ -117,13 +110,8 @@ class RecommendationDeterministicMatcherTest {
             "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
-            .thenReturn(Optional.of(ruleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
-            .thenReturn(Optional.of(knowledgeIdentity()));
-        when(knowledgeVersions.findByTenantIdAndId("tenant-A", 100L))
-            .thenReturn(Optional.of(knowledgeVersion()));
+        stubRuleResolution(ruleDefinition(), ruleVersion(), null);
+        stubKnowledgeResolution(knowledgeIdentity(), knowledgeVersion());
         when(patientPathways.findByPatientPathwayIdAndTenantId("pathway-1", "tenant-A"))
             .thenReturn(Optional.of(patientPathway()));
         when(pathwayTemplates.findByTemplateIdAndTenantId("template-1", "tenant-A"))
@@ -167,9 +155,9 @@ class RecommendationDeterministicMatcherTest {
             "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
-            .thenReturn(Optional.of(ruleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.APPROVED);
+        when(effectiveRuleVersions.resolve(
+            "tenant-A", "RISK_GENDER", ruleDefinition().packageVersion()))
+            .thenReturn(Optional.empty());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
@@ -182,9 +170,7 @@ class RecommendationDeterministicMatcherTest {
             "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
-            .thenReturn(Optional.of(ruleVersionForSetting("OUTPATIENT")));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
+        stubRuleResolution(ruleDefinition(), ruleVersionForSetting("OUTPATIENT"), null);
 
         assertThat(matcher.match(triggerRequestWithoutPathway())).isEmpty();
     }
@@ -197,15 +183,8 @@ class RecommendationDeterministicMatcherTest {
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of());
         when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-platform-risk-v1", "t-1"))
-            .thenReturn(Optional.of(platformRuleVersion()));
-        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
-            .thenReturn(Optional.empty());
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("t-1", "RISK_GENDER"))
-            .thenReturn(Optional.of(platformKnowledgeIdentity()));
-        when(knowledgeVersions.findByTenantIdAndId("t-1", 200L))
-            .thenReturn(Optional.of(platformKnowledgeVersion()));
+        stubRuleResolution(platformRuleDefinition(), platformRuleVersion(), null);
+        stubKnowledgeResolution(platformKnowledgeIdentity(), platformKnowledgeVersion());
 
         List<RecommendationCardRequest> matches = matcher.match(request);
 
@@ -231,18 +210,8 @@ class RecommendationDeterministicMatcherTest {
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
-            .thenReturn(Optional.of(ruleVersion()));
-        when(ruleVersions.findByVersionIdAndTenantId("rv-platform-risk-v1", "t-1"))
-            .thenReturn(Optional.of(platformRuleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.APPROVED);
-        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
-            .thenReturn(Optional.empty());
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("t-1", "RISK_GENDER"))
-            .thenReturn(Optional.of(platformKnowledgeIdentity()));
-        when(knowledgeVersions.findByTenantIdAndId("t-1", 200L))
-            .thenReturn(Optional.of(platformKnowledgeVersion()));
+        stubRuleResolution(platformRuleDefinition(), platformRuleVersion(), null);
+        stubKnowledgeResolution(platformKnowledgeIdentity(), platformKnowledgeVersion());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
@@ -259,7 +228,7 @@ class RecommendationDeterministicMatcherTest {
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
-        when(inheritanceResolver.resolve(any(InheritanceResolveQuery.class))).thenReturn(new ResolvedAssetVersion(
+        ResolvedAssetVersion resolution = new ResolvedAssetVersion(
             tenantOverrideRuleAsset(),
             "dept-A",
             false,
@@ -267,15 +236,9 @@ class RecommendationDeterministicMatcherTest {
             false,
             null,
             SourceTier.ORG
-        ));
-        when(ruleDefinitions.findByTenantIdAndRuleCode("tenant-A", "RISK_GENDER"))
-            .thenReturn(Optional.of(ruleDefinition()));
-        when(ruleVersions.findByRuleIdAndTenantIdAndVersionNo("rule-risk", "tenant-A", 2))
-            .thenReturn(Optional.of(ruleVersionNo("rv-risk-v2", 2)));
-        when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
-            .thenReturn(Optional.of(knowledgeIdentity()));
-        when(knowledgeVersions.findByTenantIdAndId("tenant-A", 100L))
-            .thenReturn(Optional.of(knowledgeVersion()));
+        );
+        stubRuleResolution(ruleDefinition(), ruleVersionNo("rv-risk-v2", 2), resolution);
+        stubKnowledgeResolution(knowledgeIdentity(), knowledgeVersion());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
@@ -293,11 +256,8 @@ class RecommendationDeterministicMatcherTest {
             .contains("\"sourceTier\":\"ORG\"")
             .contains("\"sourceOrgPath\":\"dept-A\"")
             .contains("\"contentHash\":\"sha256:tenant-rule-v2\"");
-        verify(inheritanceResolver).resolve(argThat(query ->
-            "tenant-A".equals(query.tenantId())
-                && query.assetType() == VersionedAssetType.RULE
-                && "RISK_GENDER".equals(query.assetIdentity())
-                && "dept-A".equals(query.targetOrgUnitId())));
+        verify(effectiveRuleVersions).resolve(
+            "tenant-A", "RISK_GENDER", ruleDefinition().packageVersion());
     }
 
     @Test
@@ -350,34 +310,56 @@ class RecommendationDeterministicMatcherTest {
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-cdss");
     }
 
-    private void stubRuleAsset(String tenantId, String identity, String versionNo,
-                               AssetVersionStatus status) {
+    private void stubRuleResolution(
+            RuleDefinition rule,
+            RuleVersion version,
+            ResolvedAssetVersion resolution) {
+        AssetVersion assetVersion = resolution == null
+            ? ruleAsset(rule.tenantId(), version.versionNo())
+            : resolution.version();
+        when(effectiveRuleVersions.resolve(
+            eq("tenant-A"), eq(rule.ruleCode()), anyString()))
+            .thenReturn(Optional.of(new RuleEffectiveVersionResolver.ResolvedRuleVersion(
+                rule, version, assetVersion, resolution)));
+    }
+
+    private void stubKnowledgeResolution(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion version) {
+        AssetVersion assetVersion = knowledgeAsset(identity, version);
+        when(effectiveKnowledgeVersions.resolve(
+            "tenant-A",
+            identity.identityCode(),
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(
+                new KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion(
+                    identity, version, assetVersion, null)));
+    }
+
+    private AssetVersion ruleAsset(String tenantId, int versionNo) {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
-        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            tenantId, VersionedAssetType.RULE, identity, versionNo))
-            .thenReturn(Optional.of(new AssetVersion(
-                1L,
-                "av-" + identity + "-" + versionNo,
-                tenantId,
-                VersionedAssetType.RULE,
-                identity,
-                versionNo,
-                "tenant:" + tenantId,
-                "1.0.0",
-                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                AssetVersionSafetyPolicy.NORMAL,
-                AssetVersionOverridePolicy.FREE,
-                status,
-                "version:" + identity + "-" + versionNo,
-                "测试规则",
-                null,
-                null,
-                now,
-                "tester",
-                now,
-                "tester",
-                "trace-cdss"
-            )));
+        return new AssetVersion(
+            1L, "av-RISK_GENDER-" + versionNo, tenantId, VersionedAssetType.RULE,
+            "RISK_GENDER", String.valueOf(versionNo), "tenant:" + tenantId, "rule-1",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED, "version:RISK_GENDER-" + versionNo, "测试规则",
+            null, null, now, "tester", now, "tester", "trace-cdss");
+    }
+
+    private AssetVersion knowledgeAsset(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion version) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new AssetVersion(
+            3L, "av-knowledge-" + version.id(), identity.tenantId(),
+            VersionedAssetType.KNOWLEDGE, identity.identityCode(), version.versionNo(),
+            version.organizationScope(), version.applicableScope(), version.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            identity.identityCode() + "|" + version.organizationScope() + "|" + version.applicableScope(),
+            "knowledge-version:" + version.id(),
+            null, null, now, "tester", now, "tester", "trace-cdss");
     }
 
     private AssetVersion tenantOverrideRuleAsset() {

@@ -18,6 +18,7 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -117,7 +118,10 @@ public class KnowledgeVersionController {
                                                      @PathVariable Long versionId,
                                                      @Valid @RequestBody(required = false) ActivateVersionRequest req) {
         String reason = req == null ? null : req.reason();
-        return ApiResult.ok(versionService.activate(identityId, versionId, reason));
+        VersionPublishEvidence evidence = req == null
+            ? VersionPublishEvidence.empty()
+            : req.publishEvidence();
+        return ApiResult.ok(versionService.activate(identityId, versionId, reason, evidence));
     }
 
     /**
@@ -131,8 +135,15 @@ public class KnowledgeVersionController {
         return ApiResult.ok(versionService.withdraw(identityId, versionId, req.reason()));
     }
 
-    /** 版本激活请求体。reason 是激活说明，高风险必填，常风险可空。 */
-    public record ActivateVersionRequest(@Size(max = 500) String reason) {}
+    /** 版本激活请求体。reason 是激活说明，平台或高风险发布还须携带治理证据。 */
+    public record ActivateVersionRequest(
+        @Size(max = 500) String reason,
+        VersionPublishEvidence publishEvidence
+    ) {
+        public ActivateVersionRequest {
+            publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
+        }
+    }
 
     /** 版本撤回请求体。reason 永远必填。 */
     public record WithdrawVersionRequest(@Size(min = 1, max = 500) String reason) {}

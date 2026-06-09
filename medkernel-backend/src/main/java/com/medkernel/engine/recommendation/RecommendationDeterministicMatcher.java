@@ -13,9 +13,8 @@ import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
+import com.medkernel.engine.knowledge.KnowledgeEffectiveVersionResolver;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
-import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
@@ -26,18 +25,12 @@ import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.rule.RuleEffectiveVersionResolver;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
-import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.safety.ClinicalRedlineMatcher;
-import com.medkernel.engine.versioning.AssetVersion;
-import com.medkernel.engine.versioning.AssetVersionRepository;
-import com.medkernel.engine.versioning.AssetVersionStatus;
-import com.medkernel.engine.versioning.InheritanceResolveQuery;
-import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
-import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -58,44 +51,35 @@ public class RecommendationDeterministicMatcher {
 
     private final ContextSnapshotService snapshots;
     private final RuleDefinitionRepository ruleDefinitions;
-    private final RuleVersionRepository ruleVersions;
-    private final AssetVersionRepository assetVersions;
+    private final RuleEffectiveVersionResolver effectiveRuleVersions;
     private final RuleDslEvaluator ruleEvaluator;
     private final RuleApplicabilityService applicabilityService;
     private final PatientPathwayRepository patientPathways;
     private final PathwayTemplateRepository pathwayTemplates;
-    private final KnowledgeIdentityRepository knowledgeIdentities;
-    private final KnowledgeAssetVersionRepository knowledgeVersions;
+    private final KnowledgeEffectiveVersionResolver effectiveKnowledgeVersions;
     private final ClinicalRedlineMatcher redlineMatcher;
-    private final InheritanceResolver inheritanceResolver;
     private final ObjectMapper json;
 
     public RecommendationDeterministicMatcher(
             ContextSnapshotService snapshots,
             RuleDefinitionRepository ruleDefinitions,
-            RuleVersionRepository ruleVersions,
-            AssetVersionRepository assetVersions,
+            RuleEffectiveVersionResolver effectiveRuleVersions,
             RuleDslEvaluator ruleEvaluator,
             RuleApplicabilityService applicabilityService,
             PatientPathwayRepository patientPathways,
             PathwayTemplateRepository pathwayTemplates,
-            KnowledgeIdentityRepository knowledgeIdentities,
-            KnowledgeAssetVersionRepository knowledgeVersions,
+            KnowledgeEffectiveVersionResolver effectiveKnowledgeVersions,
             ClinicalRedlineMatcher redlineMatcher,
-            InheritanceResolver inheritanceResolver,
             ObjectMapper json) {
         this.snapshots = snapshots;
         this.ruleDefinitions = ruleDefinitions;
-        this.ruleVersions = ruleVersions;
-        this.assetVersions = assetVersions;
+        this.effectiveRuleVersions = effectiveRuleVersions;
         this.ruleEvaluator = ruleEvaluator;
         this.applicabilityService = applicabilityService;
         this.patientPathways = patientPathways;
         this.pathwayTemplates = pathwayTemplates;
-        this.knowledgeIdentities = knowledgeIdentities;
-        this.knowledgeVersions = knowledgeVersions;
+        this.effectiveKnowledgeVersions = effectiveKnowledgeVersions;
         this.redlineMatcher = redlineMatcher;
-        this.inheritanceResolver = inheritanceResolver;
         this.json = json;
     }
 
@@ -129,82 +113,20 @@ public class RecommendationDeterministicMatcher {
     }
 
     private List<EffectiveRuleVersion> effectiveActiveRules(String tenantId) {
-        String targetOrgUnitId = targetOrgUnitId();
-        if (hasText(targetOrgUnitId)) {
-            LinkedHashMap<String, RuleDefinition> candidates = new LinkedHashMap<>();
-            ruleDefinitions.findPublishedByTenantId(tenantId)
-                .forEach(rule -> candidates.put(rule.ruleCode(), rule));
-            if (!PlatformTenant.isPlatformTenant(tenantId)) {
-                ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)
-                    .forEach(rule -> candidates.putIfAbsent(rule.ruleCode(), rule));
-            }
-            return candidates.values().stream()
-                .map(rule -> resolveEffectiveRuleVersion(rule, tenantId, targetOrgUnitId))
-                .flatMap(Optional::stream)
-                .toList();
-        }
-        LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
-        ruleDefinitions.findPublishedByTenantId(tenantId).stream()
-            .forEach(rule -> activeUnifiedVersion(rule)
-                .ifPresent(version -> byCode.put(rule.ruleCode(), rule)));
+        LinkedHashMap<String, RuleDefinition> candidates = new LinkedHashMap<>();
+        ruleDefinitions.findPublishedByTenantId(tenantId)
+            .forEach(rule -> candidates.put(rule.ruleCode(), rule));
         if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            for (RuleDefinition rule : ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)) {
-                if (!byCode.containsKey(rule.ruleCode())) {
-                    activeUnifiedVersion(rule).ifPresent(version -> byCode.put(rule.ruleCode(), rule));
-                }
-            }
+            ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)
+                .forEach(rule -> candidates.putIfAbsent(rule.ruleCode(), rule));
         }
-        return byCode.values().stream()
-            .map(rule -> activeUnifiedVersion(rule)
-                .map(version -> new EffectiveRuleVersion(rule, version, null)))
+        return candidates.values().stream()
+            .map(rule -> effectiveRuleVersions.resolve(
+                    tenantId, rule.ruleCode(), releaseApplicableScope(rule))
+                .map(resolved -> new EffectiveRuleVersion(
+                    resolved.rule(), resolved.version(), resolved.resolution())))
             .flatMap(Optional::stream)
             .toList();
-    }
-
-    private Optional<EffectiveRuleVersion> resolveEffectiveRuleVersion(
-            RuleDefinition candidate,
-            String tenantId,
-            String targetOrgUnitId) {
-        ResolvedAssetVersion resolved;
-        try {
-            resolved = inheritanceResolver.resolve(new InheritanceResolveQuery(
-                tenantId,
-                VersionedAssetType.RULE,
-                candidate.ruleCode(),
-                releaseApplicableScope(candidate),
-                targetOrgUnitId
-            ));
-        } catch (ApiException exception) {
-            if (exception.errorCode() == ErrorCode.NOT_FOUND) {
-                return Optional.empty();
-            }
-            throw exception;
-        }
-        if (resolved.disabled() || resolved.version() == null) {
-            return Optional.empty();
-        }
-        AssetVersion assetVersion = resolved.version();
-        int versionNo = Integer.parseInt(assetVersion.versionNo());
-        return ruleDefinitions.findByTenantIdAndRuleCode(assetVersion.tenantId(), candidate.ruleCode())
-            .flatMap(rule -> ruleVersions.findByRuleIdAndTenantIdAndVersionNo(
-                    rule.ruleId(), assetVersion.tenantId(), versionNo)
-                .map(version -> new EffectiveRuleVersion(rule, version, resolved)));
-    }
-
-    private Optional<RuleVersion> activeUnifiedVersion(RuleDefinition rule) {
-        if (!hasText(rule.activeVersionId())) {
-            throw new ApiException(ErrorCode.ENG_RULE_003, "已发布规则缺少 activeVersionId: " + rule.ruleId());
-        }
-        RuleVersion version = ruleVersions.findByVersionIdAndTenantId(rule.activeVersionId(), rule.tenantId())
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_003,
-                "规则 active 版本不存在: " + rule.activeVersionId()));
-        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-                rule.tenantId(),
-                VersionedAssetType.RULE,
-                rule.ruleCode(),
-                String.valueOf(version.versionNo()))
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.PUBLISHED)
-            .map(assetVersion -> version);
     }
 
     private JsonNode parseDsl(RuleVersion version) {
@@ -300,9 +222,10 @@ public class RecommendationDeterministicMatcher {
 
     private Optional<EffectiveKnowledgeVersion> knowledgeSource(String sourceRef, String requestTenantId) {
         return knowledgeIdentityCode(sourceRef)
-            .flatMap(identityCode -> findEffectiveKnowledgeIdentity(identityCode, requestTenantId))
-            .flatMap(effective -> activeKnowledgeVersion(effective)
-                .map(version -> new EffectiveKnowledgeVersion(effective.identity(), effective.sourceTenantId(), version)));
+            .flatMap(identityCode -> effectiveKnowledgeVersions.resolve(
+                requestTenantId, identityCode, currentApplicableScope()))
+            .map(resolved -> new EffectiveKnowledgeVersion(
+                resolved.identity(), resolved.assetVersion().tenantId(), resolved.version()));
     }
 
     private Optional<String> knowledgeIdentityCode(String sourceRef) {
@@ -317,25 +240,11 @@ public class RecommendationDeterministicMatcher {
         return hasText(identityCode) ? Optional.of(identityCode) : Optional.empty();
     }
 
-    private Optional<EffectiveKnowledgeIdentity> findEffectiveKnowledgeIdentity(String identityCode, String tenantId) {
-        Optional<KnowledgeIdentity> local = knowledgeIdentities.findByTenantIdAndIdentityCode(tenantId, identityCode);
-        if (local.isPresent()) {
-            return Optional.of(new EffectiveKnowledgeIdentity(local.get(), tenantId));
-        }
-        if (PlatformTenant.isPlatformTenant(tenantId)) {
-            return Optional.empty();
-        }
-        return knowledgeIdentities.findByTenantIdAndIdentityCode(PlatformTenant.ID, identityCode)
-            .map(identity -> new EffectiveKnowledgeIdentity(identity, PlatformTenant.ID));
-    }
-
-    private Optional<KnowledgeAssetVersion> activeKnowledgeVersion(EffectiveKnowledgeIdentity effective) {
-        KnowledgeIdentity identity = effective.identity();
-        if (identity.currentVersionId() == null) {
-            return Optional.empty();
-        }
-        return knowledgeVersions.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
-            .filter(KnowledgeAssetVersion::isAuthoritative);
+    private static String currentApplicableScope() {
+        OrgScope scope = RequestContext.currentOrgScope();
+        return scope == null || !hasText(scope.specialtyId())
+            ? KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+            : "specialty:" + scope.specialtyId().trim();
     }
 
     private RecommendationSourceRequest toKnowledgeSource(EffectiveKnowledgeVersion knowledge) {
@@ -528,9 +437,6 @@ public class RecommendationDeterministicMatcher {
         RuleVersion version,
         ResolvedAssetVersion resolution
     ) {
-    }
-
-    private record EffectiveKnowledgeIdentity(KnowledgeIdentity identity, String sourceTenantId) {
     }
 
     private record EffectiveKnowledgeVersion(

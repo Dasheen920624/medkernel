@@ -202,7 +202,7 @@ class DiagnosisKnowledgeApiContractTest {
 
     @Test
     void publishSurfacesGateFailureAsConflict() throws Exception {
-        when(service.publishDiagnosis(eq(1L), eq(10L), any()))
+        when(service.publishDiagnosis(eq(1L), eq(10L), any(), any()))
             .thenThrow(new ApiException(ErrorCode.ENG_DX_006, "测试病例 CASE-1 期望 WEAK 实得 STRONG"));
 
         mockMvc.perform(post(PUBLISH).with(tenantJwt("ROLE_MEDICAL_AFFAIRS")))

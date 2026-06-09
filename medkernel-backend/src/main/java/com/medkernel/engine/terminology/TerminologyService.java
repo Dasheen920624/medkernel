@@ -53,7 +53,6 @@ public class TerminologyService {
     private final MappingConflictRepository conflictRepository;
     private final TermMappingPackageRepository packageRepository;
     private final TermMappingPackageItemRepository packageItemRepository;
-    private final TermMappingPackageReleaseRepository packageReleaseRepository;
     private final HighRiskRuleRepository highRiskRuleRepository;
     private final TerminologyVersionedAssetAdapter versionedAssets;
     private final AssetVersionRepository assetVersions;
@@ -67,7 +66,6 @@ public class TerminologyService {
                               MappingConflictRepository conflictRepository,
                               TermMappingPackageRepository packageRepository,
                               TermMappingPackageItemRepository packageItemRepository,
-                              TermMappingPackageReleaseRepository packageReleaseRepository,
                               HighRiskRuleRepository highRiskRuleRepository,
                               TerminologyVersionedAssetAdapter versionedAssets,
                               AssetVersionRepository assetVersions,
@@ -80,7 +78,6 @@ public class TerminologyService {
         this.conflictRepository = conflictRepository;
         this.packageRepository = packageRepository;
         this.packageItemRepository = packageItemRepository;
-        this.packageReleaseRepository = packageReleaseRepository;
         this.highRiskRuleRepository = highRiskRuleRepository;
         this.versionedAssets = versionedAssets;
         this.assetVersions = assetVersions;
@@ -343,7 +340,7 @@ public class TerminologyService {
     /**
      * 基于当前租户 + 范围内所有 CONFIRMED 映射构建一个新的 DRAFT 状态术语映射包。
      *
-     * <p>范围内若无任何已确认映射则抛冲突错误；包条目逐条以快照形式落 {@code term_mapping_package_item}。
+     * <p>范围内若无任何已确认映射则抛冲突错误；包条目逐条以快照形式落 {@code mk_term_mapping_snapshot}。
      */
     @Transactional
     public TermMappingPackage buildPackage(BuildTerminologyPackageRequest request) {
@@ -366,16 +363,17 @@ public class TerminologyService {
             packageScope.level(), packageScope.code(), TermMappingPackageStatus.DRAFT,
             mappings.size(), contentHash, null, null, null, now, userId, now, userId
         ));
+        String packageItemId = packageRepository.packageItemId(tenantId, saved.id());
         for (TermMappingSnapshot snapshot : snapshots) {
             String mappingSnapshot = TermMappingSnapshotCodec.write(snapshot);
             packageItemRepository.save(TermMappingPackageItem.fromSnapshot(
-                tenantId, saved.id(), snapshot.mappingId(), snapshot, mappingSnapshot, now, userId
+                tenantId, packageItemId, snapshot.mappingId(), snapshot, mappingSnapshot, now, userId
             ));
         }
         versionedAssets.registerDraft(new AssetVersionRegisterCommand(
             tenantId,
             VersionedAssetType.TERMINOLOGY,
-            saved.packageCode(),
+            terminologyAssetIdentity(saved),
             saved.packageVersion(),
             releaseOrgScope(saved),
             "ALL",
@@ -420,12 +418,7 @@ public class TerminologyService {
                 }
             }
         }
-        TermMappingPackage saved = packageRepository.save(next);
-        packageReleaseRepository.save(new TermMappingPackageRelease(
-            null, tenantId, pkg.id(), null, TermPackageReleaseEventType.PUBLISH,
-            request.releaseMode(), request.reason(), now, userId
-        ));
-        return saved;
+        return packageRepository.save(next);
     }
 
     /**
@@ -457,7 +450,7 @@ public class TerminologyService {
         releasePort.rollback(new VersionRollbackCommand(
             tenantId,
             VersionedAssetType.TERMINOLOGY,
-            current.packageCode(),
+            terminologyAssetIdentity(current),
             currentVersion.versionId(),
             targetVersion.versionId(),
             current.packageVersion(),
@@ -468,12 +461,7 @@ public class TerminologyService {
             RequestContext.currentTraceId()
         ));
         packageRepository.save(current.rolledBack(userId, now));
-        TermMappingPackage restored = packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
-        packageReleaseRepository.save(new TermMappingPackageRelease(
-            null, tenantId, current.id(), target.id(), TermPackageReleaseEventType.ROLLBACK,
-            PackageReleaseMode.FULL, request.reason(), now, userId
-        ));
-        return restored;
+        return packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
     }
 
     /**
@@ -600,7 +588,7 @@ public class TerminologyService {
         return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             pkg.tenantId(),
             VersionedAssetType.TERMINOLOGY,
-            pkg.packageCode(),
+            terminologyAssetIdentity(pkg),
             pkg.packageVersion()
         ).orElseThrow(() -> new ApiException(
             ErrorCode.CONFLICT,
@@ -616,7 +604,7 @@ public class TerminologyService {
         return new VersionReleaseCommand(
             pkg.tenantId(),
             VersionedAssetType.TERMINOLOGY,
-            pkg.packageCode(),
+            terminologyAssetIdentity(pkg),
             assetVersion.versionId(),
             releaseOrgScope(pkg),
             "ALL",
@@ -673,6 +661,10 @@ public class TerminologyService {
 
     private String terminologySourceRef(TermMappingPackage pkg) {
         return "term-mapping-package:" + pkg.packageCode() + ":" + pkg.packageVersion();
+    }
+
+    private String terminologyAssetIdentity(TermMappingPackage pkg) {
+        return pkg.packageCode() + "|" + pkg.scopeLevel() + "|" + pkg.scopeCode();
     }
 
     private String hashMappings(

@@ -1403,8 +1403,10 @@ public class PackageEngineService {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线导出术语映射包缺少本地主键，不能回查条目: " + terminologyPackage.packageCode());
         }
+        String packageItemId = terminologyPackageRepository.packageItemId(
+            terminologyPackage.tenantId(), terminologyPackage.id());
         List<TermMappingPackageItem> packageItems = terminologyPackageItemRepository
-            .findByTenantIdAndPackageId(terminologyPackage.tenantId(), terminologyPackage.id()).stream()
+            .findByTenantIdAndPackageItemId(terminologyPackage.tenantId(), packageItemId).stream()
             .sorted(Comparator.comparing(
                 TermMappingPackageItem::mappingId,
                 Comparator.nullsLast(Comparator.naturalOrder())))
@@ -1559,8 +1561,10 @@ public class PackageEngineService {
             case RULE -> importOfflineRuleSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case PATHWAY -> importOfflinePathwaySnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
-            case KNOWLEDGE -> importOfflineKnowledgeSnapshot(assetId, assetVersion, content, tenantId, actor, now);
-            case TERMINOLOGY -> importOfflineTerminologySnapshot(assetId, assetVersion, content, tenantId, actor, now);
+            case KNOWLEDGE -> importOfflineKnowledgeSnapshot(
+                assetId, assetVersion, content, tenantId, actor, traceId, now);
+            case TERMINOLOGY -> importOfflineTerminologySnapshot(
+                assetId, assetVersion, content, tenantId, actor, traceId, now);
             case CONDITION_FRAGMENT -> importOfflineConditionFragmentSnapshot(
                 assetId, assetVersion, content, tenantId, actor, traceId, now);
             default -> {
@@ -2352,6 +2356,7 @@ public class PackageEngineService {
             JsonNode content,
             String tenantId,
             String actor,
+            String traceId,
             Instant now) {
         PackageOfflineKnowledgeContent knowledgeContent = readOfflineContent(content, PackageOfflineKnowledgeContent.class);
         validateOfflineAssetSnapshotContent(VersionedAssetType.KNOWLEDGE, assetId, assetVersion, content);
@@ -2367,6 +2372,8 @@ public class PackageEngineService {
                 ));
             ensureLocalSnapshotMatches("知识版本", assetId, content,
                 buildKnowledgeAssetContent(existingIdentity.get(), existingVersion));
+            ensureImportedKnowledgeAssetVersion(
+                assetId, assetVersion, existingVersion, tenantId, actor, traceId, now);
             return;
         }
 
@@ -2445,6 +2452,60 @@ public class PackageEngineService {
                 actor
             ));
         }
+        ensureImportedKnowledgeAssetVersion(
+            assetId, assetVersion, savedVersion, tenantId, actor, traceId, now);
+    }
+
+    private void ensureImportedKnowledgeAssetVersion(
+            String assetId,
+            String assetVersion,
+            KnowledgeAssetVersion knowledgeVersion,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        String organizationScope = knowledgeVersion.effectiveOrganizationScope();
+        String applicableScope = knowledgeVersion.effectiveApplicableScope();
+        Optional<AssetVersion> existing = assetVersions
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                tenantId, VersionedAssetType.KNOWLEDGE, assetId, assetVersion);
+        if (existing.isPresent()) {
+            AssetVersion unified = existing.get();
+            if (unified.status() != AssetVersionStatus.PUBLISHED
+                    || !knowledgeVersion.contentHash().equals(unified.contentHash())
+                    || !organizationScope.equals(unified.organizationScope())
+                    || !applicableScope.equals(unified.applicableScope())) {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "本地统一知识版本与离线快照不一致: " + assetId + "@" + assetVersion);
+            }
+            return;
+        }
+        assetVersions.save(new AssetVersion(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            VersionedAssetType.KNOWLEDGE,
+            assetId,
+            assetVersion,
+            organizationScope,
+            applicableScope,
+            knowledgeVersion.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL,
+            knowledgeVersion.isHighRisk()
+                ? AssetVersionOverridePolicy.REVIEW
+                : AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            assetId + "|" + organizationScope + "|" + applicableScope,
+            "knowledge-version:" + assetId + ":" + assetVersion,
+            knowledgeVersion.effectiveFrom(),
+            knowledgeVersion.effectiveTo(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
     }
 
     private void importOfflineTerminologySnapshot(
@@ -2453,6 +2514,7 @@ public class PackageEngineService {
             JsonNode content,
             String tenantId,
             String actor,
+            String traceId,
             Instant now) {
         PackageOfflineTerminologyContent terminologyContent =
             readOfflineContent(content, PackageOfflineTerminologyContent.class);
@@ -2485,6 +2547,29 @@ public class PackageEngineService {
             now,
             actor
         ));
+        assetVersions.save(new AssetVersion(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetId,
+            assetVersion,
+            key.scopeLevel() + ":" + key.scopeCode(),
+            "ALL",
+            importedPackage.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            assetId + "|" + key.scopeLevel() + ":" + key.scopeCode() + "|ALL",
+            "term-mapping-package:" + importedPackage.packageCode() + ":" + assetVersion,
+            parseInstant(importedPackage.publishedAt()),
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
 
         List<TermMapping> savedMappings = new ArrayList<>();
         for (PackageOfflineTermMapping mapping : terminologyContent.mappings()) {
@@ -2515,6 +2600,7 @@ public class PackageEngineService {
         if (terminologyContent.items().size() != savedMappings.size()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "术语离线包映射与不可变快照数量不一致");
         }
+        String packageItemId = terminologyPackageRepository.packageItemId(tenantId, savedPackage.id());
         for (int i = 0; i < savedMappings.size(); i++) {
             TermMapping savedMapping = savedMappings.get(i);
             String mappingSnapshot = terminologyContent.items().get(i).mappingSnapshot();
@@ -2526,7 +2612,7 @@ public class PackageEngineService {
                 );
             String persistedSnapshot = TermMappingSnapshotCodec.write(snapshot);
             terminologyPackageItemRepository.save(TermMappingPackageItem.fromSnapshot(
-                tenantId, savedPackage.id(), savedMapping.id(), snapshot, persistedSnapshot, now, actor
+                tenantId, packageItemId, savedMapping.id(), snapshot, persistedSnapshot, now, actor
             ));
         }
     }
@@ -4294,12 +4380,18 @@ public class PackageEngineService {
                         "只允许 ACTIVE 状态的知识版本入包, 当前: " + version.status()
                     );
                 }
-                if (identity.currentVersionId() != null
-                        && version.id() != null
-                        && !identity.currentVersionId().equals(version.id())) {
+                AssetVersion unifiedVersion = assetVersions
+                    .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                        tenantId, VersionedAssetType.KNOWLEDGE, assetId, assetVersion)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "统一知识版本不存在: " + assetId + "@" + assetVersion
+                    ));
+                if (unifiedVersion.status() != AssetVersionStatus.PUBLISHED) {
                     throw new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
-                        "知识资产版本不是当前权威版本: " + assetId + "@" + assetVersion
+                        "只允许统一底座 PUBLISHED 状态的知识版本入包, 当前: "
+                            + unifiedVersion.status()
                     );
                 }
             }

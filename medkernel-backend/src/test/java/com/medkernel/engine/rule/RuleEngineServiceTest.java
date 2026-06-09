@@ -36,6 +36,7 @@ import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.InheritanceResolver;
+import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
@@ -54,6 +55,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -1382,6 +1384,8 @@ class RuleEngineServiceTest {
             "version-platform", "t-1", "rule-platform", RuleVersionStatus.PUBLISHED);
         when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(localReviewed));
         when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformActive));
+        when(definitions.findByTenantIdAndRuleCode("t-1", "RULE.ANTICOAG"))
+            .thenReturn(Optional.of(platformActive));
         when(versions.findByVersionIdAndTenantId("version-local", "tenant-A"))
             .thenReturn(Optional.of(localVersion));
         when(versions.findByVersionIdAndTenantId("version-platform", "t-1"))
@@ -2081,11 +2085,24 @@ class RuleEngineServiceTest {
 
     private void stubRuleAssetStatus(String tenantId, String identity, String versionNo,
                                      AssetVersionStatus status) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        String organizationScope = PlatformTenant.isPlatformTenant(tenantId)
+            ? PlatformAuthority.PLATFORM_ORG_PATH
+            : "tenant:" + tenantId;
+        AssetVersion version = new AssetVersion(
+            1L, "av-" + identity + "-" + versionNo, tenantId,
+            VersionedAssetType.RULE, identity, versionNo,
+            organizationScope, "rpv-1",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, status,
+            "version:av-" + identity + "-" + versionNo, "统一发布测试", null, null,
+            now, "tester", now, "tester", "trace-rule");
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             tenantId, VersionedAssetType.RULE, identity, versionNo))
-            .thenReturn(Optional.of(assetVersion(
-                tenantId, "av-" + identity + "-" + versionNo,
-                VersionedAssetType.RULE, identity, versionNo, status)));
+            .thenReturn(Optional.of(version));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
+            tenantId, VersionedAssetType.RULE, identity, AssetVersionStatus.PUBLISHED))
+            .thenReturn(status == AssetVersionStatus.PUBLISHED ? List.of(version) : List.of());
     }
 
     private VersionReleasePlan releasePlan(String versionId, VersionedAssetType type,

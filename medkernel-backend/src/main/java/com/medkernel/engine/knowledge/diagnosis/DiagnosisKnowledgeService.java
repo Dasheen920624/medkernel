@@ -29,6 +29,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -281,9 +282,17 @@ public class DiagnosisKnowledgeService {
 
     /** 发布诊断知识版本：先过测试病例门禁（publishGate）全绿，才调通用版本激活。门禁失败抛 ENG_DX_006。 */
     @Transactional
-    public KnowledgeAssetVersion publishDiagnosis(Long identityId, Long versionId, String reason) {
+    public KnowledgeAssetVersion publishDiagnosis(
+            Long identityId,
+            Long versionId,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
         publishGate(versionId);
-        return knowledgeVersions.activate(identityId, versionId, reason);
+        return knowledgeVersions.activate(
+            identityId,
+            versionId,
+            reason,
+            VersionPublishEvidence.orEmpty(publishEvidence));
     }
 
     /** 当前租户 DEFAULT 优先，未覆盖回退平台主源 t-1（V75 已种子）；都缺才诚实失败 ENG_DX_005。 */

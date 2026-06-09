@@ -4,8 +4,10 @@ import {
   App as AntdApp,
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
+  Divider,
   Drawer,
   Form,
   Input,
@@ -36,10 +38,12 @@ import {
   type KnowledgeDomain,
   type KnowledgeIdentity,
   type KnowledgeIdentityStatus,
+  type VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import {
   KNOWLEDGE_DOMAIN_OPTIONS,
   KNOWLEDGE_IDENTITY_STATUS_OPTIONS,
+  KNOWLEDGE_QUALITY_GATE_OPTIONS,
 } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -83,6 +87,13 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
 type ReviewFormValues = {
   packageVersion: string;
   reason: string;
+  signatureId?: string;
+  signerId?: string;
+  signerName?: string;
+  signedAt?: string;
+  signatureHash?: string;
+  qualityGates?: string[];
+  qualitySummary?: string;
 };
 
 type RetirementFormValues = {
@@ -163,10 +174,7 @@ export default function KnowledgeGovernance() {
     () =>
       (successorsQuery.data?.items ?? [])
         .filter(
-          (identity) =>
-            identity.id !== retirementIdentity?.id &&
-            identity.status === "ACTIVE" &&
-            Boolean(identity.currentVersionId),
+          (identity) => identity.id !== retirementIdentity?.id && identity.status === "ACTIVE",
         )
         .map((identity) => ({
           value: identity.id,
@@ -212,6 +220,8 @@ export default function KnowledgeGovernance() {
     diffCandidates.find((version) => version.status === "ACTIVE");
   const candidateVersion =
     diffCandidates.find((version) => version.id === selectedCandidateId) ?? selectedCandidate;
+  const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
+  const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
   const pendingCount = useMemo(
     () =>
@@ -232,19 +242,62 @@ export default function KnowledgeGovernance() {
     reviewForm.setFieldsValue({
       packageVersion: candidate.versionLabel || candidate.versionNo,
       reason: "",
+      qualityGates: [],
     });
   }
 
   async function reviewCandidate(decision: KnowledgeCandidateReviewDecision) {
     if (!selectedCandidateId) return;
     try {
-      const values = await reviewForm.validateFields();
+      const fields = ["packageVersion", "reason"];
+      if (decision === "APPROVE" && publishEvidenceRequired) {
+        fields.push("signatureId", "signerId", "signerName", "signedAt", "signatureHash");
+      }
+      if (decision === "APPROVE" && platformPublishing) {
+        fields.push("qualityGates");
+      }
+      const values = await reviewForm.validateFields(fields);
+      let publishEvidence: VersionPublishEvidence | undefined;
+      if (decision === "APPROVE" && publishEvidenceRequired) {
+        const signatureId = values.signatureId?.trim();
+        const signerId = values.signerId?.trim();
+        const signerName = values.signerName?.trim();
+        const signedAt = values.signedAt?.trim();
+        const signatureHash = values.signatureHash?.trim();
+        if (!signatureId || !signerId || !signerName || !signedAt || !signatureHash) {
+          throw new Error("电子签名信息不完整");
+        }
+        const gates = new Set(values.qualityGates ?? []);
+        publishEvidence = {
+          electronicSignature: {
+            signatureId,
+            signerId,
+            signerName,
+            signedAt: new Date(signedAt).toISOString(),
+            signatureHash,
+          },
+          ...(platformPublishing
+            ? {
+                qualityGate: {
+                  schemaValid: gates.has("schemaValid"),
+                  terminologyBindingComplete: gates.has("terminologyBindingComplete"),
+                  dependencyIntegrityVerified: gates.has("dependencyIntegrityVerified"),
+                  safetyMonotonicityVerified: gates.has("safetyMonotonicityVerified"),
+                  impactSimulationPassed: gates.has("impactSimulationPassed"),
+                  peerReviewSigned: gates.has("peerReviewSigned"),
+                  summary: values.qualitySummary?.trim() || undefined,
+                },
+              }
+            : {}),
+        };
+      }
       await reviewMutation.mutateAsync({
         candidateId: selectedCandidateId,
         packageVersion: values.packageVersion,
         request: {
           decision,
           reason: values.reason.trim(),
+          ...(publishEvidence ? { publishEvidence } : {}),
         },
         idempotencyKey: `knowledge-review-${selectedCandidateId}-${decision.toLowerCase()}`,
       });
@@ -323,7 +376,7 @@ export default function KnowledgeGovernance() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{record.specialtyId || "未限定专科"}</Text>
-          <Text type="secondary">currentVersionId: {record.currentVersionId ?? "无"}</Text>
+          <Text type="secondary">统一版本按当前组织解析</Text>
         </Space>
       ),
     },
@@ -673,6 +726,7 @@ export default function KnowledgeGovernance() {
             initialValues={{
               packageVersion: candidateVersion?.versionLabel || candidateVersion?.versionNo,
               reason: "",
+              qualityGates: [],
             }}
           >
             <Form.Item
@@ -689,6 +743,84 @@ export default function KnowledgeGovernance() {
             >
               <Input.TextArea rows={4} />
             </Form.Item>
+            {publishEvidenceRequired && (
+              <>
+                <Divider orientation="left">发布签名</Divider>
+                <Row gutter={12}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signatureId"
+                      label="签名 ID"
+                      rules={[{ required: true, message: "请填写签名 ID" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signedAt"
+                      label="签名时间"
+                      rules={[{ required: true, message: "请选择签名时间" }]}
+                    >
+                      <Input type="datetime-local" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signerId"
+                      label="签名人 ID"
+                      rules={[{ required: true, message: "请填写签名人 ID" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signerName"
+                      label="签名人姓名"
+                      rules={[{ required: true, message: "请填写签名人姓名" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item
+                  name="signatureHash"
+                  label="签名摘要"
+                  rules={[
+                    { required: true, message: "请填写签名摘要" },
+                    {
+                      pattern: /^[0-9a-f]{64}$/,
+                      message: "签名摘要必须是 64 位小写 SHA-256",
+                    },
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+              </>
+            )}
+            {platformPublishing && (
+              <>
+                <Divider orientation="left">平台发布质量门</Divider>
+                <Form.Item
+                  name="qualityGates"
+                  label="质量门"
+                  rules={[
+                    {
+                      validator: (_, value?: string[]) =>
+                        value?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length
+                          ? Promise.resolve()
+                          : Promise.reject(new Error("请确认全部平台发布质量门")),
+                    },
+                  ]}
+                >
+                  <Checkbox.Group options={KNOWLEDGE_QUALITY_GATE_OPTIONS} />
+                </Form.Item>
+                <Form.Item name="qualitySummary" label="质量门摘要">
+                  <Input.TextArea rows={2} />
+                </Form.Item>
+              </>
+            )}
             <Space wrap>
               <Button
                 type="primary"

@@ -41,6 +41,7 @@ public class KnowledgeIdentityService {
     private final SourceFragmentRepository sourceFragmentRepository;
     private final CitationRepository citationRepository;
     private final AssetIdentityAllocator identityAllocator;
+    private final KnowledgeEffectiveVersionResolver effectiveVersions;
 
     public KnowledgeIdentityService(KnowledgeIdentityRepository identityRepository,
                                     KnowledgeAssetVersionRepository versionRepository,
@@ -49,7 +50,8 @@ public class KnowledgeIdentityService {
                                     SourceVersionRepository sourceVersionRepository,
                                     SourceFragmentRepository sourceFragmentRepository,
                                     CitationRepository citationRepository,
-                                    AssetIdentityAllocator identityAllocator) {
+                                    AssetIdentityAllocator identityAllocator,
+                                    KnowledgeEffectiveVersionResolver effectiveVersions) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -58,6 +60,7 @@ public class KnowledgeIdentityService {
         this.sourceFragmentRepository = sourceFragmentRepository;
         this.citationRepository = citationRepository;
         this.identityAllocator = identityAllocator;
+        this.effectiveVersions = effectiveVersions;
     }
 
     public PageResponse<KnowledgeIdentity> page(PageRequest request, KnowledgeIdentityFilter filter) {
@@ -92,6 +95,7 @@ public class KnowledgeIdentityService {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
         return findDefaultActiveVersion(effective)
+            .map(KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion::version)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId + " 当前无 ACTIVE 版本"));
     }
 
@@ -123,7 +127,7 @@ public class KnowledgeIdentityService {
         SourceEvidenceResolution sourceEvidence = resolveSourceEvidence(effective);
         return new KnowledgeProvenanceResponse(
             identity,
-            identity.currentVersionId(),
+            sourceEvidence.activeVersionId(),
             versions,
             supersessions,
             sourceEvidence.items(),
@@ -265,12 +269,13 @@ public class KnowledgeIdentityService {
     public List<Citation> listCitations(Long identityId) {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
-        Optional<KnowledgeAssetVersion> active = findDefaultActiveVersion(effective);
+        Optional<KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion> active =
+            findDefaultActiveVersion(effective);
         if (active.isEmpty()) {
             return List.of();
         }
         return citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(
-            effective.sourceTenantId(), active.get().id());
+            active.get().version().tenantId(), active.get().version().id());
     }
 
     /**
@@ -283,18 +288,19 @@ public class KnowledgeIdentityService {
     }
 
     private SourceEvidenceResolution resolveSourceEvidence(EffectiveKnowledgeIdentity effective) {
-        Optional<KnowledgeAssetVersion> activeOpt = findDefaultActiveVersion(effective);
+        Optional<KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion> activeOpt =
+            findDefaultActiveVersion(effective);
         if (activeOpt.isEmpty()) {
-            return new SourceEvidenceResolution(List.of(), 0);
+            return new SourceEvidenceResolution(null, List.of(), 0);
         }
-        KnowledgeAssetVersion active = activeOpt.get();
+        KnowledgeAssetVersion active = activeOpt.get().version();
         List<Citation> citations = citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(
-            effective.sourceTenantId(), active.id());
+            active.tenantId(), active.id());
         List<SourceEvidenceDraft> drafts = new ArrayList<>();
         int unresolvedCitationCount = 0;
         for (Citation citation : citations) {
             Optional<SourceEvidenceDraft> resolved =
-                resolveSourceEvidenceItem(effective.sourceTenantId(), active, citation);
+                resolveSourceEvidenceItem(active.tenantId(), active, citation);
             if (resolved.isPresent()) {
                 drafts.add(resolved.get());
             } else {
@@ -307,16 +313,19 @@ public class KnowledgeIdentityService {
         for (int i = 0; i < drafts.size(); i++) {
             evidence.add(toSourceEvidence(drafts.get(i), i == primaryIndex));
         }
-        return new SourceEvidenceResolution(List.copyOf(evidence), unresolvedCitationCount);
+        return new SourceEvidenceResolution(active.id(), List.copyOf(evidence), unresolvedCitationCount);
     }
 
-    private Optional<KnowledgeAssetVersion> findDefaultActiveVersion(EffectiveKnowledgeIdentity effective) {
-        KnowledgeIdentity identity = effective.identity();
-        if (identity.currentVersionId() == null) {
-            return Optional.empty();
-        }
-        return versionRepository.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
-            .filter(KnowledgeAssetVersion::isAuthoritative);
+    private Optional<KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion> findDefaultActiveVersion(
+            EffectiveKnowledgeIdentity effective) {
+        OrgScope scope = RequestContext.currentOrgScope();
+        String applicableScope = scope == null || scope.specialtyId() == null || scope.specialtyId().isBlank()
+            ? KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+            : "specialty:" + scope.specialtyId().trim();
+        return effectiveVersions.resolve(
+            requireCurrentTenant(),
+            effective.identity().identityCode(),
+            applicableScope);
     }
 
     private Optional<SourceEvidenceDraft> resolveSourceEvidenceItem(String tenantId, KnowledgeAssetVersion active,
@@ -441,6 +450,7 @@ public class KnowledgeIdentityService {
     }
 
     private record SourceEvidenceResolution(
+        Long activeVersionId,
         List<KnowledgeSourceEvidence> items,
         int unresolvedCitationCount
     ) {
