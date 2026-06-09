@@ -11,6 +11,7 @@ public record PackageDetailResponse(
     String packageVersion,
     String name,
     String description,
+    PackageAccessPolicy accessPolicy,
     KnowledgePackageStatus status,
     List<PackageItemResponse> items
 ) {
@@ -21,6 +22,7 @@ public record PackageDetailResponse(
             entity.packageVersion(),
             entity.name(),
             entity.description(),
+            entity.accessPolicy(),
             entity.status(),
             items.stream().map(PackageItemResponse::from).toList()
         );

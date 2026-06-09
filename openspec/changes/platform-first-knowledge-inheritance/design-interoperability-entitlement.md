@@ -31,4 +31,4 @@
 ## I5 落地对接
 - 互操作：`integration/fhir`、`cdshook` 扩展导入导出适配；CQL/PlanDefinition 转换器为独立模块。
 - API 契约：各域 Controller 纳入 `ServiceContractCatalog`，统一鉴权（platform/tenant 权限分离，附录 S6）+ 审计。
-- entitlement：新增 `package_entitlement`（tenant_id, package_identity, granted/expires），解析与分发前置校验。
+- entitlement：新增 `mk_pkg_package_entitlement`（tenant_id, package_identity, granted/expires），解析与分发前置校验。

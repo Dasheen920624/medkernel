@@ -32,6 +32,7 @@ import {
   ExperimentOutlined,
   FileProtectOutlined,
   HistoryOutlined,
+  KeyOutlined,
   PlusOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -53,21 +54,27 @@ import {
   usePackageAssetReadiness,
   usePackageDetail,
   usePackageInheritanceImpact,
+  usePackageEntitlements,
   useOrgUnits,
   usePackages,
   usePackageSyncLogs,
   usePilotPackageTemplates,
   useReleasePackage,
+  useGrantPackageEntitlement,
+  useRevokePackageEntitlement,
   useRollbackPackage,
   useSecurityProfile,
   usePackageReleaseAdapters,
+  useTenants,
   useTerminologyPackages,
 } from "@/shared/api/hooks";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import type {
   AuthoringAssetLibraryItem,
   EngineAssetType,
   EvaluationIndicator,
   KnowledgePackage,
+  PackageEntitlement,
   PackageItem,
   PackageInheritanceImpactQuery,
   PackageInheritanceImpactTarget,
@@ -106,6 +113,18 @@ const statusBadge: Record<string, BadgeStatus> = {
   PUBLISHED: "processing",
   ACTIVE: "success",
   OFFLINE: "error",
+};
+
+const entitlementStatusText: Record<string, string> = {
+  ACTIVE: "有效",
+  EXPIRED: "已到期",
+  REVOKED: "已撤销",
+};
+
+const entitlementStatusColor: Record<string, string> = {
+  ACTIVE: "green",
+  EXPIRED: "orange",
+  REVOKED: "default",
 };
 
 const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }> = [
@@ -361,6 +380,16 @@ export default function ConfigPackages() {
       adapter.connectorAvailable,
   );
   const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
+  const canManageEntitlements =
+    securityProfile?.dataScope.tenantId === platformTenantId &&
+    hasPermission(securityProfile, "platform.publish");
+  const tenantDirectoryQuery = useTenants(canManageEntitlements);
+  const activeCustomerTenants = (tenantDirectoryQuery.data ?? []).filter(
+    (tenant) => tenant.tenantId !== platformTenantId && tenant.status === "ACTIVE",
+  );
+  const tenantNameById = new Map(
+    (tenantDirectoryQuery.data ?? []).map((tenant) => [tenant.tenantId, tenant.name]),
+  );
   const canReadAuthoringAssets =
     hasPermission(securityProfile, "rule.read") || hasPermission(securityProfile, "pathway.read");
   const canReadEvaluations = hasPermission(securityProfile, "evaluation.read");
@@ -376,6 +405,9 @@ export default function ConfigPackages() {
   const [offlineExportModalVisible, setOfflineExportModalVisible] = useState(false);
   const [offlineExportPackage, setOfflineExportPackage] = useState<KnowledgePackage | null>(null);
   const [pilotTemplateModalVisible, setPilotTemplateModalVisible] = useState(false);
+  const [entitlementPackage, setEntitlementPackage] = useState<KnowledgePackage | null>(null);
+  const [revokingEntitlement, setRevokingEntitlement] = useState<PackageEntitlement | null>(null);
+  const [entitlementPage, setEntitlementPage] = useState(1);
   const [selectedPilotTemplateCode, setSelectedPilotTemplateCode] = useState<string | undefined>();
   const [offlineImportContent, setOfflineImportContent] = useState("");
   const [offlineImportSummary, setOfflineImportSummary] = useState<OfflineImportSummary | null>(
@@ -404,6 +436,12 @@ export default function ConfigPackages() {
   const [syncForm] = Form.useForm();
   const [offlineExportForm] = Form.useForm<{ targetOrgUnitId: string }>();
   const [pilotTemplateForm] = Form.useForm();
+  const [entitlementForm] = Form.useForm<{
+    targetTenantId: string;
+    expiresAt: string;
+    reason: string;
+  }>();
+  const [revokeEntitlementForm] = Form.useForm<{ reason: string }>();
   const [inheritanceImpactForm] = Form.useForm<PackageInheritanceImpactQuery>();
   const [initialOverrideForm] = Form.useForm<PilotPackageInitialOverrideRequest>();
 
@@ -418,6 +456,11 @@ export default function ConfigPackages() {
   );
   const currentItems = apiDetail?.items ?? [];
   const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
+  const entitlementQuery = usePackageEntitlements(
+    entitlementPackage?.packageId ?? "",
+    Boolean(entitlementPackage) && canManageEntitlements,
+    entitlementPage,
+  );
   const { data: apiDiffData } = useCalculateDiff(effectivePackageId || "", basePackageIdForDiff);
   const { data: inheritanceImpact, isFetching: inheritanceImpactFetching } =
     usePackageInheritanceImpact(inheritanceImpactQuery ?? {}, {
@@ -455,6 +498,8 @@ export default function ConfigPackages() {
   const rollbackPackageMutation = useRollbackPackage();
   const importOfflinePackageMutation = useImportOfflinePackage();
   const applyPilotTemplateReferencesMutation = useApplyPilotTemplateReferences();
+  const grantPackageEntitlementMutation = useGrantPackageEntitlement();
+  const revokePackageEntitlementMutation = useRevokePackageEntitlement();
 
   const activeCount = apiPackages.filter((p) => p.status === "ACTIVE").length;
   const publishedCount = apiPackages.filter((p) => p.status === "PUBLISHED").length;
@@ -667,6 +712,7 @@ export default function ConfigPackages() {
         packageVersion: values.packageVersion,
         name: values.name,
         description: values.description,
+        accessPolicy: canManageEntitlements ? values.accessPolicy : "OPEN",
       });
 
       message.success(`配置包草案已创建：${res?.packageCode}`);
@@ -676,6 +722,70 @@ export default function ConfigPackages() {
     } catch (err: unknown) {
       if (applyApiFieldErrors(createForm, err)) return;
       message.error(getApiErrorMessage(err, "配置包草案创建失败"));
+    }
+  };
+
+  const openEntitlementModal = (record: KnowledgePackage) => {
+    setEntitlementPage(1);
+    setEntitlementPackage(record);
+    entitlementForm.resetFields();
+  };
+
+  const closeEntitlementModal = () => {
+    setEntitlementPackage(null);
+    setRevokingEntitlement(null);
+    setEntitlementPage(1);
+    entitlementForm.resetFields();
+    revokeEntitlementForm.resetFields();
+  };
+
+  const handleGrantPackageEntitlement = async () => {
+    if (!entitlementPackage) return;
+    try {
+      const values = await entitlementForm.validateFields();
+      await grantPackageEntitlementMutation.mutateAsync({
+        packageId: entitlementPackage.packageId,
+        packageVersion: entitlementPackage.packageVersion,
+        request: {
+          targetTenantId: values.targetTenantId.trim(),
+          expiresAt: new Date(values.expiresAt).toISOString(),
+          reason: values.reason.trim(),
+        },
+      });
+      message.success("租户授权已开通或续期");
+      entitlementForm.resetFields();
+    } catch (err: unknown) {
+      if (Array.isArray((err as { errorFields?: unknown[] }).errorFields)) return;
+      if (applyApiFieldErrors(entitlementForm, err)) return;
+      message.error(getApiErrorMessage(err, "租户授权操作失败"));
+    }
+  };
+
+  const openRevokeEntitlementModal = (record: PackageEntitlement) => {
+    setRevokingEntitlement(record);
+    revokeEntitlementForm.resetFields();
+  };
+
+  const closeRevokeEntitlementModal = () => {
+    setRevokingEntitlement(null);
+    revokeEntitlementForm.resetFields();
+  };
+
+  const handleRevokePackageEntitlement = async (values: { reason: string }) => {
+    if (!entitlementPackage || !revokingEntitlement) return;
+    try {
+      await revokePackageEntitlementMutation.mutateAsync({
+        packageId: entitlementPackage.packageId,
+        packageVersion: entitlementPackage.packageVersion,
+        tenantId: revokingEntitlement.tenantId,
+        reason: values.reason.trim(),
+      });
+      message.success(`已撤销租户 ${revokingEntitlement.tenantId} 的包授权`);
+      closeRevokeEntitlementModal();
+    } catch (err: unknown) {
+      if (Array.isArray((err as { errorFields?: unknown[] }).errorFields)) return;
+      if (applyApiFieldErrors(revokeEntitlementForm, err)) return;
+      message.error(getApiErrorMessage(err, "撤销租户授权失败"));
     }
   };
 
@@ -1052,6 +1162,17 @@ export default function ConfigPackages() {
       render: (text: string) => <Tag color="purple">{text}</Tag>,
     },
     {
+      title: "访问",
+      dataIndex: "accessPolicy",
+      key: "accessPolicy",
+      width: 110,
+      render: (policy: string) => (
+        <Tag color={policy === "ENTITLED" ? "gold" : "green"}>
+          {policy === "ENTITLED" ? "按租户授权" : "开放"}
+        </Tag>
+      ),
+    },
+    {
       title: "资产条目",
       key: "itemCount",
       width: 120,
@@ -1123,6 +1244,15 @@ export default function ConfigPackages() {
           <Button type="link" onClick={() => openSyncModal(record.packageId)}>
             院内同步发布
           </Button>
+          {canManageEntitlements && record.accessPolicy === "ENTITLED" && (
+            <Button
+              type="link"
+              icon={<KeyOutlined aria-hidden="true" />}
+              onClick={() => openEntitlementModal(record)}
+            >
+              授权管理
+            </Button>
+          )}
           {record.status === "ACTIVE" && (
             <Button
               type="link"
@@ -1217,7 +1347,12 @@ export default function ConfigPackages() {
       okText="提交创建草案"
       cancelText="取消"
     >
-      <Form form={createForm} name="package-create" layout="vertical">
+      <Form
+        form={createForm}
+        name="package-create"
+        layout="vertical"
+        initialValues={{ accessPolicy: "OPEN" }}
+      >
         <Form.Item
           name="packageCode"
           label="配置包编码"
@@ -1242,12 +1377,232 @@ export default function ConfigPackages() {
         <Form.Item name="description" label="发布范围说明">
           <TextArea rows={3} placeholder="填写资产范围、适用组织和发布计划摘要" />
         </Form.Item>
+        {canManageEntitlements && (
+          <Form.Item
+            name="accessPolicy"
+            label="访问策略"
+            rules={[{ required: true, message: "请选择访问策略" }]}
+          >
+            <Select>
+              <Option value="OPEN">开放给所有租户</Option>
+              <Option value="ENTITLED">按租户授权</Option>
+            </Select>
+          </Form.Item>
+        )}
         <Alert
           type="info"
           showIcon
           message="新包默认保持草案状态"
           description="只有通过资产依赖校验、影响分析和发布门禁后，才可进入灰度或全量。"
         />
+      </Form>
+    </Modal>
+  );
+
+  const entitlementColumns: ColumnsType<PackageEntitlement> = [
+    {
+      title: "租户",
+      dataIndex: "tenantId",
+      key: "tenantId",
+      width: 180,
+      render: (tenantId: string) => {
+        const tenantName = tenantNameById.get(tenantId);
+        return (
+          <Space direction="vertical" size={0}>
+            <Text strong>{tenantName ?? tenantId}</Text>
+            {tenantName && <Text type="secondary">{tenantId}</Text>}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      width: 100,
+      render: (status: string) => (
+        <Tag color={entitlementStatusColor[status] ?? "default"}>
+          {entitlementStatusText[status] ?? status}
+        </Tag>
+      ),
+    },
+    {
+      title: "到期时间",
+      dataIndex: "expiresAt",
+      key: "expiresAt",
+      width: 180,
+      render: (expiresAt: string) => new Date(expiresAt).toLocaleString(),
+    },
+    {
+      title: "最近操作",
+      key: "updated",
+      width: 180,
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.updatedBy}</Text>
+          <Text type="secondary">{new Date(record.updatedAt).toLocaleString()}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      width: 90,
+      render: (_: unknown, record) =>
+        record.status === "REVOKED" ? null : (
+          <Button
+            type="link"
+            danger
+            disabled={revokePackageEntitlementMutation.isPending}
+            onClick={() => openRevokeEntitlementModal(record)}
+          >
+            撤销
+          </Button>
+        ),
+    },
+  ];
+
+  const entitlementModal = (
+    <Modal
+      title={`租户授权 · ${entitlementPackage?.packageCode ?? ""}`}
+      open={Boolean(entitlementPackage)}
+      onCancel={closeEntitlementModal}
+      footer={<Button onClick={closeEntitlementModal}>关闭</Button>}
+      width={860}
+      className={styles.entitlementModal}
+      destroyOnClose
+    >
+      <Space
+        direction="vertical"
+        size="large"
+        className={`${styles.entitlementContent} mk-full-width`}
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="授权只控制受限平台包"
+          description="未授权租户不可见也不可下发；授权到期后保留审计历史，但停止解析。"
+        />
+        <Form form={entitlementForm} name="package-entitlement-grant" layout="vertical">
+          <div className={styles.entitlementFormGrid}>
+            <Form.Item
+              name="targetTenantId"
+              label="目标租户"
+              rules={[{ required: true, message: "请选择目标租户" }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                loading={tenantDirectoryQuery.isLoading}
+                disabled={tenantDirectoryQuery.isError}
+                placeholder={
+                  tenantDirectoryQuery.isError ? "租户目录读取失败" : "选择已启用客户租户"
+                }
+                options={activeCustomerTenants.map((tenant) => ({
+                  value: tenant.tenantId,
+                  label: `${tenant.name} · ${tenant.tenantId}`,
+                }))}
+                notFoundContent="没有可授权的已启用客户租户"
+              />
+            </Form.Item>
+            <Form.Item
+              name="expiresAt"
+              label="授权到期时间"
+              rules={[{ required: true, message: "请选择授权到期时间" }]}
+            >
+              <Input type="datetime-local" />
+            </Form.Item>
+          </div>
+          {tenantDirectoryQuery.isError && (
+            <Alert
+              className={styles.formAlert}
+              type="error"
+              showIcon
+              message="客户租户目录读取失败"
+              action={<Button onClick={() => void tenantDirectoryQuery.refetch()}>重试</Button>}
+            />
+          )}
+          <Form.Item
+            name="reason"
+            label="授权原因"
+            rules={[{ required: true, message: "请填写授权原因" }]}
+          >
+            <TextArea rows={2} maxLength={500} placeholder="填写合同、审批或续期依据" />
+          </Form.Item>
+          <Button
+            type="primary"
+            icon={<KeyOutlined aria-hidden="true" />}
+            loading={grantPackageEntitlementMutation.isPending}
+            onClick={handleGrantPackageEntitlement}
+          >
+            开通或续期授权
+          </Button>
+        </Form>
+
+        {entitlementQuery.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="授权台账读取失败"
+            action={<Button onClick={() => void entitlementQuery.refetch()}>重试</Button>}
+          />
+        ) : (
+          <div className={styles.entitlementTableWrap}>
+            <Table
+              columns={entitlementColumns}
+              dataSource={entitlementQuery.data?.items ?? []}
+              rowKey="entitlementId"
+              loading={entitlementQuery.isLoading}
+              pagination={{
+                current: entitlementQuery.data?.page ?? entitlementPage,
+                pageSize: entitlementQuery.data?.size ?? 20,
+                total: entitlementQuery.data?.total ?? 0,
+                showSizeChanger: false,
+                hideOnSinglePage: true,
+                onChange: setEntitlementPage,
+              }}
+              size="small"
+              locale={{ emptyText: "尚未向任何租户开通授权" }}
+              scroll={{ x: 760 }}
+            />
+          </div>
+        )}
+      </Space>
+    </Modal>
+  );
+
+  const revokeEntitlementModal = (
+    <Modal
+      title="撤销租户授权"
+      open={Boolean(revokingEntitlement)}
+      okText="确认撤销授权"
+      cancelText="取消"
+      okButtonProps={{ danger: true }}
+      confirmLoading={revokePackageEntitlementMutation.isPending}
+      onOk={() => revokeEntitlementForm.submit()}
+      onCancel={closeRevokeEntitlementModal}
+      destroyOnClose
+    >
+      <Alert
+        className={styles.formAlert}
+        type="warning"
+        showIcon
+        message={`撤销租户 ${revokingEntitlement?.tenantId ?? ""} 的授权`}
+        description="撤销后该租户将无法继续解析或下发此平台包，历史授权记录仍保留用于审计。"
+      />
+      <Form
+        form={revokeEntitlementForm}
+        name="package-entitlement-revoke"
+        layout="vertical"
+        onFinish={handleRevokePackageEntitlement}
+      >
+        <Form.Item
+          name="reason"
+          label="撤销原因"
+          rules={[{ required: true, message: "请填写撤销原因" }]}
+        >
+          <TextArea rows={3} maxLength={500} placeholder="填写合同终止、审批决定或其他撤销依据" />
+        </Form.Item>
       </Form>
     </Modal>
   );
@@ -1855,7 +2210,7 @@ export default function ConfigPackages() {
               columns={columns}
               dataSource={apiPackages}
               rowKey="packageId"
-              scroll={{ x: 1100 }}
+              scroll={{ x: 1220 }}
               rowSelection={{
                 type: "radio",
                 selectedRowKeys: effectivePackageId ? [effectivePackageId] : [],
@@ -1906,6 +2261,8 @@ export default function ConfigPackages() {
       </Space>
 
       {createPackageModal}
+      {entitlementModal}
+      {revokeEntitlementModal}
       {pilotTemplateModal}
 
       <Modal

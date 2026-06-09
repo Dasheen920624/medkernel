@@ -9,6 +9,7 @@ public record PackageResponse(
     String packageVersion,
     String name,
     String description,
+    PackageAccessPolicy accessPolicy,
     KnowledgePackageStatus status
 ) {
     public static PackageResponse from(KnowledgePackage entity) {
@@ -18,6 +19,7 @@ public record PackageResponse(
             entity.packageVersion(),
             entity.name(),
             entity.description(),
+            entity.accessPolicy(),
             entity.status()
         );
     }

@@ -144,6 +144,7 @@ public class PackageEngineService {
     private final PilotPackageTemplateItemRepository pilotTemplateItemRepository;
     private final TenantPackageReferenceRepository packageReferenceRepository;
     private final InheritanceOverrideService inheritanceOverrideService;
+    private final PackageEntitlementService entitlementService;
 
     private final PackageSyncPort syncPort;
     private final EffectiveKnowledgePackageResolver effectivePackageResolver;
@@ -178,6 +179,7 @@ public class PackageEngineService {
             PilotPackageTemplateItemRepository pilotTemplateItemRepository,
             TenantPackageReferenceRepository packageReferenceRepository,
             InheritanceOverrideService inheritanceOverrideService,
+            PackageEntitlementService entitlementService,
             PackageSyncPort syncPort,
             EffectiveKnowledgePackageResolver effectivePackageResolver,
             AuditRecorder auditRecorder,
@@ -209,6 +211,7 @@ public class PackageEngineService {
         this.pilotTemplateItemRepository = pilotTemplateItemRepository;
         this.packageReferenceRepository = packageReferenceRepository;
         this.inheritanceOverrideService = inheritanceOverrideService;
+        this.entitlementService = entitlementService;
         this.syncPort = syncPort;
         this.effectivePackageResolver = effectivePackageResolver;
         this.auditRecorder = auditRecorder;
@@ -226,6 +229,10 @@ public class PackageEngineService {
         String tenantId = currentTenantId();
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
+        PackageAccessPolicy accessPolicy = request.accessPolicy();
+        if (accessPolicy == PackageAccessPolicy.ENTITLED && !PlatformTenant.ID.equals(tenantId)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "只有平台主租户可创建受授权控制的知识包");
+        }
 
         // 唯一性检验（同一个编码和版本不能重复）
         Optional<KnowledgePackage> existing = packageRepository
@@ -242,6 +249,7 @@ public class PackageEngineService {
             request.packageVersion(),
             request.name(),
             request.description(),
+            accessPolicy,
             KnowledgePackageStatus.DRAFT,
             Instant.now(),
             actor,
@@ -340,11 +348,10 @@ public class PackageEngineService {
      */
     @Transactional(readOnly = true)
     public List<PilotPackageTemplateResponse> listPilotTemplates() {
-        return activeTemplatesForTenant(currentTenantId()).stream()
-            .map(template -> PilotPackageTemplateResponse.from(
-                template,
-                pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc(
-                    template.tenantId(), template.templateId())))
+        String tenantId = currentTenantId();
+        return activeTemplatesForTenant(tenantId).stream()
+            .map(template -> visiblePilotTemplate(tenantId, template))
+            .flatMap(Optional::stream)
             .toList();
     }
 
@@ -381,7 +388,8 @@ public class PackageEngineService {
                 continue;
             }
             try {
-                KnowledgePackage platformPackage = requirePlatformPackage(item.assetId(), item.assetVersion());
+                KnowledgePackage platformPackage = requirePlatformPackage(
+                    tenantId, item.assetId(), item.assetVersion());
                 TenantPackageReference reference = referenceFor(
                     tenantId, template.templateCode(), targetOrgUnitId, platformPackage, actor, traceId, now);
                 references.add(TenantPackageReferenceResponse.from(reference));
@@ -414,7 +422,10 @@ public class PackageEngineService {
     @Transactional(readOnly = true)
     public PackageAssetReadinessResponse getAssetReadiness() {
         String tenantId = currentTenantId();
-        int templateCount = activeTemplatesForTenant(tenantId).size();
+        int templateCount = (int) activeTemplatesForTenant(tenantId).stream()
+            .map(template -> visiblePilotTemplate(tenantId, template))
+            .flatMap(Optional::stream)
+            .count();
         List<KnowledgePackage> packages = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId);
         long draftCount = packages.stream()
             .filter(pack -> pack.status() == KnowledgePackageStatus.DRAFT)
@@ -425,8 +436,21 @@ public class PackageEngineService {
         long activeCount = packages.stream()
             .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
             .count();
-        List<TenantPackageReference> activeReferences = packageReferenceRepository
+        List<TenantPackageReference> activeReferenceCandidates = packageReferenceRepository
             .findByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, TenantPackageReferenceStatus.ACTIVE);
+        Set<String> referencedPackageIds = activeReferenceCandidates.stream()
+            .map(TenantPackageReference::platformPackageId)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        List<KnowledgePackage> referencedPackages = referencedPackageIds.isEmpty()
+            ? List.of()
+            : packageRepository.findByTenantIdAndPackageIdIn(PlatformTenant.ID, referencedPackageIds).stream()
+                .filter(this::releasedPackage)
+                .toList();
+        Set<String> usableReferencedPackageIds =
+            entitlementService.usablePackageIds(tenantId, referencedPackages);
+        List<TenantPackageReference> activeReferences = activeReferenceCandidates.stream()
+            .filter(reference -> usableReferencedPackageIds.contains(reference.platformPackageId()))
+            .toList();
         long activeReferenceCount = activeReferences.size();
         String readyPackageId = packages.stream()
             .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
@@ -3716,7 +3740,33 @@ public class PackageEngineService {
         return normalized;
     }
 
-    private KnowledgePackage requirePlatformPackage(String packageCode, String packageVersion) {
+    private Optional<PilotPackageTemplateResponse> visiblePilotTemplate(
+            String tenantId,
+            PilotPackageTemplate template) {
+        List<PilotPackageTemplateItem> visibleItems = new ArrayList<>();
+        List<PilotPackageTemplateItem> templateItems = pilotTemplateItemRepository
+            .findByTenantIdAndTemplateIdOrderBySortOrderAsc(template.tenantId(), template.templateId());
+        for (PilotPackageTemplateItem item : templateItems) {
+            if (item.assetType() != VersionedAssetType.PACKAGE) {
+                visibleItems.add(item);
+                continue;
+            }
+            try {
+                requirePlatformPackage(tenantId, item.assetId(), item.assetVersion());
+                visibleItems.add(item);
+            } catch (ApiException ex) {
+                if (item.required()) {
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.of(PilotPackageTemplateResponse.from(template, visibleItems));
+    }
+
+    private KnowledgePackage requirePlatformPackage(
+            String tenantId,
+            String packageCode,
+            String packageVersion) {
         String normalizedCode = normalizedText(packageCode);
         String normalizedVersion = normalizedText(packageVersion);
         if (normalizedCode == null || normalizedVersion == null) {
@@ -3733,6 +3783,7 @@ public class PackageEngineService {
                 "只允许引用 PUBLISHED 或 ACTIVE 状态的平台知识包, 当前: " + platformPackage.status()
             );
         }
+        entitlementService.assertUsable(tenantId, platformPackage);
         return platformPackage;
     }
 

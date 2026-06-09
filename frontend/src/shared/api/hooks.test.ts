@@ -89,6 +89,9 @@ import {
   useOrgUnits,
   useOrgUsers,
   usePackageInheritanceImpact,
+  usePackageEntitlements,
+  useGrantPackageEntitlement,
+  useRevokePackageEntitlement,
   usePackages,
   usePlugins,
   useProjectionConsistency,
@@ -374,6 +377,7 @@ describe("package export api helpers", () => {
       packageVersion: "1.0.0",
       name: "配置包",
       description: "真实资产集合",
+      accessPolicy: "OPEN",
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -385,6 +389,75 @@ describe("package export api helpers", () => {
         role_codes: ["it-ops"],
         package_version: "1.0.0",
         packageCode: "PKG.COPD",
+        accessPolicy: "OPEN",
+      }),
+    );
+  });
+
+  it("uses the package entitlement ledger endpoints with standard context", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [{ entitlementId: "entitlement-1", tenantId: "tenant-B", status: "ACTIVE" }],
+          page: 1,
+          size: 20,
+          total: 1,
+          hasNext: false,
+          totalEstimated: false,
+        },
+      },
+    });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: { data: { entitlementId: "entitlement-1", tenantId: "tenant-B", status: "ACTIVE" } },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { entitlementId: "entitlement-1", tenantId: "tenant-B", status: "REVOKED" } },
+      });
+
+    const ledger = renderApiHook(() => usePackageEntitlements("pkg-commercial", true, 2));
+    await waitFor(() => expect(ledger.result.current.data?.total).toBe(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-commercial/entitlements", {
+      params: { page: 2, size: 20 },
+    });
+
+    const grant = renderApiHook(() => useGrantPackageEntitlement());
+    await grant.result.current.mutateAsync({
+      packageId: "pkg-commercial",
+      packageVersion: "2026.06",
+      request: {
+        targetTenantId: "tenant-B",
+        expiresAt: "2026-12-31T15:59:00.000Z",
+        reason: "商业许可已审批",
+      },
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/pkg/packages/pkg-commercial/entitlements",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000003",
+        tenant_id: "tenant-A",
+        package_version: "2026.06",
+        targetTenantId: "tenant-B",
+        reason: "商业许可已审批",
+      }),
+    );
+
+    const revoke = renderApiHook(() => useRevokePackageEntitlement());
+    await revoke.result.current.mutateAsync({
+      packageId: "pkg-commercial",
+      packageVersion: "2026.06",
+      tenantId: "tenant/B",
+      reason: "商业许可已终止",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/pkg/packages/pkg-commercial/entitlements/tenant%2FB:revoke",
+      expect.objectContaining({
+        tenant_id: "tenant-A",
+        package_version: "2026.06",
+        reason: "商业许可已终止",
       }),
     );
   });

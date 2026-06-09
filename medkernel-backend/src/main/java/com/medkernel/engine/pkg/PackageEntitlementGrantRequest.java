@@ -1,5 +1,6 @@
 package com.medkernel.engine.pkg;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -9,9 +10,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * 知识包创建请求 DTO。
+ * 平台包租户授权开通或续期请求。
  */
-public record PackageCreateRequest(
+public record PackageEntitlementGrantRequest(
     @JsonProperty("request_id") String requestId,
     @JsonProperty("trace_id") String traceId,
     @JsonProperty("tenant_id") String tenantId,
@@ -25,40 +26,31 @@ public record PackageCreateRequest(
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String contextPackageVersion,
 
-    @NotBlank(message = "包编码不能为空")
-    @Size(max = 128, message = "包编码长度不能超过128")
-    String packageCode,
+    @NotBlank(message = "目标租户不能为空")
+    @Size(max = 64, message = "目标租户长度不能超过64")
+    String targetTenantId,
 
-    @NotBlank(message = "包版本不能为空")
-    @Size(max = 64, message = "包版本长度不能超过64")
-    String packageVersion,
+    @NotNull(message = "授权到期时间不能为空")
+    Instant expiresAt,
 
-    @NotBlank(message = "包名称不能为空")
-    @Size(max = 256, message = "包名称长度不能超过256")
-    String name,
-
-    String description,
-
-    @NotNull(message = "包访问策略不能为空")
-    PackageAccessPolicy accessPolicy
+    @NotBlank(message = "授权原因不能为空")
+    @Size(max = 500, message = "授权原因长度不能超过500")
+    String reason
 ) implements PackageContextRequest {
-    public PackageCreateRequest {
+
+    public PackageEntitlementGrantRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    public PackageCreateRequest(
-            String packageCode,
-            String packageVersion,
-            String name,
-            String description) {
+    public PackageEntitlementGrantRequest(String targetTenantId, Instant expiresAt, String reason) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            packageCode, packageVersion, name, description, PackageAccessPolicy.OPEN);
+            targetTenantId, expiresAt, reason);
     }
 
+    @Override
     public PackageApiContext apiContext() {
         return new PackageApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, contextPackageVersion
-        );
+            departmentId, specialtyId, userId, roleCodes, contextPackageVersion);
     }
 }

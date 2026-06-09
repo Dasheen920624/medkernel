@@ -71,6 +71,29 @@
   gap: calc(var(--mk-unit) * 12);
 }
 
+.entitlementFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.entitlementModal {
+  max-width: calc(100vw - calc(var(--mk-unit) * 16));
+}
+
+.entitlementContent {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.entitlementTableWrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .formAlert {
   margin-bottom: calc(var(--mk-unit) * 16);
 }
@@ -87,4 +110,10 @@
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-warning-border);
   border-radius: var(--ant-border-radius);
   background: var(--ant-color-warning-bg);
+}
+
+@media (max-width: 48rem) {
+  .entitlementFormGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

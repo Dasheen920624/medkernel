@@ -313,9 +313,11 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.EXECUTE, "patient_pathway", "推进患者路径"))),
         contract("package", "配置包服务",
             "com.medkernel.engine.pkg.PackageEngineController", "/api/v1/engine/pkg/packages",
-            permissions("package.publish", "package.read", "package.rollback", "tenant.override"),
+            permissions(
+                "package.publish", "package.read", "package.rollback", "tenant.override", "platform.publish"),
             audits(
                 audit(AuditAction.CREATE, "knowledge_package", "创建配置包和包条目"),
+                audit(AuditAction.PERMISSION_CHANGE, "package_entitlement", "开通、续期和撤销受限平台包授权"),
                 audit(AuditAction.EXPORT, "knowledge_package", "导出差异和离线包"),
                 audit(AuditAction.IMPORT, "knowledge_package", "导入离线包"),
                 audit(AuditAction.PUBLISH, "knowledge_package", "同步发布配置包"),

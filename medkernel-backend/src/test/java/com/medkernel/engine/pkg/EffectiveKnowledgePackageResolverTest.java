@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -30,6 +32,7 @@ class EffectiveKnowledgePackageResolverTest {
     private KnowledgePackageRepository packageRepository;
     private PackageItemRepository itemRepository;
     private InheritanceResolver inheritanceResolver;
+    private PackageEntitlementService entitlementService;
     private EffectiveKnowledgePackageResolver resolver;
 
     @BeforeEach
@@ -37,7 +40,9 @@ class EffectiveKnowledgePackageResolverTest {
         packageRepository = mock(KnowledgePackageRepository.class);
         itemRepository = mock(PackageItemRepository.class);
         inheritanceResolver = mock(InheritanceResolver.class);
-        resolver = new EffectiveKnowledgePackageResolver(packageRepository, itemRepository, inheritanceResolver);
+        entitlementService = mock(PackageEntitlementService.class);
+        resolver = new EffectiveKnowledgePackageResolver(
+            packageRepository, itemRepository, inheritanceResolver, entitlementService);
     }
 
     @Test
@@ -190,7 +195,38 @@ class EffectiveKnowledgePackageResolverTest {
             .isEqualTo(ErrorCode.CONFLICT);
     }
 
+    @Test
+    void rejectsRestrictedPackageBeforeLoadingDeclaredItems() {
+        KnowledgePackage pack = platformPackage(
+            "pkg-platform",
+            KnowledgePackageStatus.ACTIVE,
+            PackageAccessPolicy.ENTITLED);
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                PlatformTenant.ID, "PKG.BASELINE", "2026.06"))
+            .thenReturn(Optional.of(pack));
+        org.mockito.Mockito.doThrow(new ApiException(
+                ErrorCode.NOT_FOUND,
+                "平台知识包不可用"))
+            .when(entitlementService)
+            .assertUsable("tenant-A", pack);
+
+        assertThatThrownBy(() -> resolver.resolve("tenant-A", "PKG.BASELINE", "2026.06", "dept-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+
+        verify(itemRepository, never()).findByTenantIdAndPackageId(any(), any());
+        verify(inheritanceResolver, never()).resolve(any());
+    }
+
     private KnowledgePackage platformPackage(String packageId, KnowledgePackageStatus status) {
+        return platformPackage(packageId, status, PackageAccessPolicy.OPEN);
+    }
+
+    private KnowledgePackage platformPackage(
+            String packageId,
+            KnowledgePackageStatus status,
+            PackageAccessPolicy accessPolicy) {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         return new KnowledgePackage(
             1L,
@@ -200,6 +236,7 @@ class EffectiveKnowledgePackageResolverTest {
             "2026.06",
             "平台基线包",
             null,
+            accessPolicy,
             status,
             now,
             "platform-admin",

@@ -40,13 +40,28 @@ const apiMocks = vi.hoisted(() => ({
   createPackage: vi.fn(),
   addPackageItem: vi.fn(),
   applyPilotTemplateReferences: vi.fn(),
+  grantPackageEntitlement: vi.fn(),
+  revokePackageEntitlement: vi.fn(),
   releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
   refetchAssetReadiness: vi.fn(),
   useAuthoringAssets: vi.fn(),
   useEvaluationIndicators: vi.fn(),
+  useTenants: vi.fn(),
   permissions: [] as Array<{ code: string }>,
+  tenantId: "tenant-A",
+  entitlements: [] as Array<Record<string, unknown>>,
+  entitlementsLoading: false,
+  entitlementsError: false,
+  tenants: [
+    {
+      tenantId: "tenant-A",
+      name: "华东示范医院",
+      status: "ACTIVE",
+      createdAt: "2026-06-01T00:00:00Z",
+    },
+  ],
   packagesData: null as Record<string, unknown> | null,
   packagesLoading: false,
   packagesError: false,
@@ -78,7 +93,7 @@ vi.mock("@/shared/api/hooks", () => ({
       menuKeys: [],
       environmentKeys: [],
       dataScope: {
-        tenantId: "tenant-A",
+        tenantId: apiMocks.tenantId,
         groupId: "group-1",
         hospitalId: "hospital-1",
         campusId: null,
@@ -115,6 +130,7 @@ vi.mock("@/shared/api/hooks", () => ({
     },
     isLoading: false,
   }),
+  useTenants: (...args: unknown[]) => apiMocks.useTenants(...args),
   useCreatePackage: () => ({ mutateAsync: apiMocks.createPackage, isPending: false }),
   usePackages: () => ({
     data: apiMocks.packagesData ?? {
@@ -126,6 +142,7 @@ vi.mock("@/shared/api/hooks", () => ({
           packageVersion: "3.0.0",
           name: "通用配置包",
           description: "真实资产集合",
+          accessPolicy: "OPEN",
           status: "DRAFT",
           createdAt: "2026-06-01T00:00:00Z",
           createdBy: "tester",
@@ -173,6 +190,27 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.applyPilotTemplateReferences,
     isPending: false,
   }),
+  usePackageEntitlements: () => ({
+    data: {
+      items: apiMocks.entitlements,
+      page: 1,
+      size: 20,
+      total: apiMocks.entitlements.length,
+      hasNext: false,
+      totalEstimated: false,
+    },
+    isLoading: apiMocks.entitlementsLoading,
+    isError: apiMocks.entitlementsError,
+    refetch: vi.fn(),
+  }),
+  useGrantPackageEntitlement: () => ({
+    mutateAsync: apiMocks.grantPackageEntitlement,
+    isPending: false,
+  }),
+  useRevokePackageEntitlement: () => ({
+    mutateAsync: apiMocks.revokePackageEntitlement,
+    isPending: false,
+  }),
   useAuthoringAssets: (...args: unknown[]) => apiMocks.useAuthoringAssets(...args),
   useEvaluationIndicators: (...args: unknown[]) => apiMocks.useEvaluationIndicators(...args),
   useTerminologyPackages: () => ({
@@ -212,12 +250,25 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.createPackage.mockReset();
     apiMocks.addPackageItem.mockReset();
     apiMocks.applyPilotTemplateReferences.mockReset();
+    apiMocks.grantPackageEntitlement.mockReset();
+    apiMocks.revokePackageEntitlement.mockReset();
     apiMocks.refetchAssetReadiness.mockReset();
     apiMocks.useAuthoringAssets.mockReset();
     apiMocks.useAuthoringAssets.mockReturnValue({ data: { items: [] } });
     apiMocks.useEvaluationIndicators.mockReset();
     apiMocks.useEvaluationIndicators.mockReturnValue({ data: { items: [] } });
+    apiMocks.useTenants.mockReset();
+    apiMocks.useTenants.mockReturnValue({
+      data: apiMocks.tenants,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     apiMocks.permissions = [];
+    apiMocks.tenantId = "tenant-A";
+    apiMocks.entitlements = [];
+    apiMocks.entitlementsLoading = false;
+    apiMocks.entitlementsError = false;
     apiMocks.packagesData = null;
     apiMocks.packagesLoading = false;
     apiMocks.packagesError = false;
@@ -421,6 +472,124 @@ describe("ConfigPackages offline package export", () => {
     });
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   });
+
+  it(
+    "lets platform administrators manage restricted package entitlements",
+    async () => {
+      apiMocks.tenantId = "t-1";
+      apiMocks.permissions = [{ code: "platform.publish" }];
+      apiMocks.packagesData = {
+        items: [
+          {
+            packageId: "pkg-commercial",
+            tenantId: "t-1",
+            packageCode: "PKG.COMMERCIAL",
+            packageVersion: "2026.06",
+            name: "商业指南包",
+            description: "受许可约束的平台包",
+            accessPolicy: "ENTITLED",
+            status: "ACTIVE",
+            createdAt: "2026-06-01T00:00:00Z",
+            createdBy: "platform-admin",
+            updatedAt: "2026-06-01T00:00:00Z",
+            updatedBy: "platform-admin",
+            traceId: "trace-commercial",
+          },
+        ],
+        page: 1,
+        size: 10,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      };
+      apiMocks.entitlements = [
+        {
+          entitlementId: "entitlement-1",
+          tenantId: "tenant-old",
+          platformPackageId: "pkg-commercial",
+          packageIdentity: "PKG.COMMERCIAL@2026.06",
+          status: "EXPIRED",
+          grantedAt: "2026-01-01T00:00:00Z",
+          expiresAt: "2026-05-31T15:59:59Z",
+          reason: "试用授权",
+          updatedAt: "2026-01-01T00:00:00Z",
+          updatedBy: "platform-admin",
+        },
+      ];
+      apiMocks.grantPackageEntitlement.mockResolvedValue({
+        entitlementId: "entitlement-2",
+        tenantId: "tenant-A",
+        status: "ACTIVE",
+      });
+      apiMocks.revokePackageEntitlement.mockResolvedValue({
+        entitlementId: "entitlement-1",
+        tenantId: "tenant-old",
+        status: "REVOKED",
+      });
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "授权管理" }));
+      expect(apiMocks.useTenants).toHaveBeenCalledWith(true);
+      expect(screen.getByText("已到期")).toBeInTheDocument();
+      openSelectByLabel("目标租户");
+      await chooseVisibleSelectOption("华东示范医院 · tenant-A");
+      await userEvent.type(screen.getByLabelText("授权到期时间"), "2026-12-31T23:59");
+      await userEvent.type(screen.getByLabelText("授权原因"), "商业许可已完成审批");
+      await userEvent.click(screen.getByRole("button", { name: "开通或续期授权" }));
+
+      await waitFor(() => {
+        expect(apiMocks.grantPackageEntitlement).toHaveBeenCalledWith({
+          packageId: "pkg-commercial",
+          packageVersion: "2026.06",
+          request: {
+            targetTenantId: "tenant-A",
+            expiresAt: new Date("2026-12-31T23:59").toISOString(),
+            reason: "商业许可已完成审批",
+          },
+        });
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "撤销" }));
+      const revokeReason = screen.getByLabelText("撤销原因");
+      fireEvent.change(revokeReason, { target: { value: "合作许可已按审批终止" } });
+      expect(revokeReason).toHaveValue("合作许可已按审批终止");
+      await userEvent.click(screen.getByRole("button", { name: "确认撤销授权" }));
+      await waitFor(() => {
+        expect(apiMocks.revokePackageEntitlement).toHaveBeenCalledWith({
+          packageId: "pkg-commercial",
+          packageVersion: "2026.06",
+          tenantId: "tenant-old",
+          reason: "合作许可已按审批终止",
+        });
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "does not expose entitlement management to customer tenants",
+    async () => {
+      apiMocks.permissions = [{ code: "platform.publish" }];
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      expect(screen.queryByRole("button", { name: "授权管理" })).not.toBeInTheDocument();
+      expect(apiMocks.useTenants).toHaveBeenCalledWith(false);
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
 
   it(
     "exports an effective offline package for a target organization",
@@ -745,6 +914,7 @@ describe("ConfigPackages offline package export", () => {
         packageVersion: "1.0.0",
         name: "心血管配置包",
         description: undefined,
+        accessPolicy: "OPEN",
       });
     });
     expect(apiMocks.refetchPackages).toHaveBeenCalled();
