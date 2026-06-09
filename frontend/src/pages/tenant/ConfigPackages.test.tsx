@@ -550,7 +550,7 @@ describe("ConfigPackages offline package export", () => {
           packageVersion: "2026.06",
           request: {
             targetTenantId: "tenant-A",
-            expiresAt: "2026-12-31T15:59:00.000Z",
+            expiresAt: new Date("2026-12-31T23:59").toISOString(),
             reason: "商业许可已完成审批",
           },
         });
