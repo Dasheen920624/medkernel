@@ -6,6 +6,11 @@ import { resolve } from "node:path";
 const navigateMock = vi.fn();
 const mutateAsyncMock = vi.fn();
 let loginPending = false;
+let bootstrapStatusState: {
+  data?: { initialized: boolean };
+  isLoading: boolean;
+  isError: boolean;
+};
 let delegatedAuthStatusState: {
   data?: {
     mode: string;
@@ -30,6 +35,7 @@ let loginTenantDirectoryState: {
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigateMock }));
 vi.mock("@/shared/api/hooks", () => ({
   useLogin: () => ({ mutateAsync: mutateAsyncMock, isPending: loginPending }),
+  useBootstrapStatus: () => bootstrapStatusState,
   useDelegatedAuthStatus: () => delegatedAuthStatusState,
   useLoginTenantDirectory: () => loginTenantDirectoryState,
   useThemePreference: () => ({ data: undefined }),
@@ -51,6 +57,11 @@ describe("Login", () => {
     navigateMock.mockReset();
     mutateAsyncMock.mockReset();
     loginPending = false;
+    bootstrapStatusState = {
+      data: { initialized: false },
+      isLoading: false,
+      isError: false,
+    };
     delegatedAuthStatusState = {
       data: {
         mode: "BOTH",
@@ -142,6 +153,18 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "首次部署接管" }));
 
     expect(navigateMock).toHaveBeenCalledWith("/bootstrap");
+  });
+
+  it("系统完成首次部署后不再展示接管入口", () => {
+    bootstrapStatusState = {
+      data: { initialized: true },
+      isLoading: false,
+      isError: false,
+    };
+
+    render(<Login />);
+
+    expect(screen.queryByRole("button", { name: "首次部署接管" })).not.toBeInTheDocument();
   });
 
   it("登录页以登录卡片居中为主，平台状态默认隐藏", () => {

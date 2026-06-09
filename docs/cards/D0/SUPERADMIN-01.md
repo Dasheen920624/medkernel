@@ -38,7 +38,7 @@
 ## 数据与迁移
 - 表族：复用 `platform_credential` / `sys_role` / `user_role_assignment`，不新增过时 `sys_user` / `user_role` / `is_system_superadmin` 模型。
 - 唯一约束：沿用 `sys_role(tenant_id, role_code)` 与 `user_role_assignment(tenant_id, user_id, role_code, scope_level, scope_code)` 唯一约束；不可删除、降权、移出由 `SystemSuperAdminGuard` 在租户管理入口统一拒绝。
-- 5 方言迁移：V44 `system_superadmin_seed` 在 H2 / PostgreSQL / Oracle / 达梦 / 人大金仓保持同名种子 SQL；当前真实运行范围按长期目标保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境适配登记到 GA 最终处理清单。
+- 5 方言迁移：V44 `system_superadmin_seed` 在 H2 / PostgreSQL / Oracle / 达梦 / 人大金仓只建立内置角色目录，不预造无凭证的角色绑定；唯一超管身份由 BASE-11 首次接管在平台主租户创建。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：超管是"系统可被完整维护"的保证；消除手配漏配缺陷。
@@ -70,8 +70,8 @@
 ## 完工证据
 - 代码落点：`RoleCode.SYSTEM_SUPERADMIN`、`DefaultPermissionPolicy`、`EffectivePermissionService`、`SystemSuperAdminGuard`、`ComplianceUserController/Service`、`MenuPermissionController`、五方言迁移、`AdminUsers`。
 - 测试：`PermissionDimensionModelTest` / `DefaultPermissionPolicyTest` / `EffectivePermissionServiceTest` / `MfaRequirementPolicyTest` / `ComplianceUserControllerTest` / `ComplianceUserCredentialFlowTest` / `MenuPermissionControllerTest` / `BootstrapControllerTest` / `SystemConfigControllerTest` / `MigrationBaselineContractTest` / `H2BaselineMigrationTest` / `FlywayMultiDialectSmokeTest` / `AdminUsers.test.tsx`。
-- 本地验证：后端全量 `mvn test` 784 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 39 files / 176 tests 通过，`npm run build` 通过；PostgreSQL 15 / Oracle 21 / H2 迁移均至 V44；T-GATE 测试套件通过，提交后需重新跑 changed 门禁生成最终提交差异证据。
-- 浏览器证据：in-app browser 当前不可用，已登记 `DEFER-004`；用项目 Playwright 打开 `/admin/users` 验证超管显示为"内置超级管理员"且两处"系统内置"不可编辑，截图 `/tmp/medkernel-superadmin-01-admin-users.png`。
+- 本地验证：以当前 PR 的测试、构建、迁移烟测和 T-GATE 结果为准，不在卡内固化易失真的历史数量。
+- 浏览器证据：项目 Playwright 已覆盖内置超管不可编辑状态与首次部署入口关闭；截图随对应 E2E 测试产物留存。
 - 审计员签字：@<reviewer>（owner ≠ reviewer，高风险双签）。
 
 ## 大卡工序（3d，后端）

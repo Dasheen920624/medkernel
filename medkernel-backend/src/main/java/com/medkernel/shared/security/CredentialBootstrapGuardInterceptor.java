@@ -28,6 +28,7 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
         "/api/v1/auth/logout",
         "/api/v1/auth/session",
         "/api/v1/security/me",
+        "/api/v1/bootstrap/status",
         "/api/v1/bootstrap/init-token",
         "/api/v1/bootstrap/password",
         "/api/v1/auth/login",

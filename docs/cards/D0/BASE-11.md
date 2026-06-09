@@ -26,14 +26,14 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：`POST /api/v1/bootstrap/init-token` 校验一次性 token；`POST /api/v1/bootstrap/password` 消费 token 并创建首发 `platform-admin`；`POST /api/v1/auth/change-password` 完成首次改密；`POST /api/v1/bootstrap/mfa` 绑定 MFA 恢复码；`GET /api/v1/security/me` 返回业务页强制拦截所需安全完成状态。
+- 端点：`GET /api/v1/bootstrap/status` 只返回是否已完成首次接管；`POST /api/v1/bootstrap/init-token` 校验一次性 token；`POST /api/v1/bootstrap/password` 消费 token 并在唯一平台主租户创建首发 `system-superadmin`；`POST /api/v1/auth/change-password` 完成首次改密；`POST /api/v1/bootstrap/mfa` 绑定 MFA 恢复码；`GET /api/v1/security/me` 返回业务页强制拦截所需安全完成状态。
 - DTO：init token / 首发账号密码 / 改密 / MFA 绑定均为 Record DTO + Bean Validation（强密码策略、确认字段、恢复码保护）。
 - 响应信封：`ApiResult` / `ProblemDetail`（init token 失效/过期诚实报错）。
-- 状态机：种子身份引导状态（init→待改密→待 MFA→就绪），非四资产类（一次性引导流）。
-- 幂等 / 错误码 / traceId：init token 单次使用（用后失效）；`ENG-AUTH-008` 过期、`ENG-AUTH-009` 已用/撤销、`ENG-AUTH-010` MFA 未完成；全程审计 traceId。
+- 状态机：种子身份引导状态（未接管→待改密→待 MFA→就绪），完成接管后登录页隐藏入口，直接访问引导页只允许返回登录。
+- 幂等 / 错误码 / traceId：init token 单次使用（用后失效）；内置超管角色行作为五方言数据库互斥点，并发首次接管只允许一个成功；`ENG-AUTH-008` 过期、`ENG-AUTH-009` 已用/撤销、`ENG-AUTH-010` MFA 未完成、`ENG-AUTH-017` 已完成首次部署；全程审计 traceId。
 
 ### 页面契约（页面卡）
-- 结构：登录页保留登录前主题切换，并提供“首次部署接管”入口；首次部署引导页（init token 输入 → 首发管理员与密码 → 首次改密 → MFA 绑定）支持明暗 / 老年医生等主题。
+- 结构：登录页保留登录前主题切换，仅在系统未初始化时提供“首次部署接管”入口；首次部署引导页（init token 输入 → 首发管理员与密码 → 首次改密 → MFA 绑定）支持明暗 / 老年医生等主题。
 - 六态：字段级错误、接口错误、空 token / 空密码、处理中、成功恢复码、完成跳转均有中文回显。
 - 主按钮 ≤1：每步单主按钮（核心 #6）；业务路由若 `mustChangePwd=true` 或 `mfaRequired=true && mfaBound=false`，必须显示“需要完成首次安全设置”并只能继续到 `/bootstrap`。
 
@@ -66,14 +66,15 @@
 - [x] **AC-3（FR-3）**：超管未绑 MFA 时执行高危动作被拒；绑定后可执行。
 - [x] **AC-4（FR-1）**：init token 用后失效；过期/重用返回诚实错误（`ENG-AUTH-008/009`）。
 - [x] **AC-5（FR-4/6）**：CLI 应急重置可用且受控审计；运维手册首次部署步骤可照做走通。
+- [x] **AC-6（FR-1/5）**：状态端点只返回初始化布尔值；初始化后入口关闭，重复或并发创建只保留一个平台超管。
 - 关联 A1–A9：A6 合规运维（身份 + 审计）。
 - T-GATE：后端门禁全绿（无生产写死账号/密码）。
 - B0 验收：纯确定性身份引导，天然 B0。
 
 ## 完工证据
 - 代码：`BootstrapInitTokenService` / `BootstrapInitTokenSeeder` / `BootstrapController` / `BootstrapIdentityService` / `MfaPolicyService` / `BootstrapEmergencyCommand` / `SecurityMeController` / `/bootstrap` 页面 / `mk_security_bootstrap_init_token` V36 五方言迁移 / 运维手册首次部署章节。
-- 测试：`BootstrapInitTokenServiceTest`、`BootstrapInitTokenSeederTest`、`BootstrapControllerTest`、`AuthControllerTest`、`SecurityMeControllerTest`、`MfaPolicyServiceTest`、`SystemConfigControllerTest`、`TenantProvisioningControllerTest`、`BootstrapEmergencyCommandTest`、`Bootstrap.test.tsx`、`Login.test.tsx`、`AppLayout.test.tsx`、`router.test.tsx`、`hooks.test.ts`。
-- 验收：本分支已用浏览器核验 `/login` → `/bootstrap`、主题切换、字段错误回显、控制台无 error；本机截图能力超时登记 `DEFER-004`，不伪造截图证据。
+- 测试：`BootstrapInitTokenServiceTest`、`BootstrapInitTokenSeederTest`、`BootstrapControllerTest`（含并发单例）、`AuthControllerTest`、`SecurityMeControllerTest`、`MfaPolicyServiceTest`、`SystemConfigControllerTest`、`TenantProvisioningControllerTest`、`BootstrapEmergencyCommandTest`、`Bootstrap.test.tsx`、`Login.test.tsx`、`AppLayout.test.tsx`、`router.test.tsx`、`hooks.test.ts`、`d0-bootstrap-closure.spec.ts`。
+- 验收：真实 Playwright 已核验桌面 `/login` 隐藏首次部署入口、移动端 `/bootstrap` 只显示完成状态与返回登录，控制台无 error 且无根级横向溢出。
 - 待处理：当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实运行证据登记 `DEFER-001`，不阻塞本卡但不得写成已通过。
 - 审计员签字：PR review（owner ≠ reviewer，高风险建议双签）。
 

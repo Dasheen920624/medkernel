@@ -4,18 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import com.medkernel.shared.context.PlatformTenant;
-
 /**
- * 首次部署管理员必须默认归属唯一平台主租户。
+ * 首次部署管理员请求只接收身份凭据，平台租户归属由服务端强制决定。
  */
 class BootstrapPasswordRequestTest {
 
     @Test
-    void blankTenantFallsBackToPlatformTenant() {
-        assertThat(new BootstrapPasswordRequest("token", null, "owner", "pw").tenantOrDefault())
-            .isEqualTo(PlatformTenant.ID);
-        assertThat(new BootstrapPasswordRequest("token", " ", "owner", "pw").tenantOrDefault())
-            .isEqualTo(PlatformTenant.ID);
+    void usernameIsNormalized() {
+        assertThat(new BootstrapPasswordRequest("token", " owner ", "pw").usernameNormalized())
+            .isEqualTo("owner");
     }
 }

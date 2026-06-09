@@ -14,6 +14,7 @@ import {
   completeApprovedExportJob,
   createIdentityBinding,
   createBootstrapAdmin,
+  fetchBootstrapStatus,
   fetchDelegatedAuthStatus,
   fetchDataPermissionPolicies,
   fetchExportApprovals,
@@ -3594,6 +3595,17 @@ describe("bootstrap identity api helpers", () => {
     vi.mocked(apiClient.put).mockReset();
   });
 
+  it("reads whether the platform has completed first deployment", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: { initialized: true } },
+    });
+
+    const result = await fetchBootstrapStatus();
+
+    expect(result).toEqual({ initialized: true });
+    expect(apiClient.get).toHaveBeenCalledWith("/bootstrap/status");
+  });
+
   it("checks the init token without creating a login session", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { data: { valid: true, expiresAt: "2026-06-01T09:00:00Z" } },
@@ -3619,7 +3631,6 @@ describe("bootstrap identity api helpers", () => {
 
     const result = await createBootstrapAdmin({
       token: "raw-init-token",
-      tenantId: "t-1",
       username: "platform-owner",
       password: "Init@2026pw",
     });
@@ -3627,7 +3638,6 @@ describe("bootstrap identity api helpers", () => {
     expect(result).toBe(response);
     expect(apiClient.post).toHaveBeenCalledWith("/bootstrap/password", {
       token: "raw-init-token",
-      tenantId: "t-1",
       username: "platform-owner",
       password: "Init@2026pw",
     });

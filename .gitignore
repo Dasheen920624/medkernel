@@ -46,3 +46,7 @@ Thumbs.db
 *.tmp
 *.bak
 ~$*
+
+# Browser test outputs
+frontend/e2e-report/
+frontend/test-results/

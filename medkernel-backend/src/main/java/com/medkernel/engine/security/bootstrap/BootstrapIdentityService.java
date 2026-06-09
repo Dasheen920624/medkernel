@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.SystemRoleRepository;
 import com.medkernel.engine.security.TenantUser;
 import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
@@ -21,6 +22,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.context.PlatformTenant;
 
 /**
  * 首次部署身份接管服务：使用一次性 init token 创建首发内置超级管理员。
@@ -34,6 +36,7 @@ public class BootstrapIdentityService {
     private final BootstrapInitTokenService tokenService;
     private final PlatformCredentialRepository credentials;
     private final TenantUserRepository users;
+    private final SystemRoleRepository systemRoles;
     private final UserRoleAssignmentRepository roleAssignments;
     private final CredentialPasswordService credentialPasswords;
     private final AuditRecorder auditRecorder;
@@ -43,6 +46,7 @@ public class BootstrapIdentityService {
     public BootstrapIdentityService(BootstrapInitTokenService tokenService,
                                     PlatformCredentialRepository credentials,
                                     TenantUserRepository users,
+                                    SystemRoleRepository systemRoles,
                                     UserRoleAssignmentRepository roleAssignments,
                                     CredentialPasswordService credentialPasswords,
                                     AuditRecorder auditRecorder,
@@ -51,6 +55,7 @@ public class BootstrapIdentityService {
         this.tokenService = tokenService;
         this.credentials = credentials;
         this.users = users;
+        this.systemRoles = systemRoles;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
         this.auditRecorder = auditRecorder;
@@ -59,15 +64,25 @@ public class BootstrapIdentityService {
     }
 
     @Transactional(readOnly = true)
+    public BootstrapStatusResponse status() {
+        return new BootstrapStatusResponse(isInitialized());
+    }
+
+    @Transactional(readOnly = true)
     public BootstrapStartResponse check(BootstrapStartRequest request) {
+        assertNotInitialized(PlatformTenant.ID);
         BootstrapInitToken token = tokenService.validate(request.token());
         return new BootstrapStartResponse(true, token.expiresAt());
     }
 
     @Transactional
     public BootstrapPasswordResponse createFirstAdmin(BootstrapPasswordRequest request) {
-        String tenantId = request.tenantOrDefault();
+        String tenantId = PlatformTenant.ID;
         String username = request.usernameNormalized();
+        systemRoles.findByTenantIdAndRoleCodeForUpdate(
+            PlatformTenant.SYSTEM_NAMESPACE, RoleCode.SYSTEM_SUPERADMIN.code())
+            .orElseThrow(() -> new IllegalStateException("内置超级管理员角色目录缺失"));
+        assertNotInitialized(username);
         if (credentials.findByTenantIdAndUsername(tenantId, username).isPresent()
                 || users.findByTenantIdAndUserId(tenantId, username).isPresent()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
@@ -96,5 +111,20 @@ public class BootstrapIdentityService {
             "首次部署创建内置超级管理员 username=" + username);
         return new BootstrapPasswordResponse(
             username, tenantId, username, List.of(RoleCode.SYSTEM_SUPERADMIN.code()), true);
+    }
+
+    private boolean isInitialized() {
+        return roleAssignments.existsByTenantIdAndRoleCodeAndActiveFlag(
+            PlatformTenant.ID, RoleCode.SYSTEM_SUPERADMIN.code(), "Y");
+    }
+
+    private void assertNotInitialized(String targetId) {
+        if (!isInitialized()) {
+            return;
+        }
+        isolatedAudit.publishInNewTx(AuditEvent.failure(
+            AuditAction.CREATE, "platform_credential", targetId,
+            ErrorCode.ENG_AUTH_017.code(), "首次接管失败：系统已完成首次部署"));
+        throw new ApiException(ErrorCode.ENG_AUTH_017);
     }
 }

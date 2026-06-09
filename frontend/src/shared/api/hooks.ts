@@ -8832,9 +8832,12 @@ export interface BootstrapStartResult {
   expiresAt: string;
 }
 
+export interface BootstrapStatus {
+  initialized: boolean;
+}
+
 export interface BootstrapAdminPayload {
   token: string;
-  tenantId?: string;
   username: string;
   password: string;
 }
@@ -8865,6 +8868,21 @@ export interface BootstrapMfaResult {
   recoveryCode?: string;
 }
 
+export async function fetchBootstrapStatus() {
+  const resp = await apiClient.get<{ data: BootstrapStatus }>("/bootstrap/status");
+  return resp.data.data;
+}
+
+export function useBootstrapStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["bootstrap", "status"],
+    queryFn: fetchBootstrapStatus,
+    enabled,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
 export async function checkBootstrapInitToken(token: string) {
   const resp = await apiClient.post<{ data: BootstrapStartResult }>("/bootstrap/init-token", {
     token,
@@ -8884,8 +8902,10 @@ export async function createBootstrapAdmin(payload: BootstrapAdminPayload) {
 }
 
 export function useCreateBootstrapAdmin() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createBootstrapAdmin,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bootstrap", "status"] }),
   });
 }
 

@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/features/theme-switcher/ThemeSwitcher";
 import {
+  useBootstrapStatus,
   useDelegatedAuthStatus,
   useLogin,
   useLoginTenantDirectory,
@@ -153,6 +154,7 @@ export default function Login() {
   }>();
   const navigate = useNavigate();
   const login = useLogin();
+  const bootstrapStatus = useBootstrapStatus();
   const loginTenantDirectory = useLoginTenantDirectory();
   const { token } = theme.useToken();
 
@@ -448,14 +450,16 @@ export default function Login() {
             <Text>系统将按医院策略自动校验双因素认证、国密通道与会话安全。</Text>
           </div>
 
-          <Button
-            aria-label="首次部署接管"
-            className={styles.secondaryEntry}
-            icon={<RocketOutlined />}
-            onClick={() => navigate("/bootstrap")}
-          >
-            首次部署接管
-          </Button>
+          {bootstrapStatus.data?.initialized === false && (
+            <Button
+              aria-label="首次部署接管"
+              className={styles.secondaryEntry}
+              icon={<RocketOutlined />}
+              onClick={() => navigate("/bootstrap")}
+            >
+              首次部署接管
+            </Button>
+          )}
 
           <div className={styles.utilityRow}>
             {canUseDelegatedLogin && (

@@ -117,6 +117,21 @@
   box-shadow: none;
 }
 
+.statusPanel {
+  width: min(100%, calc(var(--mk-unit) * 560));
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: var(--mk-bootstrap-radius);
+  text-align: center;
+  box-shadow: var(--mk-bootstrap-shadow);
+}
+
+.statusPanel :global(.ant-card-body) {
+  display: grid;
+  gap: calc(var(--mk-unit) * 14);
+  justify-items: center;
+  padding: calc(var(--mk-unit) * 30);
+}
+
 .panel :global(.ant-card-body) {
   padding: calc(var(--mk-unit) * 26);
 }

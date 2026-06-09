@@ -51,7 +51,7 @@ class H2BaselineMigrationTest {
         Integer assignmentCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM user_role_assignment WHERE tenant_id = 't-1' AND active_flag = 'Y'",
             Integer.class);
-        assertThat(assignmentCount).as("初始化用户角色绑定数量").isEqualTo(14);
+        assertThat(assignmentCount).as("首次接管前只初始化业务角色绑定").isEqualTo(13);
 
         List<String> seededUsers = jdbc.queryForList("""
             SELECT user_id FROM user_role_assignment
@@ -59,13 +59,13 @@ class H2BaselineMigrationTest {
             ORDER BY user_id
             """, String.class);
         assertThat(seededUsers)
-            .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1",
-                "system-superadmin-1");
+            .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1")
+            .doesNotContain("system-superadmin-1");
 
         Integer tenantUserCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM tenant_user WHERE tenant_id = 't-1'",
             Integer.class);
-        assertThat(tenantUserCount).as("角色种子已收敛为统一租户用户目录").isEqualTo(14);
+        assertThat(tenantUserCount).as("首次接管前统一租户用户目录不含占位超管").isEqualTo(13);
 
         Integer roleCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM sys_role WHERE tenant_id = 'SYSTEM' AND built_in_flag = 'Y'",
