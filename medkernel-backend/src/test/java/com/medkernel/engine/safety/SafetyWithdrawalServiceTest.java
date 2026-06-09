@@ -216,7 +216,7 @@ class SafetyWithdrawalServiceTest {
             "anchors", status, KnowledgeRiskLevel.HIGH, SourceAuthorityLevel.B_GUIDELINE,
             null, null, null, "tenant:tenant-A", "ALL", "version:" + id,
             now.minusSeconds(3600), now, "reviewer", now.minusSeconds(1800), now.minusSeconds(1200),
-            null, now, "上游说明书新增禁忌", now.minusSeconds(7200), "creator", now, "medical-affairs");
+            null, now, "上游说明书新增禁忌", now.minusSeconds(7200), "creator", now, "medical-affairs", 12, null);
     }
 
     private KnowledgeInvalidation invalidation(Long id, Long identityId, Long versionId) {

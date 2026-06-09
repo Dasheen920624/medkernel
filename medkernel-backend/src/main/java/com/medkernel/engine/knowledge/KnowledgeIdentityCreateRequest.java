@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 创建知识身份的标准 API-03 请求。
@@ -23,7 +24,7 @@ public record KnowledgeIdentityCreateRequest(
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String packageVersion,
-    @NotBlank String identityCode,
+    @NotBlank @Size(max = 43) String identitySlug,
     @NotNull KnowledgeDomain domain,
     @NotBlank String subject,
     String assetSpecialtyId,

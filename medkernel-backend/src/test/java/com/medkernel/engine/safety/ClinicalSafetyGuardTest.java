@@ -87,7 +87,7 @@ class ClinicalSafetyGuardTest {
             status == KnowledgeVersionStatus.ACTIVE ? now.minusSeconds(1200) : null,
             null, status == KnowledgeVersionStatus.WITHDRAWN ? now.minusSeconds(60) : null,
             status == KnowledgeVersionStatus.WITHDRAWN ? "上游召回" : null,
-            now.minusSeconds(7200), "creator", now, "reviewer");
+            now.minusSeconds(7200), "creator", now, "reviewer", 12, null);
     }
 
     private PathwayTemplate template(String sourceRef) {

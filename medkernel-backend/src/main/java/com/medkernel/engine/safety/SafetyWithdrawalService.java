@@ -188,7 +188,8 @@ public class SafetyWithdrawalService {
                     request.versionId(), tenantId, request.identityId(), null, null, null, null, null,
                     null, KnowledgeVersionStatus.WITHDRAWN, null, null, null, null, null,
                     null, null, "version:" + request.versionId(), null, now,
-                    null, null, null, null, now, request.reason(), now, currentActor(), now, currentActor());
+                    null, null, null, null, now, request.reason(), now, currentActor(), now, currentActor(),
+                    null, null);
             }
             throw e;
         }

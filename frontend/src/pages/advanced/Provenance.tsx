@@ -20,10 +20,16 @@ import {
   HistoryOutlined,
   LinkOutlined,
   ReloadOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 
-import { useKnowledgeIdentities, useKnowledgeProvenance } from "@/shared/api/hooks";
+import {
+  useKnowledgeIdentities,
+  useKnowledgeProvenance,
+  useKnowledgeReviewQueue,
+} from "@/shared/api/hooks";
 import type {
   KnowledgeAssetVersion,
   KnowledgeDomain,
@@ -55,6 +61,7 @@ const domainOptions: Array<{ value: KnowledgeDomain; label: string }> = [
 const domainLabels = new Map(domainOptions.map((option) => [option.value, option.label]));
 const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
   ["ACTIVE", "有效身份"],
+  ["DEPRECATED", "迁移宽限期"],
   ["WITHDRAWN", "已撤回"],
   ["ARCHIVED", "已归档"],
 ]);
@@ -172,6 +179,11 @@ export default function Provenance() {
     [identitiesQuery.data?.items],
   );
   const provenanceQuery = useKnowledgeProvenance(selectedIdentityId);
+  const reviewQueueQuery = useKnowledgeReviewQueue({
+    withinDays: 30,
+    page: 1,
+    size: 20,
+  });
 
   useEffect(() => {
     if (linkedIdentityId) {
@@ -260,6 +272,7 @@ export default function Provenance() {
     if (selectedIdentityId) {
       void provenanceQuery.refetch();
     }
+    void reviewQueueQuery.refetch();
   };
 
   let detailContent = <Empty description="请选择知识身份" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
@@ -279,6 +292,9 @@ export default function Provenance() {
     const activeVersion = provenance.versions.find(
       (version) => version.id === provenance.currentVersionId,
     );
+    const retirement = [...provenance.supersessions]
+      .reverse()
+      .find((item) => item.transitionType === "DEPRECATE" || item.transitionType === "RETIRE");
     detailContent = (
       <Space direction="vertical" size="large" className={styles.fullWidth}>
         <div className={styles.detailHeader}>
@@ -310,6 +326,52 @@ export default function Provenance() {
             message="当前版本存在冲突裁决记录"
             description={activeVersion.conflictArbitration}
           />
+        )}
+
+        {retirement?.migrationGuidance && (
+          <Alert
+            type={retirement.transitionType === "RETIRE" ? "error" : "warning"}
+            showIcon
+            message={
+              retirement.transitionType === "RETIRE"
+                ? "该知识身份已退役"
+                : `该知识身份将在 ${formatDateTime(retirement.gracePeriodEnd)} 结束迁移宽限期`
+            }
+            description={`${retirement.migrationGuidance}；后继身份 ID：${
+              retirement.successorIdentityId ?? "未记录"
+            }`}
+          />
+        )}
+
+        {activeVersion && (
+          <section>
+            <Space className={styles.sectionTitle}>
+              <SafetyCertificateOutlined />
+              <Text strong>循证与复审</Text>
+            </Space>
+            <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
+              <Descriptions.Item label="来源级别">
+                {activeVersion.authorityLevel || "未记录"}
+              </Descriptions.Item>
+              <Descriptions.Item label="证据质量">
+                {activeVersion.gradeQuality || "未记录"}
+              </Descriptions.Item>
+              <Descriptions.Item label="复审周期">
+                {activeVersion.reviewCycleMonths
+                  ? `${activeVersion.reviewCycleMonths} 个月`
+                  : "未记录"}
+              </Descriptions.Item>
+              <Descriptions.Item label="最近复审">
+                {formatDateTime(activeVersion.reviewedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="下次复审">
+                {formatDateTime(activeVersion.nextReviewAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="复审人">
+                {activeVersion.reviewedBy || "未记录"}
+              </Descriptions.Item>
+            </Descriptions>
+          </section>
         )}
 
         <section>
@@ -345,6 +407,25 @@ export default function Provenance() {
       description="按知识身份查看当前权威版本、历史沿革和精确来源锚点。"
     >
       <Space direction="vertical" size="large" className={styles.fullWidth}>
+        {Boolean(reviewQueueQuery.data?.total) && (
+          <Alert
+            type={
+              reviewQueueQuery.data?.items.some((item) => item.status === "OVERDUE")
+                ? "warning"
+                : "info"
+            }
+            showIcon
+            icon={<SwapOutlined />}
+            message={`${reviewQueueQuery.data?.total ?? 0} 项知识需要复审`}
+            description={reviewQueueQuery.data?.items
+              ?.slice(0, 3)
+              .map(
+                (item) =>
+                  `${item.identity.subject}（${item.status === "OVERDUE" ? "已逾期" : "临近到期"}）`,
+              )
+              .join("、")}
+          />
+        )}
         <Card>
           <div className={styles.toolbar}>
             <Space wrap>

@@ -134,7 +134,8 @@ class MigrationBaselineContractTest {
         "V105__tenant_package_reference.sql",
         "V106__platform_tenant_governance_permissions.sql",
         "V107__asset_dependency_integrity.sql",
-        "V108__asset_lifecycle_quality_gate.sql"
+        "V108__asset_lifecycle_quality_gate.sql",
+        "V109__knowledge_evidence_governance.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -214,8 +215,10 @@ class MigrationBaselineContractTest {
         "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
         "idx_knowledge_av_effective_scope",
         "idx_knowledge_av_tenant_status", "idx_knowledge_av_tenant_updated",
-        "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_citation_tenant_av", "idx_citation_fragment",
+        "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_knowledge_av_review_due",
+        "idx_citation_tenant_av", "idx_citation_fragment",
         "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
+        "idx_supersession_successor", "idx_supersession_grace",
         "idx_mk_knowledge_invalidation_identity", "idx_mk_knowledge_invalidation_status",
         "idx_mk_knowledge_affected_task_status", "idx_mk_knowledge_affected_task_version",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
@@ -383,6 +386,7 @@ class MigrationBaselineContractTest {
         "uk_knowledge_asset_version", "uk_knowledge_asset_version_active_scope",
         "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
         "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
+        "ck_knowledge_av_review_cycle",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
         "uk_mk_knowledge_invalidation_key", "ck_mk_knowledge_invalidation_type",
         "ck_mk_knowledge_invalidation_status", "ck_mk_knowledge_invalidation_risk",
@@ -2489,6 +2493,19 @@ class MigrationBaselineContractTest {
                 .contains("ck_release_plan_scope_type")
                 .contains("ck_mk_version_release_plan_scope")
                 .doesNotContain("DOCTOR_TEAM", "sync_target");
+        }
+    }
+
+    @Test
+    void v109MustBackfillExistingActiveKnowledgeReviewDeadlinesInAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V109__knowledge_evidence_governance.sql");
+            assertThat(ddl)
+                .as("%s 存量 ACTIVE 权威知识必须补入复审计划", dialect)
+                .contains("UPDATE knowledge_asset_version")
+                .contains("SET next_review_at")
+                .contains("status = 'ACTIVE'")
+                .contains("next_review_at IS NULL");
         }
     }
 

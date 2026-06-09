@@ -84,7 +84,7 @@ public class DiagnosisKnowledgeService {
             context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
             context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
             context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
-            identityInput.identityCode(), KnowledgeDomain.DIAGNOSIS, identityInput.subject(),
+            identityInput.identitySlug(), KnowledgeDomain.DIAGNOSIS, identityInput.subject(),
             identityInput.assetSpecialtyId(), identityInput.description()));
         DiagnosisAssetDraftResponse response = createEvidenceCompleteVersion(
             identity, context, request.source(), request.version(), request.evidence());
@@ -140,7 +140,7 @@ public class DiagnosisKnowledgeService {
                 context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
                 versionInput.versionNo(), versionInput.versionLabel(), source.id(), sourceVersion.id(),
                 sourceInput.content(), evidenceInput.anchorPath(), versionInput.riskLevel(),
-                versionInput.gradeQuality(), versionInput.gradeStrength()));
+                versionInput.gradeQuality(), versionInput.gradeStrength(), versionInput.reviewCycleMonths()));
         KnowledgeAssetVersion version = candidate.candidates().stream().findFirst()
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT, "诊断知识内容与既有版本重复，未创建新的可编辑版本"));

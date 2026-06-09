@@ -59,6 +59,9 @@ public class SystemConfigService {
         "medkernel.cdss.realtime.order-sign-timeout-ms";
     public static final String INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY =
         "medkernel.integration.health-probe-interval-ms";
+    public static final String KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY =
+        "medkernel.knowledge.retirement-interval-ms";
+    public static final long DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS = 300_000L;
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
@@ -415,6 +418,12 @@ public class SystemConfigService {
             properties.healthProbeIntervalMs()).value();
     }
 
+    public long runtimeKnowledgeRetirementIntervalMs() {
+        return readRuntimeLongConfig(
+            KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY,
+            DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS).value();
+    }
+
     private static long durationMs(Duration configured, Duration fallback) {
         Duration duration = configured == null || configured.isZero() || configured.isNegative()
             ? fallback
@@ -512,6 +521,7 @@ public class SystemConfigService {
             || CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY.equals(key)
             || REALTIME_CDS_DEFAULT_TIMEOUT_MS_KEY.equals(key)
             || REALTIME_CDS_ORDER_SIGN_TIMEOUT_MS_KEY.equals(key)
+            || KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY.equals(key)
             || (key != null && key.equals(AUTH_COOKIE_PREFIX + "max-age-seconds"))
             || (key != null && key.startsWith(AUTH_SESSION_PREFIX))) {
             validatePositiveLong(value);

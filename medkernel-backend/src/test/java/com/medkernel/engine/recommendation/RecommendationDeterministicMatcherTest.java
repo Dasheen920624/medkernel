@@ -536,7 +536,7 @@ class RecommendationDeterministicMatcherTest {
                 1L, "tenant:tenant-A", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             now.minusSeconds(3600), null, "reviewer", now.minusSeconds(3000),
             now.minusSeconds(3000), null, null, null,
-            now, "tester", now, "tester");
+            now, "tester", now, "tester", 12, null);
     }
 
     private KnowledgeIdentity platformKnowledgeIdentity() {
@@ -562,7 +562,7 @@ class RecommendationDeterministicMatcherTest {
                 2L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             now.minusSeconds(3600), null, "reviewer", now.minusSeconds(3000),
             now.minusSeconds(3000), null, null, null,
-            now, "tester", now, "tester");
+            now, "tester", now, "tester", 12, null);
     }
 
     private PatientPathway patientPathway() {

@@ -1,5 +1,6 @@
 package com.medkernel.migration;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -21,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 108;
+    private static final int LATEST_MIGRATION_VERSION = 109;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -93,6 +94,53 @@ class H2BaselineMigrationTest {
             "SELECT COUNT(*) FROM model_capability_definition WHERE enabled_flag = 'Y'",
             Integer.class);
         assertThat(modelCapabilityCount).as("模型能力关系库目录种子").isEqualTo(8);
+    }
+
+    @Test
+    void knowledgeReviewMigrationBackfillsExistingActiveVersionDeadline() {
+        DataSource ds = new HikariDataSource(hikari());
+        Flyway.configure()
+            .dataSource(ds)
+            .locations("classpath:db/migration/h2")
+            .target("108")
+            .load()
+            .migrate();
+
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        jdbc.update("""
+            INSERT INTO knowledge_identity (
+                tenant_id, identity_code, domain, subject, status
+            ) VALUES (?, ?, ?, ?, ?)
+            """, "t-1", "plat:drug:review-backfill", "DRUG", "复审迁移测试", "ACTIVE");
+        Long identityId = jdbc.queryForObject(
+            "SELECT id FROM knowledge_identity WHERE identity_code = 'plat:drug:review-backfill'",
+            Long.class);
+        jdbc.update("""
+            INSERT INTO knowledge_asset_version (
+                tenant_id, identity_id, version_no, content_hash, status, risk_level,
+                authority_level, grade_quality, organization_scope, applicable_scope,
+                active_scope_key, reviewed_by, reviewed_at, activated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "t-1", identityId, "2026.1", "a".repeat(64), "ACTIVE", "LOW",
+            "B_GUIDELINE", "HIGH", "tenant:t-1", "ALL",
+            identityId + "|tenant:t-1|ALL", "reviewer",
+            LocalDateTime.of(2026, 6, 1, 0, 0),
+            LocalDateTime.of(2026, 6, 1, 0, 0));
+
+        Flyway.configure()
+            .dataSource(ds)
+            .locations("classpath:db/migration/h2")
+            .load()
+            .migrate();
+
+        LocalDateTime nextReviewAt = jdbc.queryForObject("""
+            SELECT next_review_at FROM knowledge_asset_version
+            WHERE identity_id = ?
+            """, LocalDateTime.class, identityId);
+        assertThat(nextReviewAt)
+            .as("存量 ACTIVE 权威版本必须在 V109 后进入复审计划")
+            .isEqualTo(LocalDateTime.of(2027, 6, 1, 0, 0));
     }
 
     private HikariConfig hikari() {

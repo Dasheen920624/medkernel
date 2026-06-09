@@ -16,6 +16,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.versioning.AssetIdentityAllocator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,7 +46,8 @@ class KnowledgeIdentityServiceTest {
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
         service = new KnowledgeIdentityService(
-            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
+            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
+            new AssetIdentityAllocator()
         );
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -366,7 +368,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void createIdentityRejectsMismatchedTenantContext() {
-        KnowledgeIdentityCreateRequest request = identityCreateRequest("t-2", " DRUG.HTN ");
+        KnowledgeIdentityCreateRequest request = identityCreateRequest("t-2", "hypertension-medication");
 
         assertThatThrownBy(() -> service.createIdentity(request))
             .isInstanceOf(ApiException.class)
@@ -376,19 +378,32 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
-    void createIdentityTrimsCodeAndDefaultsActiveWithoutCurrentVersion() {
-        KnowledgeIdentityCreateRequest request = identityCreateRequest("t-1", " DRUG.HTN ");
-        when(identityRepo.findByTenantIdAndIdentityCode("t-1", "DRUG.HTN")).thenReturn(Optional.empty());
+    void createIdentityAllocatesPlatformCodeAndDefaultsActiveWithoutCurrentVersion() {
+        KnowledgeIdentityCreateRequest request = identityCreateRequest("t-1", "hypertension-medication");
+        when(identityRepo.findByTenantIdAndIdentityCode(
+            "t-1", "plat:drug:hypertension-medication")).thenReturn(Optional.empty());
 
         KnowledgeIdentity created = service.createIdentity(request);
 
-        assertThat(created.identityCode()).isEqualTo("DRUG.HTN");
+        assertThat(created.identityCode()).isEqualTo("plat:drug:hypertension-medication");
         assertThat(created.subject()).isEqualTo("高血压用药");
         assertThat(created.status()).isEqualTo(KnowledgeIdentityStatus.ACTIVE);
         assertThat(created.currentVersionId()).isNull();
         assertThat(created.tenantId()).isEqualTo("t-1");
         assertThat(created.createdBy()).isEqualTo("u-99");
         assertThat(created.specialtyId()).isEqualTo("CARD");
+    }
+
+    @Test
+    void createIdentityAllocatesTenantCodeInTenantNamespace() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("hospital-a"), "u-99"));
+        KnowledgeIdentityCreateRequest request = identityCreateRequest("hospital-a", "hypertension-medication");
+        when(identityRepo.findByTenantIdAndIdentityCode(
+            "hospital-a", "t:hospital-a:drug:hypertension-medication")).thenReturn(Optional.empty());
+
+        KnowledgeIdentity created = service.createIdentity(request);
+
+        assertThat(created.identityCode()).isEqualTo("t:hospital-a:drug:hypertension-medication");
     }
 
     @Test
@@ -612,11 +627,11 @@ class KnowledgeIdentityServiceTest {
         );
     }
 
-    private KnowledgeIdentityCreateRequest identityCreateRequest(String tenantId, String identityCode) {
+    private KnowledgeIdentityCreateRequest identityCreateRequest(String tenantId, String identitySlug) {
         return new KnowledgeIdentityCreateRequest(
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
             "u-99", List.of("knowledge.write"), "pkg-2026.06",
-            identityCode, KnowledgeDomain.DRUG, " 高血压用药 ", " CARD ", "指南资产"
+            identitySlug, KnowledgeDomain.DRUG, " 高血压用药 ", " CARD ", "指南资产"
         );
     }
 
@@ -637,7 +652,7 @@ class KnowledgeIdentityServiceTest {
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
             now, "init", now, "init"
-        );
+        , 12, null);
     }
 
     private KnowledgeAssetVersion versionRowWithSource(Long id, Long identityId, Long sourceVersionId) {
@@ -652,7 +667,7 @@ class KnowledgeIdentityServiceTest {
             row.reviewedBy(), row.reviewedAt(), row.activatedAt(), row.supersededAt(),
             row.withdrawnAt(), row.withdrawnReason(), row.createdAt(), row.createdBy(),
             row.updatedAt(), row.updatedBy()
-        );
+        , 12, null);
     }
 
     private Citation citation(Long id, Long assetVersionId, int weight) {

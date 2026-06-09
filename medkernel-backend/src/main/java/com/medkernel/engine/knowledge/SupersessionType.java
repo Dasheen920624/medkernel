@@ -15,5 +15,9 @@ public enum SupersessionType {
     /** 还原：撤回后又重新生效（罕见） */
     RESTORE,
     /** 回滚：紧急回退到旧版本 */
-    ROLLBACK
+    ROLLBACK,
+    /** 弃用：指定后继身份并进入迁移宽限期。 */
+    DEPRECATE,
+    /** 退役：宽限期结束，旧身份和租户覆盖停止参与解析。 */
+    RETIRE
 }

@@ -388,6 +388,50 @@ class SystemConfigServiceTest {
     }
 
     @Test
+    void runtimeKnowledgeRetirementIntervalReadsConfigCenterAndFallsBackSafely() {
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY,
+                "45000",
+                "INTEGER",
+                "知识退役扫描间隔",
+                "MEDIUM",
+                "知识治理组",
+                "控制知识身份宽限期到期后的退役扫描间隔。",
+                "API",
+                false,
+                true,
+                3,
+                null)));
+
+        assertThat(service.runtimeKnowledgeRetirementIntervalMs()).isEqualTo(45_000L);
+
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY,
+                "not-a-number",
+                "INTEGER",
+                "知识退役扫描间隔",
+                "MEDIUM",
+                "知识治理组",
+                "控制知识身份宽限期到期后的退役扫描间隔。",
+                "API",
+                false,
+                true,
+                4,
+                null)));
+
+        assertThat(service.runtimeKnowledgeRetirementIntervalMs())
+            .isEqualTo(SystemConfigService.DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS);
+    }
+
+    @Test
     void runtimeClinicalEventSyncTimeoutReadsConfigCenterAndFallsBackSafely() {
         ClinicalEventWorkerSettings settings = new ClinicalEventWorkerSettings() {
             @Override

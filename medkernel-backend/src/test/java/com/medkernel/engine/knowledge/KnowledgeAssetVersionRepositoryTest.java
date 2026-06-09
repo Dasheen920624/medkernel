@@ -14,7 +14,7 @@ import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.TestPropertySource;
 
-/** 知识版本仓储：findActiveDiagnosisVersions 只返回 ACTIVE 且身份 domain=DIAGNOSIS 的版本。 */
+/** 知识版本仓储：验证诊断运行查询与复审队列分页查询。 */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -55,6 +55,28 @@ class KnowledgeAssetVersionRepositoryTest {
         });
     }
 
+    @Test
+    void pageReviewDueReturnsOnlyWindowedActiveVersionsInDueOrder() {
+        Instant now = Instant.parse("2026-06-09T00:00:00Z");
+        KnowledgeIdentity overdueIdentity =
+            identityRepo.save(identity("plat:drug:overdue", KnowledgeDomain.DRUG, "已逾期知识"));
+        KnowledgeIdentity upcomingIdentity =
+            identityRepo.save(identity("plat:drug:upcoming", KnowledgeDomain.DRUG, "临近复审知识"));
+        KnowledgeIdentity futureIdentity =
+            identityRepo.save(identity("plat:drug:future", KnowledgeDomain.DRUG, "远期复审知识"));
+        versionRepo.save(withReviewAt(activeVersion(overdueIdentity.id()), now.minusSeconds(86_400)));
+        KnowledgeAssetVersion upcoming =
+            versionRepo.save(withReviewAt(activeVersion(upcomingIdentity.id()), now.plusSeconds(86_400)));
+        versionRepo.save(withReviewAt(activeVersion(futureIdentity.id()), now.plusSeconds(86_400L * 40)));
+        Instant threshold = now.plusSeconds(86_400L * 30);
+
+        assertThat(versionRepo.countReviewDueByTenantId("t-1", threshold)).isEqualTo(2L);
+        assertThat(versionRepo.pageReviewDueByTenantId("t-1", threshold, 1, 1))
+            .singleElement()
+            .extracting(KnowledgeAssetVersion::id)
+            .isEqualTo(upcoming.id());
+    }
+
     private KnowledgeIdentity identity(String code, KnowledgeDomain domain, String subject) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(null, "t-1", code, domain, subject, null, null,
@@ -71,6 +93,18 @@ class KnowledgeAssetVersionRepositoryTest {
             SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
             orgScope, appScope, KnowledgeAssetVersion.activeScopeKey(identityId, orgScope, appScope),
             null, null, null, null, now, null, null, null,
-            now, "system", now, "system");
+            now, "system", now, "system", 12, null);
+    }
+
+    private KnowledgeAssetVersion withReviewAt(KnowledgeAssetVersion source, Instant nextReviewAt) {
+        return new KnowledgeAssetVersion(
+            source.id(), source.tenantId(), source.identityId(), source.versionNo(), source.versionLabel(),
+            source.sourceDocumentId(), source.sourceVersionId(), source.contentHash(), source.anchors(),
+            source.status(), source.riskLevel(), source.authorityLevel(), source.gradeQuality(), source.gradeStrength(),
+            source.conflictArbitration(), source.organizationScope(), source.applicableScope(), source.activeScopeKey(),
+            source.effectiveFrom(), source.effectiveTo(), source.reviewedBy(), source.reviewedAt(),
+            source.activatedAt(), source.supersededAt(), source.withdrawnAt(), source.withdrawnReason(),
+            source.createdAt(), source.createdBy(), source.updatedAt(), source.updatedBy(),
+            source.reviewCycleMonths(), nextReviewAt);
     }
 }

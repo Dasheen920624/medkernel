@@ -363,6 +363,18 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("allows the platform administrator to enter knowledge governance for platform retirement", () => {
+    const route = findRouteByPath("/knowledge/governance");
+
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "platform-admin" }],
+        permissions: [{ code: "knowledge.read" }],
+        menuKeys: ["knowledge-governance"],
+      }),
+    ).toBe(true);
+  });
+
   it("limits graph exploration to projection readers in advanced technical roles", () => {
     const route = findRouteByPath("/advanced/graph");
 

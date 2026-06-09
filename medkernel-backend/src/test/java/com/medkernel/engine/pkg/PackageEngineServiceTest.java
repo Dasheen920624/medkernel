@@ -282,7 +282,7 @@ class PackageEngineServiceTest {
                 version.reviewedBy(), version.reviewedAt(), version.activatedAt(), version.supersededAt(),
                 version.withdrawnAt(), version.withdrawnReason(), version.createdAt(), version.createdBy(),
                 version.updatedAt(), version.updatedBy()
-            );
+            , 12, null);
         });
         when(terminologyPackageRepository.save(any())).thenAnswer(inv -> {
             TermMappingPackage pkg = inv.getArgument(0);
@@ -3528,7 +3528,7 @@ class PackageEngineServiceTest {
             "reviewer", Instant.parse("2026-05-01T00:00:00Z"),
             Instant.parse("2026-06-01T00:00:00Z"), null, null, null,
             Instant.now(), "tester", Instant.now(), "tester"
-        );
+        , 12, null);
     }
 
     private TermMappingPackage publishedTerminologyPackage(

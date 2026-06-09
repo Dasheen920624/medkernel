@@ -2,6 +2,8 @@ package com.medkernel.engine.knowledge;
 
 import java.lang.reflect.RecordComponent;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +14,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -20,6 +24,8 @@ import com.medkernel.shared.context.RequestContext;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -89,10 +95,11 @@ class KnowledgeVersionServiceTest {
     void knowledgeAssetVersionDeclaresEffectiveScopeFieldsAndScopedActiveLookup() {
         assertThat(java.util.Arrays.stream(KnowledgeAssetVersion.class.getRecordComponents())
             .map(RecordComponent::getName))
-            .contains("organizationScope", "applicableScope", "activeScopeKey");
+            .contains("organizationScope", "applicableScope", "activeScopeKey",
+                "reviewCycleMonths", "nextReviewAt");
         assertThat(java.util.Arrays.stream(KnowledgeAssetVersionRepository.class.getMethods())
             .map(method -> method.getName()))
-            .contains("findActiveByEffectiveScope");
+            .contains("findActiveByEffectiveScope", "pageReviewDueByTenantId", "countReviewDueByTenantId");
     }
 
     @Test
@@ -114,6 +121,11 @@ class KnowledgeVersionServiceTest {
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
         assertThat(activated.activatedAt()).isNotNull();
         assertThat(activated.reviewedBy()).isEqualTo("u-99");
+        assertThat(activated.reviewCycleMonths()).isEqualTo(12);
+        assertThat(activated.nextReviewAt())
+            .isCloseTo(
+                activated.reviewedAt().atZone(ZoneOffset.UTC).plusMonths(12).toInstant(),
+                org.assertj.core.api.Assertions.within(1, ChronoUnit.SECONDS));
 
         // 2) 没有旧 ACTIVE，因此不会保存 SUPERSEDED
         verify(versionRepo, times(1)).save(any(KnowledgeAssetVersion.class));
@@ -522,6 +534,42 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void reviewQueueClassifiesOverdueAndUpcomingActiveVersions() {
+        Instant now = Instant.now();
+        KnowledgeAssetVersion overdue = withReviewSchedule(
+            version(10L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW),
+            now.minus(2, ChronoUnit.DAYS));
+        KnowledgeAssetVersion upcoming = withReviewSchedule(
+            version(11L, 2L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW),
+            now.plus(10, ChronoUnit.DAYS));
+        when(versionRepo.countReviewDueByTenantId(eq("t-1"), any(Instant.class))).thenReturn(2L);
+        when(versionRepo.pageReviewDueByTenantId(eq("t-1"), any(Instant.class), eq(0), eq(2)))
+            .thenReturn(List.of(overdue, upcoming));
+        when(identityRepo.findByTenantIdAndIdIn("t-1", List.of(1L, 2L)))
+            .thenReturn(List.of(identity(1L, 10L), identity(2L, 11L)));
+
+        PageResponse<KnowledgeReviewQueueItem> queue =
+            service.listReviewQueue(30, new PageRequest(1, 2, "nextReviewAt,asc"));
+
+        assertThat(queue.items()).extracting(KnowledgeReviewQueueItem::status)
+            .containsExactly(KnowledgeReviewStatus.OVERDUE, KnowledgeReviewStatus.UPCOMING);
+        assertThat(queue.total()).isEqualTo(2L);
+        assertThat(queue.items().get(0).daysUntilDue()).isNegative();
+        assertThat(queue.items().get(1).daysUntilDue()).isBetween(9L, 10L);
+        verify(identityRepo, never()).findByTenantIdAndId(any(), any());
+    }
+
+    @Test
+    void reviewQueueRejectsUnboundedWindow() {
+        assertThatThrownBy(() -> service.listReviewQueue(366, PageRequest.defaults()))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        verify(versionRepo, never()).countReviewDueByTenantId(any(), any());
+        verify(versionRepo, never()).pageReviewDueByTenantId(any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
     void classifyCandidateWithStandardRequestUsesPathIdentity() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
@@ -539,6 +587,8 @@ class KnowledgeVersionServiceTest {
         assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
         assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
         assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
+        assertThat(created.reviewCycleMonths()).isEqualTo(12);
+        assertThat(created.nextReviewAt()).isNull();
         assertThat(created.createdBy()).isEqualTo("u-99");
         assertThat(response.classifications()).singleElement()
             .satisfies(item -> {
@@ -719,7 +769,7 @@ class KnowledgeVersionServiceTest {
                 candidate.effectiveFrom(), candidate.effectiveTo(),
                 candidate.reviewedBy(), candidate.reviewedAt(), candidate.activatedAt(), candidate.supersededAt(),
                 candidate.withdrawnAt(), candidate.withdrawnReason(), candidate.createdAt(), candidate.createdBy(),
-                candidate.updatedAt(), candidate.updatedBy());
+                candidate.updatedAt(), candidate.updatedBy(), 12, null);
         });
 
         KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequestWithContent(
@@ -1024,7 +1074,7 @@ class KnowledgeVersionServiceTest {
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
             now, "init", now, "init"
-        );
+        , 12, null);
     }
 
     private Citation citation(Long versionId) {
@@ -1036,6 +1086,18 @@ class KnowledgeVersionServiceTest {
             id, "t-1", 7L, "v-" + id, publishedAt, sha256("来源版本-" + id),
             "s3://source-" + id + ".pdf", "zh-CN", Instant.now(), "tester"
         );
+    }
+
+    private KnowledgeAssetVersion withReviewSchedule(KnowledgeAssetVersion source, Instant nextReviewAt) {
+        return new KnowledgeAssetVersion(
+            source.id(), source.tenantId(), source.identityId(), source.versionNo(), source.versionLabel(),
+            source.sourceDocumentId(), source.sourceVersionId(), source.contentHash(), source.anchors(),
+            source.status(), source.riskLevel(), source.authorityLevel(), source.gradeQuality(), source.gradeStrength(),
+            source.conflictArbitration(), source.organizationScope(), source.applicableScope(), source.activeScopeKey(),
+            source.effectiveFrom(), source.effectiveTo(), source.reviewedBy(), source.reviewedAt(),
+            source.activatedAt(), source.supersededAt(), source.withdrawnAt(), source.withdrawnReason(),
+            source.createdAt(), source.createdBy(), source.updatedAt(), source.updatedBy(),
+            12, nextReviewAt);
     }
 
     private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo) {
@@ -1052,7 +1114,7 @@ class KnowledgeVersionServiceTest {
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
             "u-99", List.of("knowledge.write"), "pkg-2026.06",
             versionNo, "2026 版", sourceDocumentId, sourceVersionId, content, "[]", KnowledgeRiskLevel.LOW,
-            GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG
+            GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, 12
         );
     }
 

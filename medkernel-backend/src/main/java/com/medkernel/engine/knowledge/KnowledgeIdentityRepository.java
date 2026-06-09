@@ -17,6 +17,8 @@ public interface KnowledgeIdentityRepository extends ListCrudRepository<Knowledg
 
     Optional<KnowledgeIdentity> findByTenantIdAndId(String tenantId, Long id);
 
+    List<KnowledgeIdentity> findByTenantIdAndIdIn(String tenantId, List<Long> ids);
+
     Optional<KnowledgeIdentity> findByTenantIdAndIdentityCode(String tenantId, String identityCode);
 
     @Query("SELECT COUNT(*) FROM knowledge_identity WHERE tenant_id = :tenantId")

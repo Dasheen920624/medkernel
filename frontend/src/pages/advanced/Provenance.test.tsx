@@ -8,10 +8,12 @@ import Provenance from "./Provenance";
 
 const mockUseKnowledgeIdentities = vi.fn();
 const mockUseKnowledgeProvenance = vi.fn();
+const mockUseKnowledgeReviewQueue = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
   useKnowledgeProvenance: (identityId?: number) => mockUseKnowledgeProvenance(identityId),
+  useKnowledgeReviewQueue: () => mockUseKnowledgeReviewQueue(),
 }));
 
 function renderPage() {
@@ -36,13 +38,32 @@ function renderPage() {
 
 describe("Provenance", () => {
   it("renders an exact knowledge source chain instead of the audit snapshot console", () => {
+    mockUseKnowledgeReviewQueue.mockReturnValue({
+      data: {
+        items: [
+          {
+            identity: { id: 1, subject: "瑞舒伐他汀说明书" },
+            version: { id: 22, nextReviewAt: "2026-06-01T00:00:00Z" },
+            status: "OVERDUE",
+            daysUntilDue: -8,
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isError: false,
+      refetch: vi.fn(),
+    });
     mockUseKnowledgeIdentities.mockReturnValue({
       data: {
         items: [
           {
             id: 1,
             tenantId: "t-1",
-            identityCode: "DRUG.ROSUVA",
+            identityCode: "plat:drug:rosuvastatin-guide",
             domain: "DRUG",
             subject: "瑞舒伐他汀说明书",
             status: "ACTIVE",
@@ -63,7 +84,7 @@ describe("Provenance", () => {
         identity: {
           id: 1,
           tenantId: "t-1",
-          identityCode: "DRUG.ROSUVA",
+          identityCode: "plat:drug:rosuvastatin-guide",
           domain: "DRUG",
           subject: "瑞舒伐他汀说明书",
           status: "ACTIVE",
@@ -78,6 +99,11 @@ describe("Provenance", () => {
             versionNo: "v2026.1",
             versionLabel: "2026 版",
             status: "ACTIVE",
+            authorityLevel: "A_REGULATION",
+            gradeQuality: "HIGH",
+            reviewCycleMonths: 12,
+            reviewedAt: "2025-06-01T00:00:00Z",
+            nextReviewAt: "2026-06-01T00:00:00Z",
           },
           {
             id: 20,
@@ -88,7 +114,15 @@ describe("Provenance", () => {
             status: "SUPERSEDED",
           },
         ],
-        supersessions: [],
+        supersessions: [
+          {
+            id: 30,
+            transitionType: "DEPRECATE",
+            successorIdentityId: 2,
+            gracePeriodEnd: "2026-07-01T00:00:00Z",
+            migrationGuidance: "请迁移到新版用药指南",
+          },
+        ],
         sourceEvidence: [
           {
             assetVersionId: 22,
@@ -138,6 +172,9 @@ describe("Provenance", () => {
     expect(screen.getByText(/1 条引用未能解析/)).toBeInTheDocument();
     expect(screen.getAllByText("药品说明书").length).toBeGreaterThan(0);
     expect(screen.getByText("有效身份")).toBeInTheDocument();
+    expect(screen.getByText(/1 项知识需要复审/)).toBeInTheDocument();
+    expect(screen.getByText("证据质量")).toBeInTheDocument();
+    expect(screen.getByText(/请迁移到新版用药指南/)).toBeInTheDocument();
     expect(screen.queryByText("DRUG")).not.toBeInTheDocument();
     expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
     expect(screen.queryByText("真实证据快照")).not.toBeInTheDocument();

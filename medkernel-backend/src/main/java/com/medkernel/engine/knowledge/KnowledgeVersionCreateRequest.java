@@ -5,6 +5,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 /**
@@ -30,8 +32,9 @@ public record KnowledgeVersionCreateRequest(
     @NotBlank String content,
     String anchors,
     @NotNull KnowledgeRiskLevel riskLevel,
-    GradeEvidenceQuality gradeQuality,
-    GradeRecommendationStrength gradeStrength
+    @NotNull GradeEvidenceQuality gradeQuality,
+    GradeRecommendationStrength gradeStrength,
+    @NotNull @Min(1) @Max(60) Integer reviewCycleMonths
 ) {
 
     public KnowledgeVersionCreateRequest {

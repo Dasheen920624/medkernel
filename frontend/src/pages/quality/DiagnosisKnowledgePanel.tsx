@@ -8,6 +8,7 @@ import {
   Drawer,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -647,7 +648,7 @@ export default function DiagnosisKnowledgePanel() {
           layout="vertical"
           initialValues={{
             source: { sourceType: "GUIDELINE", authorityLevel: "B_GUIDELINE", language: "zh-CN" },
-            version: { riskLevel: "MEDIUM" },
+            version: { riskLevel: "MEDIUM", gradeQuality: "MODERATE", reviewCycleMonths: 12 },
           }}
         >
           <div className={styles.formGrid}>
@@ -661,11 +662,17 @@ export default function DiagnosisKnowledgePanel() {
                   <Input />
                 </Form.Item>
                 <Form.Item
-                  name={["identity", "identityCode"]}
-                  label="诊断身份编码"
-                  rules={[{ required: true }]}
+                  name={["identity", "identitySlug"]}
+                  label="身份标识"
+                  rules={[
+                    { required: true },
+                    {
+                      pattern: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+                      message: "请输入小写字母、数字和连字符",
+                    },
+                  ]}
                 >
-                  <Input placeholder="例如 DX.CKD" />
+                  <Input maxLength={43} placeholder="例如 chronic-kidney-disease" />
                 </Form.Item>
                 <Form.Item name={["identity", "assetSpecialtyId"]} label="专科编码">
                   <Input />
@@ -775,9 +782,12 @@ export default function DiagnosisKnowledgePanel() {
                 ]}
               />
             </Form.Item>
-            <Form.Item name={["version", "gradeQuality"]} label="证据质量">
+            <Form.Item
+              name={["version", "gradeQuality"]}
+              label="证据质量"
+              rules={[{ required: true }]}
+            >
               <Select
-                allowClear
                 options={[
                   { value: "HIGH", label: "高" },
                   { value: "MODERATE", label: "中等" },
@@ -785,6 +795,13 @@ export default function DiagnosisKnowledgePanel() {
                   { value: "VERY_LOW", label: "极低" },
                 ]}
               />
+            </Form.Item>
+            <Form.Item
+              name={["version", "reviewCycleMonths"]}
+              label="复审周期（月）"
+              rules={[{ required: true }]}
+            >
+              <InputNumber min={1} max={60} precision={0} className={styles.fullWidth} />
             </Form.Item>
             <Form.Item name={["version", "gradeStrength"]} label="推荐强度">
               <Select

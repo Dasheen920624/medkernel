@@ -1,5 +1,6 @@
 package com.medkernel.engine.knowledge;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +33,29 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
     List<KnowledgeAssetVersion> findByTenantIdAndStatusOrderByUpdatedAtDescIdDesc(
         String tenantId,
         KnowledgeVersionStatus status
+    );
+
+    @Query("""
+        SELECT COUNT(*) FROM knowledge_asset_version
+        WHERE tenant_id = :tenantId
+          AND status = 'ACTIVE'
+          AND next_review_at <= :threshold
+        """)
+    long countReviewDueByTenantId(String tenantId, Instant threshold);
+
+    @Query("""
+        SELECT * FROM knowledge_asset_version
+        WHERE tenant_id = :tenantId
+          AND status = 'ACTIVE'
+          AND next_review_at <= :threshold
+        ORDER BY next_review_at ASC, id ASC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeAssetVersion> pageReviewDueByTenantId(
+        String tenantId,
+        Instant threshold,
+        int offset,
+        int limit
     );
 
     /**

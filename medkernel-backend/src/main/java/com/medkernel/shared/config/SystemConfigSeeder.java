@@ -231,6 +231,10 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(integrationHealthProbeSettings.healthProbeIntervalMs()),
             "INTEGER", "第三方适配器周期探活间隔", "MEDIUM", "信息科 / 集成组",
             "控制第三方适配器周期健康探测间隔，变更后下一轮调度生效。", false, seededAt);
+        seedConfigValue(SystemConfigService.KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY,
+            Long.toString(SystemConfigService.DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS),
+            "INTEGER", "知识退役扫描间隔", "MEDIUM", "知识治理组",
+            "控制知识身份宽限期到期后的退役扫描间隔，变更后下一轮调度生效。", false, seededAt);
     }
 
     private void seedCdssPolicy(Instant seededAt) {

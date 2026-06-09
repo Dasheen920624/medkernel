@@ -164,7 +164,7 @@ class DefaultDiagnosisRedlinePortTest {
             KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.A_REGULATION,
             GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
             "tenant:" + tenantId, KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE, "scope-" + id,
-            null, null, null, null, now, null, null, null, now, "system", now, "system");
+            null, null, null, null, now, null, null, null, now, "system", now, "system", 12, null);
     }
 
     private KnowledgeIdentity identity(String tenantId, Long id, String code, KnowledgeDomain domain) {

@@ -68,7 +68,8 @@ class KnowledgeEngineTest {
         affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
 
         identityService = new KnowledgeIdentityService(
-            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
+            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo,
+            new com.medkernel.engine.versioning.AssetIdentityAllocator()
         );
 
         versionService = new KnowledgeVersionService(
@@ -279,7 +280,7 @@ class KnowledgeEngineTest {
             KnowledgeAssetVersion.activeScopeKey(5L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             null, null, null, null, null, null, null, null,
             Instant.now(), "system", Instant.now(), "system"
-        );
+        , 12, null);
 
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
@@ -305,7 +306,7 @@ class KnowledgeEngineTest {
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
             "u-admin", List.of("knowledge.write"), "pkg-2026.06",
             versionNo, "测试标签", 1L, 2L, content, "anchors", KnowledgeRiskLevel.MEDIUM,
-            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK
+            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, 12
         );
     }
 

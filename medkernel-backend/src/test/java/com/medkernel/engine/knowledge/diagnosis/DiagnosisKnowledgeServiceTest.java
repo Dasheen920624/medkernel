@@ -359,7 +359,7 @@ class DiagnosisKnowledgeServiceTest {
             "req-1", "trace-dx", "t-dept", null, null, null, null, null, null,
             "doctor-1", List.of("medical-affairs"), "pkg-2026.06",
             new DiagnosisAssetCreateRequest.IdentityInput(
-                "DX.CKD", "慢性肾脏病", "NEPH", "结构化诊断知识"),
+                "chronic-kidney-disease", "慢性肾脏病", "NEPH", "结构化诊断知识"),
             new DiagnosisAssetCreateRequest.SourceInput(
                 "SRC.CKD.2026", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
                 "国家指南", "慢性肾脏病诊疗指南", "发布机构", "受控授权", "zh-CN",
@@ -367,7 +367,7 @@ class DiagnosisKnowledgeServiceTest {
                 "repository://guideline/ckd-2026", "指南总则。真实诊断标准原文。诊疗建议。"),
             new DiagnosisAssetCreateRequest.VersionInput(
                 "2026", "2026 版", KnowledgeRiskLevel.HIGH,
-                GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG),
+                GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, 12),
             new DiagnosisAssetCreateRequest.EvidenceInput(
                 "section-1", "诊断标准", "真实诊断标准原文")
         );
@@ -388,7 +388,7 @@ class DiagnosisKnowledgeServiceTest {
             status, KnowledgeRiskLevel.HIGH, SourceAuthorityLevel.B_GUIDELINE,
             GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, null,
             "tenant:t-dept", "DEFAULT", "version:" + id, null, null, null, null,
-            null, null, null, null, now, "doctor-1", now, "doctor-1");
+            null, null, null, null, now, "doctor-1", now, "doctor-1", 12, null);
     }
 
     private SourceDocument sourceDocument(Long id) {

@@ -18,6 +18,20 @@ public interface KnowledgeSupersessionRepository extends ListCrudRepository<Know
     List<KnowledgeSupersession> findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(String tenantId, Long identityId);
 
     @Query("""
+        SELECT d.* FROM knowledge_supersession d
+        WHERE d.transition_type = 'DEPRECATE'
+          AND d.grace_period_end <= :now
+          AND NOT EXISTS (
+              SELECT 1 FROM knowledge_supersession r
+              WHERE r.tenant_id = d.tenant_id
+                AND r.identity_id = d.identity_id
+                AND r.transition_type = 'RETIRE'
+          )
+        ORDER BY d.grace_period_end ASC, d.id ASC
+        """)
+    List<KnowledgeSupersession> findDueDeprecations(java.time.Instant now);
+
+    @Query("""
         SELECT * FROM knowledge_supersession
         WHERE tenant_id = :tenantId AND identity_id = :identityId
           AND transitioned_at > :sinceExclusive
