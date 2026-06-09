@@ -188,16 +188,20 @@ const CLINICAL_SETTING_LABELS: Record<RuleClinicalSetting, string> = {
   ED: "急诊",
   FOLLOWUP: "随访",
 };
-const ORG_LEVEL_LABELS: Record<OrgUnit["level"], string> = {
-  TENANT: "租户",
+type RuleOrgLevel = "GROUP" | "HOSPITAL" | "DEPARTMENT";
+type OrgSelectOption = { value: string; label: string };
+
+const RULE_ORG_API_LEVEL: Record<RuleOrgLevel, OrgUnit["level"]> = {
+  GROUP: "REGION",
+  HOSPITAL: "FACILITY",
+  DEPARTMENT: "DEPARTMENT",
+};
+
+const RULE_ORG_LABEL: Record<RuleOrgLevel, string> = {
   GROUP: "集团",
   HOSPITAL: "医院",
-  CAMPUS: "院区",
-  SITE: "社区服务点",
   DEPARTMENT: "科室",
 };
-type RuleOrgLevel = Extract<OrgUnit["level"], "GROUP" | "HOSPITAL" | "DEPARTMENT">;
-type OrgSelectOption = { value: string; label: string };
 
 const EMPTY_ORG_SEARCH: Record<RuleOrgLevel, string> = {
   GROUP: "",
@@ -605,7 +609,7 @@ export default function RuleDefinitions() {
     size: 50,
     sort: "name,asc",
     keyword: orgSearch.GROUP || undefined,
-    level: "GROUP",
+    level: "REGION",
     status: "ACTIVE",
   });
   const hospitalOrgUnitsQuery = useOrgUnits({
@@ -613,7 +617,7 @@ export default function RuleDefinitions() {
     size: 50,
     sort: "name,asc",
     keyword: orgSearch.HOSPITAL || undefined,
-    level: "HOSPITAL",
+    level: "FACILITY",
     status: "ACTIVE",
   });
   const departmentOrgUnitsQuery = useOrgUnits({
@@ -1775,10 +1779,15 @@ export default function RuleDefinitions() {
   const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
   const orgOptions = (level: RuleOrgLevel, units: OrgUnit[] = []) => {
     const options = units
-      .filter((unit) => unit.level === level && Boolean(unit.id))
+      .filter(
+        (unit) =>
+          unit.level === RULE_ORG_API_LEVEL[level] &&
+          (level !== "HOSPITAL" || unit.facilityType === "HOSPITAL") &&
+          Boolean(unit.id),
+      )
       .map((unit) => ({
         value: unit.id as string,
-        label: `${unit.name} · ${ORG_LEVEL_LABELS[unit.level]} · ${unit.code}`,
+        label: `${unit.name} · ${RULE_ORG_LABEL[level]} · ${unit.code}`,
       }));
     return Array.from(
       new Map(

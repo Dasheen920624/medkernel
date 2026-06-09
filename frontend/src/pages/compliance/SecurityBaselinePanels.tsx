@@ -326,14 +326,20 @@ type DataPermissionForm = Omit<DataPermissionPolicyPayload, "allowedColumns"> & 
 
 const scopeLevels: Array<{
   field: keyof DataPermissionForm;
-  level: OrgUnit["level"];
+  orgLevel: OrgUnit["level"];
+  facilityTypes?: Array<NonNullable<OrgUnit["facilityType"]>>;
   label: string;
 }> = [
-  { field: "groupId", level: "GROUP", label: "集团" },
-  { field: "hospitalId", level: "HOSPITAL", label: "医院" },
-  { field: "campusId", level: "CAMPUS", label: "院区" },
-  { field: "siteId", level: "SITE", label: "服务点" },
-  { field: "departmentId", level: "DEPARTMENT", label: "科室" },
+  { field: "groupId", orgLevel: "REGION", label: "集团/联合体" },
+  { field: "hospitalId", orgLevel: "FACILITY", facilityTypes: ["HOSPITAL"], label: "医院" },
+  { field: "campusId", orgLevel: "CAMPUS", label: "院区" },
+  {
+    field: "siteId",
+    orgLevel: "FACILITY",
+    facilityTypes: ["COMMUNITY_HEALTH_CENTER", "TOWNSHIP_CLINIC", "STATION"],
+    label: "基层服务点",
+  },
+  { field: "departmentId", orgLevel: "DEPARTMENT", label: "科室" },
 ];
 
 export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
@@ -355,10 +361,17 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
     (unit) => unit.status === undefined || unit.status === "ACTIVE",
   );
   const scopeOptions = new Map(
-    scopeLevels.map(({ level }) => [
-      level,
+    scopeLevels.map(({ field, orgLevel, facilityTypes }) => [
+      field,
       activeOrgUnits
-        .filter((unit) => unit.level === level)
+        .filter(
+          (unit) =>
+            unit.level === orgLevel &&
+            (!facilityTypes ||
+              (unit.facilityType !== null &&
+                unit.facilityType !== undefined &&
+                facilityTypes.includes(unit.facilityType))),
+        )
         .map((unit) => ({
           value: unit.id ?? unit.code,
           label: `${unit.name} · ${unit.code}`,
@@ -536,7 +549,7 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
                         filterOption={false}
                         onSearch={setOrgSearch}
                         placeholder={`选择${scope.label}`}
-                        options={scopeOptions.get(scope.level)}
+                        options={scopeOptions.get(scope.field)}
                         loading={orgUnits.isLoading}
                         disabled={orgUnits.isError}
                         notFoundContent={`暂无可选${scope.label}`}

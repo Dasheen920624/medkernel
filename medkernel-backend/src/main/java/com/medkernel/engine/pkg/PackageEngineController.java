@@ -355,10 +355,10 @@ public class PackageEngineController {
     /**
      * 触发包灰度/全量同步发布。
      *
-     * <p>权限：{@code package.publish}。
+     * <p>权限：通用 {@code package.publish}，或与包内单一资产类型匹配的领域发布权限。
      */
     @PostMapping("/{packageId}/sync")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@packageAssetPermission.canPublish(#packageId)")
     public ApiResult<PackageSyncResponse> syncPackage(
             @PathVariable String packageId,
             @RequestBody @Valid PackageSyncRequest request) {
@@ -369,10 +369,10 @@ public class PackageEngineController {
     /**
      * 触发包灰度或全量发布，复用真实同步状态机。
      *
-     * <p>权限：{@code package.publish}。
+     * <p>权限：通用 {@code package.publish}，或与包内单一资产类型匹配的领域发布权限。
      */
     @PostMapping("/{packageId}/release")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@packageAssetPermission.canPublish(#packageId)")
     public ApiResult<PackageSyncResponse> releasePackage(
             @PathVariable String packageId,
             @RequestBody @Valid PackageSyncRequest request) {
@@ -408,12 +408,20 @@ public class PackageEngineController {
     /**
      * 获取当前租户下可用于配置包发布的适配器。
      *
-     * <p>权限：{@code package.read}。
+     * <p>权限：{@code package.read} 或任一领域发布权限。
      *
      * @return 发布适配器列表
      */
     @GetMapping("/release-adapters")
-    @PreAuthorize("@perm.has('package.read')")
+    @PreAuthorize("""
+        @perm.hasAny(
+            'package.read',
+            'term.publish',
+            'pathway.publish',
+            'rule.publish',
+            'knowledge.publish',
+            'evaluation.publish')
+        """)
     public ApiResult<List<PackageReleaseAdapterResponse>> listReleaseAdapters() {
         return ApiResult.ok(service.listReleaseAdapters());
     }

@@ -6565,7 +6565,7 @@ export interface PackageInheritanceImpactQuery {
 }
 
 // 1. 获取配置包发布可用的统一集成适配器
-export function usePackageReleaseAdapters() {
+export function usePackageReleaseAdapters(enabled = true) {
   return useQuery({
     queryKey: ["packages", "release-adapters"],
     queryFn: async () => {
@@ -6574,6 +6574,7 @@ export function usePackageReleaseAdapters() {
       );
       return data.data ?? [];
     },
+    enabled,
   });
 }
 
@@ -8356,10 +8357,17 @@ export interface OrgUnit {
   parentId?: string | null;
   tenantId?: string;
   orgPath?: string | null;
-  level: "TENANT" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT";
+  level: "PLATFORM" | "TENANT" | "REGION" | "FACILITY" | "CAMPUS" | "DEPARTMENT" | "WARD";
   code: string;
   name: string;
   namePinyin?: string | null;
+  facilityType?:
+    | "HOSPITAL"
+    | "COMMUNITY_HEALTH_CENTER"
+    | "TOWNSHIP_CLINIC"
+    | "STATION"
+    | "OTHER"
+    | null;
   specialtyId?: string | null;
   status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   createdAt?: string;

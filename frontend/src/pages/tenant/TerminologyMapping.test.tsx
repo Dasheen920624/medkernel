@@ -402,6 +402,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(usePackages).toHaveBeenCalledWith(
       expect.objectContaining({ size: 10, assetType: "TERMINOLOGY" }),
     );
+    expect(usePackageReleaseAdapters).toHaveBeenCalledWith(true);
 
     expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
 
@@ -417,6 +418,60 @@ describe("TerminologyMapping experience sample", () => {
     expect(useTerminologyMappings).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2, size: 20, sort: "updatedAt,desc" }),
     );
+  });
+
+  it("separates specialist authoring from medical-affairs publishing", () => {
+    const specialistProfile: SecurityProfile = {
+      ...profile,
+      roles: [
+        {
+          code: "specialist",
+          displayName: "专科专家",
+          source: "DEFAULT",
+          scopeLevel: null,
+          scopeCode: null,
+        },
+      ],
+      permissions: profile.permissions.filter((permission) =>
+        ["term.read", "term.write"].includes(permission.code),
+      ),
+    };
+    configureQuery({}, specialistProfile);
+    const view = renderPage();
+
+    expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认候选" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "构建映射包" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "发布映射包" })).toBeDisabled();
+    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith(false);
+
+    const medicalAffairsProfile: SecurityProfile = {
+      ...profile,
+      roles: [
+        {
+          code: "medical-affairs",
+          displayName: "医务处",
+          source: "DEFAULT",
+          scopeLevel: null,
+          scopeCode: null,
+        },
+      ],
+      permissions: profile.permissions.filter((permission) =>
+        ["term.read", "term.publish"].includes(permission.code),
+      ),
+    };
+    configureQuery({}, medicalAffairsProfile);
+    view.rerender(
+      <ConfigProvider>
+        <TerminologyMapping />
+      </ConfigProvider>,
+    );
+
+    expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认候选" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "构建映射包" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "发布映射包" })).toBeEnabled();
+    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith(true);
   });
 
   it("requires per-candidate second confirmation before confirming a high-risk mapping", async () => {

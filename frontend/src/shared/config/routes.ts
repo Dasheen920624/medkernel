@@ -75,6 +75,12 @@ export const routeSections: RouteSectionMeta[] = [
 
 const CUSTOMER_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
 const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
+const GOVERNANCE_ADMIN_ROLE_CODES = new Set([
+  SYSTEM_SUPERADMIN_ROLE,
+  "platform-admin",
+  "group-admin",
+  "hospital-admin",
+]);
 const WORKBENCH_LANDING_ROLE_CODES = [...CUSTOMER_ROLE_CODES, SYSTEM_SUPERADMIN_ROLE];
 
 function readonlyExperience(
@@ -474,7 +480,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "terminology-mapping",
     menuLabel: "字典映射",
-    requiredPermissions: ["menu.terminology-mapping", "term.read", "term.write", "term.publish"],
+    requiredPermissions: ["menu.terminology-mapping", "term.read"],
     requiredRoles: ["it-ops", "specialist", "medical-affairs"],
     experience: terminologyMappingExperience,
     pageType: "configuration",
@@ -494,7 +500,7 @@ const routeMetaInputs: RouteMetaInput[] = [
       "integration.write",
       "integration.execute",
     ],
-    requiredRoles: ["it-ops", "implementation"],
+    requiredRoles: ["it-ops", "implementation-engineer"],
     experience: adapterHubExperience,
     pageType: "configuration",
     stateMachine: "config",
@@ -906,8 +912,11 @@ export function canAccessRoute(
       grantedPermissions.has(permission) ||
       (permission.startsWith("menu.") && grantedMenuKeys.has(permission.slice("menu.".length))),
   );
+  const hasGovernanceAdminRole = [...grantedRoles].some((role) =>
+    GOVERNANCE_ADMIN_ROLE_CODES.has(role),
+  );
   const hasRequiredRole =
-    grantedRoles.has(SYSTEM_SUPERADMIN_ROLE) ||
+    hasGovernanceAdminRole ||
     route.requiredRoles.length === 0 ||
     route.requiredRoles.some((role) => grantedRoles.has(role));
 

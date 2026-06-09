@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -43,6 +43,16 @@ function renderPage(page: ReactElement) {
   );
 }
 
+function clickSelectOption(label: string) {
+  const option = screen
+    .getAllByText(label)
+    .find((element) => element.classList.contains("ant-select-item-option-content"));
+  if (!option) {
+    throw new Error(`未找到下拉选项：${label}`);
+  }
+  fireEvent.click(option);
+}
+
 const baseOrgUnits = {
   items: [
     {
@@ -55,7 +65,8 @@ const baseOrgUnits = {
     },
     {
       id: "org-hospital",
-      level: "HOSPITAL",
+      level: "FACILITY",
+      facilityType: "HOSPITAL",
       code: "H-1",
       name: "人民医院",
       parentId: "org-group",
@@ -105,6 +116,7 @@ function mockHooks(overrides?: {
   readiness?: OnboardingReadiness;
   tenantId?: string;
   provision?: () => Promise<unknown>;
+  createOrg?: (payload: unknown) => Promise<unknown>;
 }) {
   vi.mocked(useSecurityProfile).mockReturnValue({
     data: {
@@ -154,7 +166,10 @@ function mockHooks(overrides?: {
     isError: false,
     refetch: vi.fn(),
   } as never);
-  vi.mocked(useCreateOrgUnit).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never);
+  vi.mocked(useCreateOrgUnit).mockReturnValue({
+    mutateAsync: vi.fn(overrides?.createOrg ?? (() => Promise.resolve(undefined))),
+    isPending: false,
+  } as never);
   vi.mocked(useBranding).mockReturnValue({
     data: {
       tenantId: "tenant-A",
@@ -194,6 +209,41 @@ describe("TenantOnboarding", () => {
     expect(screen.getByText("组织树缺少租户根或医院节点")).toBeInTheDocument();
     expect(screen.getByText("尚未配置实施用户")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
+  });
+
+  it("新增医疗机构时提交唯一组织层级和机构类型", async () => {
+    const createOrg = vi.fn().mockResolvedValue(undefined);
+    mockHooks({ createOrg });
+    renderPage(<TenantOnboarding />);
+
+    const panel = screen.getAllByText("新增组织节点")[0].closest(".ant-card");
+    expect(panel).not.toBeNull();
+    const scope = within(panel as HTMLElement);
+
+    fireEvent.mouseDown(scope.getByRole("combobox", { name: "组织层级" }));
+    clickSelectOption("医疗机构");
+    await waitFor(() =>
+      expect(scope.getByRole("combobox", { name: "机构类型" })).toBeInTheDocument(),
+    );
+    await userEvent.type(scope.getByRole("textbox", { name: "组织编码" }), "HOSP-NEW");
+    await userEvent.type(scope.getByRole("textbox", { name: "组织名称" }), "新建医院");
+    fireEvent.mouseDown(scope.getByRole("combobox", { name: "机构类型" }));
+    clickSelectOption("医院");
+    fireEvent.mouseDown(scope.getByRole("combobox", { name: "直接上级" }));
+    fireEvent.click(screen.getByText("平台主租户（租户根）"));
+    await userEvent.click(scope.getByRole("button", { name: /保存组织节点/ }));
+
+    await waitFor(() =>
+      expect(createOrg).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: "FACILITY",
+          facilityType: "HOSPITAL",
+          code: "HOSP-NEW",
+          name: "新建医院",
+          parentId: "org-tenant",
+        }),
+      ),
+    );
   });
 
   it("renders the live readiness result without a duplicate activation action", () => {

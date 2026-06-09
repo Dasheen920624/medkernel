@@ -20,6 +20,20 @@ describe("route metadata", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
+  it("uses only canonical role codes in route access rules", () => {
+    const canonicalRoleCodes = new Set<string>([
+      ...ROLE_OPTIONS.map((role) => role.code),
+      "system-superadmin",
+    ]);
+
+    routeMetas.forEach((route) => {
+      expect(
+        route.requiredRoles.filter((roleCode) => !canonicalRoleCodes.has(roleCode)),
+        route.path,
+      ).toEqual([]);
+    });
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/config/packages/demo");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);
@@ -102,6 +116,13 @@ describe("route metadata", () => {
     ).toBe(true);
     expect(
       canAccessRoute(route, {
+        roles: [{ code: "group-admin" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["implementation-guide"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["implementation-guide"],
@@ -122,6 +143,13 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(route, {
         roles: [{ code: "hospital-admin" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["tenant-onboarding"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "group-admin" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["tenant-onboarding"],
       }),
@@ -210,27 +238,36 @@ describe("route metadata", () => {
     ).toBe(true);
   });
 
-  it("limits terminology mapping to terminology operators with read/write/publish permissions", () => {
+  it("opens terminology mapping to authorized readers and leaves actions to page permissions", () => {
     const route = findRouteByPath("/terminology/mapping");
 
-    expect(route?.requiredPermissions).toEqual([
-      "menu.terminology-mapping",
-      "term.read",
-      "term.write",
-      "term.publish",
-    ]);
+    expect(route?.requiredPermissions).toEqual(["menu.terminology-mapping", "term.read"]);
     expect(route?.requiredRoles).toEqual(["it-ops", "specialist", "medical-affairs"]);
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
-        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        permissions: [{ code: "term.read" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "specialist" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
         roles: [{ code: "medical-affairs" }],
-        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        permissions: [{ code: "term.read" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "platform-admin" }],
+        permissions: [{ code: "term.read" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
@@ -244,7 +281,7 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
-        permissions: [{ code: "term.read" }],
+        permissions: [],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(false);
@@ -262,7 +299,7 @@ describe("route metadata", () => {
       "integration.write",
       "integration.execute",
     ]);
-    expect(route?.requiredRoles).toEqual(["it-ops", "implementation"]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "implementation-engineer"]);
     expect(protocolFilter?.label).toBe("接入协议");
     expect(protocolFilter?.options?.map((option) => option.value)).toEqual([
       "HL7",
@@ -274,6 +311,28 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "hospital-admin" }],
         permissions: [
           { code: "integration.read" },
           { code: "integration.write" },
