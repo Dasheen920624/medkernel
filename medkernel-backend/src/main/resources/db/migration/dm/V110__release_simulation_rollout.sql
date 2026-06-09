@@ -82,8 +82,6 @@ CREATE TABLE mk_version_override_template_item (
     CONSTRAINT ck_mk_version_override_template_mode CHECK (override_mode IN ('REPLACE','DISABLE','ADD')),
     CONSTRAINT ck_mk_version_override_template_propagation CHECK (propagation IN ('INHERITABLE','EXCLUSIVE'))
 );
-CREATE INDEX idx_mk_version_override_template_item
-    ON mk_version_override_template_item (template_id, asset_type, asset_identity);
 
 CREATE TABLE mk_version_override_operation (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,

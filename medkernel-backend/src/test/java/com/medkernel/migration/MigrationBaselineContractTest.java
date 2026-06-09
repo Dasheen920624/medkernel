@@ -380,7 +380,6 @@ class MigrationBaselineContractTest {
         "idx_mk_version_asset_dependency_owner", "idx_mk_version_asset_dependency_target",
         "idx_mk_version_rollout_plan",
         "idx_mk_version_override_template_tenant",
-        "idx_mk_version_override_template_item",
         "idx_mk_version_override_operation_tenant",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
         "idx_mk_ctx_field_catalog_tenant",
@@ -2559,6 +2558,8 @@ class MigrationBaselineContractTest {
                 .contains("ck_mk_version_rollout_observation_rates")
                 .contains("idx_mk_version_rollout_plan")
                 .contains("idx_mk_version_override_template_tenant")
+                .contains("uk_mk_version_override_template_asset")
+                .doesNotContain("idx_mk_version_override_template_item")
                 .contains("COMMENT ON TABLE mk_version_rollout_observation")
                 .contains("COMMENT ON TABLE mk_version_override_template")
                 .contains("COMMENT ON TABLE mk_version_override_operation");
