@@ -31,6 +31,15 @@ class OpenApiContractConfigurationTest {
         GroupedOpenApi api = new OpenApiContractConfiguration().medkernelThirdPartyIntegrationOpenApi();
 
         assertThat(api).isNotNull();
-        assertThat(ServiceContractCatalog.openApiPaths()).contains("/api/v1/engine/integration/**");
+        assertThat(ServiceContractCatalog.openApiPaths())
+            .contains(
+                "/api/v1/engine/integration/**",
+                "/api/v1/engine/integration/knowledge-runtime/**");
+        assertThat(ServiceContractCatalog.contracts())
+            .anySatisfy(contract -> {
+                assertThat(contract.id()).isEqualTo("third-party-knowledge-runtime");
+                assertThat(contract.basePath())
+                    .isEqualTo("/api/v1/engine/integration/knowledge-runtime");
+            });
     }
 }

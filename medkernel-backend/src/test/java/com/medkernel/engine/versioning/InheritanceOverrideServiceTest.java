@@ -164,6 +164,32 @@ class InheritanceOverrideServiceTest {
     }
 
     @Test
+    void rejectsMalformedStructuredScopeBeforePersistingOverride() {
+        assertThatThrownBy(() -> service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "av-group-v1",
+            "av-hospital-v1p",
+            "hospital-a",
+            "specialty",
+            InheritanceOverrideMode.REPLACE,
+            "本院阈值更严格",
+            "本院检验参考区间更新",
+            "HOSP-A",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("applicableScope 格式不合法")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(overrides, never()).save(any(InheritanceOverride.class));
+    }
+
+    @Test
     void deniesOverrideOutsideActorOrganizationClosure() {
         OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
         OrgUnit hospitalA = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");

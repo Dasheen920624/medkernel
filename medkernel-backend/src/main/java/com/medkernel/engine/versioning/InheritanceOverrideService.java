@@ -73,7 +73,8 @@ public class InheritanceOverrideService {
         VersionedAssetType assetType = required(command.assetType(), "资产类型");
         String assetIdentity = required(command.assetIdentity(), "资产身份");
         String targetOrgUnitId = required(command.targetOrgUnitId(), "目标组织 ID");
-        String applicableScope = required(command.applicableScope(), "适用人群或上下文");
+        String applicableScope = ApplicableScopeMatcher.validateDeclaration(
+            required(command.applicableScope(), "适用人群或上下文"));
         InheritanceOverrideMode mode = required(command.overrideMode(), "覆盖方式");
         String diffSummary = required(command.diffSummary(), "差异说明");
         String overrideReason = required(command.overrideReason(), "覆盖原因");
