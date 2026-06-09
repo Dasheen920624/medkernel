@@ -2,18 +2,17 @@
 
 ## 当前执行
 
-- 分支：`codex/physical-convergence-71`；基线：`origin/main` = `57815daa`。
+- 分支：`codex/platform-gates-72`；基线：`origin/main` = `bfc4aa76`。
 - 线1统一承接全部任务；项目未上线，不保留旧并行模型或兼容层。
 
-## 7.1 状态
+## 当前状态
 
-- `TermMappingPackage`、`SpecialtyPackage` 已物理并入统一知识包、`PackageItem` 与 `AssetVersion`；V112 五方言删除旧容器表，仅保留术语不可变快照。
-- 知识、规则、路径、推荐运行期统一按组织作用域解析有效版本；旧 current/active 指针仅保留编辑与投影元数据。
-- 组织树二期已由 V104 完成；跨租户 ID 覆盖、无组织歧义与离线知识统一版本写入均有回归测试。
-- 本地证据：后端 `2133` 项通过、`2` 项 Docker 环境跳过；前端 `83` 文件 / `597` 项通过，生产构建通过；全仓真实性、配置边界、迁移规约、中文注释与 diff 门禁通过。
-- 待完成：提交、远端 CI、合并。
+- `platform-first-knowledge-inheritance` 已完成 `38/38`：有效包改为固定四次集合读取，覆盖 REPLACE/DISABLE/ADD，并防御跨租户污染。
+- V113 五方言补齐批量解析索引；ArchUnit、仓储隔离、无 N+1、完整 H2 基线与增量迁移均有回归。
+- 接入与运维只更新既有两份文档，明确平台标准输入、院内对照、诚实看板与巡检口径。
+- 本地证据：后端 `2141` 项通过、`2` 项 Docker 环境跳过；OpenSpec strict、真实性、配置边界、迁移规约、中文注释与 diff 门禁通过。
 
 ## 下一步
 
-1. 完成 7.1 PR、CI 与合并。
-2. 从最新 `main` 继续 7.2 全门禁登记、ArchUnit 依赖约束与解析无 N+1 验收。
+1. 全量验证后提交、推送、创建 PR，CI 通过后合并。
+2. 从最新 `main` 归档该 OpenSpec，再领取下一项统一主线验收任务。

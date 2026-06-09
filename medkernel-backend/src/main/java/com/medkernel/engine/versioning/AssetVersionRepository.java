@@ -1,5 +1,6 @@
 package com.medkernel.engine.versioning;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,5 +40,11 @@ public interface AssetVersionRepository extends ListCrudRepository<AssetVersion,
         String tenantId,
         VersionedAssetType assetType,
         String assetIdentity
+    );
+
+    List<AssetVersion> findByTenantIdAndAssetIdentityInAndStatusIn(
+        String tenantId,
+        Collection<String> assetIdentities,
+        Collection<AssetVersionStatus> statuses
     );
 }

@@ -40,6 +40,19 @@
 
 契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。作用域维度采用严格键值语义，未知维度或畸形值直接拒绝；同一查询优先选择维度更具体且在 `effectiveAt` 生效窗口内的版本。字段契约从 `/api/v1/engine/integration/data-contract?packageVersion={packageVersion}` 获取，OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。
 
+## 标准输入与院内字典对照
+
+第三方写入上下文前必须先读取对应 `packageVersion` 的字段契约。资源类型、字段路径和目标字典以平台契约为准，不允许自行扩展同义字段或把院内编码冒充平台标准编码。
+
+| 输入情况 | 必传内容 | 系统行为 |
+| --- | --- | --- |
+| 已使用平台标准编码 | 标准字段路径、编码系统、标准编码、显示名称 | 按标准上下文写入，并在响应 `mappingStatus` 中保留核验结果 |
+| 仍使用院内编码 | `localCode`、`localCodeSystem`、`sourceSystem`、目标标准字典和来源记录 | 只使用当前租户已确认并发布的 `TermMapping` 归一；不得跨租户借用对照 |
+| 标准码存在但院内未对照 | 完整原始编码与来源证据 | 标记 `UNMAPPED`，进入映射治理和就绪度告警，不猜测目标编码 |
+| 标准字典不存在该编码 | 完整原始编码与来源证据 | 标记 `NO_STANDARD_TERM`；高风险必填字段拒绝，其他字段诚实降级 |
+
+联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前租户存在已确认院内对照。标准字典由平台空间 `__platform__` 统一维护，`LocalTerm` 与 `TermMapping` 只表达当前租户差异；映射包物理归入统一 `KnowledgePackage`，发布、回滚、组织继承和有效版本解析不再走独立容器。
+
 ## 接入生命周期
 
 - `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定租户内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。

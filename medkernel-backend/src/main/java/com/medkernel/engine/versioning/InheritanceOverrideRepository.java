@@ -1,5 +1,6 @@
 package com.medkernel.engine.versioning;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,5 +72,11 @@ public interface InheritanceOverrideRepository extends ListCrudRepository<Inheri
         String applicableScope,
         InheritanceOverrideMode overrideMode,
         InheritanceOverrideStatus lifecycleStatus
+    );
+
+    List<InheritanceOverride> findByTenantIdAndOrgPathInAndLifecycleStatusIn(
+        String tenantId,
+        Collection<String> orgPaths,
+        Collection<InheritanceOverrideStatus> lifecycleStatuses
     );
 }
