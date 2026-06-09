@@ -47,7 +47,7 @@
     "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability declares implemented read/search/create surface only."
   },
   "knowledgeRuntime": {
-    "ownerChange": "platform-first-knowledge-inheritance/6.6",
+    "ownerChange": "medkernel/platform-authority",
     "status": "RUNTIME_AVAILABLE",
     "contractVersion": "v1",
     "documentedRuntimePaths": [
