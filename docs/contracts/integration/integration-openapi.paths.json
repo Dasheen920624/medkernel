@@ -46,6 +46,21 @@
     },
     "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability declares implemented read/search/create surface only."
   },
+  "knowledgeRuntime": {
+    "ownerChange": "platform-first-knowledge-inheritance/6.6",
+    "status": "RUNTIME_AVAILABLE",
+    "contractVersion": "v1",
+    "documentedRuntimePaths": [
+      "GET /api/v1/engine/integration/knowledge-runtime/effective-package",
+      "GET /api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation",
+      "POST /api/v1/engine/integration/knowledge-runtime/context-snapshots",
+      "POST /api/v1/engine/integration/knowledge-runtime/overrides",
+      "POST /api/v1/engine/integration/knowledge-runtime/overrides/{overrideId}:retire",
+      "POST /api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute"
+    ],
+    "fieldContract": "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}",
+    "note": "第三方只通过 v1 稳定门面调用有效解析、标准上下文、组织覆盖和包分发能力；领域逻辑仍由唯一主流程负责。"
+  },
   "commonHeaders": [
     {
       "name": "X-Tenant-Id",

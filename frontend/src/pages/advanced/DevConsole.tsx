@@ -324,6 +324,10 @@ export default function DevConsole() {
             },
             { title: "基础路径", dataIndex: "basePath" },
             {
+              title: "版本",
+              render: (_, record) => <Tag>{record.contractVersion ?? "v1"}</Tag>,
+            },
+            {
               title: "权限",
               render: (_, record) =>
                 record.permissions.length ? (
@@ -339,6 +343,31 @@ export default function DevConsole() {
             {
               title: "审计点",
               render: (_, record) => record.auditPoints.length,
+            },
+            {
+              title: "文档",
+              render: (_, record) =>
+                record.openApiDocumentUrl || record.fieldContractUrl ? (
+                  <Space size={4}>
+                    {record.openApiDocumentUrl ? (
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<ApiOutlined />}
+                        aria-label="OpenAPI"
+                        href={record.openApiDocumentUrl}
+                        target="_blank"
+                      >
+                        OpenAPI
+                      </Button>
+                    ) : null}
+                    {record.fieldContractUrl ? (
+                      <Text copyable={{ text: record.fieldContractUrl }}>字段契约</Text>
+                    ) : null}
+                  </Space>
+                ) : (
+                  <Text type="secondary">-</Text>
+                ),
             },
           ]}
         />

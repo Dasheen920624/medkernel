@@ -32,7 +32,7 @@ public record PackageApiContext(
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    void validateTenant(String currentTenantId) {
+    public void validateTenant(String currentTenantId) {
         List<ApiError> errors = new ArrayList<>();
         requireText(errors, "request_id", requestId);
         requireText(errors, "trace_id", traceId);

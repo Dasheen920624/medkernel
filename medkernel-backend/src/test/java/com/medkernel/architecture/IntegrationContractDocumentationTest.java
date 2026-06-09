@@ -18,6 +18,7 @@ import java.util.TreeSet;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.integration.fhir.FhirFacadeController;
+import com.medkernel.engine.integration.runtime.ThirdPartyKnowledgeRuntimeController;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -73,6 +74,13 @@ class IntegrationContractDocumentationTest {
             );
         assertThat(document.path("fhirFacade").path("degradation").path("disconnectedStatus").asText())
             .isEqualTo("NOT_CONNECTED");
+        assertThat(document.path("knowledgeRuntime").path("status").asText()).isEqualTo("RUNTIME_AVAILABLE");
+        assertThat(document.path("knowledgeRuntime").path("contractVersion").asText()).isEqualTo("v1");
+        assertThat(values(document.path("knowledgeRuntime").path("documentedRuntimePaths")))
+            .as("6.6 第三方知识运行时文档必须与控制器真实端点一致")
+            .containsExactlyElementsOf(thirdPartyKnowledgeRuntimeControllerEndpoints());
+        assertThat(document.path("knowledgeRuntime").path("fieldContract").asText())
+            .isEqualTo("/api/v1/engine/integration/data-contract?packageVersion={packageVersion}");
 
         Set<String> actualEndpoints = integrationControllerEndpoints();
         Set<String> documentedEndpoints = new TreeSet<>();
@@ -120,7 +128,17 @@ class IntegrationContractDocumentationTest {
             .contains("/api/v1/engine/integration/fhir/{version}/{resourceType}/{id}")
             .contains("FHIR_PHYSICIAN_CONFIRMATION")
             .contains("Bundle")
-            .contains("OperationOutcome");
+            .contains("OperationOutcome")
+            .contains("/api/v1/engine/integration/knowledge-runtime/effective-package")
+            .contains("/api/v1/engine/integration/knowledge-runtime/context-snapshots")
+            .contains("/api/v1/engine/integration/knowledge-runtime/overrides")
+            .contains("/api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute")
+            .contains("/api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation")
+            .contains("specialty")
+            .contains("scenario")
+            .contains("effectiveAt")
+            .contains("sourceTier")
+            .contains("contentHash");
         assertThat(guide)
             .as("FHIR 门面挂 INTEG-01 总线，不得回流旧式裸 /api/v1/fhir 幽灵端点")
             .doesNotContain("/api/v1/fhir");
@@ -184,6 +202,10 @@ class IntegrationContractDocumentationTest {
 
     private static Set<String> fhirFacadeControllerEndpoints() {
         return controllerEndpoints(FhirFacadeController.class);
+    }
+
+    private static Set<String> thirdPartyKnowledgeRuntimeControllerEndpoints() {
+        return controllerEndpoints(ThirdPartyKnowledgeRuntimeController.class);
     }
 
     private static Set<String> controllerEndpoints(Class<?> controller) {

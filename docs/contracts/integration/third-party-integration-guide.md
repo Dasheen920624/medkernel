@@ -25,6 +25,21 @@
 4. 字段映射进入 API-01 标准上下文；临床编码经 TERM-01 字典映射归一，无法确定时进入人工待裁或质量告警。
 5. 对接日志、traceId、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
 
+## 知识运行时稳定契约
+
+第三方知识调用统一使用版本化入口 `/api/v1/engine/integration/knowledge-runtime`，不绕过门面直接拼接规则、路径、评估、术语或知识包内部接口。
+
+| 能力 | 端点 | 权限 | 契约要点 |
+| --- | --- | --- | --- |
+| 有效解析 | `GET /api/v1/engine/integration/knowledge-runtime/effective-package` | `package.read` | 必传包编码、版本和目标组织；可传 `specialty`、`scenario`、`careSetting`、`cohort`、`role` 与 `effectiveAt`。返回统一快照、`sourceTier` 和 `contentHash`。 |
+| 标准上下文写入 | `POST /api/v1/engine/integration/knowledge-runtime/context-snapshots` | `context.write` | 使用标准上下文资源；术语不能确定时保留映射告警，不猜测医学编码。 |
+| 覆盖登记 | `POST /api/v1/engine/integration/knowledge-runtime/overrides` | `tenant.override` | 只接受 `REPLACE`、`DISABLE`、`ADD` 语义，复用唯一组织继承与安全门禁。 |
+| 覆盖退役 | `POST /api/v1/engine/integration/knowledge-runtime/overrides/{overrideId}:retire` | `tenant.override` | 关闭覆盖生命周期并保留审计证据，不物理删除历史。 |
+| 包分发 | `POST /api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute` | `package.publish` | 复用包发布同步主链路；未连接真实通道时返回诚实状态。 |
+| 对账查询 | `GET /api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation` | `package.read` | 状态只取 `NOT_DISTRIBUTED`、`IN_PROGRESS`、`NOT_SYNCED`、`FAILED`、`SUCCESS`，并返回真实同步日志。 |
+
+契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。作用域维度采用严格键值语义，未知维度或畸形值直接拒绝；同一查询优先选择维度更具体且在 `effectiveAt` 生效窗口内的版本。字段契约从 `/api/v1/engine/integration/data-contract?packageVersion={packageVersion}` 获取，OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。
+
 ## 接入生命周期
 
 - `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定租户内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。
@@ -62,7 +77,7 @@
 - 统一服务契约组：`/v3/api-docs/medkernel-service-contracts`
 - 第三方接入独立组：`/v3/api-docs/medkernel-third-party-integration`
 - 本仓库快照：`docs/contracts/integration/integration-openapi.paths.json`
-- CI 一致性：`IntegrationContractDocumentationTest` 通过反射比对 `IntegrationController` 当前端点与快照，防止幽灵端点和遗漏端点。
+- CI 一致性：`IntegrationContractDocumentationTest` 通过反射比对 `IntegrationController`、FHIR 门面和知识运行时控制器的真实端点与快照，防止幽灵端点和遗漏端点。
 
 ## 字段映射
 

@@ -380,6 +380,9 @@ export interface DeveloperApiContract {
   id: string;
   title: string;
   basePath: string;
+  contractVersion?: string | null;
+  openApiDocumentUrl?: string | null;
+  fieldContractUrl?: string | null;
   openApiPaths: string[];
   permissions: DeveloperApiPermission[];
   auditPoints: DeveloperApiAuditPoint[];

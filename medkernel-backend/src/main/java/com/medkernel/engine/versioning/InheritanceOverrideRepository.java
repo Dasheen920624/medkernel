@@ -29,6 +29,12 @@ public interface InheritanceOverrideRepository extends ListCrudRepository<Inheri
         InheritanceOverrideStatus lifecycleStatus
     );
 
+    List<InheritanceOverride> findByTenantIdAndAssetTypeAndAssetIdentity(
+        String tenantId,
+        VersionedAssetType assetType,
+        String assetIdentity
+    );
+
     /**
      * 按组织生效域与适用人群直查指定方式的覆盖（用于解析期消费无替换版本的 DISABLE 停用，
      * 其 {@code override_version_id} 为空、无法经 {@link #findByTenantIdAndOverrideVersionId} 命中）。

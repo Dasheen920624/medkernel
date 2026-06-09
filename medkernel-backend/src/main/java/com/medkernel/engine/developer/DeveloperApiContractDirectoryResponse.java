@@ -23,6 +23,9 @@ public record DeveloperApiContractDirectoryResponse(
      * @param id 服务 ID
      * @param title 服务中文名称
      * @param basePath 服务基础路径
+     * @param contractVersion 对外契约版本
+     * @param openApiDocumentUrl OpenAPI 文档地址
+     * @param fieldContractUrl 标准字段契约地址
      * @param openApiPaths OpenAPI 暴露路径
      * @param permissions 权限声明
      * @param auditPoints 审计声明
@@ -32,6 +35,9 @@ public record DeveloperApiContractDirectoryResponse(
         String id,
         String title,
         String basePath,
+        String contractVersion,
+        String openApiDocumentUrl,
+        String fieldContractUrl,
         List<String> openApiPaths,
         List<DeveloperApiPermissionResponse> permissions,
         List<DeveloperApiAuditResponse> auditPoints,

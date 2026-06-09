@@ -1,5 +1,6 @@
 package com.medkernel.engine.versioning;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -55,8 +56,10 @@ public class InheritanceResolver {
         String tenantId = required(query.tenantId(), "租户 ID");
         VersionedAssetType assetType = required(query.assetType(), "资产类型");
         String assetIdentity = required(query.assetIdentity(), "资产身份");
-        String applicableScope = required(query.applicableScope(), "适用人群或上下文");
+        String applicableScope = ApplicableScopeMatcher.validateDeclaration(
+            required(query.applicableScope(), "适用人群或上下文"));
         String targetOrgUnitId = required(query.targetOrgUnitId(), "目标组织 ID");
+        Instant effectiveAt = query.effectiveAt() == null ? Instant.now() : query.effectiveAt();
 
         List<OrgUnit> path = hierarchy.findResolutionAncestorsAndSelf(tenantId, targetOrgUnitId);
         if (path == null || path.isEmpty()) {
@@ -73,16 +76,12 @@ public class InheritanceResolver {
         for (int index = path.size() - 1; index >= 0; index--) {
             OrgUnit candidate = path.get(index);
             boolean inherited = !candidate.orgPath().equals(target.orgPath());
-            List<AssetVersion> active = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
-                tenantId,
-                assetType,
-                activeScopeKey(assetIdentity, candidate.orgPath(), applicableScope),
-                AssetVersionStatus.PUBLISHED
-            );
+            Optional<AssetVersion> active = findApplicableVersion(
+                tenantId, assetType, assetIdentity, candidate.orgPath(), applicableScope, effectiveAt);
             if (active.isEmpty()) {
                 // 本级无替换版本：消费本级停用(DISABLE)覆盖（其 override_version_id 为空，按组织生效域直查）
                 Optional<InheritanceOverride> disable = findApplicableDisable(
-                    tenantId, assetType, assetIdentity, applicableScope, candidate.orgPath());
+                    tenantId, assetType, assetIdentity, applicableScope, candidate.orgPath(), effectiveAt);
                 if (disable.isPresent()) {
                     InheritanceOverride value = disable.get();
                     // 传播判定：祖先节点的 EXCLUSIVE 停用仅本级生效、不向下沉
@@ -106,12 +105,12 @@ public class InheritanceResolver {
                 }
                 continue;
             }
-            AssetVersion selected = active.get(0);
+            AssetVersion selected = active.get();
             Optional<InheritanceOverride> override = overrides.findByTenantIdAndOverrideVersionId(
                 tenantId, selected.versionId());
             if (override.isPresent()) {
                 InheritanceOverride value = override.get();
-                if (value.lifecycleStatus() != InheritanceOverrideStatus.PUBLISHED) {
+                if (!overrideEffectiveAt(value, effectiveAt)) {
                     continue;
                 }
                 // 传播判定：祖先节点的 EXCLUSIVE 覆盖仅本节点生效、不向下沉；下级跳过它，回退到上一层适用版本
@@ -139,7 +138,7 @@ public class InheritanceResolver {
 
         // 租户组织闭包内无任何适用版本/覆盖：前置回退平台权威基线（设计附录 G·D1）
         ResolvedAssetVersion platformBaseline = resolvePlatformBaseline(
-            assetType, assetIdentity, applicableScope, inheritancePath, ignoredOverrideId);
+            assetType, assetIdentity, applicableScope, effectiveAt, inheritancePath, ignoredOverrideId);
         if (platformBaseline != null) {
             return platformBaseline;
         }
@@ -195,7 +194,8 @@ public class InheritanceResolver {
                 edge.dependsOnAssetType(),
                 edge.dependsOnIdentity(),
                 rootQuery.applicableScope(),
-                rootQuery.targetOrgUnitId()
+                rootQuery.targetOrgUnitId(),
+                rootQuery.effectiveAt()
             ));
             if (dependency.version() == null || dependency.disabled()) {
                 throw new ApiException(
@@ -246,18 +246,20 @@ public class InheritanceResolver {
             VersionedAssetType assetType,
             String assetIdentity,
             String applicableScope,
+            Instant effectiveAt,
             List<String> inheritancePath,
             String ignoredOverrideId) {
-        List<AssetVersion> platformActive = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+        Optional<AssetVersion> platformActive = findApplicableVersion(
             PlatformAuthority.PLATFORM_TENANT_ID,
             assetType,
-            activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
-            AssetVersionStatus.PUBLISHED
-        );
+            assetIdentity,
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            applicableScope,
+            effectiveAt);
         if (platformActive.isEmpty()) {
             return null;
         }
-        AssetVersion baseline = platformActive.get(0);
+        AssetVersion baseline = platformActive.get();
         List<String> chain = new ArrayList<>();
         chain.add(PlatformAuthority.PLATFORM_ORG_PATH);
         chain.addAll(inheritancePath);
@@ -364,8 +366,9 @@ public class InheritanceResolver {
             VersionedAssetType assetType,
             String assetIdentity,
             String applicableScope,
-            String orgPath) {
-        return overrides
+            String orgPath,
+            Instant effectiveAt) {
+        List<InheritanceOverride> exact = overrides
             .findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
                 tenantId,
                 assetType,
@@ -373,9 +376,84 @@ public class InheritanceResolver {
                 orgPath,
                 applicableScope,
                 InheritanceOverrideMode.DISABLE,
-                InheritanceOverrideStatus.PUBLISHED)
-            .stream()
+                InheritanceOverrideStatus.PUBLISHED);
+        List<InheritanceOverride> candidates = new ArrayList<>(safeList(exact));
+        for (InheritanceOverride value : safeList(
+                overrides.findByTenantIdAndAssetTypeAndAssetIdentity(
+                    tenantId, assetType, assetIdentity))) {
+            if (candidates.stream().noneMatch(existing -> Objects.equals(existing.overrideId(), value.overrideId()))) {
+                candidates.add(value);
+            }
+        }
+        return candidates.stream()
+            .filter(value -> value.overrideMode() == InheritanceOverrideMode.DISABLE)
+            .filter(value -> Objects.equals(value.orgPath(), orgPath))
+            .filter(value -> ApplicableScopeMatcher.matches(value.applicableScope(), applicableScope))
+            .filter(value -> overrideEffectiveAt(value, effectiveAt))
+            .sorted(Comparator
+                .comparingInt((InheritanceOverride value) ->
+                    ApplicableScopeMatcher.specificityOf(value.applicableScope()))
+                .reversed()
+                .thenComparing(InheritanceOverride::createdAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(InheritanceOverride::overrideId, Comparator.nullsFirst(Comparator.reverseOrder())))
             .findFirst();
+    }
+
+    private Optional<AssetVersion> findApplicableVersion(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String orgPath,
+            String applicableScope,
+            Instant effectiveAt) {
+        List<AssetVersion> candidates = new ArrayList<>();
+        List<AssetVersion> exact = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            tenantId,
+            assetType,
+            activeScopeKey(assetIdentity, orgPath, applicableScope),
+            AssetVersionStatus.PUBLISHED);
+        candidates.addAll(safeList(exact));
+        for (AssetVersion value : safeList(
+                assetVersions.findByTenantIdAndAssetTypeAndAssetIdentity(tenantId, assetType, assetIdentity))) {
+            if (candidates.stream().noneMatch(existing -> Objects.equals(existing.versionId(), value.versionId()))) {
+                candidates.add(value);
+            }
+        }
+        return candidates.stream()
+            .filter(value -> Objects.equals(value.organizationScope(), orgPath))
+            .filter(value -> ApplicableScopeMatcher.matches(value.applicableScope(), applicableScope))
+            .filter(value -> versionEffectiveAt(value, effectiveAt))
+            .sorted(Comparator
+                .comparingInt((AssetVersion value) ->
+                    ApplicableScopeMatcher.specificityOf(value.applicableScope()))
+                .reversed()
+                .thenComparing(AssetVersion::effectiveFrom, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(AssetVersion::versionId, Comparator.nullsFirst(Comparator.reverseOrder())))
+            .findFirst();
+    }
+
+    private boolean versionEffectiveAt(AssetVersion version, Instant effectiveAt) {
+        if (version.status() != AssetVersionStatus.PUBLISHED
+                && version.status() != AssetVersionStatus.DEPRECATED
+                && version.status() != AssetVersionStatus.RETIRED) {
+            return false;
+        }
+        return (version.effectiveFrom() == null || !effectiveAt.isBefore(version.effectiveFrom()))
+            && (version.effectiveTo() == null || !effectiveAt.isAfter(version.effectiveTo()));
+    }
+
+    private boolean overrideEffectiveAt(InheritanceOverride value, Instant effectiveAt) {
+        if (value.lifecycleStatus() == InheritanceOverrideStatus.PUBLISHED) {
+            return value.createdAt() == null || !effectiveAt.isBefore(value.createdAt());
+        }
+        return value.lifecycleStatus() == InheritanceOverrideStatus.RETIRED
+            && (value.createdAt() == null || !effectiveAt.isBefore(value.createdAt()))
+            && value.updatedAt() != null
+            && !effectiveAt.isAfter(value.updatedAt());
+    }
+
+    private static <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : values;
     }
 
     /**

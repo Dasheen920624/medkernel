@@ -46,6 +46,16 @@ class DeveloperConsoleControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("runtime-operations")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("observability-diagnose")))
+            .andExpect(jsonPath("$.data.contracts[*].id", hasItem("third-party-knowledge-runtime")))
+            .andExpect(jsonPath(
+                "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].contractVersion",
+                hasItem("v1")))
+            .andExpect(jsonPath(
+                "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].openApiDocumentUrl",
+                hasItem("/v3/api-docs/medkernel-third-party-integration")))
+            .andExpect(jsonPath(
+                "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].fieldContractUrl",
+                hasItem("/api/v1/engine/integration/data-contract?packageVersion={packageVersion}")))
             .andExpect(jsonPath("$.data.contracts[*].basePath", hasItem("/api/v1/system")))
             .andExpect(jsonPath("$.data.contracts[*].permissions[*].code", hasItem("system.read")))
             .andExpect(jsonPath("$.data.contracts[*].controllerClassName").doesNotExist())

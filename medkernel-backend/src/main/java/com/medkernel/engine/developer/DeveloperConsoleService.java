@@ -21,6 +21,9 @@ public class DeveloperConsoleService {
                 contract.id(),
                 contract.title(),
                 contract.basePath(),
+                contractVersion(contract.basePath()),
+                openApiDocumentUrl(contract.id()),
+                fieldContractUrl(contract.id()),
                 contract.openApiPaths(),
                 contract.permissions().stream()
                     .map(permission -> new DeveloperApiPermissionResponse(
@@ -36,5 +39,21 @@ public class DeveloperConsoleService {
                     .toList(),
                 contract.publicEndpoints()))
             .toList());
+    }
+
+    private String contractVersion(String basePath) {
+        return basePath != null && basePath.startsWith("/api/v1") ? "v1" : null;
+    }
+
+    private String openApiDocumentUrl(String contractId) {
+        return "third-party-knowledge-runtime".equals(contractId)
+            ? "/v3/api-docs/medkernel-third-party-integration"
+            : null;
+    }
+
+    private String fieldContractUrl(String contractId) {
+        return "third-party-knowledge-runtime".equals(contractId)
+            ? "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}"
+            : null;
     }
 }

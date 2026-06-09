@@ -103,6 +103,29 @@ class AssetVersionServiceTest {
     }
 
     @Test
+    void rejectsMalformedStructuredScopeBeforePersistingVersion() {
+        assertThatThrownBy(() -> service.registerDraft(new AssetVersionRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "2.0.1",
+            "/GROUP/g-1/HOSPITAL/h-1",
+            "unknown=ICU",
+            "when allergy.penicillin then block order",
+            null,
+            "rule/RULE.VTE.RISK",
+            "reviewer-1",
+            "trace-sys04"
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("未知作用域维度")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(repository, never()).save(any(AssetVersion.class));
+    }
+
+    @Test
     void publishedVersionCannotBeMutatedInPlace() {
         AssetVersion published = sample(AssetVersionStatus.PUBLISHED, "hash-a", "version:av-1");
         when(repository.findByVersionIdAndTenantId("av-1", "tenant-A")).thenReturn(Optional.of(published));

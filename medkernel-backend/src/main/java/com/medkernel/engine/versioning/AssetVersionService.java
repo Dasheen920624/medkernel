@@ -48,7 +48,8 @@ public class AssetVersionService implements VersionedAssetPort {
         String assetIdentity = required(command.assetIdentity(), "资产身份");
         String versionNo = required(command.versionNo(), "版本号");
         String organizationScope = required(command.organizationScope(), "组织生效域");
-        String applicableScope = required(command.applicableScope(), "适用人群或上下文");
+        String applicableScope = ApplicableScopeMatcher.validateDeclaration(
+            required(command.applicableScope(), "适用人群或上下文"));
         String createdBy = required(command.createdBy(), "创建人");
 
         repository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
@@ -104,7 +105,8 @@ public class AssetVersionService implements VersionedAssetPort {
         AssetVersion saved = repository.save(version.withDraftRegistration(
             assetIdentity,
             required(command.organizationScope(), "组织生效域"),
-            required(command.applicableScope(), "适用人群或上下文"),
+            ApplicableScopeMatcher.validateDeclaration(
+                required(command.applicableScope(), "适用人群或上下文")),
             VersionContentHash.resolve(command.content(), command.contentHash()),
             blankToNull(command.sourceRef()),
             command.safetyPolicy() == null ? AssetVersionSafetyPolicy.NORMAL : command.safetyPolicy(),

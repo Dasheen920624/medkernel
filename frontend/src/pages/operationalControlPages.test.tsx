@@ -308,6 +308,18 @@ const developerContracts: DeveloperApiContractDirectory = {
       auditPoints: [{ action: "PUBLISH", targetType: "rule_definition", purpose: "发布规则" }],
       publicEndpoints: [],
     },
+    {
+      id: "third-party-knowledge-runtime",
+      title: "第三方知识运行时服务",
+      basePath: "/api/v1/engine/integration/knowledge-runtime",
+      openApiPaths: ["/api/v1/engine/integration/knowledge-runtime/**"],
+      permissions: [{ code: "package.read", dimension: "ACTION", purpose: "查看配置包" }],
+      auditPoints: [],
+      publicEndpoints: [],
+      contractVersion: "v1",
+      openApiDocumentUrl: "/v3/api-docs/medkernel-third-party-integration",
+      fieldContractUrl: "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}",
+    },
   ],
 };
 
@@ -519,6 +531,11 @@ describe("operational control pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "OpenAPI" })).toHaveAttribute(
+      "href",
+      "/v3/api-docs/medkernel-third-party-integration",
+    );
+    expect(screen.getByText("字段契约")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Trace 诊断" }));
     expect(screen.getByPlaceholderText("输入 Trace ID")).toBeInTheDocument();

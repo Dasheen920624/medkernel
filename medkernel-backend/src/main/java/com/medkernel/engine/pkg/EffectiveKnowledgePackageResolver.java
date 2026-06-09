@@ -1,5 +1,6 @@
 package com.medkernel.engine.pkg;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,6 +42,16 @@ public class EffectiveKnowledgePackageResolver {
             String packageCode,
             String packageVersion,
             String targetOrgUnitId) {
+        return resolve(tenantId, packageCode, packageVersion, targetOrgUnitId, null, null);
+    }
+
+    public EffectiveKnowledgePackageResponse resolve(
+            String tenantId,
+            String packageCode,
+            String packageVersion,
+            String targetOrgUnitId,
+            String applicableScope,
+            Instant effectiveAt) {
         String effectiveTenantId = required(tenantId, "租户 ID");
         String effectivePackageCode = required(packageCode, "知识包编码");
         String effectivePackageVersion = required(packageVersion, "知识包版本");
@@ -62,7 +73,12 @@ public class EffectiveKnowledgePackageResolver {
 
         for (PackageItem declaredItem : declaredItems) {
             ResolvedAssetVersion resolved = resolveDeclaredItem(
-                effectiveTenantId, effectivePackageVersion, effectiveTargetOrgUnitId, declaredItem);
+                effectiveTenantId,
+                effectivePackageVersion,
+                effectiveTargetOrgUnitId,
+                applicableScope,
+                effectiveAt,
+                declaredItem);
             if (resolved.disabled()) {
                 excludedItems.add(new EffectivePackageExclusion(
                     declaredItem.assetType(),
@@ -106,16 +122,19 @@ public class EffectiveKnowledgePackageResolver {
             String tenantId,
             String packageVersion,
             String targetOrgUnitId,
+            String applicableScope,
+            Instant effectiveAt,
             PackageItem declaredItem) {
         ApiException lastNotFound = null;
-        for (String scope : scopes(packageVersion)) {
+        for (String scope : scopes(applicableScope, packageVersion)) {
             try {
                 return inheritanceResolver.resolve(new InheritanceResolveQuery(
                     tenantId,
                     declaredItem.assetType(),
                     declaredItem.assetId(),
                     scope,
-                    targetOrgUnitId));
+                    targetOrgUnitId,
+                    effectiveAt));
             } catch (ApiException ex) {
                 if (ex.errorCode() != ErrorCode.NOT_FOUND || isMissingOrg(ex)) {
                     throw ex;
@@ -129,8 +148,11 @@ public class EffectiveKnowledgePackageResolver {
             "有效包条目未接入统一版本资产: " + itemIdentity(declaredItem) + detail);
     }
 
-    private List<String> scopes(String packageVersion) {
+    private List<String> scopes(String applicableScope, String packageVersion) {
         Set<String> values = new LinkedHashSet<>();
+        if (applicableScope != null && !applicableScope.isBlank()) {
+            values.add(applicableScope.trim());
+        }
         values.add(required(packageVersion, "知识包版本"));
         values.add(GLOBAL_SCOPE);
         return List.copyOf(values);
