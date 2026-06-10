@@ -1,6 +1,6 @@
 # MedKernel v1.0 GA 任务清单
 
-> 版本：8.3 · 2026-05-31 · **单一基线 · 项目未上线**
+> 版本：8.4 · 2026-06-11 · **单一基线 · 项目未上线**
 > 编制原则：v8.0 按业务域纵向推进重排，废止 v7.0 的 E0~E6 自底向上编排（自底向上先堆引擎、业务界面后置，导致长期无可验证界面、done 无法证伪）。原 149 项任务 ID 与标题/范围全部保留，仅换归属。
 > 任务依据：[宪法](CONSTITUTION.md) · [施工卡](cards/) · [体验契约](EXPERIENCE_CONTRACT.md) · [质量基线](audit/质量基线.md)。旧巨物仅作覆盖矩阵溯源材料，不作为当前实现权威。
 > 验收方法：每项 done 必须在 PR 中提供核查证据；每个域 done 必须过域级验收。标准模板 + 11 条验收铁律 + 域级验收见 [质量基线指南](audit/质量基线.md)。AI 开工与研发重启闸门见 [AI 研发重启执行方案](AI_DEVELOPMENT_RESTART_PLAN.md)，业务范围核查见 [业务实现范围核查方案](BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md)。
@@ -26,7 +26,7 @@
 4. **无模型可运行**：每个含 AI 增强的能力必须先交付“无模型确定性 + 人工”路径
 5. **关系库权威**：业务事实唯一权威源为院内关系库；图数据库/Dify/模型/缓存只能是投影或执行器
 6. **唯一权威知识**：同一适用域同时只有一个 `ACTIVE_AUTHORITATIVE` 版本；待审新版只能审核不能执行
-7. **五维权限**：菜单/动作/数据/资产/环境五维全部生效，到 27 二级菜单 + 5 高级工具粒度
+7. **五维权限**：菜单/动作/数据/资产/环境五维全部生效，菜单维以 `MenuPermissionCatalog` 为唯一权威目录
 8. **六态完整**：加载/空/错误/无权限/部分成功/正常六态在每个页面齐全
 9. **中文优先**：客户可见默认中文；技术对象（JSON/DSL/trace）默认隐藏到专家模式
 10. **文档同步**：代码与文档同 PR；文档对应章节锚点必须在 commit message 引用
@@ -96,7 +96,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | ID | 任务 | 范围 | 工作量 | 状态 |
 |---|---|---|---:|---|
 | BASE-01 | 组织与租户上下文 | 平台/租户/集团/医院/院区/社区服务点/科室组织树 + 专病横切适用域 + user/role/package_version 全链路注入 | 3d | done |
-| BASE-02 | 身份权限（五维）| 菜单/动作/数据/资产/环境 + 13 角色矩阵 + 27 二级菜单粒度（详规 §7.3 + 宪法 §5）| 5d | done |
+| BASE-02 | 身份权限（五维）| 菜单/动作/数据/资产/环境 + 15 客户角色矩阵 + 系统内置超管；菜单维以 `MenuPermissionCatalog` 为权威目录 | 5d | done |
 | BASE-03 | 标准 API 契约 | ApiResult + ProblemDetail + Record DTO + Bean Validation + traceId + 幂等 | 4d | done |
 | BASE-04 | 审计骨干 | 写操作/审核/发布/运行/反馈/导出/回滚统一留痕；audit 异步或 fail-soft 不回滚业务 | 3d | done |
 | BASE-05 | 5 方言数据迁移骨架 | h2/postgres/oracle/dm/kingbase + 一致性测试 + 中文注释 + 索引约束 | 4d | done |
@@ -116,14 +116,14 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | INFRA-02 | 后端真实性门禁 | CI 阻断 Math.random/写死医学常量/catch 吞错返回成功/UUID 充哈希/占位 Javadoc 于生产路径 | 2d | done |
 | INFRA-03 | 错误处理与表单反馈一致性 | useMutation 统一 onError + Form.Item 字段级回显 + 后端显式抛 ApiException + DataIntegrityViolation handler + traceId 复制 | 12d | done |
 | INFRA-04 | 退出登录 UI | AppLayout Header Avatar Dropdown（当前用户/修改密码/退出登录）+ useLogout + 401 自动跳登录 | 3d | done |
-| INFRA-05 | 27 二级菜单粒度权限模型 | 后端 MenuPermissionCatalog 到二级菜单粒度 + DefaultPermissionPolicy 13 角色×N 菜单矩阵 + 前端 routes.ts requiredPermissions/requiredRoles | 10d | done |
+| INFRA-05 | 二级菜单粒度权限模型 | 后端 `MenuPermissionCatalog` 到二级菜单粒度 + `DefaultPermissionPolicy` 角色×菜单矩阵 + 前端 routes.ts requiredPermissions/requiredRoles | 10d | done |
 | INFRA-08 | 会话超时与多 tab 同步 | token 过期自动跳登录 + 多 tab storage event 同步 + 长时间无操作自动登出 | 3d | done |
 | SUPERADMIN-01 | 内置超级管理员 | 启动强制内置 + 自动授满五维 + 系统配置中心；不可降权/删除/移出 + 不旁路（走 RBAC）+ 独立高亮审计 + 强制 MFA（宪法 #20）| 3d | done |
 | CONFIG-01 | 配置中心引擎 | DB 配置存储 key/value + 元数据 + 热生效 + 变更审计 + 可回滚 + 高危二次确认；启动只读 DB/端口/profile/迁移/密钥，其余 medkernel.* 从配置存储；高危护栏审计持久化不可关（宪法 #19）| 5d | done |
 | AUTH-01 | 双模身份与登录闭环 | 内网委托 IdP（OIDC/CAS/SAML/国密CA）+ 外网平台账号 BCrypt→JWT；httpOnly cookie + CSRF；登录审计；错误不泄露存在性；platform_credential 五方言 + MFA 机制（#146 MVP 已建，收编分期项）| 5d | done |
 | AUTH-02 | 登录页 | 双模式登录 UI（用户名/密码 + 租户字段 + MFA/SSO 折叠）+ httpOnly 闭环 + 显示修复（弃系统色走 token）+ 六态 + 角色驱动菜单（#146/#148 已建）| 3d | done |
 | AUTH-03 | 凭证自助与口令安全 | 首登强制改密 + 自助改密（#147 已建）+ MFA 启用 + 失败锁定限流 + 国密 SM3 口令 + 受控重置 | 4d | done |
-| **D0-验收** | **登录域级验收** | 按 13 角色登入 → 菜单按 RBAC 正确呈现 → 各页路由可打开到六态空态 → 退出/会话过期生效 | — | done |
+| **D0-验收** | **登录域级验收** | 按客户角色矩阵登入 → 菜单按 RBAC 正确呈现 → 各页路由可打开到六态空态 → 退出/会话过期生效 | — | done |
 
 **小计**：28 项（原 ID + SUPERADMIN-01 + CONFIG-01 + AUTH-01/02/03）+ 1 域级验收
 
@@ -394,7 +394,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 ### GA 门禁（全部满足才能宣告 v1.0 GA）
 
 1. **真实性**：T-GATE 前后端门禁全绿；无 `eslint-disable medkernel/*`；§0.2 铁律 0 违反
-2. **菜单/路由/权限**：27 二级菜单 + 5 高级工具粒度生效；13 角色矩阵真实运行
+2. **菜单/路由/权限**：`MenuPermissionCatalog` 与前端路由目录同源生效；客户角色矩阵 + 系统内置超管真实运行
 3. **AI 工厂**：无模型可运行组（AIK-STD-01~12）通过；审核台真实可审可发
 4. **临床安全**：OPT-04 + PHARMACY-01 + CRITICAL-01 + SPECIAL-POP-01 通过医疗安全用例
 5. **跨引擎 E2E**：QA-01 + A1-A9 全功能验收剧本（详规 §16.2）通过
