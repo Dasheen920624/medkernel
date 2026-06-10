@@ -1,0 +1,76 @@
+{
+  "environment": "https://193.112.107.134",
+  "generatedAt": "2026-06-10T20:42:59.919Z",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "packageVersion": "2026.06.11-act2-024101",
+  "steps": [
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "traceId": "act4-1781124179624-coverage-after-release-login-admin",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-hospital-admin-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "hospital-admin"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": true,
+          "mfaBound": true,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T20:42:59.891107242Z"
+          }
+        },
+        "traceId": "act4-1781124179624-coverage-after-release-login-admin",
+        "timestamp": "2026-06-10T20:42:59.891794398Z"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/engine/terminology/mappings/coverage?standardSystem=LOINC&codes=2823-3,718-7",
+      "status": 200,
+      "traceId": "act4-1781124179624-coverage-after-release-coverage",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": [
+          {
+            "code": "2823-3",
+            "status": "COVERED",
+            "mappedLocalCount": 1
+          },
+          {
+            "code": "718-7",
+            "status": "UNMAPPED",
+            "mappedLocalCount": 0
+          }
+        ],
+        "traceId": "act4-1781124179624-coverage-after-release-coverage",
+        "timestamp": "2026-06-10T20:42:59.985278669Z"
+      }
+    }
+  ],
+  "coverage": [
+    {
+      "code": "2823-3",
+      "status": "COVERED",
+      "mappedLocalCount": 1
+    },
+    {
+      "code": "718-7",
+      "status": "UNMAPPED",
+      "mappedLocalCount": 0
+    }
+  ]
+}

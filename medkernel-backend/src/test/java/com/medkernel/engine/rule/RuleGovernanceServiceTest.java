@@ -163,6 +163,29 @@ class RuleGovernanceServiceTest {
     }
 
     @Test
+    void clinicalPharmacistCanSignPeerReviewForDrugInteractionRules() {
+        RuleGovernance peerReview = governance(RuleGovernanceState.PEER_REVIEW, 2);
+        when(governanceRepository.findByRuleVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(peerReview));
+
+        RuleGovernance updated = service.recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.PEER_REVIEW,
+            RuleSignoffDecision.APPROVED,
+            "DDI 规则经临床药师复核通过",
+            "pharmacist-1",
+            RoleCode.PHARMACIST,
+            "trace-pharmacist");
+
+        assertThat(updated.state()).isEqualTo(RuleGovernanceState.COMMITTEE);
+        verify(signoffRepository).save(org.mockito.ArgumentMatchers.argThat(signoff ->
+            signoff.signerRole().equals(RoleCode.PHARMACIST.code())
+                && signoff.signerId().equals("pharmacist-1")
+        ));
+    }
+
+    @Test
     void mapsRacingDuplicateSignoffToConflict() {
         RuleGovernance committee = governance(RuleGovernanceState.COMMITTEE, 2);
         when(governanceRepository.findByRuleVersionIdAndTenantId("version-1", "tenant-A"))

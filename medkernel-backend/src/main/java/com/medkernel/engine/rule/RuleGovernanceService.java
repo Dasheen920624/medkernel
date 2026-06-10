@@ -25,6 +25,7 @@ import com.medkernel.shared.ids.Ulid;
 public class RuleGovernanceService {
 
     private static final Set<RoleCode> PEER_REVIEW_ROLES = EnumSet.of(
+        RoleCode.PHARMACIST,
         RoleCode.SPECIALIST,
         RoleCode.DEPT_HEAD,
         RoleCode.INSURANCE_MANAGER,
