@@ -3,7 +3,6 @@ package com.medkernel.engine.security.auth;
 import java.time.Instant;
 import java.util.List;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +31,10 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 平台级租户开通服务（跨租户）：创建新租户根组织 + 首个医院管理员账号 + 角色。
  *
- * <p>仅 dev/test profile；由 {@code tenant.write} 守卫（实际仅平台管理员具备）。
+ * <p>全 profile 注册，由 {@code tenant.write} 高风险权限守卫（实际仅平台管理员具备）。
  * 显式向**新租户**写入数据，不依赖请求方当前租户。
  */
 @Service
-@Profile({"dev", "test"})
 public class TenantProvisioningService {
 
     private final OrgUnitRepository orgUnits;
