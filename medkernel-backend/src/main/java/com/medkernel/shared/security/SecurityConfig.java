@@ -9,6 +9,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -69,7 +70,17 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
 })
 public class SecurityConfig {
 
+    /**
+     * servlet Web 专属：依赖 {@link HttpSecurity}，仅在 servlet Web 应用类型下装配。
+     *
+     * <p>非 Web 模式（{@code web-application-type=none}，如首发身份应急命令救命通道）下，
+     * Spring Boot 不提供 {@code HttpSecurity} Bean；若不设条件，本 Bean 会因缺依赖让上下文启动失败，
+     * 连带 {@link com.medkernel.engine.security.bootstrap.BootstrapEmergencyCommand} 永不执行。
+     * 方法级安全（{@link EnableMethodSecurity}）、{@link #passwordEncoder()}、{@link #jwtDecoder} 等
+     * 与 Web 应用类型无关的 Bean 仍照常装配。
+     */
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain filterChain(HttpSecurity http,
                                     TenantContextEnricherFilter tenantEnricher,
                                     CookieBearerTokenResolver cookieResolver,
@@ -117,6 +128,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     CsrfDoubleSubmitFilter csrfDoubleSubmitFilter(AuthCookieProperties cookieProperties,
                                                   SystemConfigService configService,
                                                   ObjectMapper objectMapper) {
