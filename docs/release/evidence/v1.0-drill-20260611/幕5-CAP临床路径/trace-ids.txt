@@ -1,0 +1,16 @@
+act5-1781126077791-login-medical
+act5-1781126077791-me-medical
+act5-1781126077791-login-respiratoryDoctor
+act5-1781126077791-me-respiratoryDoctor
+act5-1781126077791-login-specialist
+act5-1781126077791-me-specialist
+act5-1781126077791-detail-before-publish
+act5-1781126077791-pathway-package-list
+act5-1781126077791-impact-before-publish
+act5-1781126077791-publish-template
+act5-1781126077791-detail-after-publish
+act5-1781126077791-simulate-deescalate
+act5-1781126077791-simulate-upgrade
+act5-1781126077791-doctor-list-template
+act5-1781126077791-doctor-detail-template
+act5-1781126077791-specialist-detail-template

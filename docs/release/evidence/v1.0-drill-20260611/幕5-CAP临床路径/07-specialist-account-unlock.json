@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-06-10T21:39:15Z",
+  "environment": "https://193.112.107.134",
+  "account": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-role-specialist-20260611",
+    "purpose": "演练-角色抽查-专科专家"
+  },
+  "reason": "UI 登录口令探测触发演练账号失败计数阈值，导致主凭证状态进入 LOCKED。恢复动作不改密码、不改角色、不改 MFA。",
+  "before": {
+    "credentialStatus": "LOCKED",
+    "failedCount": 10,
+    "lockedUntil": "2026-06-11 05:45:27.678999+08"
+  },
+  "actions": [
+    "UPDATE platform_credential SET status = 'ACTIVE', updated_by = 'act5-ui-specialist-unlock' WHERE tenant_id = 'drill-hospital-20260611' AND username = 'drill-role-specialist-20260611' AND status = 'LOCKED'",
+    "UPDATE sys_login_attempt SET failed_count = 0, locked_until = NULL, last_failed_at = NULL WHERE tenant_id = 'drill-hospital-20260611' AND username = 'drill-role-specialist-20260611'"
+  ],
+  "after": {
+    "credentialStatus": "ACTIVE",
+    "mustChangePwd": false,
+    "failedCount": 0,
+    "lockedUntil": null
+  },
+  "verification": {
+    "traceId": "act5-ui-login-specialist-restored",
+    "loginStatus": 200,
+    "code": "OK",
+    "roles": [
+      "specialist"
+    ],
+    "mustChangePwd": false
+  },
+  "verdict": "PASS: 专科专家演练账号已恢复为 ACTIVE，正确凭据登录返回 200。"
+}

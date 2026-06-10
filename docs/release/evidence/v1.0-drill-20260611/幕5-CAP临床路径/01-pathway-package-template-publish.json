@@ -1,0 +1,667 @@
+{
+  "generatedAt": "2026-06-10T21:17:52.100Z",
+  "environment": "https://193.112.107.134",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "runTag": "act5-1781126077791",
+  "packageVersion": "2026.06.11-act5-1781126077791",
+  "packageCode": "PATH.DRILL.CAP",
+  "templateCode": "TPL.DRILL.CAP.1781126077791",
+  "diseaseCode": "ZD0456",
+  "actor": {
+    "userId": "drill-medical-affairs-20260611",
+    "username": "drill-medical-affairs-20260611",
+    "roles": [
+      "medical-affairs"
+    ],
+    "dataScope": {
+      "tenantId": "drill-hospital-20260611",
+      "groupId": null,
+      "hospitalId": null,
+      "campusId": null,
+      "siteId": null,
+      "departmentId": null,
+      "specialtyId": null
+    },
+    "pathwayPermissions": [
+      "pathway.publish",
+      "pathway.read",
+      "pathway.write"
+    ],
+    "pathwayMenuKeys": [
+      "pathway-templates",
+      "patient-pathways"
+    ],
+    "menuKeys": [
+      "workbench",
+      "pathway-templates",
+      "rule-definitions",
+      "terminology-mapping",
+      "patient-pathways",
+      "cdss-fatigue",
+      "rule-validate",
+      "workflow-todos",
+      "notifications",
+      "clinical-followup",
+      "qc-dashboard",
+      "qc-alerts",
+      "qc-eval-results",
+      "knowledge-governance",
+      "provenance",
+      "ai-workflows"
+    ]
+  },
+  "operations": [
+    {
+      "label": "detail-before-publish",
+      "method": "GET",
+      "path": "/engine/pathway/pathway-templates/pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act5-1781126077791-detail-before-publish",
+      "headerTraceId": "act5-1781126077791-detail-before-publish",
+      "bodyTraceId": "act5-1781126077791-detail-before-publish",
+      "started": "2026-06-10T21:17:51.426Z",
+      "ended": "2026-06-10T21:17:51.468Z",
+      "response": {
+        "data": {
+          "template": {
+            "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+            "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+            "name": "CAP 社区获得性肺炎临床路径",
+            "status": "DRAFT",
+            "sourceRef": "幕3 CAP 指南条款 + 幕4 医保限制用药规则演练证据",
+            "description": "幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。",
+            "traceId": "act5-1781126077791-create-template"
+          },
+          "milestones": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "24h 内完成 CURB-65 入院评估",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "48-72h 疗效评估必达",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "症状与影像标准达到后出院评估",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "nodes": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "入院评估（CURB-65）",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "经验性抗感染（关联 R3 药品）",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "48-72h 疗效评估",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "降阶梯治疗",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "抗菌升级/变异登记",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "出院评估（症状+影像）",
+              "traceId": "act5-1781126077791-detail-before-publish"
+            }
+          ],
+          "edges": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "metricBindings": [
+            {
+              "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "outcomeBindings": [],
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        "traceId": "act5-1781126077791-detail-before-publish",
+        "code": "OK"
+      }
+    },
+    {
+      "label": "pathway-package-list",
+      "method": "GET",
+      "path": "/engine/pkg/packages?assetType=PATHWAY&keyword=PATH.DRILL.CAP&page=1&size=20",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act5-1781126077791-pathway-package-list",
+      "headerTraceId": "act5-1781126077791-pathway-package-list",
+      "bodyTraceId": "act5-1781126077791-pathway-package-list",
+      "started": "2026-06-10T21:17:51.469Z",
+      "ended": "2026-06-10T21:17:51.520Z",
+      "response": {
+        "data": {
+          "items": [
+            {
+              "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+              "packageCode": "PATH.DRILL.CAP",
+              "packageVersion": "2026.06.11-act5-1781126077791",
+              "name": "CAP 社区获得性肺炎路径知识包",
+              "description": "幕5演练专用：成人 CAP 路径画像、节点、里程碑和关键时钟。",
+              "accessPolicy": "OPEN",
+              "status": "DRAFT",
+              "traceId": "act5-1781126077791-build-package",
+              "assetTypes": [
+                "PATHWAY"
+              ],
+              "primaryAssetId": "PATH.DRILL.CAP",
+              "primaryAssetVersion": "2026.06.11-act5-1781126077791",
+              "itemCount": 2,
+              "organizationScope": "tenant:drill-hospital-20260611",
+              "applicableScope": "disease:ZD0456",
+              "sourceRef": "幕3 CAP 指南条款、幕2 ZD0456 诊断映射、幕4 R3 医保限制用药规则演练证据"
+            }
+          ],
+          "page": 1,
+          "size": 20
+        },
+        "traceId": "act5-1781126077791-pathway-package-list",
+        "code": "OK"
+      }
+    },
+    {
+      "label": "impact-before-publish",
+      "method": "GET",
+      "path": "/engine/pathway/pathway-templates/pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186/impact",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act5-1781126077791-impact-before-publish",
+      "headerTraceId": "act5-1781126077791-impact-before-publish",
+      "bodyTraceId": "act5-1781126077791-impact-before-publish",
+      "started": "2026-06-10T21:17:51.520Z",
+      "ended": "2026-06-10T21:17:51.571Z",
+      "response": {
+        "data": {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "analysisStatus": "COMPLETE",
+          "affectedPatientPathways": 0,
+          "nodeCount": 6,
+          "edgeCount": 6,
+          "timedNodeCount": 2,
+          "terminalNodeCount": 1,
+          "outcomeBindingCount": 0,
+          "canaryPercent": 10,
+          "impactDigest": "sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+          "releaseEvidence": [
+            "阶段里程碑 3 个，拓扑节点 6 个，边 6 条，终止节点 1 个",
+            "关键时钟节点 2 个，当前关联患者路径实例 0 条",
+            "结局指标绑定 0 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
+            "引用资产 5 个：CODE_SYSTEM:LOCAL-HIS@2026.06.11-act5-1781126077791、FIELD_CATALOG:encounter.class@2026.06.11-act5-1781126077791、FIELD_CATALOG:imaging.improved@2026.06.11-act5-1781126077791、FIELD_CATALOG:symptom.fever.resolved@2026.06.11-act5-1781126077791、FIELD_CATALOG:therapy.response@2026.06.11-act5-1781126077791",
+            "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本"
+          ],
+          "traceId": "act5-1781126077791-impact-before-publish"
+        },
+        "traceId": "act5-1781126077791-impact-before-publish",
+        "code": "OK"
+      }
+    },
+    {
+      "label": "publish-template",
+      "method": "POST",
+      "path": "/engine/pathway/pathway-templates/pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186/publish",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act5-1781126077791-publish-template",
+      "headerTraceId": "act5-1781126077791-publish-template",
+      "bodyTraceId": "act5-1781126077791-publish-template",
+      "started": "2026-06-10T21:17:51.573Z",
+      "ended": "2026-06-10T21:17:51.645Z",
+      "response": {
+        "data": {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "status": "PUBLISHED",
+          "canaryPercent": 10,
+          "impactDigest": "sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+          "analysisStatus": "COMPLETE",
+          "releaseEvidence": [
+            "阶段里程碑 3 个，拓扑节点 6 个，边 6 条，终止节点 1 个",
+            "关键时钟节点 2 个，当前关联患者路径实例 0 条",
+            "结局指标绑定 0 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
+            "引用资产 5 个：CODE_SYSTEM:LOCAL-HIS@2026.06.11-act5-1781126077791、FIELD_CATALOG:encounter.class@2026.06.11-act5-1781126077791、FIELD_CATALOG:imaging.improved@2026.06.11-act5-1781126077791、FIELD_CATALOG:symptom.fever.resolved@2026.06.11-act5-1781126077791、FIELD_CATALOG:therapy.response@2026.06.11-act5-1781126077791",
+            "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本",
+            "IN_REVIEW 提交评审：sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+            "APPROVED 评审通过：幕5 CAP 临床路径图已由呼吸科临床牵头和医务处质控员按节点、边、里程碑、关键时钟复核，准入 10% 灰度发布。；sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+            "GRAY 灰度发布：sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06"
+          ],
+          "traceId": "act5-1781126077791-publish-template"
+        },
+        "traceId": "act5-1781126077791-publish-template",
+        "code": "OK"
+      }
+    },
+    {
+      "label": "detail-after-publish",
+      "method": "GET",
+      "path": "/engine/pathway/pathway-templates/pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act5-1781126077791-detail-after-publish",
+      "headerTraceId": "act5-1781126077791-detail-after-publish",
+      "bodyTraceId": "act5-1781126077791-detail-after-publish",
+      "started": "2026-06-10T21:17:51.645Z",
+      "ended": "2026-06-10T21:17:51.679Z",
+      "response": {
+        "data": {
+          "template": {
+            "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+            "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+            "name": "CAP 社区获得性肺炎临床路径",
+            "status": "PUBLISHED",
+            "sourceRef": "幕3 CAP 指南条款 + 幕4 医保限制用药规则演练证据",
+            "description": "幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。",
+            "traceId": "act5-1781126077791-publish-template"
+          },
+          "milestones": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "24h 内完成 CURB-65 入院评估",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "48-72h 疗效评估必达",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "症状与影像标准达到后出院评估",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "nodes": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "入院评估（CURB-65）",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "经验性抗感染（关联 R3 药品）",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "48-72h 疗效评估",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "降阶梯治疗",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "抗菌升级/变异登记",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "name": "出院评估（症状+影像）",
+              "traceId": "act5-1781126077791-detail-after-publish"
+            }
+          ],
+          "edges": [
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "metricBindings": [
+            {
+              "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            },
+            {
+              "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+              "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "traceId": "act5-1781126077791-create-template"
+            }
+          ],
+          "outcomeBindings": [],
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        "traceId": "act5-1781126077791-detail-after-publish",
+        "code": "OK"
+      }
+    }
+  ],
+  "package": {
+    "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+    "list": {
+      "items": [
+        {
+          "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+          "packageCode": "PATH.DRILL.CAP",
+          "packageVersion": "2026.06.11-act5-1781126077791",
+          "name": "CAP 社区获得性肺炎路径知识包",
+          "description": "幕5演练专用：成人 CAP 路径画像、节点、里程碑和关键时钟。",
+          "accessPolicy": "OPEN",
+          "status": "DRAFT",
+          "traceId": "act5-1781126077791-build-package",
+          "assetTypes": [
+            "PATHWAY"
+          ],
+          "primaryAssetId": "PATH.DRILL.CAP",
+          "primaryAssetVersion": "2026.06.11-act5-1781126077791",
+          "itemCount": 2,
+          "organizationScope": "tenant:drill-hospital-20260611",
+          "applicableScope": "disease:ZD0456",
+          "sourceRef": "幕3 CAP 指南条款、幕2 ZD0456 诊断映射、幕4 R3 医保限制用药规则演练证据"
+        }
+      ],
+      "page": 1,
+      "size": 20
+    }
+  },
+  "template": {
+    "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+    "beforePublish": {
+      "template": {
+        "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+        "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+        "name": "CAP 社区获得性肺炎临床路径",
+        "status": "DRAFT",
+        "sourceRef": "幕3 CAP 指南条款 + 幕4 医保限制用药规则演练证据",
+        "description": "幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。",
+        "traceId": "act5-1781126077791-create-template"
+      },
+      "milestones": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "24h 内完成 CURB-65 入院评估",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "48-72h 疗效评估必达",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "症状与影像标准达到后出院评估",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "nodes": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "入院评估（CURB-65）",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "经验性抗感染（关联 R3 药品）",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "48-72h 疗效评估",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "降阶梯治疗",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "抗菌升级/变异登记",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "出院评估（症状+影像）",
+          "traceId": "act5-1781126077791-detail-before-publish"
+        }
+      ],
+      "edges": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "metricBindings": [
+        {
+          "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "outcomeBindings": [],
+      "traceId": "act5-1781126077791-detail-before-publish"
+    },
+    "impact": {
+      "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+      "analysisStatus": "COMPLETE",
+      "affectedPatientPathways": 0,
+      "nodeCount": 6,
+      "edgeCount": 6,
+      "timedNodeCount": 2,
+      "terminalNodeCount": 1,
+      "outcomeBindingCount": 0,
+      "canaryPercent": 10,
+      "impactDigest": "sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+      "releaseEvidence": [
+        "阶段里程碑 3 个，拓扑节点 6 个，边 6 条，终止节点 1 个",
+        "关键时钟节点 2 个，当前关联患者路径实例 0 条",
+        "结局指标绑定 0 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
+        "引用资产 5 个：CODE_SYSTEM:LOCAL-HIS@2026.06.11-act5-1781126077791、FIELD_CATALOG:encounter.class@2026.06.11-act5-1781126077791、FIELD_CATALOG:imaging.improved@2026.06.11-act5-1781126077791、FIELD_CATALOG:symptom.fever.resolved@2026.06.11-act5-1781126077791、FIELD_CATALOG:therapy.response@2026.06.11-act5-1781126077791",
+        "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本"
+      ],
+      "traceId": "act5-1781126077791-impact-before-publish"
+    },
+    "publish": {
+      "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+      "status": "PUBLISHED",
+      "canaryPercent": 10,
+      "impactDigest": "sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+      "analysisStatus": "COMPLETE",
+      "releaseEvidence": [
+        "阶段里程碑 3 个，拓扑节点 6 个，边 6 条，终止节点 1 个",
+        "关键时钟节点 2 个，当前关联患者路径实例 0 条",
+        "结局指标绑定 0 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
+        "引用资产 5 个：CODE_SYSTEM:LOCAL-HIS@2026.06.11-act5-1781126077791、FIELD_CATALOG:encounter.class@2026.06.11-act5-1781126077791、FIELD_CATALOG:imaging.improved@2026.06.11-act5-1781126077791、FIELD_CATALOG:symptom.fever.resolved@2026.06.11-act5-1781126077791、FIELD_CATALOG:therapy.response@2026.06.11-act5-1781126077791",
+        "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本",
+        "IN_REVIEW 提交评审：sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+        "APPROVED 评审通过：幕5 CAP 临床路径图已由呼吸科临床牵头和医务处质控员按节点、边、里程碑、关键时钟复核，准入 10% 灰度发布。；sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06",
+        "GRAY 灰度发布：sha256:c75f159230dc17990a91c1252e54d190f26ab9a1a999735e68e4f8750bd12f06"
+      ],
+      "traceId": "act5-1781126077791-publish-template"
+    },
+    "afterPublish": {
+      "template": {
+        "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+        "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+        "name": "CAP 社区获得性肺炎临床路径",
+        "status": "PUBLISHED",
+        "sourceRef": "幕3 CAP 指南条款 + 幕4 医保限制用药规则演练证据",
+        "description": "幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。",
+        "traceId": "act5-1781126077791-publish-template"
+      },
+      "milestones": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "24h 内完成 CURB-65 入院评估",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "48-72h 疗效评估必达",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "症状与影像标准达到后出院评估",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "nodes": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "入院评估（CURB-65）",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "经验性抗感染（关联 R3 药品）",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "48-72h 疗效评估",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "降阶梯治疗",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "抗菌升级/变异登记",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "name": "出院评估（症状+影像）",
+          "traceId": "act5-1781126077791-detail-after-publish"
+        }
+      ],
+      "edges": [
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "metricBindings": [
+        {
+          "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        },
+        {
+          "packageId": "ba436dae-dec0-428d-975e-d7bcf7786414",
+          "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+          "traceId": "act5-1781126077791-create-template"
+        }
+      ],
+      "outcomeBindings": [],
+      "traceId": "act5-1781126077791-detail-after-publish"
+    }
+  }
+}

@@ -90,7 +90,7 @@ function PathwayNodeCard({ data, selected }: NodeProps<PathwayFlowNode>) {
       aria-label={`路径节点 ${data.nodeCode}`}
       onKeyDown={handleKeyDown}
     >
-      {data.editable && <Handle type="target" position={Position.Left} />}
+      <Handle type="target" position={Position.Left} isConnectable={data.editable} />
       <div className={styles.graphNodeHeader}>
         <Tag color="blue">{data.nodeCode || "未编码"}</Tag>
         <div className={styles.graphNodeActions}>
@@ -112,7 +112,7 @@ function PathwayNodeCard({ data, selected }: NodeProps<PathwayFlowNode>) {
       </div>
       <div className={styles.graphNodeName}>{data.name || "未命名节点"}</div>
       <div className={styles.graphNodeType}>{data.nodeType}</div>
-      {data.editable && <Handle type="source" position={Position.Right} />}
+      <Handle type="source" position={Position.Right} isConnectable={data.editable} />
     </div>
   );
 }

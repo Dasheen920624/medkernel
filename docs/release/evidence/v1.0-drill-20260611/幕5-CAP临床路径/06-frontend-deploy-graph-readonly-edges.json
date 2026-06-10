@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-06-10T21:29:18.653Z",
+  "environment": "demo-134",
+  "source": "codex-demo-drill-act5-cap-pathway-graph-readonly-edges",
+  "command": "deploy/onprem/mk-publish.sh --frontend --skip-build --source codex-demo-drill-act5-cap-pathway-graph-readonly-edges",
+  "backup": "/zoesoft/medkernel/backups/deploy-20260611-052756",
+  "frontendFiles": 499,
+  "service": {
+    "mainPid": "2003759",
+    "health": {
+      "status": "UP"
+    }
+  },
+  "backendManifest": {
+    "source": "codex-demo-drill-act4-rules-simulation-pharmacist-signoff-v2",
+    "jarSha256": "a3d2b372fc44f586b76ba82fd41b1c5e2298400254b0dc053bce53c003e487e0"
+  },
+  "warnings": [
+    "tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'"
+  ],
+  "verdict": "PASS: 前端已发布到 134，远程 readiness 健康检查通过。"
+}
