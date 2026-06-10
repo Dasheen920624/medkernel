@@ -136,11 +136,20 @@ body,
 
 .mk-popover-compact {
   max-width: 320px;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
 }
 
-.mk-list-item-compact {
-  padding: 4px 0 !important;
-  border: 0 !important;
+.mk-tag-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.mk-tag-wrap .ant-tag {
+  margin-inline-end: 0;
+  white-space: normal;
 }
 
 .mk-tag-muted-italic {
