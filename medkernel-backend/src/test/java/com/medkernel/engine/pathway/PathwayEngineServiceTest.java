@@ -1356,8 +1356,34 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void enterPatientPathwayRejectsPackageVersionDifferentFromContextSnapshot() {
-        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+    void enterPatientPathwayAllowsClinicalContextPackageDifferentFromPathwayPackage() {
+        when(contextSnapshots.findById("ctx-active-1"))
+            .thenReturn(contextSnapshot("ctx-active-1", "patient-1", "pkg-runtime-terminology"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node(
+                "ASSESS", PathwayNodeType.ASSESSMENT, 10, false,
+                clockSlaConfig("ADMISSION", 0, 120, 180), "医生", 120)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "ctx-active-1", "pt-1", null, "pkg-2026.06"));
+
+        assertThat(response.patientPathway().patientId()).isEqualTo("patient-1");
+        assertThat(response.patientPathway().status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        verify(patientPathways).save(any());
+        verify(clocks).save(any());
+    }
+
+    @Test
+    void enterPatientPathwayRejectsPackageVersionDifferentFromPathwayTemplate() {
+        when(contextSnapshots.findById("ctx-active-1"))
+            .thenReturn(contextSnapshot("ctx-active-1", "patient-1", "pkg-runtime-terminology"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "pt-1", null, "pkg-stale")))
@@ -1700,7 +1726,7 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void advanceCanUseSnapshotFactsAndReturnDecisionEvidence() {
+    void advanceCanUseClinicalContextPackageDifferentFromPathwayPackageAndReturnDecisionEvidence() {
         PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(runtime));
@@ -1718,11 +1744,14 @@ class PathwayEngineServiceTest {
                 edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT, null, 2)));
         when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
             .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
-        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+        when(contextSnapshots.findById("ctx-real-1"))
+            .thenReturn(contextSnapshot("ctx-real-1", "patient-1", "pkg-runtime-terminology"));
 
         PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
-            "pp-1", PathwayAdvanceEventType.COMPLETE, null, null, null,
-            null, null, null, "evt-real-1", "ctx-real-1"));
+            "req-advance-1", "trace-pathway", "tenant-A", null, null, null, null,
+            null, null, "doctor-1", List.of("doctor"), "pkg-2026.06",
+            "ctx-real-1", "pp-1", PathwayAdvanceEventType.COMPLETE, null, null,
+            null, null, null, null, null, null, null, "evt-real-1"));
 
         assertThat(response.nextNodeCode()).isEqualTo("TRANSFUSION_REVIEW");
         assertThat(response.edgeCode()).isEqualTo("EDGE.ASSESS.TRANSFUSION_REVIEW");
@@ -1889,18 +1918,23 @@ class PathwayEngineServiceTest {
     }
 
     @Test
-    void simulateReadsApi01SnapshotAndReturnsContextEvidenceWithoutWritingRuntimeFacts() {
+    void simulateAllowsClinicalContextPackageDifferentFromPathwayPackageAndReturnsContextEvidence() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
         when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
-        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+        when(contextSnapshots.findById("ctx-real-1"))
+            .thenReturn(contextSnapshot("ctx-real-1", "patient-1", "pkg-runtime-terminology"));
 
         PathwaySimulationResponse response = service.simulate(
             "pt-1",
-            new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of()));
+            new PathwaySimulateRequest(
+                "req-sim-1", "trace-pathway", "tenant-A", null, null, null, null,
+                null, null, "doctor-1", List.of("doctor"), "pkg-2026.06",
+                PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null,
+                "ctx-real-1", "ASSESS", List.of()));
 
         assertThat(response.snapshotId()).isEqualTo("ctx-real-1");
         assertThat(response.contextQualityStatus()).isEqualTo(QualityStatus.PARTIAL);
@@ -1930,7 +1964,7 @@ class PathwayEngineServiceTest {
                 "pt-1",
                 new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of())))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("路径仿真包版本必须与上下文快照一致")
+            .hasMessageContaining("路径仿真包版本必须与路径模板所属包版本一致")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_001);
 
@@ -2557,6 +2591,10 @@ class PathwayEngineServiceTest {
     }
 
     private ContextSnapshotResponse contextSnapshot(String snapshotId, String patientId) {
+        return contextSnapshot(snapshotId, patientId, "pkg-2026.06");
+    }
+
+    private ContextSnapshotResponse contextSnapshot(String snapshotId, String patientId, String packageVersion) {
         Instant now = Instant.now();
         ContextSnapshotResources resources = new ContextSnapshotResources(
             new CanonicalPatient(
@@ -2576,7 +2614,7 @@ class PathwayEngineServiceTest {
             snapshotId,
             ContextSnapshotStatus.ACTIVE,
             resources,
-            "pkg-2026.06",
+            packageVersion,
             QualityStatus.PARTIAL,
             List.of(new MissingFieldEntry("CONDITION", "*", "WARN")),
             Map.of("OBSERVATION:obs-1:code:HB", "MAPPED"),

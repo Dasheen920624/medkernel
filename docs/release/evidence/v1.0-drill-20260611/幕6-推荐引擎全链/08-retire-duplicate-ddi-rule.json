@@ -1,0 +1,160 @@
+{
+  "runTag": "act6-retire-ddi-8oh25x",
+  "generatedAt": "2026-06-10T23:06:28.205Z",
+  "environment": "https://193.112.107.134",
+  "tenant": "drill-hospital-20260611",
+  "decision": "保留幕4 README 主 DDI 规则，退役重复 DDI 规则，避免同一临床事件生成两张同义推荐卡。",
+  "duplicateRule": {
+    "before": {
+      "ruleId": "rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78",
+      "ruleCode": "DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j0t2t",
+      "name": "华法林合用阿司匹林出血风险规则",
+      "definitionStatus": "PUBLISHED",
+      "versionId": "rv-c33d677a-299c-4dd0-80fd-078b5e9d9db0",
+      "versionStatus": "PUBLISHED",
+      "deploymentStatus": "PUBLISHED",
+      "governanceState": "FULL",
+      "updatedBy": "drill-hospital-admin-20260611",
+      "updatedAt": "2026-06-10T20:33:54.725327Z"
+    },
+    "monitorState": "MONITOR",
+    "retiredState": "RETIRED",
+    "after": {
+      "ruleId": "rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78",
+      "ruleCode": "DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j0t2t",
+      "name": "华法林合用阿司匹林出血风险规则",
+      "definitionStatus": "ARCHIVED",
+      "versionId": "rv-c33d677a-299c-4dd0-80fd-078b5e9d9db0",
+      "versionStatus": "ARCHIVED",
+      "deploymentStatus": "RETIRED",
+      "governanceState": "RETIRED",
+      "updatedBy": "drill-medical-affairs-20260611",
+      "updatedAt": "2026-06-10T23:06:28.159082Z"
+    }
+  },
+  "retainedRule": {
+    "before": {
+      "ruleId": "rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb",
+      "ruleCode": "DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+      "name": "华法林合用阿司匹林出血风险规则",
+      "definitionStatus": "PUBLISHED",
+      "versionId": "rv-d9632675-26ad-4483-bbf1-b77933f5b24a",
+      "versionStatus": "PUBLISHED",
+      "deploymentStatus": "PUBLISHED",
+      "governanceState": "FULL",
+      "updatedBy": "drill-hospital-admin-20260611",
+      "updatedAt": "2026-06-10T20:34:40.269498Z"
+    },
+    "after": {
+      "ruleId": "rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb",
+      "ruleCode": "DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+      "name": "华法林合用阿司匹林出血风险规则",
+      "definitionStatus": "PUBLISHED",
+      "versionId": "rv-d9632675-26ad-4483-bbf1-b77933f5b24a",
+      "versionStatus": "PUBLISHED",
+      "deploymentStatus": "PUBLISHED",
+      "governanceState": "FULL",
+      "updatedBy": "drill-hospital-admin-20260611",
+      "updatedAt": "2026-06-10T20:34:40.269498Z"
+    }
+  },
+  "operations": [
+    {
+      "label": "POST /auth/login",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-login",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-medical-affairs-20260611",
+        "password": "[REDACTED]"
+      }
+    },
+    {
+      "label": "GET /engine/rule/rules/rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-before-duplicate",
+      "responseSummary": {
+        "state": "FULL",
+        "ruleId": "rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78"
+      }
+    },
+    {
+      "label": "GET /engine/rule/rules/rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-before-retained",
+      "responseSummary": {
+        "state": "FULL",
+        "ruleId": "rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb"
+      }
+    },
+    {
+      "label": "POST /engine/rule/rules/rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-to-monitor",
+      "request": {
+        "request_id": "req-act6-retire-ddi-8oh25x-to-monitor",
+        "trace_id": "act6-retire-ddi-8oh25x-to-monitor",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "MONITOR",
+        "reason": "幕6演示去重：保留主 DDI 规则 rule-6c2285f8，本重复规则进入监测退役。"
+      }
+    },
+    {
+      "label": "GET /engine/rule/rules/rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-after-monitor-read",
+      "responseSummary": {
+        "state": "MONITOR",
+        "ruleId": "rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78"
+      }
+    },
+    {
+      "label": "POST /engine/rule/rules/rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-to-retired",
+      "request": {
+        "request_id": "req-act6-retire-ddi-8oh25x-to-retired",
+        "trace_id": "act6-retire-ddi-8oh25x-to-retired",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "RETIRED",
+        "reason": "幕6演示去重：重复 DDI 规则已由主规则覆盖，归档退役但保留审计证据。"
+      }
+    },
+    {
+      "label": "GET /engine/rule/rules/rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-after-duplicate",
+      "responseSummary": {
+        "state": "RETIRED",
+        "ruleId": "rule-6ee21ff5-75d5-450e-88c9-76340a3e9c78"
+      }
+    },
+    {
+      "label": "GET /engine/rule/rules/rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb",
+      "status": 200,
+      "ok": true,
+      "trace": "act6-retire-ddi-8oh25x-after-retained",
+      "responseSummary": {
+        "state": "FULL",
+        "ruleId": "rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb"
+      }
+    }
+  ]
+}

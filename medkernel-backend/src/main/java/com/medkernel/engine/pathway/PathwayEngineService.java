@@ -1000,10 +1000,6 @@ public class PathwayEngineService {
             throw new ApiException(ErrorCode.ENG_PATHWAY_001,
                 "患者入径只能使用包含标准患者资源的 ACTIVE 上下文快照");
         }
-        if (!Objects.equals(snapshot.packageVersion(), request.packageVersion())) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
-                "患者入径包版本必须与所选上下文快照一致");
-        }
         String patientId = snapshot.resources().patient().mpi();
         String encounterId = snapshot.resources().encounters().isEmpty()
             ? null
@@ -1013,7 +1009,7 @@ public class PathwayEngineService {
         ensurePathwayRuntimePackageConsistency(
             template,
             effective.sourceTenantId(),
-            snapshot.packageVersion(),
+            request.packageVersion(),
             ErrorCode.ENG_PATHWAY_001,
             "患者入径包版本必须与路径模板所属包版本一致");
         requireRuntimePathwayAssetVersion(template, patientId);
@@ -1364,7 +1360,7 @@ public class PathwayEngineService {
             List<PathwaySimulationReplayStep> replaySteps = replayIds.stream()
                 .map(snapshotId -> simulateStep(
                     graph, startNodeCode, requestedTargets,
-                    simulationSnapshot(template, effective.sourceTenantId(), snapshotId)))
+                    simulationSnapshot(template, effective.sourceTenantId(), snapshotId, request.packageVersion())))
                 .toList();
             PathwaySimulationReplayStep first = replaySteps.getFirst();
             return new PathwaySimulationResponse(
@@ -1382,7 +1378,8 @@ public class PathwayEngineService {
                 RequestContext.currentTraceId());
         }
         ContextSnapshotResponse snapshot = request == null || isBlank(request.snapshotId())
-            ? null : simulationSnapshot(template, effective.sourceTenantId(), request.snapshotId());
+            ? null : simulationSnapshot(
+                template, effective.sourceTenantId(), request.snapshotId(), request.packageVersion());
         PathwaySimulationReplayStep step = simulateStep(graph, startNodeCode, requestedTargets, snapshot);
         return new PathwaySimulationResponse(
             templateId,
@@ -1455,26 +1452,30 @@ public class PathwayEngineService {
     private ContextSnapshotResponse simulationSnapshot(
             PathwayTemplate template,
             String sourceTenantId,
-            String snapshotId) {
+            String snapshotId,
+            String requestPackageVersion) {
         return runtimeSnapshot(
             template,
             sourceTenantId,
             snapshotId,
+            requestPackageVersion,
             ErrorCode.ENG_PATHWAY_001,
-            "路径仿真包版本必须与上下文快照一致");
+            "路径仿真包版本必须与路径模板所属包版本一致");
     }
 
     private ContextSnapshotResponse runtimeSnapshot(
             PathwayTemplate template,
             String sourceTenantId,
             String snapshotId,
+            String requestPackageVersion,
             ErrorCode errorCode,
             String message) {
         ContextSnapshotResponse snapshot = contextSnapshots.findById(snapshotId);
+        String effectivePackageVersion = notBlank(requestPackageVersion, snapshot.packageVersion());
         ensurePathwayRuntimePackageConsistency(
             template,
             sourceTenantId,
-            snapshot.packageVersion(),
+            effectivePackageVersion,
             errorCode,
             message);
         return snapshot;
@@ -1501,8 +1502,9 @@ public class PathwayEngineService {
                 effective.template(),
                 effective.sourceTenantId(),
                 request.snapshotId(),
+                request.packageVersion(),
                 ErrorCode.ENG_PATHWAY_001,
-                "路径推进包版本必须与上下文快照一致");
+                "路径推进包版本必须与路径模板所属包版本一致");
         if (request.eventType() == PathwayAdvanceEventType.EXIT) {
             validateExitCriteria(effective.template(), snapshot == null ? null : snapshot.resources());
         }
@@ -2262,14 +2264,16 @@ public class PathwayEngineService {
     private void ensurePathwayRuntimePackageConsistency(
             PathwayTemplate template,
             String sourceTenantId,
-            String snapshotPackageVersion,
+            String requestPackageVersion,
             ErrorCode errorCode,
             String message) {
-        PackageReferenceConsistency.requireRuntimePackage(
+        PackageReferenceConsistency.requireSamePackage(
             templatePackageVersion(template, sourceTenantId, errorCode),
-            snapshotPackageVersion,
+            requestPackageVersion,
             errorCode,
-            message);
+            message,
+            "路径模板包版本",
+            "请求路径包版本");
     }
 
     private String templatePackageVersion(PathwayTemplate template, String sourceTenantId, ErrorCode errorCode) {

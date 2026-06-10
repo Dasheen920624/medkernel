@@ -1,0 +1,2845 @@
+{
+  "runTag": "act6-8oh7bn024a",
+  "generatedAt": "2026-06-10T23:06:35.479Z",
+  "environment": "https://193.112.107.134",
+  "health": {
+    "status": "UP"
+  },
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "runtimePackageVersion": "2026.06.11-act2-024101",
+  "pathwayPackageVersion": "2026.06.11-act5-1781126077791",
+  "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+  "templateCode": "TPL.DRILL.CAP.1781126077791",
+  "deploy": {
+    "source": "codex-demo-drill-act6-recommendation-runtime-trigger-code",
+    "backup": "/zoesoft/medkernel/backups/deploy-20260611-070021",
+    "jarSha256": "3c811730a2e79dae1084b7fb666833215bff25d214fbdf9d43462762e3bad852",
+    "readiness": {
+      "status": "UP"
+    }
+  },
+  "actors": {
+    "admin": {
+      "account": "drill-hospital-20260611:drill-hospital-admin-20260611",
+      "roles": [
+        "hospital-admin"
+      ],
+      "permissions": [
+        "context.read",
+        "context.write",
+        "event.read",
+        "event.write",
+        "mpi.read",
+        "mpi.write",
+        "notification.read",
+        "notification.write",
+        "pathway.publish",
+        "pathway.read",
+        "pathway.write",
+        "recommendation.accept",
+        "recommendation.read",
+        "recommendation.write",
+        "rule.override",
+        "rule.publish",
+        "rule.read",
+        "rule.write",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "implementation-guide",
+        "tenant-onboarding",
+        "config-packages",
+        "pathway-templates",
+        "rule-definitions",
+        "terminology-mapping",
+        "adapter-hub",
+        "mpi",
+        "patient-pathways",
+        "cdss-fatigue",
+        "rule-validate",
+        "workflow-todos",
+        "notifications",
+        "clinical-followup",
+        "qc-dashboard",
+        "qc-alerts",
+        "insurance-audit",
+        "qc-eval-sets",
+        "qc-eval-results",
+        "knowledge-governance",
+        "admin-users",
+        "identity-bindings",
+        "admin-audit",
+        "security-baseline",
+        "system-providers",
+        "notification-settings",
+        "provenance",
+        "graph-explore",
+        "ai-workflows",
+        "domestic-check",
+        "dev-console"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true
+    },
+    "medical": {
+      "account": "drill-hospital-20260611:drill-medical-affairs-20260611",
+      "roles": [
+        "medical-affairs"
+      ],
+      "permissions": [
+        "context.read",
+        "event.read",
+        "mpi.read",
+        "mpi.write",
+        "notification.read",
+        "notification.write",
+        "pathway.publish",
+        "pathway.read",
+        "pathway.write",
+        "recommendation.read",
+        "recommendation.write",
+        "rule.publish",
+        "rule.read",
+        "rule.write",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "pathway-templates",
+        "rule-definitions",
+        "terminology-mapping",
+        "patient-pathways",
+        "cdss-fatigue",
+        "rule-validate",
+        "workflow-todos",
+        "notifications",
+        "clinical-followup",
+        "qc-dashboard",
+        "qc-alerts",
+        "qc-eval-results",
+        "knowledge-governance",
+        "provenance",
+        "ai-workflows"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    },
+    "lab": {
+      "account": "drill-hospital-20260611:drill-lab-technician-20260611",
+      "roles": [
+        "med-technician"
+      ],
+      "permissions": [
+        "context.read",
+        "event.read",
+        "event.write",
+        "mpi.read",
+        "notification.read",
+        "notification.write",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "terminology-mapping",
+        "mpi",
+        "workflow-todos",
+        "notifications"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    },
+    "cardioDoctor": {
+      "account": "drill-hospital-20260611:drill-cardiology-doctor-20260611",
+      "roles": [
+        "doctor"
+      ],
+      "permissions": [
+        "context.read",
+        "event.read",
+        "mpi.read",
+        "notification.read",
+        "notification.write",
+        "pathway.read",
+        "recommendation.accept",
+        "recommendation.read",
+        "rule.override",
+        "rule.read",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "mpi",
+        "patient-pathways",
+        "cdss-fatigue",
+        "rule-validate",
+        "workflow-todos",
+        "notifications",
+        "clinical-followup"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    },
+    "respiratoryDoctor": {
+      "account": "drill-hospital-20260611:drill-respiratory-doctor-20260611",
+      "roles": [
+        "doctor"
+      ],
+      "permissions": [
+        "context.read",
+        "event.read",
+        "mpi.read",
+        "notification.read",
+        "notification.write",
+        "pathway.read",
+        "recommendation.accept",
+        "recommendation.read",
+        "rule.override",
+        "rule.read",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "mpi",
+        "patient-pathways",
+        "cdss-fatigue",
+        "rule-validate",
+        "workflow-todos",
+        "notifications",
+        "clinical-followup"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    },
+    "pharmacist": {
+      "account": "drill-hospital-20260611:drill-clinical-pharmacist-20260611",
+      "roles": [
+        "pharmacist"
+      ],
+      "permissions": [
+        "context.read",
+        "event.read",
+        "mpi.read",
+        "notification.read",
+        "notification.write",
+        "pathway.read",
+        "recommendation.read",
+        "rule.read",
+        "rule.write",
+        "workflow.read",
+        "workflow.write"
+      ],
+      "menuKeys": [
+        "workbench",
+        "rule-definitions",
+        "patient-pathways",
+        "cdss-fatigue",
+        "rule-validate",
+        "workflow-todos",
+        "notifications",
+        "knowledge-governance",
+        "provenance"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    }
+  },
+  "operations": [
+    {
+      "phase": "readiness",
+      "label": "health-readiness",
+      "method": "GET",
+      "path": "/medkernel/actuator/health/readiness",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": null,
+      "headerTraceId": "9354c36b-70b0-41ff-978c-7418059bab38",
+      "bodyTraceId": null,
+      "response": {
+        "status": "UP"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-admin",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-admin",
+      "headerTraceId": "act6-8oh7bn024a-login-admin",
+      "bodyTraceId": "act6-8oh7bn024a-login-admin",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-hospital-admin-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "hospital-admin"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": true,
+          "mfaBound": true,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:34.776500866Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-admin",
+        "timestamp": "2026-06-10T23:06:34.778229477Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-admin",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-admin",
+      "headerTraceId": "act6-8oh7bn024a-me-admin",
+      "bodyTraceId": "act6-8oh7bn024a-me-admin",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-hospital-admin-20260611",
+          "username": "drill-hospital-admin-20260611",
+          "roles": [
+            {
+              "code": "hospital-admin",
+              "displayName": "医院管理员",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.config-package",
+              "dimension": "ASSET",
+              "target": "config-package",
+              "displayName": "访问配置包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.dictionary",
+              "dimension": "ASSET",
+              "target": "dictionary",
+              "displayName": "访问字典映射资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.export",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "导出审计快照 / 证据包",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.read",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.write",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "创建标准上下文 snapshot",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.desensitized",
+              "dimension": "DATA",
+              "target": "desensitized",
+              "displayName": "访问脱敏数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.group",
+              "dimension": "DATA",
+              "target": "group",
+              "displayName": "访问集团跨院数据",
+              "risk": "HIGH"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "env.test",
+              "dimension": "ENVIRONMENT",
+              "target": "test",
+              "displayName": "访问测试环境",
+              "risk": "LOW"
+            },
+            {
+              "code": "env.trial",
+              "dimension": "ENVIRONMENT",
+              "target": "trial",
+              "displayName": "访问试运行环境",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.execute",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "接收评估运行和结果事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.publish",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "发布质控指标",
+              "risk": "HIGH"
+            },
+            {
+              "code": "evaluation.read",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "查看评估指标和结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "evaluation.remediate",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "提交质控问题整改证据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.review",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "复核质控整改并关闭问题",
+              "risk": "HIGH"
+            },
+            {
+              "code": "evaluation.write",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "修改评估指标",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.write",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "创建 / 重放临床事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.write",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "integration.execute",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "integration.read",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "查看第三方适配器、Webhook 和集成日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "integration.write",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "创建或修改第三方适配器与 Webhook",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.export",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "异步导出知识资产 / 引用 / 历史",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.publish",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "激活新版知识并失效旧版",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.withdraw",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "紧急撤回已发布知识版本",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "list.export",
+              "dimension": "ACTION",
+              "target": "list",
+              "displayName": "创建和下载大规模列表异步导出文件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.manage",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "管理租户模型路由、脱敏和输出结构策略",
+              "risk": "HIGH"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.adapter-hub",
+              "dimension": "MENU",
+              "target": "adapter-hub",
+              "displayName": "查看适配器中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.admin-audit",
+              "dimension": "MENU",
+              "target": "admin-audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.admin-users",
+              "dimension": "MENU",
+              "target": "admin-users",
+              "displayName": "查看用户管理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.ai-workflows",
+              "dimension": "MENU",
+              "target": "ai-workflows",
+              "displayName": "查看 AI 工作流",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.config-packages",
+              "dimension": "MENU",
+              "target": "config-packages",
+              "displayName": "查看配置包中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.dev-console",
+              "dimension": "MENU",
+              "target": "dev-console",
+              "displayName": "查看开发者控制台",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.domestic-check",
+              "dimension": "MENU",
+              "target": "domestic-check",
+              "displayName": "查看国产化自检",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.graph-explore",
+              "dimension": "MENU",
+              "target": "graph-explore",
+              "displayName": "查看图谱查询",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.identity-bindings",
+              "dimension": "MENU",
+              "target": "identity-bindings",
+              "displayName": "查看身份绑定",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.implementation-guide",
+              "dimension": "MENU",
+              "target": "implementation-guide",
+              "displayName": "查看客户实施向导",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.insurance-audit",
+              "dimension": "MENU",
+              "target": "insurance-audit",
+              "displayName": "查看医保智能审核",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notification-settings",
+              "dimension": "MENU",
+              "target": "notification-settings",
+              "displayName": "查看通知设置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-alerts",
+              "dimension": "MENU",
+              "target": "qc-alerts",
+              "displayName": "查看质控预警",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-dashboard",
+              "dimension": "MENU",
+              "target": "qc-dashboard",
+              "displayName": "查看院级质控驾驶舱",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-results",
+              "dimension": "MENU",
+              "target": "qc-eval-results",
+              "displayName": "查看评估结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-sets",
+              "dimension": "MENU",
+              "target": "qc-eval-sets",
+              "displayName": "查看评估指标库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.security-baseline",
+              "dimension": "MENU",
+              "target": "security-baseline",
+              "displayName": "查看安全基线与系统配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.system-providers",
+              "dimension": "MENU",
+              "target": "system-providers",
+              "displayName": "查看 Provider 状态",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.tenant-onboarding",
+              "dimension": "MENU",
+              "target": "tenant-onboarding",
+              "displayName": "查看租户开通",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.write",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "合并患者主索引",
+              "risk": "HIGH"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.publish",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "激活 / 暂停 / 归档组织单元",
+              "risk": "HIGH"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.write",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "新增 / 修改组织单元",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "package.publish",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "灰度 / 全量发布配置包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "package.read",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "查看配置包 / 知识包",
+              "risk": "LOW"
+            },
+            {
+              "code": "package.rollback",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "回滚配置包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.publish",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "发布路径模板",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "projection.read",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "查看投影状态与一致性报告",
+              "risk": "LOW"
+            },
+            {
+              "code": "projection.rebuild",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "从关系库权威源重建投影",
+              "risk": "HIGH"
+            },
+            {
+              "code": "recommendation.accept",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "采纳或拒绝推荐（医师权限）",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.write",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "创建推荐触发和候选提醒事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.publish",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "灰度 / 全量发布规则",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "system.read",
+              "dimension": "ACTION",
+              "target": "system",
+              "displayName": "查看系统状态 / Provider",
+              "risk": "LOW"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "tenant.read",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "查看租户与生命周期",
+              "risk": "LOW"
+            },
+            {
+              "code": "tenant.write",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "开通 / 关闭租户",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.publish",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "发布字典映射包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "term.write",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "修改字典 / 映射",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workbench:readiness:view",
+              "dimension": "ACTION",
+              "target": "workbench",
+              "displayName": "查看验收自检页面",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "implementation-guide",
+            "tenant-onboarding",
+            "config-packages",
+            "pathway-templates",
+            "rule-definitions",
+            "terminology-mapping",
+            "adapter-hub",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "insurance-audit",
+            "qc-eval-sets",
+            "qc-eval-results",
+            "knowledge-governance",
+            "admin-users",
+            "identity-bindings",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "graph-explore",
+            "ai-workflows",
+            "domestic-check",
+            "dev-console"
+          ],
+          "environmentKeys": [
+            "production",
+            "test",
+            "trial"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": true,
+          "mfaBound": true
+        },
+        "traceId": "act6-8oh7bn024a-me-admin",
+        "timestamp": "2026-06-10T23:06:34.808662873Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-medical",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-medical",
+      "headerTraceId": "act6-8oh7bn024a-login-medical",
+      "bodyTraceId": "act6-8oh7bn024a-login-medical",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-medical-affairs-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-medical-affairs-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "medical-affairs"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:34.933023955Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-medical",
+        "timestamp": "2026-06-10T23:06:34.933795110Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-medical",
+      "actor": "medical",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-medical",
+      "headerTraceId": "act6-8oh7bn024a-me-medical",
+      "bodyTraceId": "act6-8oh7bn024a-me-medical",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-medical-affairs-20260611",
+          "username": "drill-medical-affairs-20260611",
+          "roles": [
+            {
+              "code": "medical-affairs",
+              "displayName": "医务处",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.export",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "导出审计快照 / 证据包",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.read",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "env.trial",
+              "dimension": "ENVIRONMENT",
+              "target": "trial",
+              "displayName": "访问试运行环境",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.read",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "查看评估指标和结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.write",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.export",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "异步导出知识资产 / 引用 / 历史",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.publish",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "激活新版知识并失效旧版",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.withdraw",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "紧急撤回已发布知识版本",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "list.export",
+              "dimension": "ACTION",
+              "target": "list",
+              "displayName": "创建和下载大规模列表异步导出文件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.ai-workflows",
+              "dimension": "MENU",
+              "target": "ai-workflows",
+              "displayName": "查看 AI 工作流",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-alerts",
+              "dimension": "MENU",
+              "target": "qc-alerts",
+              "displayName": "查看质控预警",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-dashboard",
+              "dimension": "MENU",
+              "target": "qc-dashboard",
+              "displayName": "查看院级质控驾驶舱",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-results",
+              "dimension": "MENU",
+              "target": "qc-eval-results",
+              "displayName": "查看评估结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.write",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "合并患者主索引",
+              "risk": "HIGH"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.publish",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "发布路径模板",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "projection.read",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "查看投影状态与一致性报告",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.write",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "创建推荐触发和候选提醒事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "rule.publish",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "灰度 / 全量发布规则",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.publish",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "发布字典映射包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "pathway-templates",
+            "rule-definitions",
+            "terminology-mapping",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "qc-eval-results",
+            "knowledge-governance",
+            "provenance",
+            "ai-workflows"
+          ],
+          "environmentKeys": [
+            "production",
+            "trial"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-8oh7bn024a-me-medical",
+        "timestamp": "2026-06-10T23:06:34.966700510Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-lab",
+      "actor": "lab",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-lab",
+      "headerTraceId": "act6-8oh7bn024a-login-lab",
+      "bodyTraceId": "act6-8oh7bn024a-login-lab",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-lab-technician-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-lab-technician-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "med-technician"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:35.075065403Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-lab",
+        "timestamp": "2026-06-10T23:06:35.075845885Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-lab",
+      "actor": "lab",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-lab",
+      "headerTraceId": "act6-8oh7bn024a-me-lab",
+      "bodyTraceId": "act6-8oh7bn024a-me-lab",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-lab-technician-20260611",
+          "username": "drill-lab-technician-20260611",
+          "roles": [
+            {
+              "code": "med-technician",
+              "displayName": "医技技师",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.dictionary",
+              "dimension": "ASSET",
+              "target": "dictionary",
+              "displayName": "访问字典映射资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.write",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "创建 / 重放临床事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "term.write",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "修改字典 / 映射",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "terminology-mapping",
+            "mpi",
+            "workflow-todos",
+            "notifications"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-8oh7bn024a-me-lab",
+        "timestamp": "2026-06-10T23:06:35.107501978Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-cardioDoctor",
+      "actor": "cardioDoctor",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-cardioDoctor",
+      "headerTraceId": "act6-8oh7bn024a-login-cardioDoctor",
+      "bodyTraceId": "act6-8oh7bn024a-login-cardioDoctor",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-cardiology-doctor-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-cardiology-doctor-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "doctor"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:35.230838136Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-cardioDoctor",
+        "timestamp": "2026-06-10T23:06:35.232900116Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-cardioDoctor",
+      "actor": "cardioDoctor",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-cardioDoctor",
+      "headerTraceId": "act6-8oh7bn024a-me-cardioDoctor",
+      "bodyTraceId": "act6-8oh7bn024a-me-cardioDoctor",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-cardiology-doctor-20260611",
+          "username": "drill-cardiology-doctor-20260611",
+          "roles": [
+            {
+              "code": "doctor",
+              "displayName": "临床医生",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.accept",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "采纳或拒绝推荐（医师权限）",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-8oh7bn024a-me-cardioDoctor",
+        "timestamp": "2026-06-10T23:06:35.262598455Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-respiratoryDoctor",
+      "actor": "respiratoryDoctor",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-respiratoryDoctor",
+      "headerTraceId": "act6-8oh7bn024a-login-respiratoryDoctor",
+      "bodyTraceId": "act6-8oh7bn024a-login-respiratoryDoctor",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-respiratory-doctor-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-respiratory-doctor-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "doctor"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:35.368364335Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-respiratoryDoctor",
+        "timestamp": "2026-06-10T23:06:35.369097829Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-respiratoryDoctor",
+      "actor": "respiratoryDoctor",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-respiratoryDoctor",
+      "headerTraceId": "act6-8oh7bn024a-me-respiratoryDoctor",
+      "bodyTraceId": "act6-8oh7bn024a-me-respiratoryDoctor",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-respiratory-doctor-20260611",
+          "username": "drill-respiratory-doctor-20260611",
+          "roles": [
+            {
+              "code": "doctor",
+              "displayName": "临床医生",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.accept",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "采纳或拒绝推荐（医师权限）",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-8oh7bn024a-me-respiratoryDoctor",
+        "timestamp": "2026-06-10T23:06:35.398744821Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "login-pharmacist",
+      "actor": "pharmacist",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-login-pharmacist",
+      "headerTraceId": "act6-8oh7bn024a-login-pharmacist",
+      "bodyTraceId": "act6-8oh7bn024a-login-pharmacist",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-clinical-pharmacist-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-clinical-pharmacist-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "pharmacist"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T23:06:35.518613017Z"
+          }
+        },
+        "traceId": "act6-8oh7bn024a-login-pharmacist",
+        "timestamp": "2026-06-10T23:06:35.519432994Z"
+      }
+    },
+    {
+      "phase": "actors",
+      "label": "me-pharmacist",
+      "actor": "pharmacist",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-me-pharmacist",
+      "headerTraceId": "act6-8oh7bn024a-me-pharmacist",
+      "bodyTraceId": "act6-8oh7bn024a-me-pharmacist",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-clinical-pharmacist-20260611",
+          "username": "drill-clinical-pharmacist-20260611",
+          "roles": [
+            {
+              "code": "pharmacist",
+              "displayName": "临床药师",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "rule-definitions",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "knowledge-governance",
+            "provenance"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-8oh7bn024a-me-pharmacist",
+        "timestamp": "2026-06-10T23:06:35.549082150Z"
+      }
+    }
+  ]
+}
