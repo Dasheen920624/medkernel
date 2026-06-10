@@ -144,6 +144,7 @@ do_rollback(){
     tar -xzf "$dir/dist.tar.gz" -C "$stage" && rm -rf "$FE_DIR/dist" && mv "$stage/dist" "$FE_DIR/dist" && chown -R "$APP_USER:$APP_USER" "$FE_DIR/dist" && ok "已恢复前端 dist"
     rm -rf "$stage"
   fi
+  [ -f "$dir/manifest.properties" ] && install -o "$APP_USER" -g "$APP_USER" -m 644 "$dir/manifest.properties" "$APP_HOME/manifest.properties" && ok "已恢复 manifest"
   restart_service
 }
 

@@ -26,6 +26,9 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.medkernel.shared.api.ApiError;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditEvent;
+import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.context.RequestContext;
 
 import jakarta.validation.ConstraintViolation;
@@ -62,6 +65,12 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String DATA_INTEGRITY_CONFLICT_MESSAGE =
         "数据约束冲突，请检查唯一字段或引用关系后重试";
+
+    private final AuditEventPublisher auditPublisher;
+
+    public GlobalExceptionHandler(AuditEventPublisher auditPublisher) {
+        this.auditPublisher = auditPublisher;
+    }
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApi(ApiException ex) {
@@ -135,6 +144,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex) {
         log.debug("AccessDeniedException: {}", ex.getMessage());
+        recordAccessDenied();
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(permissionDeniedProblem(
                 "权限不足：UNKNOWN",
@@ -206,6 +216,24 @@ public class GlobalExceptionHandler {
         problem.setProperty("applyUrl", applyUrl);
         problem.setProperty("traceId", RequestContext.snapshot().traceId());
         return problem;
+    }
+
+    private void recordAccessDenied() {
+        if (auditPublisher == null) {
+            return;
+        }
+        try {
+            String traceId = RequestContext.snapshot().traceId();
+            String resourceId = traceId == null || traceId.isBlank() ? "unknown" : traceId;
+            auditPublisher.publish(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "authorization",
+                resourceId,
+                "PERMISSION_DENIED",
+                "权限拒绝：当前用户无权执行该操作"));
+        } catch (RuntimeException auditError) {
+            log.warn("AccessDenied 审计发布失败：{}", auditError.getMessage());
+        }
     }
 
     private ResponseEntity<ProblemDetail> problemResponse(ErrorCode code, String detail) {
