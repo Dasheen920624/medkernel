@@ -1,0 +1,47 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/identities",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-identity-cap",
+    "trace_id": "act3-20260611-031921-identity-cap",
+    "tenant_id": "drill-hospital-20260611",
+    "hospital_id": "drill-hospital",
+    "department_id": "dept-it",
+    "user_id": "drill-hospital-admin-20260611",
+    "role_codes": [
+      "hospital-admin"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "identitySlug": "act3-cap-abx-r031921",
+    "domain": "GUIDELINE",
+    "subject": "CAP 经验性抗感染推荐",
+    "assetSpecialtyId": "RESP",
+    "description": "幕3演练知识资产：用于幕4/幕5 CAP 规则和路径引用，不自动开立医嘱。"
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 1,
+      "tenantId": "drill-hospital-20260611",
+      "identityCode": "t:drill-hospital-20260611:guideline:act3-cap-abx-r031921",
+      "domain": "GUIDELINE",
+      "subject": "CAP 经验性抗感染推荐",
+      "specialtyId": "RESP",
+      "description": "幕3演练知识资产：用于幕4/幕5 CAP 规则和路径引用，不自动开立医嘱。",
+      "status": "ACTIVE",
+      "currentVersionId": null,
+      "createdAt": "2026-06-10T19:19:22.320961891Z",
+      "createdBy": "drill-hospital-admin-20260611",
+      "updatedAt": "2026-06-10T19:19:22.320961891Z",
+      "updatedBy": "drill-hospital-admin-20260611",
+      "active": true
+    },
+    "traceId": "3a4e1b48-e56a-477e-a0c5-cc3863ce9601",
+    "timestamp": "2026-06-10T19:19:22.328733493Z"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/sources/3/versions",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-source-local-k-v1",
+    "trace_id": "act3-20260611-031921-source-local-k-v1",
+    "tenant_id": "drill-hospital-20260611",
+    "hospital_id": "drill-hospital",
+    "department_id": "dept-it",
+    "user_id": "drill-hospital-admin-20260611",
+    "role_codes": [
+      "hospital-admin"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "versionNo": "2026.1-r031921",
+    "publishedAt": "2026-06-10T19:19:22.917891Z",
+    "fileUri": "medkernel://drill/critical-values/potassium/v1",
+    "language": "zh-CN",
+    "content": "演练危急值目录：血清钾 ≥6.5 mmol/L 或 ≤2.5 mmol/L 标为危急值，需通知主管医师。"
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 3,
+      "tenantId": "drill-hospital-20260611",
+      "sourceDocumentId": 3,
+      "versionNo": "2026.1-r031921",
+      "publishedAt": "2026-06-10T19:19:22.917891Z",
+      "contentHash": "6d541cc7b69ee6edc643342ae6de9fcedc43863f403169632ef0489b4615caac",
+      "fileUri": "medkernel://drill/critical-values/potassium/v1",
+      "language": "zh-CN",
+      "createdAt": "2026-06-10T19:19:22.943466388Z",
+      "createdBy": "drill-hospital-admin-20260611"
+    },
+    "traceId": "0172b360-9829-499d-9192-af1950ad1243",
+    "timestamp": "2026-06-10T19:19:22.945353167Z"
+  }
+}

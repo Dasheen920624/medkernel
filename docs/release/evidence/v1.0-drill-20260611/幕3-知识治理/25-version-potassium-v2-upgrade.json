@@ -1,0 +1,99 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/identities/2/versions",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-version-k-v2",
+    "trace_id": "act3-20260611-031921-version-k-v2",
+    "tenant_id": "drill-hospital-20260611",
+    "hospital_id": "drill-hospital",
+    "department_id": "dept-it",
+    "user_id": "drill-hospital-admin-20260611",
+    "role_codes": [
+      "hospital-admin"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "versionNo": "2026.2-r031921",
+    "versionLabel": "血钾危急值阈值 v2（30分钟闭环）",
+    "sourceDocumentId": 3,
+    "sourceVersionId": 4,
+    "content": "血清钾达到高值或低值危急阈值后，系统生成 CRITICAL 提醒，要求 30 分钟内医生确认闭环，禁止自动开立医嘱。",
+    "anchors": "[{\"source\":\"local-critical-values\",\"anchor\":\"potassium-v2\"}]",
+    "riskLevel": "HIGH",
+    "gradeQuality": "MODERATE",
+    "gradeStrength": "STRONG",
+    "reviewCycleMonths": 6
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "identityId": 2,
+      "candidates": [
+        {
+          "id": 3,
+          "tenantId": "drill-hospital-20260611",
+          "identityId": 2,
+          "versionNo": "2026.2-r031921",
+          "versionLabel": "血钾危急值阈值 v2（30分钟闭环）",
+          "sourceDocumentId": 3,
+          "sourceVersionId": 4,
+          "contentHash": "7255f58bd292275b25a1929e36db31c3ed5567e493ada3fbb74abf3c134dd3a3",
+          "anchors": "[{\"source\":\"local-critical-values\",\"anchor\":\"potassium-v2\"}]",
+          "status": "PENDING_REPLACEMENT_REVIEW",
+          "riskLevel": "HIGH",
+          "authorityLevel": "D_HOSPITAL",
+          "gradeQuality": "MODERATE",
+          "gradeStrength": "STRONG",
+          "conflictArbitration": null,
+          "organizationScope": "tenant:drill-hospital-20260611/hospital:drill-hospital/department:dept-it",
+          "applicableScope": "ALL",
+          "activeScopeKey": "version-pending:2:2026.2-r031921",
+          "effectiveFrom": null,
+          "effectiveTo": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "activatedAt": null,
+          "supersededAt": null,
+          "withdrawnAt": null,
+          "withdrawnReason": null,
+          "createdAt": "2026-06-10T19:21:25.134049902Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:21:25.134049902Z",
+          "updatedBy": "drill-hospital-admin-20260611",
+          "reviewCycleMonths": 6,
+          "nextReviewAt": null,
+          "highRisk": true,
+          "authoritative": false
+        }
+      ],
+      "classifications": [
+        {
+          "id": 3,
+          "tenantId": "drill-hospital-20260611",
+          "orgPath": "tenant:drill-hospital-20260611",
+          "identityId": 2,
+          "candidateVersionId": 3,
+          "activeVersionId": 2,
+          "classification": "SAME_IDENTITY_NEW_VERSION",
+          "reviewStatus": "PENDING_REPLACEMENT_REVIEW",
+          "contentHash": "7255f58bd292275b25a1929e36db31c3ed5567e493ada3fbb74abf3c134dd3a3",
+          "basis": "同一知识身份已有 ACTIVE 版本，内容指纹不同，按同身份新版待审；content_hash=7255f58bd292275b25a1929e36db31c3ed5567e493ada3fbb74abf3c134dd3a3",
+          "diffSummary": "当前 ACTIVE=2026.1-r031921 / D_HOSPITAL；候选=2026.2-r031921 / D_HOSPITAL；候选仅供人工对照审核，不参与临床执行",
+          "createdAt": "2026-06-10T19:21:25.134049902Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:21:25.134049902Z",
+          "updatedBy": "drill-hospital-admin-20260611"
+        }
+      ],
+      "available": true,
+      "reasonCode": "SAME_IDENTITY_NEW_VERSION",
+      "message": "候选已进入替换审核队列，仅供人工对照，不参与临床执行"
+    },
+    "traceId": "65dfa3fa-d0ce-43d0-bf67-dfff77ca615c",
+    "timestamp": "2026-06-10T19:21:25.146649472Z"
+  }
+}

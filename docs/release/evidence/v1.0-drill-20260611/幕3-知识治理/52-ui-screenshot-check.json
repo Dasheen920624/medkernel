@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-06-11T03:34:23+08:00",
+  "tool": "Playwright chromium",
+  "environment": "https://193.112.107.134",
+  "tenantId": "drill-hospital-20260611",
+  "actor": "drill-hospital-admin-20260611",
+  "screenshots": [
+    {
+      "path": "/knowledge/governance",
+      "file": "50-ui-knowledge-governance.png",
+      "assertions": [
+        "heading=知识治理",
+        "knowledge identity ledger visible",
+        "published queue cleared after review"
+      ]
+    },
+    {
+      "path": "/advanced/provenance?identityId=2",
+      "file": "51-ui-provenance-potassium.png",
+      "assertions": [
+        "heading=知识来源追溯",
+        "current potassium version visible",
+        "historical versions visible",
+        "source evidence anchor visible"
+      ]
+    }
+  ],
+  "consoleErrors": 0,
+  "unexpectedRequestFailures": 0,
+  "ignoredNavigationAborts": [
+    "GET /medkernel/api/v1/security/me",
+    "GET /medkernel/api/v1/auth/session",
+    "GET /medkernel/api/v1/experience/theme-preference"
+  ],
+  "secretHandling": "Credential was read from the server credential file into memory only; no credential or session value was written to this evidence directory."
+}

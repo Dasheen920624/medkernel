@@ -1,0 +1,30 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/sources/fragments",
+  "status": 200,
+  "request": {
+    "sourceVersionId": 4,
+    "anchorPath": "critical-values/potassium/v2",
+    "anchorLabel": "血清钾危急值阈值 v2",
+    "textExcerpt": "血清钾危急值触发后，30 分钟内完成医生确认闭环。"
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 4,
+      "tenantId": "drill-hospital-20260611",
+      "sourceVersionId": 4,
+      "anchorPath": "critical-values/potassium/v2",
+      "anchorLabel": "血清钾危急值阈值 v2",
+      "textExcerpt": "血清钾危急值触发后，30 分钟内完成医生确认闭环。",
+      "contentHash": "3c04ebc24705ddec17aad9184538406a77b801f665b9a97af93ff774e55320a9",
+      "createdAt": "2026-06-10T19:21:25.112023496Z"
+    },
+    "traceId": "2cdd5ff3-d4e3-4a10-942e-eacd15696b04",
+    "timestamp": "2026-06-10T19:21:25.113818663Z"
+  }
+}

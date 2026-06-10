@@ -1,0 +1,43 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/sources/2/versions",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-source-nhc-version",
+    "trace_id": "act3-20260611-031921-source-nhc-version",
+    "tenant_id": "drill-hospital-20260611",
+    "hospital_id": "drill-hospital",
+    "department_id": "dept-it",
+    "user_id": "drill-hospital-admin-20260611",
+    "role_codes": [
+      "hospital-admin"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "versionNo": "卫医发2006-73",
+    "publishedAt": "2006-03-06T00:00:00Z",
+    "fileUri": "https://www.nhc.gov.cn/zwgk/wtwj/201304/f4d5cbc861fd43bb928d6ea124f87a19.shtml",
+    "language": "zh-CN",
+    "content": "来源要点：医疗机构临床实验室应建立检验报告制度和危急值报告制度，保证结果准确、及时并可追溯。"
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 2,
+      "tenantId": "drill-hospital-20260611",
+      "sourceDocumentId": 2,
+      "versionNo": "卫医发2006-73",
+      "publishedAt": "2006-03-06T00:00:00Z",
+      "contentHash": "42b3d980bcb2bd327d9218a159c2b72fe5b75caf654f435bf7d31b01864bac6f",
+      "fileUri": "https://www.nhc.gov.cn/zwgk/wtwj/201304/f4d5cbc861fd43bb928d6ea124f87a19.shtml",
+      "language": "zh-CN",
+      "createdAt": "2026-06-10T19:19:22.854198129Z",
+      "createdBy": "drill-hospital-admin-20260611"
+    },
+    "traceId": "50dfd400-bdfb-4d27-8370-8e33f3ab7689",
+    "timestamp": "2026-06-10T19:19:22.856500963Z"
+  }
+}

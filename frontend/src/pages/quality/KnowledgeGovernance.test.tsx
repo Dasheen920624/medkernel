@@ -354,7 +354,7 @@ describe("KnowledgeGovernance", () => {
   });
 
   it(
-    "reviews a candidate through the KNOW-02 review endpoint instead of mutating local state",
+    "reviews a candidate through the KNOW-02 classification review endpoint instead of mutating local state",
     async () => {
       const user = userEvent.setup();
       renderPage();
@@ -395,7 +395,7 @@ describe("KnowledgeGovernance", () => {
 
       await waitFor(() => {
         expect(reviewCandidate).toHaveBeenCalledWith({
-          candidateId: 2002,
+          candidateId: 9001,
           packageVersion: "PKG.KNOW.2026.06",
           request: {
             decision: "APPROVE",
@@ -419,7 +419,7 @@ describe("KnowledgeGovernance", () => {
               },
             },
           },
-          idempotencyKey: expect.stringContaining("knowledge-review-2002"),
+          idempotencyKey: expect.stringContaining("knowledge-review-9001"),
         });
       });
       expect(refetchCandidates).toHaveBeenCalled();
