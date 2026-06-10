@@ -2,7 +2,6 @@ package com.medkernel.engine.security.auth;
 
 import java.util.List;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,12 +18,13 @@ import jakarta.validation.Valid;
  * 平台租户开通 API（平台级，跨租户）。开通新医院租户 + 首个管理员账号。
  *
  * <p>读用 {@code tenant.read}，开通用 {@code tenant.write}（高风险，实际仅平台管理员具备）。
- * 仅 dev/test profile（与平台账号体系一致）；内网 govcloud 走院方 IdP，不提供本入口。
+ * 全 profile 注册，由五维权限统一治理，不按构建 profile 裁剪：知识生产中心等真实部署
+ * 在 govcloud profile 下以平台账号管理客户租户；院方如委托 IdP 登录，由 auth.mode
+ * 运行时配置约束身份来源，与本接口的权限护栏互不冲突（2026-06-10 真实部署 404 教训）。
  */
 @RestController
 @RequestMapping("/api/v1/admin/tenants")
 @DataScope(requireTenant = true)
-@Profile({"dev", "test"})
 public class TenantProvisioningController {
 
     private final TenantProvisioningService service;
