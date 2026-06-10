@@ -1045,7 +1045,11 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
     };
   }
 
-  if (["doctor", "nurse", "specialist", "dept-head"].some((code) => codes.has(code))) {
+  if (
+    ["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].some((code) =>
+      codes.has(code),
+    )
+  ) {
     return {
       title: `${displayName}工作台`,
       description: "优先查看我的待办、临床提醒和最近变化。",

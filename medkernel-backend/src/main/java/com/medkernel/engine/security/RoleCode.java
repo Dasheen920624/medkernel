@@ -6,7 +6,7 @@ import java.util.Optional;
 /**
  * MedKernel v1.0 GA · 标准角色枚举。
  *
- * <p>对应宪法 §5.2 角色矩阵的 13 个客户可分配业务角色，并额外保留系统内置超级管理员。
+ * <p>对应宪法 §5.2 角色矩阵的 15 个客户可分配业务角色，并额外保留系统内置超级管理员。
  *
  * <p>JWT {@code roles} claim 使用 {@link #code()}（短横线小写）；
  * Spring Security GrantedAuthority 使用 {@link #authority()}（{@code ROLE_*} 大写下划线）。
@@ -28,6 +28,8 @@ public enum RoleCode {
     SPECIALIST("specialist", "专科专家"),
     DOCTOR("doctor", "临床医生"),
     NURSE("nurse", "护理人员"),
+    MED_TECHNICIAN("med-technician", "医技技师"),
+    PHARMACIST("pharmacist", "临床药师"),
     AUDIT_COMPLIANCE("audit-compliance", "合规审计"),
     IMPLEMENTATION_ENGINEER("implementation-engineer", "实施工程师");
 
@@ -59,7 +61,7 @@ public enum RoleCode {
         return this == SYSTEM_SUPERADMIN;
     }
 
-    /** 是否属于 13 个客户可分配业务角色矩阵。 */
+    /** 是否属于 15 个客户可分配业务角色矩阵。 */
     public boolean customerAssignable() {
         return !systemSuperAdmin();
     }

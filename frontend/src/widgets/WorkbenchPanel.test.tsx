@@ -265,7 +265,11 @@ function expectedLandingFor(roleCode: string, displayName: string) {
   if (roleCode === "it-ops") {
     return { heading: "信息科工作台", marker: "系统健康" };
   }
-  if (["doctor", "nurse", "specialist", "dept-head"].includes(roleCode)) {
+  if (
+    ["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].includes(
+      roleCode,
+    )
+  ) {
     return { heading: `${displayName}工作台`, marker: "我的待办" };
   }
   if (["medical-affairs", "qa-manager", "insurance-manager"].includes(roleCode)) {
@@ -302,7 +306,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.queryByText("等待真实聚合 API")).not.toBeInTheDocument();
   });
 
-  it("renders an explicit default landing view for all 13 customer roles", () => {
+  it("renders an explicit default landing view for all 15 customer roles", () => {
     ROLE_OPTIONS.forEach(({ code, name }) => {
       setLoadedState(code, name);
 

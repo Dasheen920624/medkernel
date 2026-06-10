@@ -260,6 +260,59 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void medTechnicianReportsExamResultsAndMaintainsLocalTerminologyWithoutPublish() {
+        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.MED_TECHNICIAN);
+        assertThat(perms)
+            .contains(
+                PermissionCode.TERM_READ, PermissionCode.TERM_WRITE,
+                PermissionCode.EVENT_READ, PermissionCode.EVENT_WRITE,
+                PermissionCode.CONTEXT_READ,
+                PermissionCode.KNOWLEDGE_READ,
+                PermissionCode.MPI_READ,
+                PermissionCode.WORKFLOW_READ, PermissionCode.WORKFLOW_WRITE,
+                PermissionCode.NOTIFICATION_READ, PermissionCode.NOTIFICATION_WRITE,
+                PermissionCode.MENU_WORKBENCH,
+                PermissionCode.MENU_TERMINOLOGY_MAPPING,
+                PermissionCode.MENU_MPI,
+                PermissionCode.MENU_WORKFLOW_TODOS,
+                PermissionCode.MENU_NOTIFICATIONS)
+            .doesNotContain(
+                PermissionCode.TERM_PUBLISH,
+                PermissionCode.RULE_WRITE, PermissionCode.RULE_OVERRIDE,
+                PermissionCode.KNOWLEDGE_PUBLISH, PermissionCode.KNOWLEDGE_REVIEW,
+                PermissionCode.CONTEXT_WRITE,
+                PermissionCode.AUDIT_READ, PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
+    void pharmacistReviewsMedicationRulesAndKnowledgeWithoutPublishOrOverride() {
+        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.PHARMACIST);
+        assertThat(perms)
+            .contains(
+                PermissionCode.RULE_READ, PermissionCode.RULE_WRITE,
+                PermissionCode.KNOWLEDGE_READ, PermissionCode.KNOWLEDGE_WRITE, PermissionCode.KNOWLEDGE_REVIEW,
+                PermissionCode.RECOMMENDATION_READ,
+                PermissionCode.PATHWAY_READ,
+                PermissionCode.CONTEXT_READ, PermissionCode.EVENT_READ,
+                PermissionCode.MPI_READ,
+                PermissionCode.WORKFLOW_READ, PermissionCode.WORKFLOW_WRITE,
+                PermissionCode.NOTIFICATION_READ, PermissionCode.NOTIFICATION_WRITE,
+                PermissionCode.MENU_WORKBENCH,
+                PermissionCode.MENU_RULE_DEFINITIONS,
+                PermissionCode.MENU_RULE_VALIDATE,
+                PermissionCode.MENU_CDSS_FATIGUE,
+                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+                PermissionCode.MENU_PROVENANCE,
+                PermissionCode.MENU_PATIENT_PATHWAYS)
+            .doesNotContain(
+                PermissionCode.RULE_PUBLISH, PermissionCode.RULE_OVERRIDE,
+                PermissionCode.KNOWLEDGE_PUBLISH, PermissionCode.KNOWLEDGE_WITHDRAW,
+                PermissionCode.RECOMMENDATION_ACCEPT,
+                PermissionCode.EVENT_WRITE, PermissionCode.CONTEXT_WRITE,
+                PermissionCode.AUDIT_READ, PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
     void roleCodeRoundtripsThroughAuthority() {
         for (RoleCode role : RoleCode.values()) {
             assertThat(RoleCode.fromAuthority(role.authority())).contains(role);
