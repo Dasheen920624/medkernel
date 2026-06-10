@@ -265,7 +265,11 @@ function expectedLandingFor(roleCode: string, displayName: string) {
   if (roleCode === "it-ops") {
     return { heading: "信息科工作台", marker: "系统健康" };
   }
-  if (["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].includes(roleCode)) {
+  if (
+    ["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].includes(
+      roleCode,
+    )
+  ) {
     return { heading: `${displayName}工作台`, marker: "我的待办" };
   }
   if (["medical-affairs", "qa-manager", "insurance-manager"].includes(roleCode)) {
