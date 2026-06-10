@@ -1,0 +1,57 @@
+{
+  "generatedCandidateTotal": 5,
+  "highRiskCandidateId": 5,
+  "highRiskBatchDenied": true,
+  "highRiskDirectDenied": true,
+  "confirmedOrdinaryCandidateIds": [
+    4,
+    2,
+    1
+  ],
+  "confirmedBatchCount": 3,
+  "confirmedMappingTotal": 3,
+  "mappedLocalTerms": [
+    {
+      "sourceSystem": "HIS-DIAG",
+      "localCode": "ZD0456",
+      "status": "MAPPED"
+    },
+    {
+      "sourceSystem": "HIS-PHARMACY",
+      "localCode": "Y2035",
+      "status": "MAPPED"
+    },
+    {
+      "sourceSystem": "LIS",
+      "localCode": "K001",
+      "status": "MAPPED"
+    }
+  ],
+  "remainingHighRiskPending": [
+    {
+      "id": 5,
+      "riskLevel": "HIGH",
+      "status": "PENDING",
+      "evidenceText": "高危近似判别：钾/钠高危近似，候选仅供人工复核，禁止批量确认，必须逐条二次确认"
+    }
+  ],
+  "openConflictTotal": 1,
+  "coverageAfterConfirm": [
+    {
+      "code": "2823-3",
+      "status": "UNMAPPED",
+      "mappedLocalCount": 0
+    },
+    {
+      "code": "718-7",
+      "status": "UNMAPPED",
+      "mappedLocalCount": 0
+    }
+  ],
+  "packageDraft": {
+    "packageId": "e2d73e37-5b4f-4ee5-9bf3-15ba0a5fe0cb",
+    "packageCode": "TERM.DRILL.ACT2",
+    "packageVersion": "2026.06.11-act2-024101",
+    "status": "DRAFT"
+  }
+}

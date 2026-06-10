@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/mappings/5/confirm",
+  "status": 409,
+  "response": {
+    "type": "urn:medkernel:error:ENG-TERM-002",
+    "title": "高风险映射候选必须逐条二次确认",
+    "status": 409,
+    "detail": "高风险映射候选必须逐条二次确认",
+    "instance": "/medkernel/api/v1/engine/terminology/mappings/5/confirm",
+    "code": "ENG-TERM-002",
+    "errorClass": "DATA",
+    "retryable": false,
+    "traceId": "aa4cecf0-84a7-4c04-90b0-a736d2c52c8e"
+  }
+}

@@ -81,6 +81,9 @@ public interface StandardTermRepository extends ListCrudRepository<StandardTerm,
     Optional<StandardTerm> findByTenantIdAndStandardSystemAndTermCodeAndStatus(
         String tenantId, String standardSystem, String termCode, StandardTermStatus status);
 
+    Optional<StandardTerm> findByTenantIdAndStandardSystemAndTermCodeAndVersionNo(
+        String tenantId, String standardSystem, String termCode, String versionNo);
+
     @Query("""
         SELECT * FROM standard_term
         WHERE tenant_id IN (:tenantIds)

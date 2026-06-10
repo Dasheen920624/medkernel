@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/local",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 3,
+      "tenantId": "drill-hospital-20260611",
+      "sourceSystem": "HIS-PHARMACY",
+      "localCode": "Y2035",
+      "category": "DRUG",
+      "localName": "华法林钠片2.5mg",
+      "normalizedName": "华法林|warfarin|华法林钠片",
+      "departmentId": "dept-pharmacy",
+      "status": "UNMAPPED",
+      "firstSeenAt": "2026-06-10T18:26:45.957130Z",
+      "lastSeenAt": "2026-06-10T18:41:05.598734942Z",
+      "createdAt": "2026-06-10T18:26:45.957130Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:05.598734942Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "a879a150-422f-443c-a0be-876c3a7121b7",
+    "timestamp": "2026-06-10T18:41:05.603583740Z"
+  }
+}

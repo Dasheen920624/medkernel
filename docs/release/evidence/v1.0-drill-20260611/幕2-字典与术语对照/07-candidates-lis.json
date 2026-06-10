@@ -1,0 +1,39 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/mappings/candidates",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "generatedCount": 2,
+      "candidates": [
+        {
+          "id": 1,
+          "localTermId": 1,
+          "standardTermId": 1,
+          "semanticMatchScore": 0.96,
+          "highRiskFlag": false,
+          "riskLevel": "LOW",
+          "source": "RULE",
+          "status": "PENDING",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `血钾`，院内词=血钾，标准词=血清钾"
+        },
+        {
+          "id": 5,
+          "localTermId": 2,
+          "standardTermId": 1,
+          "semanticMatchScore": 0.5,
+          "highRiskFlag": true,
+          "riskLevel": "HIGH",
+          "source": "RULE",
+          "status": "PENDING",
+          "evidenceText": "高危近似判别：钾/钠高危近似，候选仅供人工复核，禁止批量确认，必须逐条二次确认"
+        }
+      ]
+    },
+    "traceId": "4fbaf7e0-a563-444d-a582-1caa8f0d492e",
+    "timestamp": "2026-06-10T18:41:06.279321421Z"
+  }
+}

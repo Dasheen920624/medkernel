@@ -31,4 +31,10 @@ public record LocalTerm(
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy
 ) {
+    LocalTerm mapped(String userId, Instant now) {
+        return new LocalTerm(
+            id, tenantId, sourceSystem, localCode, category, localName, normalizedName, departmentId,
+            LocalTermStatus.MAPPED, firstSeenAt, lastSeenAt, createdAt, createdBy, now, userId
+        );
+    }
 }

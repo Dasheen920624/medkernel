@@ -18,6 +18,9 @@ public interface LocalTermRepository extends ListCrudRepository<LocalTerm, Long>
 
     Optional<LocalTerm> findByTenantIdAndId(String tenantId, Long id);
 
+    Optional<LocalTerm> findByTenantIdAndSourceSystemAndLocalCodeAndCategory(
+        String tenantId, String sourceSystem, String localCode, TermCategory category);
+
     /**
      * 按租户 + 可选过滤条件（来源系统 / 分类 / 状态 / 关键词）统计本地术语数量。
      */

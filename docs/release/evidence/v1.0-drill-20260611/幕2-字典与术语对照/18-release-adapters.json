@@ -1,0 +1,13 @@
+{
+  "method": "GET",
+  "path": "/engine/pkg/packages/release-adapters",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": [],
+    "traceId": "3173af48-8bf9-4452-a7e6-9c68717350c5",
+    "timestamp": "2026-06-10T18:41:08.732808069Z"
+  }
+}

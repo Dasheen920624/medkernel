@@ -125,6 +125,78 @@ record TerminologyCandidateGenerationRequest(
 }
 
 /**
+ * 标准术语登记请求体；用于把试点所需标准字典条目登记为当前租户覆盖或平台基线。
+ */
+record StandardTermRegistrationRequest(
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
+    @NotBlank @Size(max = 64) String standardSystem,
+    @NotBlank @Size(max = 128) String termCode,
+    @NotNull TermCategory category,
+    @NotBlank @Size(max = 255) String displayName,
+    @Size(max = 512) String normalizedName,
+    @NotBlank @Size(max = 64) String versionNo,
+    Long sourceVersionId,
+    @Size(max = 1024) String evidenceText
+) implements TerminologyContextRequest {
+    StandardTermRegistrationRequest {
+        roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+    }
+
+    public TerminologyApiContext context() {
+        return TerminologyApiContext.from(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion
+        );
+    }
+}
+
+/**
+ * 院内术语登记请求体；用于把 HIS/LIS/PACS 等来源系统原始码登记进当前租户。
+ */
+record LocalTermRegistrationRequest(
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
+    @NotBlank @Size(max = 64) String sourceSystem,
+    @NotBlank @Size(max = 128) String localCode,
+    @NotNull TermCategory category,
+    @NotBlank @Size(max = 255) String localName,
+    @Size(max = 512) String normalizedName,
+    @JsonProperty("local_department_id") @Size(max = 64) String localDepartmentId
+) implements TerminologyContextRequest {
+    LocalTermRegistrationRequest {
+        roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+    }
+
+    public TerminologyApiContext context() {
+        return TerminologyApiContext.from(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion
+        );
+    }
+}
+
+/**
  * 确认候选映射请求体。
  *
  * <p>高危候选必须逐条提交 highRiskAcknowledged 与 highRiskReason。

@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/local",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 2,
+      "tenantId": "drill-hospital-20260611",
+      "sourceSystem": "LIS",
+      "localCode": "NA001",
+      "category": "LAB",
+      "localName": "血钠",
+      "normalizedName": "血钠|Na|sodium",
+      "departmentId": "dept-lab",
+      "status": "UNMAPPED",
+      "firstSeenAt": "2026-06-10T18:26:45.813993Z",
+      "lastSeenAt": "2026-06-10T18:41:05.448121160Z",
+      "createdAt": "2026-06-10T18:26:45.813993Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:05.448121160Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "abb5778f-803c-4558-9e52-a604e4de721d",
+    "timestamp": "2026-06-10T18:41:05.452457903Z"
+  }
+}

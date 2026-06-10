@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/local",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 4,
+      "tenantId": "drill-hospital-20260611",
+      "sourceSystem": "HIS-DIAG",
+      "localCode": "ZD0456",
+      "category": "DIAGNOSIS",
+      "localName": "社区获得性肺炎",
+      "normalizedName": "社区获得性肺炎|CAP",
+      "departmentId": "dept-respiratory-icu",
+      "status": "UNMAPPED",
+      "firstSeenAt": "2026-06-10T18:26:46.090059Z",
+      "lastSeenAt": "2026-06-10T18:41:05.750302996Z",
+      "createdAt": "2026-06-10T18:26:46.090059Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:05.750302996Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "3194892e-056a-4e75-ad48-a5986b801c67",
+    "timestamp": "2026-06-10T18:41:05.756430295Z"
+  }
+}

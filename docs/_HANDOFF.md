@@ -2,11 +2,13 @@
 
 ## 当前执行
 
-- **新主线「全流程演练 · 使用指南 · 体验重构」已进入幕1收口**：客户反馈第一版功能多但名词/用法看不懂、规则/路径配置不可读、推荐引擎找不到入口。总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)（幕0–10 演练剧本 + 线B指南 + 线C体验重构 + 第二阶段准入六判据）。**状态：计划已合并（#526）；DOC-SYNC 第一阶段已合并（#528，`fbaa012e`）；幕0已合入（#529，`d7cc0e9c`）；当前分支 `codex/demo-drill-act1-tenant-users` 正在收口幕1「租户、组织与用户」证据、试点准备手册第 1-2 章、术语和访问拒绝审计修复，待验证/PR/CI/合入后继续幕2。**
-- **幕1真实执行事实**：134 已开通客户租户 `drill-hospital-20260611`（演练总医院），首个医院管理员 `drill-hospital-admin-20260611` 已完成首登改密与 MFA 绑定；组织树含租户根、医院节点和 7 个科室（医务处、信息科、医保办、心内科、呼吸与危重症医学科、检验科、药学部）；9 个演练主账号已创建并完成首登设置。凭据只存服务器 `/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json`（`medkernel:medkernel 600`），仓库只提交路径/权限证据。
-- **幕1权限与审计实证**：16/16 内置角色均已登录核验；用户详情实证含 `TENANT` / `HOSPITAL` / `DEPARTMENT` 三类组织范围；医生读取用户管理返回 403 且没有合规运维菜单；审计员创建用户返回 403 且没有写权限；审计流查到 2 条 `authorization` / `FAILED` 事件。证据目录：`docs/release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/`，含结构化响应、traceId 和 3 张远端页面截图。
-- **幕1本分支代码修复**：`GlobalExceptionHandler` 为 `AccessDeniedException` 发布 `authorization` 失败审计事件，满足「越权访问被拒并留审计」；`medkernel-deploy` 回滚流程恢复 `manifest.properties`，避免失败发布回滚 jar 后留下错误 manifest。134 已发布本分支后端包并通过 readiness。
-- **幕1线上迁移校验修复事实**：134 接入 #527 后暴露 V6 / V25 早期种子迁移校验差异（当前 main 已把医技技师、临床药师写入种子）；已在备份 `/zoesoft/medkernel/backups/pre-act1-role-seed-repair-20260611-013753.dump` 后修正种子数据与 `flyway_schema_history` 校验值，再发布本分支后端包成功。
+- **新主线「全流程演练 · 使用指南 · 体验重构」已进入幕2收口**：总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)（幕0–10 演练剧本 + 线B指南 + 线C体验重构 + 第二阶段准入六判据）。**状态：计划已合并（#526）；DOC-SYNC 第一阶段已合并（#528，`fbaa012e`）；幕0已合入（#529，`d7cc0e9c`）；幕1已合入（#530，`97a3b217`）；当前分支 `codex/demo-drill-act2-terminology` 承载幕2「字典与术语对照」代码修复、134 证据、试点准备手册第 3 章、词条和待处理问题登记；本分支验证/PR/CI/合入后，以本条为幕2完成事实并继续幕3。**
+- **幕2真实执行事实**：134 已在租户 `drill-hospital-20260611` 登记 8 条标准术语（ICD-10 / LOINC / ATC）和 4 条院内术语（LIS / HIS-PHARMACY / HIS-DIAG）；生成 5 条候选，3 条普通候选已确认并把本地术语推进为 `MAPPED`，`NA001 血钠 -> LOINC 2823-3 血清钾` 保持 `HIGH/PENDING`，批量确认与缺少二次确认的逐条确认均被拒绝。
+- **幕2证据目录**：`docs/release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/`，含标准/本地术语登记响应、候选生成、高危拒绝、普通批量确认、冲突待裁、草稿包、traceId 和 2 张远端页面截图。结构化汇总见 `19-summary.json`。
+- **幕2本分支代码修复**：新增 API-04 标准术语 / 院内术语登记接口；新增 V114 五方言迁移，把 SYSTEM 级 `MED-C1-K-NA` 从 `DRUG` 放宽为跨分类安全底线，覆盖 LAB 血钠/血清钾；确认候选后将 `local_term.status` 从 `UNMAPPED` 推进到 `MAPPED`。
+- **幕2线上发布事实**：134 已发布本分支后端包并通过 readiness，最新 manifest source=`codex-demo-drill-act2-terminology-mapped-status-20260611`，jar sha256=`4d3737691673092bdc82728255b28689e7f54c684a8ebe1d26d5ecb6d4dee4cf`。
+- **幕2未通过项已如实登记**：`/engine/pkg/packages/release-adapters` 返回空数组，`PackageSyncRequest.adapterIds` 为非空必填，因此 `TERM.DRILL.ACT2@2026.06.11-act2-024101` 只构建到 `DRAFT`，未发布、未回滚；覆盖分析仍按已发布有效快照显示 `UNMAPPED`。已登记 `docs/audit/deferred-issues.md#DEFER-021`，不得写成运行态已覆盖。
+- **演练凭据事实**：幕1凭据仍只存服务器 `/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json`（`medkernel:medkernel 600`），仓库只提交路径、权限和页面证据；幕2 API 证据由信息科账号执行，UI 截图由已完成首登的医院管理员账号执行。
 - 已实锤的能力可见性缺口：后端 `RecommendationEngineController` 存在但前端 44 页无任何「推荐」入口（OPT-IA-01）；路径图编辑器 `PathwayGraphEditor.tsx`（React Flow）已存在但客户仍读不懂（OPT-VIS-02 改阅读视图而非新建）。前端已有 `@xyflow/react` 依赖，可视化优化零新增依赖。
 - 演练数据「保留/导出导入/清除」三能力用户已点名确认（计划 §3.4）：清除已实证（§8 清库流程）、保留有运维级（备份+快照）、**场景级一键导出/回灌缺失＝OPT-DEMO-01 演示场景包，已从预判升级为确认需求**（§6.3，幕8 后实现最顺）。
 - 全角色核查已过（剧本引用实证：路由 21/21、Controller 48/48、契约文档全实存）。**OPT-ROLE-01 已实现（#527）**：内置角色补「医技技师 med-technician」（检验/影像/超声/心电/病理按原型收敛，工种差异由科室范围承载）+「临床药师 pharmacist」，共 16 内置角色（15 客户面）；岗位→原型映射规则写入质量基线 §9（病案→医技、院感/药事→质控办、康复/营养→护士、第三方系统→服务凭证非人类角色），新岗位先查表禁止角色蔓延。
@@ -33,6 +35,6 @@
 
 ## 下一步
 
-1. 完成 `codex/demo-drill-act1-tenant-users` 本地验证、提交、PR、CI、合入；本分支包含幕1证据、试点准备手册第 1-2 章、词条、`_HANDOFF` 接力、AccessDenied 审计修复和发布回滚 manifest 修复。
-2. 合入后从最新 `origin/main` 继续幕2「配置包导入与发布准备」：处理实施向导当前仍阻塞的资产包/适配器/灰度前置，不把阻塞项伪造成通过。
-3. 幕2继续同步用户手册、证据 README、术语/四问审计和 `_HANDOFF`；不新增重复 handoff 文档。
+1. 完成 `codex/demo-drill-act2-terminology` 本地验证、提交、PR、CI、合入；本分支包含幕2代码修复、V114 五方言迁移、134 证据、试点准备手册第 3 章、词条、`_HANDOFF` 接力和 `DEFER-021`。
+2. 合入后从最新 `origin/main` 继续幕3「知识治理（登记→会签→发布→追溯）」：登记 CAP 指南来源和血钾危急值来源，完成知识资产版本、会签、发布、来源追溯和退役证据。
+3. 幕3开始前复核 `DEFER-021`：若幕4规则覆盖必须依赖已发布术语快照，则先补发布适配器或调整幕4顺序；不得把幕2草稿包写成运行态有效。
