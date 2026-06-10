@@ -3,7 +3,7 @@
 ## 当前执行
 
 - PR #523 已合入 `main`（`f716ff43`，权限指纹面板标签横向换行 + 弹层限高滚动）。
-- 分支 `claude/fix-first-deploy-emergency-net`（基于 `f716ff43`）：一 PR 收口两张首部署健壮性卡——①真实 PG 空库首部署冒烟入 CI；②应急命令非 Web 模式启动修复。**本地已验证、待推送建 PR。**
+- PR #524（`claude/fix-first-deploy-emergency-net`，基于 `f716ff43`）：一 PR 收口两张首部署健壮性卡——①真实 PG 空库首部署冒烟入 CI；②应急命令非 Web 模式启动修复。**本地已验证、已推送建 PR，待 CI（PG 空库 smoke 在 CI 真走）+ 授权合并。**
 - 线1统一承接全部任务；项目未上线且不保留兼容层。
 - 待清理：远程已合并分支 `claude/fix-tenant-admin-profile-gate` 删除被自动门禁拦下，需人工授权后清。
 
@@ -19,6 +19,6 @@
 
 ## 下一步
 
-1. 推送 `claude/fix-first-deploy-emergency-net` 建 PR → 确认 CI 8/8 绿（重点看 `backend-build-test` / `jdk-matrix-smoke` 下 `FirstDeployEmptyPostgresSmokeTest` 在真实 PG 上转绿，本机无 Docker 未实跑）→ 取得授权合并 → 从新 `origin/main` 重拉。
+1. 盯 PR #524 CI 8/8 绿（重点看 `backend-build-test` / `jdk-matrix-smoke` 下 `FirstDeployEmptyPostgresSmokeTest` 在真实 PG 上转绿，本机无 Docker 未实跑）→ 取得授权合并 → 从新 `origin/main` 重拉。
 2. 知识生产中心进入内容生产：首批最小内容包（危急值 + DDI Top 50 + 试点专病路径）走「登记→会签→发布→离线导出→院内导入」全链路。
 3. 不恢复旧并行分线，不新增重复 handoff 文档。
