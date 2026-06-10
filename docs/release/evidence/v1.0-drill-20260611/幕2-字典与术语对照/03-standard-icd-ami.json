@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/standard",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 5,
+      "tenantId": "drill-hospital-20260611",
+      "standardSystem": "ICD-10",
+      "termCode": "I21.0",
+      "category": "DIAGNOSIS",
+      "displayName": "急性前壁心肌梗死",
+      "normalizedName": "急性前壁心肌梗死|AMI|前壁心梗",
+      "versionNo": "2026.06",
+      "status": "ACTIVE",
+      "sourceVersionId": null,
+      "evidenceText": "演练标准字典：ICD-10 I21.0 急性前壁心肌梗死",
+      "createdAt": "2026-06-10T18:26:45.148045Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:03.692897922Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "4431543f-bd4b-4019-ae97-9e5f998545b2",
+    "timestamp": "2026-06-10T18:41:03.696899182Z"
+  }
+}

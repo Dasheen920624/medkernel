@@ -1,0 +1,89 @@
+{
+  "method": "GET",
+  "path": "/engine/terminology/terms/local?page=0&size=50",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "items": [
+        {
+          "id": 4,
+          "tenantId": "drill-hospital-20260611",
+          "sourceSystem": "HIS-DIAG",
+          "localCode": "ZD0456",
+          "category": "DIAGNOSIS",
+          "localName": "社区获得性肺炎",
+          "normalizedName": "社区获得性肺炎|CAP",
+          "departmentId": "dept-respiratory-icu",
+          "status": "UNMAPPED",
+          "firstSeenAt": "2026-06-10T18:26:46.090059Z",
+          "lastSeenAt": "2026-06-10T18:41:05.750303Z",
+          "createdAt": "2026-06-10T18:26:46.090059Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:05.750303Z",
+          "updatedBy": "drill-it-ops-20260611"
+        },
+        {
+          "id": 3,
+          "tenantId": "drill-hospital-20260611",
+          "sourceSystem": "HIS-PHARMACY",
+          "localCode": "Y2035",
+          "category": "DRUG",
+          "localName": "华法林钠片2.5mg",
+          "normalizedName": "华法林|warfarin|华法林钠片",
+          "departmentId": "dept-pharmacy",
+          "status": "UNMAPPED",
+          "firstSeenAt": "2026-06-10T18:26:45.957130Z",
+          "lastSeenAt": "2026-06-10T18:41:05.598735Z",
+          "createdAt": "2026-06-10T18:26:45.957130Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:05.598735Z",
+          "updatedBy": "drill-it-ops-20260611"
+        },
+        {
+          "id": 2,
+          "tenantId": "drill-hospital-20260611",
+          "sourceSystem": "LIS",
+          "localCode": "NA001",
+          "category": "LAB",
+          "localName": "血钠",
+          "normalizedName": "血钠|Na|sodium",
+          "departmentId": "dept-lab",
+          "status": "UNMAPPED",
+          "firstSeenAt": "2026-06-10T18:26:45.813993Z",
+          "lastSeenAt": "2026-06-10T18:41:05.448121Z",
+          "createdAt": "2026-06-10T18:26:45.813993Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:05.448121Z",
+          "updatedBy": "drill-it-ops-20260611"
+        },
+        {
+          "id": 1,
+          "tenantId": "drill-hospital-20260611",
+          "sourceSystem": "LIS",
+          "localCode": "K001",
+          "category": "LAB",
+          "localName": "血钾",
+          "normalizedName": "血钾|K|potassium",
+          "departmentId": "dept-lab",
+          "status": "UNMAPPED",
+          "firstSeenAt": "2026-06-10T18:26:45.672399Z",
+          "lastSeenAt": "2026-06-10T18:41:05.278806Z",
+          "createdAt": "2026-06-10T18:26:45.672399Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:05.278806Z",
+          "updatedBy": "drill-it-ops-20260611"
+        }
+      ],
+      "page": 1,
+      "size": 50,
+      "total": 4,
+      "hasNext": false,
+      "totalEstimated": false
+    },
+    "traceId": "9315f95d-07cb-442d-82fb-fa6fa5e6d716",
+    "timestamp": "2026-06-10T18:41:06.029383004Z"
+  }
+}

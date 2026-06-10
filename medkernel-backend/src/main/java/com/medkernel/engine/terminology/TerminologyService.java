@@ -54,6 +54,68 @@ public class TerminologyService {
     }
 
     /**
+     * 登记标准术语。重复业务键按幂等更新处理，不生成重复标准码。
+     */
+    @Transactional
+    public StandardTerm registerStandardTerm(StandardTermRegistrationRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
+        String userId = currentUserId();
+        Instant now = Instant.now();
+        Optional<StandardTerm> existing = standardTermRepository
+            .findByTenantIdAndStandardSystemAndTermCodeAndVersionNo(
+                tenantId, request.standardSystem(), request.termCode(), request.versionNo());
+        StandardTerm current = existing.orElse(null);
+        return standardTermRepository.save(new StandardTerm(
+            current == null ? null : current.id(),
+            tenantId,
+            request.standardSystem(),
+            request.termCode(),
+            request.category(),
+            request.displayName(),
+            normalizedOrFallback(request.normalizedName(), request.displayName(), request.termCode()),
+            request.versionNo(),
+            StandardTermStatus.ACTIVE,
+            request.sourceVersionId(),
+            request.evidenceText(),
+            current == null ? now : current.createdAt(),
+            current == null ? userId : current.createdBy(),
+            now,
+            userId
+        ));
+    }
+
+    /**
+     * 登记院内术语。已映射条目重复上报时保留 MAPPED 状态，只刷新名称和最后出现时间。
+     */
+    @Transactional
+    public LocalTerm registerLocalTerm(LocalTermRegistrationRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
+        String userId = currentUserId();
+        Instant now = Instant.now();
+        Optional<LocalTerm> existing = localTermRepository
+            .findByTenantIdAndSourceSystemAndLocalCodeAndCategory(
+                tenantId, request.sourceSystem(), request.localCode(), request.category());
+        LocalTerm current = existing.orElse(null);
+        return localTermRepository.save(new LocalTerm(
+            current == null ? null : current.id(),
+            tenantId,
+            request.sourceSystem(),
+            request.localCode(),
+            request.category(),
+            request.localName(),
+            normalizedOrFallback(request.normalizedName(), request.localName(), request.localCode()),
+            request.localDepartmentId(),
+            current == null ? LocalTermStatus.UNMAPPED : current.status(),
+            current == null ? now : current.firstSeenAt(),
+            now,
+            current == null ? now : current.createdAt(),
+            current == null ? userId : current.createdBy(),
+            now,
+            userId
+        ));
+    }
+
+    /**
      * 按租户 + 过滤条件分页查询标准术语。
      */
     public PageResponse<StandardTerm> pageStandardTerms(PageRequest request, StandardTermFilter filter) {
@@ -220,6 +282,9 @@ public class TerminologyService {
         MappingCandidate reviewedCandidate = conflictDetected
             ? candidate.withConflictFlag(true, userId, now)
             : candidate;
+        if (localTerm.status() == LocalTermStatus.UNMAPPED) {
+            localTermRepository.save(localTerm.mapped(userId, now));
+        }
         candidateRepository.save(reviewedCandidate.confirmed(reviewNote, userId, now));
         return saved;
     }
@@ -361,6 +426,15 @@ public class TerminologyService {
             return null;
         }
         return "%" + raw.trim().toLowerCase() + "%";
+    }
+
+    private String normalizedOrFallback(String normalized, String displayName, String code) {
+        if (normalized != null && !normalized.isBlank()) {
+            return normalized.trim();
+        }
+        return ((displayName == null ? "" : displayName.trim())
+            + "|"
+            + (code == null ? "" : code.trim())).replaceAll("^\\|+|\\|+$", "");
     }
 
     private String name(Enum<?> value) {

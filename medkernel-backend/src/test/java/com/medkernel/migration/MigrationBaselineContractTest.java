@@ -139,7 +139,8 @@ class MigrationBaselineContractTest {
         "V110__release_simulation_rollout.sql",
         "V111__package_entitlement.sql",
         "V112__package_physical_convergence.sql",
-        "V113__batch_inheritance_resolution_indexes.sql"
+        "V113__batch_inheritance_resolution_indexes.sql",
+        "V114__terminology_global_potassium_sodium_rule.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -2469,6 +2470,21 @@ class MigrationBaselineContractTest {
                 .contains("mk_version_inheritance_override")
                 .contains("org_path")
                 .contains("lifecycle_status");
+        }
+    }
+
+    @Test
+    void potassiumSodiumHighRiskRuleShouldBecomeCrossCategoryInAllFiveDialects() {
+        for (String dialect : DIALECTS) {
+            String migration = readMigration(
+                dialect, "V114__terminology_global_potassium_sodium_rule.sql");
+
+            assertThat(migration)
+                .as("%s 应把系统级钾钠高危近似规则放宽为跨分类安全底线", dialect)
+                .contains("UPDATE mk_term_high_risk_rule")
+                .contains("SET category = NULL")
+                .contains("rule_code = 'MED-C1-K-NA'")
+                .contains("category = 'DRUG'");
         }
     }
 

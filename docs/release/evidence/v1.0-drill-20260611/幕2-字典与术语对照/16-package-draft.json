@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "path": "/engine/pkg/packages/terminology",
+  "status": 201,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "packageId": "e2d73e37-5b4f-4ee5-9bf3-15ba0a5fe0cb",
+      "packageCode": "TERM.DRILL.ACT2",
+      "packageVersion": "2026.06.11-act2-024101",
+      "name": "演练总医院术语映射包",
+      "description": "术语映射快照，范围 TENANT:drill-hospital-20260611",
+      "accessPolicy": "OPEN",
+      "status": "DRAFT"
+    },
+    "traceId": "7f269b13-a41f-4c6c-8554-47fabac16356",
+    "timestamp": "2026-06-10T18:41:08.325667148Z"
+  }
+}

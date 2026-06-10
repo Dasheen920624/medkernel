@@ -1,0 +1,39 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/mappings/candidates",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "generatedCount": 2,
+      "candidates": [
+        {
+          "id": 3,
+          "localTermId": 4,
+          "standardTermId": 4,
+          "semanticMatchScore": 0.96,
+          "highRiskFlag": false,
+          "riskLevel": "LOW",
+          "source": "RULE",
+          "status": "PENDING",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `社区获得性肺炎`，院内词=社区获得性肺炎，标准词=肺炎"
+        },
+        {
+          "id": 4,
+          "localTermId": 4,
+          "standardTermId": 3,
+          "semanticMatchScore": 0.96,
+          "highRiskFlag": false,
+          "riskLevel": "LOW",
+          "source": "RULE",
+          "status": "PENDING",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `社区获得性肺炎`，院内词=社区获得性肺炎，标准词=细菌性肺炎"
+        }
+      ]
+    },
+    "traceId": "13df5676-8017-4499-9ba6-16ac1b076ab7",
+    "timestamp": "2026-06-10T18:41:06.764211550Z"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/standard",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 6,
+      "tenantId": "drill-hospital-20260611",
+      "standardSystem": "ATC",
+      "termCode": "B01AA03",
+      "category": "DRUG",
+      "displayName": "华法林",
+      "normalizedName": "华法林|warfarin",
+      "versionNo": "2026.06",
+      "status": "ACTIVE",
+      "sourceVersionId": null,
+      "evidenceText": "演练标准字典：ATC B01AA03 华法林",
+      "createdAt": "2026-06-10T18:26:45.287868Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:04.824304239Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "eb0aa9e4-7125-4dbf-9406-e49dda1925b3",
+    "timestamp": "2026-06-10T18:41:04.827971187Z"
+  }
+}

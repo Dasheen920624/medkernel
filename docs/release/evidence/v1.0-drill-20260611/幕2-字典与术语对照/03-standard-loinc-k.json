@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/standard",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 1,
+      "tenantId": "drill-hospital-20260611",
+      "standardSystem": "LOINC",
+      "termCode": "2823-3",
+      "category": "LAB",
+      "displayName": "血清钾",
+      "normalizedName": "血清钾|血钾|K|potassium",
+      "versionNo": "2026.06",
+      "status": "ACTIVE",
+      "sourceVersionId": null,
+      "evidenceText": "演练标准字典：LOINC 2823-3 血清钾",
+      "createdAt": "2026-06-10T18:26:43.319759Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:03.056682459Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "0923bf84-434a-4bd7-a5c0-7328112d2613",
+    "timestamp": "2026-06-10T18:41:03.115544934Z"
+  }
+}

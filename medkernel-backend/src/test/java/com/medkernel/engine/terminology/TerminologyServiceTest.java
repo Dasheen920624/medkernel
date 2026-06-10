@@ -75,6 +75,60 @@ class TerminologyServiceTest {
     }
 
     @Test
+    void registerStandardTermIsIdempotentBySystemCodeAndVersion() {
+        StandardTerm existing = new StandardTerm(
+            200L, "t-1", "LOINC", "2823-3", TermCategory.LAB, "旧血清钾",
+            "旧血清钾", "2026.06", StandardTermStatus.ACTIVE, null,
+            "旧证据", Instant.parse("2026-06-01T00:00:00Z"), "seed",
+            Instant.parse("2026-06-01T00:00:00Z"), "seed"
+        );
+        when(standardTermRepository.findByTenantIdAndStandardSystemAndTermCodeAndVersionNo(
+            "t-1", "LOINC", "2823-3", "2026.06"
+        )).thenReturn(Optional.of(existing));
+        when(standardTermRepository.save(any(StandardTerm.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StandardTerm saved = service.registerStandardTerm(new StandardTermRegistrationRequest(
+            "req-term-standard", "trace-term-standard", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "LOINC", "2823-3", TermCategory.LAB, "血清钾", "血清钾|血钾|K",
+            "2026.06", 88L, "演练标准字典登记"
+        ));
+
+        assertThat(saved.id()).isEqualTo(200L);
+        assertThat(saved.displayName()).isEqualTo("血清钾");
+        assertThat(saved.sourceVersionId()).isEqualTo(88L);
+        assertThat(saved.createdBy()).isEqualTo("seed");
+        assertThat(saved.updatedBy()).isEqualTo("u-99");
+    }
+
+    @Test
+    void registerLocalTermKeepsMappedStatusWhenRefreshingSeenTerm() {
+        LocalTerm existing = new LocalTerm(
+            100L, "t-1", "LIS", "K001", TermCategory.LAB, "旧血钾",
+            "旧血钾", "dept-lab", LocalTermStatus.MAPPED,
+            Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-06-02T00:00:00Z"),
+            Instant.parse("2026-06-01T00:00:00Z"), "seed",
+            Instant.parse("2026-06-02T00:00:00Z"), "seed"
+        );
+        when(localTermRepository.findByTenantIdAndSourceSystemAndLocalCodeAndCategory(
+            "t-1", "LIS", "K001", TermCategory.LAB
+        )).thenReturn(Optional.of(existing));
+        when(localTermRepository.save(any(LocalTerm.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LocalTerm saved = service.registerLocalTerm(new LocalTermRegistrationRequest(
+            "req-term-local", "trace-term-local", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "LIS", "K001", TermCategory.LAB, "血钾", "血钾|K", "dept-lab"
+        ));
+
+        assertThat(saved.id()).isEqualTo(100L);
+        assertThat(saved.localName()).isEqualTo("血钾");
+        assertThat(saved.status()).isEqualTo(LocalTermStatus.MAPPED);
+        assertThat(saved.firstSeenAt()).isEqualTo(existing.firstSeenAt());
+        assertThat(saved.updatedBy()).isEqualTo("u-99");
+    }
+
+    @Test
     void pageLocalTermsNormalizesKeywordAndEnumFilters() {
         when(localTermRepository.countByFilter("t-1", "LIS", "LAB", "UNMAPPED", "%肌钙蛋白%"))
             .thenReturn(2L);
@@ -151,6 +205,10 @@ class TerminologyServiceTest {
         verify(candidateRepository).save(savedCandidate.capture());
         assertThat(savedCandidate.getValue().status()).isEqualTo(MappingCandidateStatus.CONFIRMED);
         assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("专家逐条确认");
+        ArgumentCaptor<LocalTerm> savedLocalTerm = ArgumentCaptor.forClass(LocalTerm.class);
+        verify(localTermRepository).save(savedLocalTerm.capture());
+        assertThat(savedLocalTerm.getValue().status()).isEqualTo(LocalTermStatus.MAPPED);
+        assertThat(savedLocalTerm.getValue().updatedBy()).isEqualTo("u-99");
     }
 
     @Test
@@ -828,6 +886,17 @@ class TerminologyServiceTest {
                 standardTerm(2L, "YPBM", "YP-NA", TermCategory.DRUG, "氯化钠注射液", "nacl|氯化钠"),
                 highRiskRule(
                     2L, "MED-C1-K-NA", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, TermCategory.DRUG,
+                    "钾|k|k+|potassium|氯化钾|kcl", "钠|na|na+|sodium|氯化钠|nacl", null, null,
+                    "钾/钠高危近似"
+                ),
+                "钾/钠"
+            ),
+            Arguments.of(
+                "血钠/血清钾强制高危",
+                localTerm(1L, "LIS", "NA001", TermCategory.LAB, "血钠", "血钠|Na|sodium"),
+                standardTerm(2L, "LOINC", "2823-3", TermCategory.LAB, "血清钾", "血清钾|血钾|K|potassium"),
+                highRiskRule(
+                    6L, "MED-C1-K-NA", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, null,
                     "钾|k|k+|potassium|氯化钾|kcl", "钠|na|na+|sodium|氯化钠|nacl", null, null,
                     "钾/钠高危近似"
                 ),

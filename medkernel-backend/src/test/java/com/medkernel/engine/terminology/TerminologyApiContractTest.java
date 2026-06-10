@@ -66,6 +66,56 @@ class TerminologyApiContractTest {
     }
 
     @Test
+    void registersStandardAndLocalTermsThroughApi04Routes() throws Exception {
+        when(terminologyService.registerStandardTerm(any(StandardTermRegistrationRequest.class)))
+            .thenReturn(new StandardTerm(
+                200L, "t-1", "LOINC", "2823-3", TermCategory.LAB, "血清钾",
+                "血清钾|血钾|K", "2026.06", StandardTermStatus.ACTIVE, null,
+                "演练标准字典登记", java.time.Instant.now(), "api04-specialist",
+                java.time.Instant.now(), "api04-specialist"
+            ));
+        when(terminologyService.registerLocalTerm(any(LocalTermRegistrationRequest.class)))
+            .thenReturn(new LocalTerm(
+                100L, "t-1", "LIS", "K001", TermCategory.LAB, "血钾",
+                "血钾|K", "dept-lab", LocalTermStatus.UNMAPPED,
+                java.time.Instant.now(), java.time.Instant.now(),
+                java.time.Instant.now(), "api04-specialist",
+                java.time.Instant.now(), "api04-specialist"
+            ));
+
+        mvc.perform(post("/api/v1/engine/terminology/terms/standard")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(standardContextJson("""
+                    ,"standardSystem": "LOINC",
+                      "termCode": "2823-3",
+                      "category": "LAB",
+                      "displayName": "血清钾",
+                      "normalizedName": "血清钾|血钾|K",
+                      "versionNo": "2026.06",
+                      "evidenceText": "演练标准字典登记"
+                    """)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.standardSystem").value("LOINC"))
+            .andExpect(jsonPath("$.data.termCode").value("2823-3"));
+
+        mvc.perform(post("/api/v1/engine/terminology/terms/local")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(standardContextJson("""
+                    ,"sourceSystem": "LIS",
+                      "localCode": "K001",
+                      "category": "LAB",
+                      "localName": "血钾",
+                      "normalizedName": "血钾|K",
+                      "local_department_id": "dept-lab"
+                    """)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sourceSystem").value("LIS"))
+            .andExpect(jsonPath("$.data.localCode").value("K001"));
+    }
+
+    @Test
     void generateCandidatesRejectsMissingStandardContext() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mappings/candidates")
                 .with(writeJwt())

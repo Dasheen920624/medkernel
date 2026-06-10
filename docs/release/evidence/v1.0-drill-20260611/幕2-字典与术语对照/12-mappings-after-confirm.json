@@ -1,0 +1,75 @@
+{
+  "method": "GET",
+  "path": "/engine/terminology/mappings?page=0&size=100&status=CONFIRMED",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "items": [
+        {
+          "id": 3,
+          "tenantId": "drill-hospital-20260611",
+          "localTermId": 1,
+          "standardTermId": 1,
+          "sourceSystem": "LIS",
+          "category": "LAB",
+          "confidence": 0.96,
+          "riskLevel": "LOW",
+          "status": "CONFIRMED",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `血钾`，院内词=血钾，标准词=血清钾",
+          "confirmedBy": "drill-it-ops-20260611",
+          "confirmedAt": "2026-06-10T18:41:07.335541Z",
+          "createdAt": "2026-06-10T18:41:07.335541Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:07.335541Z",
+          "updatedBy": "drill-it-ops-20260611"
+        },
+        {
+          "id": 2,
+          "tenantId": "drill-hospital-20260611",
+          "localTermId": 3,
+          "standardTermId": 6,
+          "sourceSystem": "HIS-PHARMACY",
+          "category": "DRUG",
+          "confidence": 0.96,
+          "riskLevel": "LOW",
+          "status": "CONFIRMED",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `华法林`，院内词=华法林钠片2.5mg，标准词=华法林",
+          "confirmedBy": "drill-it-ops-20260611",
+          "confirmedAt": "2026-06-10T18:41:07.335541Z",
+          "createdAt": "2026-06-10T18:41:07.335541Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:07.335541Z",
+          "updatedBy": "drill-it-ops-20260611"
+        },
+        {
+          "id": 1,
+          "tenantId": "drill-hospital-20260611",
+          "localTermId": 4,
+          "standardTermId": 3,
+          "sourceSystem": "HIS-DIAG",
+          "category": "DIAGNOSIS",
+          "confidence": 0.96,
+          "riskLevel": "LOW",
+          "status": "CONFIRMED",
+          "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `社区获得性肺炎`，院内词=社区获得性肺炎，标准词=细菌性肺炎",
+          "confirmedBy": "drill-it-ops-20260611",
+          "confirmedAt": "2026-06-10T18:41:07.335541Z",
+          "createdAt": "2026-06-10T18:41:07.335541Z",
+          "createdBy": "drill-it-ops-20260611",
+          "updatedAt": "2026-06-10T18:41:07.335541Z",
+          "updatedBy": "drill-it-ops-20260611"
+        }
+      ],
+      "page": 1,
+      "size": 100,
+      "total": 3,
+      "hasNext": false,
+      "totalEstimated": false
+    },
+    "traceId": "c193d6b9-2845-48bb-8be2-60869beca2d2",
+    "timestamp": "2026-06-10T18:41:07.538227220Z"
+  }
+}

@@ -74,6 +74,28 @@ public class TerminologyController {
     }
 
     /**
+     * 登记标准术语条目；同一租户 + 标准体系 + 编码 + 版本重复提交时幂等更新。
+     */
+    @PostMapping("/terms/standard")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<StandardTerm> registerStandardTerm(
+            @Valid @RequestBody StandardTermRegistrationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.registerStandardTerm(request));
+    }
+
+    /**
+     * 登记院内本地术语；同一租户 + 来源系统 + 本地编码 + 分类重复提交时幂等更新。
+     */
+    @PostMapping("/terms/local")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<LocalTerm> registerLocalTerm(
+            @Valid @RequestBody LocalTermRegistrationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.registerLocalTerm(request));
+    }
+
+    /**
      * 分页查询当前租户的术语映射，支持按 sourceSystem / category / status / 证据关键词过滤。
      */
     @GetMapping("/mappings")

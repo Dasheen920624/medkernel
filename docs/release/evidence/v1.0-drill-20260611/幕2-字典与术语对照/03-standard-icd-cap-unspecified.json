@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "path": "/engine/terminology/terms/standard",
+  "status": 200,
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 4,
+      "tenantId": "drill-hospital-20260611",
+      "standardSystem": "ICD-10",
+      "termCode": "J18.9",
+      "category": "DIAGNOSIS",
+      "displayName": "肺炎",
+      "normalizedName": "肺炎|社区获得性肺炎|CAP",
+      "versionNo": "2026.06",
+      "status": "ACTIVE",
+      "sourceVersionId": null,
+      "evidenceText": "演练标准字典：ICD-10 J18.9 肺炎",
+      "createdAt": "2026-06-10T18:26:45.008503Z",
+      "createdBy": "drill-it-ops-20260611",
+      "updatedAt": "2026-06-10T18:41:03.557288720Z",
+      "updatedBy": "drill-it-ops-20260611"
+    },
+    "traceId": "feb6c19f-5dc6-46f2-bb8e-559e51b5f810",
+    "timestamp": "2026-06-10T18:41:03.561324153Z"
+  }
+}
