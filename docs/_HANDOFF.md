@@ -2,6 +2,12 @@
 
 ## 当前执行
 
+- **新主线「全流程演练 · 使用指南 · 体验重构」已立**：客户反馈第一版功能多但名词/用法看不懂、规则/路径配置不可读、推荐引擎找不到入口。总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)（幕0–10 演练剧本 + 线B指南 + 线C体验重构 + 第二阶段准入六判据）。**状态：计划待合并；下一步=幕0 部署接管与首次登录（134 已是干净基线可直接开演）。**
+- 已实锤的能力可见性缺口：后端 `RecommendationEngineController` 存在但前端 44 页无任何「推荐」入口（OPT-IA-01）；路径图编辑器 `PathwayGraphEditor.tsx`（React Flow）已存在但客户仍读不懂（OPT-VIS-02 改阅读视图而非新建）。前端已有 `@xyflow/react` 依赖，可视化优化零新增依赖。
+- 演练数据「保留/导出导入/清除」三能力用户已点名确认（计划 §3.4）：清除已实证（§8 清库流程）、保留有运维级（备份+快照）、**场景级一键导出/回灌缺失＝OPT-DEMO-01 演示场景包，已从预判升级为确认需求**（§6.3，幕8 后实现最顺）。
+
+## 既往执行
+
 - PR #524 已合入 `main`（`b2e7329e`，squash）：①真实 PG 空库首部署冒烟入 CI；②应急命令非 Web 模式启动修复；③接力中由 CI 真跑 PG 冒烟暴露并修复 `mk_experience_user_pref.pref_value` 列过窄缺陷（见「当前状态」）。CI 8/8 全绿。
 - 134 已据 `b2e7329e` 清库重发：Flyway 113/113 全成功、`pref_value` 已 `text`、健康 UP、manifest source=b2e7329e；清库前 `pg_dump` 落 `backups/pre-v35-reclean-20260610-205652.dump`（1.18MB）留底。
 - 线1统一承接全部任务；项目全新、不保留兼容层（迁移就地改，134 清库重迁，不追加 ALTER 补丁迁移）。
