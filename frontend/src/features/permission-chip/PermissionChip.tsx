@@ -1,4 +1,4 @@
-import { Tag, Popover, Typography, Space, List } from "antd";
+import { Tag, Popover, Typography, Space } from "antd";
 import { SafetyOutlined } from "@ant-design/icons";
 import { useSecurityProfile, type SecurityProfile } from "@/shared/api/hooks";
 
@@ -137,15 +137,13 @@ function PermSection({ title, items, color }: { title: string; items: string[]; 
       <Text strong className="mk-text-xs">
         {title}
       </Text>
-      <List
-        size="small"
-        dataSource={items}
-        renderItem={(t) => (
-          <List.Item className="mk-list-item-compact">
-            <Tag color={color}>{t}</Tag>
-          </List.Item>
-        )}
-      />
+      <div className="mk-tag-wrap">
+        {items.map((item) => (
+          <Tag key={item} color={color}>
+            {item}
+          </Tag>
+        ))}
+      </div>
     </div>
   );
 }
