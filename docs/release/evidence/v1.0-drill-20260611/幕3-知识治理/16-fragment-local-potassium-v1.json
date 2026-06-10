@@ -1,0 +1,30 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/sources/fragments",
+  "status": 200,
+  "request": {
+    "sourceVersionId": 3,
+    "anchorPath": "critical-values/potassium/v1",
+    "anchorLabel": "血清钾危急值阈值 v1",
+    "textExcerpt": "血清钾达到高值或低值阈值时标为危急值并通知主管医师。"
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 3,
+      "tenantId": "drill-hospital-20260611",
+      "sourceVersionId": 3,
+      "anchorPath": "critical-values/potassium/v1",
+      "anchorLabel": "血清钾危急值阈值 v1",
+      "textExcerpt": "血清钾达到高值或低值阈值时标为危急值并通知主管医师。",
+      "contentHash": "f4f35b15171c24b0d8668e8690301e9fe8d2f8653df3c1c7bdd87c8d05942104",
+      "createdAt": "2026-06-10T19:19:22.974539200Z"
+    },
+    "traceId": "15a6b821-b0e9-4c08-82a0-7306794f6bc1",
+    "timestamp": "2026-06-10T19:19:22.976526310Z"
+  }
+}

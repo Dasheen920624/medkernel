@@ -1,0 +1,99 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/identities/2/versions",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-version-k-v1",
+    "trace_id": "act3-20260611-031921-version-k-v1",
+    "tenant_id": "drill-hospital-20260611",
+    "hospital_id": "drill-hospital",
+    "department_id": "dept-it",
+    "user_id": "drill-hospital-admin-20260611",
+    "role_codes": [
+      "hospital-admin"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "versionNo": "2026.1-r031921",
+    "versionLabel": "血钾危急值阈值 v1（通知主管医师）",
+    "sourceDocumentId": 3,
+    "sourceVersionId": 3,
+    "content": "血清钾 ≥6.5 mmol/L 或 ≤2.5 mmol/L 作为危急值；系统生成危急值提醒并要求主管医师确认，禁止自动开立医嘱。",
+    "anchors": "[{\"source\":\"local-critical-values\",\"anchor\":\"potassium-v1\"}]",
+    "riskLevel": "HIGH",
+    "gradeQuality": "MODERATE",
+    "gradeStrength": "STRONG",
+    "reviewCycleMonths": 6
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "identityId": 2,
+      "candidates": [
+        {
+          "id": 2,
+          "tenantId": "drill-hospital-20260611",
+          "identityId": 2,
+          "versionNo": "2026.1-r031921",
+          "versionLabel": "血钾危急值阈值 v1（通知主管医师）",
+          "sourceDocumentId": 3,
+          "sourceVersionId": 3,
+          "contentHash": "1b69747c4f0bdf79b29583c169d75eca8d9c9004c4d6e70b00fe4eb68a346ea7",
+          "anchors": "[{\"source\":\"local-critical-values\",\"anchor\":\"potassium-v1\"}]",
+          "status": "PENDING_REPLACEMENT_REVIEW",
+          "riskLevel": "HIGH",
+          "authorityLevel": "D_HOSPITAL",
+          "gradeQuality": "MODERATE",
+          "gradeStrength": "STRONG",
+          "conflictArbitration": null,
+          "organizationScope": "tenant:drill-hospital-20260611/hospital:drill-hospital/department:dept-it",
+          "applicableScope": "ALL",
+          "activeScopeKey": "version-pending:2:2026.1-r031921",
+          "effectiveFrom": null,
+          "effectiveTo": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "activatedAt": null,
+          "supersededAt": null,
+          "withdrawnAt": null,
+          "withdrawnReason": null,
+          "createdAt": "2026-06-10T19:19:23.033249886Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:19:23.033249886Z",
+          "updatedBy": "drill-hospital-admin-20260611",
+          "reviewCycleMonths": 6,
+          "nextReviewAt": null,
+          "highRisk": true,
+          "authoritative": false
+        }
+      ],
+      "classifications": [
+        {
+          "id": 2,
+          "tenantId": "drill-hospital-20260611",
+          "orgPath": "tenant:drill-hospital-20260611",
+          "identityId": 2,
+          "candidateVersionId": 2,
+          "activeVersionId": null,
+          "classification": "NEW_ASSET",
+          "reviewStatus": "PENDING_REPLACEMENT_REVIEW",
+          "contentHash": "1b69747c4f0bdf79b29583c169d75eca8d9c9004c4d6e70b00fe4eb68a346ea7",
+          "basis": "当前知识身份暂无 ACTIVE 版本，按新建候选分流；content_hash=1b69747c4f0bdf79b29583c169d75eca8d9c9004c4d6e70b00fe4eb68a346ea7",
+          "diffSummary": "当前无 ACTIVE 版本；候选 2026.1-r031921 将作为首个待审版本",
+          "createdAt": "2026-06-10T19:19:23.033249886Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:19:23.033249886Z",
+          "updatedBy": "drill-hospital-admin-20260611"
+        }
+      ],
+      "available": true,
+      "reasonCode": "NEW_ASSET",
+      "message": "候选已进入替换审核队列，仅供人工对照，不参与临床执行"
+    },
+    "traceId": "19e88bfe-ffbd-45c3-8fac-43f6196cb863",
+    "timestamp": "2026-06-10T19:19:23.045487054Z"
+  }
+}

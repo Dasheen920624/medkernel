@@ -1,0 +1,26 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/citations",
+  "status": 400,
+  "request": {
+    "assetVersionId": 2,
+    "sourceFragmentId": 2,
+    "relation": "DERIVED_FROM",
+    "weight": 85,
+    "startOffset": 0,
+    "endOffset": 24
+  },
+  "body": {
+    "type": "urn:medkernel:error:ENG-API-002",
+    "title": "请求参数校验失败",
+    "status": 400,
+    "detail": "来源片段不属于知识版本登记的来源版本",
+    "instance": "/medkernel/api/v1/engine/knowledge/citations",
+    "code": "ENG-API-002",
+    "errorClass": "INPUT",
+    "retryable": false,
+    "traceId": "7288d62b-6d1a-4aec-824f-754f51f802b9"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "runId": "20260611-031921",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "accounts": [
+    {
+      "account": "drill-hospital-20260611:drill-hospital-admin-20260611",
+      "username": "drill-hospital-admin-20260611",
+      "roles": [
+        "hospital-admin"
+      ],
+      "knowledgePermissions": [
+        "knowledge.export",
+        "knowledge.publish",
+        "knowledge.read",
+        "knowledge.review",
+        "knowledge.withdraw",
+        "knowledge.write",
+        "menu.knowledge-governance",
+        "menu.provenance"
+      ]
+    },
+    {
+      "account": "drill-hospital-20260611:drill-medical-affairs-20260611",
+      "username": "drill-medical-affairs-20260611",
+      "roles": [
+        "medical-affairs"
+      ],
+      "knowledgePermissions": [
+        "knowledge.export",
+        "knowledge.publish",
+        "knowledge.read",
+        "knowledge.review",
+        "knowledge.withdraw",
+        "knowledge.write",
+        "menu.knowledge-governance",
+        "menu.provenance"
+      ]
+    }
+  ]
+}

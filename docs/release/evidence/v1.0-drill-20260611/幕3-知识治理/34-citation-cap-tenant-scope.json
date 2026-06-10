@@ -1,0 +1,34 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-hospital-admin-20260611",
+  "actorUsername": "drill-hospital-admin-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/citations",
+  "status": 200,
+  "request": {
+    "assetVersionId": 4,
+    "sourceFragmentId": 1,
+    "relation": "DERIVED_FROM",
+    "weight": 97,
+    "startOffset": 0,
+    "endOffset": 24
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "id": 4,
+      "tenantId": "drill-hospital-20260611",
+      "assetVersionId": 4,
+      "sourceFragmentId": 1,
+      "relation": "DERIVED_FROM",
+      "weight": 97,
+      "startOffset": 0,
+      "endOffset": 24,
+      "createdAt": "2026-06-10T19:23:31.306713589Z",
+      "createdBy": "drill-hospital-admin-20260611"
+    },
+    "traceId": "ff0e2706-a15e-4731-a649-1e5d8f79b952",
+    "timestamp": "2026-06-10T19:23:31.308632098Z"
+  }
+}

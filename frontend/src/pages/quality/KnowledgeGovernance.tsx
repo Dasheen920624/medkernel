@@ -248,6 +248,11 @@ export default function KnowledgeGovernance() {
 
   async function reviewCandidate(decision: KnowledgeCandidateReviewDecision) {
     if (!selectedCandidateId) return;
+    if (!selectedClassification?.id) {
+      message.error("未找到候选分类审核记录");
+      return;
+    }
+    const classificationReviewId = selectedClassification.id;
     try {
       const fields = ["packageVersion", "reason"];
       if (decision === "APPROVE" && publishEvidenceRequired) {
@@ -292,14 +297,14 @@ export default function KnowledgeGovernance() {
         };
       }
       await reviewMutation.mutateAsync({
-        candidateId: selectedCandidateId,
+        candidateId: classificationReviewId,
         packageVersion: values.packageVersion,
         request: {
           decision,
           reason: values.reason.trim(),
           ...(publishEvidence ? { publishEvidence } : {}),
         },
-        idempotencyKey: `knowledge-review-${selectedCandidateId}-${decision.toLowerCase()}`,
+        idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
       });
       message.success(
         decision === "APPROVE" ? "候选已通过审核并交由权威替换流程" : "候选已驳回并留档",

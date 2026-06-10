@@ -1,0 +1,107 @@
+{
+  "actorAccount": "drill-hospital-20260611:drill-medical-affairs-20260611",
+  "actorUsername": "drill-medical-affairs-20260611",
+  "method": "POST",
+  "path": "/api/v1/engine/knowledge/candidates/4/review",
+  "status": 200,
+  "request": {
+    "request_id": "req-act3-20260611-031921-cap-tenant-approve",
+    "trace_id": "act3-20260611-031921-cap-tenant-approve",
+    "tenant_id": "drill-hospital-20260611",
+    "user_id": "drill-medical-affairs-20260611",
+    "role_codes": [
+      "medical-affairs"
+    ],
+    "package_version": "drill-act3-20260611-031921",
+    "decision": "APPROVE",
+    "reason": "医务处质控员会签：租户级 CAP 推荐来源链完整，禁止自动开医嘱。",
+    "publishEvidence": {
+      "electronicSignature": {
+        "signatureId": "sig-act3-20260611-031921-4",
+        "signerId": "drill-medical-affairs-20260611",
+        "signerName": "演练-医务处质控员",
+        "signedAt": "2026-06-10T19:23:31.313948Z",
+        "signatureHash": "304df721662faaf196b9c94b20dfe460487539b9d1c03d8db8cb828bc5691a66"
+      },
+      "qualityGate": {
+        "schemaValid": true,
+        "terminologyBindingComplete": true,
+        "dependencyIntegrityVerified": true,
+        "safetyMonotonicityVerified": true,
+        "impactSimulationPassed": true,
+        "peerReviewSigned": true,
+        "summary": "幕3租户级作用域补发：来源链、电子签名、影响范围复核通过。"
+      }
+    }
+  },
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "identityId": 1,
+      "candidates": [
+        {
+          "id": 4,
+          "tenantId": "drill-hospital-20260611",
+          "identityId": 1,
+          "versionNo": "2016.2-r031921",
+          "versionLabel": "2016版 CAP 经验性抗感染推荐（租户级会签版）",
+          "sourceDocumentId": 1,
+          "sourceVersionId": 1,
+          "contentHash": "3d24fe3297f27ae44c51ca638c04a7c4d7d31d298224c74a89601b53f4b3f707",
+          "anchors": "[{\"source\":\"cap-2016\",\"anchor\":\"empirical-antimicrobial\"}]",
+          "status": "ACTIVE",
+          "riskLevel": "HIGH",
+          "authorityLevel": "B_GUIDELINE",
+          "gradeQuality": "MODERATE",
+          "gradeStrength": "STRONG",
+          "conflictArbitration": null,
+          "organizationScope": "tenant:drill-hospital-20260611",
+          "applicableScope": "ALL",
+          "activeScopeKey": "1|tenant:drill-hospital-20260611|ALL",
+          "effectiveFrom": "2026-06-10T19:23:31.338385342Z",
+          "effectiveTo": null,
+          "reviewedBy": "drill-medical-affairs-20260611",
+          "reviewedAt": "2026-06-10T19:23:31.338385342Z",
+          "activatedAt": "2026-06-10T19:23:31.338385342Z",
+          "supersededAt": null,
+          "withdrawnAt": null,
+          "withdrawnReason": null,
+          "createdAt": "2026-06-10T19:23:31.265811Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:23:31.338385342Z",
+          "updatedBy": "drill-medical-affairs-20260611",
+          "reviewCycleMonths": 12,
+          "nextReviewAt": "2027-06-10T19:23:31.338385342Z",
+          "highRisk": true,
+          "authoritative": true
+        }
+      ],
+      "classifications": [
+        {
+          "id": 4,
+          "tenantId": "drill-hospital-20260611",
+          "orgPath": "tenant:drill-hospital-20260611",
+          "identityId": 1,
+          "candidateVersionId": 4,
+          "activeVersionId": 1,
+          "classification": "SAME_IDENTITY_NEW_VERSION",
+          "reviewStatus": "APPROVED",
+          "contentHash": "3d24fe3297f27ae44c51ca638c04a7c4d7d31d298224c74a89601b53f4b3f707",
+          "basis": "同一知识身份已有 ACTIVE 版本，内容指纹不同，按同身份新版待审；content_hash=3d24fe3297f27ae44c51ca638c04a7c4d7d31d298224c74a89601b53f4b3f707",
+          "diffSummary": "当前 ACTIVE=2016.1-r031921 / B_GUIDELINE；候选=2016.2-r031921 / B_GUIDELINE；候选仅供人工对照审核，不参与临床执行",
+          "createdAt": "2026-06-10T19:23:31.265811Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T19:23:31.337637953Z",
+          "updatedBy": "drill-medical-affairs-20260611"
+        }
+      ],
+      "available": true,
+      "reasonCode": "APPROVED",
+      "message": "候选审核通过，已转交权威版本原子替换流程"
+    },
+    "traceId": "85049a94-edf6-4239-9a46-5ce59abb4238",
+    "timestamp": "2026-06-10T19:23:31.376794256Z"
+  }
+}
