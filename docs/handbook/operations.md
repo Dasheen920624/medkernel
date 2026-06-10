@@ -35,7 +35,7 @@
 - 指标：`/actuator/prometheus`
 - 备份脚本：`deploy/docker/scripts/backup.sh` + `restore.sh`（SHA-256 摘要校验）
 - 国产化配置：`application-govcloud.yml`
-- 首次部署接管：`MEDKERNEL_BOOTSTRAP_INIT_TOKEN` + `/api/v1/bootstrap/*`
+- 首次部署接管：`MEDKERNEL_BOOTSTRAP_INIT_TOKEN` + 前端 `/bootstrap` + API `/api/v1/bootstrap/*`
 - 应急命令：`deploy/docker/scripts/bootstrap-emergency.sh`
 
 ---
@@ -54,12 +54,13 @@ export MEDKERNEL_AUTH_JWT_SECRET='<生产 JWT 强随机密钥，至少 32 位>'
 
 启动后按顺序完成：
 
-1. 打开 `/bootstrap`，输入 init token，确认 token 未过期。
-2. 设置首发平台管理员账号和密码；系统只消费一次 token，账号授予 `platform-admin`，并强制 `must_change_pwd=Y`。
+1. 打开浏览器前端 `/bootstrap`，输入 init token，确认 token 未过期；后端 API 基路径是 `/medkernel/api/v1/bootstrap/*`，不要把 `/medkernel/` 当作前端入口。
+2. 设置首发平台管理员账号和密码；系统只消费一次 token，账号授予 `system-superadmin`，并强制 `must_change_pwd=Y`。
 3. 使用首发账号登录，立即完成首次改密。
 4. 绑定 MFA；恢复码只展示一次，数据库仅保存 SHA-256 摘要。
-5. 绑定 MFA 后开通首个租户；未绑定 MFA 时，高危配置变更与租户开通会返回 `ENG-AUTH-010`。
-6. 销毁部署环境中的 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN`，保留审计记录，不保留明文 token。
+5. 进入 `/workbench/readiness-validation` 查看就绪、阻塞、未启用项；阻塞项按页面原因逐项处理，不得改写为成功。
+6. 绑定 MFA 后开通首个租户；未绑定 MFA 时，高危配置变更与租户开通会返回 `ENG-AUTH-010`。
+7. 销毁部署环境中的 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN`，保留审计记录，不保留明文 token；幕0真实演练证据见 [部署接管与首次登录](../release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/README.md)。
 
 ---
 
