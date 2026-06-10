@@ -50,6 +50,27 @@ describe("PathwayGraphEditor", () => {
     expect(screen.queryByLabelText("删除路径节点 ASSESS")).not.toBeInTheDocument();
   });
 
+  it("详情态为已有流转边保留只读连接点", () => {
+    render(
+      <PathwayGraphEditor
+        nodes={nodes}
+        edges={[
+          {
+            edgeCode: "EDGE_ASSESS_FOLLOWUP",
+            fromNodeCode: "ASSESS",
+            toNodeCode: "FOLLOWUP",
+            edgeType: "DEFAULT",
+          },
+        ]}
+      />,
+    );
+
+    const graph = screen.getByLabelText("路径图编辑器");
+
+    expect(graph.querySelectorAll(".react-flow__handle")).toHaveLength(4);
+    expect(screen.queryByLabelText("删除路径节点 ASSESS")).not.toBeInTheDocument();
+  });
+
   it("节点按退出键时不把事件冒泡到外层弹窗", () => {
     const onOuterKeyDown = vi.fn();
 
