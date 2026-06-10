@@ -135,8 +135,9 @@ class IntegrationHttpDeliveryTest {
         );
 
         assertThat(queued.status()).isEqualTo("RETRYING");
-        assertThat(received.await(3, TimeUnit.SECONDS)).isTrue();
-        assertThat(awaitMessageStatus("tenant-async", "msg-async-1", Duration.ofSeconds(3)))
+        // CI 高负载下异步线程可能被调度延迟数秒，等待窗口放宽到 15 秒；健康路径拿到结果即返回
+        assertThat(received.await(15, TimeUnit.SECONDS)).isTrue();
+        assertThat(awaitMessageStatus("tenant-async", "msg-async-1", Duration.ofSeconds(15)))
             .isEqualTo("SUCCESS");
     }
 
