@@ -1,0 +1,720 @@
+{
+  "generatedAt": "2026-06-10T20:34:41.833Z",
+  "environment": "https://193.112.107.134",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "runTag": "rmq8j1rig",
+  "packageVersion": "2026.06.11-act2-024101",
+  "terminologyFacts": {
+    "activePackage": "TERM.DRILL.ACT2@2026.06.11-act2-024101",
+    "confirmedMappings": [
+      "LIS:K001 -> LOINC:2823-3",
+      "HIS-PHARMACY:Y2035 -> ATC:B01AA03",
+      "HIS-DIAG:ZD0456 -> ICD:J15.9"
+    ],
+    "knownGaps": [
+      "阿司匹林、阿莫西林/克拉维酸采用标准 ATC 编码直接入参；幕2未确认对应院内本地码"
+    ]
+  },
+  "steps": [
+    {
+      "phase": "bad-gate",
+      "label": "create-bad-threshold",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules",
+      "status": 201,
+      "traceId": "act4-rmq8j1rig-create-bad-threshold",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-create-DRILL.ACT4.K.BAD.rmq8j1rig",
+        "trace_id": "act4-rmq8j1rig-create-DRILL.ACT4.K.BAD.rmq8j1rig",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "ruleCode": "DRILL.ACT4.K.BAD.rmq8j1rig",
+        "name": "错误阈值演示：血钾危急值阈值过高",
+        "ruleType": "LAB",
+        "authoringMode": "DSL",
+        "riskLevel": "CRITICAL",
+        "priority": 991,
+        "dedupeWindowSeconds": 60,
+        "applicableOrgUnitId": "tenant:drill-hospital-20260611",
+        "sourceRef": "幕4负例：阈值错误必须被测试拦截",
+        "changeSummary": "错误阈值演示：血钾危急值阈值过高 初始发布，使用幕2 ACTIVE 术语包和幕4演练上下文。",
+        "dsl": {
+          "trigger": "result-review",
+          "applicability": {
+            "population": {},
+            "orgScope": {},
+            "settings": [
+              "INPATIENT",
+              "OUTPATIENT",
+              "ED",
+              "FOLLOWUP"
+            ],
+            "effective": {
+              "rolloutPercent": 100
+            }
+          },
+          "meta": {
+            "packageVersion": "2026.06.11-act2-024101",
+            "terminologyPackage": "TERM.DRILL.ACT2@2026.06.11-act2-024101",
+            "readable": "当血钾 K001 最近值大于等于 6.5 或小于等于 2.5 mmol/L 时，强提醒主管医师 30 分钟内确认闭环。"
+          },
+          "when": {
+            "any": [
+              {
+                "expr": {
+                  "field": "observations[].valueNumeric",
+                  "select": "latest",
+                  "where": {
+                    "all": [
+                      {
+                        "expr": {
+                          "field": "observations[].code"
+                        },
+                        "operator": "equals",
+                        "value": {
+                          "const": "K001"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "operator": "gte",
+                "value": {
+                  "const": 7
+                }
+              },
+              {
+                "expr": {
+                  "field": "observations[].valueNumeric",
+                  "select": "latest",
+                  "where": {
+                    "all": [
+                      {
+                        "expr": {
+                          "field": "observations[].code"
+                        },
+                        "operator": "equals",
+                        "value": {
+                          "const": "K001"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "operator": "lte",
+                "value": {
+                  "const": 2.5
+                }
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "atSeverity": "CRITICAL",
+              "indicator": "critical",
+              "summary": "血钾危急值需 30 分钟闭环确认",
+              "detail": "最近一次血钾达到危急阈值，请主管医师确认结果、通知责任医生并记录回报闭环。",
+              "source": {
+                "label": "幕3知识资产：血钾危急值阈值与报告时限",
+                "evidenceLevel": "D_HOSPITAL"
+              },
+              "suggestions": [
+                {
+                  "label": "创建危急值闭环任务",
+                  "actionType": "CREATE_TASK",
+                  "payload": {
+                    "dueMinutes": 30,
+                    "assigneeRole": "attending-physician"
+                  }
+                }
+              ],
+              "overrideReasons": [
+                "复查标本溶血或污染",
+                "已由上级医师确认并记录"
+              ],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "血钾危急值规则",
+            "reason": "读取 LIS K001 最近血钾值，与院内危急值阈值比较。",
+            "sourceRef": "幕3血钾危急值知识版本 v4；幕2术语包 TERM.DRILL.ACT2"
+          }
+        },
+        "explanation": {
+          "title": "血钾危急值规则",
+          "reason": "读取 LIS K001 最近血钾值，与院内危急值阈值比较。",
+          "sourceRef": "幕3血钾危急值知识版本 v4；幕2术语包 TERM.DRILL.ACT2"
+        },
+        "parameterBindings": null
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-b84c345e-b391-49ee-afbd-766daa010827",
+          "versionId": "rv-bb391912-104f-4515-889b-f6d28f68d052",
+          "status": "DRAFT",
+          "traceId": "act4-rmq8j1rig-create-bad-threshold"
+        },
+        "traceId": "act4-rmq8j1rig-create-bad-threshold",
+        "timestamp": "2026-06-10T20:34:38.067697701Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "case-rule-b84c345e-b391-49ee-afbd-766daa010827-POSITIVE",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/test-cases",
+      "status": 201,
+      "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-POSITIVE",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-POSITIVE",
+        "trace_id": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-POSITIVE",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "POSITIVE",
+        "contextSnapshotId": "ctx-66a42736-04c2-47e1-9da1-b1d752a787da",
+        "expectedHit": true,
+        "expectedSeverity": "CRITICAL",
+        "expectedActionCode": "STRONG_REMINDER"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-3816ad64-53e7-4b96-bc43-6c65a820f4ee",
+          "caseType": "POSITIVE",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-POSITIVE",
+        "timestamp": "2026-06-10T20:34:38.111788066Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "case-rule-b84c345e-b391-49ee-afbd-766daa010827-NEGATIVE",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/test-cases",
+      "status": 201,
+      "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-NEGATIVE",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-NEGATIVE",
+        "trace_id": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-NEGATIVE",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "NEGATIVE",
+        "contextSnapshotId": "ctx-3d5ab1cd-8d02-4c43-86d8-b43b9f3f65c2",
+        "expectedHit": false
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-9042570e-314b-45c9-ba85-452273f154b4",
+          "caseType": "NEGATIVE",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-NEGATIVE",
+        "timestamp": "2026-06-10T20:34:38.159083449Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "case-rule-b84c345e-b391-49ee-afbd-766daa010827-BOUNDARY",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/test-cases",
+      "status": 201,
+      "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-BOUNDARY",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-BOUNDARY",
+        "trace_id": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-BOUNDARY",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "BOUNDARY",
+        "contextSnapshotId": "ctx-20c5080f-e58b-4137-9c82-2d7f4a901924",
+        "expectedHit": true,
+        "expectedSeverity": "CRITICAL",
+        "expectedActionCode": "STRONG_REMINDER"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-584358d1-e1e0-4dd8-b237-f761ce890c1c",
+          "caseType": "BOUNDARY",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-BOUNDARY",
+        "timestamp": "2026-06-10T20:34:38.201829707Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "case-rule-b84c345e-b391-49ee-afbd-766daa010827-CONFLICT",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/test-cases",
+      "status": 201,
+      "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-CONFLICT",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-CONFLICT",
+        "trace_id": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-CONFLICT",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "CONFLICT",
+        "contextSnapshotId": "ctx-42c6dc91-735a-4688-9e3e-72609b984693",
+        "expectedHit": false
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-619707ca-cbdb-4b41-b30e-dc128ae6132d",
+          "caseType": "CONFLICT",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act4-rmq8j1rig-case-rule-b84c345e-b391-49ee-afbd-766daa010827-CONFLICT",
+        "timestamp": "2026-06-10T20:34:38.243020562Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "test-bad-threshold",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/test",
+      "status": 200,
+      "traceId": "act4-rmq8j1rig-test-bad-threshold",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-test-bad-threshold",
+        "trace_id": "act4-rmq8j1rig-test-bad-threshold",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-b84c345e-b391-49ee-afbd-766daa010827",
+          "versionId": "rv-bb391912-104f-4515-889b-f6d28f68d052",
+          "allPassed": false,
+          "results": [
+            {
+              "caseId": "rtc-3816ad64-53e7-4b96-bc43-6c65a820f4ee",
+              "caseType": "POSITIVE",
+              "expectedHit": true,
+              "actualHit": false,
+              "expectedSeverity": "CRITICAL",
+              "actualSeverity": null,
+              "status": "FAIL",
+              "message": "实际结果与期望不一致"
+            },
+            {
+              "caseId": "rtc-9042570e-314b-45c9-ba85-452273f154b4",
+              "caseType": "NEGATIVE",
+              "expectedHit": false,
+              "actualHit": false,
+              "expectedSeverity": null,
+              "actualSeverity": null,
+              "status": "PASS",
+              "message": "测试通过"
+            },
+            {
+              "caseId": "rtc-584358d1-e1e0-4dd8-b237-f761ce890c1c",
+              "caseType": "BOUNDARY",
+              "expectedHit": true,
+              "actualHit": false,
+              "expectedSeverity": "CRITICAL",
+              "actualSeverity": null,
+              "status": "FAIL",
+              "message": "实际结果与期望不一致"
+            },
+            {
+              "caseId": "rtc-619707ca-cbdb-4b41-b30e-dc128ae6132d",
+              "caseType": "CONFLICT",
+              "expectedHit": false,
+              "actualHit": false,
+              "expectedSeverity": null,
+              "actualSeverity": null,
+              "status": "PASS",
+              "message": "测试通过"
+            }
+          ],
+          "traceId": "act4-rmq8j1rig-test-bad-threshold"
+        },
+        "traceId": "act4-rmq8j1rig-test-bad-threshold",
+        "timestamp": "2026-06-10T20:34:38.285032176Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "impact-bad-threshold",
+      "actor": "medical",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/impact",
+      "status": 200,
+      "traceId": "act4-rmq8j1rig-impact-bad-threshold",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-b84c345e-b391-49ee-afbd-766daa010827",
+          "versionId": "rv-bb391912-104f-4515-889b-f6d28f68d052",
+          "riskLevel": "CRITICAL",
+          "analysisStatus": "COMPLETE",
+          "impactDigest": "sha256:a5de2b16496f8ff172dbe70dd89fe74ab8b65d470f73ad8fcaad1572dee9e784",
+          "affectedRules": [
+            {
+              "objectType": "RULE_DEFINITION",
+              "objectId": "rule-b84c345e-b391-49ee-afbd-766daa010827",
+              "displayName": "错误阈值演示：血钾危急值阈值过高",
+              "impactReason": "当前规则版本将被发布或替换"
+            }
+          ],
+          "affectedPathways": [],
+          "inPathPatients": [],
+          "integrationAdapters": [],
+          "unavailableScopes": [],
+          "traceId": "act4-rmq8j1rig-impact-bad-threshold"
+        },
+        "traceId": "act4-rmq8j1rig-impact-bad-threshold",
+        "timestamp": "2026-06-10T20:34:38.318907842Z"
+      }
+    },
+    {
+      "phase": "bad-gate",
+      "label": "bad-threshold-peer-denied",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/governance/transitions",
+      "status": 409,
+      "traceId": "act4-rmq8j1rig-bad-threshold-peer-denied",
+      "request": {
+        "request_id": "req-act4-rmq8j1rig-transition-bad-threshold",
+        "trace_id": "act4-rmq8j1rig-transition-bad-threshold",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "PEER_REVIEW",
+        "impactDigest": "sha256:a5de2b16496f8ff172dbe70dd89fe74ab8b65d470f73ad8fcaad1572dee9e784",
+        "reason": "错误阈值规则尝试提交，必须因测试失败被拒绝。"
+      },
+      "response": {
+        "type": "urn:medkernel:error:ENG-RULE-004",
+        "title": "发布门禁失败",
+        "status": 409,
+        "detail": "规则测试用例未全部通过",
+        "instance": "/medkernel/api/v1/engine/rule/rules/rule-b84c345e-b391-49ee-afbd-766daa010827/governance/transitions",
+        "code": "ENG-RULE-004",
+        "errorClass": "DATA",
+        "retryable": false,
+        "traceId": "act4-rmq8j1rig-bad-threshold-peer-denied"
+      }
+    }
+  ],
+  "R1-POS": {
+    "snapshotId": "ctx-66a42736-04c2-47e1-9da1-b1d752a787da",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R1POS:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1POS:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1POS:departmentId:dept-internal-medicine": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-pos:code:K001": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-pos:unit:mmol/L": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-pos:criticalFlag:CRITICAL": "UNKNOWN"
+    }
+  },
+  "R1-NEG": {
+    "snapshotId": "ctx-3d5ab1cd-8d02-4c43-86d8-b43b9f3f65c2",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R1NEG:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1NEG:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1NEG:departmentId:dept-internal-medicine": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-neg:code:K001": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-neg:unit:mmol/L": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-neg:criticalFlag:NORMAL": "UNKNOWN"
+    }
+  },
+  "R1-BOUNDARY": {
+    "snapshotId": "ctx-20c5080f-e58b-4137-9c82-2d7f4a901924",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R1BOUND:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1BOUND:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1BOUND:departmentId:dept-internal-medicine": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-bound:code:K001": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-bound:unit:mmol/L": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-bound:criticalFlag:CRITICAL": "UNKNOWN"
+    }
+  },
+  "R1-CONFLICT": {
+    "snapshotId": "ctx-42c6dc91-735a-4688-9e3e-72609b984693",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R1CONFLICT:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1CONFLICT:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R1CONFLICT:departmentId:dept-internal-medicine": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-conflict:code:NA001": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-conflict:unit:mmol/L": "UNKNOWN",
+      "OBSERVATION:obs-rmq8j1rig-r1-conflict:criticalFlag:CRITICAL": "UNKNOWN"
+    }
+  },
+  "R2-POS": {
+    "snapshotId": "ctx-2ccf61d7-bac5-44de-ac4d-0c25edb36a9f",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R2POS:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2POS:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2POS:departmentId:dept-internal-medicine": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin:code:B01AA03": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin:prescriptionStatus:ACTIVE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin:code:B01AC06": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R2-NEG": {
+    "snapshotId": "ctx-7102f2a3-ef87-4184-b01e-b52fdfc6d4cf",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R2NEG:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2NEG:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2NEG:departmentId:dept-internal-medicine": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-only:code:B01AA03": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-only:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-only:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-only:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-only:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R2-BOUNDARY": {
+    "snapshotId": "ctx-38dd048e-2d28-4644-b162-361e946f66d7",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R2BOUND:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2BOUND:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2BOUND:departmentId:dept-internal-medicine": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-b:code:B01AA03": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-b:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-b:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-b:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-b:prescriptionStatus:ACTIVE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-b:code:B01AC06": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-b:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-b:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-b:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-b:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R2-CONFLICT": {
+    "snapshotId": "ctx-7c5e7d97-e306-42d1-8863-8ad9ca317f2a",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R2CONFLICT:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2CONFLICT:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R2CONFLICT:departmentId:dept-internal-medicine": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-c:code:B01AC06": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-c:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-c:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-c:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-aspirin-c:prescriptionStatus:ACTIVE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-clopidogrel-c:code:B01AC04": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-clopidogrel-c:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-clopidogrel-c:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-clopidogrel-c:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-clopidogrel-c:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R3-POS": {
+    "snapshotId": "ctx-15d10451-273b-4129-a7f4-15a428beb15d",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R3POS:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3POS:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3POS:departmentId:dept-internal-medicine": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral:code:J18.9": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral:stage:ACTIVE": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral:severity:MODERATE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-pos:code:J01CR02": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-pos:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-pos:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-pos:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-pos:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R3-NEG": {
+    "snapshotId": "ctx-3eefba3e-4d9a-4eab-b70f-5af5a9a15aff",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R3NEG:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3NEG:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3NEG:departmentId:dept-internal-medicine": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial:code:ZD0456": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial:stage:ACTIVE": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial:severity:MODERATE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-neg:code:J01CR02": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-neg:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-neg:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-neg:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-neg:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R3-BOUNDARY": {
+    "snapshotId": "ctx-f7d26bae-d835-4f74-8b93-cf231cbec512",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R3BOUND:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3BOUND:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3BOUND:departmentId:dept-internal-medicine": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial-local:code:ZD0456": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial-local:stage:ACTIVE": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-bacterial-local:severity:MODERATE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-bound:code:J01CR02": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-bound:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-bound:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-bound:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-amox-bound:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "R3-CONFLICT": {
+    "snapshotId": "ctx-b3f7ade3-6bcc-4cf9-87af-39cc6d978cd7",
+    "qualityStatus": "VALID",
+    "mappingStatus": {
+      "PATIENT:P-rmq8j1rig-R3CONFLICT:gender:FEMALE": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3CONFLICT:encounterType:INPATIENT": "UNKNOWN",
+      "ENCOUNTER:enc-P-rmq8j1rig-R3CONFLICT:departmentId:dept-internal-medicine": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral-c:code:J18.9": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral-c:stage:ACTIVE": "UNKNOWN",
+      "CONDITION:cond-rmq8j1rig-viral-c:severity:MODERATE": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-r3c:code:B01AA03": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-r3c:doseUnit:片": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-r3c:route:PO": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-r3c:frequency:QD": "UNKNOWN",
+      "MEDICATION:med-rmq8j1rig-warfarin-r3c:prescriptionStatus:ACTIVE": "UNKNOWN"
+    }
+  },
+  "summary": {
+    "runTag": "rmq8j1rig",
+    "activePackageVersion": "2026.06.11-act2-024101",
+    "snapshots": [
+      {
+        "key": "R1-POS",
+        "snapshotId": "ctx-66a42736-04c2-47e1-9da1-b1d752a787da"
+      },
+      {
+        "key": "R1-NEG",
+        "snapshotId": "ctx-3d5ab1cd-8d02-4c43-86d8-b43b9f3f65c2"
+      },
+      {
+        "key": "R1-BOUNDARY",
+        "snapshotId": "ctx-20c5080f-e58b-4137-9c82-2d7f4a901924"
+      },
+      {
+        "key": "R1-CONFLICT",
+        "snapshotId": "ctx-42c6dc91-735a-4688-9e3e-72609b984693"
+      },
+      {
+        "key": "R2-POS",
+        "snapshotId": "ctx-2ccf61d7-bac5-44de-ac4d-0c25edb36a9f"
+      },
+      {
+        "key": "R2-NEG",
+        "snapshotId": "ctx-7102f2a3-ef87-4184-b01e-b52fdfc6d4cf"
+      },
+      {
+        "key": "R2-BOUNDARY",
+        "snapshotId": "ctx-38dd048e-2d28-4644-b162-361e946f66d7"
+      },
+      {
+        "key": "R2-CONFLICT",
+        "snapshotId": "ctx-7c5e7d97-e306-42d1-8863-8ad9ca317f2a"
+      },
+      {
+        "key": "R3-POS",
+        "snapshotId": "ctx-15d10451-273b-4129-a7f4-15a428beb15d"
+      },
+      {
+        "key": "R3-NEG",
+        "snapshotId": "ctx-3eefba3e-4d9a-4eab-b70f-5af5a9a15aff"
+      },
+      {
+        "key": "R3-BOUNDARY",
+        "snapshotId": "ctx-f7d26bae-d835-4f74-8b93-cf231cbec512"
+      },
+      {
+        "key": "R3-CONFLICT",
+        "snapshotId": "ctx-b3f7ade3-6bcc-4cf9-87af-39cc6d978cd7"
+      }
+    ],
+    "ruleResults": [
+      {
+        "ruleId": "rule-f28e2b37-689f-46f9-93a7-82515bf162fd",
+        "shadowExecutionId": "rex-b3bf3aaa-1aaf-484c-9f4e-c68693a9b220",
+        "fullExecutionId": "rex-a850cd47-4f54-4649-98aa-4fa85782b3f8"
+      },
+      {
+        "ruleId": "rule-6c2285f8-777b-4402-ad64-9ef0eca71fcb",
+        "shadowExecutionId": "rex-d3f463cc-5d89-4550-b80b-01ad4120e884",
+        "fullExecutionId": "rex-7340438c-9993-4169-8dc0-4ae5f99b2fda"
+      },
+      {
+        "ruleId": "rule-00297cb4-9214-4ec1-85a5-7f83b7e597a8",
+        "shadowExecutionId": "rex-435f2dcd-ba23-4ccf-aa4a-8a87d07550bc",
+        "fullExecutionId": "rex-c4e5b6a5-d1dc-415f-96a2-e380184e6373"
+      }
+    ]
+  }
+}

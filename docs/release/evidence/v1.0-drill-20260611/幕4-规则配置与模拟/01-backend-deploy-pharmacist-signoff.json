@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-06-10T20:06:31.382Z",
+  "environment": "https://193.112.107.134",
+  "purpose": "幕4前置后端补丁：允许临床药师执行 DDI 规则同行评审签署",
+  "source": "codex-demo-drill-act4-rules-simulation-pharmacist-signoff",
+  "jarSha256": "a8953fb882a61f0b953f31009d4f33e2761666031cf1131d85e5e2e744d858be",
+  "manifest": {
+    "source": "codex-demo-drill-act4-rules-simulation-pharmacist-signoff",
+    "commit": "codex-demo-drill-act4-rules-simulation-pharmacist-signoff",
+    "deployedAt": "2026-06-11T04:02:34+08:00",
+    "jarSha256": "a8953fb882a61f0b953f31009d4f33e2761666031cf1131d85e5e2e744d858be"
+  },
+  "serviceActive": "active",
+  "readiness": {
+    "httpStatus": 200,
+    "body": {
+      "status": "UP"
+    }
+  },
+  "recentBackups": [
+    "/zoesoft/medkernel/backups/deploy-20260611-040234",
+    "/zoesoft/medkernel/backups/deploy-20260611-023703",
+    "/zoesoft/medkernel/backups/deploy-20260611-023254",
+    "/zoesoft/medkernel/backups/deploy-20260611-022116",
+    "/zoesoft/medkernel/backups/deploy-20260611-014110"
+  ]
+}

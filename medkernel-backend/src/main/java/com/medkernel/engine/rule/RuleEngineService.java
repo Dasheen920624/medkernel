@@ -795,6 +795,7 @@ public class RuleEngineService {
 
     private static RoleCode authenticatedSignoffRole() {
         return List.of(
+                RoleCode.PHARMACIST,
                 RoleCode.MEDICAL_AFFAIRS,
                 RoleCode.QA_MANAGER,
                 RoleCode.INSURANCE_MANAGER,

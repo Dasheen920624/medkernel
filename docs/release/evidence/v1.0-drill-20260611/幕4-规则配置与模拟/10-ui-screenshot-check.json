@@ -1,0 +1,43 @@
+{
+  "environment": "https://193.112.107.134",
+  "generatedAt": "2026-06-10T20:46:00.605Z",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "actor": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-hospital-admin-20260611"
+  },
+  "screenshots": [
+    {
+      "key": "rule-definitions",
+      "url": "https://193.112.107.134/rule/definitions",
+      "screenshot": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/08-ui-rule-definitions.png"
+    },
+    {
+      "key": "rule-validate",
+      "url": "https://193.112.107.134/rule/validate",
+      "screenshot": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/09-ui-rule-validate.png"
+    }
+  ],
+  "consoleErrorCount": 0,
+  "consoleErrors": [],
+  "failedRequestCount": 3,
+  "failedRequestAssessment": "3 个失败请求均为登录后页面跳转期间浏览器主动中止的 GET 请求；目标页面已渲染，控制台 error 为 0，本幕按非阻断截图噪声登记。",
+  "nonBlockingNavigationAbortCount": 3,
+  "failedRequests": [
+    {
+      "url": "https://193.112.107.134/medkernel/api/v1/auth/session",
+      "method": "GET",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://193.112.107.134/medkernel/api/v1/security/me",
+      "method": "GET",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://193.112.107.134/medkernel/api/v1/experience/theme-preference",
+      "method": "GET",
+      "failure": "net::ERR_ABORTED"
+    }
+  ]
+}

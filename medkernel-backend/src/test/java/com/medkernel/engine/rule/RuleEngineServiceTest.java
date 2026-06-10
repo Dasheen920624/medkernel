@@ -447,6 +447,51 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void clinicalPharmacistCanBeAuthenticatedPeerReviewer() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        RuleGovernance peerReview = governance(RuleGovernanceState.PEER_REVIEW);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(peerReview);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
+        when(governanceService.recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.PEER_REVIEW,
+            RuleSignoffDecision.APPROVED,
+            "临床药师确认 DDI 出血风险提醒逻辑",
+            "tester",
+            RoleCode.PHARMACIST,
+            "trace-rule"
+        )).thenReturn(peerReview);
+        authenticate(RoleCode.PHARMACIST);
+
+        service.signoffGovernance(
+            "rule-1",
+            new RuleSignoffRequest(
+                RuleSignoffStage.PEER_REVIEW,
+                RuleSignoffDecision.APPROVED,
+                "临床药师确认 DDI 出血风险提醒逻辑"
+            )
+        );
+
+        verify(governanceService).recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.PEER_REVIEW,
+            RuleSignoffDecision.APPROVED,
+            "临床药师确认 DDI 出血风险提醒逻辑",
+            "tester",
+            RoleCode.PHARMACIST,
+            "trace-rule"
+        );
+    }
+
+    @Test
     void rejectedSignoffReturnsUnifiedVersionToDraftForNextReviewRound() {
         RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
         RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);

@@ -1,0 +1,306 @@
+{
+  "generatedAt": "2026-06-10T19:59:52.232Z",
+  "environment": "https://193.112.107.134",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "UP",
+      "groups": [
+        "liveness",
+        "readiness"
+      ]
+    }
+  },
+  "accounts": [
+    {
+      "account": "drill-hospital-20260611:drill-hospital-admin-20260611",
+      "purpose": "演练总医院租户管理员",
+      "login": {
+        "userId": "drill-hospital-admin-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "hospital-admin"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": true,
+        "mfaBound": true
+      },
+      "profile": {
+        "userId": "drill-hospital-admin-20260611",
+        "username": "drill-hospital-admin-20260611",
+        "roles": [
+          "hospital-admin"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "context.write",
+          "evaluation.publish",
+          "package.publish",
+          "package.read",
+          "rule.override",
+          "rule.publish",
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": [
+          "rule-definitions",
+          "rule-validate"
+        ]
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-medical-affairs-20260611",
+      "purpose": "演练-医务处质控员",
+      "login": {
+        "userId": "drill-medical-affairs-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "medical-affairs"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-medical-affairs-20260611",
+        "username": "drill-medical-affairs-20260611",
+        "roles": [
+          "medical-affairs"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "rule.publish",
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": [
+          "rule-definitions",
+          "rule-validate"
+        ]
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-insurance-20260611",
+      "purpose": "演练-医保办专员",
+      "login": {
+        "userId": "drill-insurance-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "insurance-manager"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-insurance-20260611",
+        "username": "drill-insurance-20260611",
+        "roles": [
+          "insurance-manager"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": []
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-clinical-pharmacist-20260611",
+      "purpose": "演练-临床药师",
+      "login": {
+        "userId": "drill-clinical-pharmacist-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "pharmacist"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-clinical-pharmacist-20260611",
+        "username": "drill-clinical-pharmacist-20260611",
+        "roles": [
+          "pharmacist"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": [
+          "rule-definitions",
+          "rule-validate"
+        ]
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-role-qa-manager-20260611",
+      "purpose": "演练-角色抽查-质控办主任",
+      "login": {
+        "userId": "drill-role-qa-manager-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "qa-manager"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-role-qa-manager-20260611",
+        "username": "drill-role-qa-manager-20260611",
+        "roles": [
+          "qa-manager"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "evaluation.publish",
+          "rule.read"
+        ],
+        "menuKeys": []
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-role-dept-head-20260611",
+      "purpose": "演练-角色抽查-科主任",
+      "login": {
+        "userId": "drill-role-dept-head-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "dept-head"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-role-dept-head-20260611",
+        "username": "drill-role-dept-head-20260611",
+        "roles": [
+          "dept-head"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "rule.override",
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": [
+          "rule-definitions",
+          "rule-validate"
+        ]
+      }
+    },
+    {
+      "account": "drill-hospital-20260611:drill-role-specialist-20260611",
+      "purpose": "演练-角色抽查-专科专家",
+      "login": {
+        "userId": "drill-role-specialist-20260611",
+        "tenantId": "drill-hospital-20260611",
+        "roles": [
+          "specialist"
+        ],
+        "mustChangePwd": false,
+        "mfaRequired": false,
+        "mfaBound": false
+      },
+      "profile": {
+        "userId": "drill-role-specialist-20260611",
+        "username": "drill-role-specialist-20260611",
+        "roles": [
+          "specialist"
+        ],
+        "dataScope": {
+          "tenantId": "drill-hospital-20260611",
+          "groupId": null,
+          "hospitalId": null,
+          "campusId": null,
+          "siteId": null,
+          "departmentId": null,
+          "specialtyId": null
+        },
+        "rulePermissions": [
+          "context.read",
+          "rule.override",
+          "rule.read",
+          "rule.write"
+        ],
+        "menuKeys": [
+          "rule-definitions",
+          "rule-validate"
+        ]
+      }
+    }
+  ],
+  "packages": {
+    "status": 200,
+    "items": [
+      {
+        "packageId": "e2d73e37-5b4f-4ee5-9bf3-15ba0a5fe0cb",
+        "packageCode": "TERM.DRILL.ACT2",
+        "packageVersion": "2026.06.11-act2-024101",
+        "status": "DRAFT",
+        "itemCount": 1,
+        "updatedAt": "2026-06-10T18:41:08.239368Z"
+      }
+    ],
+    "total": 1
+  }
+}
