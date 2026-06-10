@@ -67,6 +67,8 @@ export MEDKERNEL_AUTH_JWT_SECRET='<生产 JWT 强随机密钥，至少 32 位>'
 
 应急命令只允许在本机控制台执行，必须同时提供本机确认、二次确认、操作者和原因。缺任一项会拒绝执行，且不得把拒绝写成成功。
 
+> **救命通道启动语义**：`bootstrap-emergency.sh` 以**非 Web 模式**（`--spring.main.web-application-type=none`，应用入口检测到 `--bootstrap-emergency` 时也会强制兜底）旁路启动，**不绑定业务端口**，因此生产实例仍在运行时也可执行，无需占用空闲端口变通。命令执行并提交后进程**一发即走、自动退出**，运维无需手动 kill。
+
 MFA 重置：
 
 ```bash

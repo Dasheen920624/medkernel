@@ -35,6 +35,7 @@ class BootstrapEmergencyCommandTest {
     private ByteArrayOutputStream output;
     private BootstrapEmergencyCommand command;
     private AtomicReference<PlatformCredential> saved;
+    private AtomicReference<Integer> exitCode;
 
     @BeforeEach
     void setUp() {
@@ -42,8 +43,9 @@ class BootstrapEmergencyCommandTest {
         users = mock(TenantUserRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         output = new ByteArrayOutputStream();
+        exitCode = new AtomicReference<>();
         command = new BootstrapEmergencyCommand(credentials, users, auditRecorder,
-            new PrintStream(output, true, StandardCharsets.UTF_8));
+            new PrintStream(output, true, StandardCharsets.UTF_8), exitCode::set);
         saved = new AtomicReference<>();
         when(credentials.save(any())).thenAnswer(inv -> {
             PlatformCredential credential = inv.getArgument(0);
@@ -57,6 +59,32 @@ class BootstrapEmergencyCommandTest {
         command.run(new DefaultApplicationArguments("--server.port=18080"));
 
         verify(credentials, never()).save(any());
+    }
+
+    @Test
+    void normalStartupNeverRequestsExit() {
+        command.run(new DefaultApplicationArguments("--server.port=18080"));
+        command.exitIfEmergencyExecuted();
+
+        assertThat(exitCode.get()).as("正常启动不得触发救命通道退出").isNull();
+    }
+
+    @Test
+    void successfulEmergencyRequestsCleanExitAfterCommit() {
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential("LOCKED", "old-mfa-hash")));
+
+        command.run(args(
+            "--bootstrap-emergency=mfa-reset",
+            "--tenant-id=t-1",
+            "--user-id=platform-owner",
+            "--actor=ops",
+            "--reason=值班应急",
+            "--local-confirm=MEDKERNEL_LOCAL_CONSOLE",
+            "--confirm=RESET_MFA:platform-owner"));
+        command.exitIfEmergencyExecuted();
+
+        assertThat(exitCode.get()).as("救命通道执行完成后应一发干净退出").isZero();
     }
 
     @Test
