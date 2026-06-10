@@ -157,6 +157,26 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void conditionTreeCanBeEvaluatedWithoutActionCardsForMetricDefinitions() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluateConditionTree(
+            read("""
+                {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]}
+                """),
+            read("""
+                {"patient": {"present": true}}
+                """),
+            read("""
+                "评估指标条件树校验"
+                """));
+
+        assertThat(result.hit()).isTrue();
+        assertThat(result.actions()).isEmpty();
+        assertThat(result.severity()).isNull();
+        assertThat(result.explanation().path("summary").asText()).isEqualTo("评估指标条件树校验");
+        assertThat(result.explanation().path("conditionEvidence")).hasSize(1);
+    }
+
+    @Test
     void missingActionSectionIsRejectedEvenWhenConditionDoesNotMatch() throws Exception {
         JsonNode dsl = read("""
             {

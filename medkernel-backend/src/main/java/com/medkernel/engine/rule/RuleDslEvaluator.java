@@ -82,6 +82,24 @@ public class RuleDslEvaluator {
         return new RuleDslEvaluation(true, highest, actions, explanation);
     }
 
+    /**
+     * 仅执行条件树，用于评估指标等“规则条件复用”场景。
+     *
+     * <p>完整规则 DSL 仍必须通过 {@link #evaluate(JsonNode, JsonNode)} 校验 {@code then} 动作卡；
+     * 本入口只接受 {@code all/any/not/leaf} 条件树，不生成动作，避免评估指标为了复用条件求值而构造空动作规则。
+     */
+    public RuleDslEvaluation evaluateConditionTree(JsonNode condition, JsonNode context, JsonNode explain) {
+        if (condition == null || !condition.isObject()) {
+            throw invalid("规则条件树必须是 JSON 对象");
+        }
+        MissingPolicy missingPolicy = MissingPolicy.UNKNOWN_AS_FALSE;
+        ConditionEvaluation result = conditionEvaluator.evaluate(
+            condition,
+            context == null ? json.createObjectNode() : context);
+        JsonNode explanation = buildExplanation(explain, result.evidence(), missingPolicy, false);
+        return new RuleDslEvaluation(result.matched(), null, List.of(), explanation);
+    }
+
     private List<RuleActionResult> parseActions(JsonNode then) {
         if (!then.isArray()) {
             throw invalid("then 必须是数组");

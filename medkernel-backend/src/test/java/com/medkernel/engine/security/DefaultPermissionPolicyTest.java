@@ -79,6 +79,16 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void clinicalRolesCanExecuteFollowupButCannotConfigureEvaluation() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
+            .contains(PermissionCode.FOLLOWUP_READ, PermissionCode.FOLLOWUP_WRITE)
+            .doesNotContain(PermissionCode.EVALUATION_WRITE, PermissionCode.EVALUATION_EXECUTE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
+            .contains(PermissionCode.FOLLOWUP_READ, PermissionCode.FOLLOWUP_WRITE)
+            .doesNotContain(PermissionCode.EVALUATION_WRITE, PermissionCode.EVALUATION_EXECUTE);
+    }
+
+    @Test
     void modelExecutionAndTenantPolicyManagementUseSeparatePermissions() {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
             .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)

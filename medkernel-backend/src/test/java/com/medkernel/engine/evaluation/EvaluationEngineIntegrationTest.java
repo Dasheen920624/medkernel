@@ -238,7 +238,7 @@ class EvaluationEngineIntegrationTest {
 
     @Test
     void evaluateSnapshotReplaysExistingAutomaticRunThroughRealRepositories() {
-        when(ruleEvaluator.evaluate(any(), any()))
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
             .thenReturn(ruleEvaluation(true, "分母规则定义校验", "patient.qualityReady", true))
             .thenReturn(ruleEvaluation(false, "分子规则定义校验", "patient.completed", false))
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
@@ -290,7 +290,7 @@ class EvaluationEngineIntegrationTest {
         EvaluationRun savedRun = runs.findByRunIdAndTenantId(first.runId(), "tenant-A").orElseThrow();
         assertThat(savedRun.runCode()).startsWith("ER_AUTO_").hasSize("ER_AUTO_".length() + 16);
         assertThat(savedRun.inputDigest()).startsWith("sha256:");
-        verify(ruleEvaluator, times(4)).evaluate(any(), any());
+        verify(ruleEvaluator, times(4)).evaluateConditionTree(any(), any(), any());
     }
 
     private QualityFinding finding(

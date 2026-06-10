@@ -229,7 +229,7 @@ public final class DefaultPermissionPolicy {
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE));
 
-        // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
+        // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读 + 随访计划执行
         map.put(RoleCode.DOCTOR, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
@@ -241,7 +241,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             KNOWLEDGE_READ,
             MPI_READ,
-            FOLLOWUP_READ,
+            FOLLOWUP_READ, FOLLOWUP_WRITE,
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
@@ -255,7 +255,7 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP));
 
-        // 护理人员：护理决策与提醒 + 临床上下文只读
+        // 护理人员：护理决策与提醒 + 临床上下文只读 + 随访任务执行
         map.put(RoleCode.NURSE, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_PATHWAY,
@@ -266,7 +266,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             KNOWLEDGE_READ,
             MPI_READ,
-            FOLLOWUP_READ,
+            FOLLOWUP_READ, FOLLOWUP_WRITE,
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,

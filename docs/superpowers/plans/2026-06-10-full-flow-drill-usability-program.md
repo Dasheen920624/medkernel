@@ -185,6 +185,7 @@
 - **动作**：建随访计划绑定幕6患者 → 生成任务 → 护士执行一次随访填报（顺带验证 NURSE 角色权限边界）；配置两指标 → 跑评估 → 看结果 → 触发一条质控预警 → 建整改任务 → 驾驶舱总览。
 - **通过判据**：随访任务如期生成；指标计算结果与幕6演练事实一致（如闭环率 100%）；整改任务可闭环。
 - **同步产出**：《质控改进手册》全骨架；词条（随访计划、指标、预警、整改、驾驶舱）。
+- **执行结果（2026-06-11）**：幕7已在 134 完成，证据见 `docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md`。最终批次 `act7-8pvve2efe9` 由呼吸科医生创建 CAP 出院随访计划 `fp-0db7e675-7065-47c4-bb14-9e69d4b09895`，护士提交 7 天电话症状问卷 `fq-c406524a-d1e6-48d9-a62d-dd71891c8cff`、上报异常返院 `fe-8e7e4f9d-f633-456b-bc7b-93edcc897df6` 并回流快照 `ctx-d2628712-28c5-4244-9c27-d30fdef6c9eb`。质控办建两项指标，医院管理员全量激活；评估运行 `er-163772d6-2c85-4833-a912-0fe7224a1366` 生成 2 条结果、1 条 P1 问题 `qf-bd511a46-48a8-4dcf-85b2-09b62e6f9aea`、1 个预警和整改任务 `rct-c37d8d8c-bd0a-43c0-a11d-23997bc13059`，科主任提交整改、质控办复核关闭。角色边界实测：护士不能建指标，医务处无 `evaluation.execute`，质控办可运行/复核，指标全量激活仅医院管理员可执行。
 
 ### 幕8 · 配置包与发布治理
 
@@ -231,7 +232,7 @@
 | 产出 | 文件 | 内容来源 |
 |---|---|---|
 | 试点准备手册 | `docs/handbook/user-guides/tenant-readiness.md` | 幕1–5、8 |
-| 临床运行手册 | `docs/handbook/user-guides/clinical-runtime.md` | 幕5–6 |
+| 临床运行手册 | `docs/handbook/user-guides/clinical-runtime.md` | 幕5–7 |
 | 质控改进手册 | `docs/handbook/user-guides/quality-improvement.md` | 幕7 |
 | 合规运维手册 | `docs/handbook/user-guides/compliance-operations.md` | 幕0、9、10 |
 | 第三方对接案例集 | `docs/handbook/user-guides/third-party-cases.md` | 幕9 |
