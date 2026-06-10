@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-06-10T17:52:30.369Z",
+  "browser": "playwright.chromium",
+  "account": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-hospital-admin-20260611"
+  },
+  "screenshots": [
+    {
+      "route": "/tenant/onboarding",
+      "heading": "租户实施配置",
+      "file": "11-ui-tenant-onboarding.png",
+      "title": "集团医疗智能中枢 · MedKernel"
+    },
+    {
+      "route": "/admin/users",
+      "heading": "用户管理",
+      "file": "12-ui-admin-users.png",
+      "title": "集团医疗智能中枢 · MedKernel"
+    },
+    {
+      "route": "/onboarding/guide",
+      "heading": "客户实施向导",
+      "file": "13-ui-implementation-guide.png",
+      "title": "集团医疗智能中枢 · MedKernel"
+    }
+  ]
+}

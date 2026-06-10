@@ -1,0 +1,44 @@
+{
+  "doctorForbidden": {
+    "status": 403,
+    "body": {
+      "type": "urn:medkernel:error:PERMISSION_DENIED",
+      "title": "权限不足",
+      "status": 403,
+      "detail": "权限不足：UNKNOWN",
+      "instance": "/medkernel/api/v1/compliance/users",
+      "code": "PERMISSION_DENIED",
+      "errorClass": "AUTH",
+      "retryable": false,
+      "requiredPermission": "UNKNOWN",
+      "permissionScope": "当前操作",
+      "applyUrl": "/security/request-access",
+      "traceId": "5f4115de-6d81-4de0-b9af-dd03ecc41610"
+    }
+  },
+  "auditorForbidden": {
+    "status": 403,
+    "body": {
+      "type": "urn:medkernel:error:PERMISSION_DENIED",
+      "title": "权限不足",
+      "status": 403,
+      "detail": "权限不足：UNKNOWN",
+      "instance": "/medkernel/api/v1/compliance/users",
+      "code": "PERMISSION_DENIED",
+      "errorClass": "AUTH",
+      "retryable": false,
+      "requiredPermission": "UNKNOWN",
+      "permissionScope": "当前操作",
+      "applyUrl": "/security/request-access",
+      "traceId": "25edcd2f-b217-43fd-a17a-0ccc9a7adc0a"
+    }
+  },
+  "doctorComplianceOpsVisible": [],
+  "auditorWritePermissions": [],
+  "assertions": {
+    "doctorCannotListComplianceUsers": true,
+    "auditorCannotCreateUser": true,
+    "doctorHasNoComplianceOpsSection": true,
+    "auditorHasNoWritePermissions": true
+  }
+}

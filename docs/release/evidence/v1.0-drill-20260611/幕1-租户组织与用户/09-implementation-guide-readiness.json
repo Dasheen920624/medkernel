@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-06-10T17:48:20.242Z",
+  "guideRoute": "https://193.112.107.134/onboarding/guide",
+  "tenantRoute": "https://193.112.107.134/tenant/onboarding",
+  "readinessInputs": {
+    "tenant": {
+      "tenantId": "drill-hospital-20260611",
+      "tenantName": "演练总医院",
+      "provisioned": true
+    },
+    "organizationTree": [
+      "演练总医院",
+      "医务处",
+      "信息科",
+      "医保办",
+      "心内科",
+      "呼吸与危重症医学科",
+      "检验科",
+      "药学部"
+    ],
+    "mainAccountCount": 9,
+    "roleCoverage": {
+      "expected": 16,
+      "covered": 16,
+      "uncovered": []
+    },
+    "forbiddenAccessAudited": true
+  },
+  "fourQuestionAudit": [
+    {
+      "question": "谁在用？",
+      "evidence": "9 个演练主账号 + 6 个角色抽查账号覆盖 16 个内置角色。"
+    },
+    {
+      "question": "属于哪个组织范围？",
+      "evidence": "租户根、医院、7 个科室已落库，角色分配含 TENANT/HOSPITAL/DEPARTMENT 范围。"
+    },
+    {
+      "question": "能看哪些菜单？",
+      "evidence": "security/me 与 menu-permissions/visible 已逐账号采集。"
+    },
+    {
+      "question": "越权时如何证明被拦？",
+      "evidence": "医生读用户管理、审计员写用户管理均 403，并查询到 authorization FAILED 审计事件。"
+    }
+  ]
+}

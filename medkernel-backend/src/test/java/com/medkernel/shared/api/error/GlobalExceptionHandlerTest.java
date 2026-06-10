@@ -2,6 +2,9 @@ package com.medkernel.shared.api.error;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditEvent;
+import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.trace.TraceIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -40,12 +46,14 @@ class GlobalExceptionHandlerTest {
 
     private final ObjectMapper json = new ObjectMapper();
 
+    private AuditEventPublisher auditPublisher;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
+        auditPublisher = mock(AuditEventPublisher.class);
         mvc = MockMvcBuilders.standaloneSetup(new FixtureController())
-            .setControllerAdvice(new GlobalExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler(auditPublisher))
             .addFilters(new TraceIdFilter())
             .build();
     }
@@ -196,6 +204,12 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.requiredPermission").value("UNKNOWN"))
             .andExpect(jsonPath("$.permissionScope").value("当前操作"))
             .andExpect(jsonPath("$.applyUrl").value("/security/request-access"));
+        verify(auditPublisher).publish(argThat((AuditEvent event) ->
+            event.action() == AuditAction.EXECUTE
+                && "authorization".equals(event.resourceType())
+                && "PERMISSION_DENIED".equals(event.errorCode())
+                && AuditEvent.OUTCOME_FAILED.equals(event.outcome())
+                && event.summary().contains("权限拒绝")));
     }
 
     public record Payload(@NotBlank String name, @Size(min = 2, max = 50) String severity) {

@@ -1,0 +1,14 @@
+{
+  "targetTenant": {
+    "tenantId": "drill-hospital-20260611",
+    "tenantName": "演练总医院",
+    "adminUsername": "drill-hospital-admin-20260611"
+  },
+  "result": {
+    "tenantId": "drill-hospital-20260611",
+    "adminUserId": "drill-hospital-admin-20260611",
+    "adminUsername": "drill-hospital-admin-20260611",
+    "tempPassword": null
+  },
+  "credentialStorage": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json"
+}
