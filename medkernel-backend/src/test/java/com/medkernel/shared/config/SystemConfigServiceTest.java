@@ -34,8 +34,9 @@ class SystemConfigServiceTest {
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final RuntimeLogLevelManager logLevelManager = mock(RuntimeLogLevelManager.class);
     private final HighRiskChangeGuard highRiskChangeGuard = mock(HighRiskChangeGuard.class);
+    private final SystemConfigSeedWriter seedWriter = new SystemConfigSeedWriter(repository);
     private final SystemConfigService service = new SystemConfigService(
-        repository, auditSafetyGuard, auditRecorder, logLevelManager, highRiskChangeGuard);
+        repository, auditSafetyGuard, auditRecorder, logLevelManager, highRiskChangeGuard, seedWriter);
 
     @Test
     void tenantConfigurationIsSeededAndReadWithinItsOwnTenantBoundary() {

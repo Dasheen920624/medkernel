@@ -2,6 +2,9 @@ package com.medkernel.engine.list;
 
 import java.time.Instant;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.PersistenceCreator;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -31,8 +34,51 @@ public record LargeListExportJob(
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
-    @Column("updated_by") String updatedBy
-) {
+    @Column("updated_by") String updatedBy,
+    @Transient boolean newEntity
+) implements Persistable<String> {
+
+    /**
+     * 自数据库加载或在已知主键上重建的实体：视为已存在，保存走 UPDATE。
+     *
+     * <p>主键 {@code jobId} 由业务侧指派，须经 {@link Persistable} 显式声明新建语义，
+     * 否则空库首次提交导出任务会被 Spring Data JDBC 误判为 UPDATE 而失败。
+     */
+    @PersistenceCreator
+    public LargeListExportJob(
+        String jobId,
+        String tenantId,
+        String resourceType,
+        String requestSnapshot,
+        String selectedScope,
+        String status,
+        String fileName,
+        String filePath,
+        Long fileSize,
+        String errorMessage,
+        Long timeCostMs,
+        String traceId,
+        String auditId,
+        String idempotencyKey,
+        Instant createdAt,
+        String createdBy,
+        Instant updatedAt,
+        String updatedBy
+    ) {
+        this(jobId, tenantId, resourceType, requestSnapshot, selectedScope, status, fileName,
+            filePath, fileSize, errorMessage, timeCostMs, traceId, auditId, idempotencyKey,
+            createdAt, createdBy, updatedAt, updatedBy, false);
+    }
+
+    @Override
+    public String getId() {
+        return jobId;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
     /**
      * 辅助工厂方法，创建一个带有初始默认值的待执行任务。
      *
@@ -75,7 +121,8 @@ public record LargeListExportJob(
             now,
             creator,
             now,
-            creator
+            creator,
+            true
         );
     }
 }

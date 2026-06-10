@@ -3,6 +3,9 @@ package com.medkernel.engine.llm;
 import java.time.Instant;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.PersistenceCreator;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -32,8 +35,43 @@ public record ModelCapabilityDefinition(
     @Column("updated_at")
     Instant updatedAt,
     @Column("updated_by")
-    String updatedBy
-) {
+    String updatedBy,
+    @Transient boolean newEntity
+) implements Persistable<String> {
+
+    /**
+     * 自数据库加载或在已知能力代码上重建的实体：视为已存在，保存走 UPDATE。
+     *
+     * <p>主键 {@code capabilityCode} 是业务自然键，新建与更新共用保存入口，
+     * 须经 {@link Persistable} 由调用方按存在性显式声明新建语义，否则新增目录项会被误判为 UPDATE。
+     */
+    @PersistenceCreator
+    public ModelCapabilityDefinition(
+        String capabilityCode,
+        String displayName,
+        String description,
+        String category,
+        String enabledFlag,
+        Integer sortOrder,
+        Instant createdAt,
+        String createdBy,
+        Instant updatedAt,
+        String updatedBy
+    ) {
+        this(capabilityCode, displayName, description, category, enabledFlag, sortOrder,
+            createdAt, createdBy, updatedAt, updatedBy, false);
+    }
+
+    @Override
+    public String getId() {
+        return capabilityCode;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
+
     public boolean enabled() {
         return "Y".equalsIgnoreCase(enabledFlag);
     }

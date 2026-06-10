@@ -138,7 +138,8 @@ public class ModelGatewayService {
             existing.map(ModelCapabilityDefinition::createdAt).orElse(now),
             existing.map(ModelCapabilityDefinition::createdBy).orElse(actor),
             now,
-            actor
+            actor,
+            existing.isEmpty()
         ));
         auditRecorder.record(
             AuditAction.UPDATE,

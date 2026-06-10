@@ -71,17 +71,20 @@ public class SystemConfigService {
     private final AuditRecorder auditRecorder;
     private final RuntimeLogLevelManager logLevelManager;
     private final HighRiskChangeGuard highRiskChangeGuard;
+    private final SystemConfigSeedWriter seedWriter;
 
     public SystemConfigService(SystemConfigRepository repository,
                                AuditSafetyGuard auditSafetyGuard,
                                AuditRecorder auditRecorder,
                                RuntimeLogLevelManager logLevelManager,
-                               HighRiskChangeGuard highRiskChangeGuard) {
+                               HighRiskChangeGuard highRiskChangeGuard,
+                               SystemConfigSeedWriter seedWriter) {
         this.repository = repository;
         this.auditSafetyGuard = auditSafetyGuard;
         this.auditRecorder = auditRecorder;
         this.logLevelManager = logLevelManager;
         this.highRiskChangeGuard = highRiskChangeGuard;
+        this.seedWriter = seedWriter;
     }
 
     public List<SystemConfigItemResponse> list(String prefix) {
@@ -169,7 +172,7 @@ public class SystemConfigService {
             seed.source(),
             seed.protectedConfig(),
             seed.seededAt());
-        repository.insertSeedIfAbsent(normalizedSeed, currentActor(actor));
+        seedWriter.insertSeedIfAbsent(normalizedSeed, currentActor(actor));
         return repository.findActive(normalizedTenantId, normalizedKey)
             .map(SystemConfigItemResponse::from)
             .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));

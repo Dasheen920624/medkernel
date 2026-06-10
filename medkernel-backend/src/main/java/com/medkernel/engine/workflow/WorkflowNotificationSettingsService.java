@@ -122,18 +122,13 @@ public class WorkflowNotificationSettingsService {
             .orElse(null);
 
         UserPreference preference = existing == null
-            ? new UserPreference(
+            ? UserPreference.create(
                 "up-" + UUID.randomUUID(),
                 tenantId,
                 userId,
                 PREF_KEY,
                 value,
-                1,
-                ACTIVE,
-                now,
-                userId,
-                now,
-                userId)
+                now)
             : new UserPreference(
                 existing.userPrefId(),
                 existing.tenantId(),

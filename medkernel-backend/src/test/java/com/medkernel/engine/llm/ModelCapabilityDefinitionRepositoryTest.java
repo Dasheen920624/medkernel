@@ -29,6 +29,23 @@ class ModelCapabilityDefinitionRepositoryTest {
     ModelCapabilityDefinitionRepository repository;
 
     @Test
+    void save_insertsBrandNewCapabilityCode() {
+        // 回归 2026-06-10 首次部署缺陷族：自然键主键新建须显式声明新建语义，否则被误判为 UPDATE。
+        Instant now = Instant.parse("2026-06-10T00:00:00Z");
+        ModelCapabilityDefinition fresh = new ModelCapabilityDefinition(
+            "knowledge.regression-test", "回归测试能力", "首次插入回归用例", "knowledge",
+            "Y", 99, now, "tester", now, "tester", true);
+
+        repository.save(fresh);
+
+        assertThat(repository.findById("knowledge.regression-test"))
+            .isPresent()
+            .get()
+            .extracting(ModelCapabilityDefinition::displayName)
+            .isEqualTo("回归测试能力");
+    }
+
+    @Test
     void migratedCatalogLoadsInStableOrderAndSupportsUpdates() {
         assertThat(repository.findAllByOrderBySortOrderAscCapabilityCodeAsc())
             .hasSize(8)
