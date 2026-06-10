@@ -1,6 +1,6 @@
 # MedKernel · 业务服务包用户手册
 
-> 状态：骨架占位 · 待 E5 引擎全能力验收后正式填充
+> 状态：已由「全流程演练 · 使用指南 · 体验重构」激活；幕0已填充合规运维首章，其余手册随幕1-10逐幕补齐
 > 适用：v1.0 GA · 终端使用人员（医生、护士、药师、信息科、临床科室主任、医务/质控部、医保审核、院级管理）
 
 ---
@@ -15,10 +15,10 @@
 
 | 文件 | 受众 | 启用阶段 |
 |---|---|---|
-| `tenant-readiness.md` 试点准备用户手册 | 信息科主任 / 临床牵头人 / 知识包负责人 | E6 GA-SVC-PILOT-* 启动后 |
-| `clinical-runtime.md` 临床运行用户手册 | 医生 / 护士 / 临床科主任 | E6 GA-SVC-CLINICAL-* 启动后 |
-| `quality-improvement.md` 质控改进用户手册 | 医务部 / 质控部 / 病案 / 医保 | E6 GA-SVC-QUALITY-* 启动后 |
-| `compliance-operations.md` 合规运维用户手册 | 信息科 / 审计 / 安全 | E6 GA-SVC-COMPLIANCE-* 启动后 |
+| `tenant-readiness.md` 试点准备用户手册 | 信息科主任 / 临床牵头人 / 知识包负责人 | 幕1-5、幕8补齐 |
+| `clinical-runtime.md` 临床运行用户手册 | 医生 / 护士 / 临床科主任 | 幕5-6补齐 |
+| `quality-improvement.md` 质控改进用户手册 | 医务部 / 质控部 / 病案 / 医保 | 幕7补齐 |
+| [compliance-operations.md](compliance-operations.md) 合规运维用户手册 | 信息科 / 审计 / 安全 | 幕0已激活；幕9、幕10补齐 |
 
 第三方业务接口服务包和专业领域服务包（专病路径、专业协同）的用户手册按 [详细规范](../../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md) §1.5 与 §2 单独追加。
 

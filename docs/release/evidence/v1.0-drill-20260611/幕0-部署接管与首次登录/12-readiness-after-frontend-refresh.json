@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-06-10T17:01:16.023Z",
+  "securityMeStatus": 200,
+  "securityMeTraceId": "06df9fdd-6763-4be3-a93e-0b499ec4ed0d",
+  "roleCodes": [
+    "system-superadmin"
+  ],
+  "hasWorkbenchMenu": true,
+  "hasReadinessPermission": true,
+  "traceIds": [
+    "GET /medkernel/api/v1/bootstrap/status 200 traceId=47b3f393-8098-43a3-9d84-4ee93a1a3743",
+    "GET /medkernel/api/v1/auth/login-tenants 200 traceId=10d6d900-97a3-451c-8b8b-6ef1dfbfa129",
+    "POST /medkernel/api/v1/auth/login 200 traceId=5cefabcb-666a-4781-a560-edde835e168b",
+    "GET /medkernel/api/v1/experience/theme-preference 200 traceId=6676e0d4-9ef0-4400-bb26-172c70fa0ea9",
+    "GET /medkernel/api/v1/auth/session 200 traceId=bf9fa398-772e-4b63-afe8-fca3ee74780b",
+    "GET /medkernel/api/v1/security/me 200 traceId=9ab5bc06-0804-45a5-a2fa-1f0b4f19fbb8",
+    "GET /medkernel/api/v1/security/me 200 traceId=5a4edb60-e7aa-4764-ae7a-cb153263d7bf",
+    "GET /medkernel/api/v1/system/operations 200 traceId=952aeee7-5171-4fdd-bb8a-041d3ae68480",
+    "GET /medkernel/api/v1/security/me 200 traceId=06df9fdd-6763-4be3-a93e-0b499ec4ed0d"
+  ]
+}

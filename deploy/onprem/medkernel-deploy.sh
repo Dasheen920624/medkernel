@@ -148,11 +148,12 @@ do_rollback(){
 }
 
 ACTION=deploy; JAR_SRC=""; FE_SRC=""; INCOMING="$INCOMING_DEFAULT"; SRC_TXT=""
+JAR_SPECIFIED=0; FE_SPECIFIED=0
 DO_RESTART=1; DO_HEALTH=1; AUTO_ROLLBACK=1; ROLLBACK_DIR=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --jar) JAR_SRC="${2:-}"; shift 2;;
-    --frontend) FE_SRC="${2:-}"; shift 2;;
+    --jar) JAR_SRC="${2:-}"; JAR_SPECIFIED=1; shift 2;;
+    --frontend) FE_SRC="${2:-}"; FE_SPECIFIED=1; shift 2;;
     --incoming) INCOMING="${2:-}"; shift 2;;
     --source) SRC_TXT="${2:-}"; shift 2;;
     --no-restart) DO_RESTART=0; shift;;
@@ -176,8 +177,10 @@ if [ "$ACTION" = rollback ]; then
   print_status; exit 0
 fi
 
-[ -z "$JAR_SRC" ] && JAR_SRC=$(ls -t "$INCOMING"/*.jar 2>/dev/null | head -1)
-[ -z "$FE_SRC" ] && FE_SRC=$(ls -t "$INCOMING"/dist*.tar.gz "$INCOMING"/*frontend*.tar.gz 2>/dev/null | head -1)
+if [ "$JAR_SPECIFIED" = 0 ] && [ "$FE_SPECIFIED" = 0 ]; then
+  JAR_SRC=$(ls -t "$INCOMING"/*.jar 2>/dev/null | head -1)
+  FE_SRC=$(ls -t "$INCOMING"/dist*.tar.gz "$INCOMING"/*frontend*.tar.gz 2>/dev/null | head -1)
+fi
 { [ -n "$JAR_SRC" ] || [ -n "$FE_SRC" ]; } || die "未指定且 $INCOMING 下无 jar / dist*.tar.gz；请先上传包或用 --jar/--frontend 指定"
 [ -n "$JAR_SRC" ] && { [ -f "$JAR_SRC" ] || die "jar 不存在：$JAR_SRC"; }
 [ -n "$FE_SRC" ] && { [ -f "$FE_SRC" ] || die "前端包不存在：$FE_SRC"; }
