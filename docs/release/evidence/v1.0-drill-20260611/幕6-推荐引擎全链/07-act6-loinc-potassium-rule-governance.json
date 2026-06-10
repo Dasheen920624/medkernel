@@ -1,0 +1,4778 @@
+{
+  "runTag": "act6-rule-8o33w90beb",
+  "generatedAt": "2026-06-10T22:55:39.789Z",
+  "rule": {
+    "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+    "ruleCode": "DRILL.ACT6.K.LOINC.8o33w90beb",
+    "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+    "status": "PUBLISHED",
+    "deploymentStatus": "PUBLISHED",
+    "governanceState": "FULL",
+    "activeVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239"
+  },
+  "snapshots": {
+    "POSITIVE": "ctx-ce4f8cf1-8c46-4984-8f28-4031b32077eb",
+    "NEGATIVE": "ctx-b4e1c523-b450-4d4b-b684-9e791675fe63",
+    "BOUNDARY": "ctx-2a1a5a00-56c4-4c3b-a147-c0962d0b3448",
+    "CONFLICT": "ctx-3d3cd0d2-2395-47df-93f7-32b2ff620689"
+  },
+  "dsl": {
+    "trigger": "result-review",
+    "applicability": {
+      "population": {},
+      "orgScope": {},
+      "settings": [
+        "INPATIENT",
+        "OUTPATIENT",
+        "ED",
+        "FOLLOWUP"
+      ],
+      "effective": {
+        "rolloutPercent": 100
+      }
+    },
+    "meta": {
+      "packageVersion": "2026.06.11-act2-024101",
+      "terminologyPackage": "TERM.DRILL.ACT2@2026.06.11-act2-024101",
+      "readable": "当标准 LOINC 2823-3 血钾最近值大于等于 6.5 或小于等于 2.5 mmol/L 时，强提醒主管医师 30 分钟内确认闭环。"
+    },
+    "when": {
+      "any": [
+        {
+          "expr": {
+            "field": "observations[].valueNumeric",
+            "select": "latest",
+            "where": {
+              "all": [
+                {
+                  "expr": {
+                    "field": "observations[].code"
+                  },
+                  "operator": "equals",
+                  "value": {
+                    "const": "2823-3"
+                  }
+                }
+              ]
+            }
+          },
+          "operator": "gte",
+          "value": {
+            "const": 6.5
+          }
+        },
+        {
+          "expr": {
+            "field": "observations[].valueNumeric",
+            "select": "latest",
+            "where": {
+              "all": [
+                {
+                  "expr": {
+                    "field": "observations[].code"
+                  },
+                  "operator": "equals",
+                  "value": {
+                    "const": "2823-3"
+                  }
+                }
+              ]
+            }
+          },
+          "operator": "lte",
+          "value": {
+            "const": 2.5
+          }
+        }
+      ]
+    },
+    "then": [
+      {
+        "actionCode": "STRONG_REMINDER",
+        "atSeverity": "CRITICAL",
+        "indicator": "critical",
+        "summary": "标准血钾危急值需 30 分钟闭环确认",
+        "detail": "最近一次 LOINC 2823-3 血钾达到危急阈值，请主管医师确认结果、通知责任医生并记录回报闭环。",
+        "source": {
+          "label": "幕6标准 LOINC 血钾危急值运行规则",
+          "evidenceLevel": "D_HOSPITAL"
+        },
+        "suggestions": [
+          {
+            "label": "创建危急值闭环任务",
+            "actionType": "CREATE_TASK",
+            "payload": {
+              "dueMinutes": 30,
+              "assigneeRole": "attending-physician"
+            }
+          }
+        ],
+        "overrideReasons": [
+          "复查标本溶血或污染",
+          "已由上级医师确认并记录"
+        ],
+        "requiresPhysicianConfirmation": true
+      }
+    ],
+    "explain": {
+      "title": "标准血钾危急值规则",
+      "reason": "读取 LOINC 2823-3 最近血钾值，与院内危急值阈值比较。",
+      "sourceRef": "幕3血钾危急值知识版本；幕2术语包 TERM.DRILL.ACT2"
+    }
+  },
+  "release": {
+    "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+    "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+    "state": "FULL",
+    "requiredSignoffs": 2,
+    "reviewRound": 1,
+    "committeeApprovalCount": 2,
+    "authorId": "drill-medical-affairs-20260611",
+    "lastReason": "医院管理员确认全量激活 Act6 标准 LOINC 高钾规则。",
+    "signoffs": [
+      {
+        "id": 19,
+        "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+        "tenantId": "drill-hospital-20260611",
+        "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "stage": "PEER_REVIEW",
+        "reviewRound": 1,
+        "signerRole": "pharmacist",
+        "signerId": "drill-clinical-pharmacist-20260611",
+        "decision": "APPROVED",
+        "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+        "signedAt": "2026-06-10T22:55:39.446186Z",
+        "traceId": "act6-rule-8o33w90beb-peer-signoff"
+      },
+      {
+        "id": 20,
+        "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+        "tenantId": "drill-hospital-20260611",
+        "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "stage": "COMMITTEE",
+        "reviewRound": 1,
+        "signerRole": "specialist",
+        "signerId": "drill-role-specialist-20260611",
+        "decision": "APPROVED",
+        "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+        "signedAt": "2026-06-10T22:55:39.500682Z",
+        "traceId": "act6-rule-8o33w90beb-committee-specialist"
+      },
+      {
+        "id": 21,
+        "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+        "tenantId": "drill-hospital-20260611",
+        "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "stage": "COMMITTEE",
+        "reviewRound": 1,
+        "signerRole": "dept-head",
+        "signerId": "drill-role-dept-head-20260611",
+        "decision": "APPROVED",
+        "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+        "signedAt": "2026-06-10T22:55:39.539874Z",
+        "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+      }
+    ],
+    "testResults": [],
+    "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+    "impactStatus": "COMPLETE",
+    "releaseEvidence": [
+      "PUBLISHED 发布：sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb"
+    ],
+    "traceId": "act6-rule-8o33w90beb-FULL"
+  },
+  "operations": [
+    {
+      "label": "login-hospital-admin",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-login-hospital-admin",
+      "headerTraceId": "act6-rule-8o33w90beb-login-hospital-admin",
+      "bodyTraceId": "act6-rule-8o33w90beb-login-hospital-admin",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-hospital-admin-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "hospital-admin"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": true,
+          "mfaBound": true,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T22:55:37.624070081Z"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-login-hospital-admin",
+        "timestamp": "2026-06-10T22:55:37.624787074Z"
+      }
+    },
+    {
+      "label": "me-hospital-admin",
+      "actor": "hospital-admin",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-me-hospital-admin",
+      "headerTraceId": "act6-rule-8o33w90beb-me-hospital-admin",
+      "bodyTraceId": "act6-rule-8o33w90beb-me-hospital-admin",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-hospital-admin-20260611",
+          "username": "drill-hospital-admin-20260611",
+          "roles": [
+            {
+              "code": "hospital-admin",
+              "displayName": "医院管理员",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.config-package",
+              "dimension": "ASSET",
+              "target": "config-package",
+              "displayName": "访问配置包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.dictionary",
+              "dimension": "ASSET",
+              "target": "dictionary",
+              "displayName": "访问字典映射资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.export",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "导出审计快照 / 证据包",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.read",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.write",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "创建标准上下文 snapshot",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.desensitized",
+              "dimension": "DATA",
+              "target": "desensitized",
+              "displayName": "访问脱敏数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.group",
+              "dimension": "DATA",
+              "target": "group",
+              "displayName": "访问集团跨院数据",
+              "risk": "HIGH"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "env.test",
+              "dimension": "ENVIRONMENT",
+              "target": "test",
+              "displayName": "访问测试环境",
+              "risk": "LOW"
+            },
+            {
+              "code": "env.trial",
+              "dimension": "ENVIRONMENT",
+              "target": "trial",
+              "displayName": "访问试运行环境",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.execute",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "接收评估运行和结果事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.publish",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "发布质控指标",
+              "risk": "HIGH"
+            },
+            {
+              "code": "evaluation.read",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "查看评估指标和结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "evaluation.remediate",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "提交质控问题整改证据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.review",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "复核质控整改并关闭问题",
+              "risk": "HIGH"
+            },
+            {
+              "code": "evaluation.write",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "修改评估指标",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.write",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "创建 / 重放临床事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.write",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "integration.execute",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "integration.read",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "查看第三方适配器、Webhook 和集成日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "integration.write",
+              "dimension": "ACTION",
+              "target": "integration",
+              "displayName": "创建或修改第三方适配器与 Webhook",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.export",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "异步导出知识资产 / 引用 / 历史",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.publish",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "激活新版知识并失效旧版",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.withdraw",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "紧急撤回已发布知识版本",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "list.export",
+              "dimension": "ACTION",
+              "target": "list",
+              "displayName": "创建和下载大规模列表异步导出文件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.manage",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "管理租户模型路由、脱敏和输出结构策略",
+              "risk": "HIGH"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.adapter-hub",
+              "dimension": "MENU",
+              "target": "adapter-hub",
+              "displayName": "查看适配器中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.admin-audit",
+              "dimension": "MENU",
+              "target": "admin-audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.admin-users",
+              "dimension": "MENU",
+              "target": "admin-users",
+              "displayName": "查看用户管理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.ai-workflows",
+              "dimension": "MENU",
+              "target": "ai-workflows",
+              "displayName": "查看 AI 工作流",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.config-packages",
+              "dimension": "MENU",
+              "target": "config-packages",
+              "displayName": "查看配置包中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.dev-console",
+              "dimension": "MENU",
+              "target": "dev-console",
+              "displayName": "查看开发者控制台",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.domestic-check",
+              "dimension": "MENU",
+              "target": "domestic-check",
+              "displayName": "查看国产化自检",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.graph-explore",
+              "dimension": "MENU",
+              "target": "graph-explore",
+              "displayName": "查看图谱查询",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.identity-bindings",
+              "dimension": "MENU",
+              "target": "identity-bindings",
+              "displayName": "查看身份绑定",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.implementation-guide",
+              "dimension": "MENU",
+              "target": "implementation-guide",
+              "displayName": "查看客户实施向导",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.insurance-audit",
+              "dimension": "MENU",
+              "target": "insurance-audit",
+              "displayName": "查看医保智能审核",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notification-settings",
+              "dimension": "MENU",
+              "target": "notification-settings",
+              "displayName": "查看通知设置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-alerts",
+              "dimension": "MENU",
+              "target": "qc-alerts",
+              "displayName": "查看质控预警",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-dashboard",
+              "dimension": "MENU",
+              "target": "qc-dashboard",
+              "displayName": "查看院级质控驾驶舱",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-results",
+              "dimension": "MENU",
+              "target": "qc-eval-results",
+              "displayName": "查看评估结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-sets",
+              "dimension": "MENU",
+              "target": "qc-eval-sets",
+              "displayName": "查看评估指标库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.security-baseline",
+              "dimension": "MENU",
+              "target": "security-baseline",
+              "displayName": "查看安全基线与系统配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.system-providers",
+              "dimension": "MENU",
+              "target": "system-providers",
+              "displayName": "查看 Provider 状态",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.tenant-onboarding",
+              "dimension": "MENU",
+              "target": "tenant-onboarding",
+              "displayName": "查看租户开通",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.write",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "合并患者主索引",
+              "risk": "HIGH"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.publish",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "激活 / 暂停 / 归档组织单元",
+              "risk": "HIGH"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.write",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "新增 / 修改组织单元",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "package.publish",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "灰度 / 全量发布配置包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "package.read",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "查看配置包 / 知识包",
+              "risk": "LOW"
+            },
+            {
+              "code": "package.rollback",
+              "dimension": "ACTION",
+              "target": "package",
+              "displayName": "回滚配置包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.publish",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "发布路径模板",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "projection.read",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "查看投影状态与一致性报告",
+              "risk": "LOW"
+            },
+            {
+              "code": "projection.rebuild",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "从关系库权威源重建投影",
+              "risk": "HIGH"
+            },
+            {
+              "code": "recommendation.accept",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "采纳或拒绝推荐（医师权限）",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.write",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "创建推荐触发和候选提醒事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.publish",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "灰度 / 全量发布规则",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "system.read",
+              "dimension": "ACTION",
+              "target": "system",
+              "displayName": "查看系统状态 / Provider",
+              "risk": "LOW"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "tenant.read",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "查看租户与生命周期",
+              "risk": "LOW"
+            },
+            {
+              "code": "tenant.write",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "开通 / 关闭租户",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.publish",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "发布字典映射包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "term.write",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "修改字典 / 映射",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workbench:readiness:view",
+              "dimension": "ACTION",
+              "target": "workbench",
+              "displayName": "查看验收自检页面",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "implementation-guide",
+            "tenant-onboarding",
+            "config-packages",
+            "pathway-templates",
+            "rule-definitions",
+            "terminology-mapping",
+            "adapter-hub",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "insurance-audit",
+            "qc-eval-sets",
+            "qc-eval-results",
+            "knowledge-governance",
+            "admin-users",
+            "identity-bindings",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "graph-explore",
+            "ai-workflows",
+            "domestic-check",
+            "dev-console"
+          ],
+          "environmentKeys": [
+            "production",
+            "test",
+            "trial"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": true,
+          "mfaBound": true
+        },
+        "traceId": "act6-rule-8o33w90beb-me-hospital-admin",
+        "timestamp": "2026-06-10T22:55:37.667430505Z"
+      }
+    },
+    {
+      "label": "login-medical-affairs",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-login-medical-affairs",
+      "headerTraceId": "act6-rule-8o33w90beb-login-medical-affairs",
+      "bodyTraceId": "act6-rule-8o33w90beb-login-medical-affairs",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-medical-affairs-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-medical-affairs-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "medical-affairs"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T22:55:37.772587727Z"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-login-medical-affairs",
+        "timestamp": "2026-06-10T22:55:37.773173802Z"
+      }
+    },
+    {
+      "label": "me-medical-affairs",
+      "actor": "medical-affairs",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-me-medical-affairs",
+      "headerTraceId": "act6-rule-8o33w90beb-me-medical-affairs",
+      "bodyTraceId": "act6-rule-8o33w90beb-me-medical-affairs",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-medical-affairs-20260611",
+          "username": "drill-medical-affairs-20260611",
+          "roles": [
+            {
+              "code": "medical-affairs",
+              "displayName": "医务处",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.export",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "导出审计快照 / 证据包",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "audit.read",
+              "dimension": "ACTION",
+              "target": "audit",
+              "displayName": "查看审计日志",
+              "risk": "LOW"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "embed.read",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "验证和查看嵌入上下文",
+              "risk": "LOW"
+            },
+            {
+              "code": "embed.write",
+              "dimension": "ACTION",
+              "target": "embed",
+              "displayName": "生成嵌入启动令牌和记录反馈",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "env.trial",
+              "dimension": "ENVIRONMENT",
+              "target": "trial",
+              "displayName": "访问试运行环境",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "evaluation.read",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "查看评估指标和结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.write",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.export",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "异步导出知识资产 / 引用 / 历史",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.publish",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "激活新版知识并失效旧版",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.withdraw",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "紧急撤回已发布知识版本",
+              "risk": "HIGH"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "list.export",
+              "dimension": "ACTION",
+              "target": "list",
+              "displayName": "创建和下载大规模列表异步导出文件",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.execute",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "提交和重试模型任务",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "llm.read",
+              "dimension": "ACTION",
+              "target": "llm",
+              "displayName": "查看模型能力状态和调用记录",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.ai-workflows",
+              "dimension": "MENU",
+              "target": "ai-workflows",
+              "displayName": "查看 AI 工作流",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-alerts",
+              "dimension": "MENU",
+              "target": "qc-alerts",
+              "displayName": "查看质控预警",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-dashboard",
+              "dimension": "MENU",
+              "target": "qc-dashboard",
+              "displayName": "查看院级质控驾驶舱",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-results",
+              "dimension": "MENU",
+              "target": "qc-eval-results",
+              "displayName": "查看评估结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.write",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "合并患者主索引",
+              "risk": "HIGH"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.publish",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "发布路径模板",
+              "risk": "HIGH"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "projection.read",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "查看投影状态与一致性报告",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.write",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "创建推荐触发和候选提醒事实",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "rule.publish",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "灰度 / 全量发布规则",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.publish",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "发布字典映射包",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "pathway-templates",
+            "rule-definitions",
+            "terminology-mapping",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "qc-eval-results",
+            "knowledge-governance",
+            "provenance",
+            "ai-workflows"
+          ],
+          "environmentKeys": [
+            "production",
+            "trial"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-rule-8o33w90beb-me-medical-affairs",
+        "timestamp": "2026-06-10T22:55:37.805734522Z"
+      }
+    },
+    {
+      "label": "login-pharmacist",
+      "actor": "pharmacist",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-login-pharmacist",
+      "headerTraceId": "act6-rule-8o33w90beb-login-pharmacist",
+      "bodyTraceId": "act6-rule-8o33w90beb-login-pharmacist",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-clinical-pharmacist-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-clinical-pharmacist-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "pharmacist"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T22:55:38.072339634Z"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-login-pharmacist",
+        "timestamp": "2026-06-10T22:55:38.073010449Z"
+      }
+    },
+    {
+      "label": "me-pharmacist",
+      "actor": "pharmacist",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-me-pharmacist",
+      "headerTraceId": "act6-rule-8o33w90beb-me-pharmacist",
+      "bodyTraceId": "act6-rule-8o33w90beb-me-pharmacist",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-clinical-pharmacist-20260611",
+          "username": "drill-clinical-pharmacist-20260611",
+          "roles": [
+            {
+              "code": "pharmacist",
+              "displayName": "临床药师",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.hospital",
+              "dimension": "DATA",
+              "target": "hospital",
+              "displayName": "访问全院数据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "rule-definitions",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "knowledge-governance",
+            "provenance"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-rule-8o33w90beb-me-pharmacist",
+        "timestamp": "2026-06-10T22:55:38.108906512Z"
+      }
+    },
+    {
+      "label": "login-specialist",
+      "actor": "specialist",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-login-specialist",
+      "headerTraceId": "act6-rule-8o33w90beb-login-specialist",
+      "bodyTraceId": "act6-rule-8o33w90beb-login-specialist",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-role-specialist-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-role-specialist-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "specialist"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T22:55:38.218599550Z"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-login-specialist",
+        "timestamp": "2026-06-10T22:55:38.219258944Z"
+      }
+    },
+    {
+      "label": "me-specialist",
+      "actor": "specialist",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-me-specialist",
+      "headerTraceId": "act6-rule-8o33w90beb-me-specialist",
+      "bodyTraceId": "act6-rule-8o33w90beb-me-specialist",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-role-specialist-20260611",
+          "username": "drill-role-specialist-20260611",
+          "roles": [
+            {
+              "code": "specialist",
+              "displayName": "专科专家",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.dictionary",
+              "dimension": "ASSET",
+              "target": "dictionary",
+              "displayName": "访问字典映射资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "env.test",
+              "dimension": "ENVIRONMENT",
+              "target": "test",
+              "displayName": "访问测试环境",
+              "risk": "LOW"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.graph-explore",
+              "dimension": "MENU",
+              "target": "graph-explore",
+              "displayName": "查看图谱查询",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.provenance",
+              "dimension": "MENU",
+              "target": "provenance",
+              "displayName": "查看来源追溯",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.terminology-mapping",
+              "dimension": "MENU",
+              "target": "terminology-mapping",
+              "displayName": "查看字典映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "projection.read",
+              "dimension": "ACTION",
+              "target": "projection",
+              "displayName": "查看投影状态与一致性报告",
+              "risk": "LOW"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "term.read",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "查看标准字典 / 院内映射",
+              "risk": "LOW"
+            },
+            {
+              "code": "term.write",
+              "dimension": "ACTION",
+              "target": "term",
+              "displayName": "修改字典 / 映射",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "pathway-templates",
+            "rule-definitions",
+            "terminology-mapping",
+            "mpi",
+            "patient-pathways",
+            "rule-validate",
+            "notifications",
+            "clinical-followup",
+            "knowledge-governance",
+            "provenance",
+            "graph-explore"
+          ],
+          "environmentKeys": [
+            "production",
+            "test"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-rule-8o33w90beb-me-specialist",
+        "timestamp": "2026-06-10T22:55:38.422720537Z"
+      }
+    },
+    {
+      "label": "login-dept-head",
+      "actor": "dept-head",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-login-dept-head",
+      "headerTraceId": "act6-rule-8o33w90beb-login-dept-head",
+      "bodyTraceId": "act6-rule-8o33w90beb-login-dept-head",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-role-dept-head-20260611",
+        "password": "[REDACTED]"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-role-dept-head-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "roles": [
+            "dept-head"
+          ],
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false,
+          "session": {
+            "remainingSeconds": 1799,
+            "idleTimeoutSeconds": 1800,
+            "warningSeconds": 120,
+            "maxSessionSeconds": 28800,
+            "maxSessionRemainingSeconds": 28799,
+            "serverTime": "2026-06-10T22:55:38.695505699Z"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-login-dept-head",
+        "timestamp": "2026-06-10T22:55:38.696137350Z"
+      }
+    },
+    {
+      "label": "me-dept-head",
+      "actor": "dept-head",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-me-dept-head",
+      "headerTraceId": "act6-rule-8o33w90beb-me-dept-head",
+      "bodyTraceId": "act6-rule-8o33w90beb-me-dept-head",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "userId": "drill-role-dept-head-20260611",
+          "username": "drill-role-dept-head-20260611",
+          "roles": [
+            {
+              "code": "dept-head",
+              "displayName": "科主任",
+              "source": "JWT",
+              "scopeLevel": null,
+              "scopeCode": null
+            }
+          ],
+          "permissions": [
+            {
+              "code": "asset.knowledge-package",
+              "dimension": "ASSET",
+              "target": "knowledge-package",
+              "displayName": "访问知识包资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.pathway",
+              "dimension": "ASSET",
+              "target": "pathway",
+              "displayName": "访问路径资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "asset.rule",
+              "dimension": "ASSET",
+              "target": "rule",
+              "displayName": "访问规则资产",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "context.read",
+              "dimension": "ACTION",
+              "target": "context",
+              "displayName": "查看标准上下文 snapshot",
+              "risk": "LOW"
+            },
+            {
+              "code": "data.department",
+              "dimension": "DATA",
+              "target": "department",
+              "displayName": "访问本科室数据",
+              "risk": "LOW"
+            },
+            {
+              "code": "env.production",
+              "dimension": "ENVIRONMENT",
+              "target": "production",
+              "displayName": "访问正式环境",
+              "risk": "HIGH"
+            },
+            {
+              "code": "evaluation.read",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "查看评估指标和结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "evaluation.remediate",
+              "dimension": "ACTION",
+              "target": "evaluation",
+              "displayName": "提交质控问题整改证据",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "event.read",
+              "dimension": "ACTION",
+              "target": "event",
+              "displayName": "查看临床事件",
+              "risk": "LOW"
+            },
+            {
+              "code": "followup.read",
+              "dimension": "ACTION",
+              "target": "followup",
+              "displayName": "查看随访计划与任务列表",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.read",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "查看知识资产 / 来源 / 候选",
+              "risk": "LOW"
+            },
+            {
+              "code": "knowledge.review",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "审核 AI 候选知识",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "knowledge.write",
+              "dimension": "ACTION",
+              "target": "knowledge",
+              "displayName": "新增 / 修改知识候选草稿与来源登记",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "menu.cdss-fatigue",
+              "dimension": "MENU",
+              "target": "cdss-fatigue",
+              "displayName": "查看临床提醒治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.clinical-followup",
+              "dimension": "MENU",
+              "target": "clinical-followup",
+              "displayName": "查看智能随访",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.knowledge-governance",
+              "dimension": "MENU",
+              "target": "knowledge-governance",
+              "displayName": "查看知识治理",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.mpi",
+              "dimension": "MENU",
+              "target": "mpi",
+              "displayName": "查看患者主索引",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.notifications",
+              "dimension": "MENU",
+              "target": "notifications",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.pathway-templates",
+              "dimension": "MENU",
+              "target": "pathway-templates",
+              "displayName": "查看路径配置",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.patient-pathways",
+              "dimension": "MENU",
+              "target": "patient-pathways",
+              "displayName": "查看患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-alerts",
+              "dimension": "MENU",
+              "target": "qc-alerts",
+              "displayName": "查看质控预警",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-dashboard",
+              "dimension": "MENU",
+              "target": "qc-dashboard",
+              "displayName": "查看院级质控驾驶舱",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.qc-eval-results",
+              "dimension": "MENU",
+              "target": "qc-eval-results",
+              "displayName": "查看评估结果",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-definitions",
+              "dimension": "MENU",
+              "target": "rule-definitions",
+              "displayName": "查看规则库",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.rule-validate",
+              "dimension": "MENU",
+              "target": "rule-validate",
+              "displayName": "查看规则校验",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workbench",
+              "dimension": "MENU",
+              "target": "workbench",
+              "displayName": "查看工作台入口",
+              "risk": "LOW"
+            },
+            {
+              "code": "menu.workflow-todos",
+              "dimension": "MENU",
+              "target": "workflow-todos",
+              "displayName": "查看待办中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "mpi.read",
+              "dimension": "ACTION",
+              "target": "mpi",
+              "displayName": "查看患者主索引列表与统计",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.read",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "查看通知中心",
+              "risk": "LOW"
+            },
+            {
+              "code": "notification.write",
+              "dimension": "ACTION",
+              "target": "notification",
+              "displayName": "标记通知已读和保存通知偏好",
+              "risk": "LOW"
+            },
+            {
+              "code": "org.read",
+              "dimension": "ACTION",
+              "target": "org",
+              "displayName": "查看组织树",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.read",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "查看路径模板 / 患者路径",
+              "risk": "LOW"
+            },
+            {
+              "code": "pathway.write",
+              "dimension": "ACTION",
+              "target": "pathway",
+              "displayName": "编辑路径模板",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "recommendation.read",
+              "dimension": "ACTION",
+              "target": "recommendation",
+              "displayName": "查看推荐 / 提醒",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.override",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "记录阻断或强提醒的人工越权理由",
+              "risk": "HIGH"
+            },
+            {
+              "code": "rule.read",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "查看规则",
+              "risk": "LOW"
+            },
+            {
+              "code": "rule.write",
+              "dimension": "ACTION",
+              "target": "rule",
+              "displayName": "新增 / 修改规则草稿",
+              "risk": "MEDIUM"
+            },
+            {
+              "code": "tenant.override",
+              "dimension": "ACTION",
+              "target": "tenant",
+              "displayName": "发布租户 / 机构资产覆盖",
+              "risk": "HIGH"
+            },
+            {
+              "code": "workflow.read",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "查看临床协同待办",
+              "risk": "LOW"
+            },
+            {
+              "code": "workflow.write",
+              "dimension": "ACTION",
+              "target": "workflow",
+              "displayName": "完成或转交临床协同待办",
+              "risk": "MEDIUM"
+            }
+          ],
+          "menuKeys": [
+            "workbench",
+            "pathway-templates",
+            "rule-definitions",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "rule-validate",
+            "workflow-todos",
+            "notifications",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "qc-eval-results",
+            "knowledge-governance"
+          ],
+          "environmentKeys": [
+            "production"
+          ],
+          "dataScope": {
+            "tenantId": "drill-hospital-20260611",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "specialtyId": null
+          },
+          "mustChangePwd": false,
+          "mfaRequired": false,
+          "mfaBound": false
+        },
+        "traceId": "act6-rule-8o33w90beb-me-dept-head",
+        "timestamp": "2026-06-10T22:55:38.726281451Z"
+      }
+    },
+    {
+      "label": "create-context-POS",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/context/snapshots",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-ctx-POS",
+      "headerTraceId": "act6-rule-8o33w90beb-ctx-POS",
+      "bodyTraceId": "act6-rule-8o33w90beb-ctx-POS",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-ctx-POS",
+        "trace_id": "act6-rule-8o33w90beb-ctx-POS",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "patientId": "P-act6-rule-8o33w90beb-POS",
+        "encounterId": "enc-POS",
+        "orgUnitId": "drill-hospital-20260611",
+        "package_version": "2026.06.11-act2-024101",
+        "resources": {
+          "patient": {
+            "mpi": "P-act6-rule-8o33w90beb-POS",
+            "name": "脱敏患者-POS",
+            "birthDate": "1962-03-01",
+            "gender": "M",
+            "specialPopulations": [],
+            "sourceSystem": "DRILL",
+            "sourceRecordId": "P-act6-rule-8o33w90beb-POS",
+            "mappedVersion": "2026.06.11-act2-024101",
+            "eventTime": "2026-06-11T00:00:00Z",
+            "receivedTime": "2026-06-11T00:00:00Z",
+            "qualityStatus": "VALID"
+          },
+          "allergyIntolerances": [],
+          "encounters": [
+            {
+              "encounterId": "enc-POS",
+              "encounterType": "INPATIENT",
+              "admissionTime": "2026-06-11T00:00:00Z",
+              "dischargeTime": null,
+              "departmentId": "RESP-DEPT-DRILL",
+              "attendingDoctorId": "drill-respiratory-doctor-20260611",
+              "bedId": "B-POS",
+              "sourceSystem": "HIS",
+              "sourceRecordId": "enc-POS",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "conditions": [
+            {
+              "conditionId": "cond-POS",
+              "code": "J15.9",
+              "codeSystem": "ICD-10",
+              "displayName": "细菌性肺炎，未特指",
+              "stage": "ACTIVE",
+              "severity": "MODERATE",
+              "sourceSystem": "HIS-DIAG",
+              "sourceRecordId": "ZD0456",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "onsetTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "nursingAssessments": [],
+          "observations": [
+            {
+              "observationId": "obs-POS",
+              "code": "2823-3",
+              "displayName": "血钾",
+              "valueNumeric": 6.8,
+              "valueString": null,
+              "unit": "mmol/L",
+              "referenceRange": "3.5-5.5",
+              "criticalFlag": "CRITICAL",
+              "sourceSystem": "LIS",
+              "sourceRecordId": "K001",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "diagnosticReports": [],
+          "medications": [],
+          "procedures": [],
+          "documents": [],
+          "carePlans": [],
+          "followUps": [],
+          "claims": []
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "snapshotId": "ctx-ce4f8cf1-8c46-4984-8f28-4031b32077eb",
+          "status": "ACTIVE",
+          "resources": {
+            "patient": {
+              "mpi": "P-act6-rule-8o33w90beb-POS",
+              "name": "脱敏患者-POS",
+              "birthDate": "1962-03-01",
+              "gender": "M",
+              "specialPopulations": [],
+              "sourceSystem": "DRILL",
+              "sourceRecordId": "P-act6-rule-8o33w90beb-POS",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            },
+            "allergyIntolerances": [],
+            "encounters": [
+              {
+                "encounterId": "enc-POS",
+                "encounterType": "INPATIENT",
+                "admissionTime": "2026-06-11T00:00:00Z",
+                "dischargeTime": null,
+                "departmentId": "RESP-DEPT-DRILL",
+                "attendingDoctorId": "drill-respiratory-doctor-20260611",
+                "bedId": "B-POS",
+                "sourceSystem": "HIS",
+                "sourceRecordId": "enc-POS",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "conditions": [
+              {
+                "conditionId": "cond-POS",
+                "code": "J15.9",
+                "codeSystem": "ICD-10",
+                "displayName": "细菌性肺炎，未特指",
+                "stage": "ACTIVE",
+                "severity": "MODERATE",
+                "sourceSystem": "HIS-DIAG",
+                "sourceRecordId": "ZD0456",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "onsetTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "nursingAssessments": [],
+            "observations": [
+              {
+                "observationId": "obs-POS",
+                "code": "2823-3",
+                "displayName": "血钾",
+                "valueNumeric": 6.8,
+                "valueString": null,
+                "unit": "mmol/L",
+                "referenceRange": "3.5-5.5",
+                "criticalFlag": "CRITICAL",
+                "sourceSystem": "LIS",
+                "sourceRecordId": "K001",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "diagnosticReports": [],
+            "medications": [],
+            "procedures": [],
+            "documents": [],
+            "carePlans": [],
+            "followUps": [],
+            "claims": []
+          },
+          "packageVersion": "2026.06.11-act2-024101",
+          "qualityStatus": "VALID",
+          "missingFields": [],
+          "mappingStatus": {
+            "PATIENT:P-act6-rule-8o33w90beb-POS:gender:M": "UNKNOWN",
+            "ENCOUNTER:enc-POS:encounterType:INPATIENT": "UNKNOWN",
+            "ENCOUNTER:enc-POS:departmentId:RESP-DEPT-DRILL": "UNKNOWN",
+            "CONDITION:cond-POS:code:J15.9": "UNKNOWN",
+            "CONDITION:cond-POS:stage:ACTIVE": "UNKNOWN",
+            "CONDITION:cond-POS:severity:MODERATE": "UNKNOWN",
+            "OBSERVATION:obs-POS:code:2823-3": "UNKNOWN",
+            "OBSERVATION:obs-POS:unit:mmol/L": "UNKNOWN",
+            "OBSERVATION:obs-POS:criticalFlag:CRITICAL": "UNKNOWN"
+          },
+          "createdAt": "2026-06-10T22:55:38.778565660Z",
+          "traceId": "act6-rule-8o33w90beb-ctx-POS"
+        },
+        "traceId": "act6-rule-8o33w90beb-ctx-POS",
+        "timestamp": "2026-06-10T22:55:38.793253281Z"
+      }
+    },
+    {
+      "label": "create-context-NEG",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/context/snapshots",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-ctx-NEG",
+      "headerTraceId": "act6-rule-8o33w90beb-ctx-NEG",
+      "bodyTraceId": "act6-rule-8o33w90beb-ctx-NEG",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-ctx-NEG",
+        "trace_id": "act6-rule-8o33w90beb-ctx-NEG",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "patientId": "P-act6-rule-8o33w90beb-NEG",
+        "encounterId": "enc-NEG",
+        "orgUnitId": "drill-hospital-20260611",
+        "package_version": "2026.06.11-act2-024101",
+        "resources": {
+          "patient": {
+            "mpi": "P-act6-rule-8o33w90beb-NEG",
+            "name": "脱敏患者-NEG",
+            "birthDate": "1962-03-01",
+            "gender": "M",
+            "specialPopulations": [],
+            "sourceSystem": "DRILL",
+            "sourceRecordId": "P-act6-rule-8o33w90beb-NEG",
+            "mappedVersion": "2026.06.11-act2-024101",
+            "eventTime": "2026-06-11T00:00:00Z",
+            "receivedTime": "2026-06-11T00:00:00Z",
+            "qualityStatus": "VALID"
+          },
+          "allergyIntolerances": [],
+          "encounters": [
+            {
+              "encounterId": "enc-NEG",
+              "encounterType": "INPATIENT",
+              "admissionTime": "2026-06-11T00:00:00Z",
+              "dischargeTime": null,
+              "departmentId": "RESP-DEPT-DRILL",
+              "attendingDoctorId": "drill-respiratory-doctor-20260611",
+              "bedId": "B-NEG",
+              "sourceSystem": "HIS",
+              "sourceRecordId": "enc-NEG",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "conditions": [
+            {
+              "conditionId": "cond-NEG",
+              "code": "J15.9",
+              "codeSystem": "ICD-10",
+              "displayName": "细菌性肺炎，未特指",
+              "stage": "ACTIVE",
+              "severity": "MODERATE",
+              "sourceSystem": "HIS-DIAG",
+              "sourceRecordId": "ZD0456",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "onsetTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "nursingAssessments": [],
+          "observations": [
+            {
+              "observationId": "obs-NEG",
+              "code": "2823-3",
+              "displayName": "血钾",
+              "valueNumeric": 4.1,
+              "valueString": null,
+              "unit": "mmol/L",
+              "referenceRange": "3.5-5.5",
+              "criticalFlag": "NORMAL",
+              "sourceSystem": "LIS",
+              "sourceRecordId": "K001",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "diagnosticReports": [],
+          "medications": [],
+          "procedures": [],
+          "documents": [],
+          "carePlans": [],
+          "followUps": [],
+          "claims": []
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "snapshotId": "ctx-b4e1c523-b450-4d4b-b684-9e791675fe63",
+          "status": "ACTIVE",
+          "resources": {
+            "patient": {
+              "mpi": "P-act6-rule-8o33w90beb-NEG",
+              "name": "脱敏患者-NEG",
+              "birthDate": "1962-03-01",
+              "gender": "M",
+              "specialPopulations": [],
+              "sourceSystem": "DRILL",
+              "sourceRecordId": "P-act6-rule-8o33w90beb-NEG",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            },
+            "allergyIntolerances": [],
+            "encounters": [
+              {
+                "encounterId": "enc-NEG",
+                "encounterType": "INPATIENT",
+                "admissionTime": "2026-06-11T00:00:00Z",
+                "dischargeTime": null,
+                "departmentId": "RESP-DEPT-DRILL",
+                "attendingDoctorId": "drill-respiratory-doctor-20260611",
+                "bedId": "B-NEG",
+                "sourceSystem": "HIS",
+                "sourceRecordId": "enc-NEG",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "conditions": [
+              {
+                "conditionId": "cond-NEG",
+                "code": "J15.9",
+                "codeSystem": "ICD-10",
+                "displayName": "细菌性肺炎，未特指",
+                "stage": "ACTIVE",
+                "severity": "MODERATE",
+                "sourceSystem": "HIS-DIAG",
+                "sourceRecordId": "ZD0456",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "onsetTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "nursingAssessments": [],
+            "observations": [
+              {
+                "observationId": "obs-NEG",
+                "code": "2823-3",
+                "displayName": "血钾",
+                "valueNumeric": 4.1,
+                "valueString": null,
+                "unit": "mmol/L",
+                "referenceRange": "3.5-5.5",
+                "criticalFlag": "NORMAL",
+                "sourceSystem": "LIS",
+                "sourceRecordId": "K001",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "diagnosticReports": [],
+            "medications": [],
+            "procedures": [],
+            "documents": [],
+            "carePlans": [],
+            "followUps": [],
+            "claims": []
+          },
+          "packageVersion": "2026.06.11-act2-024101",
+          "qualityStatus": "VALID",
+          "missingFields": [],
+          "mappingStatus": {
+            "PATIENT:P-act6-rule-8o33w90beb-NEG:gender:M": "UNKNOWN",
+            "ENCOUNTER:enc-NEG:encounterType:INPATIENT": "UNKNOWN",
+            "ENCOUNTER:enc-NEG:departmentId:RESP-DEPT-DRILL": "UNKNOWN",
+            "CONDITION:cond-NEG:code:J15.9": "UNKNOWN",
+            "CONDITION:cond-NEG:stage:ACTIVE": "UNKNOWN",
+            "CONDITION:cond-NEG:severity:MODERATE": "UNKNOWN",
+            "OBSERVATION:obs-NEG:code:2823-3": "UNKNOWN",
+            "OBSERVATION:obs-NEG:unit:mmol/L": "UNKNOWN",
+            "OBSERVATION:obs-NEG:criticalFlag:NORMAL": "UNKNOWN"
+          },
+          "createdAt": "2026-06-10T22:55:38.835127971Z",
+          "traceId": "act6-rule-8o33w90beb-ctx-NEG"
+        },
+        "traceId": "act6-rule-8o33w90beb-ctx-NEG",
+        "timestamp": "2026-06-10T22:55:38.847718906Z"
+      }
+    },
+    {
+      "label": "create-context-BOUND",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/context/snapshots",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-ctx-BOUND",
+      "headerTraceId": "act6-rule-8o33w90beb-ctx-BOUND",
+      "bodyTraceId": "act6-rule-8o33w90beb-ctx-BOUND",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-ctx-BOUND",
+        "trace_id": "act6-rule-8o33w90beb-ctx-BOUND",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "patientId": "P-act6-rule-8o33w90beb-BOUND",
+        "encounterId": "enc-BOUND",
+        "orgUnitId": "drill-hospital-20260611",
+        "package_version": "2026.06.11-act2-024101",
+        "resources": {
+          "patient": {
+            "mpi": "P-act6-rule-8o33w90beb-BOUND",
+            "name": "脱敏患者-BOUND",
+            "birthDate": "1962-03-01",
+            "gender": "M",
+            "specialPopulations": [],
+            "sourceSystem": "DRILL",
+            "sourceRecordId": "P-act6-rule-8o33w90beb-BOUND",
+            "mappedVersion": "2026.06.11-act2-024101",
+            "eventTime": "2026-06-11T00:00:00Z",
+            "receivedTime": "2026-06-11T00:00:00Z",
+            "qualityStatus": "VALID"
+          },
+          "allergyIntolerances": [],
+          "encounters": [
+            {
+              "encounterId": "enc-BOUND",
+              "encounterType": "INPATIENT",
+              "admissionTime": "2026-06-11T00:00:00Z",
+              "dischargeTime": null,
+              "departmentId": "RESP-DEPT-DRILL",
+              "attendingDoctorId": "drill-respiratory-doctor-20260611",
+              "bedId": "B-BOUND",
+              "sourceSystem": "HIS",
+              "sourceRecordId": "enc-BOUND",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "conditions": [
+            {
+              "conditionId": "cond-BOUND",
+              "code": "J15.9",
+              "codeSystem": "ICD-10",
+              "displayName": "细菌性肺炎，未特指",
+              "stage": "ACTIVE",
+              "severity": "MODERATE",
+              "sourceSystem": "HIS-DIAG",
+              "sourceRecordId": "ZD0456",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "onsetTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "nursingAssessments": [],
+          "observations": [
+            {
+              "observationId": "obs-BOUND",
+              "code": "2823-3",
+              "displayName": "血钾",
+              "valueNumeric": 6.5,
+              "valueString": null,
+              "unit": "mmol/L",
+              "referenceRange": "3.5-5.5",
+              "criticalFlag": "CRITICAL",
+              "sourceSystem": "LIS",
+              "sourceRecordId": "K001",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "diagnosticReports": [],
+          "medications": [],
+          "procedures": [],
+          "documents": [],
+          "carePlans": [],
+          "followUps": [],
+          "claims": []
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "snapshotId": "ctx-2a1a5a00-56c4-4c3b-a147-c0962d0b3448",
+          "status": "ACTIVE",
+          "resources": {
+            "patient": {
+              "mpi": "P-act6-rule-8o33w90beb-BOUND",
+              "name": "脱敏患者-BOUND",
+              "birthDate": "1962-03-01",
+              "gender": "M",
+              "specialPopulations": [],
+              "sourceSystem": "DRILL",
+              "sourceRecordId": "P-act6-rule-8o33w90beb-BOUND",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            },
+            "allergyIntolerances": [],
+            "encounters": [
+              {
+                "encounterId": "enc-BOUND",
+                "encounterType": "INPATIENT",
+                "admissionTime": "2026-06-11T00:00:00Z",
+                "dischargeTime": null,
+                "departmentId": "RESP-DEPT-DRILL",
+                "attendingDoctorId": "drill-respiratory-doctor-20260611",
+                "bedId": "B-BOUND",
+                "sourceSystem": "HIS",
+                "sourceRecordId": "enc-BOUND",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "conditions": [
+              {
+                "conditionId": "cond-BOUND",
+                "code": "J15.9",
+                "codeSystem": "ICD-10",
+                "displayName": "细菌性肺炎，未特指",
+                "stage": "ACTIVE",
+                "severity": "MODERATE",
+                "sourceSystem": "HIS-DIAG",
+                "sourceRecordId": "ZD0456",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "onsetTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "nursingAssessments": [],
+            "observations": [
+              {
+                "observationId": "obs-BOUND",
+                "code": "2823-3",
+                "displayName": "血钾",
+                "valueNumeric": 6.5,
+                "valueString": null,
+                "unit": "mmol/L",
+                "referenceRange": "3.5-5.5",
+                "criticalFlag": "CRITICAL",
+                "sourceSystem": "LIS",
+                "sourceRecordId": "K001",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "diagnosticReports": [],
+            "medications": [],
+            "procedures": [],
+            "documents": [],
+            "carePlans": [],
+            "followUps": [],
+            "claims": []
+          },
+          "packageVersion": "2026.06.11-act2-024101",
+          "qualityStatus": "VALID",
+          "missingFields": [],
+          "mappingStatus": {
+            "PATIENT:P-act6-rule-8o33w90beb-BOUND:gender:M": "UNKNOWN",
+            "ENCOUNTER:enc-BOUND:encounterType:INPATIENT": "UNKNOWN",
+            "ENCOUNTER:enc-BOUND:departmentId:RESP-DEPT-DRILL": "UNKNOWN",
+            "CONDITION:cond-BOUND:code:J15.9": "UNKNOWN",
+            "CONDITION:cond-BOUND:stage:ACTIVE": "UNKNOWN",
+            "CONDITION:cond-BOUND:severity:MODERATE": "UNKNOWN",
+            "OBSERVATION:obs-BOUND:code:2823-3": "UNKNOWN",
+            "OBSERVATION:obs-BOUND:unit:mmol/L": "UNKNOWN",
+            "OBSERVATION:obs-BOUND:criticalFlag:CRITICAL": "UNKNOWN"
+          },
+          "createdAt": "2026-06-10T22:55:38.888007596Z",
+          "traceId": "act6-rule-8o33w90beb-ctx-BOUND"
+        },
+        "traceId": "act6-rule-8o33w90beb-ctx-BOUND",
+        "timestamp": "2026-06-10T22:55:38.897422337Z"
+      }
+    },
+    {
+      "label": "create-context-CONFLICT",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/context/snapshots",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-ctx-CONFLICT",
+      "headerTraceId": "act6-rule-8o33w90beb-ctx-CONFLICT",
+      "bodyTraceId": "act6-rule-8o33w90beb-ctx-CONFLICT",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-ctx-CONFLICT",
+        "trace_id": "act6-rule-8o33w90beb-ctx-CONFLICT",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "patientId": "P-act6-rule-8o33w90beb-CONFLICT",
+        "encounterId": "enc-CONFLICT",
+        "orgUnitId": "drill-hospital-20260611",
+        "package_version": "2026.06.11-act2-024101",
+        "resources": {
+          "patient": {
+            "mpi": "P-act6-rule-8o33w90beb-CONFLICT",
+            "name": "脱敏患者-CONFLICT",
+            "birthDate": "1962-03-01",
+            "gender": "M",
+            "specialPopulations": [],
+            "sourceSystem": "DRILL",
+            "sourceRecordId": "P-act6-rule-8o33w90beb-CONFLICT",
+            "mappedVersion": "2026.06.11-act2-024101",
+            "eventTime": "2026-06-11T00:00:00Z",
+            "receivedTime": "2026-06-11T00:00:00Z",
+            "qualityStatus": "VALID"
+          },
+          "allergyIntolerances": [],
+          "encounters": [
+            {
+              "encounterId": "enc-CONFLICT",
+              "encounterType": "INPATIENT",
+              "admissionTime": "2026-06-11T00:00:00Z",
+              "dischargeTime": null,
+              "departmentId": "RESP-DEPT-DRILL",
+              "attendingDoctorId": "drill-respiratory-doctor-20260611",
+              "bedId": "B-CONFLICT",
+              "sourceSystem": "HIS",
+              "sourceRecordId": "enc-CONFLICT",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "conditions": [
+            {
+              "conditionId": "cond-CONFLICT",
+              "code": "J15.9",
+              "codeSystem": "ICD-10",
+              "displayName": "细菌性肺炎，未特指",
+              "stage": "ACTIVE",
+              "severity": "MODERATE",
+              "sourceSystem": "HIS-DIAG",
+              "sourceRecordId": "ZD0456",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "onsetTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "nursingAssessments": [],
+          "observations": [
+            {
+              "observationId": "obs-CONFLICT",
+              "code": "718-7",
+              "displayName": "血红蛋白",
+              "valueNumeric": 6.8,
+              "valueString": null,
+              "unit": "g/L",
+              "referenceRange": "120-160",
+              "criticalFlag": "NORMAL",
+              "sourceSystem": "LIS",
+              "sourceRecordId": "HB001",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            }
+          ],
+          "diagnosticReports": [],
+          "medications": [],
+          "procedures": [],
+          "documents": [],
+          "carePlans": [],
+          "followUps": [],
+          "claims": []
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "snapshotId": "ctx-3d3cd0d2-2395-47df-93f7-32b2ff620689",
+          "status": "ACTIVE",
+          "resources": {
+            "patient": {
+              "mpi": "P-act6-rule-8o33w90beb-CONFLICT",
+              "name": "脱敏患者-CONFLICT",
+              "birthDate": "1962-03-01",
+              "gender": "M",
+              "specialPopulations": [],
+              "sourceSystem": "DRILL",
+              "sourceRecordId": "P-act6-rule-8o33w90beb-CONFLICT",
+              "mappedVersion": "2026.06.11-act2-024101",
+              "eventTime": "2026-06-11T00:00:00Z",
+              "receivedTime": "2026-06-11T00:00:00Z",
+              "qualityStatus": "VALID"
+            },
+            "allergyIntolerances": [],
+            "encounters": [
+              {
+                "encounterId": "enc-CONFLICT",
+                "encounterType": "INPATIENT",
+                "admissionTime": "2026-06-11T00:00:00Z",
+                "dischargeTime": null,
+                "departmentId": "RESP-DEPT-DRILL",
+                "attendingDoctorId": "drill-respiratory-doctor-20260611",
+                "bedId": "B-CONFLICT",
+                "sourceSystem": "HIS",
+                "sourceRecordId": "enc-CONFLICT",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "conditions": [
+              {
+                "conditionId": "cond-CONFLICT",
+                "code": "J15.9",
+                "codeSystem": "ICD-10",
+                "displayName": "细菌性肺炎，未特指",
+                "stage": "ACTIVE",
+                "severity": "MODERATE",
+                "sourceSystem": "HIS-DIAG",
+                "sourceRecordId": "ZD0456",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "onsetTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "nursingAssessments": [],
+            "observations": [
+              {
+                "observationId": "obs-CONFLICT",
+                "code": "718-7",
+                "displayName": "血红蛋白",
+                "valueNumeric": 6.8,
+                "valueString": null,
+                "unit": "g/L",
+                "referenceRange": "120-160",
+                "criticalFlag": "NORMAL",
+                "sourceSystem": "LIS",
+                "sourceRecordId": "HB001",
+                "mappedVersion": "2026.06.11-act2-024101",
+                "eventTime": "2026-06-11T00:00:00Z",
+                "receivedTime": "2026-06-11T00:00:00Z",
+                "qualityStatus": "VALID"
+              }
+            ],
+            "diagnosticReports": [],
+            "medications": [],
+            "procedures": [],
+            "documents": [],
+            "carePlans": [],
+            "followUps": [],
+            "claims": []
+          },
+          "packageVersion": "2026.06.11-act2-024101",
+          "qualityStatus": "VALID",
+          "missingFields": [],
+          "mappingStatus": {
+            "PATIENT:P-act6-rule-8o33w90beb-CONFLICT:gender:M": "UNKNOWN",
+            "ENCOUNTER:enc-CONFLICT:encounterType:INPATIENT": "UNKNOWN",
+            "ENCOUNTER:enc-CONFLICT:departmentId:RESP-DEPT-DRILL": "UNKNOWN",
+            "CONDITION:cond-CONFLICT:code:J15.9": "UNKNOWN",
+            "CONDITION:cond-CONFLICT:stage:ACTIVE": "UNKNOWN",
+            "CONDITION:cond-CONFLICT:severity:MODERATE": "UNKNOWN",
+            "OBSERVATION:obs-CONFLICT:code:718-7": "UNKNOWN",
+            "OBSERVATION:obs-CONFLICT:unit:g/L": "UNKNOWN",
+            "OBSERVATION:obs-CONFLICT:criticalFlag:NORMAL": "UNKNOWN"
+          },
+          "createdAt": "2026-06-10T22:55:38.933788767Z",
+          "traceId": "act6-rule-8o33w90beb-ctx-CONFLICT"
+        },
+        "traceId": "act6-rule-8o33w90beb-ctx-CONFLICT",
+        "timestamp": "2026-06-10T22:55:38.943185074Z"
+      }
+    },
+    {
+      "label": "create-act6-loinc-potassium-rule",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-create-rule",
+      "headerTraceId": "act6-rule-8o33w90beb-create-rule",
+      "bodyTraceId": "act6-rule-8o33w90beb-create-rule",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-create-rule",
+        "trace_id": "act6-rule-8o33w90beb-create-rule",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "ruleCode": "DRILL.ACT6.K.LOINC.8o33w90beb",
+        "name": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+        "ruleType": "LAB",
+        "authoringMode": "DSL",
+        "riskLevel": "CRITICAL",
+        "priority": 930,
+        "dedupeWindowSeconds": 60,
+        "applicableOrgUnitId": "tenant:drill-hospital-20260611",
+        "sourceRef": "幕6修订：标准上下文使用 LOINC 2823-3，兼容幕2 K001 -> 2823-3 映射",
+        "changeSummary": "修订高钾危急值运行规则，按标准 LOINC 2823-3 匹配临床事件快照。",
+        "dsl": {
+          "trigger": "result-review",
+          "applicability": {
+            "population": {},
+            "orgScope": {},
+            "settings": [
+              "INPATIENT",
+              "OUTPATIENT",
+              "ED",
+              "FOLLOWUP"
+            ],
+            "effective": {
+              "rolloutPercent": 100
+            }
+          },
+          "meta": {
+            "packageVersion": "2026.06.11-act2-024101",
+            "terminologyPackage": "TERM.DRILL.ACT2@2026.06.11-act2-024101",
+            "readable": "当标准 LOINC 2823-3 血钾最近值大于等于 6.5 或小于等于 2.5 mmol/L 时，强提醒主管医师 30 分钟内确认闭环。"
+          },
+          "when": {
+            "any": [
+              {
+                "expr": {
+                  "field": "observations[].valueNumeric",
+                  "select": "latest",
+                  "where": {
+                    "all": [
+                      {
+                        "expr": {
+                          "field": "observations[].code"
+                        },
+                        "operator": "equals",
+                        "value": {
+                          "const": "2823-3"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "operator": "gte",
+                "value": {
+                  "const": 6.5
+                }
+              },
+              {
+                "expr": {
+                  "field": "observations[].valueNumeric",
+                  "select": "latest",
+                  "where": {
+                    "all": [
+                      {
+                        "expr": {
+                          "field": "observations[].code"
+                        },
+                        "operator": "equals",
+                        "value": {
+                          "const": "2823-3"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "operator": "lte",
+                "value": {
+                  "const": 2.5
+                }
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "atSeverity": "CRITICAL",
+              "indicator": "critical",
+              "summary": "标准血钾危急值需 30 分钟闭环确认",
+              "detail": "最近一次 LOINC 2823-3 血钾达到危急阈值，请主管医师确认结果、通知责任医生并记录回报闭环。",
+              "source": {
+                "label": "幕6标准 LOINC 血钾危急值运行规则",
+                "evidenceLevel": "D_HOSPITAL"
+              },
+              "suggestions": [
+                {
+                  "label": "创建危急值闭环任务",
+                  "actionType": "CREATE_TASK",
+                  "payload": {
+                    "dueMinutes": 30,
+                    "assigneeRole": "attending-physician"
+                  }
+                }
+              ],
+              "overrideReasons": [
+                "复查标本溶血或污染",
+                "已由上级医师确认并记录"
+              ],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "标准血钾危急值规则",
+            "reason": "读取 LOINC 2823-3 最近血钾值，与院内危急值阈值比较。",
+            "sourceRef": "幕3血钾危急值知识版本；幕2术语包 TERM.DRILL.ACT2"
+          }
+        },
+        "explanation": {
+          "title": "标准血钾危急值规则",
+          "reason": "读取 LOINC 2823-3 最近血钾值，与院内危急值阈值比较。",
+          "sourceRef": "幕3血钾危急值知识版本；幕2术语包 TERM.DRILL.ACT2"
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "status": "DRAFT",
+          "traceId": "act6-rule-8o33w90beb-create-rule"
+        },
+        "traceId": "act6-rule-8o33w90beb-create-rule",
+        "timestamp": "2026-06-10T22:55:39.022506082Z"
+      }
+    },
+    {
+      "label": "add-test-POSITIVE",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/test-cases",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-test-POSITIVE",
+      "headerTraceId": "act6-rule-8o33w90beb-test-POSITIVE",
+      "bodyTraceId": "act6-rule-8o33w90beb-test-POSITIVE",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-test-POSITIVE",
+        "trace_id": "act6-rule-8o33w90beb-test-POSITIVE",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "POSITIVE",
+        "contextSnapshotId": "ctx-ce4f8cf1-8c46-4984-8f28-4031b32077eb",
+        "expectedHit": true,
+        "expectedSeverity": "CRITICAL",
+        "expectedActionCode": "STRONG_REMINDER"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-92445002-c84c-41bd-b5ce-fbb884ed4267",
+          "caseType": "POSITIVE",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act6-rule-8o33w90beb-test-POSITIVE",
+        "timestamp": "2026-06-10T22:55:39.089759975Z"
+      }
+    },
+    {
+      "label": "add-test-NEGATIVE",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/test-cases",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-test-NEGATIVE",
+      "headerTraceId": "act6-rule-8o33w90beb-test-NEGATIVE",
+      "bodyTraceId": "act6-rule-8o33w90beb-test-NEGATIVE",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-test-NEGATIVE",
+        "trace_id": "act6-rule-8o33w90beb-test-NEGATIVE",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "NEGATIVE",
+        "contextSnapshotId": "ctx-b4e1c523-b450-4d4b-b684-9e791675fe63",
+        "expectedHit": false,
+        "expectedSeverity": null,
+        "expectedActionCode": null
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-8fae0291-1ae3-485f-8bdf-ccf811f182b1",
+          "caseType": "NEGATIVE",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act6-rule-8o33w90beb-test-NEGATIVE",
+        "timestamp": "2026-06-10T22:55:39.134097462Z"
+      }
+    },
+    {
+      "label": "add-test-BOUNDARY",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/test-cases",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-test-BOUNDARY",
+      "headerTraceId": "act6-rule-8o33w90beb-test-BOUNDARY",
+      "bodyTraceId": "act6-rule-8o33w90beb-test-BOUNDARY",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-test-BOUNDARY",
+        "trace_id": "act6-rule-8o33w90beb-test-BOUNDARY",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "BOUNDARY",
+        "contextSnapshotId": "ctx-2a1a5a00-56c4-4c3b-a147-c0962d0b3448",
+        "expectedHit": true,
+        "expectedSeverity": "CRITICAL",
+        "expectedActionCode": "STRONG_REMINDER"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-d4ed4ae1-f4f2-4e54-8f03-7873a96bac2a",
+          "caseType": "BOUNDARY",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act6-rule-8o33w90beb-test-BOUNDARY",
+        "timestamp": "2026-06-10T22:55:39.189283268Z"
+      }
+    },
+    {
+      "label": "add-test-CONFLICT",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/test-cases",
+      "status": 201,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-test-CONFLICT",
+      "headerTraceId": "act6-rule-8o33w90beb-test-CONFLICT",
+      "bodyTraceId": "act6-rule-8o33w90beb-test-CONFLICT",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-test-CONFLICT",
+        "trace_id": "act6-rule-8o33w90beb-test-CONFLICT",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "caseType": "CONFLICT",
+        "contextSnapshotId": "ctx-3d3cd0d2-2395-47df-93f7-32b2ff620689",
+        "expectedHit": false,
+        "expectedSeverity": null,
+        "expectedActionCode": null
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "caseId": "rtc-d7217643-4602-4062-9bf9-03d7ae60b97c",
+          "caseType": "CONFLICT",
+          "lastStatus": "NOT_RUN"
+        },
+        "traceId": "act6-rule-8o33w90beb-test-CONFLICT",
+        "timestamp": "2026-06-10T22:55:39.232683837Z"
+      }
+    },
+    {
+      "label": "impact-draft",
+      "actor": "medical-affairs",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/impact",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-impact-draft",
+      "headerTraceId": "act6-rule-8o33w90beb-impact-draft",
+      "bodyTraceId": "act6-rule-8o33w90beb-impact-draft",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "riskLevel": "CRITICAL",
+          "analysisStatus": "COMPLETE",
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "affectedRules": [
+            {
+              "objectType": "RULE_DEFINITION",
+              "objectId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "displayName": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+              "impactReason": "当前规则版本将被发布或替换"
+            }
+          ],
+          "affectedPathways": [],
+          "inPathPatients": [],
+          "integrationAdapters": [],
+          "unavailableScopes": [],
+          "traceId": "act6-rule-8o33w90beb-impact-draft"
+        },
+        "traceId": "act6-rule-8o33w90beb-impact-draft",
+        "timestamp": "2026-06-10T22:55:39.275819978Z"
+      }
+    },
+    {
+      "label": "transition-PEER_REVIEW",
+      "actor": "medical-affairs",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-PEER_REVIEW",
+      "headerTraceId": "act6-rule-8o33w90beb-PEER_REVIEW",
+      "bodyTraceId": "act6-rule-8o33w90beb-PEER_REVIEW",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-PEER_REVIEW",
+        "trace_id": "act6-rule-8o33w90beb-PEER_REVIEW",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-medical-affairs-20260611",
+        "role_codes": [
+          "medical-affairs"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "PEER_REVIEW",
+        "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+        "reason": "Act6 标准 LOINC 高钾规则提交同行评审，四类测试已通过。",
+        "publishEvidence": {
+          "electronicSignature": {
+            "signatureId": "sig-act6-rule-8o33w90beb",
+            "signerId": "drill-medical-affairs-20260611",
+            "signerName": "演练医院管理员",
+            "signedAt": "2026-06-10T22:55:39.206Z",
+            "signatureHash": "5924b6185edd6cf925c306dfcc861ab44591272ac03d1688552bc1a7267e798d"
+          },
+          "qualityGate": {
+            "schemaValid": true,
+            "terminologyBindingComplete": true,
+            "dependencyIntegrityVerified": true,
+            "safetyMonotonicityVerified": true,
+            "impactSimulationPassed": true,
+            "peerReviewSigned": true,
+            "summary": "Act6 标准 LOINC 血钾危急值规则发布质量门全部通过"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "PEER_REVIEW",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 0,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "Act6 标准 LOINC 高钾规则提交同行评审，四类测试已通过。",
+          "signoffs": [],
+          "testResults": [
+            {
+              "caseId": "rtc-92445002-c84c-41bd-b5ce-fbb884ed4267",
+              "caseType": "POSITIVE",
+              "expectedHit": true,
+              "actualHit": true,
+              "expectedSeverity": "CRITICAL",
+              "actualSeverity": "CRITICAL",
+              "status": "PASS",
+              "message": "测试通过"
+            },
+            {
+              "caseId": "rtc-8fae0291-1ae3-485f-8bdf-ccf811f182b1",
+              "caseType": "NEGATIVE",
+              "expectedHit": false,
+              "actualHit": false,
+              "expectedSeverity": null,
+              "actualSeverity": null,
+              "status": "PASS",
+              "message": "测试通过"
+            },
+            {
+              "caseId": "rtc-d4ed4ae1-f4f2-4e54-8f03-7873a96bac2a",
+              "caseType": "BOUNDARY",
+              "expectedHit": true,
+              "actualHit": true,
+              "expectedSeverity": "CRITICAL",
+              "actualSeverity": "CRITICAL",
+              "status": "PASS",
+              "message": "测试通过"
+            },
+            {
+              "caseId": "rtc-d7217643-4602-4062-9bf9-03d7ae60b97c",
+              "caseType": "CONFLICT",
+              "expectedHit": false,
+              "actualHit": false,
+              "expectedSeverity": null,
+              "actualSeverity": null,
+              "status": "PASS",
+              "message": "测试通过"
+            }
+          ],
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "impactStatus": "COMPLETE",
+          "releaseEvidence": [
+            "IN_REVIEW 提交评审：sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb"
+          ],
+          "traceId": "act6-rule-8o33w90beb-PEER_REVIEW"
+        },
+        "traceId": "act6-rule-8o33w90beb-PEER_REVIEW",
+        "timestamp": "2026-06-10T22:55:39.392353292Z"
+      }
+    },
+    {
+      "label": "peer-signoff-pharmacist",
+      "actor": "pharmacist",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/signoffs",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-peer-signoff",
+      "headerTraceId": "act6-rule-8o33w90beb-peer-signoff",
+      "bodyTraceId": "act6-rule-8o33w90beb-peer-signoff",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-peer-signoff",
+        "trace_id": "act6-rule-8o33w90beb-peer-signoff",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-clinical-pharmacist-20260611",
+        "role_codes": [
+          "pharmacist"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "stage": "PEER_REVIEW",
+        "decision": "APPROVED",
+        "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "COMMITTEE",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 0,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "同行评审已完成",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": null,
+          "impactStatus": null,
+          "releaseEvidence": [],
+          "traceId": "act6-rule-8o33w90beb-peer-signoff"
+        },
+        "traceId": "act6-rule-8o33w90beb-peer-signoff",
+        "timestamp": "2026-06-10T22:55:39.462732921Z"
+      }
+    },
+    {
+      "label": "committee-signoff-specialist",
+      "actor": "specialist",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/signoffs",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-committee-specialist",
+      "headerTraceId": "act6-rule-8o33w90beb-committee-specialist",
+      "bodyTraceId": "act6-rule-8o33w90beb-committee-specialist",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-committee-specialist",
+        "trace_id": "act6-rule-8o33w90beb-committee-specialist",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-role-specialist-20260611",
+        "role_codes": [
+          "specialist"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "stage": "COMMITTEE",
+        "decision": "APPROVED",
+        "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "COMMITTEE",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 1,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "委员会会签已记录",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            },
+            {
+              "id": 20,
+              "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "specialist",
+              "signerId": "drill-role-specialist-20260611",
+              "decision": "APPROVED",
+              "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+              "signedAt": "2026-06-10T22:55:39.500682Z",
+              "traceId": "act6-rule-8o33w90beb-committee-specialist"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": null,
+          "impactStatus": null,
+          "releaseEvidence": [],
+          "traceId": "act6-rule-8o33w90beb-committee-specialist"
+        },
+        "traceId": "act6-rule-8o33w90beb-committee-specialist",
+        "timestamp": "2026-06-10T22:55:39.505861639Z"
+      }
+    },
+    {
+      "label": "committee-signoff-dept-head",
+      "actor": "dept-head",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/signoffs",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-committee-dept-head",
+      "headerTraceId": "act6-rule-8o33w90beb-committee-dept-head",
+      "bodyTraceId": "act6-rule-8o33w90beb-committee-dept-head",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-committee-dept-head",
+        "trace_id": "act6-rule-8o33w90beb-committee-dept-head",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-role-dept-head-20260611",
+        "role_codes": [
+          "dept-head"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "stage": "COMMITTEE",
+        "decision": "APPROVED",
+        "reason": "科主任确认 30 分钟危急值闭环工作流可执行。"
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "COMMITTEE",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 2,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "委员会会签已记录",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            },
+            {
+              "id": 20,
+              "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "specialist",
+              "signerId": "drill-role-specialist-20260611",
+              "decision": "APPROVED",
+              "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+              "signedAt": "2026-06-10T22:55:39.500682Z",
+              "traceId": "act6-rule-8o33w90beb-committee-specialist"
+            },
+            {
+              "id": 21,
+              "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "dept-head",
+              "signerId": "drill-role-dept-head-20260611",
+              "decision": "APPROVED",
+              "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+              "signedAt": "2026-06-10T22:55:39.539874Z",
+              "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": null,
+          "impactStatus": null,
+          "releaseEvidence": [],
+          "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+        },
+        "traceId": "act6-rule-8o33w90beb-committee-dept-head",
+        "timestamp": "2026-06-10T22:55:39.544366333Z"
+      }
+    },
+    {
+      "label": "impact-committee",
+      "actor": "hospital-admin",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/impact",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-impact-committee",
+      "headerTraceId": "act6-rule-8o33w90beb-impact-committee",
+      "bodyTraceId": "act6-rule-8o33w90beb-impact-committee",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "riskLevel": "CRITICAL",
+          "analysisStatus": "COMPLETE",
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "affectedRules": [
+            {
+              "objectType": "RULE_DEFINITION",
+              "objectId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "displayName": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+              "impactReason": "当前规则版本将被发布或替换"
+            }
+          ],
+          "affectedPathways": [],
+          "inPathPatients": [],
+          "integrationAdapters": [],
+          "unavailableScopes": [],
+          "traceId": "act6-rule-8o33w90beb-impact-committee"
+        },
+        "traceId": "act6-rule-8o33w90beb-impact-committee",
+        "timestamp": "2026-06-10T22:55:39.583091612Z"
+      }
+    },
+    {
+      "label": "transition-SHADOW",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-SHADOW",
+      "headerTraceId": "act6-rule-8o33w90beb-SHADOW",
+      "bodyTraceId": "act6-rule-8o33w90beb-SHADOW",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-SHADOW",
+        "trace_id": "act6-rule-8o33w90beb-SHADOW",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "SHADOW",
+        "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+        "reason": "医院管理员确认进入影子运行。",
+        "publishEvidence": {
+          "electronicSignature": {
+            "signatureId": "sig-act6-rule-8o33w90beb",
+            "signerId": "drill-hospital-admin-20260611",
+            "signerName": "演练医院管理员",
+            "signedAt": "2026-06-10T22:55:39.511Z",
+            "signatureHash": "971e119c1a0c0c3cce0f58728e561274f7602ba6073016d4b3bfa94320cd75c3"
+          },
+          "qualityGate": {
+            "schemaValid": true,
+            "terminologyBindingComplete": true,
+            "dependencyIntegrityVerified": true,
+            "safetyMonotonicityVerified": true,
+            "impactSimulationPassed": true,
+            "peerReviewSigned": true,
+            "summary": "Act6 标准 LOINC 血钾危急值规则发布质量门全部通过"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "SHADOW",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 2,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "医院管理员确认进入影子运行。",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            },
+            {
+              "id": 20,
+              "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "specialist",
+              "signerId": "drill-role-specialist-20260611",
+              "decision": "APPROVED",
+              "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+              "signedAt": "2026-06-10T22:55:39.500682Z",
+              "traceId": "act6-rule-8o33w90beb-committee-specialist"
+            },
+            {
+              "id": 21,
+              "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "dept-head",
+              "signerId": "drill-role-dept-head-20260611",
+              "decision": "APPROVED",
+              "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+              "signedAt": "2026-06-10T22:55:39.539874Z",
+              "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "impactStatus": "COMPLETE",
+          "releaseEvidence": [
+            "APPROVED 评审通过：医院管理员确认进入影子运行。；sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb"
+          ],
+          "traceId": "act6-rule-8o33w90beb-SHADOW"
+        },
+        "traceId": "act6-rule-8o33w90beb-SHADOW",
+        "timestamp": "2026-06-10T22:55:39.636333549Z"
+      }
+    },
+    {
+      "label": "impact-shadow",
+      "actor": "hospital-admin",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/impact",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-impact-shadow",
+      "headerTraceId": "act6-rule-8o33w90beb-impact-shadow",
+      "bodyTraceId": "act6-rule-8o33w90beb-impact-shadow",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "riskLevel": "CRITICAL",
+          "analysisStatus": "COMPLETE",
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "affectedRules": [
+            {
+              "objectType": "RULE_DEFINITION",
+              "objectId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "displayName": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+              "impactReason": "当前规则版本将被发布或替换"
+            }
+          ],
+          "affectedPathways": [],
+          "inPathPatients": [],
+          "integrationAdapters": [],
+          "unavailableScopes": [],
+          "traceId": "act6-rule-8o33w90beb-impact-shadow"
+        },
+        "traceId": "act6-rule-8o33w90beb-impact-shadow",
+        "timestamp": "2026-06-10T22:55:39.672655485Z"
+      }
+    },
+    {
+      "label": "transition-CANARY",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-CANARY",
+      "headerTraceId": "act6-rule-8o33w90beb-CANARY",
+      "bodyTraceId": "act6-rule-8o33w90beb-CANARY",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-CANARY",
+        "trace_id": "act6-rule-8o33w90beb-CANARY",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "CANARY",
+        "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+        "reason": "医院管理员确认灰度发布。",
+        "publishEvidence": {
+          "electronicSignature": {
+            "signatureId": "sig-act6-rule-8o33w90beb",
+            "signerId": "drill-hospital-admin-20260611",
+            "signerName": "演练医院管理员",
+            "signedAt": "2026-06-10T22:55:39.603Z",
+            "signatureHash": "0b6113ffece823cbea5edaa69368d24039063689c5f22fcb5152252634c3b8fb"
+          },
+          "qualityGate": {
+            "schemaValid": true,
+            "terminologyBindingComplete": true,
+            "dependencyIntegrityVerified": true,
+            "safetyMonotonicityVerified": true,
+            "impactSimulationPassed": true,
+            "peerReviewSigned": true,
+            "summary": "Act6 标准 LOINC 血钾危急值规则发布质量门全部通过"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "CANARY",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 2,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "医院管理员确认灰度发布。",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            },
+            {
+              "id": 20,
+              "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "specialist",
+              "signerId": "drill-role-specialist-20260611",
+              "decision": "APPROVED",
+              "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+              "signedAt": "2026-06-10T22:55:39.500682Z",
+              "traceId": "act6-rule-8o33w90beb-committee-specialist"
+            },
+            {
+              "id": 21,
+              "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "dept-head",
+              "signerId": "drill-role-dept-head-20260611",
+              "decision": "APPROVED",
+              "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+              "signedAt": "2026-06-10T22:55:39.539874Z",
+              "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "impactStatus": "COMPLETE",
+          "releaseEvidence": [
+            "GRAY 灰度发布：sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb"
+          ],
+          "traceId": "act6-rule-8o33w90beb-CANARY"
+        },
+        "traceId": "act6-rule-8o33w90beb-CANARY",
+        "timestamp": "2026-06-10T22:55:39.736905821Z"
+      }
+    },
+    {
+      "label": "impact-canary",
+      "actor": "hospital-admin",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/impact",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-impact-canary",
+      "headerTraceId": "act6-rule-8o33w90beb-impact-canary",
+      "bodyTraceId": "act6-rule-8o33w90beb-impact-canary",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "riskLevel": "CRITICAL",
+          "analysisStatus": "COMPLETE",
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "affectedRules": [
+            {
+              "objectType": "RULE_DEFINITION",
+              "objectId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "displayName": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+              "impactReason": "当前规则版本将被发布或替换"
+            }
+          ],
+          "affectedPathways": [],
+          "inPathPatients": [],
+          "integrationAdapters": [],
+          "unavailableScopes": [],
+          "traceId": "act6-rule-8o33w90beb-impact-canary"
+        },
+        "traceId": "act6-rule-8o33w90beb-impact-canary",
+        "timestamp": "2026-06-10T22:55:39.771562314Z"
+      }
+    },
+    {
+      "label": "transition-FULL",
+      "actor": "hospital-admin",
+      "method": "POST",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751/governance/transitions",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-FULL",
+      "headerTraceId": "act6-rule-8o33w90beb-FULL",
+      "bodyTraceId": "act6-rule-8o33w90beb-FULL",
+      "request": {
+        "request_id": "req-act6-rule-8o33w90beb-FULL",
+        "trace_id": "act6-rule-8o33w90beb-FULL",
+        "tenant_id": "drill-hospital-20260611",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "package_version": "2026.06.11-act2-024101",
+        "targetState": "FULL",
+        "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+        "reason": "医院管理员确认全量激活 Act6 标准 LOINC 高钾规则。",
+        "publishEvidence": {
+          "electronicSignature": {
+            "signatureId": "sig-act6-rule-8o33w90beb",
+            "signerId": "drill-hospital-admin-20260611",
+            "signerName": "演练医院管理员",
+            "signedAt": "2026-06-10T22:55:39.705Z",
+            "signatureHash": "8ed3c2c99d0f97e345309801fe147371a28134808380d572ed936646b7c9b9a4"
+          },
+          "qualityGate": {
+            "schemaValid": true,
+            "terminologyBindingComplete": true,
+            "dependencyIntegrityVerified": true,
+            "safetyMonotonicityVerified": true,
+            "impactSimulationPassed": true,
+            "peerReviewSigned": true,
+            "summary": "Act6 标准 LOINC 血钾危急值规则发布质量门全部通过"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+          "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+          "state": "FULL",
+          "requiredSignoffs": 2,
+          "reviewRound": 1,
+          "committeeApprovalCount": 2,
+          "authorId": "drill-medical-affairs-20260611",
+          "lastReason": "医院管理员确认全量激活 Act6 标准 LOINC 高钾规则。",
+          "signoffs": [
+            {
+              "id": 19,
+              "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "PEER_REVIEW",
+              "reviewRound": 1,
+              "signerRole": "pharmacist",
+              "signerId": "drill-clinical-pharmacist-20260611",
+              "decision": "APPROVED",
+              "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+              "signedAt": "2026-06-10T22:55:39.446186Z",
+              "traceId": "act6-rule-8o33w90beb-peer-signoff"
+            },
+            {
+              "id": 20,
+              "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "specialist",
+              "signerId": "drill-role-specialist-20260611",
+              "decision": "APPROVED",
+              "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+              "signedAt": "2026-06-10T22:55:39.500682Z",
+              "traceId": "act6-rule-8o33w90beb-committee-specialist"
+            },
+            {
+              "id": 21,
+              "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+              "tenantId": "drill-hospital-20260611",
+              "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "stage": "COMMITTEE",
+              "reviewRound": 1,
+              "signerRole": "dept-head",
+              "signerId": "drill-role-dept-head-20260611",
+              "decision": "APPROVED",
+              "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+              "signedAt": "2026-06-10T22:55:39.539874Z",
+              "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+            }
+          ],
+          "testResults": [],
+          "impactDigest": "sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb",
+          "impactStatus": "COMPLETE",
+          "releaseEvidence": [
+            "PUBLISHED 发布：sha256:67dd1321b7ed95bd5c01ea692de8df6bcfd924804f9ff66a4f1de4e8afc363eb"
+          ],
+          "traceId": "act6-rule-8o33w90beb-FULL"
+        },
+        "traceId": "act6-rule-8o33w90beb-FULL",
+        "timestamp": "2026-06-10T22:55:39.824640061Z"
+      }
+    },
+    {
+      "label": "detail-after-full",
+      "actor": "hospital-admin",
+      "method": "GET",
+      "path": "/engine/rule/rules/rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-rule-8o33w90beb-detail-after-full",
+      "headerTraceId": "act6-rule-8o33w90beb-detail-after-full",
+      "bodyTraceId": "act6-rule-8o33w90beb-detail-after-full",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "definition": {
+            "id": 12,
+            "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+            "tenantId": "drill-hospital-20260611",
+            "ruleCode": "DRILL.ACT6.K.LOINC.8o33w90beb",
+            "name": "Act6 标准 LOINC 血钾危急值 30 分钟闭环规则",
+            "ruleType": "LAB",
+            "authoringMode": "DSL",
+            "riskLevel": "CRITICAL",
+            "priority": 930,
+            "suppressedBy": null,
+            "dedupeWindowSeconds": 60,
+            "status": "PUBLISHED",
+            "activeVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+            "packageVersion": "2026.06.11-act2-024101",
+            "applicableOrgUnitId": "tenant:drill-hospital-20260611",
+            "createdAt": "2026-06-10T22:55:38.978827Z",
+            "createdBy": "drill-medical-affairs-20260611",
+            "updatedAt": "2026-06-10T22:55:39.629208Z",
+            "updatedBy": "drill-hospital-admin-20260611",
+            "traceId": "act6-rule-8o33w90beb-SHADOW"
+          },
+          "version": {
+            "id": 12,
+            "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+            "tenantId": "drill-hospital-20260611",
+            "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+            "versionNo": 1,
+            "sourceRef": "幕6修订：标准上下文使用 LOINC 2823-3，兼容幕2 K001 -> 2823-3 映射",
+            "changeSummary": "修订高钾危急值运行规则，按标准 LOINC 2823-3 匹配临床事件快照。",
+            "dslJson": "{\"trigger\":\"result-review\",\"applicability\":{\"population\":{},\"orgScope\":{},\"settings\":[\"INPATIENT\",\"OUTPATIENT\",\"ED\",\"FOLLOWUP\"],\"effective\":{\"rolloutPercent\":100}},\"meta\":{\"packageVersion\":\"2026.06.11-act2-024101\",\"terminologyPackage\":\"TERM.DRILL.ACT2@2026.06.11-act2-024101\",\"readable\":\"当标准 LOINC 2823-3 血钾最近值大于等于 6.5 或小于等于 2.5 mmol/L 时，强提醒主管医师 30 分钟内确认闭环。\"},\"when\":{\"any\":[{\"expr\":{\"field\":\"observations[].valueNumeric\",\"select\":\"latest\",\"where\":{\"all\":[{\"expr\":{\"field\":\"observations[].code\"},\"operator\":\"equals\",\"value\":{\"const\":\"2823-3\"}}]}},\"operator\":\"gte\",\"value\":{\"const\":6.5}},{\"expr\":{\"field\":\"observations[].valueNumeric\",\"select\":\"latest\",\"where\":{\"all\":[{\"expr\":{\"field\":\"observations[].code\"},\"operator\":\"equals\",\"value\":{\"const\":\"2823-3\"}}]}},\"operator\":\"lte\",\"value\":{\"const\":2.5}}]},\"then\":[{\"actionCode\":\"STRONG_REMINDER\",\"atSeverity\":\"CRITICAL\",\"indicator\":\"critical\",\"summary\":\"标准血钾危急值需 30 分钟闭环确认\",\"detail\":\"最近一次 LOINC 2823-3 血钾达到危急阈值，请主管医师确认结果、通知责任医生并记录回报闭环。\",\"source\":{\"label\":\"幕6标准 LOINC 血钾危急值运行规则\",\"evidenceLevel\":\"D_HOSPITAL\"},\"suggestions\":[{\"label\":\"创建危急值闭环任务\",\"actionType\":\"CREATE_TASK\",\"payload\":{\"dueMinutes\":30,\"assigneeRole\":\"attending-physician\"}}],\"overrideReasons\":[\"复查标本溶血或污染\",\"已由上级医师确认并记录\"],\"requiresPhysicianConfirmation\":true}],\"explain\":{\"title\":\"标准血钾危急值规则\",\"reason\":\"读取 LOINC 2823-3 最近血钾值，与院内危急值阈值比较。\",\"sourceRef\":\"幕3血钾危急值知识版本；幕2术语包 TERM.DRILL.ACT2\"}}",
+            "explanationJson": "{\"title\":\"标准血钾危急值规则\",\"reason\":\"读取 LOINC 2823-3 最近血钾值，与院内危急值阈值比较。\",\"sourceRef\":\"幕3血钾危急值知识版本；幕2术语包 TERM.DRILL.ACT2\"}",
+            "status": "PUBLISHED",
+            "publishedAt": "2026-06-10T22:55:39.629208Z",
+            "publishedBy": "drill-hospital-admin-20260611",
+            "rollbackVersionId": null,
+            "createdAt": "2026-06-10T22:55:38.978827Z",
+            "createdBy": "drill-medical-affairs-20260611",
+            "updatedAt": "2026-06-10T22:55:39.629208Z",
+            "updatedBy": "drill-hospital-admin-20260611",
+            "traceId": "act6-rule-8o33w90beb-SHADOW"
+          },
+          "testCases": [
+            {
+              "id": 45,
+              "caseId": "rtc-92445002-c84c-41bd-b5ce-fbb884ed4267",
+              "tenantId": "drill-hospital-20260611",
+              "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "caseType": "POSITIVE",
+              "contextSnapshotId": "ctx-ce4f8cf1-8c46-4984-8f28-4031b32077eb",
+              "inputPayload": "{\"patient\":{\"mpi\":\"P-act6-rule-8o33w90beb-POS\",\"name\":\"脱敏患者-POS\",\"birthDate\":\"1962-03-01\",\"gender\":\"M\",\"specialPopulations\":[],\"sourceSystem\":\"DRILL\",\"sourceRecordId\":\"P-act6-rule-8o33w90beb-POS\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"},\"allergyIntolerances\":[],\"encounters\":[{\"encounterId\":\"enc-POS\",\"encounterType\":\"INPATIENT\",\"admissionTime\":\"2026-06-11T00:00:00Z\",\"dischargeTime\":null,\"departmentId\":\"RESP-DEPT-DRILL\",\"attendingDoctorId\":\"drill-respiratory-doctor-20260611\",\"bedId\":\"B-POS\",\"sourceSystem\":\"HIS\",\"sourceRecordId\":\"enc-POS\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"conditions\":[{\"conditionId\":\"cond-POS\",\"code\":\"J15.9\",\"codeSystem\":\"ICD-10\",\"displayName\":\"细菌性肺炎，未特指\",\"stage\":\"ACTIVE\",\"severity\":\"MODERATE\",\"sourceSystem\":\"HIS-DIAG\",\"sourceRecordId\":\"ZD0456\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"onsetTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"nursingAssessments\":[],\"observations\":[{\"observationId\":\"obs-POS\",\"code\":\"2823-3\",\"displayName\":\"血钾\",\"valueNumeric\":6.8,\"valueString\":null,\"unit\":\"mmol/L\",\"referenceRange\":\"3.5-5.5\",\"criticalFlag\":\"CRITICAL\",\"sourceSystem\":\"LIS\",\"sourceRecordId\":\"K001\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"diagnosticReports\":[],\"medications\":[],\"procedures\":[],\"documents\":[],\"carePlans\":[],\"followUps\":[],\"claims\":[]}",
+              "expectedHit": true,
+              "expectedSeverity": "CRITICAL",
+              "expectedActionCode": "STRONG_REMINDER",
+              "lastHit": true,
+              "lastStatus": "PASS",
+              "lastMessage": "测试通过",
+              "lastRunAt": "2026-06-10T22:55:39.361126Z",
+              "createdAt": "2026-06-10T22:55:39.071911Z",
+              "createdBy": "drill-medical-affairs-20260611",
+              "updatedAt": "2026-06-10T22:55:39.361126Z",
+              "updatedBy": "drill-medical-affairs-20260611",
+              "traceId": "act6-rule-8o33w90beb-PEER_REVIEW"
+            },
+            {
+              "id": 46,
+              "caseId": "rtc-8fae0291-1ae3-485f-8bdf-ccf811f182b1",
+              "tenantId": "drill-hospital-20260611",
+              "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "caseType": "NEGATIVE",
+              "contextSnapshotId": "ctx-b4e1c523-b450-4d4b-b684-9e791675fe63",
+              "inputPayload": "{\"patient\":{\"mpi\":\"P-act6-rule-8o33w90beb-NEG\",\"name\":\"脱敏患者-NEG\",\"birthDate\":\"1962-03-01\",\"gender\":\"M\",\"specialPopulations\":[],\"sourceSystem\":\"DRILL\",\"sourceRecordId\":\"P-act6-rule-8o33w90beb-NEG\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"},\"allergyIntolerances\":[],\"encounters\":[{\"encounterId\":\"enc-NEG\",\"encounterType\":\"INPATIENT\",\"admissionTime\":\"2026-06-11T00:00:00Z\",\"dischargeTime\":null,\"departmentId\":\"RESP-DEPT-DRILL\",\"attendingDoctorId\":\"drill-respiratory-doctor-20260611\",\"bedId\":\"B-NEG\",\"sourceSystem\":\"HIS\",\"sourceRecordId\":\"enc-NEG\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"conditions\":[{\"conditionId\":\"cond-NEG\",\"code\":\"J15.9\",\"codeSystem\":\"ICD-10\",\"displayName\":\"细菌性肺炎，未特指\",\"stage\":\"ACTIVE\",\"severity\":\"MODERATE\",\"sourceSystem\":\"HIS-DIAG\",\"sourceRecordId\":\"ZD0456\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"onsetTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"nursingAssessments\":[],\"observations\":[{\"observationId\":\"obs-NEG\",\"code\":\"2823-3\",\"displayName\":\"血钾\",\"valueNumeric\":4.1,\"valueString\":null,\"unit\":\"mmol/L\",\"referenceRange\":\"3.5-5.5\",\"criticalFlag\":\"NORMAL\",\"sourceSystem\":\"LIS\",\"sourceRecordId\":\"K001\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"diagnosticReports\":[],\"medications\":[],\"procedures\":[],\"documents\":[],\"carePlans\":[],\"followUps\":[],\"claims\":[]}",
+              "expectedHit": false,
+              "expectedSeverity": null,
+              "expectedActionCode": null,
+              "lastHit": false,
+              "lastStatus": "PASS",
+              "lastMessage": "测试通过",
+              "lastRunAt": "2026-06-10T22:55:39.364220Z",
+              "createdAt": "2026-06-10T22:55:39.125438Z",
+              "createdBy": "drill-medical-affairs-20260611",
+              "updatedAt": "2026-06-10T22:55:39.364220Z",
+              "updatedBy": "drill-medical-affairs-20260611",
+              "traceId": "act6-rule-8o33w90beb-PEER_REVIEW"
+            },
+            {
+              "id": 47,
+              "caseId": "rtc-d4ed4ae1-f4f2-4e54-8f03-7873a96bac2a",
+              "tenantId": "drill-hospital-20260611",
+              "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "caseType": "BOUNDARY",
+              "contextSnapshotId": "ctx-2a1a5a00-56c4-4c3b-a147-c0962d0b3448",
+              "inputPayload": "{\"patient\":{\"mpi\":\"P-act6-rule-8o33w90beb-BOUND\",\"name\":\"脱敏患者-BOUND\",\"birthDate\":\"1962-03-01\",\"gender\":\"M\",\"specialPopulations\":[],\"sourceSystem\":\"DRILL\",\"sourceRecordId\":\"P-act6-rule-8o33w90beb-BOUND\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"},\"allergyIntolerances\":[],\"encounters\":[{\"encounterId\":\"enc-BOUND\",\"encounterType\":\"INPATIENT\",\"admissionTime\":\"2026-06-11T00:00:00Z\",\"dischargeTime\":null,\"departmentId\":\"RESP-DEPT-DRILL\",\"attendingDoctorId\":\"drill-respiratory-doctor-20260611\",\"bedId\":\"B-BOUND\",\"sourceSystem\":\"HIS\",\"sourceRecordId\":\"enc-BOUND\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"conditions\":[{\"conditionId\":\"cond-BOUND\",\"code\":\"J15.9\",\"codeSystem\":\"ICD-10\",\"displayName\":\"细菌性肺炎，未特指\",\"stage\":\"ACTIVE\",\"severity\":\"MODERATE\",\"sourceSystem\":\"HIS-DIAG\",\"sourceRecordId\":\"ZD0456\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"onsetTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"nursingAssessments\":[],\"observations\":[{\"observationId\":\"obs-BOUND\",\"code\":\"2823-3\",\"displayName\":\"血钾\",\"valueNumeric\":6.5,\"valueString\":null,\"unit\":\"mmol/L\",\"referenceRange\":\"3.5-5.5\",\"criticalFlag\":\"CRITICAL\",\"sourceSystem\":\"LIS\",\"sourceRecordId\":\"K001\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"diagnosticReports\":[],\"medications\":[],\"procedures\":[],\"documents\":[],\"carePlans\":[],\"followUps\":[],\"claims\":[]}",
+              "expectedHit": true,
+              "expectedSeverity": "CRITICAL",
+              "expectedActionCode": "STRONG_REMINDER",
+              "lastHit": true,
+              "lastStatus": "PASS",
+              "lastMessage": "测试通过",
+              "lastRunAt": "2026-06-10T22:55:39.366269Z",
+              "createdAt": "2026-06-10T22:55:39.175804Z",
+              "createdBy": "drill-medical-affairs-20260611",
+              "updatedAt": "2026-06-10T22:55:39.366269Z",
+              "updatedBy": "drill-medical-affairs-20260611",
+              "traceId": "act6-rule-8o33w90beb-PEER_REVIEW"
+            },
+            {
+              "id": 48,
+              "caseId": "rtc-d7217643-4602-4062-9bf9-03d7ae60b97c",
+              "tenantId": "drill-hospital-20260611",
+              "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+              "caseType": "CONFLICT",
+              "contextSnapshotId": "ctx-3d3cd0d2-2395-47df-93f7-32b2ff620689",
+              "inputPayload": "{\"patient\":{\"mpi\":\"P-act6-rule-8o33w90beb-CONFLICT\",\"name\":\"脱敏患者-CONFLICT\",\"birthDate\":\"1962-03-01\",\"gender\":\"M\",\"specialPopulations\":[],\"sourceSystem\":\"DRILL\",\"sourceRecordId\":\"P-act6-rule-8o33w90beb-CONFLICT\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"},\"allergyIntolerances\":[],\"encounters\":[{\"encounterId\":\"enc-CONFLICT\",\"encounterType\":\"INPATIENT\",\"admissionTime\":\"2026-06-11T00:00:00Z\",\"dischargeTime\":null,\"departmentId\":\"RESP-DEPT-DRILL\",\"attendingDoctorId\":\"drill-respiratory-doctor-20260611\",\"bedId\":\"B-CONFLICT\",\"sourceSystem\":\"HIS\",\"sourceRecordId\":\"enc-CONFLICT\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"conditions\":[{\"conditionId\":\"cond-CONFLICT\",\"code\":\"J15.9\",\"codeSystem\":\"ICD-10\",\"displayName\":\"细菌性肺炎，未特指\",\"stage\":\"ACTIVE\",\"severity\":\"MODERATE\",\"sourceSystem\":\"HIS-DIAG\",\"sourceRecordId\":\"ZD0456\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"onsetTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"nursingAssessments\":[],\"observations\":[{\"observationId\":\"obs-CONFLICT\",\"code\":\"718-7\",\"displayName\":\"血红蛋白\",\"valueNumeric\":6.8,\"valueString\":null,\"unit\":\"g/L\",\"referenceRange\":\"120-160\",\"criticalFlag\":\"NORMAL\",\"sourceSystem\":\"LIS\",\"sourceRecordId\":\"HB001\",\"mappedVersion\":\"2026.06.11-act2-024101\",\"eventTime\":\"2026-06-11T00:00:00Z\",\"receivedTime\":\"2026-06-11T00:00:00Z\",\"qualityStatus\":\"VALID\"}],\"diagnosticReports\":[],\"medications\":[],\"procedures\":[],\"documents\":[],\"carePlans\":[],\"followUps\":[],\"claims\":[]}",
+              "expectedHit": false,
+              "expectedSeverity": null,
+              "expectedActionCode": null,
+              "lastHit": false,
+              "lastStatus": "PASS",
+              "lastMessage": "测试通过",
+              "lastRunAt": "2026-06-10T22:55:39.369463Z",
+              "createdAt": "2026-06-10T22:55:39.221924Z",
+              "createdBy": "drill-medical-affairs-20260611",
+              "updatedAt": "2026-06-10T22:55:39.369463Z",
+              "updatedBy": "drill-medical-affairs-20260611",
+              "traceId": "act6-rule-8o33w90beb-PEER_REVIEW"
+            }
+          ],
+          "deploymentStatus": "PUBLISHED",
+          "governance": {
+            "ruleId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+            "versionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+            "state": "FULL",
+            "requiredSignoffs": 2,
+            "reviewRound": 1,
+            "committeeApprovalCount": 2,
+            "authorId": "drill-medical-affairs-20260611",
+            "lastReason": "医院管理员确认全量激活 Act6 标准 LOINC 高钾规则。",
+            "signoffs": [
+              {
+                "id": 19,
+                "signoffId": "rs-01KTSVZ6XPG0YQ7CNWJBY2VRMX",
+                "tenantId": "drill-hospital-20260611",
+                "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+                "stage": "PEER_REVIEW",
+                "reviewRound": 1,
+                "signerRole": "pharmacist",
+                "signerId": "drill-clinical-pharmacist-20260611",
+                "decision": "APPROVED",
+                "reason": "药师确认标准 LOINC 血钾危急值规则仅提醒并要求医生确认。",
+                "signedAt": "2026-06-10T22:55:39.446186Z",
+                "traceId": "act6-rule-8o33w90beb-peer-signoff"
+              },
+              {
+                "id": 20,
+                "signoffId": "rs-01KTSVZ6ZCVGCE785A6NSZSBPZ",
+                "tenantId": "drill-hospital-20260611",
+                "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+                "stage": "COMMITTEE",
+                "reviewRound": 1,
+                "signerRole": "specialist",
+                "signerId": "drill-role-specialist-20260611",
+                "decision": "APPROVED",
+                "reason": "专科专家确认 LOINC 2823-3 与院内血钾危急值阈值匹配。",
+                "signedAt": "2026-06-10T22:55:39.500682Z",
+                "traceId": "act6-rule-8o33w90beb-committee-specialist"
+              },
+              {
+                "id": 21,
+                "signoffId": "rs-01KTSVZ70KSWMB4Q5GBQSAYXPJ",
+                "tenantId": "drill-hospital-20260611",
+                "ruleVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+                "stage": "COMMITTEE",
+                "reviewRound": 1,
+                "signerRole": "dept-head",
+                "signerId": "drill-role-dept-head-20260611",
+                "decision": "APPROVED",
+                "reason": "科主任确认 30 分钟危急值闭环工作流可执行。",
+                "signedAt": "2026-06-10T22:55:39.539874Z",
+                "traceId": "act6-rule-8o33w90beb-committee-dept-head"
+              }
+            ],
+            "testResults": [],
+            "impactDigest": null,
+            "impactStatus": null,
+            "releaseEvidence": [],
+            "traceId": "act6-rule-8o33w90beb-detail-after-full"
+          }
+        },
+        "traceId": "act6-rule-8o33w90beb-detail-after-full",
+        "timestamp": "2026-06-10T22:55:39.858506685Z"
+      }
+    }
+  ]
+}

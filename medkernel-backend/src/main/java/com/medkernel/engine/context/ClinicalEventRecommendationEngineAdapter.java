@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.recommendation.RecommendationCard;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
@@ -30,13 +31,13 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
     @Override
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
         RecommendationEvaluationResponse response = recommendations.evaluate(new RecommendationTriggerRequest(
-            "CLINICAL_EVENT_" + context.eventType().name(),
+            triggerCode(context),
             context.triggerPoint(),
             context.eventId(),
             context.contextSnapshotId(),
             context.patientId(),
             context.encounterId(),
-            null,
+            patientPathwayId(context),
             context.triggerPoint(),
             context.packageVersion(),
             context.payloadDigest(),
@@ -47,6 +48,10 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
             engine(), response.triggerId(), dispatchMessage(response));
     }
 
+    private String triggerCode(ClinicalEventContext context) {
+        return "CLINICAL_EVENT_" + context.eventType().name() + "_" + context.eventId();
+    }
+
     private String dispatchMessage(RecommendationEvaluationResponse response) {
         String summaries = response.cards().stream()
             .map(RecommendationCard::sourceSummary)
@@ -55,6 +60,25 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
             .collect(Collectors.joining(" | "));
         String base = "CDSS 推荐已完成确定性评估 cards=" + response.visibleCardCount();
         return hasText(summaries) ? base + " sources=" + summaries : base;
+    }
+
+    private String patientPathwayId(ClinicalEventContext context) {
+        if (context == null || context.payload() == null || context.payload().isNull()) {
+            return null;
+        }
+        String direct = text(context.payload().path("patientPathwayId"));
+        if (hasText(direct)) {
+            return direct;
+        }
+        return text(context.payload().path("eventPayload").path("patientPathwayId"));
+    }
+
+    private static String text(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asText(null);
+        return hasText(value) ? value.trim() : null;
     }
 
     private static boolean hasText(String value) {

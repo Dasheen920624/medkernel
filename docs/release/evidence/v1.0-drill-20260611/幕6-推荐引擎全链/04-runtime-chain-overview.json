@@ -1,0 +1,629 @@
+{
+  "runTag": "act6-8oh7bn024a",
+  "generatedAt": "2026-06-10T23:06:36.933Z",
+  "environment": "https://193.112.107.134",
+  "patient": {
+    "mpiId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+    "maskedName": "演练-张建国",
+    "encounterId": "enc-act6-8oh7bn024a",
+    "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc"
+  },
+  "runtimePackages": {
+    "terminology": "2026.06.11-act2-024101",
+    "pathway": "2026.06.11-act5-1781126077791",
+    "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+    "templateCode": "TPL.DRILL.CAP.1781126077791"
+  },
+  "chains": [
+    {
+      "name": "高钾危急值",
+      "eventId": "evt-act6-8oh7bn024a-k-critical",
+      "triggerPoint": "result-review",
+      "eventStatus": "PROCESSED",
+      "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+      "cardStatusAfterFeedback": "ACCEPTED",
+      "riskLevel": "CRITICAL",
+      "requiresPhysicianConfirmation": true,
+      "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+      "sourceTypes": [
+        "CONTEXT",
+        "PATHWAY",
+        "RULE"
+      ],
+      "feedback": {
+        "feedbackId": "rf-acb3b389-1854-4c7f-88f5-d6947ececb07",
+        "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+        "cardStatus": "ACCEPTED",
+        "traceId": "act6-8oh7bn024a-k-feedback"
+      }
+    },
+    {
+      "name": "华法林-阿司匹林 DDI",
+      "eventId": "evt-act6-8oh7bn024a-ddi-warfarin-aspirin",
+      "triggerPoint": "medication-prescribe",
+      "eventStatus": "PROCESSED",
+      "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+      "cardStatusAfterFeedback": "REJECTED",
+      "riskLevel": "HIGH",
+      "requiresPhysicianConfirmation": true,
+      "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+      "sourceTypes": [
+        "CONTEXT",
+        "PATHWAY",
+        "RULE"
+      ],
+      "feedback": {
+        "feedbackId": "rf-2904c1f2-0a36-4add-82b4-b85d2de2a47e",
+        "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+        "cardStatus": "REJECTED",
+        "traceId": "act6-8oh7bn024a-ddi-feedback"
+      }
+    }
+  ],
+  "stats": {
+    "totalCount": 2,
+    "pendingCount": 0,
+    "acceptedCount": 1,
+    "rejectedCount": 1,
+    "dismissedCount": 0,
+    "deferredCount": 0,
+    "suppressedCount": 0,
+    "expiredCount": 0,
+    "acceptanceRatePercent": 50,
+    "traceId": "act6-8oh7bn024a-stats"
+  },
+  "fatigueSignals": {
+    "criticalPotassium": {
+      "items": [
+        {
+          "id": 7,
+          "signalId": "rfs-46f2506a-4847-439b-b4e4-d1ad82b25dee",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-dd0d9578-12d8-4f05-9c97-d441e67a5443",
+          "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+          "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+          "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+          "encounterId": "enc-act6-8oh7bn024a",
+          "operatorId": "drill-respiratory-doctor-20260611",
+          "signalType": "ACCEPTED",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:06:36.180589Z",
+          "createdAt": "2026-06-10T23:06:36.180589Z",
+          "createdBy": "drill-respiratory-doctor-20260611",
+          "updatedAt": "2026-06-10T23:06:36.180589Z",
+          "updatedBy": "drill-respiratory-doctor-20260611",
+          "traceId": "act6-8oh7bn024a-k-feedback"
+        },
+        {
+          "id": 6,
+          "signalId": "rfs-bc576602-66ce-4e37-b921-d6512a655320",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-dd0d9578-12d8-4f05-9c97-d441e67a5443",
+          "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+          "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+          "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+          "encounterId": "enc-act6-8oh7bn024a",
+          "operatorId": null,
+          "signalType": "SHOWN",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:06:35.988437Z",
+          "createdAt": "2026-06-10T23:06:35.988437Z",
+          "createdBy": "drill-lab-technician-20260611",
+          "updatedAt": "2026-06-10T23:06:35.988437Z",
+          "updatedBy": "drill-lab-technician-20260611",
+          "traceId": "act6-8oh7bn024a-k-event"
+        },
+        {
+          "id": 2,
+          "signalId": "rfs-37260b80-b25a-45a7-b84d-a22c8c30d7ab",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-9efa1b62-e77a-41c9-8a15-13971d0c970f",
+          "cardId": "rc-0e0983f1-bff0-436b-aab7-e4be0846e60d",
+          "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+          "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+          "encounterId": "enc-act6-8o9ttocef2",
+          "operatorId": "drill-respiratory-doctor-20260611",
+          "signalType": "ACCEPTED",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:00:54.134432Z",
+          "createdAt": "2026-06-10T23:00:54.134432Z",
+          "createdBy": "drill-respiratory-doctor-20260611",
+          "updatedAt": "2026-06-10T23:00:54.134432Z",
+          "updatedBy": "drill-respiratory-doctor-20260611",
+          "traceId": "act6-8o9ttocef2-k-feedback"
+        },
+        {
+          "id": 1,
+          "signalId": "rfs-d12bcbde-abeb-4aad-a1bf-e86f1a522a60",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-9efa1b62-e77a-41c9-8a15-13971d0c970f",
+          "cardId": "rc-0e0983f1-bff0-436b-aab7-e4be0846e60d",
+          "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+          "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+          "encounterId": "enc-act6-8o9ttocef2",
+          "operatorId": null,
+          "signalType": "SHOWN",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:00:53.505743Z",
+          "createdAt": "2026-06-10T23:00:53.505743Z",
+          "createdBy": "drill-lab-technician-20260611",
+          "updatedAt": "2026-06-10T23:00:53.505743Z",
+          "updatedBy": "drill-lab-technician-20260611",
+          "traceId": "act6-8o9ttocef2-k-event"
+        }
+      ],
+      "page": 1,
+      "size": 20,
+      "total": 4,
+      "hasNext": false,
+      "totalEstimated": true
+    },
+    "ddi": {
+      "items": [
+        {
+          "id": 9,
+          "signalId": "rfs-1777b55f-f9e5-474b-9eb5-e38340ca97d5",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-1a56f847-524d-4f78-ac10-f12911fb901f",
+          "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+          "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+          "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+          "encounterId": "enc-act6-8oh7bn024a",
+          "operatorId": "drill-cardiology-doctor-20260611",
+          "signalType": "REJECTED",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:06:36.672988Z",
+          "createdAt": "2026-06-10T23:06:36.672988Z",
+          "createdBy": "drill-cardiology-doctor-20260611",
+          "updatedAt": "2026-06-10T23:06:36.672988Z",
+          "updatedBy": "drill-cardiology-doctor-20260611",
+          "traceId": "act6-8oh7bn024a-ddi-feedback"
+        },
+        {
+          "id": 8,
+          "signalId": "rfs-8415a17e-2ac2-4db2-8226-bda31c1b442f",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-1a56f847-524d-4f78-ac10-f12911fb901f",
+          "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+          "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+          "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+          "encounterId": "enc-act6-8oh7bn024a",
+          "operatorId": null,
+          "signalType": "SHOWN",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:06:36.472045Z",
+          "createdAt": "2026-06-10T23:06:36.472045Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T23:06:36.472045Z",
+          "updatedBy": "drill-hospital-admin-20260611",
+          "traceId": "act6-8oh7bn024a-ddi-event"
+        },
+        {
+          "id": 3,
+          "signalId": "rfs-de785904-a4c1-432f-b447-9a7341a38cc1",
+          "tenantId": "drill-hospital-20260611",
+          "triggerId": "rt-23d3434a-072f-4c60-8f92-0183a27f3c3d",
+          "cardId": "rc-3534a60b-a31f-4a04-b418-7c9f637bd8e3",
+          "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+          "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+          "encounterId": "enc-act6-8o9ttocef2",
+          "operatorId": null,
+          "signalType": "SHOWN",
+          "occurrenceCount": 1,
+          "windowStartedAt": "2026-06-10T23:00:54.509420Z",
+          "createdAt": "2026-06-10T23:00:54.509420Z",
+          "createdBy": "drill-hospital-admin-20260611",
+          "updatedAt": "2026-06-10T23:00:54.509420Z",
+          "updatedBy": "drill-hospital-admin-20260611",
+          "traceId": "act6-8o9ttocef2-ddi-event"
+        }
+      ],
+      "page": 1,
+      "size": 20,
+      "total": 3,
+      "hasNext": false,
+      "totalEstimated": true
+    }
+  },
+  "pathway": {
+    "currentNodeCode": "CAP_ASSESS",
+    "status": "NODE_EXECUTING",
+    "milestoneStatuses": [
+      {
+        "milestoneId": "pm-dee12da0-84a6-4a67-8e59-757ed87db9e8",
+        "phaseCode": "ADMISSION",
+        "phaseName": "入院评估",
+        "milestoneCode": "M_CAP_ASSESS_24H",
+        "name": "24h 内完成 CURB-65 入院评估",
+        "dayOffset": 0,
+        "expectedOffsetMinutes": 1440,
+        "nodeCodes": [
+          "CAP_ASSESS",
+          "CAP_EMPIRIC_ABX"
+        ],
+        "status": "CURRENT",
+        "expectedAt": "2026-06-11T23:06:35.691284Z",
+        "achievedAt": null
+      },
+      {
+        "milestoneId": "pm-0f69b373-eadb-4a70-96f8-3fe7091d4600",
+        "phaseCode": "THERAPY",
+        "phaseName": "抗感染治疗与复评",
+        "milestoneCode": "M_CAP_EVAL_72H",
+        "name": "48-72h 疗效评估必达",
+        "dayOffset": 2,
+        "expectedOffsetMinutes": 4320,
+        "nodeCodes": [
+          "CAP_EFFECT_EVAL",
+          "CAP_DEESCALATE",
+          "CAP_UPGRADE"
+        ],
+        "status": "PENDING",
+        "expectedAt": "2026-06-13T23:06:35.691284Z",
+        "achievedAt": null
+      },
+      {
+        "milestoneId": "pm-b1ae5dbe-73c2-4450-b9b6-43b5ef768920",
+        "phaseCode": "DISCHARGE",
+        "phaseName": "出院评估",
+        "milestoneCode": "M_CAP_DISCHARGE",
+        "name": "症状与影像标准达到后出院评估",
+        "dayOffset": 5,
+        "expectedOffsetMinutes": 10080,
+        "nodeCodes": [
+          "CAP_DISCHARGE_ASSESS"
+        ],
+        "status": "PENDING",
+        "expectedAt": "2026-06-17T23:06:35.691284Z",
+        "achievedAt": null
+      }
+    ]
+  },
+  "uxFindings": [
+    "推荐卡、患者路径、待办/通知、疲劳治理仍分散在多个入口；幕6证据支持 OPT-IA-01 与 OPT-TRACE-01 继续推进统一运行视图。",
+    "推荐卡已自动生成待办，但医生闭环后的待办状态与通知触达仍未形成统一视图；后续体验重构需补齐协同提醒和闭环联动。"
+  ],
+  "operations": [
+    {
+      "phase": "overview",
+      "label": "medical-read-patient-recommendation-stats",
+      "actor": "medical",
+      "method": "GET",
+      "path": "/engine/recommendations/stats?patientId=mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY&encounterId=enc-act6-8oh7bn024a",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-stats",
+      "headerTraceId": "act6-8oh7bn024a-stats",
+      "bodyTraceId": "act6-8oh7bn024a-stats",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "totalCount": 2,
+          "pendingCount": 0,
+          "acceptedCount": 1,
+          "rejectedCount": 1,
+          "dismissedCount": 0,
+          "deferredCount": 0,
+          "suppressedCount": 0,
+          "expiredCount": 0,
+          "acceptanceRatePercent": 50,
+          "traceId": "act6-8oh7bn024a-stats"
+        },
+        "traceId": "act6-8oh7bn024a-stats",
+        "timestamp": "2026-06-10T23:06:36.899952644Z"
+      }
+    },
+    {
+      "phase": "overview",
+      "label": "pharmacist-read-k-fatigue-signals",
+      "actor": "pharmacist",
+      "method": "GET",
+      "path": "/engine/recommendations/fatigue-signals?fatigueKey=result-review%3ADRILL.ACT6.K.LOINC.8o33w90beb&page=1&size=20",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-k-fatigue",
+      "headerTraceId": "act6-8oh7bn024a-k-fatigue",
+      "bodyTraceId": "act6-8oh7bn024a-k-fatigue",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "items": [
+            {
+              "id": 7,
+              "signalId": "rfs-46f2506a-4847-439b-b4e4-d1ad82b25dee",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-dd0d9578-12d8-4f05-9c97-d441e67a5443",
+              "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+              "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+              "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+              "encounterId": "enc-act6-8oh7bn024a",
+              "operatorId": "drill-respiratory-doctor-20260611",
+              "signalType": "ACCEPTED",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:06:36.180589Z",
+              "createdAt": "2026-06-10T23:06:36.180589Z",
+              "createdBy": "drill-respiratory-doctor-20260611",
+              "updatedAt": "2026-06-10T23:06:36.180589Z",
+              "updatedBy": "drill-respiratory-doctor-20260611",
+              "traceId": "act6-8oh7bn024a-k-feedback"
+            },
+            {
+              "id": 6,
+              "signalId": "rfs-bc576602-66ce-4e37-b921-d6512a655320",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-dd0d9578-12d8-4f05-9c97-d441e67a5443",
+              "cardId": "rc-12c39901-6293-4704-acb9-4ee9b477f633",
+              "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+              "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+              "encounterId": "enc-act6-8oh7bn024a",
+              "operatorId": null,
+              "signalType": "SHOWN",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:06:35.988437Z",
+              "createdAt": "2026-06-10T23:06:35.988437Z",
+              "createdBy": "drill-lab-technician-20260611",
+              "updatedAt": "2026-06-10T23:06:35.988437Z",
+              "updatedBy": "drill-lab-technician-20260611",
+              "traceId": "act6-8oh7bn024a-k-event"
+            },
+            {
+              "id": 2,
+              "signalId": "rfs-37260b80-b25a-45a7-b84d-a22c8c30d7ab",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-9efa1b62-e77a-41c9-8a15-13971d0c970f",
+              "cardId": "rc-0e0983f1-bff0-436b-aab7-e4be0846e60d",
+              "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+              "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+              "encounterId": "enc-act6-8o9ttocef2",
+              "operatorId": "drill-respiratory-doctor-20260611",
+              "signalType": "ACCEPTED",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:00:54.134432Z",
+              "createdAt": "2026-06-10T23:00:54.134432Z",
+              "createdBy": "drill-respiratory-doctor-20260611",
+              "updatedAt": "2026-06-10T23:00:54.134432Z",
+              "updatedBy": "drill-respiratory-doctor-20260611",
+              "traceId": "act6-8o9ttocef2-k-feedback"
+            },
+            {
+              "id": 1,
+              "signalId": "rfs-d12bcbde-abeb-4aad-a1bf-e86f1a522a60",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-9efa1b62-e77a-41c9-8a15-13971d0c970f",
+              "cardId": "rc-0e0983f1-bff0-436b-aab7-e4be0846e60d",
+              "fatigueKey": "result-review:DRILL.ACT6.K.LOINC.8o33w90beb",
+              "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+              "encounterId": "enc-act6-8o9ttocef2",
+              "operatorId": null,
+              "signalType": "SHOWN",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:00:53.505743Z",
+              "createdAt": "2026-06-10T23:00:53.505743Z",
+              "createdBy": "drill-lab-technician-20260611",
+              "updatedAt": "2026-06-10T23:00:53.505743Z",
+              "updatedBy": "drill-lab-technician-20260611",
+              "traceId": "act6-8o9ttocef2-k-event"
+            }
+          ],
+          "page": 1,
+          "size": 20,
+          "total": 4,
+          "hasNext": false,
+          "totalEstimated": true
+        },
+        "traceId": "act6-8oh7bn024a-k-fatigue",
+        "timestamp": "2026-06-10T23:06:36.931019074Z"
+      }
+    },
+    {
+      "phase": "overview",
+      "label": "pharmacist-read-ddi-fatigue-signals",
+      "actor": "pharmacist",
+      "method": "GET",
+      "path": "/engine/recommendations/fatigue-signals?fatigueKey=medication-prescribe%3ADRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig&page=1&size=20",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-ddi-fatigue",
+      "headerTraceId": "act6-8oh7bn024a-ddi-fatigue",
+      "bodyTraceId": "act6-8oh7bn024a-ddi-fatigue",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "items": [
+            {
+              "id": 9,
+              "signalId": "rfs-1777b55f-f9e5-474b-9eb5-e38340ca97d5",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-1a56f847-524d-4f78-ac10-f12911fb901f",
+              "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+              "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+              "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+              "encounterId": "enc-act6-8oh7bn024a",
+              "operatorId": "drill-cardiology-doctor-20260611",
+              "signalType": "REJECTED",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:06:36.672988Z",
+              "createdAt": "2026-06-10T23:06:36.672988Z",
+              "createdBy": "drill-cardiology-doctor-20260611",
+              "updatedAt": "2026-06-10T23:06:36.672988Z",
+              "updatedBy": "drill-cardiology-doctor-20260611",
+              "traceId": "act6-8oh7bn024a-ddi-feedback"
+            },
+            {
+              "id": 8,
+              "signalId": "rfs-8415a17e-2ac2-4db2-8226-bda31c1b442f",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-1a56f847-524d-4f78-ac10-f12911fb901f",
+              "cardId": "rc-85e2897f-c31c-4eba-b351-71f2fc4cf605",
+              "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+              "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+              "encounterId": "enc-act6-8oh7bn024a",
+              "operatorId": null,
+              "signalType": "SHOWN",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:06:36.472045Z",
+              "createdAt": "2026-06-10T23:06:36.472045Z",
+              "createdBy": "drill-hospital-admin-20260611",
+              "updatedAt": "2026-06-10T23:06:36.472045Z",
+              "updatedBy": "drill-hospital-admin-20260611",
+              "traceId": "act6-8oh7bn024a-ddi-event"
+            },
+            {
+              "id": 3,
+              "signalId": "rfs-de785904-a4c1-432f-b447-9a7341a38cc1",
+              "tenantId": "drill-hospital-20260611",
+              "triggerId": "rt-23d3434a-072f-4c60-8f92-0183a27f3c3d",
+              "cardId": "rc-3534a60b-a31f-4a04-b418-7c9f637bd8e3",
+              "fatigueKey": "medication-prescribe:DRILL.ACT4.DDI.WARFARIN.ASPIRIN.rmq8j1rig",
+              "patientId": "mpi-01KTSW8R0N33DXZXM1SQBTCE19",
+              "encounterId": "enc-act6-8o9ttocef2",
+              "operatorId": null,
+              "signalType": "SHOWN",
+              "occurrenceCount": 1,
+              "windowStartedAt": "2026-06-10T23:00:54.509420Z",
+              "createdAt": "2026-06-10T23:00:54.509420Z",
+              "createdBy": "drill-hospital-admin-20260611",
+              "updatedAt": "2026-06-10T23:00:54.509420Z",
+              "updatedBy": "drill-hospital-admin-20260611",
+              "traceId": "act6-8o9ttocef2-ddi-event"
+            }
+          ],
+          "page": 1,
+          "size": 20,
+          "total": 3,
+          "hasNext": false,
+          "totalEstimated": true
+        },
+        "traceId": "act6-8oh7bn024a-ddi-fatigue",
+        "timestamp": "2026-06-10T23:06:36.962305319Z"
+      }
+    },
+    {
+      "phase": "overview",
+      "label": "doctor-read-final-pathway-detail",
+      "actor": "respiratoryDoctor",
+      "method": "GET",
+      "path": "/engine/pathway/patient-pathways/pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act6-8oh7bn024a-final-pathway-detail",
+      "headerTraceId": "act6-8oh7bn024a-final-pathway-detail",
+      "bodyTraceId": "act6-8oh7bn024a-final-pathway-detail",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "patientPathway": {
+            "id": 5,
+            "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+            "tenantId": "drill-hospital-20260611",
+            "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+            "encounterId": "enc-act6-8oh7bn024a",
+            "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+            "currentNodeCode": "CAP_ASSESS",
+            "status": "NODE_EXECUTING",
+            "enteredAt": "2026-06-10T23:06:35.691284Z",
+            "completedAt": null,
+            "exitedAt": null,
+            "exitReason": null,
+            "lastEventId": null,
+            "createdAt": "2026-06-10T23:06:35.691284Z",
+            "createdBy": "drill-hospital-admin-20260611",
+            "updatedAt": "2026-06-10T23:06:35.691284Z",
+            "updatedBy": "drill-hospital-admin-20260611",
+            "traceId": "act6-8oh7bn024a-pathway-enter"
+          },
+          "milestoneStatuses": [
+            {
+              "milestoneId": "pm-dee12da0-84a6-4a67-8e59-757ed87db9e8",
+              "phaseCode": "ADMISSION",
+              "phaseName": "入院评估",
+              "milestoneCode": "M_CAP_ASSESS_24H",
+              "name": "24h 内完成 CURB-65 入院评估",
+              "dayOffset": 0,
+              "expectedOffsetMinutes": 1440,
+              "nodeCodes": [
+                "CAP_ASSESS",
+                "CAP_EMPIRIC_ABX"
+              ],
+              "status": "CURRENT",
+              "expectedAt": "2026-06-11T23:06:35.691284Z",
+              "achievedAt": null
+            },
+            {
+              "milestoneId": "pm-0f69b373-eadb-4a70-96f8-3fe7091d4600",
+              "phaseCode": "THERAPY",
+              "phaseName": "抗感染治疗与复评",
+              "milestoneCode": "M_CAP_EVAL_72H",
+              "name": "48-72h 疗效评估必达",
+              "dayOffset": 2,
+              "expectedOffsetMinutes": 4320,
+              "nodeCodes": [
+                "CAP_EFFECT_EVAL",
+                "CAP_DEESCALATE",
+                "CAP_UPGRADE"
+              ],
+              "status": "PENDING",
+              "expectedAt": "2026-06-13T23:06:35.691284Z",
+              "achievedAt": null
+            },
+            {
+              "milestoneId": "pm-b1ae5dbe-73c2-4450-b9b6-43b5ef768920",
+              "phaseCode": "DISCHARGE",
+              "phaseName": "出院评估",
+              "milestoneCode": "M_CAP_DISCHARGE",
+              "name": "症状与影像标准达到后出院评估",
+              "dayOffset": 5,
+              "expectedOffsetMinutes": 10080,
+              "nodeCodes": [
+                "CAP_DISCHARGE_ASSESS"
+              ],
+              "status": "PENDING",
+              "expectedAt": "2026-06-17T23:06:35.691284Z",
+              "achievedAt": null
+            }
+          ],
+          "variances": [],
+          "clocks": [
+            {
+              "id": 5,
+              "clockId": "cc-0a7c6567-d378-459e-815f-6c695297f8cc",
+              "tenantId": "drill-hospital-20260611",
+              "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+              "nodeCode": "CAP_ASSESS",
+              "metricCode": "CAP.ASSESS_24H",
+              "startedAt": "2026-06-10T23:06:35.691284Z",
+              "dueAt": "2026-06-11T23:06:35.484Z",
+              "completedAt": null,
+              "status": "RUNNING",
+              "baselineEvent": "ADMISSION",
+              "baselineAt": "2026-06-10T23:06:35.484Z",
+              "minDueAt": "2026-06-10T23:06:35.484Z",
+              "targetDueAt": "2026-06-11T23:06:35.484Z",
+              "maxDueAt": "2026-06-11T23:06:35.484Z",
+              "escalationLevel": "NONE",
+              "escalationPolicyJson": "[{\"level\":\"REMINDER\",\"afterMinutes\":720},{\"level\":\"REPORT\",\"afterMinutes\":1380},{\"level\":\"QUALITY_RECORD\",\"afterMinutes\":1440}]",
+              "createdAt": "2026-06-10T23:06:35.691284Z",
+              "createdBy": "drill-hospital-admin-20260611",
+              "updatedAt": "2026-06-10T23:06:35.691284Z",
+              "updatedBy": "drill-hospital-admin-20260611",
+              "traceId": "act6-8oh7bn024a-pathway-enter"
+            }
+          ],
+          "outcomeBindings": [],
+          "coordinationWarnings": [],
+          "traceId": "act6-8oh7bn024a-final-pathway-detail"
+        },
+        "traceId": "act6-8oh7bn024a-final-pathway-detail",
+        "timestamp": "2026-06-10T23:06:37.005157484Z"
+      }
+    }
+  ]
+}

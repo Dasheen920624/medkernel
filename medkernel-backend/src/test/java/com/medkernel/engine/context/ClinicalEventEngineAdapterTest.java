@@ -146,12 +146,59 @@ class ClinicalEventEngineAdapterTest {
         ArgumentCaptor<RecommendationTriggerRequest> requestCap =
             ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
         verify(service).evaluate(requestCap.capture());
+        assertThat(requestCap.getValue().triggerCode()).isEqualTo("CLINICAL_EVENT_DIAGNOSIS_evt-1");
         assertThat(requestCap.getValue().sourceEventId()).isEqualTo("evt-1");
         assertThat(requestCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(requestCap.getValue().encounterId()).isEqualTo("ENC-1");
         assertThat(requestCap.getValue().scenarioCode()).isEqualTo("patient-view");
         assertThat(requestCap.getValue().inputDigest()).isEqualTo("sha256:payload");
         assertThat(requestCap.getValue().candidateCards()).isEmpty();
+    }
+
+    @Test
+    void cdssAdapterCarriesPatientPathwayIdFromClinicalEventPayload() throws Exception {
+        RecommendationEngineService service = mock(RecommendationEngineService.class);
+        when(service.evaluate(any(RecommendationTriggerRequest.class)))
+            .thenReturn(new RecommendationEvaluationResponse(
+                "rt-1", RecommendationTriggerStatus.EVALUATED, 0, 0, 0,
+                RecommendationModelStatus.MODEL_DISABLED, List.of(), "trace-1"));
+        var adapter = new ClinicalEventRecommendationEngineAdapter(service);
+        ClinicalEventContext context = new ClinicalEventContext(
+            "evt-result-1",
+            "tenant-A",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            ClinicalEventType.REPORT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            "MPI-1",
+            "ENC-1",
+            ClinicalSetting.INPATIENT,
+            "ctx-1",
+            "LIS",
+            "pkg-2026.06",
+            "sha256:payload",
+            Instant.parse("2026-06-01T01:00:00Z"),
+            "LIS:result-review",
+            "trace-1",
+            ClinicalEventTestContexts.resources("MPI-1", "LIS", "pkg-2026.06",
+                Instant.parse("2026-06-01T01:00:00Z")),
+            json.readTree("""
+                {
+                  "eventPayload": {
+                    "patientPathwayId": "pp-act6-cap-1",
+                    "results": [
+                      {"observationId": "obs-1", "code": "K001", "valueNumeric": 6.8}
+                    ]
+                  }
+                }
+                """),
+            List.of());
+
+        adapter.dispatch(context);
+
+        ArgumentCaptor<RecommendationTriggerRequest> requestCap =
+            ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
+        verify(service).evaluate(requestCap.capture());
+        assertThat(requestCap.getValue().patientPathwayId()).isEqualTo("pp-act6-cap-1");
     }
 
     private ClinicalEventContext context() {

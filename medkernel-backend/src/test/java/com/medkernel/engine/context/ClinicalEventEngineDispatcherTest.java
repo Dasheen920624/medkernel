@@ -16,6 +16,7 @@ import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 临床事件引擎派发器的时延预算与硬超时测试。
@@ -27,6 +28,7 @@ class ClinicalEventEngineDispatcherTest {
     @AfterEach
     void clearContext() {
         RequestContext.clear();
+        TransactionSynchronizationManager.clear();
     }
 
     @Test
@@ -93,6 +95,34 @@ class ClinicalEventEngineDispatcherTest {
         assertThat(results.getFirst().status()).isEqualTo(ClinicalEventEngineDispatchStatus.UNAVAILABLE);
         assertThat(results.getFirst().message()).contains("超时");
         assertThat(interrupted.await(1, TimeUnit.SECONDS)).isTrue();
+    }
+
+    @Test
+    void dispatchUsesCurrentThreadWhenTransactionIsActiveSoNewSnapshotsStayVisible() {
+        Thread callerThread = Thread.currentThread();
+        AtomicReference<Thread> observedThread = new AtomicReference<>();
+        ClinicalEventEngineAdapter capturingCdss = new ClinicalEventEngineAdapter() {
+            @Override
+            public ClinicalEventEngine engine() {
+                return ClinicalEventEngine.CDSS;
+            }
+
+            @Override
+            public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
+                observedThread.set(Thread.currentThread());
+                return ClinicalEventEngineDispatchResult.dispatched(engine(), "cdss-ok", "已在事务内求值");
+            }
+        };
+        ClinicalEventEngineDispatcher dispatcher = new ClinicalEventEngineDispatcher(
+            List.of(fast(ClinicalEventEngine.RULE), fast(ClinicalEventEngine.PATHWAY), capturingCdss),
+            new SimpleAsyncTaskExecutor("clinical-dispatch-transaction-test-"),
+            new ClinicalEventProperties(1024, Duration.ofSeconds(1), 10, 3, List.of(1L)));
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        List<ClinicalEventEngineDispatchResult> results = dispatcher.dispatch(context());
+
+        assertThat(results).hasSize(3);
+        assertThat(observedThread).hasValue(callerThread);
     }
 
     private ClinicalEventEngineAdapter fast(ClinicalEventEngine engine) {

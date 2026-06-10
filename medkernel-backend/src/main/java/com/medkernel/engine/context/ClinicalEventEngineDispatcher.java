@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -78,6 +79,9 @@ public class ClinicalEventEngineDispatcher {
             return ClinicalEventEngineDispatchResult.unavailable(
                 engine, null, "事件触发求值预算已耗尽，未继续派发 " + engine);
         }
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            return dispatchInCurrentThread(engine, context);
+        }
         Future<ClinicalEventEngineDispatchResult> future = taskExecutor.submit(dispatchTask(engine, context));
         try {
             return future.get(remainingNanos, TimeUnit.NANOSECONDS);
@@ -93,6 +97,17 @@ public class ClinicalEventEngineDispatcher {
             Throwable cause = exception.getCause() == null ? exception : exception.getCause();
             return ClinicalEventEngineDispatchResult.unavailable(
                 engine, null, "事件触发求值不可用: " + cause.getMessage());
+        }
+    }
+
+    private ClinicalEventEngineDispatchResult dispatchInCurrentThread(
+            ClinicalEventEngine engine,
+            ClinicalEventContext context) {
+        try {
+            return dispatchTask(engine, context).call();
+        } catch (Exception exception) {
+            return ClinicalEventEngineDispatchResult.unavailable(
+                engine, null, "事件触发求值不可用: " + exception.getMessage());
         }
     }
 
