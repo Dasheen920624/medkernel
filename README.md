@@ -139,7 +139,7 @@ npm run dev
 | [docs/EXPERIENCE_CONTRACT.md](docs/EXPERIENCE_CONTRACT.md) | 共享体验与组件契约（页面卡必读）|
 | [docs/backlog.md](docs/backlog.md) | 单一任务台账：D0–D6 第一波 B0 真实纵向 + 第二波 AI 加深 + GA 验收 |
 | [docs/AI_DEVELOPMENT_RESTART_PLAN.md](docs/AI_DEVELOPMENT_RESTART_PLAN.md) | AI 研发重启执行方案：开工流程、阶段闸门、PR 证据模板 |
-| [docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md](docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md) | 业务实现范围核查：S0–S40、27+5 菜单、卡到代码、B0 主链路、wave2 消费点 |
+| [docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md](docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md) | 业务实现范围核查：S0–S40、菜单目录权威、卡到代码、B0 主链路、wave2 消费点 |
 | [docs/README.md](docs/README.md) | 文档中心导航（四层模型 + 目录树）|
 
 **迁移过渡期保留（不再作为权威，全部域搬迁完成 P8 后退役）**：[FOUNDATION_AND_SERVICES](docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md)（总览）· [PRODUCT_EXPERIENCE_RULES](docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md)（旧体验规范）· [IMPLEMENTATION_LANDING_PLAN](docs/MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md)（落地方案）· [BUSINESS_SCENARIO_DETAIL_SPEC](docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md)（详细规范）—— 内容逐域迁入施工卡，保真见覆盖矩阵。语言规范见 [DOCUMENTATION_LANGUAGE_POLICY](docs/DOCUMENTATION_LANGUAGE_POLICY.md)。
