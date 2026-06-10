@@ -101,6 +101,8 @@ class D0DomainAcceptanceTest {
             case SPECIALIST -> "specialist-1";
             case DOCTOR -> "doctor-1";
             case NURSE -> "nurse-1";
+            case MED_TECHNICIAN -> "med-technician-1";
+            case PHARMACIST -> "pharmacist-1";
             case AUDIT_COMPLIANCE -> "audit-1";
             case IMPLEMENTATION_ENGINEER -> "implementation-1";
             case SYSTEM_SUPERADMIN -> "system-superadmin-1";

@@ -216,7 +216,7 @@
 | 要找 | 去 |
 |---|---|
 | 术语（客户面 vs 技术词）| [glossary.md](glossary.md) |
-| 13 角色权限矩阵 | [audit/质量基线.md](audit/质量基线.md) §13 角色矩阵 |
+| 15 角色权限矩阵 | [audit/质量基线.md](audit/质量基线.md) §15 角色矩阵 |
 | 任务级实现细节（功能/接口/页面/验收）| [cards/](cards/) 对应施工卡（找卡查 [cards/_index.md](cards/_index.md)）|
 | 可复用页面/组件模式 | [EXPERIENCE_CONTRACT.md](EXPERIENCE_CONTRACT.md) |
 | 验收方法论 + 门禁 + A1–A9 剧本 | [audit/质量基线.md](audit/质量基线.md) |

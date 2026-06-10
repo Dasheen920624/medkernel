@@ -278,6 +278,50 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP));
 
+        // 医技技师（检验/影像/超声/心电/病理等）：上报检查检验结果 + 本科室术语对照维护；
+        // 工种差异由科室数据范围承载，不按工种拆分角色
+        map.put(RoleCode.MED_TECHNICIAN, withMenus(EnumSet.of(
+            DATA_DEPARTMENT,
+            ASSET_DICTIONARY,
+            ENV_PRODUCTION,
+            ORG_READ,
+            TERM_READ, TERM_WRITE,
+            CONTEXT_READ,
+            EVENT_READ, EVENT_WRITE,
+            KNOWLEDGE_READ,
+            MPI_READ,
+            WORKFLOW_READ, WORKFLOW_WRITE,
+            NOTIFICATION_READ, NOTIFICATION_WRITE),
+            MENU_WORKBENCH,
+            MENU_TERMINOLOGY_MAPPING,
+            MENU_MPI,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS));
+
+        // 临床药师：用药规则评审起草 + 药学知识会签 + 用药提醒覆盖复核；发布留医务处，覆盖留医师
+        map.put(RoleCode.PHARMACIST, withMenus(EnumSet.of(
+            DATA_HOSPITAL,
+            ASSET_RULE, ASSET_KNOWLEDGE_PACKAGE,
+            ENV_PRODUCTION,
+            ORG_READ,
+            RULE_READ, RULE_WRITE,
+            KNOWLEDGE_READ, KNOWLEDGE_WRITE, KNOWLEDGE_REVIEW,
+            RECOMMENDATION_READ,
+            PATHWAY_READ,
+            CONTEXT_READ, EVENT_READ,
+            MPI_READ,
+            WORKFLOW_READ, WORKFLOW_WRITE,
+            NOTIFICATION_READ, NOTIFICATION_WRITE),
+            MENU_WORKBENCH,
+            MENU_RULE_DEFINITIONS,
+            MENU_RULE_VALIDATE,
+            MENU_CDSS_FATIGUE,
+            MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_PROVENANCE,
+            MENU_PATIENT_PATHWAYS,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS));
+
         // 合规审计：只读 + 导出，禁所有写
         map.put(RoleCode.AUDIT_COMPLIANCE, withMenus(EnumSet.of(
             DATA_GROUP, DATA_DESENSITIZED,

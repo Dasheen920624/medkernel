@@ -10,6 +10,8 @@ export const ROLE_OPTIONS = [
   { code: "specialist", name: "专科专家" },
   { code: "doctor", name: "临床医生" },
   { code: "nurse", name: "护理人员" },
+  { code: "med-technician", name: "医技技师" },
+  { code: "pharmacist", name: "临床药师" },
   { code: "audit-compliance", name: "合规审计" },
   { code: "implementation-engineer", name: "实施工程师" },
 ] as const;

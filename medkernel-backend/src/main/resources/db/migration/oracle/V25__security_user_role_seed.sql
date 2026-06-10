@@ -52,4 +52,12 @@ VALUES ('t-1', 'nurse-1', 'nurse', 'TENANT', 't-1', 'Y', 'migration-v25', 'migra
 
 INSERT INTO user_role_assignment
     (tenant_id, user_id, role_code, scope_level, scope_code, active_flag, created_by, updated_by)
+VALUES ('t-1', 'med-technician-1', 'med-technician', 'TENANT', 't-1', 'Y', 'migration-v25', 'migration-v25');
+
+INSERT INTO user_role_assignment
+    (tenant_id, user_id, role_code, scope_level, scope_code, active_flag, created_by, updated_by)
+VALUES ('t-1', 'pharmacist-1', 'pharmacist', 'TENANT', 't-1', 'Y', 'migration-v25', 'migration-v25');
+
+INSERT INTO user_role_assignment
+    (tenant_id, user_id, role_code, scope_level, scope_code, active_flag, created_by, updated_by)
 VALUES ('t-1', 'audit-1', 'audit-compliance', 'TENANT', 't-1', 'Y', 'migration-v25', 'migration-v25');
