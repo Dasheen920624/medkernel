@@ -1,0 +1,387 @@
+{
+  "runTag": "act8-8sinb347c5",
+  "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+  "packageCode": "DRILL.ACT8.CONFIG.ACT8-8SINB347C5",
+  "packageVersion": "2026.06.11-act8-8sinb347c5",
+  "releaseGovernanceAsset": {
+    "assetType": "RULE",
+    "assetIdentity": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+    "candidateVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239"
+  },
+  "respiratoryScope": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+  "cardiologyExcludedByScope": "01KTSAC1R035AR0RMPG71RPG4H",
+  "note": "PackageEngine 灰度请求 scopeType=DEPARTMENT 且 scopeValue 为呼吸科 ID；ReleaseGovernance 使用同一演练规则资产做呼吸科目标组织模拟，验证目标清单只包含呼吸科、不包含心内科。",
+  "initialSimulation": {
+    "type": "urn:medkernel:error:ENG-API-005",
+    "title": "资源不存在",
+    "status": 404,
+    "detail": "候选资产版本不存在: rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+    "instance": "/medkernel/api/v1/engine/versioning/releases/simulations",
+    "code": "ENG-API-005",
+    "errorClass": "DATA",
+    "retryable": false,
+    "traceId": "act8-8sinb347c5-simulate-rule-respiratory"
+  },
+  "initialBoundary": {
+    "respiratoryIncluded": false,
+    "cardiologyExcluded": true
+  },
+  "packageGray": {
+    "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+    "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+    "status": "SUCCESS",
+    "logs": [
+      {
+        "logId": "26054ab2-2013-4a24-b012-5b125f2c3b69",
+        "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+        "adapterId": "drill-local-runtime-package-sink-20260611",
+        "status": "SUCCESS",
+        "errorCode": null,
+        "errorMessage": null,
+        "retryCount": 0,
+        "syncEvidence": "{\"effectiveSnapshotSha256\":\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\",\"effectiveItemCount\":4,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:348c1ac9-d715-4e1f-b4e2-26b591697d56:drill-local-runtime-package-sink-20260611\\\",\\\"adapterId\\\":\\\"drill-local-runtime-package-sink-20260611\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\\\",\\\"payloadSha256\\\":\\\"3dd11e7e2c2cc23f7e22d408552c6f1a7365a9e05b6bd277ecf013cadca7ddb8\\\",\\\"acceptedAt\\\":\\\"2026-06-11T00:59:44.581986865Z\\\"}\"}"
+      }
+    ]
+  },
+  "packageAfterGray": {
+    "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+    "packageCode": "DRILL.ACT8.CONFIG.ACT8-8SINB347C5",
+    "packageVersion": "2026.06.11-act8-8sinb347c5",
+    "name": "幕8配置包与发布治理 act8-8sinb347c5",
+    "description": "组合术语、知识、规则和路径资产，验证灰度、全量、离线包和撤回阻断。",
+    "accessPolicy": "OPEN",
+    "status": "PUBLISHED",
+    "items": [
+      {
+        "itemId": "90de9be4-9dae-4ca4-bc8c-bb741139d5b0",
+        "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+        "assetType": "KNOWLEDGE",
+        "assetId": "t:drill-hospital-20260611:guideline:act3-cap-abx-r031921",
+        "assetVersion": "2016.2-r031921"
+      },
+      {
+        "itemId": "c03ea224-0d35-47c4-a289-ad63da1f473c",
+        "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+        "assetType": "PATHWAY",
+        "assetId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+        "assetVersion": "1"
+      },
+      {
+        "itemId": "9765e34e-c663-45ce-80ab-d9f5a6bf64fe",
+        "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+        "assetType": "RULE",
+        "assetId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+        "assetVersion": "1"
+      },
+      {
+        "itemId": "76e884dc-c9dd-4809-92d2-859f7497048d",
+        "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+        "assetType": "TERMINOLOGY",
+        "assetId": "TERM.DRILL.ACT2|TENANT|drill-hospital-20260611",
+        "assetVersion": "2026.06.11-act2-024101"
+      }
+    ]
+  },
+  "syncLogsAfterGray": [
+    {
+      "logId": "26054ab2-2013-4a24-b012-5b125f2c3b69",
+      "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+      "adapterId": "drill-local-runtime-package-sink-20260611",
+      "status": "SUCCESS",
+      "errorCode": null,
+      "errorMessage": null,
+      "retryCount": 0,
+      "syncEvidence": "{\"effectiveSnapshotSha256\":\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\",\"effectiveItemCount\":4,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:348c1ac9-d715-4e1f-b4e2-26b591697d56:drill-local-runtime-package-sink-20260611\\\",\\\"adapterId\\\":\\\"drill-local-runtime-package-sink-20260611\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\\\",\\\"payloadSha256\\\":\\\"3dd11e7e2c2cc23f7e22d408552c6f1a7365a9e05b6bd277ecf013cadca7ddb8\\\",\\\"acceptedAt\\\":\\\"2026-06-11T00:59:44.581986865Z\\\"}\"}"
+    }
+  ],
+  "secondSimulation": {
+    "type": "urn:medkernel:error:ENG-API-005",
+    "title": "资源不存在",
+    "status": 404,
+    "detail": "候选资产版本不存在: rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+    "instance": "/medkernel/api/v1/engine/versioning/releases/simulations",
+    "code": "ENG-API-005",
+    "errorClass": "DATA",
+    "retryable": false,
+    "traceId": "act8-8sinb347c5-simulate-after-gray"
+  },
+  "secondBoundary": {
+    "respiratoryIncluded": false,
+    "cardiologyExcluded": true
+  },
+  "operations": [
+    {
+      "phase": "release-governance",
+      "label": "simulate-respiratory-only",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/engine/versioning/releases/simulations",
+      "status": 404,
+      "ok": false,
+      "requestTraceId": "act8-8sinb347c5-simulate-rule-respiratory",
+      "headerTraceId": "act8-8sinb347c5-simulate-rule-respiratory",
+      "bodyTraceId": "act8-8sinb347c5-simulate-rule-respiratory",
+      "request": {
+        "candidateTenantId": "drill-hospital-20260611",
+        "assetType": "RULE",
+        "assetIdentity": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+        "candidateVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "targetOrgUnitIds": [
+          "01KTSAC1SCFJB2RKCY3DHEAGMQ"
+        ],
+        "targetOrgPath": "tenant:drill-hospital-20260611",
+        "applicableScope": "ALL",
+        "rolloutPolicy": {
+          "strategy": "CANARY_BED_PERCENT",
+          "orgUnitIds": [],
+          "bedPercent": 10,
+          "stages": [],
+          "observationMinutes": 30,
+          "thresholds": {
+            "maxAnomalyRate": 0.02,
+            "maxManualRejectionRate": 0.15,
+            "maxBlockRate": 0.05
+          }
+        },
+        "replayDays": 30,
+        "replayLimit": 100
+      },
+      "response": {
+        "type": "urn:medkernel:error:ENG-API-005",
+        "title": "资源不存在",
+        "status": 404,
+        "detail": "候选资产版本不存在: rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "instance": "/medkernel/api/v1/engine/versioning/releases/simulations",
+        "code": "ENG-API-005",
+        "errorClass": "DATA",
+        "retryable": false,
+        "traceId": "act8-8sinb347c5-simulate-rule-respiratory"
+      }
+    },
+    {
+      "phase": "release-governance",
+      "label": "package-gray-respiratory-only",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/engine/pkg/packages/e845b6cc-fbe7-4577-836f-6fed3bdae47d/release",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-package-gray",
+      "headerTraceId": "act8-8sinb347c5-package-gray",
+      "bodyTraceId": "act8-8sinb347c5-package-gray",
+      "request": {
+        "request_id": "req-act8-8sinb347c5-0ae89b",
+        "trace_id": "trace-act8-8sinb347c5-7b1703",
+        "tenant_id": "drill-hospital-20260611",
+        "hospital_id": "drill-hospital",
+        "department_id": "dept-it",
+        "user_id": "drill-hospital-admin-20260611",
+        "role_codes": [
+          "hospital-admin"
+        ],
+        "package_version": "2026.06.11-act8-8sinb347c5",
+        "reason": "幕8先仅呼吸与危重症医学科灰度，心内科不纳入本次作用域。",
+        "targetOrgUnitId": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+        "strategy": "GRAYSCALE",
+        "scopeType": "DEPARTMENT",
+        "scopeValue": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+        "adapterIds": [
+          "drill-local-runtime-package-sink-20260611"
+        ],
+        "publishEvidence": {
+          "electronicSignature": {
+            "signatureId": "sig-act8-8sinb347c5-095300",
+            "signerId": "drill-medical-affairs-20260611",
+            "signerName": "演练-医务处质控员",
+            "signedAt": "2026-06-11T00:59:44.318Z",
+            "signatureHash": "[REDACTED]"
+          },
+          "qualityGate": {
+            "schemaValid": true,
+            "terminologyBindingComplete": true,
+            "dependencyIntegrityVerified": true,
+            "safetyMonotonicityVerified": true,
+            "impactSimulationPassed": true,
+            "peerReviewSigned": true,
+            "summary": "幕8先仅呼吸与危重症医学科灰度，心内科不纳入本次作用域。"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+          "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+          "status": "SUCCESS",
+          "logs": [
+            {
+              "logId": "26054ab2-2013-4a24-b012-5b125f2c3b69",
+              "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+              "adapterId": "drill-local-runtime-package-sink-20260611",
+              "status": "SUCCESS",
+              "errorCode": null,
+              "errorMessage": null,
+              "retryCount": 0,
+              "syncEvidence": "{\"effectiveSnapshotSha256\":\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\",\"effectiveItemCount\":4,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:348c1ac9-d715-4e1f-b4e2-26b591697d56:drill-local-runtime-package-sink-20260611\\\",\\\"adapterId\\\":\\\"drill-local-runtime-package-sink-20260611\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\\\",\\\"payloadSha256\\\":\\\"3dd11e7e2c2cc23f7e22d408552c6f1a7365a9e05b6bd277ecf013cadca7ddb8\\\",\\\"acceptedAt\\\":\\\"2026-06-11T00:59:44.581986865Z\\\"}\"}"
+            }
+          ]
+        },
+        "traceId": "act8-8sinb347c5-package-gray",
+        "timestamp": "2026-06-11T00:59:44.614180727Z"
+      }
+    },
+    {
+      "phase": "release-governance",
+      "label": "package-after-gray",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/engine/pkg/packages/e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-package-after-gray",
+      "headerTraceId": "act8-8sinb347c5-package-after-gray",
+      "bodyTraceId": "act8-8sinb347c5-package-after-gray",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+          "packageCode": "DRILL.ACT8.CONFIG.ACT8-8SINB347C5",
+          "packageVersion": "2026.06.11-act8-8sinb347c5",
+          "name": "幕8配置包与发布治理 act8-8sinb347c5",
+          "description": "组合术语、知识、规则和路径资产，验证灰度、全量、离线包和撤回阻断。",
+          "accessPolicy": "OPEN",
+          "status": "PUBLISHED",
+          "items": [
+            {
+              "itemId": "90de9be4-9dae-4ca4-bc8c-bb741139d5b0",
+              "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+              "assetType": "KNOWLEDGE",
+              "assetId": "t:drill-hospital-20260611:guideline:act3-cap-abx-r031921",
+              "assetVersion": "2016.2-r031921"
+            },
+            {
+              "itemId": "c03ea224-0d35-47c4-a289-ad63da1f473c",
+              "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+              "assetType": "PATHWAY",
+              "assetId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+              "assetVersion": "1"
+            },
+            {
+              "itemId": "9765e34e-c663-45ce-80ab-d9f5a6bf64fe",
+              "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+              "assetType": "RULE",
+              "assetId": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+              "assetVersion": "1"
+            },
+            {
+              "itemId": "76e884dc-c9dd-4809-92d2-859f7497048d",
+              "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+              "assetType": "TERMINOLOGY",
+              "assetId": "TERM.DRILL.ACT2|TENANT|drill-hospital-20260611",
+              "assetVersion": "2026.06.11-act2-024101"
+            }
+          ],
+          "itemsTruncated": false
+        },
+        "traceId": "act8-8sinb347c5-package-after-gray",
+        "timestamp": "2026-06-11T00:59:44.658126032Z"
+      }
+    },
+    {
+      "phase": "release-governance",
+      "label": "sync-logs-after-gray",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/engine/pkg/packages/e845b6cc-fbe7-4577-836f-6fed3bdae47d/sync-logs",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-sync-logs-gray",
+      "headerTraceId": "act8-8sinb347c5-sync-logs-gray",
+      "bodyTraceId": "act8-8sinb347c5-sync-logs-gray",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": [
+          {
+            "logId": "26054ab2-2013-4a24-b012-5b125f2c3b69",
+            "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "status": "SUCCESS",
+            "errorCode": null,
+            "errorMessage": null,
+            "retryCount": 0,
+            "syncEvidence": "{\"effectiveSnapshotSha256\":\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\",\"effectiveItemCount\":4,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:348c1ac9-d715-4e1f-b4e2-26b591697d56:drill-local-runtime-package-sink-20260611\\\",\\\"adapterId\\\":\\\"drill-local-runtime-package-sink-20260611\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\\\",\\\"payloadSha256\\\":\\\"3dd11e7e2c2cc23f7e22d408552c6f1a7365a9e05b6bd277ecf013cadca7ddb8\\\",\\\"acceptedAt\\\":\\\"2026-06-11T00:59:44.581986865Z\\\"}\"}"
+          }
+        ],
+        "traceId": "act8-8sinb347c5-sync-logs-gray",
+        "timestamp": "2026-06-11T00:59:44.696344010Z",
+        "dataLength": 1,
+        "dataPreview": [
+          {
+            "logId": "26054ab2-2013-4a24-b012-5b125f2c3b69",
+            "planId": "348c1ac9-d715-4e1f-b4e2-26b591697d56",
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "status": "SUCCESS",
+            "errorCode": null,
+            "errorMessage": null,
+            "retryCount": 0,
+            "syncEvidence": "{\"effectiveSnapshotSha256\":\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\",\"effectiveItemCount\":4,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:348c1ac9-d715-4e1f-b4e2-26b591697d56:drill-local-runtime-package-sink-20260611\\\",\\\"adapterId\\\":\\\"drill-local-runtime-package-sink-20260611\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"3078f87d02a34463bf6ea1681ddae1db26473ff850ba4b45bb3ee1e9168f5228\\\",\\\"payloadSha256\\\":\\\"3dd11e7e2c2cc23f7e22d408552c6f1a7365a9e05b6bd277ecf013cadca7ddb8\\\",\\\"acceptedAt\\\":\\\"2026-06-11T00:59:44.581986865Z\\\"}\"}"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "release-governance",
+      "label": "simulate-respiratory-only-after-gray",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/engine/versioning/releases/simulations",
+      "status": 404,
+      "ok": false,
+      "requestTraceId": "act8-8sinb347c5-simulate-after-gray",
+      "headerTraceId": "act8-8sinb347c5-simulate-after-gray",
+      "bodyTraceId": "act8-8sinb347c5-simulate-after-gray",
+      "request": {
+        "candidateTenantId": "drill-hospital-20260611",
+        "assetType": "RULE",
+        "assetIdentity": "rule-04ffef1b-79f2-4d19-b41b-7eccfcef1751",
+        "candidateVersionId": "rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "targetOrgUnitIds": [
+          "01KTSAC1SCFJB2RKCY3DHEAGMQ"
+        ],
+        "targetOrgPath": "tenant:drill-hospital-20260611",
+        "applicableScope": "ALL",
+        "rolloutPolicy": {
+          "strategy": "CANARY_BED_PERCENT",
+          "orgUnitIds": [],
+          "bedPercent": 10,
+          "stages": [],
+          "observationMinutes": 30,
+          "thresholds": {
+            "maxAnomalyRate": 0.02,
+            "maxManualRejectionRate": 0.15,
+            "maxBlockRate": 0.05
+          }
+        },
+        "replayDays": 30,
+        "replayLimit": 100
+      },
+      "response": {
+        "type": "urn:medkernel:error:ENG-API-005",
+        "title": "资源不存在",
+        "status": 404,
+        "detail": "候选资产版本不存在: rv-309286b2-10e3-4b1a-b5d0-788ea8c54239",
+        "instance": "/medkernel/api/v1/engine/versioning/releases/simulations",
+        "code": "ENG-API-005",
+        "errorClass": "DATA",
+        "retryable": false,
+        "traceId": "act8-8sinb347c5-simulate-after-gray"
+      }
+    }
+  ]
+}

@@ -15,6 +15,17 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.engine.pathway.PathwayEntryMode;
+import com.medkernel.engine.pathway.PathwayTemplate;
+import com.medkernel.engine.pathway.PathwayTemplateLevel;
+import com.medkernel.engine.pathway.PathwayTemplateRepository;
+import com.medkernel.engine.pathway.PathwayTemplateStatus;
+import com.medkernel.engine.rule.RuleAuthoringMode;
+import com.medkernel.engine.rule.RuleDefinition;
+import com.medkernel.engine.rule.RuleDefinitionRepository;
+import com.medkernel.engine.rule.RuleDefinitionStatus;
+import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -38,6 +49,8 @@ class EffectiveKnowledgePackageResolverTest {
     private InheritanceResolver inheritanceResolver;
     private PackageEntitlementService entitlementService;
     private AssetVersionRepository assetVersionRepository;
+    private RuleDefinitionRepository ruleRepository;
+    private PathwayTemplateRepository pathwayRepository;
     private EffectiveKnowledgePackageResolver resolver;
 
     @BeforeEach
@@ -47,9 +60,11 @@ class EffectiveKnowledgePackageResolverTest {
         inheritanceResolver = mock(InheritanceResolver.class);
         entitlementService = mock(PackageEntitlementService.class);
         assetVersionRepository = mock(AssetVersionRepository.class);
+        ruleRepository = mock(RuleDefinitionRepository.class);
+        pathwayRepository = mock(PathwayTemplateRepository.class);
         resolver = new EffectiveKnowledgePackageResolver(
             packageRepository, itemRepository, inheritanceResolver, entitlementService,
-            assetVersionRepository);
+            assetVersionRepository, ruleRepository, pathwayRepository);
     }
 
     @Test
@@ -159,6 +174,89 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
+    void resolvesRuleAndPathwayBusinessIdsThroughUnifiedVersionCodes() {
+        KnowledgePackage pack = tenantPackage("pkg-local", KnowledgePackageStatus.DRAFT);
+        PackageItem rule = tenantItem(VersionedAssetType.RULE, "rule-business-1", "1");
+        PackageItem pathway = tenantItem(VersionedAssetType.PATHWAY, "pathway-template-1", "1");
+        VersionedAssetIdentity ruleIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.RULE, "RULE.CAP.ABX");
+        VersionedAssetIdentity pathwayIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "TPL.CAP.PATHWAY");
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-local"))
+            .thenReturn(List.of(rule, pathway));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-business-1", "tenant-A"))
+            .thenReturn(Optional.of(ruleDefinition(
+                "rule-business-1",
+                "tenant-A",
+                "RULE.CAP.ABX"
+            )));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-template-1", "tenant-A"))
+            .thenReturn(Optional.of(pathwayTemplate(
+                "pathway-template-1",
+                "tenant-A",
+                "TPL.CAP.PATHWAY"
+            )));
+        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.RULE, "RULE.CAP.ABX", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-rule-declared",
+                VersionedAssetType.RULE,
+                "RULE.CAP.ABX",
+                "1",
+                "tenant:tenant-A",
+                "pkg:act6")));
+        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.PATHWAY, "TPL.CAP.PATHWAY", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-pathway-declared",
+                VersionedAssetType.PATHWAY,
+                "TPL.CAP.PATHWAY",
+                "1",
+                "tenant:tenant-A",
+                "disease:ZD0456")));
+        when(inheritanceResolver.resolveBatch(any())).thenAnswer(inv -> {
+            InheritanceBatchResolveQuery query = inv.getArgument(0);
+            assertThat(query.declaredAssets()).containsExactly(ruleIdentity, pathwayIdentity);
+            assertThat(query.applicableScopes()).contains("pkg:act6", "disease:ZD0456", "2026.06", "ALL");
+            return List.of(
+                new BatchResolvedAsset(
+                    ruleIdentity,
+                    new ResolvedAssetVersion(
+                        assetVersion("av-rule-code", VersionedAssetType.RULE, "RULE.CAP.ABX", "1"),
+                        "/TENANT-A/HOSP-A",
+                        false,
+                        false,
+                        false,
+                        null,
+                        SourceTier.ORG),
+                    false),
+                new BatchResolvedAsset(
+                    pathwayIdentity,
+                    new ResolvedAssetVersion(
+                        assetVersion("av-pathway-code", VersionedAssetType.PATHWAY, "TPL.CAP.PATHWAY", "1"),
+                        "/TENANT-A/HOSP-A",
+                        false,
+                        false,
+                        false,
+                        null,
+                        SourceTier.ORG),
+                    false));
+        });
+
+        EffectiveKnowledgePackageResponse response = resolver.resolveOwnedLifecycleCandidate(
+            "tenant-A",
+            pack,
+            "dept-1"
+        );
+
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items()).extracting(EffectivePackageItem::assetId)
+            .containsExactly("rule-business-1", "pathway-template-1");
+        assertThat(response.items()).extracting(EffectivePackageItem::sourceVersionId)
+            .containsExactly("av-rule-code", "av-pathway-code");
+    }
+
+    @Test
     void resolvesTenantTerminologySnapshotFromOwningPackageVersion() {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         KnowledgePackage pack = new KnowledgePackage(
@@ -217,6 +315,63 @@ class EffectiveKnowledgePackageResolverTest {
         });
         verify(inheritanceResolver, never()).resolveBatch(any());
         verify(entitlementService, never()).assertUsable(any(), any());
+    }
+
+    @Test
+    void resolvesExternalTerminologyPackageThroughUnifiedPackageVersion() {
+        KnowledgePackage pack = tenantPackage("pkg-local", KnowledgePackageStatus.DRAFT);
+        PackageItem terminology = tenantItem(
+            VersionedAssetType.TERMINOLOGY,
+            "TERM.LAB|TENANT|tenant-A",
+            "2026.06"
+        );
+        VersionedAssetIdentity packageIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.PACKAGE, "TERM.LAB");
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-local"))
+            .thenReturn(List.of(terminology));
+        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.PACKAGE, "TERM.LAB", "2026.06"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-term-package",
+                VersionedAssetType.PACKAGE,
+                "TERM.LAB",
+                "2026.06",
+                "tenant:tenant-A",
+                "ALL")));
+        when(inheritanceResolver.resolveBatch(any())).thenAnswer(inv -> {
+            InheritanceBatchResolveQuery query = inv.getArgument(0);
+            assertThat(query.declaredAssets()).containsExactly(packageIdentity);
+            return List.of(new BatchResolvedAsset(
+                packageIdentity,
+                new ResolvedAssetVersion(
+                    assetVersion(
+                        "av-term-package",
+                        VersionedAssetType.PACKAGE,
+                        "TERM.LAB",
+                        "2026.06",
+                        "tenant:tenant-A",
+                        "ALL"),
+                    "tenant:tenant-A",
+                    false,
+                    false,
+                    false,
+                    null,
+                    SourceTier.ORG),
+                false));
+        });
+
+        EffectiveKnowledgePackageResponse response = resolver.resolveOwnedLifecycleCandidate(
+            "tenant-A",
+            pack,
+            "dept-1"
+        );
+
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.assetType()).isEqualTo(VersionedAssetType.TERMINOLOGY);
+            assertThat(item.assetId()).isEqualTo("TERM.LAB|TENANT|tenant-A");
+            assertThat(item.effectiveVersion()).isEqualTo("2026.06");
+            assertThat(item.sourceVersionId()).isEqualTo("av-term-package");
+        });
     }
 
     @Test
@@ -390,6 +545,25 @@ class EffectiveKnowledgePackageResolverTest {
             "trace-pkg");
     }
 
+    private KnowledgePackage tenantPackage(String packageId, KnowledgePackageStatus status) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new KnowledgePackage(
+            2L,
+            packageId,
+            "tenant-A",
+            "PKG.LOCAL",
+            "2026.06",
+            "租户配置包",
+            null,
+            PackageAccessPolicy.OPEN,
+            status,
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-pkg");
+    }
+
     private PackageItem platformItem(VersionedAssetType type, String assetId, String assetVersion) {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         return new PackageItem(
@@ -407,11 +581,89 @@ class EffectiveKnowledgePackageResolverTest {
             "trace-pkg");
     }
 
+    private PackageItem tenantItem(VersionedAssetType type, String assetId, String assetVersion) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new PackageItem(
+            null,
+            "item-" + assetId,
+            "tenant-A",
+            "pkg-local",
+            type,
+            assetId,
+            assetVersion,
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-pkg");
+    }
+
+    private RuleDefinition ruleDefinition(String ruleId, String tenantId, String ruleCode) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new RuleDefinition(
+            1L,
+            ruleId,
+            tenantId,
+            ruleCode,
+            "CAP 抗菌药规则",
+            RuleType.LAB,
+            RuleAuthoringMode.DSL,
+            RuleRiskLevel.MEDIUM,
+            10,
+            null,
+            0,
+            RuleDefinitionStatus.PUBLISHED,
+            "rv-1",
+            "2026.06",
+            "dept-1",
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-rule");
+    }
+
+    private PathwayTemplate pathwayTemplate(String templateId, String tenantId, String templateCode) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new PathwayTemplate(
+            1L,
+            templateId,
+            tenantId,
+            "pkg-local",
+            templateCode,
+            "CAP 路径",
+            "ZD0456",
+            1,
+            PathwayTemplateLevel.HOSPITAL,
+            PathwayTemplateStatus.PUBLISHED,
+            PathwayEntryMode.MANUAL_CONFIRM,
+            "START",
+            "知识库:CAP",
+            "CAP 演练路径",
+            "{\"all\":[]}",
+            "{\"any\":[]}",
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-pathway");
+    }
+
     private AssetVersion assetVersion(
             String versionId,
             VersionedAssetType type,
             String assetIdentity,
             String versionNo) {
+        return assetVersion(versionId, type, assetIdentity, versionNo, "/TENANT-A/HOSP-A", "2026.06");
+    }
+
+    private AssetVersion assetVersion(
+            String versionId,
+            VersionedAssetType type,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
+            String applicableScope) {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         return new AssetVersion(
             1L,
@@ -420,13 +672,13 @@ class EffectiveKnowledgePackageResolverTest {
             type,
             assetIdentity,
             versionNo,
-            "/TENANT-A/HOSP-A",
-            "2026.06",
+            organizationScope,
+            applicableScope,
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             AssetVersionStatus.PUBLISHED,
-            assetIdentity + "|/TENANT-A/HOSP-A|2026.06",
+            assetIdentity + "|" + organizationScope + "|" + applicableScope,
             "test/" + assetIdentity,
             null,
             null,

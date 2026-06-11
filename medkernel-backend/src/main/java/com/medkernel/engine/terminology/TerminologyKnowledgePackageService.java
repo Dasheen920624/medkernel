@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -145,7 +146,7 @@ public class TerminologyKnowledgePackageService {
             VersionedAssetType.PACKAGE,
             pack.packageCode(),
             pack.packageVersion(),
-            scope.level() + ":" + scope.code(),
+            scope.level().toLowerCase(Locale.ROOT) + ":" + scope.code(),
             "ALL",
             null,
             contentHash,

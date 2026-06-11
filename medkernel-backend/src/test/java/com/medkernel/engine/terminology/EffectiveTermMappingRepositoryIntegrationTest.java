@@ -83,12 +83,12 @@ class EffectiveTermMappingRepositoryIntegrationTest {
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
         savePackage("TERM.LAB.FACILITY", "1", "FACILITY", "hospital-1", "718-7", 201L, now);
         versions.save(version(
-            "av-facility", "TERM.LAB.FACILITY", "1", "FACILITY:hospital-1",
+            "av-facility", "TERM.LAB.FACILITY", "1", "facility:hospital-1",
             AssetVersionStatus.PUBLISHED, now
         ));
         savePackage("TERM.LAB.DEPARTMENT", "1", "DEPARTMENT", "department-1", "4548-4", 202L, now);
         AssetVersion departmentVersion = versions.save(version(
-            "av-department", "TERM.LAB.DEPARTMENT", "1", "DEPARTMENT:department-1",
+            "av-department", "TERM.LAB.DEPARTMENT", "1", "department:department-1",
             AssetVersionStatus.APPROVED, now
         ));
         RequestContext.restore(new RequestContext.Snapshot(
@@ -104,7 +104,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
 
         versions.save(departmentVersion.withStatus(
             AssetVersionStatus.PUBLISHED,
-            "TERM.LAB.DEPARTMENT|DEPARTMENT:department-1|ALL",
+            "TERM.LAB.DEPARTMENT|department:department-1|ALL",
             now.plusSeconds(60),
             "admin-1"
         ));

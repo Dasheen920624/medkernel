@@ -125,6 +125,44 @@ class InheritanceResolverTest {
     }
 
     @Test
+    void resolvesTenantScopedVersionWhenOrgTreeUsesSlashPaths() {
+        OrgUnit tenant = org("tenant-root", null, "/tenant-A", OrgLevel.TENANT, "tenant-A");
+        OrgUnit hospital = org("hospital-a", "tenant-root", "/tenant-A/hospital-a", OrgLevel.FACILITY, "hospital-a");
+        OrgUnit department = org("dept-x", "hospital-a", "/tenant-A/hospital-a/dept-x", OrgLevel.DEPARTMENT, "dept-x");
+        AssetVersion tenantVersion = version(
+            "av-tenant-v1",
+            "1.0.0",
+            "tenant:tenant-A",
+            AssetVersionSafetyPolicy.NORMAL
+        );
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", department.id()))
+            .thenReturn(List.of(tenant, hospital, department));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|tenant:tenant-A|adult|inpatient",
+            AssetVersionStatus.PUBLISHED
+        )).thenReturn(List.of(tenantVersion));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", tenantVersion.versionId()))
+            .thenReturn(Optional.empty());
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "adult|inpatient",
+            department.id()
+        ));
+
+        assertThat(resolved.version()).isEqualTo(tenantVersion);
+        assertThat(resolved.sourceOrgPath()).isEqualTo("tenant:tenant-A");
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.explanation().inheritancePath())
+            .containsExactly(tenant.orgPath(), hospital.orgPath(), department.orgPath());
+    }
+
+    @Test
     void ignoresInReviewOverrideAndFallsBackToPublishedAncestor() {
         OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");

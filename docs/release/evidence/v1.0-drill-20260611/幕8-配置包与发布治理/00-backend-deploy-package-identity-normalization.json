@@ -1,0 +1,37 @@
+{
+  "act": "幕8-配置包与发布治理",
+  "evidenceType": "backend-deploy",
+  "deployedAt": "2026-06-11T08:45:50+08:00",
+  "source": "codex-demo-drill-act8-package-identity-normalization",
+  "target": "root@193.112.107.134",
+  "jar": "/zoesoft/medkernel/lib/medkernel.jar",
+  "jarSha256": "e4ab23d764d2519c35fe7b0306710cf25076599be923f58d8466876230d5239a",
+  "jarSizeBytes": 74069917,
+  "backup": "/zoesoft/medkernel/backups/deploy-20260611-084549",
+  "service": {
+    "active": "active",
+    "enabled": "enabled",
+    "nRestarts": 0,
+    "mainPid": 2051127
+  },
+  "health": {
+    "readiness": {
+      "httpStatus": 200,
+      "body": {
+        "status": "UP"
+      }
+    },
+    "nginxReadiness": {
+      "httpStatus": 200,
+      "url": "https://127.0.0.1/medkernel/actuator/health/readiness"
+    }
+  },
+  "localVerificationBeforeDeploy": [
+    "mvn -q -Dtest=EffectiveKnowledgePackageResolverTest#resolvesRuleAndPathwayBusinessIdsThroughUnifiedVersionCodes test",
+    "mvn -q -Dtest=EffectiveKnowledgePackageResolverTest,PackageEngineServiceTest,InheritanceResolverTest,ReleaseGovernanceControllerTest,SafetyWithdrawalServiceTest test"
+  ],
+  "notes": [
+    "本次发布包含包条目业务 ID 到统一版本资产 ID 的解析桥接。",
+    "发布脚本构建 jar 时跳过测试；测试证据来自发布前本地验证命令。"
+  ]
+}

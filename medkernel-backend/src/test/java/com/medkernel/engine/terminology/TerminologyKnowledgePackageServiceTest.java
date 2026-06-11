@@ -127,7 +127,7 @@ class TerminologyKnowledgePackageServiceTest {
         assertThat(version.assetType()).isEqualTo(VersionedAssetType.PACKAGE);
         assertThat(version.assetIdentity()).isEqualTo("TERM.LAB");
         assertThat(version.versionNo()).isEqualTo("2026.06");
-        assertThat(version.organizationScope()).isEqualTo("DEPARTMENT:CARD");
+        assertThat(version.organizationScope()).isEqualTo("department:CARD");
         assertThat(version.contentHash()).matches("[a-f0-9]{64}");
         verify(auditRecorder).record(
             AuditAction.CREATE,

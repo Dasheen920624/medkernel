@@ -1,0 +1,36 @@
+{
+  "act": "幕8-配置包与发布治理",
+  "evidenceType": "remote-data-repair",
+  "executedAt": "2026-06-11T08:52:58+08:00",
+  "target": "root@193.112.107.134",
+  "table": "mk_version_asset_version",
+  "reason": "幕5生成的路径统一资产把路径知识包 ID 写入 org_path，导致幕8有效包继承解析无法在租户组织闭包内命中 PATHWAY 版本。",
+  "scope": {
+    "tenantId": "drill-hospital-20260611",
+    "assetType": "PATHWAY",
+    "assetIdentity": "TPL.DRILL.CAP.1781126077791",
+    "versionNo": "1"
+  },
+  "before": {
+    "orgPath": "ba436dae-dec0-428d-975e-d7bcf7786414",
+    "applicableScope": "disease:ZD0456",
+    "status": "PUBLISHED",
+    "activeScopeKey": "TPL.DRILL.CAP.1781126077791|ba436dae-dec0-428d-975e-d7bcf7786414|disease:ZD0456"
+  },
+  "after": {
+    "orgPath": "tenant:drill-hospital-20260611",
+    "applicableScope": "disease:ZD0456",
+    "status": "PUBLISHED",
+    "activeScopeKey": "TPL.DRILL.CAP.1781126077791|tenant:drill-hospital-20260611|disease:ZD0456"
+  },
+  "result": {
+    "updatedRows": 1,
+    "transaction": "COMMIT",
+    "traceId": "act8-pathway-scope-repair-20260611",
+    "updatedBy": "codex-act8-pathway-scope-repair"
+  },
+  "safety": [
+    "修复只命中单条演练 PATHWAY 统一资产版本。",
+    "未修改路径模板、患者路径实例、规则、知识或术语资产内容。"
+  ]
+}

@@ -210,7 +210,7 @@ class PathwayEngineServiceTest {
                 && command.tenantId().equals("tenant-A")
                 && command.assetIdentity().equals("TPL.COPD")
                 && command.versionNo().equals("1")
-                && command.organizationScope().equals("sp-1")
+                && command.organizationScope().equals("tenant:tenant-A")
                 && command.applicableScope().equals("disease:COPD")
                 && command.content().contains("\"nodeCode\":\"ASSESS\"")
                 && command.content().contains("\"fromNodeCode\":\"ASSESS\"")

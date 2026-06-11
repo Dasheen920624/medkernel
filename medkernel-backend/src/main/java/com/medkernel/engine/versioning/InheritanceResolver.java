@@ -18,6 +18,7 @@ import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
@@ -85,7 +86,7 @@ public class InheritanceResolver {
         List<String> scopes = normalizeScopes(query.applicableScopes());
         List<VersionedAssetIdentity> declared = normalizeIdentities(query.declaredAssets());
         List<OrgUnit> path = resolutionPath(tenantId, targetOrgUnitId);
-        List<String> orgPaths = path.stream().map(OrgUnit::orgPath).toList();
+        List<String> orgPaths = inheritanceSearchPath(tenantId, path);
         Set<String> orgPathSet = Set.copyOf(orgPaths);
 
         List<InheritanceOverride> candidateOverrides = safeList(
@@ -165,20 +166,21 @@ public class InheritanceResolver {
             Instant effectiveAt,
             List<OrgUnit> path,
             CandidateLookup lookup) {
-        OrgUnit target = path.get(path.size() - 1);
         List<String> inheritancePath = path.stream().map(OrgUnit::orgPath).toList();
+        List<String> searchPath = inheritanceSearchPath(tenantId, path);
+        Set<String> targetOrgPaths = Set.copyOf(orgPathAliases(tenantId, path, path.size() - 1));
 
         // 记录沿途被安全护栏忽略的下级覆盖标识，写入解析说明供审核台与审计追溯
         String ignoredOverrideId = null;
-        for (int index = path.size() - 1; index >= 0; index--) {
-            OrgUnit candidate = path.get(index);
-            boolean inherited = !candidate.orgPath().equals(target.orgPath());
+        for (int index = searchPath.size() - 1; index >= 0; index--) {
+            String candidateOrgPath = searchPath.get(index);
+            boolean inherited = !targetOrgPaths.contains(candidateOrgPath);
             Optional<AssetVersion> active = lookup.findApplicableVersion(
-                tenantId, assetType, assetIdentity, candidate.orgPath(), applicableScope, effectiveAt);
+                tenantId, assetType, assetIdentity, candidateOrgPath, applicableScope, effectiveAt);
             if (active.isEmpty()) {
                 // 本级无替换版本：消费本级停用(DISABLE)覆盖（其 override_version_id 为空，按组织生效域直查）
                 Optional<InheritanceOverride> disable = lookup.findApplicableDisable(
-                    tenantId, assetType, assetIdentity, applicableScope, candidate.orgPath(), effectiveAt);
+                    tenantId, assetType, assetIdentity, applicableScope, candidateOrgPath, effectiveAt);
                 if (disable.isPresent()) {
                     InheritanceOverride value = disable.get();
                     // 传播判定：祖先节点的 EXCLUSIVE 停用仅本级生效、不向下沉
@@ -192,7 +194,7 @@ public class InheritanceResolver {
                     }
                     return new ResolvedAssetVersion(
                         null,
-                        candidate.orgPath(),
+                        candidateOrgPath,
                         inherited,
                         true,
                         true,
@@ -223,7 +225,7 @@ public class InheritanceResolver {
             boolean overridden = override.isPresent();
             return new ResolvedAssetVersion(
                 selected,
-                candidate.orgPath(),
+                candidateOrgPath,
                 inherited,
                 overridden,
                 false,
@@ -635,6 +637,66 @@ public class InheritanceResolver {
             throw new ApiException(ErrorCode.NOT_FOUND, "组织不存在: " + targetOrgUnitId);
         }
         return path;
+    }
+
+    private List<String> inheritanceSearchPath(String tenantId, List<OrgUnit> path) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (int index = 0; index < path.size(); index++) {
+            values.addAll(orgPathAliases(tenantId, path, index));
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> orgPathAliases(String tenantId, List<OrgUnit> path, int index) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        OrgUnit unit = path.get(index);
+        if (unit.orgPath() != null && !unit.orgPath().isBlank()) {
+            values.add(unit.orgPath());
+        }
+        String semantic = semanticOrgPath(tenantId, path, index);
+        if (semantic != null && !semantic.isBlank()) {
+            values.add(semantic);
+        }
+        return List.copyOf(values);
+    }
+
+    private String semanticOrgPath(String tenantId, List<OrgUnit> path, int index) {
+        String effectiveTenant = tenantId;
+        String group = null;
+        String hospital = null;
+        String campus = null;
+        String department = null;
+        for (int cursor = 0; cursor <= index; cursor++) {
+            OrgUnit unit = path.get(cursor);
+            if (unit == null || unit.level() == null || unit.code() == null || unit.code().isBlank()) {
+                continue;
+            }
+            OrgLevel level = unit.level();
+            if (level == OrgLevel.TENANT) {
+                effectiveTenant = unit.code().trim();
+            } else if (level == OrgLevel.REGION) {
+                group = unit.code().trim();
+            } else if (level == OrgLevel.FACILITY) {
+                hospital = unit.code().trim();
+            } else if (level == OrgLevel.CAMPUS) {
+                campus = unit.code().trim();
+            } else if (level == OrgLevel.DEPARTMENT) {
+                department = unit.code().trim();
+            }
+        }
+        List<String> segments = new ArrayList<>();
+        addScopeSegment(segments, "tenant", effectiveTenant);
+        addScopeSegment(segments, "group", group);
+        addScopeSegment(segments, "hospital", hospital);
+        addScopeSegment(segments, "campus", campus);
+        addScopeSegment(segments, "department", department);
+        return segments.isEmpty() ? null : String.join("/", segments);
+    }
+
+    private void addScopeSegment(List<String> segments, String name, String value) {
+        if (value != null && !value.isBlank()) {
+            segments.add(name + ":" + value.trim());
+        }
     }
 
     private List<String> normalizeScopes(List<String> applicableScopes) {

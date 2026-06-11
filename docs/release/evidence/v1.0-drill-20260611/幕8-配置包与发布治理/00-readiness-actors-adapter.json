@@ -1,0 +1,336 @@
+{
+  "runTag": "act8-8sinb347c5",
+  "generatedAt": "2026-06-11T00:59:42.479Z",
+  "environment": "https://193.112.107.134",
+  "credentialFile": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "health": {
+    "status": "UP"
+  },
+  "actors": {
+    "admin": {
+      "account": "drill-hospital-20260611:drill-hospital-admin-20260611",
+      "roles": [
+        "hospital-admin"
+      ],
+      "permissions": [
+        "integration.execute",
+        "integration.read",
+        "integration.write",
+        "knowledge.publish",
+        "knowledge.read",
+        "knowledge.withdraw",
+        "knowledge.write",
+        "package.publish",
+        "package.read",
+        "package.rollback",
+        "pathway.publish",
+        "pathway.read",
+        "rule.publish",
+        "rule.read",
+        "term.publish",
+        "term.read",
+        "term.write"
+      ],
+      "menuKeys": [
+        "config-packages",
+        "pathway-templates",
+        "rule-definitions",
+        "adapter-hub",
+        "knowledge-governance"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true
+    },
+    "medical": {
+      "account": "drill-hospital-20260611:drill-medical-affairs-20260611",
+      "roles": [
+        "medical-affairs"
+      ],
+      "permissions": [
+        "knowledge.publish",
+        "knowledge.read",
+        "knowledge.withdraw",
+        "knowledge.write",
+        "pathway.publish",
+        "pathway.read",
+        "rule.publish",
+        "rule.read",
+        "term.publish",
+        "term.read"
+      ],
+      "menuKeys": [
+        "pathway-templates",
+        "rule-definitions",
+        "knowledge-governance"
+      ],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    },
+    "cardio": {
+      "account": "drill-hospital-20260611:drill-cardiology-doctor-20260611",
+      "roles": [
+        "doctor"
+      ],
+      "permissions": [
+        "knowledge.read",
+        "pathway.read",
+        "rule.read"
+      ],
+      "menuKeys": [],
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false
+    }
+  },
+  "organization": {
+    "root": "01KTSAC047MET0P0DFCG6V927F",
+    "facility": "01KTSAC1JJB2V2X4F9DBF1NSVR",
+    "respiratory": {
+      "id": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+      "path": "/drill-hospital-20260611/drill-hospital/dept-respiratory-icu"
+    },
+    "cardiology": {
+      "id": "01KTSAC1R035AR0RMPG71RPG4H",
+      "path": "/drill-hospital-20260611/drill-hospital/dept-cardiology"
+    }
+  },
+  "adapter": {
+    "adapterId": "drill-local-runtime-package-sink-20260611",
+    "adapterName": "演练本地运行时配置库",
+    "protocolType": "REST",
+    "status": "ACTIVE",
+    "healthStatus": "HEALTHY",
+    "rttMs": 238,
+    "lastHeartbeatAt": "2026-06-11T00:59:42.101369Z",
+    "connectorAvailable": true
+  },
+  "operations": [
+    {
+      "phase": "readiness",
+      "label": "health-readiness",
+      "actor": null,
+      "method": "GET",
+      "path": "/medkernel/actuator/health/readiness",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": null,
+      "headerTraceId": "ce03e1f0-1bd8-474d-8a82-914e7eb166a7",
+      "bodyTraceId": null,
+      "response": {
+        "status": "UP"
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "login-admin",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-login-admin",
+      "headerTraceId": "act8-8sinb347c5-login-admin",
+      "bodyTraceId": "act8-8sinb347c5-login-admin",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611",
+        "password": "[REDACTED]"
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "me-admin",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-me-admin",
+      "headerTraceId": "act8-8sinb347c5-me-admin",
+      "bodyTraceId": "act8-8sinb347c5-me-admin"
+    },
+    {
+      "phase": "readiness",
+      "label": "login-medical",
+      "actor": "medical",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-login-medical",
+      "headerTraceId": "act8-8sinb347c5-login-medical",
+      "bodyTraceId": "act8-8sinb347c5-login-medical",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-medical-affairs-20260611",
+        "password": "[REDACTED]"
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "me-medical",
+      "actor": "medical",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-me-medical",
+      "headerTraceId": "act8-8sinb347c5-me-medical",
+      "bodyTraceId": "act8-8sinb347c5-me-medical"
+    },
+    {
+      "phase": "readiness",
+      "label": "login-cardio",
+      "actor": "cardio",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-login-cardio",
+      "headerTraceId": "act8-8sinb347c5-login-cardio",
+      "bodyTraceId": "act8-8sinb347c5-login-cardio",
+      "request": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-cardiology-doctor-20260611",
+        "password": "[REDACTED]"
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "me-cardio",
+      "actor": "cardio",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-me-cardio",
+      "headerTraceId": "act8-8sinb347c5-me-cardio",
+      "bodyTraceId": "act8-8sinb347c5-me-cardio"
+    },
+    {
+      "phase": "readiness",
+      "label": "release-adapters-before",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/engine/pkg/packages/release-adapters",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-release-adapters-before",
+      "headerTraceId": "act8-8sinb347c5-release-adapters-before",
+      "bodyTraceId": "act8-8sinb347c5-release-adapters-before",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "adapterName": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "rttMs": 4,
+            "lastHeartbeatAt": "2026-06-11T00:57:23.617736Z",
+            "connectorAvailable": true
+          }
+        ],
+        "traceId": "act8-8sinb347c5-release-adapters-before",
+        "timestamp": "2026-06-11T00:59:42.015464717Z",
+        "dataLength": 1,
+        "dataPreview": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "adapterName": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "rttMs": 4,
+            "lastHeartbeatAt": "2026-06-11T00:57:23.617736Z",
+            "connectorAvailable": true
+          }
+        ]
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "health-local-runtime-adapter",
+      "actor": "admin",
+      "method": "POST",
+      "path": "/engine/integration/adapters/drill-local-runtime-package-sink-20260611/health-check",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-adapter-health",
+      "headerTraceId": "act8-8sinb347c5-adapter-health",
+      "bodyTraceId": "act8-8sinb347c5-adapter-health",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 1,
+          "adapterId": "drill-local-runtime-package-sink-20260611",
+          "tenantId": "drill-hospital-20260611",
+          "name": "演练本地运行时配置库",
+          "protocolType": "REST",
+          "status": "ACTIVE",
+          "configJson": "{\"baseUrl\":\"http://127.0.0.1:18081\",\"healthPath\":\"/health\",\"outboundPath\":\"/package-release\",\"connectTimeoutMs\":500,\"requestTimeoutMs\":2000}",
+          "healthStatus": "HEALTHY",
+          "rttMs": 238,
+          "lastHeartbeatAt": "2026-06-11T00:59:42.101369139Z",
+          "createdAt": "2026-06-10T20:18:33.247916Z",
+          "createdBy": "system",
+          "updatedAt": "2026-06-11T00:59:42.347599287Z",
+          "updatedBy": "system"
+        },
+        "traceId": "act8-8sinb347c5-adapter-health",
+        "timestamp": "2026-06-11T00:59:42.461235222Z"
+      }
+    },
+    {
+      "phase": "readiness",
+      "label": "release-adapters-after",
+      "actor": "admin",
+      "method": "GET",
+      "path": "/engine/pkg/packages/release-adapters",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "act8-8sinb347c5-release-adapters-after",
+      "headerTraceId": "act8-8sinb347c5-release-adapters-after",
+      "bodyTraceId": "act8-8sinb347c5-release-adapters-after",
+      "response": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "adapterName": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "rttMs": 238,
+            "lastHeartbeatAt": "2026-06-11T00:59:42.101369Z",
+            "connectorAvailable": true
+          }
+        ],
+        "traceId": "act8-8sinb347c5-release-adapters-after",
+        "timestamp": "2026-06-11T00:59:42.513646130Z",
+        "dataLength": 1,
+        "dataPreview": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "adapterName": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "rttMs": 238,
+            "lastHeartbeatAt": "2026-06-11T00:59:42.101369Z",
+            "connectorAvailable": true
+          }
+        ]
+      }
+    }
+  ]
+}
