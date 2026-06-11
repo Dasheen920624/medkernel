@@ -1,7 +1,7 @@
 # 能力可见性矩阵
 
 > 范围：幕8.5 前台重新演练的活矩阵。计划原口径为 71 Controller × 44 页面；本分支按当前仓库 `rg '@RestController'` 实测为 75 个 Controller，后续全量批次以实际仓库扫描为准。
-> 状态：第一批覆盖幕0–2；第二批覆盖幕3–5；第三批覆盖幕6–9。结论分为「可见可操作」「局部可见」「API-only/缺口」「未到本批」。
+> 状态：第一批覆盖幕0–2；第二批覆盖幕3–5；第三批覆盖幕6–9；幕10 L2 覆盖合规审计、运行状态、国产化和安全基线页面。结论分为「可见可操作」「局部可见」「API-only/缺口」「未到本批」。
 
 ## 第一批结论（幕0–2）
 
@@ -55,6 +55,20 @@
 | `IntegrationController` | `/adapter/hub` | 可见可操作 | 信息科查看适配器总览、健康诊断、死信重放、数据质量、接入向导和区域来源 | [适配器总览](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png)、[死信重放](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png)、[接入向导](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png) | UI-ACT9-ADAPTER-01：增加 C1-C6 案例分组视图 |
 | `FhirFacadeController` / `InteroperabilityController` | 第三方 API 与案例集文档 | API-only/合规 | FHIR R4 与互操作导入导出本体是厂商接口，前台只在适配器中心展示状态 | [第三方案例集](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md) | 写入第三方案例集，不要求客户页面手工模拟厂商接口 |
 
+## 幕10 L2 结论
+
+| 后端能力 / Controller | 客户页面 | 本批结论 | 前台实测动作 | 证据 | 后续动作 |
+|---|---|---|---|---|---|
+| `AuditController` | `/admin/audit` | 局部可见 | 审计员按操作人筛选幕6医生事件、打开详情查看 traceId、签名和载荷摘要；专家模式按 `clinical_event` 筛选 | [审计筛选](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png)、[审计详情](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/02-ui-audit-event-detail-trace.png) | UI-ACT10-AUDIT-01：补 traceId 直搜和诊断链跳转 |
+| `ExportApprovalController` / `EvidenceController` | `/admin/audit` 的「导出审批」页签 | 可见可操作 | 审计员前台提交审计日志导出申请；医院管理员前台审批，审批后显示证据入口 | [导出申请](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png)、[审批通过](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png) | 无 |
+| `SystemConfigController` | `/security/baseline` 的「系统配置」页签 | 可见可操作 | 信息科查看配置来源、风险等级、受保护配置和更新时间 | [系统配置](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/09-ui-security-system-configs.png) | 无 |
+| `DataPermissionController` | `/security/baseline` 的「数据权限」页签 | 局部可见 | 信息科查看幕10 `act10_patient_scope` 策略、动作、最小范围和允许字段 | [数据权限](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/10-ui-security-data-permissions.png) | UI-ACT10-SECBASE-01：补前台权限试算器 |
+| `MaskingRuleController` | `/security/baseline` 的「脱敏规则」页签 | 局部可见 | 信息科查看 `patientName`、`idNo` 规则和遮罩策略 | [脱敏规则](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/11-ui-security-masking-rules.png) | UI-ACT10-SECBASE-01：补前台脱敏预览 |
+| `InteropAssessmentController` | `/security/baseline` 的「互操作测评」页签 | 可见可操作 | 信息科查看测评版本、满足数、差距和证据计数 | [互操作测评](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/12-ui-security-interop-assessment.png) | 无 |
+| `RuntimeOperationsController` / `RuntimeProbeController` | `/system/providers` | 可见可操作 | 信息科查看核心服务、依赖健康、未连接、模型未启用、备份恢复诊断和专家模式 profile | [运行状态](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png)、[专家诊断](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/14-ui-runtime-providers-expert.png) | 未接入能力继续诚实显示，不刷绿 |
+| `RuntimeOperationsController` | `/advanced/domestic` | 可见可操作 | 信息科查看国产化自检、过滤不兼容项，并导出报告 | [国产化自检](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png)、[不兼容过滤](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/16-ui-domestic-check-issues.png) | 正式部署替换院方信任证书 |
+| `ModelGatewayController` | `/system/providers` 的依赖健康 | 局部可见 | L1 任务证明 `modelMode=B0`、`fallbackUsed=true`；L2 运行状态页显示模型 Provider 未启用，未伪装正常 | [运行状态](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png) | 后续若启用模型管理页，再补任务级前台诊断 |
+
 ## 缺口登记
 
 | 缺口 ID | 影响页面 | 问题 | 安全口径 | 归属 |
@@ -68,6 +82,8 @@
 | OPT-FOLLOWUP-01 | `/clinical/followup`、`/workflow/todos`、`/notifications`、`/qc/alerts` | 随访异常、待办、通知和质控预警聚合不统一 | 护士无待填问卷时如实显示，不用 API 造假 | 体验重构线 |
 | OPT-PKG-01 | `/config/packages` | 普通台账同时暴露业务编码和统一版本资产 / 包 ID | 默认视图保留业务信号，专家视图保留对账字段 | 体验重构线 |
 | UI-ACT9-ADAPTER-01 | `/adapter/hub` | 适配器状态可读，但 C1-C6 六案例与健康状态缺演示分组 | 未接通系统必须保留 `NOT_CONNECTED` / `MISCONFIGURED`，不刷绿 | 体验重构线 |
+| UI-ACT10-AUDIT-01 | `/admin/audit` | 能在详情看 traceId，但不能直接按 traceId 搜索或一键跳诊断链 | 不用接口截图冒充客户体验；审计详情仍保留真实 traceId | 体验重构线 |
+| UI-ACT10-SECBASE-01 | `/security/baseline` | 数据权限和脱敏规则可见，但权限试算与脱敏预览仍需接口佐证 | 不在页面上伪装“已试算”；L1 结果保留为接口证据 | 体验重构线 |
 
 ## 后续批次
 
@@ -75,4 +91,5 @@
 |---|---|---|
 | 第二批 | 幕3–5 | 已完成；缺口进入上方登记表 |
 | 第三批 | 幕6–9 | 已完成；缺口进入上方登记表 |
-| 幕10 L2 | 幕10 | 审计日志、运行状态、国产化自检、安全基线与系统配置页面 |
+| 幕10 L2 | 幕10 | 已完成；缺口进入上方登记表 |
+| 总验收 | 幕0–10 | 复核 §1 六判据、手册覆盖和下一阶段准入 |

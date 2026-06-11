@@ -1,6 +1,6 @@
 # MedKernel · 合规运维用户手册
 
-> 状态：已由全流程演练幕0激活；幕8.5 已补齐首次部署/登录/验收自检前台复演配图；幕9已补齐适配器运维；幕10已补齐 L1 审计与降级链路，L2 页面配图待幕10前台走查回填
+> 状态：已由全流程演练幕0激活；幕8.5 已补齐首次部署/登录/验收自检前台复演配图；幕9已补齐适配器运维；幕10已补齐 L1 审计与降级链路和 L2 前台页面配图
 > 适用：信息科管理员 / 安全审计 / 乙方 SRE / 国产化驻场运维
 > 证据：幕0真实演练归档在 [部署接管与首次登录证据](../../release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/README.md)
 
@@ -173,21 +173,31 @@
 | 没有模型时会不会编答案 | 返回 B0 降级，明确 `fallbackUsed=true`，不伪造模型版本 |
 | 备份是否可恢复 | 备份恢复到临时库抽查，能读到业务表和 Flyway 表结构 |
 
-幕10 L1 证据见 [合规审计与降级证据](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/README.md)。页面截图和四问审计尚未完成，不能把本章当作前台验收完成证明。
+幕10 证据见 [合规审计与降级证据](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/README.md)。L1 证明后端/运维链路真实有效；L2 证明审计日志、安全基线、运行状态和国产化自检能在前台找到、读懂并完成导出审批。
 
 ### 3.2 进入入口
 
 | 页面 / API | 入口 | 用途 |
 |---|---|---|
-| 审计日志 | `/compliance/audit` | 按 actor、资源、traceId 查审计事件 |
-| 运行状态 | `/system/operations` | 看后端、数据库、任务、集成等运行态 |
-| 国产化自检 | `/system/operations/domestic-report` | 导出 OS/JDK/DB/中间件国产化报告 |
-| 安全基线与系统配置 | `/system/configs` | 查看配置项，重要变更先审计校验 |
-| 数据权限策略 | `/medkernel/api/v1/compliance/data-permissions` | 运维配置资源、动作、医院、科室边界 |
-| 脱敏规则 | `/medkernel/api/v1/compliance/masking-rules` | 配置敏感字段的遮罩方式 |
-| 敏感导出审批 | `/medkernel/api/v1/compliance/exports*` | 申请、审批、登记导出完成 |
+| 审计日志 | `/admin/audit` | 按操作人、操作编码、对象类型查审计事件，打开详情看 traceId 和签名 |
+| 审计导出审批 | `/admin/audit` 的「导出审批」页签 | 审计员申请导出，第二人审批并查看证据入口 |
+| 运行状态 | `/system/providers` | 看后端、数据库、模型 Provider、备份和集成等运行态 |
+| 国产化自检 | `/advanced/domestic` | 查看 OS/JDK/DB/中间件/国密自检，并导出报告 |
+| 安全基线与系统配置 | `/security/baseline` | 查看安全画像、系统配置、数据权限、脱敏规则和互操作测评 |
+| 数据权限策略 API | `/medkernel/api/v1/compliance/data-permissions` | 佐证资源、动作、医院、科室边界 |
+| 脱敏预览 API | `/medkernel/api/v1/compliance/masking-rules:preview` | 佐证敏感字段遮罩结果 |
 
-若页面入口暂未暴露，必须登记到能力可见性矩阵；不能用 API 证明“客户能在页面上找到”。
+浏览器入口不带 `/medkernel` 前缀；`/medkernel/api/v1/*` 只用于接口佐证。若页面入口暂未暴露，必须登记到能力可见性矩阵；不能用 API 证明“客户能在页面上找到”。
+
+幕10 L2 前台复演已归档这些讲解截图：
+
+| 现场问题 | 页面 | 讲解截图 |
+|---|---|---|
+| 审计员能不能查到医生操作并看 trace | `/admin/audit` | [审计事件筛选](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png)、[审计详情](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/02-ui-audit-event-detail-trace.png) |
+| 导出是否需要第二人审批 | `/admin/audit` | [导出申请](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png)、[审批通过](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png) |
+| 数据权限和脱敏规则在哪里看 | `/security/baseline` | [数据权限](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/10-ui-security-data-permissions.png)、[脱敏规则](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/11-ui-security-masking-rules.png) |
+| 模型和外部依赖未接通会不会装成正常 | `/system/providers` | [运行状态](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png) |
+| 国产化状态和报告怎么拿 | `/advanced/domestic` | [国产化自检](../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png) |
 
 ### 3.3 默认看到什么
 
@@ -204,19 +214,19 @@
 
 | 步骤 | 操作 | 通过信号 |
 |---|---|---|
-| 1 | 审计员登录并打开审计链 | 能按幕6 traceId 查到危急值和 DDI 链路 |
-| 2 | 信息科管理员维护数据权限策略 | 策略保存成功，审计日志记录变更原因 |
-| 3 | 用医生账号做跨科室检查 | 本科室允许，跨科室阻断，结果不依赖客户端传租户 |
-| 4 | 维护脱敏规则并预览 | 敏感字段被遮罩，原文不进入普通审计视图 |
+| 1 | 审计员登录并打开审计链 | 能按医生、对象类型和详情页 traceId 查到幕6相关事件 |
+| 2 | 信息科管理员查看数据权限策略 | `/security/baseline` 能看到资源、动作、最小范围和允许字段 |
+| 3 | 用医生账号做跨科室检查 | L1 接口证明本科室允许、跨科室阻断；L2 暂无前台试算器 |
+| 4 | 查看脱敏规则并执行预览 | 页面能看到规则；L1 接口证明 patientName 与 idNo 被遮罩 |
 | 5 | 审计员申请敏感导出 | 状态为 `REQUESTED`，申请理由留痕 |
 | 6 | 第二人审批 | 申请人自批被拒；第二人审批后状态为 `APPROVED` 并生成审批证据 |
-| 7 | 检查降级和备份 | 模型任务诚实 B0 降级；schema-only 备份可恢复到临时库 |
+| 7 | 检查降级、备份和国产化 | 运行状态显示未连接/模型未启用，国产化页可导出报告；schema-only 备份可恢复到临时库 |
 
 ### 3.5 出错怎么办
 
 | 现象 | 常见原因 | 处理 |
 |---|---|---|
-| 查不到审计链 | traceId 不对或账号缺 `audit.read` | 先查原业务响应里的 traceId，再查 `/security/me` 权限 |
+| 查不到审计链 | traceId 不对、筛选条件叠加过窄或账号缺 `audit.read` | 先放宽为操作人/对象类型筛选，再打开详情核对 traceId；同时查 `/security/me` 权限 |
 | 本科室数据也被拒 | JWT 组织域与角色分配不一致 | 查登录 claims、角色分配和 `org_unit.id`，不要改客户端请求绕过 |
 | 脱敏预览仍显示原文 | 规则未启用或字段名不一致 | 查 resourceType、scenarioCode、fieldName 和规则状态 |
 | 审批返回 403 | 申请人与审批人相同或缺 `audit.export` | 换第二个有审批权限的账号，保留被拒证据 |
@@ -229,4 +239,4 @@
 - 数据权限、脱敏规则：信息科管理员 + 合规审计。
 - 模型降级与 Provider 状态：乙方 SRE / 模型平台负责人。
 - 国产化自检、备份恢复：乙方 SRE / 院方运维。
-- 页面入口缺失或读不懂：产品体验重构线登记，进入幕8.5 前台走查与能力可见性矩阵。
+- 页面入口缺失或读不懂：产品体验重构线登记，进入能力可见性矩阵；幕10 L2 已登记 traceId 直搜、权限试算和脱敏预览面板三个后续点。
