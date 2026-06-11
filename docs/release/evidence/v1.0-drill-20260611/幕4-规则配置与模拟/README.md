@@ -69,3 +69,20 @@
 - 本幕使用的发布适配器是演练机内的真实 REST sink，用于证明配置包发布主链路和同步日志，不代表院方生产 HIS / EMR / 配置库已接入。
 - 阿司匹林 `B01AC06` 与阿莫西林克拉维酸 `J01CR02` 在本幕按标准 ATC 代码直接入规则；院内药品码到 ATC 的本地映射扩展仍应在后续字典包治理中补齐。
 - 本幕仅有 `TERM.DRILL.ACT2` 一个同编码包版本，发布后不存在可作为目标的 `OFFLINE` 历史版本，因此不能真实执行回滚。配置包中心的完整导出、回灌、多版本回滚和多目标发布体验仍归幕8继续演练。
+
+## 幕8.5 前台复演补课
+
+> 复演时间：2026-06-11
+> 脚本：`scripts/drill/act85-ui-replay-acts3-5.mjs`
+> 摘要：[`ui-replay/00-ui-replay-summary.json`](ui-replay/00-ui-replay-summary.json)
+
+| 步骤 | 前台动作 | 结果 | 截图 |
+|---|---|---|---|
+| 1 | 医务处账号进入 `/rule/definitions` | 规则库可看到既有 R1/R2/R3 规则和“新建规则模板”入口 | [`ui-replay/01-rule-definitions-list.png`](ui-replay/01-rule-definitions-list.png) |
+| 2 | 打开新建规则模板并填写幕8.5草稿 | 通过前台表单创建或复用 `DRILL.ACT85.K.RECHECK.20260611` 草稿，不进入临床运行 | [`ui-replay/02-rule-create-draft-form.png`](ui-replay/02-rule-create-draft-form.png)、[`ui-replay/03-rule-act85-draft-visible.png`](ui-replay/03-rule-act85-draft-visible.png) |
+| 3 | 打开 R1 血钾危急值规则详情 | L2 条件树、测试用例和治理流可见；可读预览仍暴露字段路径和技术 ID | [`ui-replay/04-rule-critical-readable-preview.png`](ui-replay/04-rule-critical-readable-preview.png) |
+| 4 | 在规则详情页执行发布门禁测试用例 | 阳性、阴性、边界、冲突四类用例均展示通过 | [`ui-replay/05-rule-test-cases-rerun.png`](ui-replay/05-rule-test-cases-rerun.png) |
+| 5 | 查看治理与发布流 | 页面展示同行评审、委员会会签、影子、灰度、全量等状态 | [`ui-replay/06-rule-governance-flow.png`](ui-replay/06-rule-governance-flow.png) |
+| 6 | 呼吸科医生访问规则库和规则校验 | 医生不能进入规则库，只能进入 `/rule/validate` 执行匹配校验与解释回放 | [`ui-replay/07-rule-non-configurer-forbidden.png`](ui-replay/07-rule-non-configurer-forbidden.png)、[`ui-replay/08-rule-validate-console.png`](ui-replay/08-rule-validate-console.png) |
+
+四问结论：规则配置者能用页面创建草稿、复跑测试和查看治理状态；但“非配置者读 R1/R2/R3”没有自然入口，且可读预览仍有 `observations[].valueNumeric`、`K001`、UUID 等技术语汇。`OPT-VIS-01` 继续成立：需要自然语言摘要、流程图只读视图，并从规则校验页/推荐卡提供受控只读跳转。

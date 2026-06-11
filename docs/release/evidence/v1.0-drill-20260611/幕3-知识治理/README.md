@@ -53,3 +53,17 @@
 
 - 多来源证据合并仍受当前引用模型限制：同一知识版本的引用片段必须来自该版本绑定的来源版本，跨来源引用被真实拒绝。多来源证据增强已登记到待处理清单，不影响当前主来源可追溯。
 - 客户租户知识身份未执行平台级退役。当前后端退役接口仅允许平台主租户 `t-1` 操作，幕3用版本替代关系证明旧版本不再作为当前权威版本。
+
+## 幕8.5 前台复演补课
+
+> 复演时间：2026-06-11
+> 脚本：`scripts/drill/act85-ui-replay-acts3-5.mjs`
+> 摘要：[`ui-replay/00-ui-replay-summary.json`](ui-replay/00-ui-replay-summary.json)
+
+| 步骤 | 前台动作 | 结果 | 截图 |
+|---|---|---|---|
+| 1 | 医务处账号进入 `/knowledge/governance` | 页面可查看知识身份台账和候选审核区；页面文案明确“候选只来自真实来源导入或 KNOW-02 分流，本页不生成候选” | [`ui-replay/01-knowledge-governance-ledger.png`](ui-replay/01-knowledge-governance-ledger.png) |
+| 2 | 点击知识身份的“查看候选” | 当前待审候选为 0，无法在本页重新登记新知识并走会签发布 | [`ui-replay/02-knowledge-candidate-review.png`](ui-replay/02-knowledge-candidate-review.png) |
+| 3 | 进入 `/advanced/provenance?identityId=2` | 可从血钾危急值知识身份反查当前权威版本、历史版本和来源锚点 | [`ui-replay/03-provenance-potassium-source.png`](ui-replay/03-provenance-potassium-source.png) |
+
+四问结论：来源追溯页可读，知识治理页可做审核阅读；但“登记知识源→拆条目→建资产与版本→会签发布→租户退役”仍不是完整前台流程。该缺口登记为 `OPT-KNOW-UI-01`：新增知识登记向导和已发布知识“新版本/退役”入口，不得用 API 冒充客户前台动作。
