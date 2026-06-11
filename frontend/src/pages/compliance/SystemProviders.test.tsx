@@ -118,8 +118,8 @@ describe("SystemProviders", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         userId: "u-ops",
-        username: "it-ops",
-        roles: [{ code: "it-ops" }],
+        username: "integration-operator",
+        roles: [{ code: "integration-operator" }],
         permissions: [
           {
             code: "system.read",
@@ -231,8 +231,8 @@ describe("SystemProviders", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         userId: "u-doctor",
-        username: "doctor",
-        roles: [{ code: "doctor" }],
+        username: "clinical-decision-user",
+        roles: [{ code: "clinical-decision-user" }],
         permissions: [],
         menuKeys: [],
       },
@@ -267,7 +267,7 @@ describe("SystemProviders", () => {
     expect(screen.getByText("./deploy/docker/scripts/backup.sh")).toBeInTheDocument();
     expect(screen.getByText("./deploy/docker/scripts/restore.sh")).toBeInTheDocument();
     expect(screen.getAllByText("SAFE_DEFAULT").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("MEDIUM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("中风险").length).toBeGreaterThan(0);
     expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(screen.getByText("latest-restore-drill.properties")).toBeInTheDocument();
   });

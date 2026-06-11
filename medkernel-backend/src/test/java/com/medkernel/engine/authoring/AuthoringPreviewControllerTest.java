@@ -60,7 +60,7 @@ class AuthoringPreviewControllerTest {
                       "trace_id": "trace-preview",
                       "tenant_id": "t-1",
                       "user_id": "api-author",
-                      "role_codes": ["doctor"],
+                      "role_codes": ["clinical-decision-user"],
                       "package_version": "pkg-2026.1",
                       "subject": "RULE_CONDITION",
                       "dsl": {
@@ -121,7 +121,7 @@ class AuthoringPreviewControllerTest {
                       "trace_id": "trace-preview-run",
                       "tenant_id": "t-1",
                       "user_id": "api-author",
-                      "role_codes": ["doctor"],
+                      "role_codes": ["clinical-decision-user"],
                       "package_version": "pkg-2026.1",
                       "subject": "RULE_CONDITION",
                       "snapshot_id": "ctx-001",
@@ -167,7 +167,7 @@ class AuthoringPreviewControllerTest {
         return jwt().jwt(token -> token
                 .subject("api-author")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("doctor")))
+                .claim("roles", List.of("clinical-decision-user")))
             .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
     }
 }

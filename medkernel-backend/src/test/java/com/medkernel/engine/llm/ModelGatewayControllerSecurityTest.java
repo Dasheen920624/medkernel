@@ -78,7 +78,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
@@ -91,7 +91,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
@@ -103,7 +103,7 @@ class ModelGatewayControllerSecurityTest {
         mockMvc.perform(post("/api/v1/model-capabilities/tasks")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
@@ -117,7 +117,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
@@ -130,7 +130,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
@@ -143,7 +143,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
@@ -156,7 +156,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))

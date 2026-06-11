@@ -63,7 +63,7 @@ class RuntimeProbeControllerTest {
     @Test
     @SuppressWarnings("unchecked")
     void runtimeReportsJdk21AndVirtualThreadWithAuth() throws Exception {
-        String token = generateToken("it-ops");
+        String token = generateToken("integration-operator");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         HttpEntity<Void> entity = new HttpEntity<>(headers);

@@ -39,12 +39,12 @@ class EffectivePermissionServiceTest {
             .thenReturn(List.of());
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of(
-                override("t-1", RoleCode.DOCTOR, PermissionCode.RECOMMENDATION_ACCEPT, PermissionEffect.DENY),
-                override("t-1", RoleCode.DOCTOR, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW),
-                override("t-1", RoleCode.DOCTOR, PermissionCode.MENU_ADMIN_AUDIT, PermissionEffect.ALLOW)
+                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.RECOMMENDATION_ACCEPT, PermissionEffect.DENY),
+                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW),
+                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.MENU_ADMIN_AUDIT, PermissionEffect.ALLOW)
             ));
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes())
             .contains(PermissionCode.RECOMMENDATION_READ.code(), PermissionCode.AUDIT_READ.code())
@@ -55,14 +55,14 @@ class EffectivePermissionServiceTest {
     @Test
     void explicitDenyWinsWhenEffectiveRolesContainConflictingOverrides() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QA_MANAGER)));
+            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR)));
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of(
-                override("t-1", RoleCode.DOCTOR, PermissionCode.AUDIT_EXPORT, PermissionEffect.DENY),
-                override("t-1", RoleCode.QA_MANAGER, PermissionCode.AUDIT_EXPORT, PermissionEffect.ALLOW)
+                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.AUDIT_EXPORT, PermissionEffect.DENY),
+                override("t-1", RoleCode.QUALITY_GOVERNOR, PermissionCode.AUDIT_EXPORT, PermissionEffect.ALLOW)
             ));
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.AUDIT_EXPORT.code());
     }
@@ -70,14 +70,14 @@ class EffectivePermissionServiceTest {
     @Test
     void userRoleAssignmentsAreMergedWithJwtRolesInsideTenant() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QA_MANAGER)));
+            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR)));
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of());
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.roleCodes())
-            .containsExactlyInAnyOrder(RoleCode.DOCTOR.code(), RoleCode.QA_MANAGER.code());
+            .containsExactlyInAnyOrder(RoleCode.CLINICAL_DECISION_USER.code(), RoleCode.QUALITY_GOVERNOR.code());
         assertThat(profile.permissionCodes())
             .contains(PermissionCode.RECOMMENDATION_ACCEPT.code(), PermissionCode.EVALUATION_PUBLISH.code());
     }
@@ -85,15 +85,33 @@ class EffectivePermissionServiceTest {
     @Test
     void scopedRoleAssignmentDoesNotGrantPermissionsOutsideCurrentDepartment() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QA_MANAGER, "DEPARTMENT", "oncology")));
+            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR, "DEPARTMENT", "oncology")));
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of());
 
         var cardiologyScope = new OrgScope("t-1", null, "hospital-1", null, null, "cardiology", null);
-        var profile = service.resolve(auth(RoleCode.DOCTOR), cardiologyScope, "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), cardiologyScope, "doctor-1");
 
-        assertThat(profile.roleCodes()).doesNotContain(RoleCode.QA_MANAGER.code());
+        assertThat(profile.roleCodes()).doesNotContain(RoleCode.QUALITY_GOVERNOR.code());
         assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.EVALUATION_PUBLISH.code());
+    }
+
+    @Test
+    void wardScopedRoleOnlyAppliesInsideAssignedWard() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
+            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR, "WARD", "ward-a")));
+        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
+            .thenReturn(List.of());
+
+        var assignedWard = new OrgScope(
+            "t-1", null, "hospital-1", null, null, "cardiology", "ward-a", null);
+        var anotherWard = new OrgScope(
+            "t-1", null, "hospital-1", null, null, "cardiology", "ward-b", null);
+
+        assertThat(service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), assignedWard, "doctor-1").roleCodes())
+            .contains(RoleCode.QUALITY_GOVERNOR.code());
+        assertThat(service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), anotherWard, "doctor-1").roleCodes())
+            .doesNotContain(RoleCode.QUALITY_GOVERNOR.code());
     }
 
     @Test
@@ -103,7 +121,7 @@ class EffectivePermissionServiceTest {
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of());
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.menuKeys())
             .contains("workbench", "mpi", "patient-pathways", "rule-validate")
@@ -117,7 +135,7 @@ class EffectivePermissionServiceTest {
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of());
 
-        var profile = service.resolve(auth(RoleCode.IT_OPS), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.INTEGRATION_OPERATOR), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).contains(PermissionCode.EVALUATION_EXECUTE.code());
         assertThat(profile.menuKeys()).contains("qc-dashboard", "system-providers");
@@ -136,7 +154,7 @@ class EffectivePermissionServiceTest {
                 clock.instant()))
             .thenReturn(List.of(grant("t-1", "doctor-1", clock.instant().plusSeconds(1800))));
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).contains(PermissionCode.ENV_EMERGENCY.code());
         assertThat(profile.environmentKeys()).contains("production", "emergency");
@@ -155,7 +173,7 @@ class EffectivePermissionServiceTest {
                 clock.instant()))
             .thenReturn(List.of());
 
-        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.ENV_EMERGENCY.code());
         assertThat(profile.environmentKeys()).contains("production").doesNotContain("emergency");

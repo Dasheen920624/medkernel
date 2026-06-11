@@ -38,7 +38,8 @@ public final class DomainOwnershipCatalog {
             prefixes("knowledge_asset_", "knowledge_export_", "source_", "mk_diagnosis_"),
             tables("knowledge_identity", "knowledge_supersession", "citation",
                 "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-                "mk_knowledge_invalidation", "mk_knowledge_affected_case_task")),
+                "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
+                "mk_knowledge_customization")),
         module("engine-package", packages("com.medkernel.engine.pkg"), prefixes("mk_pkg_"),
             tables("knowledge_package", "package_item", "release_plan", "sync_log")),
         module("engine-versioning", packages("com.medkernel.engine.versioning"), prefixes("mk_version_"), tables()),
@@ -76,6 +77,8 @@ public final class DomainOwnershipCatalog {
         module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes(),
             tables("tenant_branding", "tenant_success_plan")),
         module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),
+        module("compliance-personnel", packages("com.medkernel.compliance.personnel"),
+            prefixes("mk_person"), tables()),
         module("compliance-security", packages(
             "com.medkernel.compliance.datapermission",
             "com.medkernel.compliance.masking",

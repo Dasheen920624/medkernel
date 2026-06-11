@@ -20,7 +20,7 @@ vi.mock("@/shared/api/hooks", async () => {
     useSecurityProfile: () => ({
       data: {
         userId: "publisher-a",
-        roles: [{ code: "hospital-admin", displayName: "院级管理员" }],
+        roles: [{ code: "organization-admin", displayName: "院级管理员" }],
         permissions: [],
         menuKeys: ["config-packages"],
         dataScope: { tenantId: "tenant-a" },
@@ -210,7 +210,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交观察窗数据" }));
 
     expect(await screen.findByText("异常率超过阈值")).toBeInTheDocument();
-    expect(screen.getByText("PAUSED")).toBeInTheDocument();
+    expect(screen.getByText("已暂停")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交观察窗数据" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "回退版本" }));
@@ -233,7 +233,7 @@ describe("ReleaseGovernance", () => {
         confirmedHighRisk: true,
       }),
     );
-    expect(await screen.findByText("ROLLED_BACK")).toBeInTheDocument();
+    expect(await screen.findByText("已回滚")).toBeInTheDocument();
   }, 15_000);
 
   it("collects complete governance evidence when creating an override template", async () => {

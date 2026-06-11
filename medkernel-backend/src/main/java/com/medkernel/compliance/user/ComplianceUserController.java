@@ -31,9 +31,11 @@ import jakarta.validation.Valid;
 public class ComplianceUserController {
 
     private static final String READ_GUARD =
-        "@perm.has('org.read') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_ADMIN','GROUP_ADMIN','HOSPITAL_ADMIN')";
+        "@perm.has('org.read') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
+            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN')";
     private static final String WRITE_GUARD =
-        "@perm.has('org.write') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_ADMIN','GROUP_ADMIN','HOSPITAL_ADMIN')";
+        "@perm.has('org.write') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
+            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN')";
 
     private final ComplianceUserService service;
 

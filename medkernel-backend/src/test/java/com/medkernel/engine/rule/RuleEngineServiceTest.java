@@ -155,7 +155,7 @@ class RuleEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rule", OrgScope.tenant("tenant-A"), "tester"));
-        authenticate(RoleCode.SPECIALIST);
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
     }
 
     @AfterEach
@@ -312,7 +312,7 @@ class RuleEngineServiceTest {
     void platformRuleDraftTransitionAllowsPlatformAdminCoordinator() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-platform-rule", OrgScope.tenant(PlatformTenant.ID), "platform-publisher"));
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         RuleDefinition rule = existingRule(
             "rule-platform", PlatformTenant.ID, "RULE.PLATFORM.BASELINE",
             "平台基线规则", "version-platform", RuleDefinitionStatus.DRAFT);
@@ -418,16 +418,16 @@ class RuleEngineServiceTest {
             RuleSignoffDecision.APPROVED,
             "委员会同意进入影子验证",
             "tester",
-            RoleCode.MEDICAL_AFFAIRS,
+            RoleCode.CLINICAL_GOVERNOR,
             "trace-rule"
         )).thenReturn(committee);
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
 
         service.signoffGovernance(
             "rule-1",
             new RuleSignoffRequest(
                 null, null, null, null, null, null, null, null, null, null,
-                List.of(RoleCode.HOSPITAL_ADMIN.code()), null,
+                List.of(RoleCode.ORGANIZATION_ADMIN.code()), null,
                 RuleSignoffStage.COMMITTEE,
                 RuleSignoffDecision.APPROVED,
                 "委员会同意进入影子验证"
@@ -441,7 +441,7 @@ class RuleEngineServiceTest {
             RuleSignoffDecision.APPROVED,
             "委员会同意进入影子验证",
             "tester",
-            RoleCode.MEDICAL_AFFAIRS,
+            RoleCode.CLINICAL_GOVERNOR,
             "trace-rule"
         );
     }
@@ -465,10 +465,10 @@ class RuleEngineServiceTest {
             RuleSignoffDecision.APPROVED,
             "临床药师确认 DDI 出血风险提醒逻辑",
             "tester",
-            RoleCode.PHARMACIST,
+            RoleCode.MEDICATION_SAFETY_USER,
             "trace-rule"
         )).thenReturn(peerReview);
-        authenticate(RoleCode.PHARMACIST);
+        authenticate(RoleCode.MEDICATION_SAFETY_USER);
 
         service.signoffGovernance(
             "rule-1",
@@ -486,7 +486,7 @@ class RuleEngineServiceTest {
             RuleSignoffDecision.APPROVED,
             "临床药师确认 DDI 出血风险提醒逻辑",
             "tester",
-            RoleCode.PHARMACIST,
+            RoleCode.MEDICATION_SAFETY_USER,
             "trace-rule"
         );
     }
@@ -507,7 +507,7 @@ class RuleEngineServiceTest {
             RuleSignoffDecision.REJECTED,
             "证据不足，退回修订",
             "tester",
-            RoleCode.MEDICAL_AFFAIRS,
+            RoleCode.CLINICAL_GOVERNOR,
             "trace-rule"
         )).thenReturn(draft);
         when(governanceService.requireGovernance("tenant-A", "version-1"))
@@ -519,7 +519,7 @@ class RuleEngineServiceTest {
             VersionReleaseStatus.REJECTED,
             "REJECTED 评审拒绝：证据不足，退回修订"
         ));
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
 
         RuleGovernanceResponse response = service.signoffGovernance(
             "rule-1",
@@ -557,7 +557,7 @@ class RuleEngineServiceTest {
             "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG",
             VersionReleaseStatus.APPROVED,
             "APPROVED 评审通过：会签完成"));
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
         RuleImpactResponse impact = service.impact("rule-1");
 
         RuleGovernanceResponse response = service.transitionGovernance(
@@ -600,7 +600,7 @@ class RuleEngineServiceTest {
             "新版规则完成替代", "tester", "trace-rule"))
             .thenReturn(retired);
         when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
 
         RuleGovernanceResponse response = service.transitionGovernance(
             "rule-1",
@@ -646,7 +646,7 @@ class RuleEngineServiceTest {
             .thenReturn(Optional.of(version));
         when(governanceService.requireGovernance("tenant-A", "version-1"))
             .thenReturn(governance(RuleGovernanceState.COMMITTEE));
-        authenticate(RoleCode.SPECIALIST);
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
         RuleImpactResponse impact = service.impact("rule-1");
 
         assertThatThrownBy(() -> service.transitionGovernance(
@@ -986,7 +986,7 @@ class RuleEngineServiceTest {
             "院级管理员确认全量激活", "tester", "trace-rule"))
             .thenReturn(full);
         when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         RuleImpactResponse impact = service.impact("rule-1");
         VersionElectronicSignature signature = new VersionElectronicSignature(
             "sig-rule-full",
@@ -1068,7 +1068,7 @@ class RuleEngineServiceTest {
             )
         );
 
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         assertThatThrownBy(() -> service.transitionGovernance("rule-platform", request))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("平台管理员")
@@ -1076,7 +1076,7 @@ class RuleEngineServiceTest {
             .isEqualTo(ErrorCode.FORBIDDEN);
         verify(releasePort, never()).publish(any());
 
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         RuleGovernanceResponse response = service.transitionGovernance("rule-platform", request);
 
         assertThat(response.state()).isEqualTo(RuleGovernanceState.FULL);

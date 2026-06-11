@@ -109,17 +109,23 @@ function profile(roleCode: string, displayName: string): SecurityProfile {
 function sourcePermissionCodesFor(roleCode: string): string[] {
   if (
     [
-      "platform-admin",
-      "group-admin",
-      "hospital-admin",
-      "it-ops",
-      "implementation-engineer",
+      "platform-governance-admin",
+      "organization-admin",
+      "organization-admin",
+      "integration-operator",
+      "implementation-operator",
     ].includes(roleCode)
   ) {
     return ["system.read", "audit.read", "tenant.read"];
   }
   if (
-    ["medical-affairs", "qa-manager", "insurance-manager", "audit-compliance"].includes(roleCode)
+    [
+      "platform-knowledge-governor",
+      "knowledge-governor",
+      "clinical-governor",
+      "quality-governor",
+      "compliance-auditor",
+    ].includes(roleCode)
   ) {
     return ["audit.read"];
   }
@@ -216,7 +222,7 @@ const successPlan: SuccessPlan = {
   activatedModules: "配置包,审计",
   activatedPathways: "",
   updatedAt: "2026-06-01T00:00:00Z",
-  updatedBy: "implementation-engineer",
+  updatedBy: "implementation-operator",
 };
 
 const auditEvents: AuditEventRow[] = [
@@ -235,7 +241,7 @@ const auditEvents: AuditEventRow[] = [
   },
 ];
 
-function setLoadedState(roleCode = "it-ops", displayName = "信息科") {
+function setLoadedState(roleCode = "integration-operator", displayName = "信息科") {
   hookState.security = {
     data: profile(roleCode, displayName),
     isLoading: false,
@@ -262,20 +268,28 @@ function setLoadedState(roleCode = "it-ops", displayName = "信息科") {
 }
 
 function expectedLandingFor(roleCode: string, displayName: string) {
-  if (roleCode === "it-ops") {
+  if (roleCode === "integration-operator") {
     return { heading: "信息科工作台", marker: "系统健康" };
   }
   if (
-    ["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].includes(
+    ["platform-knowledge-governor", "knowledge-governor"].includes(roleCode)
+  ) {
+    return { heading: `${displayName}工作台`, marker: "知识治理" };
+  }
+  if (roleCode === "identity-access-admin") {
+    return { heading: "人员与访问工作台", marker: "人员与账号" };
+  }
+  if (
+    ["clinical-decision-user", "nursing-collaborator", "diagnostic-service-user", "medication-safety-user"].includes(
       roleCode,
     )
   ) {
     return { heading: `${displayName}工作台`, marker: "我的待办" };
   }
-  if (["medical-affairs", "qa-manager", "insurance-manager"].includes(roleCode)) {
+  if (["clinical-governor", "quality-governor"].includes(roleCode)) {
     return { heading: `${displayName}工作台`, marker: "价值指标" };
   }
-  if (roleCode === "audit-compliance") {
+  if (roleCode === "compliance-auditor") {
     return { heading: "合规审计工作台", marker: "最近变化" };
   }
   return { heading: `${displayName}工作台`, marker: "治理切片" };
@@ -294,19 +308,19 @@ describe("WorkbenchPanel", () => {
     vi.useRealTimers();
   });
 
-  it("renders the information-technology default view from existing source APIs", () => {
+  it("renders the integration operations view without customer-visible technical English", () => {
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "信息科工作台" })).toBeInTheDocument();
     expect(screen.getByText("系统健康")).toBeInTheDocument();
-    expect(screen.getByText("Provider 连通")).toBeInTheDocument();
+    expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
     expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
     expect(screen.queryByText("真实工作台聚合数据待接入")).not.toBeInTheDocument();
     expect(screen.queryByText("等待真实聚合 API")).not.toBeInTheDocument();
   });
 
-  it("renders an explicit default landing view for all 15 customer roles", () => {
+  it("renders an explicit responsibility-specific landing view for all 14 customer roles", () => {
     ROLE_OPTIONS.forEach(({ code, name }) => {
       setLoadedState(code, name);
 
@@ -323,15 +337,32 @@ describe("WorkbenchPanel", () => {
     });
   });
 
+  it("separates knowledge governance and personnel access from clinical and quality work", () => {
+    setLoadedState("platform-knowledge-governor", "平台知识治理员");
+    const knowledge = renderWorkbench();
+    expect(screen.getByRole("heading", { name: "平台知识治理员工作台" })).toBeInTheDocument();
+    expect(screen.getByText("知识治理")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "知识资产治理" })).toBeInTheDocument();
+    expect(screen.queryByText("质控整改")).not.toBeInTheDocument();
+    knowledge.unmount();
+
+    setLoadedState("identity-access-admin", "人员与访问管理员");
+    renderWorkbench();
+    expect(screen.getByRole("heading", { name: "人员与访问工作台" })).toBeInTheDocument();
+    expect(screen.getByText("人员与账号")).toBeInTheDocument();
+    expect(screen.getByText("身份来源")).toBeInTheDocument();
+    expect(screen.queryByText("质控整改")).not.toBeInTheDocument();
+  });
+
   it("prioritizes my todo state for clinical users without fabricating task counts", () => {
-    setLoadedState("doctor", "临床医生");
+    setLoadedState("clinical-decision-user", "临床医生");
 
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "临床医生工作台" })).toBeInTheDocument();
     expect(screen.getByText("我的待办")).toBeInTheDocument();
     expect(screen.getAllByText(/当前组织暂无待办/).length).toBeGreaterThan(0);
-    expect(screen.queryByText("Provider 连通")).not.toBeInTheDocument();
+    expect(screen.queryByText("外部依赖连通")).not.toBeInTheDocument();
     expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
     expect(screen.queryByText(/D3 临床运行域完成后/)).not.toBeInTheDocument();
     expect(screen.getByText("临床运行入口")).toBeInTheDocument();
@@ -341,7 +372,7 @@ describe("WorkbenchPanel", () => {
   });
 
   it("does not query system or audit sources for clinical users without source permissions", () => {
-    setLoadedState("doctor", "临床医生");
+    setLoadedState("clinical-decision-user", "临床医生");
 
     renderWorkbench();
 
@@ -354,14 +385,14 @@ describe("WorkbenchPanel", () => {
   });
 
   it("keeps the medical-affairs view free from technical source wording", () => {
-    setLoadedState("medical-affairs", "医务处");
+    setLoadedState("clinical-governor", "医务处");
 
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "医务处工作台" })).toBeInTheDocument();
     expect(screen.getByText("价值指标")).toBeInTheDocument();
     expect(screen.getByText("质控整改")).toBeInTheDocument();
-    expect(screen.queryByText("Provider 连通")).not.toBeInTheDocument();
+    expect(screen.queryByText("外部依赖连通")).not.toBeInTheDocument();
     expect(screen.queryByText(/traceId/i)).not.toBeInTheDocument();
     expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
     expect(screen.queryByText(/D4 质控改进域完成后/)).not.toBeInTheDocument();
@@ -403,7 +434,7 @@ describe("WorkbenchPanel", () => {
   it("renders a forbidden state when the loaded security profile cannot access workbench", () => {
     hookState.security = {
       data: {
-        ...profile("doctor", "临床医生"),
+        ...profile("clinical-decision-user", "临床医生"),
         permissions: [],
         menuKeys: ["patient-pathways"],
       },
@@ -436,7 +467,7 @@ describe("WorkbenchPanel", () => {
   });
 
   it("keeps domain entry cards on real product pages instead of fake workbench endpoints", () => {
-    setLoadedState("medical-affairs", "医务处");
+    setLoadedState("clinical-governor", "医务处");
 
     renderWorkbench();
 
@@ -447,10 +478,10 @@ describe("WorkbenchPanel", () => {
     expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
   });
 
-  it("renders one primary action and three default filters", () => {
+  it("renders one role-specific primary action and three default filters", () => {
     renderWorkbench();
 
-    expect(screen.getByRole("button", { name: /继续处理待办/ })).toHaveClass("ant-btn-primary");
+    expect(screen.getByRole("button", { name: /查看运行状态/ })).toHaveClass("ant-btn-primary");
     expect(document.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
     expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
     expect(screen.getByText("组织范围")).toBeInTheDocument();
@@ -492,7 +523,7 @@ describe("WorkbenchPanel", () => {
   });
 
   it("offers drilldowns for built source cards and domain entry cards", () => {
-    setLoadedState("medical-affairs", "医务处");
+    setLoadedState("clinical-governor", "医务处");
 
     renderWorkbench();
 
@@ -509,7 +540,7 @@ describe("WorkbenchPanel", () => {
   });
 
   it("shows lifecycle governance slices and weekly suggestions for platform users", () => {
-    setLoadedState("platform-admin", "平台管理员");
+    setLoadedState("platform-governance-admin", "平台管理员");
 
     renderWorkbench();
 

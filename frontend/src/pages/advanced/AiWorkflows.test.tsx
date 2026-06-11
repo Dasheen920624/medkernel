@@ -47,7 +47,7 @@ function securityProfile(permissionCodes: string[]) {
     data: {
       userId: "user-1",
       username: "测试用户",
-      roles: [{ code: "implementation-engineer", displayName: "实施工程师" }],
+      roles: [{ code: "implementation-operator", displayName: "实施工程师" }],
       permissions: permissionCodes.map((code) => ({
         code,
         dimension: code.startsWith("menu.") ? "MENU" : "ACTION",
@@ -136,8 +136,8 @@ describe("AiWorkflows", () => {
     expect(await screen.findByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
-    expect(screen.getAllByText("B0 基线")).toHaveLength(2);
-    expect(screen.getByText("MODEL_DISABLED")).toBeInTheDocument();
+    expect(screen.getAllByText("基础规则能力")).toHaveLength(2);
+    expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统 B0 基线")).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("AiWorkflows", () => {
 
     expect(await screen.findByText("部分 AI 能力当前不可用")).toBeInTheDocument();
     expect(screen.getByText("1 项能力没有可用路由或基线，其他能力仍可查看。")).toBeInTheDocument();
-    expect(screen.getByText("NOT_AVAILABLE")).toBeInTheDocument();
+    expect(screen.getByText("暂不可用")).toBeInTheDocument();
   });
 
   it("无读取权限时显示拒绝态且不请求能力数据", async () => {

@@ -1,6 +1,7 @@
 package com.medkernel.engine.security;
 
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,8 +31,9 @@ class D0DomainAcceptanceTest {
     ObjectMapper objectMapper;
 
     @Test
-    void thirteenCustomerRolesResolveEffectiveFiveDimensionProfileAndSecondLevelMenus() throws Exception {
+    void fourteenResponsibilityRolesResolveEffectiveFiveDimensionProfileAndSecondLevelMenus() throws Exception {
         Set<String> lockedMenuKeys = Set.copyOf(MenuPermissionCatalog.allMenuKeys());
+        Set<String> observedDimensions = new HashSet<>();
 
         for (RoleCode role : RoleCode.values()) {
             if (!role.customerAssignable()) {
@@ -52,9 +54,11 @@ class D0DomainAcceptanceTest {
             assertThat(data.path("roles").findValuesAsText("code"))
                 .as("%s 登录后必须保留自身角色", role.code())
                 .contains(role.code());
-            assertThat(data.path("permissions").findValuesAsText("dimension"))
-                .as("%s 必须具备五维权限画像", role.code())
-                .contains("MENU", "ACTION", "DATA", "ASSET", "ENVIRONMENT");
+            List<String> dimensions = data.path("permissions").findValuesAsText("dimension");
+            observedDimensions.addAll(dimensions);
+            assertThat(dimensions)
+                .as("%s 必须具备菜单、动作、数据和环境权限；无资产职责的角色不得被迫扩权", role.code())
+                .contains("MENU", "ACTION", "DATA", "ENVIRONMENT");
             assertThat(textValues(data.path("menuKeys")))
                 .as("%s 菜单必须来自 27+5 二级/高级菜单目录", role.code())
                 .isNotEmpty()
@@ -63,6 +67,10 @@ class D0DomainAcceptanceTest {
                     "advanced-tools")
                 .allMatch(lockedMenuKeys::contains);
         }
+
+        assertThat(observedDimensions)
+            .as("整套职责角色必须完整覆盖五维权限模型")
+            .containsExactlyInAnyOrder("MENU", "ACTION", "DATA", "ASSET", "ENVIRONMENT");
     }
 
     @Test
@@ -89,23 +97,6 @@ class D0DomainAcceptanceTest {
     }
 
     private String userId(RoleCode role) {
-        return switch (role) {
-            case PLATFORM_ADMIN -> "platform-admin-1";
-            case GROUP_ADMIN -> "group-admin-1";
-            case HOSPITAL_ADMIN -> "admin-1";
-            case IT_OPS -> "it-ops-1";
-            case MEDICAL_AFFAIRS -> "medical-affairs-1";
-            case QA_MANAGER -> "qa-manager-1";
-            case INSURANCE_MANAGER -> "insurance-manager-1";
-            case DEPT_HEAD -> "dept-head-1";
-            case SPECIALIST -> "specialist-1";
-            case DOCTOR -> "doctor-1";
-            case NURSE -> "nurse-1";
-            case MED_TECHNICIAN -> "med-technician-1";
-            case PHARMACIST -> "pharmacist-1";
-            case AUDIT_COMPLIANCE -> "audit-1";
-            case IMPLEMENTATION_ENGINEER -> "implementation-1";
-            case SYSTEM_SUPERADMIN -> "system-superadmin-1";
-        };
+        return role.code() + "-1";
     }
 }

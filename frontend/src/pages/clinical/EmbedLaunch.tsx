@@ -12,6 +12,7 @@ import {
 } from "@ant-design/icons";
 import { useEmbedLaunch, useSubmitEmbedFeedback, useRecommendationCards } from "@/shared/api/hooks";
 import type { EmbedFeedbackResponse } from "@/shared/api/hooks";
+import { riskLabel } from "@/shared/config/customerLabels";
 import styles from "./EmbedLaunch.module.css";
 
 const { TextArea } = Input;
@@ -144,7 +145,7 @@ export default function EmbedLaunch() {
             <ul className={styles.bulletList}>
               <li>就诊 Launch Token 仅允许消费一次。</li>
               <li>当前嵌入令牌已被单次兑换结案或失效。</li>
-              <li>嵌入来源未通过租户 Origin 白名单校验。</li>
+              <li>嵌入来源未通过当前服务空间的来源域名白名单校验。</li>
             </ul>
           </div>
           <Alert
@@ -259,7 +260,7 @@ export default function EmbedLaunch() {
                       <span>{card.title}</span>
                     </span>
                     <Tag color={isCritical ? "red" : "orange"} className={styles.severityTag}>
-                      {card.severity} 级干预
+                      {riskLabel(card.severity)}干预
                     </Tag>
                   </div>
                 }

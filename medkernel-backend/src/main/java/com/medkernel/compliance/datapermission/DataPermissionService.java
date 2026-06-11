@@ -74,6 +74,7 @@ public class DataPermissionService {
             request.campusId(),
             request.siteId(),
             request.departmentId(),
+            request.wardId(),
             request.specialtyId());
         String resourceType = normalizeResourceType(request.resourceType());
         String action = request.action().name();
@@ -105,6 +106,7 @@ public class DataPermissionService {
             blankToNull(request.campusId()),
             blankToNull(request.siteId()),
             blankToNull(request.departmentId()),
+            blankToNull(request.wardId()),
             blankToNull(request.specialtyId()),
             request.status().name(),
             before == null ? 1L : before.version() + 1L,
@@ -210,6 +212,7 @@ public class DataPermissionService {
             && matches(policy.campusId(), target.campusId())
             && matches(policy.siteId(), target.siteId())
             && matches(policy.departmentId(), target.departmentId())
+            && matches(policy.wardId(), target.wardId())
             && matches(policy.specialtyId(), target.specialtyId());
     }
 

@@ -358,7 +358,7 @@ class DiagnosisKnowledgeServiceTest {
     private DiagnosisAssetCreateRequest diagnosisAssetRequest() {
         return new DiagnosisAssetCreateRequest(
             "req-1", "trace-dx", "t-dept", null, null, null, null, null, null,
-            "doctor-1", List.of("medical-affairs"), "pkg-2026.06",
+            "doctor-1", List.of("clinical-governor"), "pkg-2026.06",
             new DiagnosisAssetCreateRequest.IdentityInput(
                 "chronic-kidney-disease", "慢性肾脏病", "NEPH", "结构化诊断知识"),
             new DiagnosisAssetCreateRequest.SourceInput(

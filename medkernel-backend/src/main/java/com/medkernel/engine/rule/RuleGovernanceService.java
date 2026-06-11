@@ -25,19 +25,17 @@ import com.medkernel.shared.ids.Ulid;
 public class RuleGovernanceService {
 
     private static final Set<RoleCode> PEER_REVIEW_ROLES = EnumSet.of(
-        RoleCode.PHARMACIST,
-        RoleCode.SPECIALIST,
-        RoleCode.DEPT_HEAD,
-        RoleCode.INSURANCE_MANAGER,
-        RoleCode.MEDICAL_AFFAIRS,
-        RoleCode.QA_MANAGER
+        RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
+        RoleCode.KNOWLEDGE_GOVERNOR,
+        RoleCode.CLINICAL_GOVERNOR,
+        RoleCode.MEDICATION_SAFETY_USER,
+        RoleCode.QUALITY_GOVERNOR
     );
     private static final Set<RoleCode> COMMITTEE_ROLES = EnumSet.of(
-        RoleCode.SPECIALIST,
-        RoleCode.DEPT_HEAD,
-        RoleCode.INSURANCE_MANAGER,
-        RoleCode.MEDICAL_AFFAIRS,
-        RoleCode.QA_MANAGER
+        RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
+        RoleCode.KNOWLEDGE_GOVERNOR,
+        RoleCode.CLINICAL_GOVERNOR,
+        RoleCode.QUALITY_GOVERNOR
     );
 
     private final RuleGovernanceRepository governanceRepository;

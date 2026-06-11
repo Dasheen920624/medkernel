@@ -42,7 +42,7 @@ class EmbedEngineControllerSecurityTest {
     private static final String LAUNCH_TOKEN_BODY = """
         {
           "userId": "DOCTOR-001",
-          "roleCode": "doctor",
+          "roleCode": "clinical-decision-user",
           "patientId": "P1001",
           "encounterId": "E2001",
           "triggerPoint": "ORDER_SIGN",
@@ -76,7 +76,7 @@ class EmbedEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
+                    .claim("roles", List.of("clinical-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
@@ -89,7 +89,7 @@ class EmbedEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
@@ -101,7 +101,7 @@ class EmbedEngineControllerSecurityTest {
         mockMvc.perform(post("/api/v1/engine/embed/launch-tokens")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("medical-affairs")))
+                    .claim("roles", List.of("clinical-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
@@ -123,7 +123,7 @@ class EmbedEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .header("Origin", TRUSTED_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -137,7 +137,7 @@ class EmbedEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))

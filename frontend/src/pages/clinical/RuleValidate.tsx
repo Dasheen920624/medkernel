@@ -39,6 +39,11 @@ import {
   CLINICAL_TRIGGER_POINT_OPTIONS,
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+  riskLabel,
+} from "@/shared/config/customerLabels";
 import styles from "./Clinical.module.css";
 
 function isCriticalSeverity(severity?: string | null) {
@@ -229,7 +234,7 @@ export default function RuleValidate() {
       key: "severity",
       width: 110,
       render: (level: string) => {
-        return <Tag color={severityColor(level)}>{level || "无"}</Tag>;
+        return <Tag color={severityColor(level)}>{level ? riskLabel(level) : "无"}</Tag>;
       },
     },
     {
@@ -395,7 +400,7 @@ export default function RuleValidate() {
                   {snapshotDetailQuery.data.packageVersion || "缺失"}
                 </Descriptions.Item>
                 <Descriptions.Item label="质量状态">
-                  {snapshotDetailQuery.data.qualityStatus}
+                  {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                 </Descriptions.Item>
                 <Descriptions.Item label="链路 TraceId">
                   {snapshotDetailQuery.data.traceId || "未返回"}
@@ -603,12 +608,12 @@ export default function RuleValidate() {
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">
                 <Tag color={explainData.severity === "HIGH" ? "red" : "orange"}>
-                  {explainData.severity || "LOW"}
+                  {riskLabel(explainData.severity || "LOW")}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="执行状态">
                 <Tag color={explainData.status === "SUCCESS" ? "green" : "red"}>
-                  {explainData.status}
+                  {customerEnumLabel(explainData.status)}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>

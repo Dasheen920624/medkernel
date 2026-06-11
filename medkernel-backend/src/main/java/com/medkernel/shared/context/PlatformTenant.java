@@ -15,7 +15,7 @@ public final class PlatformTenant {
     public static final String ID = "t-1";
 
     /** 客户面推荐显示名。 */
-    public static final String DISPLAY_NAME = "平台主租户（唯一内置）";
+    public static final String DISPLAY_NAME = "平台治理空间（唯一内置）";
 
     /** 系统配置 / 角色目录命名空间，不等同 {@link #ID}。 */
     public static final String SYSTEM_NAMESPACE = "SYSTEM";

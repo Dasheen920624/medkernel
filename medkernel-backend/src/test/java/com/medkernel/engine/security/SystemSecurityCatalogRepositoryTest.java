@@ -46,8 +46,8 @@ class SystemSecurityCatalogRepositoryTest {
         assertThat(roles)
             .hasSize(16)
             .extracting(SystemRole::roleCode)
-            .contains("system-superadmin", "platform-admin", "doctor", "implementation-engineer",
-                "med-technician", "pharmacist");
+            .contains("system-superadmin", "platform-governance-admin", "clinical-decision-user", "implementation-operator",
+                "diagnostic-service-user", "medication-safety-user");
         assertThat(roles).allMatch(SystemRole::builtIn);
 
         assertThat(menuPermissions)

@@ -120,7 +120,7 @@ export default function NotificationSettings() {
   const isSaving = savePersonalMutation.isPending || saveSystemMutation.isPending;
   let sourceMessage = "";
   if (currentSettings && mode === "SYSTEM") {
-    sourceMessage = `当前租户默认策略 · 版本 ${currentSettings.systemVersion}`;
+    sourceMessage = `当前服务机构默认策略 · 版本 ${currentSettings.systemVersion}`;
   } else if (currentSettings?.source === "SYSTEM_DEFAULT") {
     sourceMessage = "当前使用系统默认策略，保存后形成个人覆盖";
   } else if (currentSettings) {
@@ -181,7 +181,7 @@ export default function NotificationSettings() {
       title="通知设置"
       description={
         mode === "SYSTEM"
-          ? "配置当前租户的通知默认策略；已有个人偏好继续优先生效。"
+          ? "配置当前服务机构的通知默认策略；已有个人偏好继续优先生效。"
           : "配置本人的通知渠道、订阅类型与免打扰窗口。"
       }
       primary={
@@ -225,7 +225,7 @@ export default function NotificationSettings() {
           showIcon
           className="mk-card-gap-bottom"
           message="通知设置读取失败"
-          description="请检查登录状态、租户上下文或后端通知设置接口。"
+          description="请检查登录状态、服务空间或后端通知设置接口。"
         />
       )}
 
@@ -249,7 +249,7 @@ export default function NotificationSettings() {
             <Alert
               type="info"
               showIcon
-              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器，状态为 NOT_CONNECTED，不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递。"
+              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器时会明确显示“未连接”，不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递。"
             />
             <Space wrap size="large">
               <Form.Item name="inAppEnabled" label="站内信" valuePropName="checked">

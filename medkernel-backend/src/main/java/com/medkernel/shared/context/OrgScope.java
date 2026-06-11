@@ -14,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param campusId     院区 / 分院 ID
  * @param siteId       社区卫生服务中心 / 医联体成员 ID
  * @param departmentId 科室 ID
+ * @param wardId       病区 ID
  * @param specialtyId  专病横切适用维度 ID
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -24,15 +25,38 @@ public record OrgScope(
     String campusId,
     String siteId,
     String departmentId,
+    String wardId,
     String specialtyId
 ) {
 
+    /**
+     * 兼容不携带病区维度的既有调用；新代码应优先使用完整构造器。
+     */
+    public OrgScope(
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId) {
+        this(
+            tenantId,
+            groupId,
+            hospitalId,
+            campusId,
+            siteId,
+            departmentId,
+            null,
+            specialtyId);
+    }
+
     public static OrgScope empty() {
-        return new OrgScope(null, null, null, null, null, null, null);
+        return new OrgScope(null, null, null, null, null, null, null, null);
     }
 
     public static OrgScope tenant(String tenantId) {
-        return new OrgScope(tenantId, null, null, null, null, null, null);
+        return new OrgScope(tenantId, null, null, null, null, null, null, null);
     }
 
     public boolean hasTenant() {
@@ -43,6 +67,9 @@ public record OrgScope(
      * 返回组织树中距离当前上下文最近的真实组织节点；专病是横切维度，不属于组织树。
      */
     public String nearestOrgUnitId() {
+        if (hasText(wardId)) {
+            return wardId;
+        }
         if (hasText(departmentId)) {
             return departmentId;
         }

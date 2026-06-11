@@ -430,9 +430,9 @@ describe("Notifications", () => {
     renderNotifications();
 
     expect(screen.getByText("外发状态")).toBeInTheDocument();
-    expect(screen.getByText("短信通知通道 NOT_CONNECTED")).toBeInTheDocument();
-    expect(screen.getByText("Webhook 通知通道 NOT_CONNECTED")).toBeInTheDocument();
-    expect(screen.getByText("院内消息通道 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("短信通知通道 未接通")).toBeInTheDocument();
+    expect(screen.getByText("Webhook 通知通道 未接通")).toBeInTheDocument();
+    expect(screen.getByText("院内消息通道 未接通")).toBeInTheDocument();
     expect(screen.getByText("需补偿")).toBeInTheDocument();
     expect(screen.getByText(/未接入真实外部发送连接器/)).toBeInTheDocument();
     expect(screen.getByText(/未接入真实 Webhook 发送连接器/)).toBeInTheDocument();

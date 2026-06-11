@@ -1,4 +1,9 @@
-import { AuditOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  AuditOutlined,
+  BranchesOutlined,
+  ReloadOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -27,9 +32,14 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   useDeprecateKnowledgeIdentity,
+  useCreateKnowledgeCustomization,
+  useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useKnowledgeIdentities,
+  useOrgUnits,
+  usePublishKnowledgeCustomization,
+  useRestorePlatformKnowledge,
   useReviewKnowledgeCandidate,
   useSecurityProfile,
   type CandidateClassification,
@@ -37,9 +47,19 @@ import {
   type KnowledgeCandidateReviewDecision,
   type KnowledgeDomain,
   type KnowledgeIdentity,
+  type KnowledgeCustomization,
   type KnowledgeIdentityStatus,
   type VersionPublishEvidence,
 } from "@/shared/api/hooks";
+import {
+  knowledgeCustomizationStatusLabel,
+  knowledgeDomainLabel,
+  knowledgeSourceLabel,
+  lifecycleStatusLabel,
+  orgLevelLabel,
+  riskLabel,
+  sourceAuthorityLabel,
+} from "@/shared/config/customerLabels";
 import {
   KNOWLEDGE_DOMAIN_OPTIONS,
   KNOWLEDGE_IDENTITY_STATUS_OPTIONS,
@@ -115,9 +135,9 @@ function versionTitle(version?: KnowledgeAssetVersion) {
 
 function versionSubtitle(version?: KnowledgeAssetVersion) {
   if (!version) return "暂无版本信息";
-  return `${VERSION_STATUS_LABELS[version.status] ?? version.status} · ${version.riskLevel ?? "未分级"} · ${
-    version.authorityLevel ?? "来源分级未返回"
-  }`;
+  return `${VERSION_STATUS_LABELS[version.status] ?? lifecycleStatusLabel(version.status)} · ${riskLabel(
+    version.riskLevel,
+  )} · ${sourceAuthorityLabel(version.authorityLevel)}`;
 }
 
 function classificationFor(
@@ -146,7 +166,25 @@ export default function KnowledgeGovernance() {
   const [retirementDraft, setRetirementDraft] =
     useState<RetirementFormValues>(EMPTY_RETIREMENT_FORM);
   const [successorKeyword, setSuccessorKeyword] = useState("");
+  const [customizeIdentity, setCustomizeIdentity] = useState<KnowledgeIdentity>();
+  const [customizationAction, setCustomizationAction] = useState<{
+    type: "publish" | "restore";
+    item: KnowledgeCustomization;
+  }>();
   const [reviewForm] = Form.useForm<ReviewFormValues>();
+  const [customizeForm] = Form.useForm<{
+    targetOrgUnitId: string;
+    applicableScope: string;
+    reason: string;
+  }>();
+  const [customizationActionForm] = Form.useForm<{
+    reason: string;
+    signatureId?: string;
+    signerId?: string;
+    signerName?: string;
+    signedAt?: string;
+    signatureHash?: string;
+  }>();
   const security = useSecurityProfile();
 
   const identitiesQuery = useKnowledgeIdentities({
@@ -185,6 +223,22 @@ export default function KnowledgeGovernance() {
   const canScheduleRetirement =
     security.data?.dataScope.tenantId === platformTenantId &&
     security.data.permissions.some((permission) => permission.code === "knowledge.publish");
+  const currentTenantId = security.data?.dataScope.tenantId;
+  const isPlatformTenant = currentTenantId === platformTenantId;
+  const customizationsQuery = useKnowledgeCustomizations(Boolean(currentTenantId && !isPlatformTenant));
+  const orgUnitsQuery = useOrgUnits({ page: 1, size: 500, status: "ACTIVE" });
+  const createCustomization = useCreateKnowledgeCustomization();
+  const publishCustomization = usePublishKnowledgeCustomization();
+  const restorePlatformKnowledge = useRestorePlatformKnowledge();
+  const canCustomize =
+    !isPlatformTenant &&
+    security.data?.permissions.some((permission) => permission.code === "knowledge.write");
+  const canPublishCustomization =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.publish") &&
+    security.data?.permissions.some((permission) => permission.code === "tenant.override");
+  const canRestoreCustomization =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.withdraw") &&
+    security.data?.permissions.some((permission) => permission.code === "tenant.override");
 
   useEffect(() => {
     if (identities.length === 0) {
@@ -353,6 +407,87 @@ export default function KnowledgeGovernance() {
     }
   }
 
+  async function submitCustomization(values: {
+    targetOrgUnitId: string;
+    applicableScope: string;
+    reason: string;
+  }) {
+    if (!customizeIdentity) return;
+    try {
+      await createCustomization.mutateAsync({
+        platformIdentityId: customizeIdentity.id,
+        targetOrgUnitId: values.targetOrgUnitId,
+        applicableScope: values.applicableScope,
+        reason: values.reason.trim(),
+      });
+      message.success("已从平台标准创建机构定制草稿");
+      setCustomizeIdentity(undefined);
+      customizeForm.resetFields();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "创建机构知识定制失败"));
+    }
+  }
+
+  async function submitCustomizationAction(values: {
+    reason: string;
+    signatureId?: string;
+    signerId?: string;
+    signerName?: string;
+    signedAt?: string;
+    signatureHash?: string;
+  }) {
+    if (!customizationAction) return;
+    try {
+      if (customizationAction.type === "publish") {
+        const requiresIndependentReview = customizationAction.item.riskLevel === "HIGH";
+        const publishEvidence: VersionPublishEvidence | undefined = requiresIndependentReview
+          ? {
+              electronicSignature: {
+                signatureId: values.signatureId!.trim(),
+                signerId: values.signerId!.trim(),
+                signerName: values.signerName!.trim(),
+                signedAt: new Date(values.signedAt!).toISOString(),
+                signatureHash: values.signatureHash!.trim(),
+              },
+            }
+          : undefined;
+        await publishCustomization.mutateAsync({
+          customizationId: customizationAction.item.customizationId,
+          reason: values.reason.trim(),
+          ...(publishEvidence ? { publishEvidence } : {}),
+        });
+        message.success("机构定制已发布并在目标组织生效");
+      } else {
+        await restorePlatformKnowledge.mutateAsync({
+          customizationId: customizationAction.item.customizationId,
+          reason: values.reason.trim(),
+        });
+        message.success("已恢复使用平台标准，历史定制继续保留");
+      }
+      setCustomizationAction(undefined);
+      customizationActionForm.resetFields();
+    } catch (error) {
+      message.error(
+        getApiErrorMessage(
+          error,
+          customizationAction.type === "publish" ? "发布机构定制失败" : "恢复平台标准失败",
+        ),
+      );
+    }
+  }
+
+  function sourceTypeFor(identity: KnowledgeIdentity) {
+    if (identity.tenantId === platformTenantId) return "PLATFORM_STANDARD";
+    if (
+      customizationsQuery.data?.some(
+        (customization) => customization.localIdentityId === identity.id,
+      )
+    ) {
+      return "LOCAL_CUSTOMIZATION";
+    }
+    return "LOCAL_ORIGINAL";
+  }
+
   const identityColumns: ColumnsType<KnowledgeIdentity> = [
     {
       title: "知识身份",
@@ -362,6 +497,9 @@ export default function KnowledgeGovernance() {
         <Space direction="vertical" size={0}>
           <Text strong>{record.subject}</Text>
           <Text type="secondary">{record.identityCode}</Text>
+          <Tag color={record.tenantId === platformTenantId ? "blue" : "cyan"}>
+            {knowledgeSourceLabel(sourceTypeFor(record))}
+          </Tag>
         </Space>
       ),
     },
@@ -370,8 +508,10 @@ export default function KnowledgeGovernance() {
       key: "domain",
       render: (_, record) => (
         <Space direction="vertical" size={2}>
-          <Tag>{record.domain}</Tag>
-          <Tag color={record.status === "ACTIVE" ? "success" : "default"}>{record.status}</Tag>
+          <Tag>{knowledgeDomainLabel(record.domain)}</Tag>
+          <Tag color={record.status === "ACTIVE" ? "success" : "default"}>
+            {lifecycleStatusLabel(record.status)}
+          </Tag>
         </Space>
       ),
     },
@@ -406,6 +546,19 @@ export default function KnowledgeGovernance() {
               安排弃用
             </Button>
           )}
+          {canCustomize &&
+            record.tenantId === platformTenantId &&
+            record.status === "ACTIVE" && (
+              <Button
+                icon={<BranchesOutlined />}
+                onClick={() => {
+                  setCustomizeIdentity(record);
+                  customizeForm.setFieldsValue({ applicableScope: "ALL" });
+                }}
+              >
+                定制为本机构版本
+              </Button>
+            )}
         </Space>
       ),
     },
@@ -431,12 +584,10 @@ export default function KnowledgeGovernance() {
           <Space direction="vertical" size={2}>
             <Tag color={classification?.classification === "CONFLICT" ? "error" : "processing"}>
               {CLASSIFICATION_LABELS[classification?.classification ?? ""] ??
-                classification?.classification ??
                 "未返回判定"}
             </Tag>
             <Tag color={tagColorForReview(classification?.reviewStatus)}>
               {REVIEW_STATUS_LABELS[classification?.reviewStatus ?? ""] ??
-                classification?.reviewStatus ??
                 "未返回状态"}
             </Tag>
           </Space>
@@ -462,14 +613,14 @@ export default function KnowledgeGovernance() {
       render: (_, record) => (
         <Space direction="vertical" size={2}>
           <Text>
-            sourceDocumentId: {record.sourceDocumentId ?? "无"} / sourceVersionId:{" "}
+            来源文献：{record.sourceDocumentId ?? "无"} / 来源版本：{" "}
             {record.sourceVersionId ?? "无"}
           </Text>
           <Space size={4} wrap>
             <Tag color={RISK_COLORS[record.riskLevel ?? ""] ?? "default"}>
-              {record.riskLevel ?? "未分级"}
+              {riskLabel(record.riskLevel)}
             </Tag>
-            <Tag>{record.authorityLevel ?? "来源未分级"}</Tag>
+            <Tag>{sourceAuthorityLabel(record.authorityLevel)}</Tag>
           </Space>
         </Space>
       ),
@@ -545,6 +696,73 @@ export default function KnowledgeGovernance() {
       />
     );
   }
+
+  const customizationColumns: ColumnsType<KnowledgeCustomization> = [
+    {
+      title: "知识来源",
+      key: "source",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color="cyan">{knowledgeSourceLabel(record.sourceType)}</Tag>
+          <Text type="secondary">基于平台版本 {record.platformVersionNo}</Text>
+          <Tag color={RISK_COLORS[record.riskLevel] ?? "default"}>
+            {riskLabel(record.riskLevel)}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "生效机构",
+      key: "organization",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.targetOrganizationName}</Text>
+          <Text type="secondary">{record.applicableScope === "ALL" ? "全部适用人群" : "限定适用范围"}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      render: (value: string, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color={value === "ACTIVE" ? "success" : value === "DRAFT" ? "processing" : "default"}>
+            {knowledgeCustomizationStatusLabel(value)}
+          </Tag>
+          {record.platformUpdateAvailable && <Tag color="warning">平台已有新版</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: "定制原因",
+      dataIndex: "reason",
+      render: (value: string | null) => value || "未填写",
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, record) => (
+        <Space wrap>
+          {record.status === "DRAFT" && canPublishCustomization && (
+            <Button
+              type="primary"
+              onClick={() => setCustomizationAction({ type: "publish", item: record })}
+            >
+              发布机构版本
+            </Button>
+          )}
+          {record.status === "ACTIVE" && canRestoreCustomization && (
+            <Button
+              onClick={() => setCustomizationAction({ type: "restore", item: record })}
+            >
+              恢复平台标准
+            </Button>
+          )}
+          {record.status === "RESTORED" && <Text type="secondary">历史保留</Text>}
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -660,9 +878,219 @@ export default function KnowledgeGovernance() {
               label: "诊断知识",
               children: <DiagnosisKnowledgePanel />,
             },
+            {
+              key: "institution",
+              label: "机构知识",
+              children: isPlatformTenant ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="当前位于平台治理空间"
+                  description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构空间内完成。"
+                />
+              ) : (
+                <Space direction="vertical" size="large" className="mk-full-width">
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="默认复用平台标准，只有确需调整时才创建机构版本"
+                    description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
+                  />
+                  {customizationsQuery.isLoading ? (
+                    <PageState state="loading" title="正在读取机构知识" />
+                  ) : customizationsQuery.isError ? (
+                    <PageState
+                      state="error"
+                      title="机构知识读取失败"
+                      action={<Button onClick={() => customizationsQuery.refetch()}>重试</Button>}
+                    />
+                  ) : (
+                    <Card title="机构知识血缘">
+                      <Table
+                        rowKey="customizationId"
+                        columns={customizationColumns}
+                        dataSource={customizationsQuery.data ?? []}
+                        locale={{ emptyText: "当前机构全部使用平台标准" }}
+                        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+                      />
+                    </Card>
+                  )}
+                </Space>
+              ),
+            },
           ]}
         />
       </PageShell>
+
+      <Modal
+        title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
+        open={Boolean(customizeIdentity)}
+        okText="创建定制草稿"
+        cancelText="取消"
+        confirmLoading={createCustomization.isPending}
+        onOk={() => customizeForm.submit()}
+        onCancel={() => {
+          setCustomizeIdentity(undefined);
+          customizeForm.resetFields();
+        }}
+        destroyOnClose
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="平台标准保持不变"
+          description="系统将复制当前平台版本、来源文献和引用证据，形成可独立审核的机构草稿。"
+        />
+        <Form
+          form={customizeForm}
+          layout="vertical"
+          initialValues={{ applicableScope: "ALL" }}
+          onFinish={submitCustomization}
+        >
+          <Form.Item
+            name="targetOrgUnitId"
+            label="生效机构"
+            rules={[{ required: true, message: "请选择生效机构" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="从组织树选择"
+              options={(orgUnitsQuery.data?.items ?? [])
+                .filter((unit) => unit.level !== "PLATFORM")
+                .map((unit) => ({
+                  value: unit.id,
+                  label: `${unit.name} · ${orgLevelLabel(unit.level)}`,
+                }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="applicableScope"
+            label="适用人群"
+            rules={[{ required: true }]}
+          >
+            <Select options={[{ value: "ALL", label: "全部适用人群" }]} />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label="定制原因"
+            rules={[
+              { required: true, whitespace: true, message: "请说明为什么需要机构定制" },
+              { min: 4, message: "定制原因至少 4 个字符" },
+            ]}
+          >
+            <Input.TextArea rows={4} maxLength={1000} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={customizationAction?.type === "publish" ? "发布机构知识" : "恢复平台标准"}
+        open={Boolean(customizationAction)}
+        okText={customizationAction?.type === "publish" ? "确认发布" : "确认恢复"}
+        cancelText="取消"
+        okButtonProps={{ danger: customizationAction?.type === "restore" }}
+        confirmLoading={publishCustomization.isPending || restorePlatformKnowledge.isPending}
+        onOk={() => customizationActionForm.submit()}
+        onCancel={() => {
+          setCustomizationAction(undefined);
+          customizationActionForm.resetFields();
+        }}
+        destroyOnClose
+      >
+        <Alert
+          type={customizationAction?.type === "publish" ? "warning" : "info"}
+          showIcon
+          message={
+            customizationAction?.type === "publish" &&
+            customizationAction.item.riskLevel === "HIGH"
+              ? "高风险知识必须完成电子签名"
+              : customizationAction?.type === "publish"
+                ? "发布后将接管所选机构的知识解析"
+                : "恢复后新请求将重新使用平台标准"
+          }
+          description={
+            customizationAction?.type === "publish" &&
+            customizationAction.item.riskLevel === "HIGH"
+              ? "当前登录人负责发布，电子签名必须由另一位具备资质的复核人完成；历史版本、证据、差异和审计记录都会保留。"
+              : "历史版本、证据、差异和审计记录都会保留。"
+          }
+        />
+        <Form
+          form={customizationActionForm}
+          layout="vertical"
+          onFinish={submitCustomizationAction}
+        >
+          <Form.Item
+            name="reason"
+            label={customizationAction?.type === "publish" ? "发布依据" : "恢复原因"}
+            rules={[
+              { required: true, whitespace: true, message: "请填写完整原因" },
+              { min: 4, message: "原因至少 4 个字符" },
+            ]}
+          >
+            <Input.TextArea rows={4} maxLength={1000} showCount />
+          </Form.Item>
+          {customizationAction?.type === "publish" &&
+            customizationAction.item.riskLevel === "HIGH" && (
+              <>
+                <Divider orientation="left">独立复核签名</Divider>
+                <Row gutter={12}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signatureId"
+                      label="签名编号"
+                      rules={[{ required: true, whitespace: true, message: "请填写签名编号" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signedAt"
+                      label="签名时间"
+                      rules={[{ required: true, message: "请选择签名时间" }]}
+                    >
+                      <Input type="datetime-local" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signerId"
+                      label="复核人工号"
+                      rules={[{ required: true, whitespace: true, message: "请填写复核人工号" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="signerName"
+                      label="复核人姓名"
+                      rules={[{ required: true, whitespace: true, message: "请填写复核人姓名" }]}
+                    >
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item
+                  name="signatureHash"
+                  label="签名摘要"
+                  extra="由院内电子签名服务生成的 64 位小写 SHA-256 摘要"
+                  rules={[
+                    { required: true, message: "请填写签名摘要" },
+                    {
+                      pattern: /^[0-9a-f]{64}$/,
+                      message: "签名摘要必须是 64 位小写 SHA-256",
+                    },
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+              </>
+            )}
+        </Form>
+      </Modal>
 
       <Drawer
         title="知识候选审核对照"
@@ -865,7 +1293,7 @@ export default function KnowledgeGovernance() {
             type="warning"
             showIcon
             message={retirementIdentity?.subject ?? "未选择知识身份"}
-            description="宽限期内旧身份继续可读并显示迁移提示；到期后旧版本撤回，租户覆盖进入迁移悬置态。"
+            description="宽限期内旧身份继续可读并显示迁移提示；到期后旧版本撤回，服务机构覆盖进入迁移悬置态。"
           />
           <Form layout="vertical">
             <Form.Item label="后继知识身份" required>

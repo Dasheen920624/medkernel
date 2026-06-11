@@ -9,452 +9,232 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DefaultPermissionPolicyTest {
 
     @Test
-    void platformAdminHasAllNonEmergencyPermissions() {
+    void platformGovernanceAdminHasEveryNonEmergencyPermission() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
 
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
-            .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
+            .containsExactlyInAnyOrderElementsOf(expected);
     }
 
     @Test
-    void groupAdminHasTenantGovernanceWithoutPlatformPublish() {
-        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
-        expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.remove(PermissionCode.PLATFORM_PUBLISH);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
-            .containsAll(expected)
-            .contains(PermissionCode.TENANT_OVERRIDE)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH);
-    }
-
-    @Test
-    void systemSuperAdminHasEveryRuntimePermissionIncludingEmergency() {
-        RoleCode systemSuperAdmin = RoleCode.fromCode("system-superadmin").orElseThrow();
-        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(systemSuperAdmin))
-            .containsAll(expected)
-            .contains(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY);
-    }
-
-    @Test
-    void hospitalAdminLacksPlatformOps() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
-            .doesNotContain(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH)
-            .contains(PermissionCode.RULE_PUBLISH, PermissionCode.PACKAGE_ROLLBACK);
-    }
-
-    @Test
-    void workbenchReadinessValidationPermissionIsRealAndClinicalRolesCannotUseIt() {
-        PermissionCode.fromCode("workbench:readiness:view")
-            .ifPresentOrElse(permission -> {
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
-                    .contains(permission);
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-                    .contains(permission);
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
-                    .contains(permission);
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
-                    .contains(permission);
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
-                    .doesNotContain(permission);
-                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
-                    .doesNotContain(permission);
-            }, () -> {
-                throw new AssertionError("WORKBENCH-02 动作权限 workbench:readiness:view 未登记");
-            });
-    }
-
-    @Test
-    void doctorCanReadAndAcceptButNotPublishRules() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR);
-        assertThat(perms)
-            .contains(PermissionCode.RECOMMENDATION_READ, PermissionCode.RECOMMENDATION_ACCEPT,
-                      PermissionCode.RULE_READ, PermissionCode.PATHWAY_READ)
-            .doesNotContain(PermissionCode.RULE_WRITE, PermissionCode.RULE_PUBLISH,
-                            PermissionCode.PATHWAY_PUBLISH, PermissionCode.SYSTEM_MANAGE);
-    }
-
-    @Test
-    void clinicalRolesCanExecuteFollowupButCannotConfigureEvaluation() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
-            .contains(PermissionCode.FOLLOWUP_READ, PermissionCode.FOLLOWUP_WRITE)
-            .doesNotContain(PermissionCode.EVALUATION_WRITE, PermissionCode.EVALUATION_EXECUTE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
-            .contains(PermissionCode.FOLLOWUP_READ, PermissionCode.FOLLOWUP_WRITE)
-            .doesNotContain(PermissionCode.EVALUATION_WRITE, PermissionCode.EVALUATION_EXECUTE);
-    }
-
-    @Test
-    void modelExecutionAndTenantPolicyManagementUseSeparatePermissions() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
-            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
-            .doesNotContain(PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
-            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
-            .doesNotContain(PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS))
-            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
-            .doesNotContain(PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QA_MANAGER))
-            .contains(PermissionCode.LLM_READ)
-            .doesNotContain(PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
-            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .contains(PermissionCode.MENU_AI_WORKFLOWS);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
-            .contains(PermissionCode.MENU_AI_WORKFLOWS);
-    }
-
-    @Test
-    void informationTechnologyQualityMenusHaveTheirRequiredReadPermission() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .contains(
-                PermissionCode.MENU_QC_DASHBOARD,
-                PermissionCode.MENU_QC_EVAL_RESULTS,
-                PermissionCode.EVALUATION_READ,
-                PermissionCode.EVALUATION_EXECUTE);
-    }
-
-    @Test
-    void clinicalAssetConfigurationMenusAlwaysHaveTheirRequiredReadPermission() {
+    void systemSuperAdminAloneIncludesEmergencyPermission() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.SYSTEM_SUPERADMIN))
+            .containsExactlyInAnyOrderElementsOf(EnumSet.allOf(PermissionCode.class));
         for (RoleCode role : RoleCode.values()) {
-            var permissions = DefaultPermissionPolicy.permissionsOf(role);
-            if (permissions.contains(PermissionCode.MENU_PATHWAY_TEMPLATES)) {
-                assertThat(permissions)
-                    .as("%s 的路径配置菜单必须同时具备路径读取权限", role.code())
-                    .contains(PermissionCode.PATHWAY_READ);
-            }
-            if (permissions.contains(PermissionCode.MENU_RULE_DEFINITIONS)) {
-                assertThat(permissions)
-                    .as("%s 的规则库菜单必须同时具备规则读取权限", role.code())
-                    .contains(PermissionCode.RULE_READ);
+            if (role != RoleCode.SYSTEM_SUPERADMIN) {
+                assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                    .as("%s 不得获得系统紧急权限", role.code())
+                    .doesNotContain(PermissionCode.ENV_EMERGENCY);
             }
         }
     }
 
     @Test
-    void auditComplianceIsReadOnly() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE);
-        for (PermissionCode p : perms) {
-            if (p.dimension() == PermissionDimension.ACTION) {
-                assertThat(p.code())
-                    .as("合规审计角色动作权限仅可读 / 导出，不应有写权限：%s", p.code())
-                    .matches("(.+\\.read|.+\\.export)");
-            }
-        }
-        assertThat(perms)
-            .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
-            .doesNotContain(
-                PermissionCode.MENU_IDENTITY_BINDINGS,
-                PermissionCode.MENU_SECURITY_BASELINE,
-                PermissionCode.MENU_SYSTEM_PROVIDERS);
-    }
-
-    @Test
-    void onlyAdministratorRolesReceiveUserManagementMenu() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
-            .contains(PermissionCode.MENU_ADMIN_USERS);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .doesNotContain(PermissionCode.MENU_ADMIN_USERS);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE))
-            .doesNotContain(PermissionCode.MENU_ADMIN_USERS);
-    }
-
-    @Test
-    void implementationMenusBelongToImplementationAndAdministratorRoles() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+    void organizationAdminGovernsInstitutionWithoutPlatformOrSystemAuthority() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .contains(
-                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
-                PermissionCode.MENU_TENANT_ONBOARDING);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+                PermissionCode.ORG_WRITE,
+                PermissionCode.TENANT_OVERRIDE,
+                PermissionCode.PACKAGE_PUBLISH,
+                PermissionCode.PACKAGE_ROLLBACK,
+                PermissionCode.MENU_ADMIN_USERS,
+                PermissionCode.MENU_IDENTITY_BINDINGS)
             .doesNotContain(
-                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
-                PermissionCode.MENU_TENANT_ONBOARDING);
+                PermissionCode.PLATFORM_PUBLISH,
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
-    void medicalAffairsCanPublishGovernedClinicalAssetsWithoutAuthoringTerminology() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS);
-        assertThat(perms).contains(
-            PermissionCode.KNOWLEDGE_REVIEW, PermissionCode.KNOWLEDGE_PUBLISH,
-            PermissionCode.KNOWLEDGE_WITHDRAW, PermissionCode.KNOWLEDGE_EXPORT, PermissionCode.TERM_PUBLISH,
-            PermissionCode.PATHWAY_PUBLISH, PermissionCode.RULE_PUBLISH);
-        assertThat(perms).doesNotContain(PermissionCode.TERM_WRITE, PermissionCode.SYSTEM_MANAGE);
+    void platformKnowledgeGovernorOwnsPlatformKnowledgePublishingWithoutSystemAdministration() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR))
+            .contains(
+                PermissionCode.PLATFORM_PUBLISH,
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.KNOWLEDGE_WITHDRAW,
+                PermissionCode.TERM_PUBLISH,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.PATHWAY_PUBLISH,
+                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE)
+            .doesNotContain(
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.MENU_ADMIN_USERS,
+                PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
-    void terminologyMenuMatchesTheThreeResponsibleRoles() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
-                PermissionCode.TERM_WRITE, PermissionCode.TERM_PUBLISH);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.SPECIALIST))
-            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
-                PermissionCode.TERM_WRITE)
-            .doesNotContain(PermissionCode.TERM_PUBLISH);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS))
-            .contains(PermissionCode.MENU_TERMINOLOGY_MAPPING, PermissionCode.TERM_READ,
-                PermissionCode.TERM_PUBLISH)
-            .doesNotContain(PermissionCode.TERM_WRITE);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
-            .doesNotContain(PermissionCode.MENU_TERMINOLOGY_MAPPING);
+    void identityAccessAdminHasPersonnelAndAccessAuthorityWithoutClinicalOrKnowledgeAssets() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IDENTITY_ACCESS_ADMIN))
+            .contains(
+                PermissionCode.ORG_READ,
+                PermissionCode.ORG_WRITE,
+                PermissionCode.TENANT_READ,
+                PermissionCode.AUDIT_READ,
+                PermissionCode.MENU_ADMIN_USERS,
+                PermissionCode.MENU_IDENTITY_BINDINGS)
+            .doesNotContain(
+                PermissionCode.KNOWLEDGE_WRITE,
+                PermissionCode.RULE_WRITE,
+                PermissionCode.PATHWAY_WRITE,
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.PLATFORM_PUBLISH);
     }
 
     @Test
-    void doctorCannotWithdrawOrPublishKnowledge() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR);
-        assertThat(perms)
-            .contains(PermissionCode.KNOWLEDGE_READ)
+    void institutionKnowledgeGovernorPublishesInstitutionAssetsButCannotPublishPlatformBaseline() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.KNOWLEDGE_GOVERNOR))
+            .contains(
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.KNOWLEDGE_WITHDRAW,
+                PermissionCode.TERM_PUBLISH,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.PATHWAY_PUBLISH,
+                PermissionCode.PROJECTION_READ)
+            .doesNotContain(
+                PermissionCode.PLATFORM_PUBLISH,
+                PermissionCode.RULE_OVERRIDE,
+                PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
+    void clinicalGovernorOwnsClinicalReviewAndRuleOverrideWithoutKnowledgePublication() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_GOVERNOR))
+            .contains(
+                PermissionCode.KNOWLEDGE_REVIEW,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.RULE_OVERRIDE,
+                PermissionCode.PATHWAY_PUBLISH,
+                PermissionCode.EVALUATION_REMEDIATE)
             .doesNotContain(
                 PermissionCode.KNOWLEDGE_PUBLISH,
                 PermissionCode.KNOWLEDGE_WITHDRAW,
-                PermissionCode.KNOWLEDGE_REVIEW);
+                PermissionCode.TERM_PUBLISH,
+                PermissionCode.SYSTEM_MANAGE);
     }
 
     @Test
-    void auditComplianceCanExportKnowledgeButNotWrite() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE);
-        assertThat(perms)
-            .contains(PermissionCode.KNOWLEDGE_READ, PermissionCode.KNOWLEDGE_EXPORT)
-            .doesNotContain(
-                PermissionCode.KNOWLEDGE_WRITE,
-                PermissionCode.KNOWLEDGE_PUBLISH,
-                PermissionCode.KNOWLEDGE_WITHDRAW);
-    }
-
-    @Test
-    void provenanceRolesHaveBothMenuAndKnowledgeReadPermission() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.IT_OPS,
-            RoleCode.MEDICAL_AFFAIRS,
-            RoleCode.QA_MANAGER,
-            RoleCode.SPECIALIST,
-            RoleCode.AUDIT_COMPLIANCE,
-            RoleCode.IMPLEMENTATION_ENGINEER}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 的来源追溯入口和读取权限必须成对授权", role.code())
-                .contains(PermissionCode.MENU_PROVENANCE, PermissionCode.KNOWLEDGE_READ);
-        }
-    }
-
-    @Test
-    void specialistCanReadGraphProjectionButCannotRebuildIt() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.SPECIALIST))
-            .contains(PermissionCode.MENU_GRAPH_EXPLORE, PermissionCode.PROJECTION_READ)
-            .doesNotContain(PermissionCode.PROJECTION_REBUILD);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
-            .doesNotContain(PermissionCode.MENU_GRAPH_EXPLORE, PermissionCode.PROJECTION_READ);
-    }
-
-    @Test
-    void onlyResponsibleClinicalRolesCanRecordRuleOverride() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.DOCTOR, RoleCode.DEPT_HEAD, RoleCode.SPECIALIST}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 应能记录规则人工继续理由", role)
-                .contains(PermissionCode.RULE_OVERRIDE);
-        }
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.NURSE, RoleCode.INSURANCE_MANAGER, RoleCode.QA_MANAGER,
-            RoleCode.MEDICAL_AFFAIRS, RoleCode.AUDIT_COMPLIANCE}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 不应记录规则人工继续理由", role)
-                .doesNotContain(PermissionCode.RULE_OVERRIDE);
-        }
-    }
-
-    @Test
-    void medTechnicianReportsExamResultsAndMaintainsLocalTerminologyWithoutPublish() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.MED_TECHNICIAN);
-        assertThat(perms)
+    void clinicalDecisionUserCanAcceptRecommendationAndRecordManualOverrideOnly() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
             .contains(
-                PermissionCode.TERM_READ, PermissionCode.TERM_WRITE,
-                PermissionCode.EVENT_READ, PermissionCode.EVENT_WRITE,
-                PermissionCode.CONTEXT_READ,
-                PermissionCode.KNOWLEDGE_READ,
-                PermissionCode.MPI_READ,
-                PermissionCode.WORKFLOW_READ, PermissionCode.WORKFLOW_WRITE,
-                PermissionCode.NOTIFICATION_READ, PermissionCode.NOTIFICATION_WRITE,
-                PermissionCode.MENU_WORKBENCH,
-                PermissionCode.MENU_TERMINOLOGY_MAPPING,
-                PermissionCode.MENU_MPI,
-                PermissionCode.MENU_WORKFLOW_TODOS,
-                PermissionCode.MENU_NOTIFICATIONS)
+                PermissionCode.RECOMMENDATION_READ,
+                PermissionCode.RECOMMENDATION_ACCEPT,
+                PermissionCode.RULE_READ,
+                PermissionCode.RULE_OVERRIDE,
+                PermissionCode.PATHWAY_READ)
+            .doesNotContain(
+                PermissionCode.RULE_WRITE,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
+    void nursingMedicationAndDiagnosticResponsibilitiesStayLeastPrivilege() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSING_COLLABORATOR))
+            .contains(PermissionCode.RECOMMENDATION_ACCEPT, PermissionCode.FOLLOWUP_WRITE)
+            .doesNotContain(PermissionCode.RULE_OVERRIDE, PermissionCode.KNOWLEDGE_WRITE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICATION_SAFETY_USER))
+            .contains(PermissionCode.RULE_WRITE, PermissionCode.KNOWLEDGE_REVIEW)
+            .doesNotContain(
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.RULE_OVERRIDE,
+                PermissionCode.KNOWLEDGE_PUBLISH);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DIAGNOSTIC_SERVICE_USER))
+            .contains(PermissionCode.TERM_WRITE, PermissionCode.EVENT_WRITE)
             .doesNotContain(
                 PermissionCode.TERM_PUBLISH,
-                PermissionCode.RULE_WRITE, PermissionCode.RULE_OVERRIDE,
-                PermissionCode.KNOWLEDGE_PUBLISH, PermissionCode.KNOWLEDGE_REVIEW,
-                PermissionCode.CONTEXT_WRITE,
-                PermissionCode.AUDIT_READ, PermissionCode.SYSTEM_MANAGE);
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.CONTEXT_WRITE);
     }
 
     @Test
-    void pharmacistReviewsMedicationRulesAndKnowledgeWithoutPublishOrOverride() {
-        var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.PHARMACIST);
-        assertThat(perms)
+    void qualityGovernorOwnsEvaluationClosedLoopWithoutClinicalOverride() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
             .contains(
-                PermissionCode.RULE_READ, PermissionCode.RULE_WRITE,
-                PermissionCode.KNOWLEDGE_READ, PermissionCode.KNOWLEDGE_WRITE, PermissionCode.KNOWLEDGE_REVIEW,
-                PermissionCode.RECOMMENDATION_READ,
-                PermissionCode.PATHWAY_READ,
-                PermissionCode.CONTEXT_READ, PermissionCode.EVENT_READ,
-                PermissionCode.MPI_READ,
-                PermissionCode.WORKFLOW_READ, PermissionCode.WORKFLOW_WRITE,
-                PermissionCode.NOTIFICATION_READ, PermissionCode.NOTIFICATION_WRITE,
-                PermissionCode.MENU_WORKBENCH,
-                PermissionCode.MENU_RULE_DEFINITIONS,
-                PermissionCode.MENU_RULE_VALIDATE,
-                PermissionCode.MENU_CDSS_FATIGUE,
-                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
-                PermissionCode.MENU_PROVENANCE,
-                PermissionCode.MENU_PATIENT_PATHWAYS)
-            .doesNotContain(
-                PermissionCode.RULE_PUBLISH, PermissionCode.RULE_OVERRIDE,
-                PermissionCode.KNOWLEDGE_PUBLISH, PermissionCode.KNOWLEDGE_WITHDRAW,
-                PermissionCode.RECOMMENDATION_ACCEPT,
-                PermissionCode.EVENT_WRITE, PermissionCode.CONTEXT_WRITE,
-                PermissionCode.AUDIT_READ, PermissionCode.SYSTEM_MANAGE);
-    }
-
-    @Test
-    void roleCodeRoundtripsThroughAuthority() {
-        for (RoleCode role : RoleCode.values()) {
-            assertThat(RoleCode.fromAuthority(role.authority())).contains(role);
-            assertThat(RoleCode.fromCode(role.code())).contains(role);
-        }
-    }
-
-    @Test
-    void permissionCodeRoundtrip() {
-        for (PermissionCode perm : PermissionCode.values()) {
-            assertThat(PermissionCode.fromCode(perm.code())).contains(perm);
-        }
-    }
-
-    @Test
-    void clinicalRolesCanReadContextButNotWrite() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.DOCTOR, RoleCode.NURSE, RoleCode.SPECIALIST, RoleCode.DEPT_HEAD}) {
-            var perms = DefaultPermissionPolicy.permissionsOf(role);
-            assertThat(perms)
-                .as("%s 应能读临床上下文", role)
-                .contains(PermissionCode.CONTEXT_READ);
-            assertThat(perms)
-                .as("%s 不应能写临床上下文", role)
-                .doesNotContain(PermissionCode.CONTEXT_WRITE);
-        }
-    }
-
-    @Test
-    void integrationRolesCanWriteContext() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.IT_OPS, RoleCode.IMPLEMENTATION_ENGINEER}) {
-            var perms = DefaultPermissionPolicy.permissionsOf(role);
-            assertThat(perms)
-                .as("%s 数据接入角色应同时具备读写", role)
-                .contains(PermissionCode.CONTEXT_READ, PermissionCode.CONTEXT_WRITE);
-        }
-    }
-
-    @Test
-    void medicalAffairsAndQaCanReadContextOnly() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.MEDICAL_AFFAIRS, RoleCode.QA_MANAGER, RoleCode.AUDIT_COMPLIANCE}) {
-            var perms = DefaultPermissionPolicy.permissionsOf(role);
-            assertThat(perms).contains(PermissionCode.CONTEXT_READ);
-            assertThat(perms)
-                .as("%s 仅读上下文，不应能写", role)
-                .doesNotContain(PermissionCode.CONTEXT_WRITE);
-        }
-    }
-
-    @Test
-    void clinicalAndGovernanceRolesCanReadClinicalEvents() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.DOCTOR, RoleCode.NURSE, RoleCode.SPECIALIST, RoleCode.DEPT_HEAD,
-            RoleCode.MEDICAL_AFFAIRS, RoleCode.QA_MANAGER, RoleCode.AUDIT_COMPLIANCE,
-            RoleCode.IT_OPS, RoleCode.IMPLEMENTATION_ENGINEER}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 应能查看临床事件诊断信息", role)
-                .contains(PermissionCode.EVENT_READ);
-        }
-    }
-
-    @Test
-    void integrationAndAdminRolesCanWriteClinicalEvents() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.IT_OPS, RoleCode.IMPLEMENTATION_ENGINEER,
-            RoleCode.HOSPITAL_ADMIN, RoleCode.GROUP_ADMIN, RoleCode.PLATFORM_ADMIN}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 应能写入临床事件", role)
-                .contains(PermissionCode.EVENT_READ, PermissionCode.EVENT_WRITE);
-        }
-    }
-
-    @Test
-    void clinicalRolesCannotWriteClinicalEvents() {
-        for (RoleCode role : new RoleCode[]{
-            RoleCode.DOCTOR, RoleCode.NURSE, RoleCode.SPECIALIST, RoleCode.DEPT_HEAD,
-            RoleCode.MEDICAL_AFFAIRS, RoleCode.QA_MANAGER, RoleCode.AUDIT_COMPLIANCE}) {
-            assertThat(DefaultPermissionPolicy.permissionsOf(role))
-                .as("%s 不应能写入临床事件", role)
-                .doesNotContain(PermissionCode.EVENT_WRITE);
-        }
-    }
-
-    @Test
-    void evaluationClosedLoopHasSeparatedPermissions() {
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QA_MANAGER))
-            .contains(
+                PermissionCode.EVALUATION_WRITE,
+                PermissionCode.EVALUATION_PUBLISH,
                 PermissionCode.EVALUATION_EXECUTE,
                 PermissionCode.EVALUATION_REMEDIATE,
-                PermissionCode.EVALUATION_REVIEW);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
-            .contains(PermissionCode.EVALUATION_EXECUTE)
-            .doesNotContain(PermissionCode.EVALUATION_REVIEW);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DEPT_HEAD))
-            .contains(PermissionCode.EVALUATION_REMEDIATE)
-            .doesNotContain(PermissionCode.EVALUATION_REVIEW);
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
-            .doesNotContain(
-                PermissionCode.EVALUATION_REMEDIATE,
-                PermissionCode.EVALUATION_REVIEW);
+                PermissionCode.EVALUATION_REVIEW)
+            .doesNotContain(PermissionCode.RULE_OVERRIDE, PermissionCode.SYSTEM_MANAGE);
     }
 
     @Test
-    void everyRoleUsesOnlyInfrafiveSecondLevelMenuPermissions() {
+    void complianceAuditorActionsAreReadOrExportOnly() {
+        var permissions = DefaultPermissionPolicy.permissionsOf(RoleCode.COMPLIANCE_AUDITOR);
+        assertThat(permissions)
+            .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
+            .doesNotContain(PermissionCode.MENU_IDENTITY_BINDINGS, PermissionCode.SYSTEM_MANAGE);
+        assertThat(permissions)
+            .filteredOn(permission -> permission.dimension() == PermissionDimension.ACTION)
+            .allMatch(permission -> permission.code().endsWith(".read")
+                || permission.code().endsWith(".export"));
+    }
+
+    @Test
+    void integrationOperatorConnectsSystemsWithoutPublishingClinicalKnowledge() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.INTEGRATION_OPERATOR))
+            .contains(
+                PermissionCode.CONTEXT_WRITE,
+                PermissionCode.EVENT_WRITE,
+                PermissionCode.INTEGRATION_WRITE,
+                PermissionCode.INTEGRATION_EXECUTE,
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.MENU_SYSTEM_PROVIDERS)
+            .doesNotContain(
+                PermissionCode.TERM_PUBLISH,
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.MENU_ADMIN_USERS);
+    }
+
+    @Test
+    void implementationOperatorOnboardsInstitutionsWithoutPlatformOrSystemGovernance() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_OPERATOR))
+            .contains(
+                PermissionCode.TENANT_READ,
+                PermissionCode.ORG_WRITE,
+                PermissionCode.PACKAGE_PUBLISH,
+                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+                PermissionCode.MENU_TENANT_ONBOARDING)
+            .doesNotContain(
+                PermissionCode.PLATFORM_PUBLISH,
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.ENV_EMERGENCY);
+    }
+
+    @Test
+    void everyRoleHasCatalogMenusAndMenuSpecificReadPermissions() {
         for (RoleCode role : RoleCode.values()) {
-            var menuPermissions = DefaultPermissionPolicy.permissionsOf(role).stream()
+            var permissions = DefaultPermissionPolicy.permissionsOf(role);
+            var menuPermissions = permissions.stream()
                 .filter(permission -> permission.dimension() == PermissionDimension.MENU)
                 .toList();
 
             assertThat(menuPermissions)
-                .as("%s 必须拥有至少一个二级菜单权限", role.code())
-                .isNotEmpty();
-            assertThat(menuPermissions)
-                .as("%s 菜单权限必须全部来自 INFRA-05 32 项目录", role.code())
+                .as("%s 必须拥有目录内的工作入口", role.code())
+                .isNotEmpty()
                 .allMatch(MenuPermissionCatalog::isCatalogMenuPermission);
+            if (permissions.contains(PermissionCode.MENU_PATHWAY_TEMPLATES)) {
+                assertThat(permissions).contains(PermissionCode.PATHWAY_READ);
+            }
+            if (permissions.contains(PermissionCode.MENU_RULE_DEFINITIONS)) {
+                assertThat(permissions).contains(PermissionCode.RULE_READ);
+            }
+            if (permissions.contains(PermissionCode.MENU_TERMINOLOGY_MAPPING)) {
+                assertThat(permissions).contains(PermissionCode.TERM_READ);
+            }
         }
     }
 
     @Test
-    void doctorNavigationIsClinicalOnlyAtSecondLevelGranularity() {
-        assertThat(MenuPermissionCatalog.menuKeysFor(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR)))
-            .containsExactlyInAnyOrder(
-                "workbench",
-                "mpi",
-                "patient-pathways",
-                "cdss-fatigue",
-                "rule-validate",
-                "workflow-todos",
-                "notifications",
-                "clinical-followup")
-            .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
+    void codesRoundtripWithoutLegacyAliases() {
+        for (RoleCode role : RoleCode.values()) {
+            assertThat(RoleCode.fromAuthority(role.authority())).contains(role);
+            assertThat(RoleCode.fromCode(role.code())).contains(role);
+        }
+        for (PermissionCode permission : PermissionCode.values()) {
+            assertThat(PermissionCode.fromCode(permission.code())).contains(permission);
+        }
     }
 }

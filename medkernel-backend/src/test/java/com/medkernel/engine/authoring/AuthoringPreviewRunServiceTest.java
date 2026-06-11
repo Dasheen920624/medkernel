@@ -265,7 +265,7 @@ class AuthoringPreviewRunServiceTest {
             null,
             null,
             "author-1",
-            List.of("specialist"),
+            List.of("knowledge-governor"),
             "pkg-2026.06"
         );
     }

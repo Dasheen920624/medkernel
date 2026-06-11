@@ -59,7 +59,7 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
             .andExpect(status().isOk());
 
@@ -68,7 +68,7 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
             .andExpect(status().isOk());
 
@@ -76,7 +76,7 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
             .andExpect(status().isOk());
     }
@@ -92,7 +92,7 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
             .andExpect(status().isOk());
     }
@@ -103,7 +103,7 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isForbidden());
     }

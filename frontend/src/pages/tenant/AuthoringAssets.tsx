@@ -30,6 +30,7 @@ import {
   useUpdateAuthoringAssetProfile,
 } from "@/shared/api/hooks";
 import type { AuthoringAssetLibraryItem, EngineAssetType } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import AuthoringBatchDrawer from "./AuthoringBatchDrawer";
 import styles from "./AuthoringAssets.module.css";
@@ -195,7 +196,9 @@ export default function AuthoringAssets() {
       dataIndex: "assetType",
       key: "assetType",
       render: (type: string) => (
-        <Tag color={assetTypeColor(type)}>{assetTypeLabels[type] ?? type}</Tag>
+        <Tag color={assetTypeColor(type)}>
+          {assetTypeLabels[type] ?? customerEnumLabel(type)}
+        </Tag>
       ),
     },
     {
@@ -220,7 +223,9 @@ export default function AuthoringAssets() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (status: string) => <Tag color={statusColor(status)}>{status}</Tag>,
+      render: (status: string) => (
+        <Tag color={statusColor(status)}>{customerEnumLabel(status)}</Tag>
+      ),
     },
     {
       title: "操作",

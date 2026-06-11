@@ -177,7 +177,7 @@ class AuthoringAssetLibraryControllerTest {
         return jwt().jwt(token -> token
                 .subject("asset-reader")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("doctor")))
+                .claim("roles", List.of("clinical-decision-user")))
             .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
     }
 

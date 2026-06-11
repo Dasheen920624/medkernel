@@ -104,7 +104,7 @@ class EvaluationEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-eval", com.medkernel.shared.context.OrgScope.tenant("tenant-A"), "qa-1"));
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
     }
 
     @AfterEach
@@ -192,7 +192,7 @@ class EvaluationEngineServiceTest {
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
         )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
-        authenticate(RoleCode.QA_MANAGER);
+        authenticate(RoleCode.QUALITY_GOVERNOR);
 
         assertThatThrownBy(() -> service.activateIndicator(
             "ei-gray",

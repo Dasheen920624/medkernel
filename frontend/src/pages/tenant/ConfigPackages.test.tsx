@@ -82,7 +82,7 @@ vi.mock("@/shared/api/hooks", () => ({
       username: "implementation.engineer",
       roles: [
         {
-          code: "implementation-engineer",
+          code: "implementation-operator",
           displayName: "实施工程师",
           source: "tenant",
           scopeLevel: "HOSPITAL",
@@ -494,9 +494,9 @@ describe("ConfigPackages offline package export", () => {
             accessPolicy: "ENTITLED",
             status: "ACTIVE",
             createdAt: "2026-06-01T00:00:00Z",
-            createdBy: "platform-admin",
+            createdBy: "platform-governance-admin",
             updatedAt: "2026-06-01T00:00:00Z",
-            updatedBy: "platform-admin",
+            updatedBy: "platform-governance-admin",
             traceId: "trace-commercial",
           },
         ],
@@ -517,7 +517,7 @@ describe("ConfigPackages offline package export", () => {
           expiresAt: "2026-05-31T15:59:59Z",
           reason: "试用授权",
           updatedAt: "2026-01-01T00:00:00Z",
-          updatedBy: "platform-admin",
+          updatedBy: "platform-governance-admin",
         },
       ];
       apiMocks.grantPackageEntitlement.mockResolvedValue({
@@ -542,7 +542,7 @@ describe("ConfigPackages offline package export", () => {
       await userEvent.click(screen.getByRole("button", { name: "授权管理" }));
       expect(apiMocks.useTenants).toHaveBeenCalledWith(true);
       expect(screen.getByText("已到期")).toBeInTheDocument();
-      openSelectByLabel("目标租户");
+      openSelectByLabel("目标服务空间");
       await chooseVisibleSelectOption("华东示范医院 · tenant-A");
       await userEvent.type(screen.getByLabelText("授权到期时间"), "2026-12-31T23:59");
       await userEvent.type(screen.getByLabelText("授权原因"), "商业许可已完成审批");
@@ -838,7 +838,7 @@ describe("ConfigPackages offline package export", () => {
 
     expect(screen.getByText("继承治理")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "平台视角" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "租户视角" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "服务机构视角" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "当前机构" })).toBeChecked();
     expect(screen.getByText("本级定制")).toBeInTheDocument();
     expect(screen.getAllByText("建议 rebase").length).toBeGreaterThan(0);
@@ -850,9 +850,9 @@ describe("ConfigPackages offline package export", () => {
     expect(screen.getByText("自动继承上游")).toBeInTheDocument();
     expect(screen.getByText("平台新版本激活后自动继承")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText("租户视角"));
-    expect(screen.getByRole("radio", { name: "租户视角" })).toBeChecked();
-    expect(screen.getByText("租户定制")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("服务机构视角"));
+    expect(screen.getByRole("radio", { name: "服务机构视角" })).toBeChecked();
+    expect(screen.getByText("服务机构定制")).toBeInTheDocument();
     expect(screen.getByText("租户覆盖需复核停用理由")).toBeInTheDocument();
     expect(screen.queryByText("平台新版本激活后自动继承")).not.toBeInTheDocument();
   });

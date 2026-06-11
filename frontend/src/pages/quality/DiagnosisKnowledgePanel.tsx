@@ -50,6 +50,7 @@ import {
 } from "@/shared/api/hooks";
 import { KNOWLEDGE_QUALITY_GATE_OPTIONS } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageState } from "@/shared/ui/PageState";
 
 import styles from "./DiagnosisKnowledgePanel.module.css";
@@ -84,7 +85,7 @@ function can(profile: ReturnType<typeof useSecurityProfile>["data"], code: strin
 
 function versionLabel(version: KnowledgeAssetVersion) {
   return `${version.versionLabel || version.versionNo} · ${
-    VERSION_STATUS_LABEL[version.status] ?? version.status
+    VERSION_STATUS_LABEL[version.status] ?? customerEnumLabel(version.status)
   }`;
 }
 
@@ -387,7 +388,9 @@ export default function DiagnosisKnowledgePanel() {
       title: "方向",
       dataIndex: "direction",
       key: "direction",
-      render: (value: string) => <Tag>{DIRECTION_LABEL[value] ?? value}</Tag>,
+      render: (value: string) => (
+        <Tag>{DIRECTION_LABEL[value] ?? customerEnumLabel(value)}</Tag>
+      ),
     },
     { title: "权重", dataIndex: "weight", key: "weight" },
     {
@@ -613,7 +616,8 @@ export default function DiagnosisKnowledgePanel() {
             <Descriptions.Item label="版本状态">
               <Tag color={editable ? "processing" : "success"}>
                 {selectedVersion
-                  ? (VERSION_STATUS_LABEL[selectedVersion.status] ?? selectedVersion.status)
+                  ? (VERSION_STATUS_LABEL[selectedVersion.status] ??
+                    customerEnumLabel(selectedVersion.status))
                   : "未选择"}
               </Tag>
             </Descriptions.Item>
@@ -892,11 +896,11 @@ export default function DiagnosisKnowledgePanel() {
             >
               <Select
                 options={[
-                  { value: "A_REGULATION", label: "A 法规" },
-                  { value: "B_GUIDELINE", label: "B 指南" },
-                  { value: "C_CONSENSUS_LITERATURE", label: "C 共识文献" },
-                  { value: "D_HOSPITAL", label: "D 院内制度" },
-                  { value: "E_FEEDBACK", label: "E 反馈" },
+                  { value: "A_REGULATION", label: "法规与强制规范" },
+                  { value: "B_GUIDELINE", label: "权威指南" },
+                  { value: "C_CONSENSUS_LITERATURE", label: "共识与医学文献" },
+                  { value: "D_HOSPITAL", label: "院内制度" },
+                  { value: "E_FEEDBACK", label: "临床反馈" },
                 ]}
               />
             </Form.Item>

@@ -208,7 +208,7 @@ class TerminologyApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api04-implementation-engineer")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("implementation-engineer")))
+                .claim("roles", List.of("implementation-operator")))
             .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_ENGINEER"));
     }
 
@@ -216,7 +216,7 @@ class TerminologyApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api04-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("specialist")))
+                .claim("roles", List.of("knowledge-governor")))
             .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
     }
 
@@ -224,7 +224,7 @@ class TerminologyApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api04-it-ops")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("it-ops")))
+                .claim("roles", List.of("integration-operator")))
             .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
     }
 
@@ -241,7 +241,7 @@ class TerminologyApiContractTest {
               "department_id": "d-1",
               "specialty_id": "sp-1",
               "user_id": "u-99",
-              "role_codes": ["specialist"],
+              "role_codes": ["knowledge-governor"],
               "package_version": "pkg-2026.06"
               %s
             }

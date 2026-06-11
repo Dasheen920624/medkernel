@@ -148,7 +148,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         Instant now = Instant.now();
         return new PathwayNode(
             null, "node-" + templateId, "tenant-A", templateId, "ASSESS", "影响评估",
-            PathwayNodeType.ASSESSMENT, null, 10, "specialist", null, 120, false,
+            PathwayNodeType.ASSESSMENT, null, 10, "knowledge-governor", null, 120, false,
             "{\"ruleRefs\":[{\"ruleId\":\"" + ruleId + "\",\"versionId\":\"" + versionId + "\"}]}",
             now, "tester", now, "tester", "trace-path");
     }

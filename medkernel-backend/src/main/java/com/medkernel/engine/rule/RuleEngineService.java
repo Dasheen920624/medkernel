@@ -795,12 +795,11 @@ public class RuleEngineService {
 
     private static RoleCode authenticatedSignoffRole() {
         return List.of(
-                RoleCode.PHARMACIST,
-                RoleCode.MEDICAL_AFFAIRS,
-                RoleCode.QA_MANAGER,
-                RoleCode.INSURANCE_MANAGER,
-                RoleCode.DEPT_HEAD,
-                RoleCode.SPECIALIST
+                RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
+                RoleCode.KNOWLEDGE_GOVERNOR,
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.MEDICATION_SAFETY_USER,
+                RoleCode.QUALITY_GOVERNOR
             ).stream()
             .filter(AuthenticatedRoleGuard::has)
             .findFirst()
@@ -823,7 +822,10 @@ public class RuleEngineService {
                 || target == RuleGovernanceState.MONITOR
                 || target == RuleGovernanceState.RETIRED;
             if (submitForReview || coordinateRelease) {
-                requireAnyRole("平台规则治理推进仅平台管理员可执行", RoleCode.PLATFORM_ADMIN);
+                requireAnyRole(
+                    "平台规则治理推进仅平台知识治理职责可执行",
+                    RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
+                    RoleCode.PLATFORM_GOVERNANCE_ADMIN);
             }
             return;
         }
@@ -831,15 +833,18 @@ public class RuleEngineService {
                 && target == RuleGovernanceState.PEER_REVIEW) {
             requireAnyRole(
                 "提交同行评审仅规则治理创作角色可执行",
-                RoleCode.MEDICAL_AFFAIRS,
-                RoleCode.DEPT_HEAD,
-                RoleCode.INSURANCE_MANAGER,
-                RoleCode.SPECIALIST
+                RoleCode.KNOWLEDGE_GOVERNOR,
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.MEDICATION_SAFETY_USER,
+                RoleCode.QUALITY_GOVERNOR
             );
             return;
         }
         if (target == RuleGovernanceState.FULL) {
-            requireAnyRole("规则全量激活仅医院管理员可执行", RoleCode.HOSPITAL_ADMIN);
+            requireAnyRole(
+                "规则全量激活仅机构或临床治理负责人可执行",
+                RoleCode.ORGANIZATION_ADMIN,
+                RoleCode.CLINICAL_GOVERNOR);
             return;
         }
         if (target == RuleGovernanceState.SHADOW
@@ -847,9 +852,9 @@ public class RuleEngineService {
                 || target == RuleGovernanceState.MONITOR
                 || target == RuleGovernanceState.RETIRED) {
             requireAnyRole(
-                "规则影子、灰度、监测和退役仅医务处或医院管理员可执行",
-                RoleCode.MEDICAL_AFFAIRS,
-                RoleCode.HOSPITAL_ADMIN
+                "规则影子、灰度、监测和退役仅临床治理负责人或机构管理员可执行",
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.ORGANIZATION_ADMIN
             );
         }
     }

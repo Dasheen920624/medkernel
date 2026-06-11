@@ -109,7 +109,9 @@ class ContextSnapshotServiceTest {
     void shouldCreateSnapshotFromUnifiedRequestAndReturnStandardContract() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-current",
-            new OrgScope("tenant-A", "group-1", "hospital-1", "campus-1", "site-1", "DEPT-A", "stroke"),
+            new OrgScope(
+                "tenant-A", "group-1", "hospital-1", "campus-1",
+                "site-1", "DEPT-A", "WARD-A", "stroke"),
             "current-user"));
         when(idemRepo.findByTenantIdAndIdempotencyKey("tenant-A", "req-ctx-1"))
             .thenReturn(Optional.empty());
@@ -129,7 +131,7 @@ class ContextSnapshotServiceTest {
         assertThat(snapshotCap.getValue().requestId()).isEqualTo("req-ctx-1");
         assertThat(snapshotCap.getValue().packageVersion()).isEqualTo("pkg-2026.06");
         assertThat(snapshotCap.getValue().orgPath())
-            .isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/stroke");
+            .isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/WARD-A/stroke");
 
         verify(idemRepo).findByTenantIdAndIdempotencyKey("tenant-A", "req-ctx-1");
         verify(idemRepo, never()).findByTenantIdAndIdempotencyKey("tenant-A", "legacy-header-key");
@@ -146,6 +148,7 @@ class ContextSnapshotServiceTest {
               "trace_id": "trace-json",
               "tenant_id": "tenant-A",
               "department_id": "DEPT-A",
+              "ward_id": "WARD-A",
               "role_codes": ["DOCTOR"],
               "patientId": "MPI-JSON",
               "encounterId": "ENC-JSON",
@@ -159,6 +162,7 @@ class ContextSnapshotServiceTest {
         assertThat(request.traceId()).isEqualTo("trace-json");
         assertThat(request.tenantId()).isEqualTo("tenant-A");
         assertThat(request.departmentId()).isEqualTo("DEPT-A");
+        assertThat(request.wardId()).isEqualTo("WARD-A");
         assertThat(request.roleCodes()).containsExactly("DOCTOR");
         assertThat(request.patientId()).isEqualTo("MPI-JSON");
         assertThat(request.encounterId()).isEqualTo("ENC-JSON");

@@ -360,8 +360,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
 
-      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
-      expect(within(dialog).getByRole("tab", { name: /L2 节点画布/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /基础模板/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
       await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
@@ -372,7 +372,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         within(dialog).queryByLabelText("拓扑流转连线配置 (JSON 列表)"),
       ).not.toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       fireEvent.change(within(dialog).getByLabelText("节点编码"), {
         target: { value: "ASSESS" },
@@ -427,7 +427,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         },
       });
       await user.click(within(dialog).getByRole("button", { name: /回填到 L2/ }));
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       expect(within(dialog).getByDisplayValue("FOLLOWUP")).toBeInTheDocument();
       expect(within(dialog).getByDisplayValue("随访确认")).toBeInTheDocument();
     },
@@ -585,7 +585,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
       const factInputs = () =>
@@ -663,7 +663,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
       await user.click(await screen.findByText(/心血管路径知识包/));
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
       fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "选择条件片段" }));
       await user.click(
@@ -711,7 +711,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "院内已审核路径制度 2026" },
       });
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       const changeCriteriaLeaf = (index: number, fact: string, value: string) => {
         fireEvent.change(
           within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[index],
@@ -784,7 +784,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "围手术期路径制度 2026" },
       });
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加里程碑/ }));
       fireEvent.change(within(dialog).getByLabelText("阶段编码"), {
         target: { value: "PREOP" },
@@ -943,7 +943,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "关键时钟 SLA 制度 2026" },
       });
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       fireEvent.change(within(dialog).getByLabelText("节点编码"), {
         target: { value: "CLOCK" },
@@ -1000,7 +1000,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "富节点配置制度 2026" },
       });
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       fireEvent.change(within(dialog).getByLabelText("节点编码"), {
         target: { value: "ORDER" },
@@ -1009,7 +1009,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "医嘱集确认" },
       });
       fireEvent.mouseDown(within(dialog).getByLabelText("节点类型"));
-      await user.click(await screen.findByText("ORDER_SET 医嘱集"));
+      await user.click(await screen.findByText("医嘱集"));
       fireEvent.change(await within(dialog).findByLabelText("医嘱集引用"), {
         target: { value: "sepsis-order-set" },
       });
@@ -1019,8 +1019,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
       fireEvent.mouseDown(within(dialog).getByLabelText("流转类型"));
-      expect(await screen.findByText("JOIN 并行汇合")).toBeInTheDocument();
-      expect(screen.queryByText("VARIANCE 变异流转")).not.toBeInTheDocument();
+      expect(await screen.findByText("并行汇合")).toBeInTheDocument();
+      expect(screen.queryByText("变异流转")).not.toBeInTheDocument();
       await user.keyboard("{Escape}");
       await user.click(within(dialog).getByRole("button", { name: "删除流转边 1" }));
 
@@ -1159,7 +1159,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
 
       const user = await openPathwayDrawer();
-      await user.click(screen.getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(screen.getByRole("tab", { name: /节点画布/ }));
 
       expect(screen.getByText("阶段与天序里程碑")).toBeInTheDocument();
       expect(screen.getByText("术前 / 第 0 天")).toBeInTheDocument();
@@ -1280,7 +1280,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(within(dialog).getByPlaceholderText("如 CARDIO 或 ICD10-I63")).toBeInTheDocument();
       expect(within(dialog).getByPlaceholderText("如 院内已审核路径制度 2026")).toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
 
@@ -1357,7 +1357,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           startNodeCode: "ASSESS",
         }),
       );
-      expect(await screen.findByText("快照质量：PARTIAL")).toBeInTheDocument();
+      expect(await screen.findByText("快照质量：数据不完整")).toBeInTheDocument();
       expect(screen.getByText("OBSERVATION:obs-1:code:HB")).toBeInTheDocument();
       expect(screen.getAllByText("ASSESS").length).toBeGreaterThan(0);
       expect(screen.getAllByText("FOLLOWUP").length).toBeGreaterThan(0);
@@ -1446,7 +1446,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           startNodeCode: "ASSESS",
         }),
       );
-      expect(await screen.findByText("模式：QUEUE_REPLAY")).toBeInTheDocument();
+      expect(await screen.findByText("模式：队列回放")).toBeInTheDocument();
       expect(screen.getAllByText("ctx-path-001").length).toBeGreaterThan(0);
       expect(screen.getAllByText("ctx-path-002").length).toBeGreaterThan(0);
       expect(screen.getByText("ASSESS → FOLLOWUP")).toBeInTheDocument();
@@ -1653,7 +1653,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
       // 添加节点 → 节点编码自动填 N1
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
@@ -1679,7 +1679,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
 
       fireEvent.keyDown(within(dialog).getByLabelText("路径节点 N1"), {
@@ -1708,7 +1708,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));

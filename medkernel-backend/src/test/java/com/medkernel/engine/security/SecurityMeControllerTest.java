@@ -54,12 +54,12 @@ class SecurityMeControllerTest {
                     .claim("tenant_id", "t-1")
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "d-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("doctor-1"))
             .andExpect(jsonPath("$.data.username").value("doctor-1"))
-            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.DOCTOR.code())))
+            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.CLINICAL_DECISION_USER.code())))
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.RECOMMENDATION_READ.code())))
             .andExpect(jsonPath("$.data.permissions[*].dimension", hasItem(PermissionDimension.ACTION.name())))
             .andExpect(jsonPath("$.data.permissions[*].dimension", hasItem(PermissionDimension.MENU.name())))
@@ -89,8 +89,8 @@ class SecurityMeControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("platform-owner")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of(RoleCode.PLATFORM_ADMIN.code())))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_ADMIN.authority()))))
+                    .claim("roles", List.of(RoleCode.PLATFORM_GOVERNANCE_ADMIN.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_GOVERNANCE_ADMIN.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("platform-owner"))
             .andExpect(jsonPath("$.data.username").value("platform-owner"))
@@ -105,22 +105,22 @@ class SecurityMeControllerTest {
             INSERT INTO user_role_assignment
                 (tenant_id, user_id, role_code, scope_level, scope_code)
             VALUES (?, ?, ?, ?, ?)
-            """, "t-1", "doctor-1", RoleCode.QA_MANAGER.code(), "DEPARTMENT", "d-1");
+            """, "t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR.code(), "DEPARTMENT", "d-1");
         jdbcTemplate.update("""
             INSERT INTO role_permission
                 (tenant_id, role_code, permission_code, effect)
             VALUES (?, ?, ?, ?)
-            """, "t-1", RoleCode.DOCTOR.code(), PermissionCode.RECOMMENDATION_ACCEPT.code(), "DENY");
+            """, "t-1", RoleCode.CLINICAL_DECISION_USER.code(), PermissionCode.RECOMMENDATION_ACCEPT.code(), "DENY");
 
         mvc.perform(get("/api/v1/security/me")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "t-1")
                     .claim("department_id", "d-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.QA_MANAGER.code())))
+            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.QUALITY_GOVERNOR.code())))
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.EVALUATION_PUBLISH.code())))
             .andExpect(jsonPath("$.data.permissions[*].code",
                 not(hasItem(PermissionCode.RECOMMENDATION_ACCEPT.code()))));
@@ -147,8 +147,8 @@ class SecurityMeControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.ENV_EMERGENCY.code())))
             .andExpect(jsonPath("$.data.environmentKeys", hasItem("emergency")));
@@ -159,8 +159,8 @@ class SecurityMeControllerTest {
         mvc.perform(get("/api/v1/security/me")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

@@ -159,17 +159,17 @@ class MpiControllerContractTest {
 
     private static RequestPostProcessor readJwt() {
         return jwt().jwt(token -> token
-                .subject("it-ops")
+                .subject("integration-operator")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("it-ops")))
+                .claim("roles", List.of("integration-operator")))
             .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
-                .subject("hospital-admin")
+                .subject("organization-admin")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("hospital-admin")))
+                .claim("roles", List.of("organization-admin")))
             .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
     }
 }

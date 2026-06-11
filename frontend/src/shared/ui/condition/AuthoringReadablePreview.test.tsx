@@ -23,7 +23,7 @@ function wrapper() {
     username: "规则作者",
     roles: [
       {
-        code: "specialist",
+        code: "knowledge-governor",
         displayName: "专科医生",
         source: "tenant",
         scopeLevel: "TENANT",
@@ -86,7 +86,7 @@ describe("AuthoringReadablePreview", () => {
           dsl,
           tenant_id: "tenant-A",
           user_id: "author-1",
-          role_codes: ["specialist"],
+          role_codes: ["knowledge-governor"],
           package_version: "pkg-2026.06",
         }),
       ),

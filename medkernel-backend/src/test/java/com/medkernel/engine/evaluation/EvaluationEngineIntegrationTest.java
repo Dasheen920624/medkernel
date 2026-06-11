@@ -99,7 +99,7 @@ class EvaluationEngineIntegrationTest {
             new UsernamePasswordAuthenticationToken(
                 "qa-1",
                 "n/a",
-                List.of(new SimpleGrantedAuthority(RoleCode.HOSPITAL_ADMIN.authority()))
+                List.of(new SimpleGrantedAuthority(RoleCode.ORGANIZATION_ADMIN.authority()))
             )
         );
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);

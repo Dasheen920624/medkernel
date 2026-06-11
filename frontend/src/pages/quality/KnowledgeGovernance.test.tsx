@@ -14,6 +14,11 @@ const mockUseKnowledgeCandidateDiff = vi.fn();
 const mockUseReviewKnowledgeCandidate = vi.fn();
 const mockUseDeprecateKnowledgeIdentity = vi.fn();
 const mockUseSecurityProfile = vi.fn();
+const mockUseKnowledgeCustomizations = vi.fn();
+const mockUseOrgUnits = vi.fn();
+const mockUseCreateKnowledgeCustomization = vi.fn();
+const mockUsePublishKnowledgeCustomization = vi.fn();
+const mockUseRestorePlatformKnowledge = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -22,6 +27,11 @@ vi.mock("@/shared/api/hooks", () => ({
   useReviewKnowledgeCandidate: () => mockUseReviewKnowledgeCandidate(),
   useDeprecateKnowledgeIdentity: () => mockUseDeprecateKnowledgeIdentity(),
   useSecurityProfile: () => mockUseSecurityProfile(),
+  useKnowledgeCustomizations: (enabled?: boolean) => mockUseKnowledgeCustomizations(enabled),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
+  useCreateKnowledgeCustomization: () => mockUseCreateKnowledgeCustomization(),
+  usePublishKnowledgeCustomization: () => mockUsePublishKnowledgeCustomization(),
+  useRestorePlatformKnowledge: () => mockUseRestorePlatformKnowledge(),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -142,6 +152,8 @@ let refetchIdentities: ReturnType<typeof vi.fn>;
 let refetchCandidates: ReturnType<typeof vi.fn>;
 let reviewCandidate: ReturnType<typeof vi.fn>;
 let deprecateIdentity: ReturnType<typeof vi.fn>;
+let createCustomization: ReturnType<typeof vi.fn>;
+let publishCustomization: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   refetchIdentities = vi.fn();
@@ -159,6 +171,14 @@ beforeEach(() => {
     successorIdentityId: 43,
     transitionType: "DEPRECATE",
   });
+  createCustomization = vi.fn().mockResolvedValue({
+    customizationId: "kc-1",
+    status: "DRAFT",
+  });
+  publishCustomization = vi.fn().mockResolvedValue({
+    customizationId: "kc-high-risk",
+    status: "ACTIVE",
+  });
 
   mockUseKnowledgeIdentities.mockReset();
   mockUseKnowledgeCandidates.mockReset();
@@ -166,6 +186,11 @@ beforeEach(() => {
   mockUseReviewKnowledgeCandidate.mockReset();
   mockUseDeprecateKnowledgeIdentity.mockReset();
   mockUseSecurityProfile.mockReset();
+  mockUseKnowledgeCustomizations.mockReset();
+  mockUseOrgUnits.mockReset();
+  mockUseCreateKnowledgeCustomization.mockReset();
+  mockUsePublishKnowledgeCustomization.mockReset();
+  mockUseRestorePlatformKnowledge.mockReset();
 
   mockUseKnowledgeIdentities.mockReturnValue({
     data: { items: [realIdentity], page: 1, size: 20, total: 1, hasNext: false },
@@ -215,9 +240,171 @@ beforeEach(() => {
       permissions: [{ code: "knowledge.publish" }],
     },
   });
+  mockUseKnowledgeCustomizations.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
+  mockUseOrgUnits.mockReturnValue({
+    data: { items: [], page: 1, size: 500, total: 0 },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
+  mockUseCreateKnowledgeCustomization.mockReturnValue({
+    mutateAsync: createCustomization,
+    isPending: false,
+  });
+  mockUsePublishKnowledgeCustomization.mockReturnValue({
+    mutateAsync: publishCustomization,
+    isPending: false,
+  });
+  mockUseRestorePlatformKnowledge.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
 });
 
 describe("KnowledgeGovernance", () => {
+  it("lets a medical institution derive a governed local draft from platform knowledge", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [
+          { code: "knowledge.write" },
+          { code: "knowledge.publish" },
+          { code: "knowledge.withdraw" },
+          { code: "tenant.override" },
+        ],
+      },
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [{ ...realIdentity, tenantId: "t-1" }],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      refetch: refetchIdentities,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "hospital-a",
+            level: "FACILITY",
+            code: "HOSP-A",
+            name: "示范医院",
+            status: "ACTIVE",
+          },
+        ],
+        page: 1,
+        size: 500,
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
+    expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "生效机构" }));
+    await user.click(
+      await screen.findByText("示范医院 · 医疗服务机构", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    await user.type(screen.getByLabelText("定制原因"), "适配本院诊疗流程");
+    await user.click(screen.getByRole("button", { name: "创建定制草稿" }));
+
+    await waitFor(() =>
+      expect(createCustomization).toHaveBeenCalledWith({
+        platformIdentityId: 42,
+        targetOrgUnitId: "hospital-a",
+        applicableScope: "ALL",
+        reason: "适配本院诊疗流程",
+      }),
+    );
+  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
+
+  it("requires an electronic signature before publishing a high-risk institution version", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [
+          { code: "knowledge.publish" },
+          { code: "tenant.override" },
+        ],
+      },
+    });
+    mockUseKnowledgeCustomizations.mockReturnValue({
+      data: [
+        {
+          customizationId: "kc-high-risk",
+          sourceType: "LOCAL_CUSTOMIZATION",
+          status: "DRAFT",
+          platformIdentityId: 42,
+          platformVersionId: 1001,
+          platformVersionNo: "2026.05",
+          localIdentityId: 43,
+          localVersionId: 2003,
+          riskLevel: "HIGH",
+          targetOrgUnitId: "hospital-a",
+          targetOrganizationName: "示范医院",
+          targetOrgPath: "/tenant-A/hospital-a",
+          applicableScope: "ALL",
+          reason: "适配本院高危诊疗流程",
+          overrideId: null,
+          platformUpdateAvailable: false,
+          updatedAt: "2026-06-11T01:00:00Z",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "机构知识" }));
+    await user.click(screen.getByRole("button", { name: "发布机构版本" }));
+
+    expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
+    await user.type(screen.getByLabelText("签名编号"), "sig-local-knowledge-1");
+    await user.type(screen.getByLabelText("复核人工号"), "medical-reviewer-1");
+    await user.type(screen.getByLabelText("复核人姓名"), "医务复核员");
+    fireEvent.change(screen.getByLabelText("签名时间"), {
+      target: { value: "2026-06-11T10:00" },
+    });
+    await user.type(screen.getByLabelText("签名摘要"), "b".repeat(64));
+    await user.click(screen.getByRole("button", { name: "确认发布" }));
+
+    await waitFor(() => {
+      expect(publishCustomization).toHaveBeenCalledWith({
+        customizationId: "kc-high-risk",
+        reason: "医务与质控联合复核通过",
+        publishEvidence: {
+          electronicSignature: {
+            signatureId: "sig-local-knowledge-1",
+            signerId: "medical-reviewer-1",
+            signerName: "医务复核员",
+            signedAt: new Date("2026-06-11T10:00").toISOString(),
+            signatureHash: "b".repeat(64),
+          },
+        },
+      });
+    });
+  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
+
   it("keeps diagnosis governance available while the candidate queue is loading", async () => {
     const user = userEvent.setup();
     mockUseKnowledgeIdentities.mockReturnValue({
@@ -504,5 +691,5 @@ describe("KnowledgeGovernance", () => {
         }),
       );
     });
-  });
+  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
 });

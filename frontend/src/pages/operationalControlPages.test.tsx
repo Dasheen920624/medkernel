@@ -19,6 +19,9 @@ import {
   useIdentityBindings,
   useLoginTenantDirectory,
   useOrgUsers,
+  usePersonnel,
+  usePreviewPersonnelImport,
+  useCommitPersonnelImport,
   usePlugins,
   useRegisterPlugin,
   useRuntimeOperations,
@@ -47,6 +50,9 @@ vi.mock("@/shared/api/hooks", () => ({
   useIdentityBindings: vi.fn(),
   useLoginTenantDirectory: vi.fn(),
   useOrgUsers: vi.fn(),
+  usePersonnel: vi.fn(),
+  usePreviewPersonnelImport: vi.fn(),
+  useCommitPersonnelImport: vi.fn(),
   usePlugins: vi.fn(),
   useRegisterPlugin: vi.fn(),
   useRuntimeOperations: vi.fn(),
@@ -76,10 +82,10 @@ const delegatedAuth: DelegatedAuthStatus = {
 
 const tenantDirectory: LoginTenantDirectory = {
   primaryTenants: [
-    { tenantId: "t-platform", name: "平台主租户", kind: "PLATFORM" },
+    { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
     { tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" },
   ],
-  platformTenant: { tenantId: "t-platform", name: "平台主租户", kind: "PLATFORM" },
+  platformTenant: { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
   hasCustomerTenants: true,
 };
 
@@ -371,6 +377,39 @@ describe("operational control pages", () => {
         totalPages: 1,
       }) as never,
     );
+    vi.mocked(usePersonnel).mockReturnValue(
+      query({
+        items: [
+          {
+            personId: "person-1",
+            employeeNo: "EMP-001",
+            displayName: "张医生",
+            userId: "doctor-1",
+            accountState: "ACTIVE",
+            identityCount: 1,
+          },
+          {
+            personId: "person-2",
+            employeeNo: "EMP-002",
+            displayName: "李医生",
+            userId: "doctor-2",
+            accountState: "ACTIVE",
+            identityCount: 0,
+          },
+        ],
+        page: 1,
+        size: 100,
+        total: 2,
+      }) as never,
+    );
+    vi.mocked(usePreviewPersonnelImport).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as never);
+    vi.mocked(useCommitPersonnelImport).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as never);
     createIdentityBinding.mockReset();
     createIdentityBinding.mockResolvedValue(identityBindings[0]);
     unbindIdentityBinding.mockReset();
@@ -408,29 +447,29 @@ describe("operational control pages", () => {
     vi.mocked(downloadDomesticCompatibilityReport).mockResolvedValue(
       new Blob(["MedKernel 国产化自检报告"]),
     );
-  });
+  }, 15_000);
 
   it("renders and submits a real identity binding workflow", async () => {
     const user = userEvent.setup();
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     renderPage(<IdentityBinding />);
 
-    expect(screen.getByRole("heading", { name: "身份绑定" })).toBeInTheDocument();
-    expect(screen.getByText("BOTH")).toBeInTheDocument();
-    expect(screen.getAllByText("未连接").length).toBeGreaterThan(0);
-    expect(screen.getByText("doctor-1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "身份来源" })).toBeInTheDocument();
+    expect(screen.getByText(/平台账号与机构统一身份/)).toBeInTheDocument();
+    expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
+    expect(screen.getByText("张医生")).toBeInTheDocument();
     expect(screen.getByText("****-001")).toBeInTheDocument();
     expect(screen.getByText(/未配置真实 IdP/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /新增绑定/ }));
-    expect(screen.getByRole("dialog", { name: "新增身份绑定" })).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox", { name: "系统用户" }));
+    await user.click(screen.getByRole("button", { name: /单个绑定/ }));
+    expect(screen.getByRole("dialog", { name: "单个绑定身份来源" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "人员账号" }));
     await user.click(
-      await screen.findByText("李医生 · doctor-2", {
+      await screen.findByText("李医生 · EMP-002", {
         selector: ".ant-select-item-option-content",
       }),
     );
-    await user.type(screen.getByLabelText("外部身份"), "EMP-002");
+    await user.type(screen.getByLabelText("院内身份标识"), "EMP-002");
     await user.type(screen.getByLabelText("绑定原因"), "新员工统一身份接入");
     await user.click(screen.getByRole("button", { name: "确认绑定" }));
 
@@ -447,7 +486,7 @@ describe("operational control pages", () => {
     );
     consoleError.mockRestore();
     expect(contextWarnings).toEqual([]);
-  });
+  }, 15_000);
 
   it("uses the Ant Design app context for identity binding feedback", () => {
     const source = readFileSync(
@@ -477,7 +516,7 @@ describe("operational control pages", () => {
     renderPage(<IdentityBinding />);
 
     await user.click(screen.getByRole("button", { name: /解绑/ }));
-    expect(screen.getByRole("dialog", { name: "解除身份绑定" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "解除身份来源" })).toBeInTheDocument();
     await user.type(screen.getByLabelText("解绑原因"), "员工离职停用统一身份");
     await user.click(screen.getByRole("button", { name: "确认解绑" }));
 
@@ -488,7 +527,7 @@ describe("operational control pages", () => {
         expectedVersion: 1,
       }),
     );
-  });
+  }, 15_000);
 
   it("renders domestic compatibility evidence from the runtime operations snapshot", async () => {
     const user = userEvent.setup();

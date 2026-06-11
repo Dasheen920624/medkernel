@@ -79,14 +79,14 @@ const apiMocks = vi.hoisted(() => ({
     username: "admin",
     roles: [
       {
-        code: "hospital-admin",
+        code: "organization-admin",
         displayName: "医院管理员",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
         scopeCode: "HOSP-A",
       },
       {
-        code: "medical-affairs",
+        code: "clinical-governor",
         displayName: "医务处",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
@@ -1462,10 +1462,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.securityData = {
         ...DEFAULT_SECURITY_DATA,
         userId: "u-doctor",
-        username: "doctor",
+        username: "clinical-decision-user",
         roles: [
           {
-            code: "doctor",
+            code: "clinical-decision-user",
             displayName: "临床医生",
             source: "DEFAULT",
             scopeLevel: "DEPARTMENT",

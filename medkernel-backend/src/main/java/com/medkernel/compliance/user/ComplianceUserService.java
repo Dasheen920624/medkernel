@@ -407,9 +407,9 @@ public class ComplianceUserService {
     private int managementLevel(RoleCode role) {
         return switch (role) {
             case SYSTEM_SUPERADMIN -> 4;
-            case PLATFORM_ADMIN -> 3;
-            case GROUP_ADMIN -> 2;
-            case HOSPITAL_ADMIN -> 1;
+            case PLATFORM_GOVERNANCE_ADMIN, PLATFORM_KNOWLEDGE_GOVERNOR -> 3;
+            case ORGANIZATION_ADMIN -> 2;
+            case IDENTITY_ACCESS_ADMIN -> 1;
             default -> 0;
         };
     }
@@ -417,7 +417,7 @@ public class ComplianceUserService {
     private String normalizeScopeLevel(String scopeLevel) {
         String normalized = scopeLevel == null ? "" : scopeLevel.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "TENANT", "GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT", "SPECIALTY" -> normalized;
+            case "TENANT", "REGION", "FACILITY", "CAMPUS", "DEPARTMENT", "WARD", "SPECIALTY" -> normalized;
             default -> throw new ApiException(ErrorCode.BAD_REQUEST, "非法的作用域级别: " + scopeLevel);
         };
     }

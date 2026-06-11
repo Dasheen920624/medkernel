@@ -130,7 +130,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-1",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "identity": {
                         "identitySlug": "chronic-kidney-disease",
@@ -172,7 +172,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-v2",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "source": {
                         "sourceCode": "SRC.CKD.2027",

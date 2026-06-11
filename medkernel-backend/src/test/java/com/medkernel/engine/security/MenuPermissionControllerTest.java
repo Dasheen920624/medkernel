@@ -84,7 +84,7 @@ class MenuPermissionControllerTest {
     @Test
     void tenantOverrideCanGrantSecondLevelMenuToRole() throws Exception {
         var request = Map.of(
-            "roleCode", RoleCode.DOCTOR.code(),
+            "roleCode", RoleCode.CLINICAL_DECISION_USER.code(),
             "menuKey", "admin-audit",
             "effect", PermissionEffect.ALLOW.name());
 
@@ -96,7 +96,7 @@ class MenuPermissionControllerTest {
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roleCode").value(RoleCode.DOCTOR.code()))
+            .andExpect(jsonPath("$.data.roleCode").value(RoleCode.CLINICAL_DECISION_USER.code()))
             .andExpect(jsonPath("$.data.menuKey").value("admin-audit"))
             .andExpect(jsonPath("$.data.permissionCode").value("menu.admin-audit"))
             .andExpect(jsonPath("$.data.effect").value("ALLOW"));
@@ -117,7 +117,7 @@ class MenuPermissionControllerTest {
         assertThat(audit.getValue().before()).isNull();
         assertThat(audit.getValue().after())
             .hasFieldOrPropertyWithValue("tenantId", "t-1")
-            .hasFieldOrPropertyWithValue("roleCode", "doctor")
+            .hasFieldOrPropertyWithValue("roleCode", "clinical-decision-user")
             .hasFieldOrPropertyWithValue("menuKey", "admin-audit")
             .hasFieldOrPropertyWithValue("permissionCode", "menu.admin-audit")
             .hasFieldOrPropertyWithValue("effect", PermissionEffect.ALLOW);

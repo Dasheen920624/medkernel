@@ -284,7 +284,7 @@ class IdentityBindingControllerTest {
             null,
             "t-1",
             userId,
-            RoleCode.DOCTOR.code(),
+            RoleCode.CLINICAL_DECISION_USER.code(),
             "TENANT",
             "t-1",
             "Y",

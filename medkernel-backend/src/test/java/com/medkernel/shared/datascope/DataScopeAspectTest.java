@@ -56,6 +56,23 @@ class DataScopeAspectTest {
     }
 
     @Test
+    void wardLevelRequiresWardRatherThanOnlyDepartment() {
+        WardScopedService target = proxy(new WardScopedService());
+        RequestContext.restore(new RequestContext.Snapshot("trace",
+            new OrgScope("t-1", null, "h-1", null, null, "d-1", null),
+            "u"));
+        assertThatThrownBy(target::run)
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.DATA_SCOPE_DENIED);
+
+        RequestContext.restore(new RequestContext.Snapshot("trace",
+            new OrgScope("t-1", null, "h-1", null, null, "d-1", "w-1", null),
+            "u"));
+        assertThat(target.run()).isEqualTo("ward-ok");
+    }
+
+    @Test
     void methodLevelOverridesClassLevel() {
         // 类标 requireTenant=false，方法标 requireTenant=true → 方法级应生效
         OverrideService target = proxy(new OverrideService());
@@ -82,6 +99,13 @@ class DataScopeAspectTest {
         @DataScope(requireTenant = true, requireAtLeast = OrgLevel.FACILITY)
         public String run() {
             return "hospital-ok";
+        }
+    }
+
+    static class WardScopedService {
+        @DataScope(requireTenant = true, requireAtLeast = OrgLevel.WARD)
+        public String run() {
+            return "ward-ok";
         }
     }
 

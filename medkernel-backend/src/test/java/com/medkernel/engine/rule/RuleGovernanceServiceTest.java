@@ -67,7 +67,7 @@ class RuleGovernanceServiceTest {
                 RuleSignoffDecision.APPROVED,
                 "同行评审通过",
                 "author-1",
-                RoleCode.SPECIALIST,
+                RoleCode.KNOWLEDGE_GOVERNOR,
                 "trace-2"))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("作者不能审核自己的规则")
@@ -129,7 +129,7 @@ class RuleGovernanceServiceTest {
                 RuleSignoffDecision.APPROVED,
                 "重复签署",
                 "signer-1",
-                RoleCode.MEDICAL_AFFAIRS,
+                RoleCode.CLINICAL_GOVERNOR,
                 "trace-5"))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("不能重复会签")
@@ -152,12 +152,12 @@ class RuleGovernanceServiceTest {
             RuleSignoffDecision.APPROVED,
             "医保规则会签通过",
             "insurance-1",
-            RoleCode.INSURANCE_MANAGER,
+            RoleCode.QUALITY_GOVERNOR,
             "trace-insurance");
 
         assertThat(updated.state()).isEqualTo(RuleGovernanceState.COMMITTEE);
         verify(signoffRepository).save(org.mockito.ArgumentMatchers.argThat(signoff ->
-            signoff.signerRole().equals(RoleCode.INSURANCE_MANAGER.code())
+            signoff.signerRole().equals(RoleCode.QUALITY_GOVERNOR.code())
                 && signoff.signerId().equals("insurance-1")
         ));
     }
@@ -175,12 +175,12 @@ class RuleGovernanceServiceTest {
             RuleSignoffDecision.APPROVED,
             "DDI 规则经临床药师复核通过",
             "pharmacist-1",
-            RoleCode.PHARMACIST,
+            RoleCode.MEDICATION_SAFETY_USER,
             "trace-pharmacist");
 
         assertThat(updated.state()).isEqualTo(RuleGovernanceState.COMMITTEE);
         verify(signoffRepository).save(org.mockito.ArgumentMatchers.argThat(signoff ->
-            signoff.signerRole().equals(RoleCode.PHARMACIST.code())
+            signoff.signerRole().equals(RoleCode.MEDICATION_SAFETY_USER.code())
                 && signoff.signerId().equals("pharmacist-1")
         ));
     }
@@ -200,7 +200,7 @@ class RuleGovernanceServiceTest {
                 RuleSignoffDecision.APPROVED,
                 "并发签署",
                 "signer-1",
-                RoleCode.MEDICAL_AFFAIRS,
+                RoleCode.CLINICAL_GOVERNOR,
                 "trace-racing"))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("不能重复会签")
@@ -369,7 +369,7 @@ class RuleGovernanceServiceTest {
             "version-1",
             stage,
             reviewRound,
-            RoleCode.MEDICAL_AFFAIRS.code(),
+            RoleCode.CLINICAL_GOVERNOR.code(),
             signerId,
             RuleSignoffDecision.APPROVED,
             "同意",

@@ -49,7 +49,7 @@ class ClinicalRedlineControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine/safety/redlines")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
@@ -87,7 +87,7 @@ class ClinicalRedlineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.contentStatus").value("CONFIGURED"))
@@ -118,7 +118,7 @@ class ClinicalRedlineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isForbidden());
     }

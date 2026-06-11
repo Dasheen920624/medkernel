@@ -119,6 +119,9 @@ function formatEnvironmentKey(environmentKey: string) {
 }
 
 function formatDataScope(dataScope: SecurityProfile["dataScope"]) {
+  if (dataScope.wardId) {
+    return `病区 ${dataScope.wardId}`;
+  }
   if (dataScope.departmentId) {
     return `科室 ${dataScope.departmentId}`;
   }
@@ -126,7 +129,7 @@ function formatDataScope(dataScope: SecurityProfile["dataScope"]) {
     return `医院 ${dataScope.hospitalId}`;
   }
   if (dataScope.tenantId) {
-    return `租户 ${dataScope.tenantId}`;
+    return `服务空间 ${dataScope.tenantId}`;
   }
   return "当前组织";
 }

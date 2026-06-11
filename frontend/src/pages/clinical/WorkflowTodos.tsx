@@ -41,6 +41,7 @@ import {
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 import styles from "./Clinical.module.css";
 
@@ -247,7 +248,10 @@ export default function WorkflowTodos() {
       dataIndex: "status",
       key: "status",
       render: (value: WorkflowTodoStatus) => (
-        <Badge status={statusBadge[value]} text={statusText[value] ?? value} />
+        <Badge
+          status={statusBadge[value]}
+          text={statusText[value] ?? customerEnumLabel(value)}
+        />
       ),
     },
     {
@@ -387,7 +391,7 @@ export default function WorkflowTodos() {
           showIcon
           className={styles.sectionGap}
           message="协同待办读取失败"
-          description="请检查登录状态、租户上下文或后端工作流接口。"
+          description="请检查登录状态、服务空间或后端工作流接口。"
         />
       )}
 

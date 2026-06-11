@@ -70,7 +70,7 @@ class PermissionDimensionModelTest {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
 
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
             .containsAll(expected)
             .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
@@ -81,7 +81,7 @@ class PermissionDimensionModelTest {
         expected.remove(PermissionCode.ENV_EMERGENCY);
         expected.remove(PermissionCode.PLATFORM_PUBLISH);
 
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .containsAll(expected)
             .contains(PermissionCode.TENANT_OVERRIDE)
             .doesNotContain(PermissionCode.ENV_EMERGENCY, PermissionCode.PLATFORM_PUBLISH);

@@ -89,7 +89,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].capabilityCode").value("knowledge.extract"))
@@ -117,7 +117,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].capabilityCode").value("knowledge.extract"))
@@ -146,7 +146,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
@@ -171,7 +171,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
@@ -194,7 +194,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.taskId").value("task-123456"));
@@ -211,7 +211,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALIDATE_BODY))
@@ -242,7 +242,7 @@ class ModelGatewayControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

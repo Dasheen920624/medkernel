@@ -86,7 +86,26 @@ public record EffectivePermissionProfile(
         String campusId,
         String siteId,
         String departmentId,
+        String wardId,
         String specialtyId
     ) {
+        public DataScopeView(
+                String tenantId,
+                String groupId,
+                String hospitalId,
+                String campusId,
+                String siteId,
+                String departmentId,
+                String specialtyId) {
+            this(
+                tenantId,
+                groupId,
+                hospitalId,
+                campusId,
+                siteId,
+                departmentId,
+                null,
+                specialtyId);
+        }
     }
 }

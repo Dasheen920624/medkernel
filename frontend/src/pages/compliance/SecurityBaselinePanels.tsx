@@ -45,6 +45,7 @@ import {
   type SystemConfigItem,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
@@ -65,7 +66,7 @@ function statusTag(status: string) {
   if (status === "GAP") {
     return <Tag color="error">存在差距</Tag>;
   }
-  return <Tag>{status === "INACTIVE" ? "停用" : status}</Tag>;
+  return <Tag>{status === "INACTIVE" || status === "DISABLED" ? "停用" : customerEnumLabel(status)}</Tag>;
 }
 
 function riskTagColor(risk: string) {
@@ -153,7 +154,11 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
           payload,
         });
       }
-      message.success(scope === "tenant" ? "租户配置已保存并记录审计" : "系统配置已保存并记录审计");
+      message.success(
+        scope === "tenant"
+          ? "服务机构配置已保存并记录审计"
+          : "系统配置已保存并记录审计",
+      );
       setSelected(null);
       form.resetFields();
     } catch (error: unknown) {
@@ -182,20 +187,20 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         type="info"
         showIcon
         message="配置以数据库为唯一运行来源"
-        description="高风险项必须确认影响；审计持久化与国密安全底座保持红线锁定，其余运行能力可按系统默认或租户覆盖灰度。"
+        description="高风险项必须确认影响；审计持久化与国密安全底座保持红线锁定，其余运行能力可按系统默认或服务机构覆盖灰度。"
       />
       <Space wrap>
         <Segmented
           value={scope}
           options={[
             { label: "系统默认", value: "system" },
-            { label: "租户覆盖", value: "tenant" },
+            { label: "服务机构覆盖", value: "tenant" },
           ]}
           onChange={(value) => setScope(value as SystemConfigScope)}
         />
         {scope === "tenant" && (
           <Input
-            aria-label="租户 ID"
+            aria-label="服务空间标识"
             value={tenantId}
             onChange={(event) => setTenantId(event.target.value)}
             placeholder="tenant id"
@@ -245,7 +250,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
             dataIndex: "risk",
             render: (risk, item) => (
               <Space>
-                <Tag color={riskTagColor(risk)}>{risk}</Tag>
+                <Tag color={riskTagColor(risk)}>{riskLabel(risk)}</Tag>
                 {item.protectedConfig && <Tag color="red">受保护</Tag>}
               </Space>
             ),
@@ -272,7 +277,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         ]}
       />
       <Modal
-        title={scope === "tenant" ? "编辑租户配置" : "编辑系统配置"}
+        title={scope === "tenant" ? "编辑服务机构配置" : "编辑系统配置"}
         open={Boolean(selected)}
         okText="保存配置"
         okButtonProps={{ "aria-label": "保存配置" }}
@@ -340,7 +345,19 @@ const scopeLevels: Array<{
     label: "基层服务点",
   },
   { field: "departmentId", orgLevel: "DEPARTMENT", label: "科室" },
+  { field: "wardId", orgLevel: "WARD", label: "病区" },
 ];
+
+const dataPermissionActions = [
+  { value: "READ", label: "读取" },
+  { value: "EXPORT", label: "导出" },
+] as const;
+
+const dataPermissionLevels = [
+  { value: "DEPARTMENT", label: "科室及其限定病区" },
+  { value: "HOSPITAL", label: "当前医院" },
+  { value: "GROUP", label: "当前集团或区域" },
+] as const;
 
 export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
@@ -415,6 +432,7 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
       campusId: policy.campusId ?? undefined,
       siteId: policy.siteId ?? undefined,
       departmentId: policy.departmentId ?? undefined,
+      wardId: policy.wardId ?? undefined,
       specialtyId: policy.specialtyId ?? undefined,
       status: policy.status,
       reason: "",
@@ -470,8 +488,19 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
         scroll={{ x: "max-content" }}
         columns={[
           { title: "资源类型", dataIndex: "resourceType" },
-          { title: "动作", dataIndex: "action", render: (value) => <Tag>{value}</Tag> },
-          { title: "最小范围", dataIndex: "minDataLevel" },
+          {
+            title: "动作",
+            dataIndex: "action",
+            render: (value) => (
+              <Tag>{dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别"}</Tag>
+            ),
+          },
+          {
+            title: "最小范围",
+            dataIndex: "minDataLevel",
+            render: (value) =>
+              dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别",
+          },
           {
             title: "允许字段",
             dataIndex: "allowedColumns",
@@ -512,20 +541,14 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
             <Col span={12}>
               <Form.Item name="action" label="动作" rules={[{ required: true }]}>
                 <Select
-                  options={[
-                    { value: "READ", label: "读取" },
-                    { value: "EXPORT", label: "导出" },
-                  ]}
+                  options={[...dataPermissionActions]}
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="minDataLevel" label="最小数据范围" rules={[{ required: true }]}>
                 <Select
-                  options={["DEPARTMENT", "HOSPITAL", "GROUP"].map((value) => ({
-                    value,
-                    label: value,
-                  }))}
+                  options={[...dataPermissionLevels]}
                 />
               </Form.Item>
             </Col>
@@ -577,7 +600,7 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
             <Select
               options={[
                 { value: "ACTIVE", label: "启用" },
-                { value: "INACTIVE", label: "停用" },
+                { value: "DISABLED", label: "停用" },
               ]}
             />
           </Form.Item>
@@ -865,7 +888,11 @@ export function InteropAssessmentPanel() {
                     pagination={false}
                     size="small"
                     columns={[
-                      { title: "来源", dataIndex: "sourceType" },
+                      {
+                        title: "来源",
+                        dataIndex: "sourceType",
+                        render: customerEnumLabel,
+                      },
                       { title: "证据引用", dataIndex: "evidenceRef" },
                       { title: "摘要", dataIndex: "evidenceSummary" },
                       { title: "指纹", dataIndex: "payloadDigest" },

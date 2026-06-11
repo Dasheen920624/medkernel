@@ -53,6 +53,7 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
@@ -91,7 +92,7 @@ function milestoneStatusText(status?: string) {
     PENDING: "待执行",
     OVERDUE: "已超期",
   };
-  return status ? (text[status] ?? status) : "待执行";
+  return status ? (text[status] ?? "未识别状态") : "待执行";
 }
 
 function clockStatusColor(status?: string) {
@@ -110,7 +111,7 @@ function clockStatusText(status?: string) {
     MISSING_DATA: "缺少数据",
     VARIANCE: "变异暂停",
   };
-  return status ? (text[status] ?? status) : "未记录";
+  return status ? (text[status] ?? "未识别状态") : "未记录";
 }
 
 function clockEscalationText(level?: string) {
@@ -120,7 +121,7 @@ function clockEscalationText(level?: string) {
     REPORT: "上报",
     QUALITY_RECORD: "质控记录",
   };
-  return level ? (text[level] ?? level) : "未升级";
+  return level ? (text[level] ?? "未识别级别") : "未升级";
 }
 
 function outcomeScopeText(scope?: string) {
@@ -537,13 +538,16 @@ export default function PatientPathways() {
       key: "status",
       render: (status: PatientPathwayStatus) => {
         const config: Record<string, { status: PathwayBadgeStatus; text: string }> = {
-          ENTERED: { status: "processing", text: "已入径 (ENTERED)" },
-          NODE_EXECUTING: { status: "processing", text: "节点执行中 (NODE_EXECUTING)" },
-          VARIANCE: { status: "warning", text: "变异处理中 (VARIANCE)" },
-          COMPLETED: { status: "success", text: "已完成 (COMPLETED)" },
-          EXITED: { status: "error", text: "已退出 (EXITED)" },
+          ENTERED: { status: "processing", text: "已进入路径" },
+          NODE_EXECUTING: { status: "processing", text: "节点执行中" },
+          VARIANCE: { status: "warning", text: "变异处理中" },
+          COMPLETED: { status: "success", text: "已完成" },
+          EXITED: { status: "error", text: "已退出路径" },
         };
-        const current = config[status] ?? { status: "default", text: status };
+        const current = config[status] ?? {
+          status: "default",
+          text: customerEnumLabel(status),
+        };
         return <Badge status={current.status} text={current.text} />;
       },
     },
@@ -741,7 +745,7 @@ export default function PatientPathways() {
                   status={
                     isPathwayMutable(detailData.patientPathway.status) ? "processing" : "default"
                   }
-                  text={detailData.patientPathway.status}
+                  text={customerEnumLabel(detailData.patientPathway.status)}
                 />
               </Descriptions.Item>
               <Descriptions.Item label="准入时间" span={3}>
@@ -1003,10 +1007,10 @@ export default function PatientPathways() {
                                   rules={[{ required: true }]}
                                 >
                                   <Select placeholder="选择分类" aria-label="变异分类">
-                                    <Option value="CLINICAL">CLINICAL (临床原因)</Option>
-                                    <Option value="SYSTEM">SYSTEM (系统原因)</Option>
-                                    <Option value="PATIENT">PATIENT (患者原因)</Option>
-                                    <Option value="FAMILY">FAMILY (家属原因)</Option>
+                                    <Option value="CLINICAL">临床原因</Option>
+                                    <Option value="SYSTEM">系统原因</Option>
+                                    <Option value="PATIENT">患者原因</Option>
+                                    <Option value="FAMILY">家属原因</Option>
                                   </Select>
                                 </Form.Item>
                               </Col>
@@ -1017,9 +1021,9 @@ export default function PatientPathways() {
                                   rules={[{ required: true }]}
                                 >
                                   <Select placeholder="选择处置决策" aria-label="处置决策">
-                                    <Option value="HOLD">HOLD (暂停观察)</Option>
-                                    <Option value="REENTER">REENTER (再入径)</Option>
-                                    <Option value="TERMINATE">TERMINATE (终止路径)</Option>
+                                    <Option value="HOLD">暂停观察</Option>
+                                    <Option value="REENTER">再次进入路径</Option>
+                                    <Option value="TERMINATE">终止路径</Option>
                                   </Select>
                                 </Form.Item>
                               </Col>
@@ -1198,7 +1202,7 @@ export default function PatientPathways() {
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
-                          {variance.nodeCode} · {variance.varianceType}
+                          {variance.nodeCode} · {customerEnumLabel(variance.varianceType)}
                         </div>
                         <div className={styles.timelineMeta}>
                           <span>变异 ID：</span>
@@ -1216,7 +1220,7 @@ export default function PatientPathways() {
                         <div className={styles.timelineMeta}>
                           <span>处置决策：</span>
                           <Tag color={variance.resolutionDecision === "TERMINATE" ? "red" : "blue"}>
-                            {variance.resolutionDecision}
+                            {customerEnumLabel(variance.resolutionDecision)}
                           </Tag>
                         </div>
                         <div className={styles.timelineMeta}>

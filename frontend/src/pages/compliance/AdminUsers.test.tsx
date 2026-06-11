@@ -1,33 +1,32 @@
 import { App as AntdApp } from "antd";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createUserMock = vi.fn();
-const assignRoleMock = vi.fn();
-const resetPasswordMock = vi.fn();
-const setStatusMock = vi.fn();
-const refetchUsersMock = vi.fn();
-const refetchDetailMock = vi.fn();
+const previewImport = vi.fn();
+const commitImport = vi.fn();
+const refetchPersonnel = vi.fn();
 
-let usersQuery = {
+let personnelQuery = {
   data: {
     items: [
       {
-        userId: "doctor-1",
+        personId: "person-1",
+        employeeNo: "EMP-001",
         displayName: "王医生",
-        username: "dr.wang",
-        credentialManaged: true,
         status: "ACTIVE",
-        mustChangePwd: false,
-        roles: [
-          {
-            code: "doctor",
-            displayName: "临床医生",
-            scopeLevel: "TENANT",
-            scopeCode: "tenant-test",
-          },
-        ],
-        createdAt: "2026-06-06T00:00:00Z",
+        appointmentType: "INTERNAL",
+        organizationId: "hospital-a",
+        organizationName: "示范医院",
+        departmentId: "dept-cardio",
+        departmentName: "心内科",
+        wardId: "ward-cardio-1",
+        wardName: "心内一病区",
+        positionTitle: "主治医师",
+        userId: "doctor-1",
+        username: "dr.wang",
+        accountState: "RESET_REQUIRED",
+        identityCount: 1,
       },
     ],
     page: 1,
@@ -39,65 +38,136 @@ let usersQuery = {
   isLoading: false,
   isError: false,
   error: null as Error | null,
-  refetch: refetchUsersMock,
+  refetch: refetchPersonnel,
 };
 
-const detailQuery = {
-  data: {
-    userId: "doctor-1",
+const detail = {
+  person: {
+    personId: "person-1",
+    employeeNo: "EMP-001",
     displayName: "王医生",
-    username: "dr.wang",
-    credentialManaged: true,
     status: "ACTIVE",
-    mustChangePwd: false,
-    roles: [
-      {
-        code: "doctor",
-        displayName: "临床医生",
-        scopeLevel: "TENANT",
-        scopeCode: "tenant-test",
-      },
-    ],
-    effectivePermissions: [
-      {
-        code: "context.read",
-        dimension: "ACTION",
-        target: "context",
-        displayName: "查看标准上下文",
-        risk: "LOW",
-      },
-    ],
-    createdAt: "2026-06-06T00:00:00Z",
-    updatedAt: "2026-06-06T00:00:00Z",
+    createdAt: "2026-06-11T00:00:00Z",
+    updatedAt: "2026-06-11T00:00:00Z",
   },
-  isLoading: false,
-  isError: false,
-  refetch: refetchDetailMock,
+  primaryAppointment: {
+    appointmentId: "appt-1",
+    organizationId: "hospital-a",
+    organizationName: "示范医院",
+    departmentId: "dept-cardio",
+    departmentName: "心内科",
+    wardId: "ward-cardio-1",
+    wardName: "心内一病区",
+    appointmentType: "INTERNAL",
+    positionTitle: "主治医师",
+    primary: true,
+    status: "ACTIVE",
+  },
+  appointments: [],
+  account: { userId: "doctor-1", username: "dr.wang", state: "RESET_REQUIRED" },
+  identities: [
+    {
+      bindingId: "idb-1",
+      userId: "doctor-1",
+      providerType: "EMPLOYEE_NO",
+      subjectHint: "****-001",
+      status: "ACTIVE",
+      version: 1,
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:00:00Z",
+    },
+  ],
+  oneTimeActivation: null,
 };
 
 vi.mock("@/shared/api/hooks", () => ({
+  downloadPersonnelImportTemplate: vi.fn(),
   useSecurityProfile: () => ({
     data: {
       permissions: [{ code: "org.read" }, { code: "org.write" }],
-      roles: [{ code: "hospital-admin" }],
+      roles: [{ code: "organization-admin" }],
     },
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
   }),
-  useComplianceUsers: () => usersQuery,
+  usePersonnel: () => personnelQuery,
+  usePersonnelDetail: (personId: string | null) => ({
+    data: personId ? detail : undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useComplianceUserDetail: (userId: string | null) => ({
-    ...detailQuery,
-    data: userId ? detailQuery.data : undefined,
+    data: userId
+      ? {
+          userId,
+          displayName: "王医生",
+          username: "dr.wang",
+          credentialManaged: true,
+          status: "ACTIVE",
+          mustChangePwd: true,
+          roles: [
+            {
+              code: "clinical-decision-user",
+              displayName: "临床医生",
+              scopeLevel: "DEPARTMENT",
+              scopeCode: "dept-cardio",
+            },
+          ],
+          effectivePermissions: [
+            {
+              code: "context.read",
+              dimension: "ACTION",
+              target: "context",
+              displayName: "查看临床上下文",
+              risk: "LOW",
+            },
+          ],
+        }
+      : undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
   }),
-  useCreateComplianceUser: () => ({ mutateAsync: createUserMock, isPending: false }),
-  useAssignComplianceUserRole: () => ({ mutateAsync: assignRoleMock, isPending: false }),
+  useOrgUnits: () => ({
+    data: {
+      items: [
+        {
+          id: "hospital-a",
+          orgPath: "/tenant-a/hospital-a",
+          level: "FACILITY",
+          code: "HOSP-A",
+          name: "示范医院",
+          status: "ACTIVE",
+        },
+        {
+          id: "dept-cardio",
+          orgPath: "/tenant-a/hospital-a/dept-cardio",
+          level: "DEPARTMENT",
+          code: "CARDIO",
+          name: "心内科",
+          status: "ACTIVE",
+        },
+        {
+          id: "ward-cardio-1",
+          orgPath: "/tenant-a/hospital-a/dept-cardio/ward-cardio-1",
+          level: "WARD",
+          code: "CARDIO-W1",
+          name: "心内一病区",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    refetch: vi.fn(),
+  }),
+  useCreatePersonnel: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  usePreviewPersonnelImport: () => ({ mutateAsync: previewImport, isPending: false }),
+  useCommitPersonnelImport: () => ({ mutateAsync: commitImport, isPending: false }),
+  useAssignComplianceUserRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRemoveComplianceUserRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useResetComplianceUserPassword: () => ({
-    mutateAsync: resetPasswordMock,
-    isPending: false,
-  }),
-  useSetComplianceUserStatus: () => ({ mutateAsync: setStatusMock, isPending: false }),
+  useResetComplianceUserPassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetComplianceUserStatus: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import AdminUsers from "./AdminUsers";
@@ -110,154 +180,112 @@ function renderPage() {
   );
 }
 
-describe("AdminUsers · 统一用户管理", () => {
+describe("人员与账号", () => {
   beforeEach(() => {
-    createUserMock.mockReset();
-    assignRoleMock.mockReset();
-    resetPasswordMock.mockReset();
-    setStatusMock.mockReset();
-    refetchUsersMock.mockReset();
-    refetchDetailMock.mockReset();
-    usersQuery = {
-      ...usersQuery,
-      data: {
-        ...usersQuery.data,
-        items: [
-          {
-            userId: "doctor-1",
-            displayName: "王医生",
-            username: "dr.wang",
-            credentialManaged: true,
-            status: "ACTIVE",
-            mustChangePwd: false,
-            roles: [
-              {
-                code: "doctor",
-                displayName: "临床医生",
-                scopeLevel: "TENANT",
-                scopeCode: "tenant-test",
-              },
-            ],
-            createdAt: "2026-06-06T00:00:00Z",
-          },
-        ],
-        total: 1,
-      },
+    previewImport.mockReset();
+    commitImport.mockReset();
+    refetchPersonnel.mockReset();
+    personnelQuery = {
+      ...personnelQuery,
       isLoading: false,
       isError: false,
       error: null,
+      data: { ...personnelQuery.data, total: 1 },
     };
   });
 
-  it("用一个服务端分页主表呈现账号、状态和真实角色", () => {
+  it("以人员、任职、账号和身份来源呈现机构主数据", () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "用户管理" })).toBeInTheDocument();
-    expect(screen.getByText("dr.wang")).toBeInTheDocument();
-    expect(screen.getByText("临床医生")).toBeInTheDocument();
-    expect(screen.getByText("正常")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新建用户" })).toBeInTheDocument();
-    expect(screen.queryByText(/物理入库|角色分配台账|GA-SVC/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "人员与账号" })).toBeInTheDocument();
+    expect(screen.getByText("王医生")).toBeInTheDocument();
+    expect(screen.getByText("示范医院")).toBeInTheDocument();
+    expect(screen.getByText("本机构员工")).toBeInTheDocument();
+    expect(screen.getByText("待首次设置密码")).toBeInTheDocument();
+    expect(screen.getByText("已绑定 1 个")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /批量导入人员/ })).toBeInTheDocument();
   });
 
-  it("创建用户后一次性展示临时密码并刷新主表", async () => {
-    createUserMock.mockResolvedValue({
-      user: {
-        ...detailQuery.data,
-        userId: "nurse-1",
-        displayName: "护士一",
-        username: "nurse.one",
-        credentialManaged: true,
-      },
-      tempPassword: "TmpPwd@2026!",
+  it("新增人员时组织范围来自组织树，不要求手填范围编码", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: /新增人员/ }));
+
+    expect(screen.getByRole("dialog", { name: "新增人员" })).toBeInTheDocument();
+    expect(screen.getByLabelText("所属机构")).toBeInTheDocument();
+    expect(screen.getByLabelText("所属病区")).toBeInTheDocument();
+    expect(screen.queryByLabelText("范围编码")).not.toBeInTheDocument();
+    expect(screen.getByText("同时开通登录账号")).toBeInTheDocument();
+    expect(screen.getByText("同时绑定院内身份来源")).toBeInTheDocument();
+  });
+
+  it("批量导入先预检并展示冲突，不直接写入", async () => {
+    previewImport.mockResolvedValue({
+      jobId: "job-1",
+      fileName: "people.csv",
+      status: "HAS_ISSUES",
+      totalRows: 2,
+      validRows: 1,
+      conflictRows: 1,
+      successRows: 0,
+      failureRows: 0,
+      rows: [
+        {
+          rowNo: 1,
+          employeeNo: "EMP-001",
+          displayName: "王医生",
+          action: "UPDATE",
+          status: "VALID",
+          message: null,
+          resultPersonId: null,
+        },
+        {
+          rowNo: 2,
+          employeeNo: "EMP-002",
+          displayName: "李医生",
+          action: "CONFLICT",
+          status: "INVALID",
+          message: "登录名已被其他账号使用",
+          resultPersonId: null,
+        },
+      ],
+      oneTimeActivations: [],
     });
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "新建用户" }));
-    fireEvent.change(screen.getByLabelText("登录名"), { target: { value: "nurse.one" } });
-    fireEvent.change(screen.getByLabelText("用户标识"), { target: { value: "nurse-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "创建" }));
+    fireEvent.click(screen.getByRole("button", { name: /批量导入人员/ }));
+    const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+    const file = new File(["employeeNo,displayName"], "people.csv", { type: "text/csv" });
+    fireEvent.change(fileInput!, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "开始预检" }));
 
-    await waitFor(() =>
-      expect(createUserMock).toHaveBeenCalledWith({
-        credentialManaged: true,
-        username: "nurse.one",
-        userId: "nurse-1",
-        displayName: undefined,
-        roleCode: "doctor",
-        initialPassword: undefined,
-      }),
-    );
-    expect(await screen.findByText("TmpPwd@2026!")).toBeInTheDocument();
-    expect(refetchUsersMock).toHaveBeenCalled();
+    await waitFor(() => expect(previewImport).toHaveBeenCalledWith(file));
+    expect(await screen.findByText("登录名已被其他账号使用")).toBeInTheDocument();
+    expect(screen.getByText("请先修正冲突行再重新上传")).toBeInTheDocument();
+    expect(commitImport).not.toHaveBeenCalled();
   });
 
-  it("创建外部身份用户时不要求登录名且不展示密码操作", async () => {
-    createUserMock.mockResolvedValue({
-      user: {
-        ...detailQuery.data,
-        userId: "external-1",
-        displayName: "外部医生",
-        username: null,
-        credentialManaged: false,
-      },
-      tempPassword: null,
-    });
+  it("详情使用中文层级和权限维度，不暴露英文枚举", async () => {
+    const user = userEvent.setup();
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "新建用户" }));
-    fireEvent.click(screen.getByText("外部身份"));
-    fireEvent.change(screen.getByLabelText("显示名称"), { target: { value: "外部医生" } });
-    fireEvent.change(screen.getByLabelText("用户标识"), { target: { value: "external-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "创建" }));
+    await user.click(screen.getByRole("button", { name: "查看" }));
 
-    await waitFor(() =>
-      expect(createUserMock).toHaveBeenCalledWith({
-        credentialManaged: false,
-        username: undefined,
-        userId: "external-1",
-        displayName: "外部医生",
-        roleCode: "doctor",
-        initialPassword: undefined,
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "新建用户" })).not.toBeInTheDocument(),
-    );
-    expect(screen.queryByText("临时密码仅显示一次")).not.toBeInTheDocument();
+    expect(await screen.findByText("角色与组织范围")).toBeInTheDocument();
+    expect(screen.getByText("科室")).toBeInTheDocument();
+    expect(screen.getAllByText("操作").length).toBeGreaterThan(0);
+    expect(screen.queryByText("DEPARTMENT")).not.toBeInTheDocument();
+    expect(screen.queryByText("ACTION")).not.toBeInTheDocument();
   });
 
-  it("在详情抽屉查看角色范围和后端计算的有效权限", async () => {
+  it("读取失败时提供真实重试入口", () => {
+    personnelQuery = { ...personnelQuery, isError: true, error: new Error("unavailable") };
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "查看 doctor-1" }));
-
-    expect(await screen.findByText("查看标准上下文")).toBeInTheDocument();
-    expect(screen.getByText("tenant-test")).toBeInTheDocument();
-    expect(screen.getByText("context.read")).toBeInTheDocument();
-  });
-
-  it("无用户时展示可操作的真实空状态", () => {
-    usersQuery = {
-      ...usersQuery,
-      data: { ...usersQuery.data, items: [], total: 0 },
-    };
-    renderPage();
-
-    expect(screen.getByText("暂无用户")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新建用户" })).toBeInTheDocument();
-  });
-
-  it("读取失败时展示错误状态与重试动作", () => {
-    usersQuery = {
-      ...usersQuery,
-      isError: true,
-      error: new Error("service unavailable"),
-    };
-    renderPage();
-
-    expect(screen.getByText("用户列表读取失败")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
-    expect(refetchUsersMock).toHaveBeenCalled();
+    expect(screen.getByText("人员与账号读取失败")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /重\s*试/ }));
+    expect(refetchPersonnel).toHaveBeenCalled();
   });
 });

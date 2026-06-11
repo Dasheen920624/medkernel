@@ -1734,11 +1734,14 @@ public class PathwayEngineService {
     }
 
     private void requireReleaseCoordinator(PathwayTemplate template) {
-        RoleCode requiredRole = PlatformTenant.isPlatformTenant(template.tenantId())
-            ? RoleCode.PLATFORM_ADMIN
-            : RoleCode.HOSPITAL_ADMIN;
-        if (!AuthenticatedRoleGuard.has(requiredRole)) {
-            String roleName = requiredRole == RoleCode.PLATFORM_ADMIN ? "平台管理员" : "医院管理员";
+        boolean platformTemplate = PlatformTenant.isPlatformTenant(template.tenantId());
+        boolean allowed = platformTemplate
+            ? AuthenticatedRoleGuard.has(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR)
+                || AuthenticatedRoleGuard.has(RoleCode.PLATFORM_GOVERNANCE_ADMIN)
+            : AuthenticatedRoleGuard.has(RoleCode.CLINICAL_GOVERNOR)
+                || AuthenticatedRoleGuard.has(RoleCode.ORGANIZATION_ADMIN);
+        if (!allowed) {
+            String roleName = platformTemplate ? "平台知识治理员" : "临床治理负责人或机构管理员";
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_004,
                 "路径全量或回滚必须由" + roleName + "确认"

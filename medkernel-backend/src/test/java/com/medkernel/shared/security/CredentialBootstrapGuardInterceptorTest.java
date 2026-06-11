@@ -63,7 +63,7 @@ class CredentialBootstrapGuardInterceptorTest {
             .header("alg", "HS256")
             .subject("doctor-1")
             .claim("tenant_id", "t-1")
-            .claim("roles", List.of("doctor"))
+            .claim("roles", List.of("clinical-decision-user"))
             .issuedAt(Instant.now())
             .expiresAt(Instant.now().plusSeconds(600))
             .claims(claims -> claims.putAll(Map.of("user_id", "doctor-1")))

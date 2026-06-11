@@ -103,6 +103,10 @@ import type {
   SpecialtyMetricBinding,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+} from "@/shared/config/customerLabels";
 import PathwayGraphEditor from "./PathwayGraphEditor";
 import {
   createConnectedEdge,
@@ -139,7 +143,7 @@ const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; te
 function pathwayContentStatus(status: PathwayTemplateStatus) {
   const config = PATHWAY_CONTENT_STATUS[status] ?? {
     status: "default" as PathwayBadgeStatus,
-    text: status,
+    text: customerEnumLabel(status),
   };
   return <Badge status={config.status} text={config.text} />;
 }
@@ -147,7 +151,7 @@ function pathwayContentStatus(status: PathwayTemplateStatus) {
 function pathwayDeploymentStatus(status: string) {
   const config = PATHWAY_DEPLOYMENT_STATUS[status] ?? {
     status: "default" as PathwayBadgeStatus,
-    text: status,
+    text: customerEnumLabel(status),
   };
   return <Badge status={config.status} text={config.text} />;
 }
@@ -161,7 +165,7 @@ function inheritanceChangeText(type: PathwayInheritanceChangeType | string | und
   if (type === "OVERRIDDEN") return "覆盖";
   if (type === "ADDED") return "新增";
   if (type === "DISABLED") return "禁用";
-  return type ?? "-";
+  return type ? customerEnumLabel(type) : "-";
 }
 
 function inheritanceChangeColor(type: PathwayInheritanceChangeType | string | undefined) {
@@ -328,10 +332,10 @@ type SnapshotQuery = {
 type PathwayPrototypeKey = "blank" | "ed_disposition";
 
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
-  { value: "STANDARD", label: "STANDARD 标准模板" },
-  { value: "HOSPITAL", label: "HOSPITAL 医院模板" },
-  { value: "DEPARTMENT", label: "DEPARTMENT 科室模板" },
-  { value: "SPECIALTY", label: "SPECIALTY 专科模板" },
+  { value: "STANDARD", label: "平台标准模板" },
+  { value: "HOSPITAL", label: "医院模板" },
+  { value: "DEPARTMENT", label: "科室模板" },
+  { value: "SPECIALTY", label: "专科模板" },
 ];
 
 const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }> = [
@@ -340,23 +344,23 @@ const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }>
 ];
 
 const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
-  { value: "SCREENING", label: "SCREENING 筛查" },
-  { value: "ASSESSMENT", label: "ASSESSMENT 评估" },
-  { value: "EXAM", label: "EXAM 检查" },
-  { value: "LAB", label: "LAB 检验" },
-  { value: "MEDICATION", label: "MEDICATION 用药" },
-  { value: "SURGERY", label: "SURGERY 手术" },
-  { value: "NURSING", label: "NURSING 护理" },
-  { value: "REHAB", label: "REHAB 康复" },
-  { value: "DISCHARGE", label: "DISCHARGE 出院" },
-  { value: "FOLLOWUP", label: "FOLLOWUP 随访" },
-  { value: "QUALITY", label: "QUALITY 质控" },
-  { value: "DECISION", label: "DECISION 决策分支" },
-  { value: "PARALLEL", label: "PARALLEL 并行/汇合" },
-  { value: "WAIT_TIMER", label: "WAIT_TIMER 等待计时" },
-  { value: "SUBPATHWAY", label: "SUBPATHWAY 子路径" },
-  { value: "MANUAL_GATE", label: "MANUAL_GATE 人工闸门" },
-  { value: "ORDER_SET", label: "ORDER_SET 医嘱集" },
+  { value: "SCREENING", label: "筛查" },
+  { value: "ASSESSMENT", label: "评估" },
+  { value: "EXAM", label: "检查" },
+  { value: "LAB", label: "检验" },
+  { value: "MEDICATION", label: "用药" },
+  { value: "SURGERY", label: "手术" },
+  { value: "NURSING", label: "护理" },
+  { value: "REHAB", label: "康复" },
+  { value: "DISCHARGE", label: "出院" },
+  { value: "FOLLOWUP", label: "随访" },
+  { value: "QUALITY", label: "质控" },
+  { value: "DECISION", label: "决策分支" },
+  { value: "PARALLEL", label: "并行或汇合" },
+  { value: "WAIT_TIMER", label: "等待计时" },
+  { value: "SUBPATHWAY", label: "子路径" },
+  { value: "MANUAL_GATE", label: "人工确认节点" },
+  { value: "ORDER_SET", label: "医嘱集" },
 ];
 
 const clockBaselineEventOptions = [
@@ -366,14 +370,14 @@ const clockBaselineEventOptions = [
 ];
 
 const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
-  { value: "DEFAULT", label: "DEFAULT 默认流转" },
-  { value: "CONDITION", label: "CONDITION 条件流转" },
-  { value: "RISK_STRATIFICATION", label: "RISK_STRATIFICATION 风险分层" },
-  { value: "PATIENT_CHOICE", label: "PATIENT_CHOICE 患者选择" },
-  { value: "RESOURCE_UNAVAILABLE", label: "RESOURCE_UNAVAILABLE 资源不可用" },
-  { value: "PHYSICIAN_DECISION", label: "PHYSICIAN_DECISION 医师决策" },
-  { value: "ROLLBACK", label: "ROLLBACK 回退" },
-  { value: "JOIN", label: "JOIN 并行汇合" },
+  { value: "DEFAULT", label: "默认流转" },
+  { value: "CONDITION", label: "条件流转" },
+  { value: "RISK_STRATIFICATION", label: "风险分层" },
+  { value: "PATIENT_CHOICE", label: "患者选择" },
+  { value: "RESOURCE_UNAVAILABLE", label: "资源不可用" },
+  { value: "PHYSICIAN_DECISION", label: "医师决策" },
+  { value: "ROLLBACK", label: "回退" },
+  { value: "JOIN", label: "并行汇合" },
 ];
 
 const outcomeScopeOptions: Array<{ value: PathwayOutcomeScope; label: string }> = [
@@ -2336,8 +2340,12 @@ export default function PathwayTemplates() {
           <Descriptions.Item label="已选快照">
             {selectedSnapshotDetail.snapshotId}
           </Descriptions.Item>
-          <Descriptions.Item label="状态">{selectedSnapshotDetail.status}</Descriptions.Item>
-          <Descriptions.Item label="质量">{selectedSnapshotDetail.qualityStatus}</Descriptions.Item>
+          <Descriptions.Item label="状态">
+            {customerEnumLabel(selectedSnapshotDetail.status)}
+          </Descriptions.Item>
+          <Descriptions.Item label="质量">
+            {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
+          </Descriptions.Item>
           <Descriptions.Item label="路径包版本">
             {selectedSnapshotDetail.packageVersion || createTemplatePackageVersion || "-"}
           </Descriptions.Item>
@@ -2368,10 +2376,12 @@ export default function PathwayTemplates() {
           </Tag>
           {result.contextQualityStatus && (
             <Tag color={result.contextQualityStatus === "COMPLETE" ? "green" : "orange"}>
-              快照质量：{result.contextQualityStatus}
+              快照质量：{customerDisplayText(result.contextQualityStatus)}
             </Tag>
           )}
-          {result.finalStatus && <Tag color="purple">最终状态：{result.finalStatus}</Tag>}
+          {result.finalStatus && (
+            <Tag color="purple">最终状态：{customerEnumLabel(result.finalStatus)}</Tag>
+          )}
         </Space>
         <Descriptions bordered size="small" column={1}>
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
@@ -2389,7 +2399,7 @@ export default function PathwayTemplates() {
   const createLayerItems: TabsProps["items"] = [
     {
       key: "l1",
-      label: "L1 模板",
+      label: "基础模板",
       children: (
         <div className={styles.editorSection}>
           <Form.Item label="路径原型">
@@ -2520,7 +2530,7 @@ export default function PathwayTemplates() {
     },
     {
       key: "l2",
-      label: "L2 节点画布",
+      label: "节点画布",
       children: (
         <div className={styles.editorSection}>
           <Space
@@ -3469,7 +3479,9 @@ export default function PathwayTemplates() {
                         className={styles.snapshotButton}
                       >
                         <span>{snapshot.snapshotId}</span>
-                        <Tag className={styles.tagGap}>{snapshot.qualityStatus}</Tag>
+                        <Tag className={styles.tagGap}>
+                          {customerDisplayText(snapshot.qualityStatus)}
+                        </Tag>
                       </Button>
                     ))}
                   </Space>
@@ -3786,7 +3798,7 @@ export default function PathwayTemplates() {
     ? [
         {
           key: "l1",
-          label: "L1 模板",
+          label: "基础模板",
           children: (
             <Descriptions bordered column={2} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
@@ -3800,7 +3812,7 @@ export default function PathwayTemplates() {
                 v{detailData.template.templateVersion}.0
               </Descriptions.Item>
               <Descriptions.Item label="层级">
-                {detailData.template.templateLevel}
+                {customerEnumLabel(detailData.template.templateLevel)}
               </Descriptions.Item>
               <Descriptions.Item label="父级模板">
                 {detailData.template.parentTemplateId ?? "无"}
@@ -3843,7 +3855,7 @@ export default function PathwayTemplates() {
         },
         {
           key: "l2",
-          label: "L2 节点画布",
+          label: "节点画布",
           children: (
             <Space
               direction="vertical"
@@ -4032,7 +4044,9 @@ export default function PathwayTemplates() {
                             className={styles.snapshotButton}
                           >
                             <span>{snapshot.snapshotId}</span>
-                            <Tag className={styles.tagGap}>{snapshot.qualityStatus}</Tag>
+                            <Tag className={styles.tagGap}>
+                              {customerDisplayText(snapshot.qualityStatus)}
+                            </Tag>
                           </Button>
                         ))}
                       </Space>
@@ -4088,7 +4102,9 @@ export default function PathwayTemplates() {
                                 placeholder="按顺序选择快照"
                                 options={snapshotList.map((snapshot) => ({
                                   value: snapshot.snapshotId,
-                                  label: `${snapshot.snapshotId} / ${snapshot.qualityStatus}`,
+                                  label: `${snapshot.snapshotId} / ${customerDisplayText(
+                                    snapshot.qualityStatus,
+                                  )}`,
                                 }))}
                               />
                             </Form.Item>
@@ -4118,10 +4134,10 @@ export default function PathwayTemplates() {
                           {selectedSnapshotDetail.snapshotId}
                         </Descriptions.Item>
                         <Descriptions.Item label="状态">
-                          {selectedSnapshotDetail.status}
+                          {customerEnumLabel(selectedSnapshotDetail.status)}
                         </Descriptions.Item>
                         <Descriptions.Item label="质量">
-                          {selectedSnapshotDetail.qualityStatus}
+                          {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
                         </Descriptions.Item>
                         <Descriptions.Item label="路径包版本">
                           {selectedSnapshotDetail.packageVersion ?? "未返回"}
@@ -4135,18 +4151,23 @@ export default function PathwayTemplates() {
                       <Space direction="vertical" size="middle" className="mk-full-width">
                         <Space wrap>
                           <Tag color="blue">
-                            模式：{simulationResponse.simulationMode ?? "SINGLE_SNAPSHOT"}
+                            模式：
+                            {customerEnumLabel(
+                              simulationResponse.simulationMode ?? "SINGLE_SNAPSHOT",
+                            )}
                           </Tag>
                           <Tag color={simulationQuality === "COMPLETE" ? "green" : "orange"}>
-                            快照质量：{simulationQuality}
+                            快照质量：{customerDisplayText(simulationQuality)}
                           </Tag>
-                          <Tag color="purple">最终状态：{simulationResponse.finalStatus}</Tag>
+                          <Tag color="purple">
+                            最终状态：{customerEnumLabel(simulationResponse.finalStatus)}
+                          </Tag>
                         </Space>
                         {simulationMapping.length > 0 && (
                           <Descriptions bordered size="small" column={1}>
                             {simulationMapping.map(([key, status]) => (
                               <Descriptions.Item key={key} label={key}>
-                                {status}
+                                {customerDisplayText(status)}
                               </Descriptions.Item>
                             ))}
                           </Descriptions>
@@ -4164,7 +4185,11 @@ export default function PathwayTemplates() {
                                 dataIndex: "nodeTrajectory",
                                 render: (trajectory: string[]) => trajectory.join(" → "),
                               },
-                              { title: "最终状态", dataIndex: "finalStatus" },
+                              {
+                                title: "最终状态",
+                                dataIndex: "finalStatus",
+                                render: customerEnumLabel,
+                              },
                             ]}
                             className="medkernel-table"
                           />

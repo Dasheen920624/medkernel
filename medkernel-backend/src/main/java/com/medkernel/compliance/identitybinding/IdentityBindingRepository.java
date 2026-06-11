@@ -21,4 +21,9 @@ public interface IdentityBindingRepository extends ListCrudRepository<IdentityBi
         String tenantId, String userId, String providerType, String status);
 
     Optional<IdentityBinding> findByTenantIdAndBindingId(String tenantId, String bindingId);
+
+    List<IdentityBinding> findByTenantIdAndUserIdOrderByUpdatedAtDesc(
+        String tenantId,
+        String userId
+    );
 }

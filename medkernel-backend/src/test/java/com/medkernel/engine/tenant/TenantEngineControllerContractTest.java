@@ -121,7 +121,7 @@ class TenantEngineControllerContractTest {
         return jwt().jwt(token -> token
                 .subject("implementer")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("hospital-admin")))
+                .claim("roles", List.of("organization-admin")))
             .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
     }
 

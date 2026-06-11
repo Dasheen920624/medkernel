@@ -28,6 +28,10 @@ import {
   type SecurityProfile,
 } from "@/shared/api/hooks";
 import { parseApiError } from "@/shared/api/errors";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+} from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -43,8 +47,9 @@ type SourceQuery<T> = {
 type RoleView = {
   title: string;
   description: string;
-  kind: "operations" | "clinical" | "governance" | "tenant" | "audit";
+  kind: "operations" | "knowledge" | "access" | "clinical" | "governance" | "tenant" | "audit";
   showLifecycle: boolean;
+  primaryAction: DomainEntryAction;
 };
 
 type SourceAccess = {
@@ -152,7 +157,7 @@ export function WorkbenchPanel() {
   const sourceQueries: Array<readonly [string, SourceQuery<unknown>]> = [];
   if (sourceAccess.runtime) sourceQueries.push(["运行状态", runtime]);
   if (sourceAccess.audit) sourceQueries.push(["最近变化", audit]);
-  if (canQuerySuccessPlan) sourceQueries.push(["租户生命周期", successPlan]);
+  if (canQuerySuccessPlan) sourceQueries.push(["服务机构生命周期", successPlan]);
   const sourceFailures = collectFailures(sourceQueries);
   const allSourcesFailed =
     sourceFailures.length > 0 &&
@@ -181,9 +186,9 @@ export function WorkbenchPanel() {
         <Button
           type="primary"
           icon={<ArrowRightOutlined />}
-          onClick={() => navigate("/workflow/todos")}
+          onClick={() => navigate(view.primaryAction.path)}
         >
-          继续处理待办
+          {view.primaryAction.label}
         </Button>
       }
     >
@@ -240,7 +245,7 @@ function WorkbenchCards({
           <SystemHealthCard runtime={runtime} onNavigate={onNavigate} />
         </Col>
         <Col xs={24} lg={12}>
-          <ProviderCard runtime={runtime} onNavigate={onNavigate} />
+          <DependencyConnectionCard runtime={runtime} onNavigate={onNavigate} />
         </Col>
         <Col xs={24} lg={12}>
           <KnowledgeSyncCard runtime={runtime} onNavigate={onNavigate} />
@@ -271,6 +276,74 @@ function WorkbenchCards({
             onNavigate={onNavigate}
           />
         </Col>
+      </Row>
+    );
+  }
+
+  if (view.kind === "knowledge") {
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="knowledge-governance"
+            title="知识治理"
+            marker="平台主源与机构派生"
+            description="治理平台主源、机构派生、版本差异、审核发布和恢复平台标准，全程保留不可变血缘。"
+            actions={[
+              { label: "知识资产治理", path: "/knowledge/governance" },
+              { label: "配置包中心", path: "/config/packages" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="knowledge-lineage"
+            title="来源、差异与发布"
+            description="追溯知识来源和派生关系，复核术语映射与发布影响，不在工作台伪造汇总数据。"
+            actions={[
+              { label: "来源追溯", path: "/advanced/provenance" },
+              { label: "字典映射", path: "/terminology/mapping" },
+              { label: "知识关系查询", path: "/advanced/graph" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        {sourceAccess.audit ? (
+          <Col xs={24} lg={12}>
+            <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
+      </Row>
+    );
+  }
+
+  if (view.kind === "access") {
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="personnel-access"
+            title="人员与账号"
+            description="批量导入或维护自然人、任职、账号、责任角色和组织范围，避免逐人重复登记。"
+            actions={[{ label: "管理人员与账号", path: "/admin/users" }]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="identity-source"
+            title="身份来源"
+            description="维护院内工号、统一认证和数字证书等身份来源，并核对未绑定和冲突记录。"
+            actions={[{ label: "管理身份来源", path: "/security/identity-binding" }]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        {sourceAccess.audit ? (
+          <Col xs={24} lg={12}>
+            <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
       </Row>
     );
   }
@@ -456,8 +529,8 @@ function SystemHealthCard({
       {(data) => (
         <Space direction="vertical" size="small">
           <StatusTag status={data.healthStatus} />
-          <Text>当前环境：{data.environment}</Text>
-          <Text type="secondary">数据库：{data.databaseDialect}</Text>
+          <Text>当前环境：{customerDisplayText(data.environment)}</Text>
+          <Text type="secondary">数据库：{customerDisplayText(data.databaseDialect)}</Text>
         </Space>
       )}
     </SourceCard>
@@ -490,7 +563,7 @@ function SimpleRuntimeCard({
   );
 }
 
-function ProviderCard({
+function DependencyConnectionCard({
   runtime,
   onNavigate,
 }: {
@@ -500,9 +573,9 @@ function ProviderCard({
   return (
     <SourceCard
       id="provider"
-      title="Provider 连通"
+      title="外部依赖连通"
       query={runtime}
-      drilldown={{ label: "查看 Provider", path: "/system/providers" }}
+      drilldown={{ label: "查看依赖状态", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => {
@@ -767,7 +840,11 @@ function GovernanceSlices({
   if (!successPlan.data) {
     return (
       <Card title="治理切片">
-        <PageState state="empty" title="暂无治理切片" description="当前租户暂无生命周期证据。" />
+        <PageState
+          state="empty"
+          title="暂无治理切片"
+          description="当前服务机构暂无生命周期证据。"
+        />
       </Card>
     );
   }
@@ -873,7 +950,8 @@ function DependencyList({ dependencies }: { dependencies: RuntimeDependencyStatu
     <Space size={[8, 8]} wrap>
       {dependencies.map((dependency) => (
         <Tag key={dependency.key} color={STATUS_COLOR[dependency.status] ?? "default"}>
-          {dependency.displayName} · {STATUS_LABEL[dependency.status] ?? dependency.status}
+          {dependency.displayName} ·{" "}
+          {STATUS_LABEL[dependency.status] ?? customerEnumLabel(dependency.status)}
         </Tag>
       ))}
     </Space>
@@ -881,7 +959,11 @@ function DependencyList({ dependencies }: { dependencies: RuntimeDependencyStatu
 }
 
 function StatusTag({ status }: { status: string }) {
-  return <Tag color={STATUS_COLOR[status] ?? "default"}>{STATUS_LABEL[status] ?? status}</Tag>;
+  return (
+    <Tag color={STATUS_COLOR[status] ?? "default"}>
+      {STATUS_LABEL[status] ?? customerEnumLabel(status)}
+    </Tag>
+  );
 }
 
 function collectFailures(
@@ -897,10 +979,11 @@ function collectFailures(
 function resolveScopeLabel(profile?: SecurityProfile): string {
   const dataScope = profile?.dataScope;
   if (!dataScope) return "当前组织";
+  if (dataScope.wardId) return "当前病区";
   if (dataScope.departmentId) return "当前科室";
   if (dataScope.hospitalId) return "当前医院";
   if (dataScope.groupId) return "当前集团";
-  if (dataScope.tenantId) return "当前租户";
+  if (dataScope.tenantId) return "当前服务机构";
   return "当前组织";
 }
 
@@ -936,14 +1019,7 @@ function resolveWeeklyActions(
   runtime?: RuntimeOperationsSnapshot,
 ) {
   const disconnected = runtime?.dependencies.some((dependency) => dependency.status !== "UP");
-  const actions = [
-    {
-      key: "todos",
-      title: "继续处理待办",
-      description: "进入真实待办中心查看当前角色范围内的任务。",
-      path: "/workflow/todos",
-    },
-  ];
+  const actions: Array<{ key: string; title: string; description: string; path: string }> = [];
 
   if (view.showLifecycle) {
     actions.push(
@@ -956,7 +1032,7 @@ function resolveWeeklyActions(
       {
         key: "packages",
         title: "复核配置包",
-        description: "确认当前租户已启用的配置包和发布状态。",
+        description: "确认当前服务机构已启用的配置包和发布状态。",
         path: "/config/packages",
       },
     );
@@ -967,7 +1043,7 @@ function resolveWeeklyActions(
     if (sourceAccess.runtime) {
       actions.push({
         key: "providers",
-        title: disconnected ? "核对未连接依赖" : "核对 Provider 连通",
+        title: disconnected ? "核对未连接依赖" : "核对外部依赖",
         description: "查看运行底座返回的依赖连通状态。",
         path: "/system/providers",
       });
@@ -983,8 +1059,64 @@ function resolveWeeklyActions(
     return actions;
   }
 
+  if (view.kind === "knowledge") {
+    actions.push(
+      {
+        key: "knowledge-governance",
+        title: "治理知识资产",
+        description: "复核平台主源、机构派生、待审核版本和发布影响。",
+        path: "/knowledge/governance",
+      },
+      {
+        key: "knowledge-provenance",
+        title: "复核来源与差异",
+        description: "追溯知识来源、派生血缘和机构差异。",
+        path: "/advanced/provenance",
+      },
+      {
+        key: "terminology",
+        title: "维护字典映射",
+        description: "核对机构编码与平台标准术语的映射。",
+        path: "/terminology/mapping",
+      },
+    );
+    return actions;
+  }
+
+  if (view.kind === "access") {
+    actions.push(
+      {
+        key: "personnel",
+        title: "维护人员与账号",
+        description: "批量导入人员并维护任职、账号、责任角色和组织范围。",
+        path: "/admin/users",
+      },
+      {
+        key: "identity",
+        title: "管理身份来源",
+        description: "处理未绑定身份、重复身份和统一认证接入。",
+        path: "/security/identity-binding",
+      },
+    );
+    if (sourceAccess.audit) {
+      actions.push({
+        key: "audit",
+        title: "复核访问变更",
+        description: "查看人员、账号和身份来源的最近变更。",
+        path: "/admin/audit",
+      });
+    }
+    return actions;
+  }
+
   if (view.kind === "clinical") {
     actions.push(
+      {
+        key: "todos",
+        title: "继续处理待办",
+        description: "进入真实待办中心查看当前职责范围内的任务。",
+        path: "/workflow/todos",
+      },
       {
         key: "pathways",
         title: "查看临床路径",
@@ -1036,17 +1168,38 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
   const codes = new Set(roles.map((role) => role.code));
   const displayName = roles[0]?.displayName;
 
-  if (codes.has("it-ops")) {
+  if (codes.has("integration-operator")) {
     return {
       title: "信息科工作台",
       description: "优先查看系统健康、连通状态和最近变化。",
       kind: "operations",
       showLifecycle: false,
+      primaryAction: { label: "查看运行状态", path: "/system/providers" },
+    };
+  }
+
+  if (["platform-knowledge-governor", "knowledge-governor"].some((code) => codes.has(code))) {
+    return {
+      title: `${displayName}工作台`,
+      description: "优先治理平台主源、机构派生、版本差异和审核发布。",
+      kind: "knowledge",
+      showLifecycle: false,
+      primaryAction: { label: "治理知识资产", path: "/knowledge/governance" },
+    };
+  }
+
+  if (codes.has("identity-access-admin")) {
+    return {
+      title: "人员与访问工作台",
+      description: "统一维护人员、任职、账号、身份来源、责任角色和组织范围。",
+      kind: "access",
+      showLifecycle: false,
+      primaryAction: { label: "管理人员与账号", path: "/admin/users" },
     };
   }
 
   if (
-    ["doctor", "nurse", "specialist", "dept-head", "med-technician", "pharmacist"].some((code) =>
+    ["clinical-decision-user", "nursing-collaborator", "diagnostic-service-user", "medication-safety-user"].some((code) =>
       codes.has(code),
     )
   ) {
@@ -1055,37 +1208,40 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
       description: "优先查看我的待办、临床提醒和最近变化。",
       kind: "clinical",
       showLifecycle: false,
+      primaryAction: { label: "继续处理待办", path: "/workflow/todos" },
     };
   }
 
-  if (["medical-affairs", "qa-manager", "insurance-manager"].some((code) => codes.has(code))) {
+  if (["clinical-governor", "quality-governor"].some((code) => codes.has(code))) {
     return {
       title: `${displayName}工作台`,
       description: "优先查看价值、整改和最近变化。",
       kind: "governance",
       showLifecycle: false,
+      primaryAction: { label: "查看治理事项", path: "/qc/dashboard" },
     };
   }
 
-  if (codes.has("audit-compliance")) {
+  if (codes.has("compliance-auditor")) {
     return {
       title: "合规审计工作台",
       description: "优先查看审计变化、运行状态和证据风险。",
       kind: "audit",
       showLifecycle: false,
+      primaryAction: { label: "查看审计证据", path: "/admin/audit" },
     };
   }
 
   return {
     title: displayName ? `${displayName}工作台` : "工作台",
-    description: "查看租户阶段、运行状态和需要跟进的事项。",
+    description: "查看服务机构阶段、运行状态和需要跟进的事项。",
     kind: "tenant",
     showLifecycle: [
-      "platform-admin",
-      "group-admin",
-      "hospital-admin",
-      "implementation-engineer",
+      "platform-governance-admin",
+      "organization-admin",
+      "implementation-operator",
     ].some((code) => codes.has(code)),
+    primaryAction: { label: "管理服务机构", path: "/tenant/onboarding" },
   };
 }
 

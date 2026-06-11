@@ -46,7 +46,7 @@ class EmbedEngineControllerTest {
     private static final String LAUNCH_TOKEN_BODY = """
         {
           "userId": "DOCTOR-001",
-          "roleCode": "doctor",
+          "roleCode": "clinical-decision-user",
           "patientId": "P1001",
           "encounterId": "E2001",
           "triggerPoint": "ORDER_SIGN",
@@ -92,7 +92,7 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
+                    .claim("roles", List.of("clinical-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
@@ -109,7 +109,7 @@ class EmbedEngineControllerTest {
     @Test
     void validateAndExchange_PostBodyReturnsOkWithThreeRouteContext() throws Exception {
         EmbedLaunchContextResponse mockResponse = new EmbedLaunchContextResponse(
-            "DOCTOR-001", "doctor", "tenant-1", "P1001", "E2001", "order-sign", true, "trace-123",
+            "DOCTOR-001", "clinical-decision-user", "tenant-1", "P1001", "E2001", "order-sign", true, "trace-123",
             EmbedIntegrationMode.SDK, "order-sign", "hook-order-001", EmbedModelStatus.MODEL_DISABLED,
             EmbedConnectionStatus.CONNECTED, "1.0", "https://his.hospital.com"
         );
@@ -120,7 +120,7 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .header("Origin", "https://his.hospital.com")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -150,7 +150,7 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(FEEDBACK_BODY))
@@ -171,7 +171,7 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
+                    .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ORIGIN_BODY))
@@ -188,7 +188,7 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0]").value("https://his.hospital.com"));

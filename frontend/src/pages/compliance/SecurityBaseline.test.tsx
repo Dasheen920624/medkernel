@@ -69,7 +69,7 @@ describe("SecurityBaseline", () => {
         username: "security-admin",
         roles: [
           {
-            code: "platform-admin",
+            code: "platform-governance-admin",
             displayName: "平台管理员",
             source: "PLATFORM_SEED",
             scopeLevel: "TENANT",
@@ -388,16 +388,16 @@ describe("SecurityBaseline", () => {
     renderPage();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
-    await user.click(screen.getByText("租户覆盖"));
-    fireEvent.change(screen.getByRole("textbox", { name: "租户 ID" }), {
+    await user.click(screen.getByText("服务机构覆盖"));
+    fireEvent.change(screen.getByRole("textbox", { name: "服务空间标识" }), {
       target: { value: "tenant-A" },
     });
     expect(screen.getByText("规则临床算子")).toBeInTheDocument();
     expect(screen.getByText("继承系统")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "编辑 规则临床算子" }));
-    const dialog = screen.getByRole("dialog", { name: "编辑租户配置" });
+    const dialog = screen.getByRole("dialog", { name: "编辑服务机构配置" });
     fireEvent.change(within(dialog).getByRole("textbox", { name: "变更原因" }), {
-      target: { value: "租户灰度回退" },
+      target: { value: "服务机构灰度回退" },
     });
     await user.click(within(dialog).getByRole("checkbox", { name: "确认高风险影响" }));
     await user.click(within(dialog).getByRole("button", { name: "保存配置" }));
@@ -408,7 +408,7 @@ describe("SecurityBaseline", () => {
         key: "medkernel.runtime.feature-flags.authoring-clinical-operators.enabled",
         payload: {
           value: "false",
-          reason: "租户灰度回退",
+          reason: "服务机构灰度回退",
           expectedVersion: undefined,
           confirmedHighRisk: true,
         },

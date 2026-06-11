@@ -128,7 +128,7 @@ class MaskingRuleControllerSecurityTest {
                     .claim("tenant_id", "t-1")
                     .claim("group_id", "g-1")
                     .claim("hospital_id", "h-1")
-                    .claim("roles", List.of("audit-compliance")))
+                    .claim("roles", List.of("compliance-auditor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

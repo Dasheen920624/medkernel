@@ -269,7 +269,7 @@ describe("InsuranceAudit", () => {
     expect(refetch).toHaveBeenCalled();
     expect(await screen.findByText("ISSUE_FOUND")).toBeInTheDocument();
     expect(screen.getByText("MISMATCHED")).toBeInTheDocument();
-    expect(screen.getByText("MODEL_DISABLED")).toBeInTheDocument();
+    expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("整改任务 1 个")).toBeInTheDocument();
   });
 

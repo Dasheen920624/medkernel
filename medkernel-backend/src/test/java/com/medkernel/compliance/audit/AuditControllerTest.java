@@ -145,7 +145,7 @@ class AuditControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("audit-controller-reader")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("audit-compliance")))
+                    .claim("roles", List.of("compliance-auditor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].eventId").value("evt-super-1"))
@@ -174,7 +174,7 @@ class AuditControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("audit-controller-platform-admin")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("platform-admin")))
+                    .claim("roles", List.of("platform-governance-admin")))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))

@@ -59,7 +59,7 @@ const baseOrgUnits = {
       id: "org-tenant",
       level: "TENANT",
       code: "T-1",
-      name: "平台主租户",
+      name: "平台治理空间",
       parentId: null,
       status: "ACTIVE",
     },
@@ -81,14 +81,14 @@ const baseOrgUnits = {
 const blockedReadiness: OnboardingReadiness = {
   tenantId: "tenant-A",
   ready: false,
-  blockers: ["组织树缺少租户根或医院节点", "尚未配置实施用户"],
+  blockers: ["组织树缺少服务机构根节点或医院节点", "尚未配置实施用户"],
   checkedAt: "2026-06-03T00:00:00Z",
   steps: [
     {
       key: "organization",
       title: "组织树",
       status: "BLOCKED",
-      blockers: ["组织树缺少租户根或医院节点"],
+      blockers: ["组织树缺少服务机构根节点或医院节点"],
       targetPath: "/tenant/onboarding",
       evidence: null,
     },
@@ -122,7 +122,7 @@ function mockHooks(overrides?: {
     data: {
       userId: "admin-1",
       username: "admin",
-      roles: [{ code: "hospital-admin" }],
+      roles: [{ code: "organization-admin" }],
       permissions: [],
       menuKeys: [],
       environmentKeys: [],
@@ -204,9 +204,9 @@ describe("TenantOnboarding", () => {
   it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByRole("heading", { name: "租户实施配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构实施配置" })).toBeInTheDocument();
     expect(screen.getByText("实施就绪检查未通过")).toBeInTheDocument();
-    expect(screen.getByText("组织树缺少租户根或医院节点")).toBeInTheDocument();
+    expect(screen.getByText("组织树缺少服务机构根节点或医院节点")).toBeInTheDocument();
     expect(screen.getByText("尚未配置实施用户")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
   });
@@ -228,9 +228,9 @@ describe("TenantOnboarding", () => {
     await userEvent.type(scope.getByRole("textbox", { name: "组织编码" }), "HOSP-NEW");
     await userEvent.type(scope.getByRole("textbox", { name: "组织名称" }), "新建医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "机构类型" }));
-    clickSelectOption("医院");
+    clickSelectOption("综合医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "直接上级" }));
-    fireEvent.click(screen.getByText("平台主租户（租户根）"));
+    fireEvent.click(screen.getByText("平台治理空间（服务机构根节点）"));
     await userEvent.click(scope.getByRole("button", { name: /保存组织节点/ }));
 
     await waitFor(() =>
@@ -272,11 +272,11 @@ describe("TenantOnboarding", () => {
 
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByText("租户实施状态读取失败")).toBeInTheDocument();
+    expect(screen.getByText("机构实施状态读取失败")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
-  it("uses the platform tenant only for provisioning customer tenants", async () => {
+  it("仅允许平台治理空间开通服务机构空间", async () => {
     const provision = vi.fn().mockResolvedValue({
       tenantId: "t-renmin",
       adminUserId: "renmin-admin",
@@ -287,13 +287,13 @@ describe("TenantOnboarding", () => {
 
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByRole("heading", { name: "客户租户开通" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "服务空间开通" })).toBeInTheDocument();
     expect(screen.queryByText("组织树")).not.toBeInTheDocument();
     expect(screen.getByText("人民医院")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /开通客户租户/ }));
-    await userEvent.type(screen.getByLabelText("租户标识"), "t-renmin");
-    await userEvent.type(screen.getByLabelText("租户名称"), "人民医院");
+    await userEvent.click(screen.getByRole("button", { name: /开通服务空间/ }));
+    await userEvent.type(screen.getByLabelText("服务空间标识"), "t-renmin");
+    await userEvent.type(screen.getByLabelText("服务机构名称"), "人民医院");
     await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
     await userEvent.click(screen.getByRole("button", { name: "确认开通" }));
 

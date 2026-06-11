@@ -143,7 +143,8 @@ public class SecurityConfig {
     /**
      * JWT roles claim → ROLE_* 权限。
      *
-     * <p>例：claim {@code roles=["doctor","qa-manager"]} → 权限 {@code ROLE_DOCTOR}、{@code ROLE_QA_MANAGER}。
+     * <p>例：claim {@code roles=["clinical-decision-user","quality-governor"]}
+     * → 权限 {@code ROLE_CLINICAL_DECISION_USER}、{@code ROLE_QUALITY_GOVERNOR}。
      * 业务动作授权由 {@code @PreAuthorize("@perm.has(...)")} 使用有效权限画像统一判断。
      *
      * <p>不暴露为 Spring Bean —— 一旦作为 {@link Converter} bean 暴露，Spring MVC 的

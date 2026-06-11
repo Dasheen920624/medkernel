@@ -17,6 +17,7 @@ import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 
 import { downloadDomesticCompatibilityReport, useRuntimeOperations } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeDomesticCheckItem } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -238,7 +239,7 @@ export default function DomesticCheck() {
                 dataIndex: "status",
                 render: (status) => (
                   <Tag color={CHECK_COLOR[status] ?? "default"}>
-                    {CHECK_LABEL[status] ?? status}
+                    {CHECK_LABEL[status] ?? customerEnumLabel(status)}
                   </Tag>
                 ),
               },
@@ -264,7 +265,7 @@ export default function DomesticCheck() {
                 dataIndex: "status",
                 render: (status) => (
                   <Tag color={STATUS_COLOR[status] ?? "default"}>
-                    {STATUS_LABEL[status] ?? status}
+                    {STATUS_LABEL[status] ?? customerEnumLabel(status)}
                   </Tag>
                 ),
               },

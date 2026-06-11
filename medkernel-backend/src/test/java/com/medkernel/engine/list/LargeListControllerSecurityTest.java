@@ -71,7 +71,7 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
                 .andExpect(status().isOk());
 
@@ -116,7 +116,7 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("auditor-1")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].actionCode").value("EXPORT"))
@@ -138,7 +138,7 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-LIST-006"));
@@ -150,7 +150,7 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(EXPORT_BODY))
@@ -164,7 +164,7 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("insurance-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_INSURANCE_MANAGER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(EXPORT_BODY))
@@ -177,7 +177,7 @@ class LargeListControllerSecurityTest {
                 .param("size", "20")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("qa-manager")))
+                    .claim("roles", List.of("quality-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-BASE-001"));

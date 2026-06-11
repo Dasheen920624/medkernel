@@ -234,7 +234,7 @@ class TenantPilotServiceTest {
             now, actor, now, actor, traceId
         ));
         roleAssignmentRepo.save(new UserRoleAssignment(
-            null, tenantId, "doctor-1", RoleCode.DOCTOR.code(), OrgLevel.FACILITY.name(), hospital.id(),
+            null, tenantId, "doctor-1", RoleCode.CLINICAL_DECISION_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
             "Y", now, actor, now, actor
         ));
         adapterRepo.save(new IntegrationAdapter(

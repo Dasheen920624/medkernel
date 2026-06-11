@@ -36,7 +36,7 @@ describe("EmbedLaunch", () => {
     mockUseEmbedLaunch.mockReturnValue({
       data: {
         userId: "doctor-1",
-        roleCode: "doctor",
+        roleCode: "clinical-decision-user",
         tenantId: "tenant-A",
         patientId: "MPI-1001",
         encounterId: "ENC-2001",

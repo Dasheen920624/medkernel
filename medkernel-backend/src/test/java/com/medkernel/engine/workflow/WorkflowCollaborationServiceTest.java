@@ -1216,9 +1216,9 @@ class WorkflowCollaborationServiceTest {
             "入径评估",
             PathwayNodeType.MANUAL_GATE,
             "clock-1",
-            "doctor",
-            "dept-head",
-            List.of("nurse"),
+            "clinical-decision-user",
+            "clinical-governor",
+            List.of("nursing-collaborator"),
             List.of("quality"),
             dueAt,
             "/clinical/pathways?patientPathwayId=pp-1&nodeCode=ASSESS",
@@ -1233,14 +1233,14 @@ class WorkflowCollaborationServiceTest {
         assertThat(saved.title()).isEqualTo("路径节点待处理：入径评估");
         assertThat(saved.summary()).isEqualTo("责任：doctor；签责：dept-head；会诊：nurse；知会：quality");
         assertThat(saved.priority()).isEqualTo(WorkflowPriority.HIGH);
-        assertThat(saved.assigneeRole()).isEqualTo("doctor");
+        assertThat(saved.assigneeRole()).isEqualTo("clinical-decision-user");
         assertThat(saved.dueAt()).isEqualTo(dueAt);
         assertThat(saved.deepLink()).contains("patientPathwayId=pp-1");
 
         ArgumentCaptor<WorkflowNotification> notificationCaptor =
             ArgumentCaptor.forClass(WorkflowNotification.class);
         verify(notifications).save(notificationCaptor.capture());
-        assertThat(notificationCaptor.getValue().recipientRole()).isEqualTo("doctor");
+        assertThat(notificationCaptor.getValue().recipientRole()).isEqualTo("clinical-decision-user");
         assertThat(notificationCaptor.getValue().sourceType())
             .isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
     }

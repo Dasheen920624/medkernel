@@ -56,7 +56,7 @@ class SafetyWithdrawalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("nurse-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("nurse")))
+                    .claim("roles", List.of("nursing-collaborator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_NURSE")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"identityId\":1,\"versionId\":5,\"reason\":\"上游召回\"}"))
@@ -71,7 +71,7 @@ class SafetyWithdrawalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("ma-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("medical-affairs")))
+                    .claim("roles", List.of("clinical-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"identityId\":1,\"versionId\":5,\"reason\":\"上游召回\",\"scope\":\"tenant:tenant-A\"}"))
@@ -86,7 +86,7 @@ class SafetyWithdrawalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("ma-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("medical-affairs")))
+                    .claim("roles", List.of("clinical-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"identityId\":1,\"versionId\":5,\"reason\":\"   \"}"))
@@ -103,7 +103,7 @@ class SafetyWithdrawalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.withdrawalId").value(90))
@@ -118,7 +118,7 @@ class SafetyWithdrawalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(content().string("{\"recordType\":\"summary\"}\n"));
@@ -129,7 +129,7 @@ class SafetyWithdrawalControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine/safety/withdrawals/90/impact")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));

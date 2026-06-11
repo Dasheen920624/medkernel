@@ -70,7 +70,7 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     expect(screen.getByText("medications[].code")).toBeInTheDocument();
     expect(screen.getByText("observations[].code")).toBeInTheDocument();
     expect(screen.getByText("平台")).toBeInTheDocument();
-    expect(screen.getByText("租户")).toBeInTheDocument();
+    expect(screen.getByText("服务机构")).toBeInTheDocument();
     // 仅租户覆盖有删除按钮
     expect(screen.getByLabelText("删除覆盖 observations[].code")).toBeInTheDocument();
     expect(screen.queryByLabelText("删除字段 medications[].code")).toBeNull();

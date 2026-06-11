@@ -130,7 +130,7 @@ class DataPermissionControllerSecurityTest {
                     .claim("tenant_id", "t-1")
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "cardiology")
-                    .claim("roles", List.of("doctor")))
+                    .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

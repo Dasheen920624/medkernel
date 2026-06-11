@@ -95,7 +95,7 @@ class PackageEngineControllerSecurityTest {
               "department_id": "dept-A",
               "specialty_id": "specialty-A",
               "user_id": "tester",
-              "role_codes": ["it-ops"],
+              "role_codes": ["integration-operator"],
               "package_version": "1.0.0"
             """.formatted(tenantId);
     }
@@ -339,7 +339,7 @@ class PackageEngineControllerSecurityTest {
             Instant.parse("2026-12-31T15:59:59Z"),
             "商业许可已完成审批",
             now,
-            "platform-admin");
+            "platform-governance-admin");
         when(entitlementService.list(eq("pkg-commercial"), any()))
             .thenReturn(new com.medkernel.shared.api.PageResponse<>(
                 List.of(response), 1, 20, 1, false, false));
@@ -357,16 +357,16 @@ class PackageEngineControllerSecurityTest {
                 response.expiresAt(),
                 "商业许可终止",
                 now,
-                "platform-admin"));
+                "platform-governance-admin"));
 
         mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
                 .with(jwt()
-                    .jwt(token -> token.subject("it-ops").claim("tenant_id", "tenant-A"))
+                    .jwt(token -> token.subject("integration-operator").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
             .andExpect(status().isForbidden());
 
         var platformJwt = jwt()
-            .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+            .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
             .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
 
         mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
@@ -378,7 +378,7 @@ class PackageEngineControllerSecurityTest {
                 .contentType("application/json")
                 .content(grantEntitlementBody("t-1"))
                 .with(jwt()
-                    .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+                    .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.tenantId").value("tenant-A"));
@@ -387,7 +387,7 @@ class PackageEngineControllerSecurityTest {
                 .contentType("application/json")
                 .content(revokeEntitlementBody("t-1"))
                 .with(jwt()
-                    .jwt(token -> token.subject("platform-admin").claim("tenant_id", "t-1"))
+                    .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("REVOKED"));
@@ -411,7 +411,7 @@ class PackageEngineControllerSecurityTest {
                 .contentType("application/json")
                 .content(terminologyPackageBody("tenant-A"))
                 .with(jwt()
-                    .jwt(token -> token.subject("specialist").claim("tenant_id", "tenant-A"))
+                    .jwt(token -> token.subject("knowledge-governor").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
             .andExpect(status().isCreated());
     }
@@ -477,7 +477,7 @@ class PackageEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                         .subject("pathway-author")
                         .claim("tenant_id", "tenant-A")
-                        .claim("roles", List.of("hospital-admin")))
+                        .claim("roles", List.of("organization-admin")))
                     .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN")))
                 .contentType("application/json")
                 .content(pathwayPackageBody("tenant-A")))

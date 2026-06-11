@@ -123,7 +123,7 @@ class WorkflowTodoRepositoryTest {
 
     @Test
     void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
-        seedRoleAssignment("doctor-1", "doctor");
+        seedRoleAssignment("doctor-1", "clinical-decision-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -179,7 +179,7 @@ class WorkflowTodoRepositoryTest {
     @Test
     void visibleAssigneeScopeUsesOrgClosureForUnassignedRows() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "doctor");
+        seedRoleAssignment("doctor-1", "clinical-decision-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -256,21 +256,21 @@ class WorkflowTodoRepositoryTest {
     @Test
     void visibleAssigneeScopeHonorsRoleScopedPathwayNodeTodos() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "doctor");
-        seedRoleAssignment("doctor-1", "dept-head");
+        seedRoleAssignment("doctor-1", "clinical-decision-user");
+        seedRoleAssignment("doctor-1", "clinical-governor");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sampleWithRole(
             "todo-pathway-doctor",
             WorkflowTodoSourceType.PATHWAY_NODE,
             "pp-1:ASSESS",
-            "doctor",
+            "clinical-decision-user",
             "dept-a",
             now.plusSeconds(300)));
         repository.save(sampleWithRole(
             "todo-pathway-nurse",
             WorkflowTodoSourceType.PATHWAY_NODE,
             "pp-1:NURSING",
-            "nurse",
+            "nursing-collaborator",
             "dept-a",
             now.plusSeconds(200)));
 
@@ -303,7 +303,7 @@ class WorkflowTodoRepositoryTest {
     @Test
     void selectedOrganizationFilterNarrowsVisibleTodosToSelectedSubtree() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "doctor");
+        seedRoleAssignment("doctor-1", "clinical-decision-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own-selected",

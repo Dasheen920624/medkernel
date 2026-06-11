@@ -204,7 +204,8 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     for (const legacyLevel of ["GROUP", "HOSPITAL", "SITE"]) {
       expect(onboardingSource).not.toContain(`value="${legacyLevel}"`);
     }
-    expect(onboardingSource).toContain('value: "HOSPITAL", label: "医院"');
+    expect(onboardingSource).toContain("facilityTypeLabels");
+    expect(onboardingSource).toContain("facilityTypeOptions");
     expect(onboardingSource).not.toContain('value="SPECIALTY"');
     expect(onboardingSource).not.toContain("SPECIALTY");
     expect(onboardingSource).toContain("专病适用维度");

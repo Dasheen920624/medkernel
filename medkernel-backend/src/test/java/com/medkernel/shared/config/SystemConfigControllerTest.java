@@ -219,7 +219,7 @@ class SystemConfigControllerTest {
         JwtDecoder decoder = NimbusJwtDecoder
             .withSecretKey(new SecretKeySpec(DEV_SECRET.getBytes(), "HmacSHA256"))
             .build();
-        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("doctor")));
+        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("clinical-decision-user")));
 
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(jwt.getExpiresAt()).isNotNull();

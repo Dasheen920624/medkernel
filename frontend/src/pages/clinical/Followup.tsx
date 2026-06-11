@@ -46,6 +46,10 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+} from "@/shared/config/customerLabels";
 
 import styles from "./Clinical.module.css";
 
@@ -272,7 +276,10 @@ export default function Followup() {
       dataIndex: "status",
       key: "status",
       render: (status: FollowupPlanStatus) => {
-        const current = planStatusConfig[status] ?? { status: "default", text: status };
+        const current = planStatusConfig[status] ?? {
+          status: "default",
+          text: customerEnumLabel(status),
+        };
         return <Badge status={current.status} text={current.text} />;
       },
     },
@@ -383,7 +390,7 @@ export default function Followup() {
           showIcon
           className={styles.sectionGap}
           message="随访计划接口读取失败"
-          description="请检查登录权限、租户上下文或后端接口状态。"
+          description="请检查登录权限、服务空间或后端接口状态。"
         />
       )}
 
@@ -467,7 +474,7 @@ export default function Followup() {
                 {snapshotDetailQuery.data.packageVersion ?? "未标注"}
               </Descriptions.Item>
               <Descriptions.Item label="质量状态">
-                {snapshotDetailQuery.data.qualityStatus}
+                {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
               </Descriptions.Item>
             </Descriptions>
           ) : null}
@@ -525,7 +532,9 @@ export default function Followup() {
           <Space direction="vertical" size="large" className={styles.fullWidth}>
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="计划编号">{selectedPlanDetail.planId}</Descriptions.Item>
-              <Descriptions.Item label="租户">{selectedPlanDetail.tenantId}</Descriptions.Item>
+              <Descriptions.Item label="服务空间">
+                {selectedPlanDetail.tenantId}
+              </Descriptions.Item>
               <Descriptions.Item label="患者 ID">{selectedPlanDetail.patientId}</Descriptions.Item>
               <Descriptions.Item label="就诊 ID">
                 {selectedPlanDetail.encounterId}
@@ -550,10 +559,10 @@ export default function Followup() {
                     <Space wrap className={styles.rowBetween}>
                       <Space wrap>
                         <Tag color={task.status === "COMPLETED" ? "green" : "blue"}>
-                          {task.status}
+                          {customerEnumLabel(task.status)}
                         </Tag>
                         <span className={styles.textStrong}>{task.taskId}</span>
-                        <span>{task.taskType}</span>
+                        <span>{customerEnumLabel(task.taskType)}</span>
                         <span className={styles.textMuted}>
                           截止：{new Date(task.dueDate).toLocaleDateString()}
                         </span>

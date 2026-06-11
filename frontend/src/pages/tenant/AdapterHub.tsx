@@ -44,6 +44,7 @@ import {
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
+  useOrgUnits,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -68,6 +69,11 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import {
+  customerEnumLabel,
+  orgLevelLabel,
+  riskLabel,
+} from "@/shared/config/customerLabels";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -174,7 +180,7 @@ function percent(numerator: number, denominator: number) {
 }
 
 function healthTag(status: string) {
-  return <Tag color={HEALTH_COLOR[status] ?? "default"}>{status}</Tag>;
+  return <Tag color={HEALTH_COLOR[status] ?? "default"}>{customerEnumLabel(status)}</Tag>;
 }
 
 function requiredSourceStatusColor(item: AdapterHubRequiredSourceStatus) {
@@ -184,7 +190,9 @@ function requiredSourceStatusColor(item: AdapterHubRequiredSourceStatus) {
 }
 
 function adapterEvidenceText(onboarding: IntegrationOnboarding) {
-  return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${onboarding.healthStatus}，缺口 ${onboarding.blockers.length} 项。`;
+  return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${customerEnumLabel(
+    onboarding.healthStatus,
+  )}，缺口 ${onboarding.blockers.length} 项。`;
 }
 
 function getErrorTrace(error: unknown) {
@@ -255,6 +263,7 @@ export default function AdapterHub() {
   const onboardingsQuery = useIntegrationOnboardings();
   const webhooksQuery = useWebhooks();
   const regionalSourcesQuery = useRegionalSources();
+  const orgUnitsQuery = useOrgUnits({ page: 1, size: 500, status: "ACTIVE" });
   const terminologyMappingsQuery = useTerminologyMappings({
     status: "CONFIRMED",
     page: 1,
@@ -285,6 +294,12 @@ export default function AdapterHub() {
   const webhooks = webhooksQuery.data ?? [];
   const firstWebhookId = webhooksQuery.data?.[0]?.webhookId;
   const regionalSources = regionalSourcesQuery.data ?? [];
+  const orgScopeOptions = (orgUnitsQuery.data?.items ?? [])
+    .filter((unit) => unit.level !== "PLATFORM" && unit.orgPath)
+    .map((unit) => ({
+      value: unit.orgPath,
+      label: `${unit.name} · ${orgLevelLabel(unit.level)}`,
+    }));
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
     status?.healthyAdapters ??
@@ -308,7 +323,8 @@ export default function AdapterHub() {
       logsQuery.isError ||
       onboardingsQuery.isError ||
       webhooksQuery.isError ||
-      regionalSourcesQuery.isError,
+      regionalSourcesQuery.isError ||
+      orgUnitsQuery.isError,
   });
 
   useEffect(() => {
@@ -852,7 +868,7 @@ export default function AdapterHub() {
             </Card>
             <Card className={styles.summaryCard}>
               <Statistic
-                title="NOT_CONNECTED"
+                title="未连接"
                 value={notConnectedAdapters}
                 prefix={<DisconnectOutlined />}
               />
@@ -922,7 +938,7 @@ export default function AdapterHub() {
                       type="info"
                       showIcon
                       message="连接状态来自实时探活"
-                      description="HTTP、FHIR、Webhook 和 WebService 使用真实连接器；外部不可达显示 NOT_CONNECTED，配置非法显示 MISCONFIGURED。"
+                      description="HTTP、FHIR、Webhook 和 WebService 使用真实连接器；外部不可达显示“未连接”，配置非法显示“配置不完整”。"
                     />
                     <Table
                       rowKey="adapterId"
@@ -974,7 +990,7 @@ export default function AdapterHub() {
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        description="点击页面右上角“生成质量报告”，后端会基于当前租户适配器、字段映射和探活事实生成快照。"
+                        description="点击页面右上角“生成质量报告”，后端会基于当前服务空间的适配器、字段映射和探活事实生成快照。"
                       />
                     )}
                     <div className={styles.qualityGrid}>
@@ -1072,8 +1088,10 @@ export default function AdapterHub() {
                           showIcon
                           message={
                             <Space wrap>
-                              <Tag color="blue">{signatureResult.status}</Tag>
-                              <Tag>{signatureResult.connectionStatus}</Tag>
+                              <Tag color="blue">
+                                {customerEnumLabel(signatureResult.status)}
+                              </Tag>
+                              <Tag>{customerEnumLabel(signatureResult.connectionStatus)}</Tag>
                             </Space>
                           }
                           description={
@@ -1201,9 +1219,9 @@ export default function AdapterHub() {
             <Select
               placeholder="选择可信等级"
               options={[
-                { label: "HIGH", value: "HIGH" },
-                { label: "MEDIUM", value: "MEDIUM" },
-                { label: "LOW", value: "LOW" },
+                { label: riskLabel("HIGH"), value: "HIGH" },
+                { label: riskLabel("MEDIUM"), value: "MEDIUM" },
+                { label: riskLabel("LOW"), value: "LOW" },
               ]}
             />
           </Form.Item>
@@ -1231,13 +1249,20 @@ export default function AdapterHub() {
               placeholder="可选，按名称选择"
               options={onboardings.map((item) => ({
                 value: item.onboardingId,
-                label: `${item.name} · ${item.status}`,
+                label: `${item.name} · ${customerEnumLabel(item.status)}`,
               }))}
               notFoundContent="暂无可绑定接入申请"
             />
           </Form.Item>
           <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
-            <Input placeholder="集团/医院/院区" />
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="从组织树选择适用范围"
+              options={orgScopeOptions}
+              loading={orgUnitsQuery.isLoading}
+              notFoundContent="暂无可选组织，请先维护组织架构"
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -1447,7 +1472,14 @@ export default function AdapterHub() {
             <Input placeholder="例如门诊患者主数据" />
           </Form.Item>
           <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
-            <Input placeholder="集团/医院/院区/科室" />
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="从组织树选择适用范围"
+              options={orgScopeOptions}
+              loading={orgUnitsQuery.isLoading}
+              notFoundContent="暂无可选组织，请先维护组织架构"
+            />
           </Form.Item>
           <Form.Item name="callbackWebhookId" label="回调通道标识">
             <Select
@@ -1457,7 +1489,7 @@ export default function AdapterHub() {
               placeholder="可选，选择已配置回调通道"
               options={webhooks.map((item) => ({
                 value: item.webhookId,
-                label: `${item.name} · ${item.status}`,
+                label: `${item.name} · ${customerEnumLabel(item.status)}`,
               }))}
               notFoundContent="暂无回调通道"
             />
@@ -1514,7 +1546,9 @@ function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus
               <Space direction="vertical" size="small" className="mk-full-width">
                 <Space wrap>
                   <Text strong>{item.label}</Text>
-                  <Tag color={requiredSourceStatusColor(item)}>{item.status}</Tag>
+                  <Tag color={requiredSourceStatusColor(item)}>
+                    {customerEnumLabel(item.status)}
+                  </Tag>
                   {healthTag(item.healthStatus)}
                 </Space>
                 <Text type="secondary">{item.adapterName ?? "未绑定适配器"}</Text>

@@ -82,7 +82,7 @@ public class StateTransitionRecorder {
         }
         String path = Stream.of(
                 scope.tenantId(), scope.groupId(), scope.hospitalId(), scope.campusId(),
-                scope.siteId(), scope.departmentId(), scope.specialtyId())
+                scope.siteId(), scope.departmentId(), scope.wardId(), scope.specialtyId())
             .filter(value -> value != null && !value.isBlank())
             .reduce((left, right) -> left + "/" + right)
             .orElse(null);

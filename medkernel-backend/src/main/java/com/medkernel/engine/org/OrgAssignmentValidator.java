@@ -61,13 +61,15 @@ public class OrgAssignmentValidator {
             String campusId,
             String siteId,
             String departmentId,
+            String wardId,
             String specialtyId) {
         String facilityId = StringUtils.hasText(hospitalId) ? hospitalId : siteId;
         List<ScopeReference> references = List.of(
             new ScopeReference(groupId, OrgLevel.REGION, "区域"),
             new ScopeReference(facilityId, OrgLevel.FACILITY, "机构"),
             new ScopeReference(campusId, OrgLevel.CAMPUS, "院区"),
-            new ScopeReference(departmentId, OrgLevel.DEPARTMENT, "科室")
+            new ScopeReference(departmentId, OrgLevel.DEPARTMENT, "科室"),
+            new ScopeReference(wardId, OrgLevel.WARD, "病区")
         );
         OrgUnit ancestor = null;
         String ancestorLabel = null;
@@ -93,6 +95,19 @@ public class OrgAssignmentValidator {
             }
         }
         requireActiveSpecialty(tenantId, specialtyId, selectedDepartment);
+    }
+
+    public void requireActiveScopeReferences(
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId) {
+        requireActiveScopeReferences(
+            tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, null, specialtyId);
     }
 
     private OrgUnit requireActiveOrgUnit(

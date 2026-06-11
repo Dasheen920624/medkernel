@@ -351,7 +351,7 @@ class PackageEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pkg", OrgScope.tenant("tenant-A"), "tester"));
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
     }
 
     @AfterEach
@@ -387,7 +387,7 @@ class PackageEngineServiceTest {
     @Test
     void platformTenantCanCreateRestrictedPackage() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-platform-pkg", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
+            "trace-platform-pkg", OrgScope.tenant(PlatformTenant.ID), "platform-governance-admin"));
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
                 PlatformTenant.ID, "PKG.COMMERCIAL", "2026.06"))
             .thenReturn(Optional.empty());
@@ -1050,9 +1050,9 @@ class PackageEngineServiceTest {
             10,
             "商业指南包",
             Instant.now(),
-            "platform-admin",
+            "platform-governance-admin",
             Instant.now(),
-            "platform-admin",
+            "platform-governance-admin",
             "trace-pkg");
         KnowledgePackage platformPackage = new KnowledgePackage(
             1L,
@@ -1065,9 +1065,9 @@ class PackageEngineServiceTest {
             PackageAccessPolicy.ENTITLED,
             KnowledgePackageStatus.ACTIVE,
             Instant.now(),
-            "platform-admin",
+            "platform-governance-admin",
             Instant.now(),
-            "platform-admin",
+            "platform-governance-admin",
             "trace-pkg");
         when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
                 "tenant-A", PilotPackageTemplateStatus.ACTIVE))
@@ -2180,7 +2180,7 @@ class PackageEngineServiceTest {
     @Test
     void importOfflinePackageRejectsCustomerSourceIntoPlatformTenant() throws Exception {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-pkg", OrgScope.tenant("t-1"), "platform-admin"));
+            "trace-pkg", OrgScope.tenant("t-1"), "platform-governance-admin"));
         String offlineJson = offlinePackageJson("PKG.CUSTOMER", "2026.06.01", "tenant-A");
 
         assertThatThrownBy(() -> service.importOfflinePackage(
@@ -2289,7 +2289,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
@@ -2328,7 +2328,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
@@ -2362,7 +2362,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.releasePackage("pkg-1", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
@@ -2416,7 +2416,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         ArgumentCaptor<EffectivePackageSnapshot> snapshotCaptor =
@@ -2446,7 +2446,7 @@ class PackageEngineServiceTest {
         when(packageRepository.findByPackageIdAndTenantId("pkg-full-denied", "tenant-A"))
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-full-denied");
-        authenticate(RoleCode.IMPLEMENTATION_ENGINEER);
+        authenticate(RoleCode.IMPLEMENTATION_OPERATOR);
 
         PackageSyncRequest request = packageSyncRequest(
             "org-1",
@@ -2454,7 +2454,7 @@ class PackageEngineServiceTest {
             ReleaseScopeType.ALL,
             null,
             List.of("target-1"),
-            List.of("implementation-engineer")
+            List.of("implementation-operator")
         );
 
         assertThatThrownBy(() -> service.releasePackage("pkg-full-denied", request))
@@ -2469,19 +2469,19 @@ class PackageEngineServiceTest {
     @Test
     void releasePlatformPackageAllowsPlatformAdminToPublishFull() throws Exception {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
-        authenticate(RoleCode.PLATFORM_ADMIN);
+            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "platform-governance-admin"));
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-platform-full", PlatformTenant.ID, "PKG.BASELINE", "2026.06",
             "平台基线包", null, KnowledgePackageStatus.PUBLISHED,
-            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+            Instant.now(), "platform-governance-admin", Instant.now(), "platform-governance-admin", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-platform-full", PlatformTenant.ID))
             .thenReturn(Optional.of(pack));
         PackageItem ruleItem = new PackageItem(
             900L, "item-platform-rule", PlatformTenant.ID, "pkg-platform-full",
             VersionedAssetType.RULE, "rule-platform-ready", "1",
-            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+            Instant.now(), "platform-governance-admin", Instant.now(), "platform-governance-admin", "trace"
         );
         when(itemRepository.findByTenantIdAndPackageId(PlatformTenant.ID, "pkg-platform-full"))
             .thenReturn(List.of(ruleItem));
@@ -2489,7 +2489,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(publishedRule("rule-platform-ready", "dept-platform")));
         IntegrationAdapter target = integrationAdapter(
             1L, "target-platform", PlatformTenant.ID, "平台配置库", "REST", "config",
-            "ACTIVE", Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+            "ACTIVE", Instant.now(), "platform-governance-admin", Instant.now(), "platform-governance-admin", "trace"
         );
         when(adapterRepository.findByAdapterIdAndTenantId("target-platform", PlatformTenant.ID))
             .thenReturn(Optional.of(target));
@@ -2504,8 +2504,8 @@ class PackageEngineServiceTest {
             "pkg-platform-full",
             new PackageSyncRequest(
                 "req-platform-release", "trace-platform-release", PlatformTenant.ID,
-                null, null, null, null, null, null, "platform-admin",
-                List.of(RoleCode.PLATFORM_ADMIN.code()), "2026.06",
+                null, null, null, null, null, null, "platform-governance-admin",
+                List.of(RoleCode.PLATFORM_GOVERNANCE_ADMIN.code()), "2026.06",
                 "批准平台基线全量发布", "platform-root", ReleaseStrategy.FULL,
                 ReleaseScopeType.ALL, null, List.of("target-platform")
             )
@@ -2518,20 +2518,20 @@ class PackageEngineServiceTest {
     @Test
     void releasePlatformPackageRejectsHospitalAdmin() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "hospital-admin"));
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+            "trace-platform-release", OrgScope.tenant(PlatformTenant.ID), "organization-admin"));
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-platform-denied", PlatformTenant.ID, "PKG.BASELINE", "2026.06",
             "平台基线包", null, KnowledgePackageStatus.PUBLISHED,
-            Instant.now(), "platform-admin", Instant.now(), "platform-admin", "trace"
+            Instant.now(), "platform-governance-admin", Instant.now(), "platform-governance-admin", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-platform-denied", PlatformTenant.ID))
             .thenReturn(Optional.of(pack));
 
         PackageSyncRequest request = new PackageSyncRequest(
             "req-platform-release", "trace-platform-release", PlatformTenant.ID,
-            null, null, null, null, null, null, "hospital-admin",
-            List.of(RoleCode.HOSPITAL_ADMIN.code()), "2026.06",
+            null, null, null, null, null, null, "organization-admin",
+            List.of(RoleCode.ORGANIZATION_ADMIN.code()), "2026.06",
             "申请平台基线全量发布", "platform-root", ReleaseStrategy.FULL,
             ReleaseScopeType.ALL, null, List.of("target-platform")
         );
@@ -2569,7 +2569,7 @@ class PackageEngineServiceTest {
             ReleaseScopeType.ALL,
             null,
             List.of("target-1"),
-            List.of("implementation-engineer")
+            List.of("implementation-operator")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
@@ -2610,7 +2610,7 @@ class PackageEngineServiceTest {
 
         assertThatThrownBy(() -> service.releasePackage("pkg-bad", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("配置包发布前校验未通过")
@@ -2758,7 +2758,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.syncPackage("pkg-draft", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
@@ -3185,7 +3185,7 @@ class PackageEngineServiceTest {
 
         PackageSyncResponse response = service.syncPackage("pkg-copd-v2", packageSyncRequest(
             "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
-            List.of("target-1"), List.of("hospital-admin")
+            List.of("target-1"), List.of("organization-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);

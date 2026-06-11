@@ -48,6 +48,7 @@ import type {
   TracePayloadSummary,
   TraceStateTransition,
 } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -518,7 +519,7 @@ export default function DevConsole() {
               dataIndex: "status",
               render: (status) => (
                 <Tag color={PLUGIN_STATUS_COLOR[status] ?? "default"}>
-                  {PLUGIN_STATUS_LABEL[status] ?? status}
+                  {PLUGIN_STATUS_LABEL[status] ?? customerEnumLabel(status)}
                 </Tag>
               ),
             },
@@ -608,7 +609,10 @@ export default function DevConsole() {
             <Card>
               <Statistic
                 title="健康"
-                value={STATUS_LABEL[operations.healthStatus] ?? operations.healthStatus}
+                value={
+                  STATUS_LABEL[operations.healthStatus] ??
+                  customerEnumLabel(operations.healthStatus)
+                }
               />
             </Card>
           </Col>
@@ -646,7 +650,7 @@ export default function DevConsole() {
                 dataIndex: "status",
                 render: (status) => (
                   <Tag color={STATUS_COLOR[status] ?? "default"}>
-                    {STATUS_LABEL[status] ?? status}
+                    {STATUS_LABEL[status] ?? customerEnumLabel(status)}
                   </Tag>
                 ),
               },

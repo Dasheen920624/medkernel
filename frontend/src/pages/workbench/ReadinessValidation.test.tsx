@@ -44,7 +44,7 @@ function renderPage() {
   );
 }
 
-function profile(roleCode = "implementation-engineer"): SecurityProfile {
+function profile(roleCode = "implementation-operator"): SecurityProfile {
   return {
     userId: `${roleCode}-1`,
     username: roleCode,
@@ -181,7 +181,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
   generatedAt: "2026-06-01T00:00:00Z",
 };
 
-function setLoadedState(roleCode = "implementation-engineer") {
+function setLoadedState(roleCode = "implementation-operator") {
   hookState.security = {
     data: profile(roleCode),
     isLoading: false,
@@ -214,7 +214,7 @@ describe("ReadinessValidation", () => {
   });
 
   it("uses the canonical route contract for governance administrators", () => {
-    setLoadedState("group-admin");
+    setLoadedState("organization-admin");
 
     renderPage();
 
@@ -241,7 +241,7 @@ describe("ReadinessValidation", () => {
   it("shows a forbidden state for clinical roles and does not query runtime sources", () => {
     hookState.security = {
       data: {
-        ...profile("doctor"),
+        ...profile("clinical-decision-user"),
         permissions: [
           {
             code: "menu.workbench",

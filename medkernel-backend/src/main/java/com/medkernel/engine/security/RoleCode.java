@@ -4,9 +4,11 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * MedKernel v1.0 GA · 标准角色枚举。
+ * MedKernel 标准职责角色枚举。
  *
- * <p>对应宪法 §5.2 角色矩阵的 15 个客户可分配业务角色，并额外保留系统内置超级管理员。
+ * <p>角色只表达系统责任，不重复表达机构层级、科室或人员专业岗位。
+ * 集团、医院、分院等差异由组织范围承载，医师、护士、药师等由人员任职承载。
+ * 项目上线前不识别任何早期固定岗位角色编码。
  *
  * <p>JWT {@code roles} claim 使用 {@link #code()}（短横线小写）；
  * Spring Security GrantedAuthority 使用 {@link #authority()}（{@code ROLE_*} 大写下划线）。
@@ -17,21 +19,20 @@ import java.util.Optional;
 public enum RoleCode {
 
     SYSTEM_SUPERADMIN("system-superadmin", "内置超级管理员"),
-    PLATFORM_ADMIN("platform-admin", "平台管理员"),
-    GROUP_ADMIN("group-admin", "集团管理员"),
-    HOSPITAL_ADMIN("hospital-admin", "医院管理员"),
-    IT_OPS("it-ops", "信息科"),
-    MEDICAL_AFFAIRS("medical-affairs", "医务处"),
-    QA_MANAGER("qa-manager", "质控办"),
-    INSURANCE_MANAGER("insurance-manager", "医保办"),
-    DEPT_HEAD("dept-head", "科主任"),
-    SPECIALIST("specialist", "专科专家"),
-    DOCTOR("doctor", "临床医生"),
-    NURSE("nurse", "护理人员"),
-    MED_TECHNICIAN("med-technician", "医技技师"),
-    PHARMACIST("pharmacist", "临床药师"),
-    AUDIT_COMPLIANCE("audit-compliance", "合规审计"),
-    IMPLEMENTATION_ENGINEER("implementation-engineer", "实施工程师");
+    PLATFORM_GOVERNANCE_ADMIN("platform-governance-admin", "平台治理管理员"),
+    PLATFORM_KNOWLEDGE_GOVERNOR("platform-knowledge-governor", "平台知识治理员"),
+    ORGANIZATION_ADMIN("organization-admin", "机构管理员"),
+    IDENTITY_ACCESS_ADMIN("identity-access-admin", "人员与访问管理员"),
+    KNOWLEDGE_GOVERNOR("knowledge-governor", "机构知识治理员"),
+    CLINICAL_GOVERNOR("clinical-governor", "临床治理负责人"),
+    CLINICAL_DECISION_USER("clinical-decision-user", "临床决策使用者"),
+    NURSING_COLLABORATOR("nursing-collaborator", "护理协同人员"),
+    MEDICATION_SAFETY_USER("medication-safety-user", "药事安全人员"),
+    DIAGNOSTIC_SERVICE_USER("diagnostic-service-user", "医技协同人员"),
+    QUALITY_GOVERNOR("quality-governor", "质量与医保治理员"),
+    COMPLIANCE_AUDITOR("compliance-auditor", "合规审计员"),
+    INTEGRATION_OPERATOR("integration-operator", "集成运维员"),
+    IMPLEMENTATION_OPERATOR("implementation-operator", "实施运维员");
 
     private final String code;
     private final String displayName;
@@ -41,7 +42,7 @@ public enum RoleCode {
         this.displayName = displayName;
     }
 
-    /** JWT roles claim 中使用的短横线小写编码（如 {@code "doctor"}） */
+    /** JWT roles claim 中使用的短横线小写编码。 */
     public String code() {
         return code;
     }
@@ -51,7 +52,7 @@ public enum RoleCode {
         return displayName;
     }
 
-    /** Spring Security 权威字符串（{@code ROLE_DOCTOR}） */
+    /** Spring Security 权威字符串（例如 {@code ROLE_CLINICAL_DECISION_USER}）。 */
     public String authority() {
         return "ROLE_" + name();
     }
@@ -61,7 +62,7 @@ public enum RoleCode {
         return this == SYSTEM_SUPERADMIN;
     }
 
-    /** 是否属于 15 个客户可分配业务角色矩阵。 */
+    /** 是否属于客户可分配职责角色。 */
     public boolean customerAssignable() {
         return !systemSuperAdmin();
     }
@@ -76,7 +77,10 @@ public enum RoleCode {
             .findFirst();
     }
 
-    /** 从 Spring Security authority 字符串（{@code ROLE_DOCTOR} / {@code DOCTOR}）反查 */
+    /**
+     * 从 Spring Security authority 字符串
+     * （例如 {@code ROLE_CLINICAL_DECISION_USER} / {@code CLINICAL_DECISION_USER}）反查。
+     */
     public static Optional<RoleCode> fromAuthority(String authority) {
         if (authority == null) {
             return Optional.empty();

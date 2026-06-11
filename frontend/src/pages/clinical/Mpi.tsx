@@ -42,6 +42,10 @@ import {
   type MpiPatientDetailResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+} from "@/shared/config/customerLabels";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;
@@ -66,10 +70,12 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
       <Descriptions title="患者主索引" bordered column={2} size="small">
         <Descriptions.Item label="MPI ID">{patient.mpiId}</Descriptions.Item>
         <Descriptions.Item label="脱敏姓名">{patient.maskedName}</Descriptions.Item>
-        <Descriptions.Item label="性别">{patient.gender}</Descriptions.Item>
+        <Descriptions.Item label="性别">{customerDisplayText(patient.gender)}</Descriptions.Item>
         <Descriptions.Item label="年龄">{patient.age} 岁</Descriptions.Item>
         <Descriptions.Item label="身份证后四位">*** {patient.idLast4}</Descriptions.Item>
-        <Descriptions.Item label="主索引状态">{patient.status}</Descriptions.Item>
+        <Descriptions.Item label="主索引状态">
+          {customerEnumLabel(patient.status)}
+        </Descriptions.Item>
         <Descriptions.Item label="合并指向">
           {patient.mergedIntoMpiId ?? "未合并"}
         </Descriptions.Item>
@@ -79,8 +85,12 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
       <Descriptions title="上下文快照" bordered column={2} size="small">
         <Descriptions.Item label="快照 ID">{snapshot?.snapshotId ?? "暂无快照"}</Descriptions.Item>
         <Descriptions.Item label="就诊编号">{snapshotEncounterId(snapshot)}</Descriptions.Item>
-        <Descriptions.Item label="快照状态">{snapshot?.status ?? "暂无"}</Descriptions.Item>
-        <Descriptions.Item label="质量状态">{snapshot?.qualityStatus ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="快照状态">
+          {snapshot?.status ? customerEnumLabel(snapshot.status) : "暂无"}
+        </Descriptions.Item>
+        <Descriptions.Item label="质量状态">
+          {snapshot?.qualityStatus ? customerDisplayText(snapshot.qualityStatus) : "暂无"}
+        </Descriptions.Item>
       </Descriptions>
 
       <List
@@ -96,7 +106,8 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
                 <Space direction="vertical" size={2}>
                   <Text type="secondary">模板：{pathway.templateId}</Text>
                   <Text type="secondary">
-                    当前节点：{pathway.currentNodeCode ?? "暂无"}；状态：{pathway.status}
+                    当前节点：{pathway.currentNodeCode ?? "暂无"}；状态：
+                    {customerEnumLabel(pathway.status)}
                   </Text>
                   {pathway.traceId && <Text type="secondary">traceId: {pathway.traceId}</Text>}
                 </Space>
@@ -475,7 +486,7 @@ export default function Mpi() {
               {statsLoading ? "..." : (stats?.activeCount ?? 0)}
             </div>
             <div className={styles.statSubtext}>
-              当前租户下仍作为主记录使用的患者数；在径路径实例{" "}
+              当前服务空间内仍作为主记录使用的患者数；在径路径实例{" "}
               {statsLoading ? "..." : (stats?.activePathwayCount ?? 0)} 个
             </div>
           </div>
@@ -730,7 +741,7 @@ export default function Mpi() {
               message="活跃患者目录暂时不可用"
               description={getApiErrorMessage(
                 activeDirectoryQuery.error,
-                "无法读取当前租户的活跃患者，请重试后再执行合并。",
+                "无法读取当前服务空间的活跃患者，请重试后再执行合并。",
               )}
               type="error"
               showIcon

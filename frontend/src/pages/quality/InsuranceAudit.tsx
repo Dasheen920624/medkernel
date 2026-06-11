@@ -40,6 +40,10 @@ import {
   type QualityFindingSeverity,
 } from "@/shared/api/hooks";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+} from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { Text } = Typography;
@@ -276,9 +280,9 @@ export default function InsuranceAudit() {
               onChange={setSeverity}
               options={[
                 { value: "P1", label: "高金额/高风险" },
-                { value: "P0", label: "P0 安全红线" },
-                { value: "P2", label: "P2 中危" },
-                { value: "P3", label: "P3 低危" },
+                { value: "P0", label: "安全红线" },
+                { value: "P2", label: "中危" },
+                { value: "P3", label: "低危" },
               ]}
             />
           </Space>
@@ -338,7 +342,7 @@ export default function InsuranceAudit() {
                     {snapshotDetailQuery.data.packageVersion || "由服务端按快照解析"}
                   </Descriptions.Item>
                   <Descriptions.Item label="质量状态">
-                    {snapshotDetailQuery.data.qualityStatus}
+                    {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="traceId">
                     {snapshotDetailQuery.data.traceId || "未返回"}
@@ -450,9 +454,9 @@ export default function InsuranceAudit() {
                 <Form.Item label="规则级别" name="severity">
                   <Select
                     options={[
-                      { value: "P1", label: "P1 高风险" },
-                      { value: "P2", label: "P2 中风险" },
-                      { value: "P3", label: "P3 低风险" },
+                      { value: "P1", label: "高风险" },
+                      { value: "P2", label: "中风险" },
+                      { value: "P3", label: "低风险" },
                     ]}
                   />
                 </Form.Item>
@@ -501,7 +505,7 @@ export default function InsuranceAudit() {
                     {caseReviewResult.evaluationRunId}
                   </Descriptions.Item>
                   <Descriptions.Item label="模型状态">
-                    {caseReviewResult.modelStatus}
+                    {customerEnumLabel(caseReviewResult.modelStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="问题 / 整改">
                     {caseReviewResult.findingCount} 个问题 / 整改任务 {caseReviewResult.taskCount}{" "}
@@ -578,7 +582,7 @@ export default function InsuranceAudit() {
                           {formatAmount(issue.claimAmount)} / {formatAmount(issue.thresholdAmount)}
                         </Text>
                         <Text type="secondary">traceId</Text>
-                        <Text>{issue.traceId ?? "NOT_CONNECTED"}</Text>
+                        <Text>{issue.traceId ?? "未生成追踪标识"}</Text>
                       </Space>
                     </Space>
                   }
@@ -617,7 +621,7 @@ export default function InsuranceAudit() {
               {selectedIssue.evaluationRunId ?? "未生成评估运行"}
             </Descriptions.Item>
             <Descriptions.Item label="traceId">
-              {selectedIssue.traceId ?? "NOT_CONNECTED"}
+              {selectedIssue.traceId ?? "未生成追踪标识"}
             </Descriptions.Item>
           </Descriptions>
         ) : null}
@@ -674,7 +678,7 @@ function issueStatusTag(status: string) {
   if (status === "WAIVED") {
     return <Tag>已豁免</Tag>;
   }
-  return <Tag>{status}</Tag>;
+  return <Tag>{customerEnumLabel(status)}</Tag>;
 }
 
 function issueTypeTag(type: string) {
@@ -690,20 +694,20 @@ function issueTypeTag(type: string) {
   if (type === "CLAIM_STATUS") {
     return <Tag color="cyan">结算状态</Tag>;
   }
-  return <Tag>{type}</Tag>;
+  return <Tag>{customerEnumLabel(type)}</Tag>;
 }
 
 function severityTag(severity: string) {
   if (severity === "P0") {
-    return <Tag color="error">P0</Tag>;
+    return <Tag color="error">安全红线</Tag>;
   }
   if (severity === "P1") {
-    return <Tag color="volcano">P1</Tag>;
+    return <Tag color="volcano">高优先级</Tag>;
   }
   if (severity === "P2") {
-    return <Tag color="gold">P2</Tag>;
+    return <Tag color="gold">一般优先级</Tag>;
   }
-  return <Tag>{severity || "未分级"}</Tag>;
+  return <Tag>{severity ? customerEnumLabel(severity) : "未分级"}</Tag>;
 }
 
 function countOpenIssues(items: InsuranceIssuePageItem[]) {

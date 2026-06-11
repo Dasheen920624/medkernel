@@ -241,6 +241,7 @@ public class ContextSnapshotService {
         rejectMismatchedOrgLayer("campus", currentScope.campusId(), req.campusId(), req);
         rejectMismatchedOrgLayer("site", currentScope.siteId(), req.siteId(), req);
         rejectMismatchedOrgLayer("department", currentScope.departmentId(), req.departmentId(), req);
+        rejectMismatchedOrgLayer("ward", currentScope.wardId(), req.wardId(), req);
         rejectMismatchedOrgLayer("specialty", currentScope.specialtyId(), req.specialtyId(), req);
     }
 
@@ -432,6 +433,7 @@ public class ContextSnapshotService {
         addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.campusId(), req.campusId()));
         addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.siteId(), req.siteId()));
         addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.departmentId(), req.departmentId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.wardId(), req.wardId()));
         addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.specialtyId(), req.specialtyId()));
         if (!segments.isEmpty()) {
             return String.join("/", segments);

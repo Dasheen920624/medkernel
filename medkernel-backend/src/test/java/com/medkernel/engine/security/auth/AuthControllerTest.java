@@ -107,10 +107,10 @@ class AuthControllerTest {
 
         // 插入角色分配（仅当不存在时）
         boolean hasRole = roleAssignmentRepository.findActiveByTenantIdAndUserId(TENANT, USER_ID)
-            .stream().anyMatch(a -> RoleCode.DOCTOR.code().equals(a.roleCode()));
+            .stream().anyMatch(a -> RoleCode.CLINICAL_DECISION_USER.code().equals(a.roleCode()));
         if (!hasRole) {
             roleAssignmentRepository.save(new UserRoleAssignment(
-                null, TENANT, USER_ID, RoleCode.DOCTOR.code(), "TENANT", TENANT,
+                null, TENANT, USER_ID, RoleCode.CLINICAL_DECISION_USER.code(), "TENANT", TENANT,
                 "Y", now, "test", now, "test"
             ));
         }
@@ -122,7 +122,7 @@ class AuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.hasCustomerTenants").value(false))
             .andExpect(jsonPath("$.data.primaryTenants[0].tenantId").value("t-1"))
-            .andExpect(jsonPath("$.data.platformTenant.name").value("平台主租户（唯一内置）"));
+            .andExpect(jsonPath("$.data.platformTenant.name").value("平台治理空间（唯一内置）"));
     }
 
     @Test
@@ -152,7 +152,7 @@ class AuthControllerTest {
             "/" + TENANT + "/" + AUTH_TEST_HOSPITAL + "/" + AUTH_TEST_DEPARTMENT,
             AUTH_TEST_DEPARTMENT);
         roleAssignmentRepository.save(new UserRoleAssignment(
-            null, TENANT, USER_ID, RoleCode.DOCTOR.code(), "DEPARTMENT", AUTH_TEST_DEPARTMENT,
+            null, TENANT, USER_ID, RoleCode.CLINICAL_DECISION_USER.code(), "DEPARTMENT", AUTH_TEST_DEPARTMENT,
             "Y", Instant.now(), "test", Instant.now(), "test"
         ));
 
@@ -427,7 +427,7 @@ class AuthControllerTest {
         JwtIssuer.IssuedJwt issued = jwtIssuer.issueSession(
             USER_ID,
             TENANT,
-            List.of(RoleCode.DOCTOR.code()),
+            List.of(RoleCode.CLINICAL_DECISION_USER.code()),
             now.minusSeconds(20),
             now.minusSeconds(10),
             now.plusSeconds(120));

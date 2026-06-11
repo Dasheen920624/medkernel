@@ -95,7 +95,7 @@ class KnowledgeAssetApiContractTest {
                       "department_id": "d-1",
                       "specialty_id": "sp-1",
                       "user_id": "u-99",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "identitySlug": "rosuvastatin-guide",
                       "domain": "DRUG",
@@ -116,7 +116,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-source-version-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "versionNo": "2026",
                       "content": "瑞舒伐他汀说明书来源原文",
@@ -149,7 +149,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-version-create-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "versionNo": "2026",
                       "versionLabel": "2026 版",
@@ -343,7 +343,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-candidate-review-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "decision": "APPROVE",
                       "reason": "同意"
@@ -384,7 +384,7 @@ class KnowledgeAssetApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api03-medical-affairs")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("medical-affairs")))
+                .claim("roles", List.of("clinical-governor")))
             .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"));
     }
 
@@ -392,7 +392,7 @@ class KnowledgeAssetApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api03-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("doctor")))
+                .claim("roles", List.of("clinical-decision-user")))
             .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
     }
 
@@ -400,7 +400,7 @@ class KnowledgeAssetApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api03-audit")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("audit-compliance")))
+                .claim("roles", List.of("compliance-auditor")))
             .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"));
     }
 
@@ -411,7 +411,7 @@ class KnowledgeAssetApiContractTest {
               "trace_id": "trace-version-submit-001",
               "tenant_id": "t-1",
               "user_id": "u-99",
-              "role_codes": ["medical-affairs"],
+              "role_codes": ["clinical-governor"],
               "package_version": "pkg-2026.06"
             }
             """;

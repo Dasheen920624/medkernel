@@ -41,12 +41,12 @@ class RequirePermissionAspectTest {
     void annotatedMethodIsAllowedOnlyWhenEffectivePermissionExists() throws Exception {
         RequirePermission annotation = annotatedPermission();
 
-        authenticate(RoleCode.DOCTOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
         assertThatThrownBy(() -> aspect.enforce(annotation))
             .isInstanceOf(PermissionDeniedException.class)
             .hasMessageContaining(PermissionCode.RULE_PUBLISH.code());
 
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
         assertThatCode(() -> aspect.enforce(annotation)).doesNotThrowAnyException();
     }
 

@@ -22,6 +22,7 @@ public record DataPermissionCheckRequest(
     @Size(max = 64) String campusId,
     @Size(max = 64) String siteId,
     @Size(max = 64) String departmentId,
+    @Size(max = 64) String wardId,
     @Size(max = 64) String specialtyId,
     @NotEmpty @Size(max = 128) List<
         @Pattern(regexp = "[A-Za-z][A-Za-z0-9_]{0,63}", message = "字段名仅允许字母、数字和下划线") String>
@@ -33,7 +34,9 @@ public record DataPermissionCheckRequest(
             tenantId,
             resourceType,
             action == null ? DataPermissionAction.READ : action,
-            new OrgScope(tenantId, groupId, hospitalId, campusId, siteId, departmentId, specialtyId),
+            new OrgScope(
+                tenantId, groupId, hospitalId, campusId, siteId,
+                departmentId, wardId, specialtyId),
             requestedColumns
         );
     }

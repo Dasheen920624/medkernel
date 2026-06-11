@@ -986,11 +986,11 @@ class KnowledgeVersionServiceTest {
 
     @Test
     void classifyCandidateInCustomerTenantDoesNotWriteBackToPlatformTenant() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "hospital-admin"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "organization-admin"));
         KnowledgeIdentity identity = new KnowledgeIdentity(
             1L, "t-hospital", "DRUG.X", KnowledgeDomain.DRUG, "医院定制主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, null,
-            Instant.now(), "hospital-admin", Instant.now(), "hospital-admin"
+            Instant.now(), "organization-admin", Instant.now(), "organization-admin"
         );
         when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-hospital", 10L)).thenReturn(Optional.of(sourceDocument("t-hospital", 10L, SourceAuthorityLevel.D_HOSPITAL)));
@@ -1005,14 +1005,14 @@ class KnowledgeVersionServiceTest {
             .get(0);
 
         assertThat(saved.tenantId()).isEqualTo("t-hospital");
-        assertThat(saved.createdBy()).isEqualTo("hospital-admin");
+        assertThat(saved.createdBy()).isEqualTo("organization-admin");
         verify(identityRepo, never()).findByTenantIdAndId("t-1", 1L);
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
     }
 
     @Test
     void listByIdentityFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
         KnowledgeAssetVersion platformVersion =
             version(900L, "t-1", 100L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
@@ -1029,7 +1029,7 @@ class KnowledgeVersionServiceTest {
 
     @Test
     void listByIdentityPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
         KnowledgeIdentity localIdentity = identity(200L, "t-hospital", "DRUG.X", null);
         KnowledgeAssetVersion localVersion =

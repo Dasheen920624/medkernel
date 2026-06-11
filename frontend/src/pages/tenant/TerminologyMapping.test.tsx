@@ -80,7 +80,7 @@ const profile: SecurityProfile = {
   username: "it.owner",
   roles: [
     {
-      code: "it-ops",
+      code: "integration-operator",
       displayName: "信息科",
       source: "DEFAULT",
       scopeLevel: null,
@@ -425,7 +425,7 @@ describe("TerminologyMapping experience sample", () => {
       ...profile,
       roles: [
         {
-          code: "specialist",
+          code: "knowledge-governor",
           displayName: "专科专家",
           source: "DEFAULT",
           scopeLevel: null,
@@ -449,7 +449,7 @@ describe("TerminologyMapping experience sample", () => {
       ...profile,
       roles: [
         {
-          code: "medical-affairs",
+          code: "clinical-governor",
           displayName: "医务处",
           source: "DEFAULT",
           scopeLevel: null,

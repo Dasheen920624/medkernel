@@ -62,8 +62,8 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useLoginTenantDirectory: () => ({
     data: {
-      primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
-      platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+      primaryTenants: [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
+      platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
       hasCustomerTenants: false,
     },
     isLoading: false,
@@ -86,7 +86,7 @@ function authenticatedProfile() {
     username: "implementation.engineer",
     roles: [
       {
-        code: "implementation-engineer",
+        code: "implementation-operator",
         displayName: "实施工程师",
         source: "DEFAULT",
         scopeLevel: null,

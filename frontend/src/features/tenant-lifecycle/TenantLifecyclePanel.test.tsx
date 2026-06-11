@@ -31,7 +31,7 @@ describe("TenantLifecyclePanel", () => {
       </ConfigProvider>,
     );
 
-    const lifecycleTitle = screen.getByText("租户生命周期");
+    const lifecycleTitle = screen.getByText("服务机构生命周期");
     const lifecycleCard = lifecycleTitle.closest(".ant-card");
     const steps = lifecycleCard?.querySelector(".ant-steps");
 

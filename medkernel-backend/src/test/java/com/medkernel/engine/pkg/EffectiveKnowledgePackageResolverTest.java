@@ -539,9 +539,9 @@ class EffectiveKnowledgePackageResolverTest {
             accessPolicy,
             status,
             now,
-            "platform-admin",
+            "platform-governance-admin",
             now,
-            "platform-admin",
+            "platform-governance-admin",
             "trace-pkg");
     }
 
@@ -575,9 +575,9 @@ class EffectiveKnowledgePackageResolverTest {
             assetId,
             assetVersion,
             now,
-            "platform-admin",
+            "platform-governance-admin",
             now,
-            "platform-admin",
+            "platform-governance-admin",
             "trace-pkg");
     }
 
