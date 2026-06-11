@@ -107,6 +107,7 @@ public class LargeListEngineService {
             filterValue(filters, "action"),
             filterValue(filters, "resourceType"),
             filterValue(filters, "actorUserId"),
+            filterValue(filters, "traceId"),
             filterValue(filters, "orgPathPrefix"),
             filterValue(filters, "environmentKey"),
             filterValue(filters, "outcome"),
@@ -162,6 +163,11 @@ public class LargeListEngineService {
         if (actor != null && !actor.isBlank()) {
             sql.append(" AND actor_user_id = ?");
             params.add(actor);
+        }
+        String traceId = filterValue(filters, "traceId");
+        if (traceId != null && !traceId.isBlank()) {
+            sql.append(" AND trace_id = ?");
+            params.add(traceId);
         }
         String orgPathPrefix = filterValue(filters, "orgPathPrefix");
         if (orgPathPrefix != null) {
@@ -637,6 +643,7 @@ public class LargeListEngineService {
                 filterValue(filters, "action"),
                 filterValue(filters, "resourceType"),
                 filterValue(filters, "actorUserId"),
+                filterValue(filters, "traceId"),
                 filterValue(filters, "orgPathPrefix"),
                 filterValue(filters, "environmentKey"),
                 filterValue(filters, "outcome"),

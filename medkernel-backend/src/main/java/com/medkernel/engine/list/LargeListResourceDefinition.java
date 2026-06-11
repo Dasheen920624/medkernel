@@ -22,6 +22,7 @@ record LargeListResourceDefinition(
             "action",
             "resourceType",
             "actorUserId",
+            "traceId",
             "outcome",
             "environmentKey",
             "orgPathPrefix",
