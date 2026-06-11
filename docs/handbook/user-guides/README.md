@@ -1,6 +1,6 @@
 # MedKernel · 业务服务包用户手册
 
-> 状态：已由「全流程演练 · 使用指南 · 体验重构」激活；幕8.5 已补齐幕0-5前台复演配图和体验缺口登记；幕6-9前台复演待第三批补齐；幕10 L2 待审计与降级页面补课
+> 状态：已由「全流程演练 · 使用指南 · 体验重构」激活；幕0-10 前台复演配图、体验缺口登记和第三方案例集已补齐
 > 适用：v1.0 GA · 终端使用人员（医生、护士、药师、信息科、临床科室主任、医务/质控部、医保审核、院级管理）
 
 ---
@@ -15,10 +15,10 @@
 
 | 文件 | 受众 | 启用阶段 |
 |---|---|---|
-| [tenant-readiness.md](tenant-readiness.md) 试点准备用户手册 | 信息科主任 / 临床牵头人 / 知识包负责人 | 幕8.5已补齐幕1-4前台复演配图；幕2、幕3、幕4前台缺口已登记 |
-| [clinical-runtime.md](clinical-runtime.md) 临床运行用户手册 | 医生 / 护士 / 临床科主任 / 临床药师 | 幕8.5已补齐幕5临床路径前台复演配图；幕6-7待第三批前台复演更新 |
+| [tenant-readiness.md](tenant-readiness.md) 试点准备用户手册 | 信息科主任 / 临床牵头人 / 知识包负责人 | 幕1-5、幕8 前台复演配图已补齐；幕2、幕3、幕4、幕5、幕8 缺口已登记 |
+| [clinical-runtime.md](clinical-runtime.md) 临床运行用户手册 | 医生 / 护士 / 临床科主任 / 临床药师 | 幕5-7 前台复演配图已补齐；推荐、路径、随访缺口已登记 |
 | [quality-improvement.md](quality-improvement.md) 质控改进用户手册 | 医务部 / 质控部 / 病案 / 医保 | 幕7已补齐 |
-| [compliance-operations.md](compliance-operations.md) 合规运维用户手册 | 信息科 / 审计 / 安全 | 幕0首次部署、幕9适配器运维已补齐；幕10补齐审计与降级 |
+| [compliance-operations.md](compliance-operations.md) 合规运维用户手册 | 信息科 / 审计 / 安全 | 幕0 首次部署、幕9 适配器运维、幕10 审计与降级均已补齐 |
 | [third-party-cases.md](third-party-cases.md) 第三方对接案例集 | 信息科 / HIS、EMR、LIS、FHIR、质控平台厂商 | 幕9已补齐，6 个真实案例全部通过 |
 
 第三方业务接口服务包和专业领域服务包（专病路径、专业协同）的用户手册按 [详细规范](../../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md) §1.5 与 §2 单独追加。
