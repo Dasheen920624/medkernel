@@ -1,0 +1,2879 @@
+{
+  "runTag": "act9-2grf0t4vdy",
+  "baseUrl": "https://193.112.107.134",
+  "tenantId": "drill-hospital-20260611",
+  "packageCode": "DRILL.ACT8.CONFIG.ACT8-8SINB347C5",
+  "packageVersion": "2026.06.11-act8-8sinb347c5",
+  "packageId": "e845b6cc-fbe7-4577-836f-6fed3bdae47d",
+  "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+  "encounterId": "enc-act6-8oh7bn024a",
+  "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+  "templateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186",
+  "templateCode": "TPL.DRILL.CAP.1781126077791",
+  "checkedAt": "2026-06-11T01:44:02.937Z",
+  "initial": {
+    "health": {
+      "status": 404,
+      "ok": false,
+      "traceId": "be8d0ee2-43f6-477a-a249-ee3ba92f79aa",
+      "path": "/actuator/health",
+      "body": {
+        "type": "urn:medkernel:error:ENG-API-005",
+        "title": "资源不存在",
+        "status": 404,
+        "detail": "接口不存在：api/v1/actuator/health",
+        "instance": "/medkernel/api/v1/actuator/health",
+        "code": "ENG-API-005",
+        "errorClass": "DATA",
+        "retryable": false,
+        "traceId": "be8d0ee2-43f6-477a-a249-ee3ba92f79aa"
+      }
+    },
+    "security": {
+      "itOps": {
+        "status": 200,
+        "ok": true,
+        "traceId": "c53bb9bb-6a6a-42e9-8046-a3e1df23676f",
+        "path": "/security/me",
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "操作成功",
+          "data": {
+            "userId": "drill-it-ops-20260611",
+            "username": "drill-it-ops-20260611",
+            "roles": [
+              {
+                "code": "it-ops",
+                "displayName": "信息科",
+                "source": "JWT",
+                "scopeLevel": null,
+                "scopeCode": null
+              }
+            ],
+            "permissions": [
+              {
+                "code": "asset.config-package",
+                "dimension": "ASSET",
+                "target": "config-package",
+                "displayName": "访问配置包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.dictionary",
+                "dimension": "ASSET",
+                "target": "dictionary",
+                "displayName": "访问字典映射资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.read",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.read",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "查看标准上下文 snapshot",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.write",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "创建标准上下文 snapshot",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "data.group",
+                "dimension": "DATA",
+                "target": "group",
+                "displayName": "访问集团跨院数据",
+                "risk": "HIGH"
+              },
+              {
+                "code": "embed.read",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "验证和查看嵌入上下文",
+                "risk": "LOW"
+              },
+              {
+                "code": "embed.write",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "生成嵌入启动令牌和记录反馈",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "env.production",
+                "dimension": "ENVIRONMENT",
+                "target": "production",
+                "displayName": "访问正式环境",
+                "risk": "HIGH"
+              },
+              {
+                "code": "env.test",
+                "dimension": "ENVIRONMENT",
+                "target": "test",
+                "displayName": "访问测试环境",
+                "risk": "LOW"
+              },
+              {
+                "code": "env.trial",
+                "dimension": "ENVIRONMENT",
+                "target": "trial",
+                "displayName": "访问试运行环境",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.execute",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "接收评估运行和结果事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.read",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "查看评估指标和结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "event.read",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "查看临床事件",
+                "risk": "LOW"
+              },
+              {
+                "code": "event.write",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "创建 / 重放临床事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "followup.read",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "查看随访计划与任务列表",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.write",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "integration.execute",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "integration.read",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "查看第三方适配器、Webhook 和集成日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "integration.write",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "创建或修改第三方适配器与 Webhook",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.read",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "查看知识资产 / 来源 / 候选",
+                "risk": "LOW"
+              },
+              {
+                "code": "list.export",
+                "dimension": "ACTION",
+                "target": "list",
+                "displayName": "创建和下载大规模列表异步导出文件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.execute",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "提交和重试模型任务",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.manage",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "管理租户模型路由、脱敏和输出结构策略",
+                "risk": "HIGH"
+              },
+              {
+                "code": "llm.read",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "查看模型能力状态和调用记录",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.adapter-hub",
+                "dimension": "MENU",
+                "target": "adapter-hub",
+                "displayName": "查看适配器中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.admin-audit",
+                "dimension": "MENU",
+                "target": "admin-audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.ai-workflows",
+                "dimension": "MENU",
+                "target": "ai-workflows",
+                "displayName": "查看 AI 工作流",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.config-packages",
+                "dimension": "MENU",
+                "target": "config-packages",
+                "displayName": "查看配置包中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.dev-console",
+                "dimension": "MENU",
+                "target": "dev-console",
+                "displayName": "查看开发者控制台",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.domestic-check",
+                "dimension": "MENU",
+                "target": "domestic-check",
+                "displayName": "查看国产化自检",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.graph-explore",
+                "dimension": "MENU",
+                "target": "graph-explore",
+                "displayName": "查看图谱查询",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.identity-bindings",
+                "dimension": "MENU",
+                "target": "identity-bindings",
+                "displayName": "查看身份绑定",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.notification-settings",
+                "dimension": "MENU",
+                "target": "notification-settings",
+                "displayName": "查看通知设置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.provenance",
+                "dimension": "MENU",
+                "target": "provenance",
+                "displayName": "查看来源追溯",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-dashboard",
+                "dimension": "MENU",
+                "target": "qc-dashboard",
+                "displayName": "查看院级质控驾驶舱",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-results",
+                "dimension": "MENU",
+                "target": "qc-eval-results",
+                "displayName": "查看评估结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.security-baseline",
+                "dimension": "MENU",
+                "target": "security-baseline",
+                "displayName": "查看安全基线与系统配置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.system-providers",
+                "dimension": "MENU",
+                "target": "system-providers",
+                "displayName": "查看 Provider 状态",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.terminology-mapping",
+                "dimension": "MENU",
+                "target": "terminology-mapping",
+                "displayName": "查看字典映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workbench",
+                "dimension": "MENU",
+                "target": "workbench",
+                "displayName": "查看工作台入口",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.read",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "查看患者主索引列表与统计",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.read",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.write",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "标记通知已读和保存通知偏好",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.read",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "查看组织树",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.write",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "新增 / 修改组织单元",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "package.publish",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "灰度 / 全量发布配置包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "package.read",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "查看配置包 / 知识包",
+                "risk": "LOW"
+              },
+              {
+                "code": "package.rollback",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "回滚配置包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "projection.read",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "查看投影状态与一致性报告",
+                "risk": "LOW"
+              },
+              {
+                "code": "projection.rebuild",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "从关系库权威源重建投影",
+                "risk": "HIGH"
+              },
+              {
+                "code": "recommendation.read",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "查看推荐 / 提醒",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.write",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "创建推荐触发和候选提醒事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "system.manage",
+                "dimension": "ACTION",
+                "target": "system",
+                "displayName": "运维操作（重启、密钥轮换、降级开关）",
+                "risk": "HIGH"
+              },
+              {
+                "code": "system.read",
+                "dimension": "ACTION",
+                "target": "system",
+                "displayName": "查看系统状态 / Provider",
+                "risk": "LOW"
+              },
+              {
+                "code": "tenant.override",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "发布租户 / 机构资产覆盖",
+                "risk": "HIGH"
+              },
+              {
+                "code": "tenant.read",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "查看租户与生命周期",
+                "risk": "LOW"
+              },
+              {
+                "code": "tenant.write",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "开通 / 关闭租户",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.publish",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "发布字典映射包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.read",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "查看标准字典 / 院内映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "term.write",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "修改字典 / 映射",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "workbench:readiness:view",
+                "dimension": "ACTION",
+                "target": "workbench",
+                "displayName": "查看验收自检页面",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.read",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "查看临床协同待办",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.write",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "完成或转交临床协同待办",
+                "risk": "MEDIUM"
+              }
+            ],
+            "menuKeys": [
+              "workbench",
+              "config-packages",
+              "terminology-mapping",
+              "adapter-hub",
+              "qc-dashboard",
+              "qc-eval-results",
+              "identity-bindings",
+              "admin-audit",
+              "security-baseline",
+              "system-providers",
+              "notification-settings",
+              "provenance",
+              "graph-explore",
+              "ai-workflows",
+              "domestic-check",
+              "dev-console"
+            ],
+            "environmentKeys": [
+              "production",
+              "test",
+              "trial"
+            ],
+            "dataScope": {
+              "tenantId": "drill-hospital-20260611",
+              "groupId": null,
+              "hospitalId": null,
+              "campusId": null,
+              "siteId": null,
+              "departmentId": null,
+              "specialtyId": null
+            },
+            "mustChangePwd": false,
+            "mfaRequired": "[REDACTED]",
+            "mfaBound": "[REDACTED]"
+          },
+          "traceId": "c53bb9bb-6a6a-42e9-8046-a3e1df23676f",
+          "timestamp": "2026-06-11T01:44:04.622560949Z"
+        }
+      },
+      "admin": {
+        "status": 200,
+        "ok": true,
+        "traceId": "f2bf2038-a9ae-43f0-8a49-e9486cc571f6",
+        "path": "/security/me",
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "操作成功",
+          "data": {
+            "userId": "drill-hospital-admin-20260611",
+            "username": "drill-hospital-admin-20260611",
+            "roles": [
+              {
+                "code": "hospital-admin",
+                "displayName": "医院管理员",
+                "source": "JWT",
+                "scopeLevel": null,
+                "scopeCode": null
+              }
+            ],
+            "permissions": [
+              {
+                "code": "asset.config-package",
+                "dimension": "ASSET",
+                "target": "config-package",
+                "displayName": "访问配置包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.dictionary",
+                "dimension": "ASSET",
+                "target": "dictionary",
+                "displayName": "访问字典映射资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.knowledge-package",
+                "dimension": "ASSET",
+                "target": "knowledge-package",
+                "displayName": "访问知识包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.pathway",
+                "dimension": "ASSET",
+                "target": "pathway",
+                "displayName": "访问路径资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.rule",
+                "dimension": "ASSET",
+                "target": "rule",
+                "displayName": "访问规则资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.export",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "导出审计快照 / 证据包",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.read",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.read",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "查看标准上下文 snapshot",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.write",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "创建标准上下文 snapshot",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "data.department",
+                "dimension": "DATA",
+                "target": "department",
+                "displayName": "访问本科室数据",
+                "risk": "LOW"
+              },
+              {
+                "code": "data.desensitized",
+                "dimension": "DATA",
+                "target": "desensitized",
+                "displayName": "访问脱敏数据",
+                "risk": "LOW"
+              },
+              {
+                "code": "data.group",
+                "dimension": "DATA",
+                "target": "group",
+                "displayName": "访问集团跨院数据",
+                "risk": "HIGH"
+              },
+              {
+                "code": "data.hospital",
+                "dimension": "DATA",
+                "target": "hospital",
+                "displayName": "访问全院数据",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "embed.read",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "验证和查看嵌入上下文",
+                "risk": "LOW"
+              },
+              {
+                "code": "embed.write",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "生成嵌入启动令牌和记录反馈",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "env.production",
+                "dimension": "ENVIRONMENT",
+                "target": "production",
+                "displayName": "访问正式环境",
+                "risk": "HIGH"
+              },
+              {
+                "code": "env.test",
+                "dimension": "ENVIRONMENT",
+                "target": "test",
+                "displayName": "访问测试环境",
+                "risk": "LOW"
+              },
+              {
+                "code": "env.trial",
+                "dimension": "ENVIRONMENT",
+                "target": "trial",
+                "displayName": "访问试运行环境",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.execute",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "接收评估运行和结果事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.publish",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "发布质控指标",
+                "risk": "HIGH"
+              },
+              {
+                "code": "evaluation.read",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "查看评估指标和结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "evaluation.remediate",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "提交质控问题整改证据",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.review",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "复核质控整改并关闭问题",
+                "risk": "HIGH"
+              },
+              {
+                "code": "evaluation.write",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "修改评估指标",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "event.read",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "查看临床事件",
+                "risk": "LOW"
+              },
+              {
+                "code": "event.write",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "创建 / 重放临床事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "followup.read",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "查看随访计划与任务列表",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.write",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "integration.execute",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "integration.read",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "查看第三方适配器、Webhook 和集成日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "integration.write",
+                "dimension": "ACTION",
+                "target": "integration",
+                "displayName": "创建或修改第三方适配器与 Webhook",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.export",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "异步导出知识资产 / 引用 / 历史",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.publish",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "激活新版知识并失效旧版",
+                "risk": "HIGH"
+              },
+              {
+                "code": "knowledge.read",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "查看知识资产 / 来源 / 候选",
+                "risk": "LOW"
+              },
+              {
+                "code": "knowledge.review",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "审核 AI 候选知识",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.withdraw",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "紧急撤回已发布知识版本",
+                "risk": "HIGH"
+              },
+              {
+                "code": "knowledge.write",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "新增 / 修改知识候选草稿与来源登记",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "list.export",
+                "dimension": "ACTION",
+                "target": "list",
+                "displayName": "创建和下载大规模列表异步导出文件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.execute",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "提交和重试模型任务",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.manage",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "管理租户模型路由、脱敏和输出结构策略",
+                "risk": "HIGH"
+              },
+              {
+                "code": "llm.read",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "查看模型能力状态和调用记录",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.adapter-hub",
+                "dimension": "MENU",
+                "target": "adapter-hub",
+                "displayName": "查看适配器中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.admin-audit",
+                "dimension": "MENU",
+                "target": "admin-audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.admin-users",
+                "dimension": "MENU",
+                "target": "admin-users",
+                "displayName": "查看用户管理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.ai-workflows",
+                "dimension": "MENU",
+                "target": "ai-workflows",
+                "displayName": "查看 AI 工作流",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.cdss-fatigue",
+                "dimension": "MENU",
+                "target": "cdss-fatigue",
+                "displayName": "查看临床提醒治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.clinical-followup",
+                "dimension": "MENU",
+                "target": "clinical-followup",
+                "displayName": "查看智能随访",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.config-packages",
+                "dimension": "MENU",
+                "target": "config-packages",
+                "displayName": "查看配置包中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.dev-console",
+                "dimension": "MENU",
+                "target": "dev-console",
+                "displayName": "查看开发者控制台",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.domestic-check",
+                "dimension": "MENU",
+                "target": "domestic-check",
+                "displayName": "查看国产化自检",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.graph-explore",
+                "dimension": "MENU",
+                "target": "graph-explore",
+                "displayName": "查看图谱查询",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.identity-bindings",
+                "dimension": "MENU",
+                "target": "identity-bindings",
+                "displayName": "查看身份绑定",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.implementation-guide",
+                "dimension": "MENU",
+                "target": "implementation-guide",
+                "displayName": "查看客户实施向导",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.insurance-audit",
+                "dimension": "MENU",
+                "target": "insurance-audit",
+                "displayName": "查看医保智能审核",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.knowledge-governance",
+                "dimension": "MENU",
+                "target": "knowledge-governance",
+                "displayName": "查看知识治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.mpi",
+                "dimension": "MENU",
+                "target": "mpi",
+                "displayName": "查看患者主索引",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.notification-settings",
+                "dimension": "MENU",
+                "target": "notification-settings",
+                "displayName": "查看通知设置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.notifications",
+                "dimension": "MENU",
+                "target": "notifications",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.pathway-templates",
+                "dimension": "MENU",
+                "target": "pathway-templates",
+                "displayName": "查看路径配置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.patient-pathways",
+                "dimension": "MENU",
+                "target": "patient-pathways",
+                "displayName": "查看患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.provenance",
+                "dimension": "MENU",
+                "target": "provenance",
+                "displayName": "查看来源追溯",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-alerts",
+                "dimension": "MENU",
+                "target": "qc-alerts",
+                "displayName": "查看质控预警",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-dashboard",
+                "dimension": "MENU",
+                "target": "qc-dashboard",
+                "displayName": "查看院级质控驾驶舱",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-results",
+                "dimension": "MENU",
+                "target": "qc-eval-results",
+                "displayName": "查看评估结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-sets",
+                "dimension": "MENU",
+                "target": "qc-eval-sets",
+                "displayName": "查看评估指标库",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.rule-definitions",
+                "dimension": "MENU",
+                "target": "rule-definitions",
+                "displayName": "查看规则库",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.rule-validate",
+                "dimension": "MENU",
+                "target": "rule-validate",
+                "displayName": "查看规则校验",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.security-baseline",
+                "dimension": "MENU",
+                "target": "security-baseline",
+                "displayName": "查看安全基线与系统配置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.system-providers",
+                "dimension": "MENU",
+                "target": "system-providers",
+                "displayName": "查看 Provider 状态",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.tenant-onboarding",
+                "dimension": "MENU",
+                "target": "tenant-onboarding",
+                "displayName": "查看租户开通",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.terminology-mapping",
+                "dimension": "MENU",
+                "target": "terminology-mapping",
+                "displayName": "查看字典映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workbench",
+                "dimension": "MENU",
+                "target": "workbench",
+                "displayName": "查看工作台入口",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workflow-todos",
+                "dimension": "MENU",
+                "target": "workflow-todos",
+                "displayName": "查看待办中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.read",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "查看患者主索引列表与统计",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.write",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "合并患者主索引",
+                "risk": "HIGH"
+              },
+              {
+                "code": "notification.read",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.write",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "标记通知已读和保存通知偏好",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.publish",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "激活 / 暂停 / 归档组织单元",
+                "risk": "HIGH"
+              },
+              {
+                "code": "org.read",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "查看组织树",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.write",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "新增 / 修改组织单元",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "package.publish",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "灰度 / 全量发布配置包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "package.read",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "查看配置包 / 知识包",
+                "risk": "LOW"
+              },
+              {
+                "code": "package.rollback",
+                "dimension": "ACTION",
+                "target": "package",
+                "displayName": "回滚配置包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "pathway.publish",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "发布路径模板",
+                "risk": "HIGH"
+              },
+              {
+                "code": "pathway.read",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "查看路径模板 / 患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "pathway.write",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "编辑路径模板",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "projection.read",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "查看投影状态与一致性报告",
+                "risk": "LOW"
+              },
+              {
+                "code": "projection.rebuild",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "从关系库权威源重建投影",
+                "risk": "HIGH"
+              },
+              {
+                "code": "recommendation.accept",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "采纳或拒绝推荐（医师权限）",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "recommendation.read",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "查看推荐 / 提醒",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.write",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "创建推荐触发和候选提醒事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "rule.override",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "记录阻断或强提醒的人工越权理由",
+                "risk": "HIGH"
+              },
+              {
+                "code": "rule.publish",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "灰度 / 全量发布规则",
+                "risk": "HIGH"
+              },
+              {
+                "code": "rule.read",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "查看规则",
+                "risk": "LOW"
+              },
+              {
+                "code": "rule.write",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "新增 / 修改规则草稿",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "system.read",
+                "dimension": "ACTION",
+                "target": "system",
+                "displayName": "查看系统状态 / Provider",
+                "risk": "LOW"
+              },
+              {
+                "code": "tenant.override",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "发布租户 / 机构资产覆盖",
+                "risk": "HIGH"
+              },
+              {
+                "code": "tenant.read",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "查看租户与生命周期",
+                "risk": "LOW"
+              },
+              {
+                "code": "tenant.write",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "开通 / 关闭租户",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.publish",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "发布字典映射包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.read",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "查看标准字典 / 院内映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "term.write",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "修改字典 / 映射",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "workbench:readiness:view",
+                "dimension": "ACTION",
+                "target": "workbench",
+                "displayName": "查看验收自检页面",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.read",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "查看临床协同待办",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.write",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "完成或转交临床协同待办",
+                "risk": "MEDIUM"
+              }
+            ],
+            "menuKeys": [
+              "workbench",
+              "implementation-guide",
+              "tenant-onboarding",
+              "config-packages",
+              "pathway-templates",
+              "rule-definitions",
+              "terminology-mapping",
+              "adapter-hub",
+              "mpi",
+              "patient-pathways",
+              "cdss-fatigue",
+              "rule-validate",
+              "workflow-todos",
+              "notifications",
+              "clinical-followup",
+              "qc-dashboard",
+              "qc-alerts",
+              "insurance-audit",
+              "qc-eval-sets",
+              "qc-eval-results",
+              "knowledge-governance",
+              "admin-users",
+              "identity-bindings",
+              "admin-audit",
+              "security-baseline",
+              "system-providers",
+              "notification-settings",
+              "provenance",
+              "graph-explore",
+              "ai-workflows",
+              "domestic-check",
+              "dev-console"
+            ],
+            "environmentKeys": [
+              "production",
+              "test",
+              "trial"
+            ],
+            "dataScope": {
+              "tenantId": "drill-hospital-20260611",
+              "groupId": null,
+              "hospitalId": null,
+              "campusId": null,
+              "siteId": null,
+              "departmentId": null,
+              "specialtyId": null
+            },
+            "mustChangePwd": false,
+            "mfaRequired": "[REDACTED]",
+            "mfaBound": "[REDACTED]"
+          },
+          "traceId": "f2bf2038-a9ae-43f0-8a49-e9486cc571f6",
+          "timestamp": "2026-06-11T01:44:04.674400021Z"
+        }
+      },
+      "medical": {
+        "status": 200,
+        "ok": true,
+        "traceId": "ffccf774-d63d-4f8e-b1bf-edd3ff83b05f",
+        "path": "/security/me",
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "操作成功",
+          "data": {
+            "userId": "drill-medical-affairs-20260611",
+            "username": "drill-medical-affairs-20260611",
+            "roles": [
+              {
+                "code": "medical-affairs",
+                "displayName": "医务处",
+                "source": "JWT",
+                "scopeLevel": null,
+                "scopeCode": null
+              }
+            ],
+            "permissions": [
+              {
+                "code": "asset.knowledge-package",
+                "dimension": "ASSET",
+                "target": "knowledge-package",
+                "displayName": "访问知识包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.pathway",
+                "dimension": "ASSET",
+                "target": "pathway",
+                "displayName": "访问路径资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.rule",
+                "dimension": "ASSET",
+                "target": "rule",
+                "displayName": "访问规则资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.export",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "导出审计快照 / 证据包",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.read",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.read",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "查看标准上下文 snapshot",
+                "risk": "LOW"
+              },
+              {
+                "code": "data.hospital",
+                "dimension": "DATA",
+                "target": "hospital",
+                "displayName": "访问全院数据",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "embed.read",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "验证和查看嵌入上下文",
+                "risk": "LOW"
+              },
+              {
+                "code": "embed.write",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "生成嵌入启动令牌和记录反馈",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "env.production",
+                "dimension": "ENVIRONMENT",
+                "target": "production",
+                "displayName": "访问正式环境",
+                "risk": "HIGH"
+              },
+              {
+                "code": "env.trial",
+                "dimension": "ENVIRONMENT",
+                "target": "trial",
+                "displayName": "访问试运行环境",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.read",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "查看评估指标和结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "event.read",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "查看临床事件",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.read",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "查看随访计划与任务列表",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.write",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.export",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "异步导出知识资产 / 引用 / 历史",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.publish",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "激活新版知识并失效旧版",
+                "risk": "HIGH"
+              },
+              {
+                "code": "knowledge.read",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "查看知识资产 / 来源 / 候选",
+                "risk": "LOW"
+              },
+              {
+                "code": "knowledge.review",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "审核 AI 候选知识",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.withdraw",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "紧急撤回已发布知识版本",
+                "risk": "HIGH"
+              },
+              {
+                "code": "knowledge.write",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "新增 / 修改知识候选草稿与来源登记",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "list.export",
+                "dimension": "ACTION",
+                "target": "list",
+                "displayName": "创建和下载大规模列表异步导出文件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.execute",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "提交和重试模型任务",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.read",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "查看模型能力状态和调用记录",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.ai-workflows",
+                "dimension": "MENU",
+                "target": "ai-workflows",
+                "displayName": "查看 AI 工作流",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.cdss-fatigue",
+                "dimension": "MENU",
+                "target": "cdss-fatigue",
+                "displayName": "查看临床提醒治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.clinical-followup",
+                "dimension": "MENU",
+                "target": "clinical-followup",
+                "displayName": "查看智能随访",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.knowledge-governance",
+                "dimension": "MENU",
+                "target": "knowledge-governance",
+                "displayName": "查看知识治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.notifications",
+                "dimension": "MENU",
+                "target": "notifications",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.pathway-templates",
+                "dimension": "MENU",
+                "target": "pathway-templates",
+                "displayName": "查看路径配置",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.patient-pathways",
+                "dimension": "MENU",
+                "target": "patient-pathways",
+                "displayName": "查看患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.provenance",
+                "dimension": "MENU",
+                "target": "provenance",
+                "displayName": "查看来源追溯",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-alerts",
+                "dimension": "MENU",
+                "target": "qc-alerts",
+                "displayName": "查看质控预警",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-dashboard",
+                "dimension": "MENU",
+                "target": "qc-dashboard",
+                "displayName": "查看院级质控驾驶舱",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-results",
+                "dimension": "MENU",
+                "target": "qc-eval-results",
+                "displayName": "查看评估结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.rule-definitions",
+                "dimension": "MENU",
+                "target": "rule-definitions",
+                "displayName": "查看规则库",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.rule-validate",
+                "dimension": "MENU",
+                "target": "rule-validate",
+                "displayName": "查看规则校验",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.terminology-mapping",
+                "dimension": "MENU",
+                "target": "terminology-mapping",
+                "displayName": "查看字典映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workbench",
+                "dimension": "MENU",
+                "target": "workbench",
+                "displayName": "查看工作台入口",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workflow-todos",
+                "dimension": "MENU",
+                "target": "workflow-todos",
+                "displayName": "查看待办中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.read",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "查看患者主索引列表与统计",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.write",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "合并患者主索引",
+                "risk": "HIGH"
+              },
+              {
+                "code": "notification.read",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.write",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "标记通知已读和保存通知偏好",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.read",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "查看组织树",
+                "risk": "LOW"
+              },
+              {
+                "code": "pathway.publish",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "发布路径模板",
+                "risk": "HIGH"
+              },
+              {
+                "code": "pathway.read",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "查看路径模板 / 患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "pathway.write",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "编辑路径模板",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "projection.read",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "查看投影状态与一致性报告",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.read",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "查看推荐 / 提醒",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.write",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "创建推荐触发和候选提醒事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "rule.publish",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "灰度 / 全量发布规则",
+                "risk": "HIGH"
+              },
+              {
+                "code": "rule.read",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "查看规则",
+                "risk": "LOW"
+              },
+              {
+                "code": "rule.write",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "新增 / 修改规则草稿",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "tenant.override",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "发布租户 / 机构资产覆盖",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.publish",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "发布字典映射包",
+                "risk": "HIGH"
+              },
+              {
+                "code": "term.read",
+                "dimension": "ACTION",
+                "target": "term",
+                "displayName": "查看标准字典 / 院内映射",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.read",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "查看临床协同待办",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.write",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "完成或转交临床协同待办",
+                "risk": "MEDIUM"
+              }
+            ],
+            "menuKeys": [
+              "workbench",
+              "pathway-templates",
+              "rule-definitions",
+              "terminology-mapping",
+              "patient-pathways",
+              "cdss-fatigue",
+              "rule-validate",
+              "workflow-todos",
+              "notifications",
+              "clinical-followup",
+              "qc-dashboard",
+              "qc-alerts",
+              "qc-eval-results",
+              "knowledge-governance",
+              "provenance",
+              "ai-workflows"
+            ],
+            "environmentKeys": [
+              "production",
+              "trial"
+            ],
+            "dataScope": {
+              "tenantId": "drill-hospital-20260611",
+              "groupId": null,
+              "hospitalId": null,
+              "campusId": null,
+              "siteId": null,
+              "departmentId": null,
+              "specialtyId": null
+            },
+            "mustChangePwd": false,
+            "mfaRequired": "[REDACTED]",
+            "mfaBound": "[REDACTED]"
+          },
+          "traceId": "ffccf774-d63d-4f8e-b1bf-edd3ff83b05f",
+          "timestamp": "2026-06-11T01:44:04.730115215Z"
+        }
+      },
+      "doctor": {
+        "status": 200,
+        "ok": true,
+        "traceId": "ad9c13e6-c079-4ca9-88f4-7ae2ee4ec0f5",
+        "path": "/security/me",
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "操作成功",
+          "data": {
+            "userId": "drill-respiratory-doctor-20260611",
+            "username": "drill-respiratory-doctor-20260611",
+            "roles": [
+              {
+                "code": "doctor",
+                "displayName": "临床医生",
+                "source": "JWT",
+                "scopeLevel": null,
+                "scopeCode": null
+              }
+            ],
+            "permissions": [
+              {
+                "code": "asset.knowledge-package",
+                "dimension": "ASSET",
+                "target": "knowledge-package",
+                "displayName": "访问知识包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.pathway",
+                "dimension": "ASSET",
+                "target": "pathway",
+                "displayName": "访问路径资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.rule",
+                "dimension": "ASSET",
+                "target": "rule",
+                "displayName": "访问规则资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "context.read",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "查看标准上下文 snapshot",
+                "risk": "LOW"
+              },
+              {
+                "code": "data.department",
+                "dimension": "DATA",
+                "target": "department",
+                "displayName": "访问本科室数据",
+                "risk": "LOW"
+              },
+              {
+                "code": "embed.read",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "验证和查看嵌入上下文",
+                "risk": "LOW"
+              },
+              {
+                "code": "embed.write",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "生成嵌入启动令牌和记录反馈",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "env.production",
+                "dimension": "ENVIRONMENT",
+                "target": "production",
+                "displayName": "访问正式环境",
+                "risk": "HIGH"
+              },
+              {
+                "code": "event.read",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "查看临床事件",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.read",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "查看随访计划与任务列表",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.write",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "智能生成随访计划、触发任务、提交问卷与回传异常事件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.read",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "查看知识资产 / 来源 / 候选",
+                "risk": "LOW"
+              },
+              {
+                "code": "llm.execute",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "提交和重试模型任务",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.read",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "查看模型能力状态和调用记录",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.cdss-fatigue",
+                "dimension": "MENU",
+                "target": "cdss-fatigue",
+                "displayName": "查看临床提醒治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.clinical-followup",
+                "dimension": "MENU",
+                "target": "clinical-followup",
+                "displayName": "查看智能随访",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.mpi",
+                "dimension": "MENU",
+                "target": "mpi",
+                "displayName": "查看患者主索引",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.notifications",
+                "dimension": "MENU",
+                "target": "notifications",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.patient-pathways",
+                "dimension": "MENU",
+                "target": "patient-pathways",
+                "displayName": "查看患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.rule-validate",
+                "dimension": "MENU",
+                "target": "rule-validate",
+                "displayName": "查看规则校验",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workbench",
+                "dimension": "MENU",
+                "target": "workbench",
+                "displayName": "查看工作台入口",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workflow-todos",
+                "dimension": "MENU",
+                "target": "workflow-todos",
+                "displayName": "查看待办中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.read",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "查看患者主索引列表与统计",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.read",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.write",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "标记通知已读和保存通知偏好",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.read",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "查看组织树",
+                "risk": "LOW"
+              },
+              {
+                "code": "pathway.read",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "查看路径模板 / 患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.accept",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "采纳或拒绝推荐（医师权限）",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "recommendation.read",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "查看推荐 / 提醒",
+                "risk": "LOW"
+              },
+              {
+                "code": "rule.override",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "记录阻断或强提醒的人工越权理由",
+                "risk": "HIGH"
+              },
+              {
+                "code": "rule.read",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "查看规则",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.read",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "查看临床协同待办",
+                "risk": "LOW"
+              },
+              {
+                "code": "workflow.write",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "完成或转交临床协同待办",
+                "risk": "MEDIUM"
+              }
+            ],
+            "menuKeys": [
+              "workbench",
+              "mpi",
+              "patient-pathways",
+              "cdss-fatigue",
+              "rule-validate",
+              "workflow-todos",
+              "notifications",
+              "clinical-followup"
+            ],
+            "environmentKeys": [
+              "production"
+            ],
+            "dataScope": {
+              "tenantId": "drill-hospital-20260611",
+              "groupId": null,
+              "hospitalId": null,
+              "campusId": null,
+              "siteId": null,
+              "departmentId": null,
+              "specialtyId": null
+            },
+            "mustChangePwd": false,
+            "mfaRequired": "[REDACTED]",
+            "mfaBound": "[REDACTED]"
+          },
+          "traceId": "ad9c13e6-c079-4ca9-88f4-7ae2ee4ec0f5",
+          "timestamp": "2026-06-11T01:44:04.782260083Z"
+        }
+      },
+      "quality": {
+        "status": 200,
+        "ok": true,
+        "traceId": "f789eec8-0539-4009-8ff7-1101cb7d3ccd",
+        "path": "/security/me",
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "操作成功",
+          "data": {
+            "userId": "drill-role-qa-manager-20260611",
+            "username": "drill-role-qa-manager-20260611",
+            "roles": [
+              {
+                "code": "qa-manager",
+                "displayName": "质控办",
+                "source": "JWT",
+                "scopeLevel": null,
+                "scopeCode": null
+              }
+            ],
+            "permissions": [
+              {
+                "code": "asset.knowledge-package",
+                "dimension": "ASSET",
+                "target": "knowledge-package",
+                "displayName": "访问知识包资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.pathway",
+                "dimension": "ASSET",
+                "target": "pathway",
+                "displayName": "访问路径资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "asset.rule",
+                "dimension": "ASSET",
+                "target": "rule",
+                "displayName": "访问规则资产",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.export",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "导出审计快照 / 证据包",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "audit.read",
+                "dimension": "ACTION",
+                "target": "audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "context.read",
+                "dimension": "ACTION",
+                "target": "context",
+                "displayName": "查看标准上下文 snapshot",
+                "risk": "LOW"
+              },
+              {
+                "code": "data.hospital",
+                "dimension": "DATA",
+                "target": "hospital",
+                "displayName": "访问全院数据",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "embed.read",
+                "dimension": "ACTION",
+                "target": "embed",
+                "displayName": "验证和查看嵌入上下文",
+                "risk": "LOW"
+              },
+              {
+                "code": "env.production",
+                "dimension": "ENVIRONMENT",
+                "target": "production",
+                "displayName": "访问正式环境",
+                "risk": "HIGH"
+              },
+              {
+                "code": "env.trial",
+                "dimension": "ENVIRONMENT",
+                "target": "trial",
+                "displayName": "访问试运行环境",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.execute",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "接收评估运行和结果事实",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.publish",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "发布质控指标",
+                "risk": "HIGH"
+              },
+              {
+                "code": "evaluation.read",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "查看评估指标和结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "evaluation.remediate",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "提交质控问题整改证据",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "evaluation.review",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "复核质控整改并关闭问题",
+                "risk": "HIGH"
+              },
+              {
+                "code": "evaluation.write",
+                "dimension": "ACTION",
+                "target": "evaluation",
+                "displayName": "修改评估指标",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "event.read",
+                "dimension": "ACTION",
+                "target": "event",
+                "displayName": "查看临床事件",
+                "risk": "LOW"
+              },
+              {
+                "code": "followup.read",
+                "dimension": "ACTION",
+                "target": "followup",
+                "displayName": "查看随访计划与任务列表",
+                "risk": "LOW"
+              },
+              {
+                "code": "knowledge.export",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "异步导出知识资产 / 引用 / 历史",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "knowledge.read",
+                "dimension": "ACTION",
+                "target": "knowledge",
+                "displayName": "查看知识资产 / 来源 / 候选",
+                "risk": "LOW"
+              },
+              {
+                "code": "list.export",
+                "dimension": "ACTION",
+                "target": "list",
+                "displayName": "创建和下载大规模列表异步导出文件",
+                "risk": "MEDIUM"
+              },
+              {
+                "code": "llm.read",
+                "dimension": "ACTION",
+                "target": "llm",
+                "displayName": "查看模型能力状态和调用记录",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.admin-audit",
+                "dimension": "MENU",
+                "target": "admin-audit",
+                "displayName": "查看审计日志",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.knowledge-governance",
+                "dimension": "MENU",
+                "target": "knowledge-governance",
+                "displayName": "查看知识治理",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.provenance",
+                "dimension": "MENU",
+                "target": "provenance",
+                "displayName": "查看来源追溯",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-alerts",
+                "dimension": "MENU",
+                "target": "qc-alerts",
+                "displayName": "查看质控预警",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-dashboard",
+                "dimension": "MENU",
+                "target": "qc-dashboard",
+                "displayName": "查看院级质控驾驶舱",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-results",
+                "dimension": "MENU",
+                "target": "qc-eval-results",
+                "displayName": "查看评估结果",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.qc-eval-sets",
+                "dimension": "MENU",
+                "target": "qc-eval-sets",
+                "displayName": "查看评估指标库",
+                "risk": "LOW"
+              },
+              {
+                "code": "menu.workbench",
+                "dimension": "MENU",
+                "target": "workbench",
+                "displayName": "查看工作台入口",
+                "risk": "LOW"
+              },
+              {
+                "code": "mpi.read",
+                "dimension": "ACTION",
+                "target": "mpi",
+                "displayName": "查看患者主索引列表与统计",
+                "risk": "LOW"
+              },
+              {
+                "code": "notification.read",
+                "dimension": "ACTION",
+                "target": "notification",
+                "displayName": "查看通知中心",
+                "risk": "LOW"
+              },
+              {
+                "code": "org.read",
+                "dimension": "ACTION",
+                "target": "org",
+                "displayName": "查看组织树",
+                "risk": "LOW"
+              },
+              {
+                "code": "pathway.read",
+                "dimension": "ACTION",
+                "target": "pathway",
+                "displayName": "查看路径模板 / 患者路径",
+                "risk": "LOW"
+              },
+              {
+                "code": "projection.read",
+                "dimension": "ACTION",
+                "target": "projection",
+                "displayName": "查看投影状态与一致性报告",
+                "risk": "LOW"
+              },
+              {
+                "code": "recommendation.read",
+                "dimension": "ACTION",
+                "target": "recommendation",
+                "displayName": "查看推荐 / 提醒",
+                "risk": "LOW"
+              },
+              {
+                "code": "rule.read",
+                "dimension": "ACTION",
+                "target": "rule",
+                "displayName": "查看规则",
+                "risk": "LOW"
+              },
+              {
+                "code": "tenant.override",
+                "dimension": "ACTION",
+                "target": "tenant",
+                "displayName": "发布租户 / 机构资产覆盖",
+                "risk": "HIGH"
+              },
+              {
+                "code": "workflow.read",
+                "dimension": "ACTION",
+                "target": "workflow",
+                "displayName": "查看临床协同待办",
+                "risk": "LOW"
+              }
+            ],
+            "menuKeys": [
+              "workbench",
+              "qc-dashboard",
+              "qc-alerts",
+              "qc-eval-sets",
+              "qc-eval-results",
+              "knowledge-governance",
+              "admin-audit",
+              "provenance"
+            ],
+            "environmentKeys": [
+              "production",
+              "trial"
+            ],
+            "dataScope": {
+              "tenantId": "drill-hospital-20260611",
+              "groupId": null,
+              "hospitalId": null,
+              "campusId": null,
+              "siteId": null,
+              "departmentId": null,
+              "specialtyId": null
+            },
+            "mustChangePwd": false,
+            "mfaRequired": "[REDACTED]",
+            "mfaBound": "[REDACTED]"
+          },
+          "traceId": "f789eec8-0539-4009-8ff7-1101cb7d3ccd",
+          "timestamp": "2026-06-11T01:44:04.874052399Z"
+        }
+      }
+    },
+    "adapterHealth": {
+      "status": 200,
+      "ok": true,
+      "traceId": "e98ed8dd-041d-48e6-8fe1-01dba96250cf",
+      "path": "/engine/integration/health",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "total": 15,
+          "active": 15,
+          "suspended": 0,
+          "healthy": 1,
+          "notConnected": 10,
+          "misconfigured": 4,
+          "checkedAt": "2026-06-11T01:44:04.949690915Z",
+          "adapters": [
+            {
+              "adapterId": "drill-local-runtime-package-sink-20260611",
+              "name": "演练本地运行时配置库",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "HEALTHY",
+              "rttMs": 26,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "真实连接器健康检查成功；状态来自实际探活，不伪造连接"
+            },
+            {
+              "adapterId": "fhir-r4-act9-9htr6yilrj",
+              "name": "幕9 FHIR R4 门面 act9-9htr6yilrj",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 16,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "his-adt-act9-d0rcsayvhd",
+              "name": "幕9 HIS ADT 入站适配器 act9-d0rcsayvhd",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "his-adt-act9-iih0qde2k0",
+              "name": "幕9 HIS ADT 入站适配器 act9-iih0qde2k0",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "lis-result-act9-iih0qde2k0",
+              "name": "幕9 LIS 危急值入站适配器 act9-iih0qde2k0",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+            },
+            {
+              "adapterId": "his-adt-act9-9htr6yilrj",
+              "name": "幕9 HIS ADT 入站适配器 act9-9htr6yilrj",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "lis-result-act9-9htr6yilrj",
+              "name": "幕9 LIS 危急值入站适配器 act9-9htr6yilrj",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+            },
+            {
+              "adapterId": "quality-dead-act9-9htr6yilrj",
+              "name": "幕9 质控告警断连适配器 act9-9htr6yilrj",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 500,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "lis-result-act9-d0rcsayvhd",
+              "name": "幕9 LIS 危急值入站适配器 act9-d0rcsayvhd",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+            },
+            {
+              "adapterId": "fhir-r4-act9-d0rcsayvhd",
+              "name": "幕9 FHIR R4 门面 act9-d0rcsayvhd",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 14,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "quality-dead-act9-d0rcsayvhd",
+              "name": "幕9 质控告警断连适配器 act9-d0rcsayvhd",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 502,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "his-adt-act9-p94trq9sbf",
+              "name": "幕9 HIS ADT 入站适配器 act9-p94trq9sbf",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "fhir-r4-act9-p94trq9sbf",
+              "name": "幕9 FHIR R4 门面 act9-p94trq9sbf",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 11,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            },
+            {
+              "adapterId": "lis-result-act9-p94trq9sbf",
+              "name": "幕9 LIS 危急值入站适配器 act9-p94trq9sbf",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "rttMs": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+            },
+            {
+              "adapterId": "quality-dead-act9-p94trq9sbf",
+              "name": "幕9 质控告警断连适配器 act9-p94trq9sbf",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "rttMs": 501,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+            }
+          ]
+        },
+        "traceId": "e98ed8dd-041d-48e6-8fe1-01dba96250cf",
+        "timestamp": "2026-06-11T01:44:04.951740793Z"
+      }
+    },
+    "adapterHub": {
+      "status": 200,
+      "ok": true,
+      "traceId": "f525138f-6aac-44f9-9fa3-19e9dfc5e6d3",
+      "path": "/engine/integration/adapter-hub/status",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "totalAdapters": 15,
+          "activeAdapters": 15,
+          "suspendedAdapters": 0,
+          "healthyAdapters": 1,
+          "notConnectedAdapters": 10,
+          "misconfiguredAdapters": 4,
+          "mappedAdapters": 8,
+          "generatedAt": "2026-06-11T01:44:05.011306473Z",
+          "sources": [
+            {
+              "adapterId": "drill-local-runtime-package-sink-20260611",
+              "name": "演练本地运行时配置库",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "HEALTHY",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射"
+              ]
+            },
+            {
+              "adapterId": "fhir-r4-act9-9htr6yilrj",
+              "name": "幕9 FHIR R4 门面 act9-9htr6yilrj",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "his-adt-act9-d0rcsayvhd",
+              "name": "幕9 HIS ADT 入站适配器 act9-d0rcsayvhd",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 6,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "his-adt-act9-iih0qde2k0",
+              "name": "幕9 HIS ADT 入站适配器 act9-iih0qde2k0",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 6,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "lis-result-act9-iih0qde2k0",
+              "name": "幕9 LIS 危急值入站适配器 act9-iih0qde2k0",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "mappedFieldCount": 7,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "适配器配置非法"
+              ]
+            },
+            {
+              "adapterId": "his-adt-act9-9htr6yilrj",
+              "name": "幕9 HIS ADT 入站适配器 act9-9htr6yilrj",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 6,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "lis-result-act9-9htr6yilrj",
+              "name": "幕9 LIS 危急值入站适配器 act9-9htr6yilrj",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "mappedFieldCount": 7,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "适配器配置非法"
+              ]
+            },
+            {
+              "adapterId": "quality-dead-act9-9htr6yilrj",
+              "name": "幕9 质控告警断连适配器 act9-9htr6yilrj",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "lis-result-act9-d0rcsayvhd",
+              "name": "幕9 LIS 危急值入站适配器 act9-d0rcsayvhd",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "mappedFieldCount": 7,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "适配器配置非法"
+              ]
+            },
+            {
+              "adapterId": "fhir-r4-act9-d0rcsayvhd",
+              "name": "幕9 FHIR R4 门面 act9-d0rcsayvhd",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "quality-dead-act9-d0rcsayvhd",
+              "name": "幕9 质控告警断连适配器 act9-d0rcsayvhd",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "his-adt-act9-p94trq9sbf",
+              "name": "幕9 HIS ADT 入站适配器 act9-p94trq9sbf",
+              "protocolType": "HL7",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 6,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "fhir-r4-act9-p94trq9sbf",
+              "name": "幕9 FHIR R4 门面 act9-p94trq9sbf",
+              "protocolType": "FHIR",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "adapterId": "lis-result-act9-p94trq9sbf",
+              "name": "幕9 LIS 危急值入站适配器 act9-p94trq9sbf",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "MISCONFIGURED",
+              "mappedFieldCount": 7,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "适配器配置非法"
+              ]
+            },
+            {
+              "adapterId": "quality-dead-act9-p94trq9sbf",
+              "name": "幕9 质控告警断连适配器 act9-p94trq9sbf",
+              "protocolType": "REST",
+              "status": "ACTIVE",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "gaps": [
+                "未配置字段映射",
+                "未连接真实外部系统"
+              ]
+            }
+          ],
+          "requiredSources": [
+            {
+              "sourceSystem": "HIS",
+              "label": "HIS 医院信息系统",
+              "adapterId": "his-adt-act9-9htr6yilrj",
+              "adapterName": "幕9 HIS ADT 入站适配器 act9-9htr6yilrj",
+              "protocolType": "HL7",
+              "status": "BOUND",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 6,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "ready": false,
+              "gaps": [
+                "未连接真实外部系统"
+              ]
+            },
+            {
+              "sourceSystem": "EMR",
+              "label": "EMR 电子病历系统",
+              "adapterId": null,
+              "adapterName": null,
+              "protocolType": null,
+              "status": "MISSING",
+              "healthStatus": "NOT_CONNECTED",
+              "mappedFieldCount": 0,
+              "lastHeartbeatAt": null,
+              "ready": false,
+              "gaps": [
+                "缺少 EMR 适配器"
+              ]
+            },
+            {
+              "sourceSystem": "LIS",
+              "label": "LIS 检验信息系统",
+              "adapterId": "lis-result-act9-9htr6yilrj",
+              "adapterName": "幕9 LIS 危急值入站适配器 act9-9htr6yilrj",
+              "protocolType": "REST",
+              "status": "BOUND",
+              "healthStatus": "MISCONFIGURED",
+              "mappedFieldCount": 7,
+              "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+              "ready": false,
+              "gaps": [
+                "适配器配置非法"
+              ]
+            }
+          ]
+        },
+        "traceId": "f525138f-6aac-44f9-9fa3-19e9dfc5e6d3",
+        "timestamp": "2026-06-11T01:44:05.051251902Z"
+      }
+    }
+  },
+  "credentialLocation": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json"
+}

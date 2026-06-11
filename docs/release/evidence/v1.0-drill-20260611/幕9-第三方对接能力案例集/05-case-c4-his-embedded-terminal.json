@@ -1,0 +1,60 @@
+{
+  "runTag": "act9-2grf0t4vdy",
+  "caseId": "C4",
+  "goal": "HIS 嵌入临床终端：Origin 白名单、一次性 launch token、患者上下文兑换",
+  "addOrigin": {
+    "status": 200,
+    "ok": true,
+    "traceId": "8ed9211c-7ecf-468e-8d8e-8cbf50b0d5a3",
+    "path": "/engine/embed/origins",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "traceId": "8ed9211c-7ecf-468e-8d8e-8cbf50b0d5a3",
+      "timestamp": "2026-06-11T01:44:09.104863993Z"
+    }
+  },
+  "launchToken": {
+    "status": 200,
+    "ok": true,
+    "traceId": "fcb0bbb2-154c-40f0-9c65-c76a98060d5c",
+    "path": "/engine/embed/launch-tokens",
+    "redactionNote": "启动令牌和嵌入 URL 只展示一次，证据中仅保留状态与 traceId，不保存明文值"
+  },
+  "launch": {
+    "status": 200,
+    "ok": true,
+    "traceId": "e28849f6-3a46-484a-83ca-c31259a07a22",
+    "path": "/engine/embed/launch",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "userId": "drill-respiratory-doctor-20260611",
+        "roleCode": "respiratory-doctor",
+        "tenantId": "drill-hospital-20260611",
+        "patientId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+        "encounterId": "enc-act6-8oh7bn024a",
+        "triggerPoint": "patient-view",
+        "active": true,
+        "traceId": "fcb0bbb2-154c-40f0-9c65-c76a98060d5c",
+        "integrationMode": "IFRAME",
+        "hook": "patient-view",
+        "hookInstance": "act9-2grf0t4vdy-his-embed",
+        "modelStatus": "MODEL_DISABLED",
+        "connectionStatus": "CONNECTED",
+        "cdsHookVersion": "1.0",
+        "parentOrigin": "https://his.example.medkernel.local"
+      },
+      "traceId": "e28849f6-3a46-484a-83ca-c31259a07a22",
+      "timestamp": "2026-06-11T01:44:09.328203323Z"
+    }
+  },
+  "passCriteria": [
+    "Origin 白名单可登记",
+    "launch token 已签发且 evidence 中脱敏",
+    "launch 返回 patientId、encounterId、CONNECTED 与 MODEL_DISABLED 诚实状态"
+  ]
+}

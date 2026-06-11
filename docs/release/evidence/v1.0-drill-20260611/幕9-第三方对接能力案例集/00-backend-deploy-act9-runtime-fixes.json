@@ -1,0 +1,29 @@
+{
+  "environment": "https://193.112.107.134",
+  "source": "codex-demo-drill-act9-third-party-cases",
+  "deployedAt": "2026-06-11T09:43:05+08:00",
+  "backup": "/zoesoft/medkernel/backups/deploy-20260611-094305",
+  "jarSha256": "47a9f15b990ff307a22c5119ee15d79a35975a245870c400e98850b6e7db0e13",
+  "readiness": {
+    "status": "UP",
+    "healthUrl": "http://127.0.0.1:18080/medkernel/actuator/health/readiness",
+    "nginxUrl": "https://127.0.0.1/medkernel/actuator/health/readiness"
+  },
+  "fixes": [
+    {
+      "scope": "clinical-event-dispatch",
+      "reason": "第三方入站临床事件触发多个下游引擎时，单个下游不可用不能把同一事务标成 rollback-only 并导致 500。",
+      "implementation": "ClinicalEventEngineDispatcher 在调用方已有事务时用嵌套事务隔离每个引擎派发；下游不可用如实返回 UNAVAILABLE。",
+      "verification": "mvn -q -Dtest=ClinicalEventEngineDispatcherTest,ClinicalEventServiceTest,ClinicalEventProcessorTest,ClinicalEventEngineAdapterTest test"
+    },
+    {
+      "scope": "embed-launch-token-consume",
+      "reason": "HIS 嵌入临床终端兑换一次性启动令牌时，consumeUnusedToken SQL 引用未绑定的 updatedAt 参数，134 返回 500。",
+      "implementation": "EmbedLaunchTokenRepository 的消费 SQL 使用 consumedAt 同步写 consumed_at 与 updated_at，并新增真实 DataJdbc 仓储回归。",
+      "verification": "mvn -q -Dtest=EmbedLaunchTokenRepositoryTest,EmbedEngineServiceTest test"
+    }
+  ],
+  "combinedVerification": "mvn -q -Dtest=ClinicalEventEngineDispatcherTest,ClinicalEventServiceTest,ClinicalEventProcessorTest,ClinicalEventEngineAdapterTest,EmbedLaunchTokenRepositoryTest,EmbedEngineServiceTest test",
+  "act9RunTag": "act9-2grf0t4vdy",
+  "act9Overview": "08-act9-third-party-case-overview.json"
+}

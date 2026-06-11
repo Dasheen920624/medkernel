@@ -1,0 +1,652 @@
+{
+  "runTag": "act9-2grf0t4vdy",
+  "executedAt": "2026-06-11T01:44:12.024Z",
+  "environment": "https://193.112.107.134",
+  "tenantId": "drill-hospital-20260611",
+  "cases": [
+    {
+      "id": "C1",
+      "name": "HIS ADT 入院消息",
+      "status": "PASSED",
+      "evidence": "02-case-c1-his-adt-admission.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-his-webhook-inbound",
+        "act9-2grf0t4vdy-his-clinical-event",
+        "act9-2grf0t4vdy-his-clinical-event-detail",
+        "act9-2grf0t4vdy-his-pathway-detail"
+      ]
+    },
+    {
+      "id": "C2",
+      "name": "LIS 危急值结果",
+      "status": "PASSED",
+      "evidence": "03-case-c2-lis-critical-result.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-lis-webhook-inbound",
+        "act9-2grf0t4vdy-lis-clinical-event",
+        "act9-2grf0t4vdy-lis-recommendations"
+      ]
+    },
+    {
+      "id": "C3",
+      "name": "FHIR R4 Patient/Observation",
+      "status": "PASSED",
+      "evidence": "04-case-c3-fhir-patient-observation.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-fhir-patient-create",
+        "act9-2grf0t4vdy-fhir-observation-create",
+        "act9-2grf0t4vdy-fhir-observation-search"
+      ]
+    },
+    {
+      "id": "C4",
+      "name": "HIS 嵌入临床终端",
+      "status": "PASSED",
+      "evidence": "05-case-c4-his-embedded-terminal.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-embed-origin",
+        "act9-2grf0t4vdy-embed-launch-token",
+        "act9-2grf0t4vdy-embed-launch"
+      ]
+    },
+    {
+      "id": "C5",
+      "name": "质控出站 Webhook 重试死信",
+      "status": "PASSED",
+      "evidence": "06-case-c5-quality-webhook-retry-dead-letter.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-outbound-quality",
+        "act9-2grf0t4vdy-outbound-retry-1",
+        "act9-2grf0t4vdy-outbound-retry-2",
+        "act9-2grf0t4vdy-dead-letter-replay"
+      ]
+    },
+    {
+      "id": "C6",
+      "name": "第三方知识运行时",
+      "status": "PASSED",
+      "evidence": "07-case-c6-third-party-knowledge-runtime.json",
+      "traceIds": [
+        "act9-2grf0t4vdy-runtime-effective-package",
+        "act9-2grf0t4vdy-runtime-context",
+        "act9-2grf0t4vdy-runtime-reconciliation"
+      ]
+    }
+  ],
+  "finalHealth": {
+    "status": 200,
+    "ok": true,
+    "traceId": "21d718a3-f2c5-468c-b3de-220e0c3a0028",
+    "path": "/engine/integration/health",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "total": 19,
+        "active": 19,
+        "suspended": 0,
+        "healthy": 1,
+        "notConnected": 14,
+        "misconfigured": 4,
+        "checkedAt": "2026-06-11T01:44:11.994907877Z",
+        "adapters": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "name": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "rttMs": 26,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "真实连接器健康检查成功；状态来自实际探活，不伪造连接"
+          },
+          {
+            "adapterId": "fhir-r4-act9-9htr6yilrj",
+            "name": "幕9 FHIR R4 门面 act9-9htr6yilrj",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 16,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "his-adt-act9-d0rcsayvhd",
+            "name": "幕9 HIS ADT 入站适配器 act9-d0rcsayvhd",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "his-adt-act9-iih0qde2k0",
+            "name": "幕9 HIS ADT 入站适配器 act9-iih0qde2k0",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "lis-result-act9-iih0qde2k0",
+            "name": "幕9 LIS 危急值入站适配器 act9-iih0qde2k0",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+          },
+          {
+            "adapterId": "his-adt-act9-9htr6yilrj",
+            "name": "幕9 HIS ADT 入站适配器 act9-9htr6yilrj",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "lis-result-act9-9htr6yilrj",
+            "name": "幕9 LIS 危急值入站适配器 act9-9htr6yilrj",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+          },
+          {
+            "adapterId": "quality-dead-act9-9htr6yilrj",
+            "name": "幕9 质控告警断连适配器 act9-9htr6yilrj",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 500,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "lis-result-act9-d0rcsayvhd",
+            "name": "幕9 LIS 危急值入站适配器 act9-d0rcsayvhd",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+          },
+          {
+            "adapterId": "fhir-r4-act9-d0rcsayvhd",
+            "name": "幕9 FHIR R4 门面 act9-d0rcsayvhd",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 14,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "quality-dead-act9-d0rcsayvhd",
+            "name": "幕9 质控告警断连适配器 act9-d0rcsayvhd",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 502,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "his-adt-act9-p94trq9sbf",
+            "name": "幕9 HIS ADT 入站适配器 act9-p94trq9sbf",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "fhir-r4-act9-p94trq9sbf",
+            "name": "幕9 FHIR R4 门面 act9-p94trq9sbf",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 11,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "lis-result-act9-p94trq9sbf",
+            "name": "幕9 LIS 危急值入站适配器 act9-p94trq9sbf",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "rttMs": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "本地配置非法，未执行外部探活；不伪造连接成功"
+          },
+          {
+            "adapterId": "quality-dead-act9-p94trq9sbf",
+            "name": "幕9 质控告警断连适配器 act9-p94trq9sbf",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 501,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "his-adt-act9-2grf0t4vdy",
+            "name": "幕9 HIS ADT 入站适配器 act9-2grf0t4vdy",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": null,
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "lis-result-act9-2grf0t4vdy",
+            "name": "幕9 LIS 危急值入站适配器 act9-2grf0t4vdy",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": null,
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "fhir-r4-act9-2grf0t4vdy",
+            "name": "幕9 FHIR R4 门面 act9-2grf0t4vdy",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 0,
+            "lastHeartbeatAt": null,
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          },
+          {
+            "adapterId": "quality-dead-act9-2grf0t4vdy",
+            "name": "幕9 质控告警断连适配器 act9-2grf0t4vdy",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "rttMs": 502,
+            "lastHeartbeatAt": "2026-06-11T01:44:09.465043Z",
+            "message": "未接入真实外部连接器或外部不可达；不伪造连接成功"
+          }
+        ]
+      },
+      "traceId": "21d718a3-f2c5-468c-b3de-220e0c3a0028",
+      "timestamp": "2026-06-11T01:44:11.995058551Z"
+    }
+  },
+  "finalHub": {
+    "status": 200,
+    "ok": true,
+    "traceId": "c5655063-cdc5-4fc5-99c1-7e31ecdea005",
+    "path": "/engine/integration/adapter-hub/status",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "totalAdapters": 19,
+        "activeAdapters": 19,
+        "suspendedAdapters": 0,
+        "healthyAdapters": 1,
+        "notConnectedAdapters": 14,
+        "misconfiguredAdapters": 4,
+        "mappedAdapters": 10,
+        "generatedAt": "2026-06-11T01:44:12.036344520Z",
+        "sources": [
+          {
+            "adapterId": "drill-local-runtime-package-sink-20260611",
+            "name": "演练本地运行时配置库",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "HEALTHY",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射"
+            ]
+          },
+          {
+            "adapterId": "fhir-r4-act9-9htr6yilrj",
+            "name": "幕9 FHIR R4 门面 act9-9htr6yilrj",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "his-adt-act9-d0rcsayvhd",
+            "name": "幕9 HIS ADT 入站适配器 act9-d0rcsayvhd",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "his-adt-act9-iih0qde2k0",
+            "name": "幕9 HIS ADT 入站适配器 act9-iih0qde2k0",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "lis-result-act9-iih0qde2k0",
+            "name": "幕9 LIS 危急值入站适配器 act9-iih0qde2k0",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "适配器配置非法"
+            ]
+          },
+          {
+            "adapterId": "his-adt-act9-9htr6yilrj",
+            "name": "幕9 HIS ADT 入站适配器 act9-9htr6yilrj",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "lis-result-act9-9htr6yilrj",
+            "name": "幕9 LIS 危急值入站适配器 act9-9htr6yilrj",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "适配器配置非法"
+            ]
+          },
+          {
+            "adapterId": "quality-dead-act9-9htr6yilrj",
+            "name": "幕9 质控告警断连适配器 act9-9htr6yilrj",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "lis-result-act9-d0rcsayvhd",
+            "name": "幕9 LIS 危急值入站适配器 act9-d0rcsayvhd",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "适配器配置非法"
+            ]
+          },
+          {
+            "adapterId": "fhir-r4-act9-d0rcsayvhd",
+            "name": "幕9 FHIR R4 门面 act9-d0rcsayvhd",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "quality-dead-act9-d0rcsayvhd",
+            "name": "幕9 质控告警断连适配器 act9-d0rcsayvhd",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "his-adt-act9-p94trq9sbf",
+            "name": "幕9 HIS ADT 入站适配器 act9-p94trq9sbf",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "fhir-r4-act9-p94trq9sbf",
+            "name": "幕9 FHIR R4 门面 act9-p94trq9sbf",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "lis-result-act9-p94trq9sbf",
+            "name": "幕9 LIS 危急值入站适配器 act9-p94trq9sbf",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "MISCONFIGURED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "适配器配置非法"
+            ]
+          },
+          {
+            "adapterId": "quality-dead-act9-p94trq9sbf",
+            "name": "幕9 质控告警断连适配器 act9-p94trq9sbf",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:41:59.192419Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          },
+          {
+            "adapterId": "his-adt-act9-2grf0t4vdy",
+            "name": "幕9 HIS ADT 入站适配器 act9-2grf0t4vdy",
+            "protocolType": "HL7",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": null,
+            "gaps": [
+              "未连接真实外部系统",
+              "未完成 24 小时内连通核查"
+            ]
+          },
+          {
+            "adapterId": "lis-result-act9-2grf0t4vdy",
+            "name": "幕9 LIS 危急值入站适配器 act9-2grf0t4vdy",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": null,
+            "gaps": [
+              "未连接真实外部系统",
+              "未完成 24 小时内连通核查"
+            ]
+          },
+          {
+            "adapterId": "fhir-r4-act9-2grf0t4vdy",
+            "name": "幕9 FHIR R4 门面 act9-2grf0t4vdy",
+            "protocolType": "FHIR",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": null,
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统",
+              "未完成 24 小时内连通核查"
+            ]
+          },
+          {
+            "adapterId": "quality-dead-act9-2grf0t4vdy",
+            "name": "幕9 质控告警断连适配器 act9-2grf0t4vdy",
+            "protocolType": "REST",
+            "status": "ACTIVE",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": "2026-06-11T01:44:09.465043Z",
+            "gaps": [
+              "未配置字段映射",
+              "未连接真实外部系统"
+            ]
+          }
+        ],
+        "requiredSources": [
+          {
+            "sourceSystem": "HIS",
+            "label": "HIS 医院信息系统",
+            "adapterId": "his-adt-act9-2grf0t4vdy",
+            "adapterName": "幕9 HIS ADT 入站适配器 act9-2grf0t4vdy",
+            "protocolType": "HL7",
+            "status": "BOUND",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 6,
+            "lastHeartbeatAt": null,
+            "ready": false,
+            "gaps": [
+              "未连接真实外部系统",
+              "未完成 24 小时内连通核查"
+            ]
+          },
+          {
+            "sourceSystem": "EMR",
+            "label": "EMR 电子病历系统",
+            "adapterId": null,
+            "adapterName": null,
+            "protocolType": null,
+            "status": "MISSING",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 0,
+            "lastHeartbeatAt": null,
+            "ready": false,
+            "gaps": [
+              "缺少 EMR 适配器"
+            ]
+          },
+          {
+            "sourceSystem": "LIS",
+            "label": "LIS 检验信息系统",
+            "adapterId": "lis-result-act9-2grf0t4vdy",
+            "adapterName": "幕9 LIS 危急值入站适配器 act9-2grf0t4vdy",
+            "protocolType": "REST",
+            "status": "BOUND",
+            "healthStatus": "NOT_CONNECTED",
+            "mappedFieldCount": 7,
+            "lastHeartbeatAt": null,
+            "ready": false,
+            "gaps": [
+              "未连接真实外部系统",
+              "未完成 24 小时内连通核查"
+            ]
+          }
+        ]
+      },
+      "traceId": "c5655063-cdc5-4fc5-99c1-7e31ecdea005",
+      "timestamp": "2026-06-11T01:44:12.044957742Z"
+    }
+  },
+  "dataQuality": {
+    "status": 200,
+    "ok": true,
+    "traceId": "0b3bd298-451c-4f76-b9c5-24234d10f43f",
+    "path": "/engine/integration/data-quality/reports",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "reportId": "dqr-01KTT5KTJ51PVXJ3QXVQQQ8AGX",
+        "tenantId": "drill-hospital-20260611",
+        "generatedAt": "2026-06-11T01:44:12.089768863Z",
+        "requiredFieldTotal": 40,
+        "requiredFieldPresent": 40,
+        "requiredFieldRate": 100,
+        "adapterTotal": 19,
+        "mappedAdapterCount": 10,
+        "mappingRate": 52.63,
+        "timelyAdapterCount": 16,
+        "timelinessRate": 84.21,
+        "notConnectedCount": 14,
+        "misconfiguredCount": 4,
+        "gapSummary": "未配置字段映射：9/19；连通核查时效缺口：3/19；NOT_CONNECTED 适配器：14；MISCONFIGURED 适配器：4",
+        "createdAt": "2026-06-11T01:44:12.089768863Z",
+        "createdBy": "drill-it-ops-20260611",
+        "traceId": "0b3bd298-451c-4f76-b9c5-24234d10f43f"
+      },
+      "traceId": "0b3bd298-451c-4f76-b9c5-24234d10f43f",
+      "timestamp": "2026-06-11T01:44:12.105711443Z"
+    }
+  },
+  "adapters": {
+    "adtAdapterId": "his-adt-act9-2grf0t4vdy",
+    "lisAdapterId": "lis-result-act9-2grf0t4vdy",
+    "fhirAdapterId": "fhir-r4-act9-2grf0t4vdy",
+    "deadAdapterId": "quality-dead-act9-2grf0t4vdy"
+  },
+  "webhooks": {
+    "fhirWebhookId": "fhir-sign-act9-2grf0t4vdy",
+    "callbackWebhookId": "quality-callback-act9-2grf0t4vdy",
+    "hisWebhookId": "his-inbound-act9-2grf0t4vdy",
+    "lisWebhookId": "lis-inbound-act9-2grf0t4vdy"
+  },
+  "limitations": [
+    "203.0.113.10 为 TEST-NET-3 断连目标，C5 用于证明 NOT_CONNECTED/DEAD_LETTER 降级链路，不伪造外部厂商成功接收。",
+    "C1 复用幕6已在径 CAP 患者作为真实患者路径锚点，新增 ADT 入站和临床事件作为第三方入院消息证据。",
+    "C3 FHIR 出站补偿因适配器目标为本地占位地址，FHIR create 主写入成功后仍诚实记录 NOT_CONNECTED/FAILED 补偿状态。"
+  ]
+}

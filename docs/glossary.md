@@ -52,6 +52,14 @@
 | 五维权限 | RBAC / ACL / 权限点 | 同时看角色、动作、组织范围、环境、菜单五件事；页面能不能看、按钮能不能点、数据能不能查都不能只靠角色名判断 |
 | 角色 | Role / 岗位编码 / 用户组 | 医院岗位在系统里的权限原型，如临床医生、护理人员、医技技师、临床药师；新岗位先映射既有角色，不随意新增角色 |
 | 适配器中心 | Adapter Hub | HIS / EMR / LIS / PACS 等接入点的管理 |
+| 适配器 | Adapter | 连接 HIS、LIS、FHIR 网关、质控平台等外部系统的接入配置，包含协议、地址、字段映射、健康检查和重试策略 |
+| 联调单 | Onboarding / Acceptance Ticket | 记录一个厂商或系统接入的场景、来源系统、组织范围、适配器、Webhook 和验收证据 |
+| 入站 Webhook | Inbound Webhook | 外部系统把消息推给 MedKernel 的入口；必须验签、带 traceId，并按字段映射生成标准上下文或临床事件 |
+| 出站 Webhook | Outbound Webhook | MedKernel 把质控预警、整改等事件推给外部系统的出口；失败时必须记录重试和死信 |
+| 死信 | Dead Letter | 出站消息多次重试仍失败后的保留状态，用于人工复核和重放，不等同于删除或成功 |
+| 嵌入启动令牌 | Embed Launch Token | HIS / EMR 页面内嵌 MedKernel 临床终端时使用的一次性短效令牌，只展示一次，过期或用过后必须拒绝 |
+| 知识运行时 | Knowledge Runtime | 第三方系统读取当前有效知识包、写标准上下文、查发布对账的稳定 API 门面，不直接读数据库表 |
+| FHIR 门面 | FHIR Facade | 对外提供 FHIR R4 Patient、Observation 等标准资源读写的接口层，负责签名校验、资源映射和审计 |
 | 驾驶舱 / 院级驾驶舱 | Executive Dashboard | 院长、医务处和质控办看的全院或科室总览，必须可下钻到质控问题、预警、整改和证据 |
 | 来源追溯 | Provenance | 任何提醒可追溯到指南、文献、知识库哪一条 |
 | 国密 | SM2 / SM3 / SM4 | 国家商用密码标准算法 |
