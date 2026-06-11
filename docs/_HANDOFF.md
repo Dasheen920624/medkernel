@@ -2,33 +2,21 @@
 
 ## 当前执行
 
-- **新主线「全流程演练 · 使用指南 · 体验重构」正在幕9「第三方对接能力案例集」收口**：总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)。已合入：计划 #526、DOC-SYNC #528、幕0 #529、幕1 #530、幕2 #531、幕3 #532、幕4 #533、幕5 #534、幕6 #535、幕7 #536、幕8 #537（merge commit `98c5b3dc`）。当前分支 `codex/demo-drill-act9-third-party-cases` 承载幕9六个第三方对接案例、134 真实演练证据、第三方对接案例集、合规运维手册「适配器运维」章、术语表和计划更新。
+- **主线「全流程演练·使用指南·体验重构」：幕0–9 已全部合入 main**（计划 #526；DOC-SYNC #528；幕0–8 = #529–#537；幕9 = #538 `3e4ba441`）。总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)。
+- **2026-06-11 实现路径纠偏（客户反馈触发，本线当前焦点）**：客户反馈「实现路径与原方案不一致、完全看不懂」。核查实锤：幕0–9 的后端运行链（L1）真实有效、成果保留，但演练逐幕漂移成「API 脚本跑链路」，**客户视角页面走查（L2）系统性缺位**——证据截图幕0=10 张逐幕递减至幕6/7/8/9=0 张；幕5「医生在图上口述路径」判据被 `/simulate` 接口替代；幕9「适配器健康状态页可读」判据无页面证据；四问审计只做了幕0/1，§6.5 登记表幕6后零新增；能力可见性矩阵未建；演练脚本 `/tmp` 即弃未入库（含 `/tmp/act9-third-party-cases.mjs`）；幕8 配置包业务 ID 混入随机批次码；计划「执行结果」段被 UUID 流水污染。
+- **纠偏已立法（PR #539）**：计划新增 **§2.5 执行契约**——核心口径=**产品是给客户看和用的，不是给技术人员的**：客户面动作（配置/维护/审批/处理提醒/查看）一律前台完成，API 只许扮演外部系统（HIS/LIS/第三方报文）或铺无关前置数据，**API 替代客户操作=该幕不通过**；触发流程验证=触发源可 API 注入，但接收→处理→闭环必须在前台页面完成留痕。另立每幕 8 条硬性 DoD + 计划文件卫生；新增 **幕8.5 前台重新演练**（用户裁定：前面的也要补回来重新演练——幕0–9 全量前台重演：前台操作/维护规则/触发流程三类验证，先于幕10 收口）；幕6–9「执行结果」段瘦身为一行+证据链接；§6.5 补登 OPT-PKG-01 与四问欠账行；新建 `scripts/drill/` 脚本归档区。**若有在途幕10 会话：幕10 必须按 §2.5 DoD 执行（审计页前台操作为本体），幕10 收口不豁免幕8.5。**
 - **用户授权仍有效**：演练、指南、体验重构全程由 AI 自主裁决，无需逐项咨询；质量准绳为最高质量和最佳体验。未上线产品按纯粹实现推进，不为旧低质实现加兼容层。所有外向/生产配置动作必须备份、留痕、可回滚或如实登记不能回滚原因。
-- **幕9主链事实**：最终批次 `act9-2grf0t4vdy` 在 134 真实完成。6 个案例全部 `PASSED`：C1 HIS ADT 入站、C2 LIS 危急值、C3 FHIR R4 Patient/Observation、C4 HIS 嵌入临床终端、C5 质控出站 Webhook 重试死信、C6 第三方知识运行时。证据目录为 [docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/](release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/)。
-- **幕9修复事实**：本分支修复 2 个真实运行缺口：① `ClinicalEventEngineDispatcher` 在调用方已有事务时用嵌套事务隔离每个下游引擎，避免单个下游不可用把主事务标成 rollback-only 并导致 500；② `EmbedLaunchTokenRepository.consumeUnusedToken` 的 SQL 参数从未绑定的 `updatedAt` 改为 `consumedAt`，并新增真实 DataJdbc 回归，避免嵌入 launch 兑换返回 500。
-- **134 发布事实**：已发布后端到 134，source=`codex-demo-drill-act9-third-party-cases`，backup=`/zoesoft/medkernel/backups/deploy-20260611-094305`，jar SHA-256 `47a9f15b990ff307a22c5119ee15d79a35975a245870c400e98850b6e7db0e13`，readiness `UP`，nginx readiness `200`。发布证据见 [00-backend-deploy-act9-runtime-fixes.json](release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/00-backend-deploy-act9-runtime-fixes.json)。
-- **真实限制**：本地演练脚本访问 134 仍使用自签证书校验绕过；正式部署必须替换院方信任证书。C5 使用 `203.0.113.10` TEST-NET-3 断连目标证明 `NOT_CONNECTED`/`DEAD_LETTER`，不是外部厂商真实接收成功。C3 FHIR 出站补偿目标为占位地址，主写入和查询通过，补偿失败状态如实保留。
+- 幕8 主链/发布/后端修复细节见 [幕8证据 README](release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/README.md) 与 #537；幕9 六案例（C1–C6 全 `PASSED`）与 2 个后端修复（临床事件嵌套事务隔离、嵌入令牌 SQL 参数绑定）细节见 [幕9证据 README](release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md) 与 #538，不在此重复。
+- **幕9真实限制（保留登记）**：本地演练脚本访问 134 仍使用自签证书校验绕过，正式部署必须替换院方信任证书；C5 用 `203.0.113.10` TEST-NET-3 断连目标证明 `NOT_CONNECTED`/`DEAD_LETTER`，不是外部厂商真实接收成功；C3 FHIR 出站补偿目标为占位地址，主写入和查询通过，补偿失败状态如实保留。
 
 ## 当前状态
 
-- 当前工作树：`/Users/zhikunzheng/.config/superpowers/worktrees/codex/codex-demo-drill-act9-third-party-cases`。
-- 当前分支：`codex/demo-drill-act9-third-party-cases`，基于幕8合并点 `98c5b3dc` / `origin/main`。
-- 当前未收尾改动范围：
-  - 后端修复与测试：`ClinicalEventEngineDispatcher.java`、`ClinicalEventEngineDispatcherTest.java`、`EmbedLaunchTokenRepository.java`、`EmbedLaunchTokenRepositoryTest.java`。
-  - 文档与证据：幕9证据目录、`docs/handbook/user-guides/third-party-cases.md`、`docs/handbook/user-guides/compliance-operations.md`、`docs/handbook/user-guides/README.md`、`docs/glossary.md`、计划文件、本 `_HANDOFF`。
-- 已执行的关键验证：
-  - TDD 红绿：`mvn -q -Dtest=EmbedLaunchTokenRepositoryTest test` 先复现 `No value supplied for the SQL parameter 'updatedAt'`，修复后通过。
-  - 嵌入聚焦回归：`mvn -q -Dtest=EmbedLaunchTokenRepositoryTest,EmbedEngineServiceTest test` 通过。
-  - 临床事件聚焦回归：`mvn -q -Dtest=ClinicalEventEngineDispatcherTest test` 通过；`mvn -q -Dtest=ClinicalEventServiceTest,ClinicalEventProcessorTest,ClinicalEventEngineDispatcherTest,ClinicalEventEngineAdapterTest test` 通过。
-  - 合并影响集：`mvn -q -Dtest=ClinicalEventEngineDispatcherTest,ClinicalEventServiceTest,ClinicalEventProcessorTest,ClinicalEventEngineAdapterTest,EmbedLaunchTokenRepositoryTest,EmbedEngineServiceTest test` 通过。
-  - 134 发布：`deploy/onprem/mk-publish.sh --backend --source codex-demo-drill-act9-third-party-cases` 通过，远程 readiness `UP`。
-  - 134 演练：`node /tmp/act9-third-party-cases.mjs` 最终批次 `act9-2grf0t4vdy` 通过，C1-C6 全部 `PASSED`。
-  - 证据初检：幕9总览 `jq` 可读；敏感词扫描只命中脱敏字段名、trace 标签和说明文本，未发现明文密钥、Cookie、启动令牌或签名值。
-- 尚未执行的收口验证：全量证据 `jq empty`、失败证据残留检查、`git diff --check`、真实性/配置边界/中文注释/迁移门禁、必要前后端聚焦回归、staged changed-mode 门禁、CI。
+- main：`3e4ba441`（幕9 已合）；当前分支 `claude/drill-execution-contract`（PR #539）承载纠偏修订（纯文档：计划 §2.5/幕8.5/§6.5、本 HANDOFF、`scripts/drill/README.md`），已获用户明确授权合入。
+- 134：演练数据在库**未清**，幕1 的 9 个角色账号可用（凭据在服务器 `/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json`），正好支撑幕8.5 浏览器走查；后端为幕9 发布版本（backup `/zoesoft/medkernel/backups/deploy-20260611-094305`），readiness `UP`。
+- 指南现状：4 本手册 + 第三方对接案例集有实质内容且章节结构合规，但幕6–9 对应章节缺页面截图配图；3 本角色培训手册仍为空骨架。
 
 ## 下一步
 
-1. 运行幕9收口验证：证据 JSON `jq empty`、失败证据残留检查、`git diff --check`、真实性/配置边界/中文注释门禁、迁移门禁、必要后端聚焦回归。
-2. 暂存全部幕9改动后运行 changed-mode 门禁与 staged diff 检查。
-3. 提交、推送、创建 PR，等待 CI 全绿后合入 `main`，清理分支 / worktree。
-4. 合入后从最新 `origin/main` 继续幕10「合规、审计与降级」，不停在幕9收口。
+1. **幕8.5 · 前台重新演练（幕0–9 全量）**（读计划 §2.5 + §4 幕8.5 节后执行，这是幕10 收口前的必经幕）：用幕1 角色账号在浏览器**重新演练幕0–9 全部客户面操作**——前台新建对象、前台维护既有资产（替换/回滚/退役/停用全状态机）、注入新事件后医生在前台接收→处理→闭环；按 DoD 产出「UI 走查表 + 带 URL 截图 + 四问审计行 + 指南配图」，建议拆 3 个 PR（幕0–2 / 幕3–5 / 幕6–9），证据落各幕目录 `ui-replay/` 子目录，脚本入库 `scripts/drill/`。**前台做不了的当场登记缺陷或 API-only，不许悄悄退回 API 完成。**
+2. 幕8.5 内完成**能力可见性矩阵**：71 Controller ↔ 44 页面双实测，归档 `docs/superpowers/plans/capability-visibility-matrix.md`。
+3. 幕10「合规、审计与降级」按 §2.5 执行契约执行，PR 合并前逐条核对 DoD；幕8.5 + 幕10 都收口后才进入 §1 六判据核验。
