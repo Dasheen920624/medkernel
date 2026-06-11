@@ -1,0 +1,48 @@
+# 临床医师培训
+
+> 状态：已由 2026-06-11 全流程演练激活
+> 受众：临床医生、护士、临床药师、临床科室主任
+> 配套手册：[临床运行用户手册](../user-guides/clinical-runtime.md)
+
+## 1. 培训目标
+
+完成本培训后，临床角色应能只凭手册完成三件事：
+
+| 能力 | 对应页面 | 通过标准 |
+|---|---|---|
+| 看患者处在哪条路径 | `/mpi`、`/pathway/patients` | 能说出患者当前节点、路径时钟和下一步处置 |
+| 处理推荐卡和待办 | `/workflow/todos`、`/notifications`、`/cdss/fatigue` | 能完成危急值采纳、DDI 覆盖并填写理由 |
+| 完成随访或复核 | `/clinical/followup`、`/qc/alerts` | 护士能填报随访，药师能复核覆盖理由 |
+
+## 2. 七步训练流
+
+| 步骤 | 操作 | 证据 |
+|---|---|---|
+| 1 | 在患者主索引查找“演练-张建国”，确认诊断和基本信息 | [患者 360](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png) |
+| 2 | 打开患者路径，确认 CAP 路径当前节点和时间窗 | [路径运行态](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png) |
+| 3 | 在待办中心接收血钾危急值提醒 | [危急值待办](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png) |
+| 4 | 查看推荐卡解释，确认来源和诊断链 | [推荐卡诊断链](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/07-critical-card-diagnose.png) |
+| 5 | 采纳危急值提醒或覆盖 DDI，并填写临床理由 | [危急值采纳](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png)、[DDI 覆盖](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png) |
+| 6 | 复查待办闭环状态 | [危急值闭环](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/09-critical-todo-completed.png)、[DDI 闭环](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/14-ddi-todo-completed.png) |
+| 7 | 药师查看 DDI 覆盖复核，护士完成随访问卷或异常上报 | [药师复核](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png)、[随访问卷](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png) |
+
+## 3. 角色分工
+
+| 角色 | 主要动作 | 不应做的事 |
+|---|---|---|
+| 呼吸科医生 | 查看 CAP 路径、处理危急值推荐卡、确认闭环 | 不修改规则、路径模板和系统配置 |
+| 心内科医生 | 接收 DDI 提醒，覆盖时填写临床理由 | 不替药师做复核 |
+| 呼吸科护士 | 填写随访问卷，上报异常返院风险 | 不查看非授权科室患者 |
+| 临床药师 | 复核 DDI 覆盖理由，协助调整药物风险提示 | 不绕过医生确认直接改变医嘱 |
+
+## 4. 常见异常
+
+| 现象 | 处理 |
+|---|---|
+| 待办里暂时找不到推荐卡 | 到 `/cdss/fatigue` 按患者或来源线索查看推荐卡；本轮已登记 `OPT-WORKFLOW-01`，后续会补患者 / trace 检索 |
+| 通知中心没有同一条消息 | 以待办和推荐卡闭环为准，不手工伪造通知；本轮已登记提醒、待办、通知统一改造 |
+| 路径图无法让医生口述完整流程 | 记录为体验问题，不当作医生培训失败；本轮已登记 `OPT-VIS-02` 医生只读路径图 |
+
+## 5. 考核口径
+
+考核时只给本培训和[临床运行用户手册](../user-guides/clinical-runtime.md)，不提供后台接口或脚本。被训人员能独立完成危急值采纳、DDI 覆盖、随访填报三项，即视为临床角色通过。
