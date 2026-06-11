@@ -27,8 +27,8 @@ import com.medkernel.shared.context.RequestContext;
  * <p>验证未认证用户和不同角色用户对随访 API 的访问控制：
  * <ul>
  *   <li>未认证 → 401 Unauthorized</li>
- *   <li>有 followup.write 权限的角色（医务处）→ 200 OK</li>
- *   <li>有 followup.read 权限的角色（医生）→ GET 200 OK，POST 403 Forbidden</li>
+ *   <li>有 followup.write 权限的角色（医务处 / 医生 / 护士）→ 200 OK</li>
+ *   <li>仅无关角色 → 403 Forbidden</li>
  * </ul>
  *
  * <p>权限模型：{@code @perm.has('followup.write')} 基于 RoleCode → DefaultPermissionPolicy 角色权限映射推导。
@@ -90,7 +90,7 @@ class FollowupEngineControllerSecurityTest {
     }
 
     @Test
-    void testGenerateWithReadOnlyRole_ShouldReturnForbidden() throws Exception {
+    void testGenerateWithDoctorRole_ShouldReturnOk() throws Exception {
         mockMvc.perform(post("/api/v1/engine/followup/plans/generate")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
@@ -99,7 +99,7 @@ class FollowupEngineControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -116,13 +116,13 @@ class FollowupEngineControllerSecurityTest {
     }
 
     @Test
-    void testTopLevelQuestionnaireWithReadOnlyRole_ShouldReturnForbidden() throws Exception {
+    void testTopLevelQuestionnaireWithNurseRole_ShouldReturnOk() throws Exception {
         mockMvc.perform(post("/api/v1/engine/followup/questionnaires")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .claim("roles", List.of("nurse")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_NURSE")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -132,7 +132,7 @@ class FollowupEngineControllerSecurityTest {
                       "idempotencyKey": "questionnaire-key-1"
                     }
                     """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test

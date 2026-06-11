@@ -586,9 +586,9 @@ class EvaluationEngineServiceTest {
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
 
-        // Mock ruleEvaluator.evaluate
+        // Mock ruleEvaluator.evaluateConditionTree
         // 1. 分母校验：返回命中  2. 排除校验：不命中  3. 分子校验：不命中
-        when(ruleEvaluator.evaluate(any(), any()))
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
             .thenReturn(new RuleDslEvaluation(true, com.medkernel.engine.rule.RuleRiskLevel.MEDIUM, List.of(), null))
             .thenReturn(new RuleDslEvaluation(false, null, List.of(), null))
             .thenReturn(new RuleDslEvaluation(false, null, List.of(), null));
@@ -626,7 +626,7 @@ class EvaluationEngineServiceTest {
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
-        when(ruleEvaluator.evaluate(any(), any()))
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
             .thenReturn(ruleEvaluation(false, "分子达标规则校验", "patient.completed", false));
 
@@ -665,7 +665,7 @@ class EvaluationEngineServiceTest {
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
-        when(ruleEvaluator.evaluate(any(), any()))
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
             .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true))
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
@@ -736,7 +736,7 @@ class EvaluationEngineServiceTest {
         assertThat(replayRunCode.getValue())
             .startsWith("ER_AUTO_")
             .hasSize("ER_AUTO_".length() + 16);
-        verify(ruleEvaluator, never()).evaluate(any(), any());
+        verify(ruleEvaluator, never()).evaluateConditionTree(any(), any(), any());
         verify(runs, never()).save(any());
         verify(results, never()).save(any());
         verify(findings, never()).save(any());
@@ -761,7 +761,7 @@ class EvaluationEngineServiceTest {
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_001);
 
-        verify(ruleEvaluator, never()).evaluate(any(), any());
+        verify(ruleEvaluator, never()).evaluateConditionTree(any(), any(), any());
         verify(runs, never()).save(any());
     }
 

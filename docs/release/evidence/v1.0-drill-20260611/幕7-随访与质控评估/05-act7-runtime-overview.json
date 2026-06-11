@@ -1,0 +1,335 @@
+{
+  "runTag": "act7-8pvve2efe9",
+  "generatedAt": "2026-06-10T23:46:01.230Z",
+  "patient": {
+    "mpiId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+    "maskedName": "演练-张建国",
+    "encounterId": "enc-act6-8oh7bn024a",
+    "entrySnapshotId": "ctx-baafefb9-0576-4296-801c-e6cc71b23f9f",
+    "criticalSnapshotId": "ctx-350637ec-3314-443c-9773-b5dd1efb33a2",
+    "ddiSnapshotId": "ctx-2e9d3ad0-263a-4e07-bb48-94b24e6abb40",
+    "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc"
+  },
+  "passCriteria": {
+    "followupPlanGenerated": true,
+    "nurseQuestionnaireCompleted": true,
+    "abnormalReturnGenerated": true,
+    "resultBackflowSnapshot": "ctx-d2628712-28c5-4244-9c27-d30fdef6c9eb",
+    "criticalClosureScore": 100,
+    "qualityFindingGenerated": "qf-bd511a46-48a8-4dcf-85b2-09b62e6f9aea",
+    "alertGenerated": "HIGH_RISK_FINDING:quality_finding:qf-bd511a46-48a8-4dcf-85b2-09b62e6f9aea",
+    "rectificationClosed": "CLOSED",
+    "dashboardEvidence": {
+      "beforeOpenFindings": 2,
+      "afterOpenFindings": 1
+    }
+  },
+  "traceIds": [
+    {
+      "label": "health-readiness",
+      "requestTraceId": null,
+      "headerTraceId": "c4346608-e9b9-419f-bffe-6b36e4b318a0",
+      "bodyTraceId": null
+    },
+    {
+      "label": "login-admin",
+      "requestTraceId": "act7-8pvve2efe9-login-admin",
+      "headerTraceId": "act7-8pvve2efe9-login-admin",
+      "bodyTraceId": "act7-8pvve2efe9-login-admin"
+    },
+    {
+      "label": "me-admin",
+      "requestTraceId": "act7-8pvve2efe9-me-admin",
+      "headerTraceId": "act7-8pvve2efe9-me-admin",
+      "bodyTraceId": "act7-8pvve2efe9-me-admin"
+    },
+    {
+      "label": "login-medical",
+      "requestTraceId": "act7-8pvve2efe9-login-medical",
+      "headerTraceId": "act7-8pvve2efe9-login-medical",
+      "bodyTraceId": "act7-8pvve2efe9-login-medical"
+    },
+    {
+      "label": "me-medical",
+      "requestTraceId": "act7-8pvve2efe9-me-medical",
+      "headerTraceId": "act7-8pvve2efe9-me-medical",
+      "bodyTraceId": "act7-8pvve2efe9-me-medical"
+    },
+    {
+      "label": "login-qaManager",
+      "requestTraceId": "act7-8pvve2efe9-login-qaManager",
+      "headerTraceId": "act7-8pvve2efe9-login-qaManager",
+      "bodyTraceId": "act7-8pvve2efe9-login-qaManager"
+    },
+    {
+      "label": "me-qaManager",
+      "requestTraceId": "act7-8pvve2efe9-me-qaManager",
+      "headerTraceId": "act7-8pvve2efe9-me-qaManager",
+      "bodyTraceId": "act7-8pvve2efe9-me-qaManager"
+    },
+    {
+      "label": "login-deptHead",
+      "requestTraceId": "act7-8pvve2efe9-login-deptHead",
+      "headerTraceId": "act7-8pvve2efe9-login-deptHead",
+      "bodyTraceId": "act7-8pvve2efe9-login-deptHead"
+    },
+    {
+      "label": "me-deptHead",
+      "requestTraceId": "act7-8pvve2efe9-me-deptHead",
+      "headerTraceId": "act7-8pvve2efe9-me-deptHead",
+      "bodyTraceId": "act7-8pvve2efe9-me-deptHead"
+    },
+    {
+      "label": "login-respiratoryDoctor",
+      "requestTraceId": "act7-8pvve2efe9-login-respiratoryDoctor",
+      "headerTraceId": "act7-8pvve2efe9-login-respiratoryDoctor",
+      "bodyTraceId": "act7-8pvve2efe9-login-respiratoryDoctor"
+    },
+    {
+      "label": "me-respiratoryDoctor",
+      "requestTraceId": "act7-8pvve2efe9-me-respiratoryDoctor",
+      "headerTraceId": "act7-8pvve2efe9-me-respiratoryDoctor",
+      "bodyTraceId": "act7-8pvve2efe9-me-respiratoryDoctor"
+    },
+    {
+      "label": "login-nurse",
+      "requestTraceId": "act7-8pvve2efe9-login-nurse",
+      "headerTraceId": "act7-8pvve2efe9-login-nurse",
+      "bodyTraceId": "act7-8pvve2efe9-login-nurse"
+    },
+    {
+      "label": "me-nurse",
+      "requestTraceId": "act7-8pvve2efe9-me-nurse",
+      "headerTraceId": "act7-8pvve2efe9-me-nurse",
+      "bodyTraceId": "act7-8pvve2efe9-me-nurse"
+    },
+    {
+      "label": "nurse-cannot-create-evaluation-indicator",
+      "requestTraceId": "act7-8pvve2efe9-nurse-denied-evaluation-create",
+      "headerTraceId": "act7-8pvve2efe9-nurse-denied-evaluation-create",
+      "bodyTraceId": "act7-8pvve2efe9-nurse-denied-evaluation-create"
+    },
+    {
+      "label": "doctor-generate-cap-followup-plan",
+      "requestTraceId": "act7-8pvve2efe9-followup-plan",
+      "headerTraceId": "act7-8pvve2efe9-followup-plan",
+      "bodyTraceId": "act7-8pvve2efe9-followup-plan"
+    },
+    {
+      "label": "nurse-read-plan-before-questionnaire",
+      "requestTraceId": "act7-8pvve2efe9-followup-plan-detail-before",
+      "headerTraceId": "act7-8pvve2efe9-followup-plan-detail-before",
+      "bodyTraceId": "act7-8pvve2efe9-followup-plan-detail-before"
+    },
+    {
+      "label": "nurse-read-followup-stats-before",
+      "requestTraceId": "act7-8pvve2efe9-followup-stats-before",
+      "headerTraceId": "act7-8pvve2efe9-followup-stats-before",
+      "bodyTraceId": "act7-8pvve2efe9-followup-stats-before"
+    },
+    {
+      "label": "nurse-submit-day7-questionnaire",
+      "requestTraceId": "act7-8pvve2efe9-questionnaire-day7",
+      "headerTraceId": "act7-8pvve2efe9-questionnaire-day7",
+      "bodyTraceId": "act7-8pvve2efe9-questionnaire-day7"
+    },
+    {
+      "label": "nurse-read-plan-after-questionnaire",
+      "requestTraceId": "act7-8pvve2efe9-followup-plan-detail-after-questionnaire",
+      "headerTraceId": "act7-8pvve2efe9-followup-plan-detail-after-questionnaire",
+      "bodyTraceId": "act7-8pvve2efe9-followup-plan-detail-after-questionnaire"
+    },
+    {
+      "label": "nurse-read-followup-stats-after-questionnaire",
+      "requestTraceId": "act7-8pvve2efe9-followup-stats-after-questionnaire",
+      "headerTraceId": "act7-8pvve2efe9-followup-stats-after-questionnaire",
+      "bodyTraceId": "act7-8pvve2efe9-followup-stats-after-questionnaire"
+    },
+    {
+      "label": "nurse-report-abnormal-return",
+      "requestTraceId": "act7-8pvve2efe9-abnormal-return",
+      "headerTraceId": "act7-8pvve2efe9-abnormal-return",
+      "bodyTraceId": "act7-8pvve2efe9-abnormal-return"
+    },
+    {
+      "label": "nurse-list-tasks-after-abnormal",
+      "requestTraceId": "act7-8pvve2efe9-followup-tasks-after-abnormal",
+      "headerTraceId": "act7-8pvve2efe9-followup-tasks-after-abnormal",
+      "bodyTraceId": "act7-8pvve2efe9-followup-tasks-after-abnormal"
+    },
+    {
+      "label": "doctor-list-followup-todos",
+      "requestTraceId": "act7-8pvve2efe9-followup-todos",
+      "headerTraceId": "act7-8pvve2efe9-followup-todos",
+      "bodyTraceId": "act7-8pvve2efe9-followup-todos"
+    },
+    {
+      "label": "doctor-list-followup-notifications",
+      "requestTraceId": "act7-8pvve2efe9-followup-notifications",
+      "headerTraceId": "act7-8pvve2efe9-followup-notifications",
+      "bodyTraceId": "act7-8pvve2efe9-followup-notifications"
+    },
+    {
+      "label": "nurse-backflow-followup-result",
+      "requestTraceId": "act7-8pvve2efe9-followup-result-backflow",
+      "headerTraceId": "act7-8pvve2efe9-followup-result-backflow",
+      "bodyTraceId": "act7-8pvve2efe9-followup-result-backflow"
+    },
+    {
+      "label": "doctor-read-backflow-context",
+      "requestTraceId": "act7-8pvve2efe9-followup-backflow-context",
+      "headerTraceId": "act7-8pvve2efe9-followup-backflow-context",
+      "bodyTraceId": "act7-8pvve2efe9-followup-backflow-context"
+    },
+    {
+      "label": "nurse-read-followup-stats-after-abnormal",
+      "requestTraceId": "act7-8pvve2efe9-followup-stats-after-abnormal",
+      "headerTraceId": "act7-8pvve2efe9-followup-stats-after-abnormal",
+      "bodyTraceId": "act7-8pvve2efe9-followup-stats-after-abnormal"
+    },
+    {
+      "label": "qa-create-critical-closure-indicator",
+      "requestTraceId": "act7-8pvve2efe9-create-critical-indicator",
+      "headerTraceId": "act7-8pvve2efe9-create-critical-indicator",
+      "bodyTraceId": "act7-8pvve2efe9-create-critical-indicator"
+    },
+    {
+      "label": "critical-indicator-submit",
+      "requestTraceId": "act7-8pvve2efe9-critical-indicator-submit",
+      "headerTraceId": "act7-8pvve2efe9-critical-indicator-submit",
+      "bodyTraceId": "act7-8pvve2efe9-critical-indicator-submit"
+    },
+    {
+      "label": "critical-indicator-publish",
+      "requestTraceId": "act7-8pvve2efe9-critical-indicator-publish",
+      "headerTraceId": "act7-8pvve2efe9-critical-indicator-publish",
+      "bodyTraceId": "act7-8pvve2efe9-critical-indicator-publish"
+    },
+    {
+      "label": "critical-indicator-gray",
+      "requestTraceId": "act7-8pvve2efe9-critical-indicator-gray",
+      "headerTraceId": "act7-8pvve2efe9-critical-indicator-gray",
+      "bodyTraceId": "act7-8pvve2efe9-critical-indicator-gray"
+    },
+    {
+      "label": "critical-indicator-activate",
+      "requestTraceId": "act7-8pvve2efe9-critical-indicator-activate",
+      "headerTraceId": "act7-8pvve2efe9-critical-indicator-activate",
+      "bodyTraceId": "act7-8pvve2efe9-critical-indicator-activate"
+    },
+    {
+      "label": "qa-create-antibiotic-48h-indicator",
+      "requestTraceId": "act7-8pvve2efe9-create-antibiotic-indicator",
+      "headerTraceId": "act7-8pvve2efe9-create-antibiotic-indicator",
+      "bodyTraceId": "act7-8pvve2efe9-create-antibiotic-indicator"
+    },
+    {
+      "label": "antibiotic-indicator-submit",
+      "requestTraceId": "act7-8pvve2efe9-antibiotic-indicator-submit",
+      "headerTraceId": "act7-8pvve2efe9-antibiotic-indicator-submit",
+      "bodyTraceId": "act7-8pvve2efe9-antibiotic-indicator-submit"
+    },
+    {
+      "label": "antibiotic-indicator-publish",
+      "requestTraceId": "act7-8pvve2efe9-antibiotic-indicator-publish",
+      "headerTraceId": "act7-8pvve2efe9-antibiotic-indicator-publish",
+      "bodyTraceId": "act7-8pvve2efe9-antibiotic-indicator-publish"
+    },
+    {
+      "label": "antibiotic-indicator-gray",
+      "requestTraceId": "act7-8pvve2efe9-antibiotic-indicator-gray",
+      "headerTraceId": "act7-8pvve2efe9-antibiotic-indicator-gray",
+      "bodyTraceId": "act7-8pvve2efe9-antibiotic-indicator-gray"
+    },
+    {
+      "label": "antibiotic-indicator-activate",
+      "requestTraceId": "act7-8pvve2efe9-antibiotic-indicator-activate",
+      "headerTraceId": "act7-8pvve2efe9-antibiotic-indicator-activate",
+      "bodyTraceId": "act7-8pvve2efe9-antibiotic-indicator-activate"
+    },
+    {
+      "label": "qa-run-act7-quality-evaluation",
+      "requestTraceId": "act7-8pvve2efe9-quality-run",
+      "headerTraceId": "act7-8pvve2efe9-quality-run",
+      "bodyTraceId": "act7-8pvve2efe9-quality-run"
+    },
+    {
+      "label": "qa-list-act7-evaluation-results",
+      "requestTraceId": "act7-8pvve2efe9-quality-results",
+      "headerTraceId": "act7-8pvve2efe9-quality-results",
+      "bodyTraceId": "act7-8pvve2efe9-quality-results"
+    },
+    {
+      "label": "qa-list-act7-quality-issues",
+      "requestTraceId": "act7-8pvve2efe9-quality-issues",
+      "headerTraceId": "act7-8pvve2efe9-quality-issues",
+      "bodyTraceId": "act7-8pvve2efe9-quality-issues"
+    },
+    {
+      "label": "qa-read-act7-quality-issue-detail",
+      "requestTraceId": "act7-8pvve2efe9-quality-issue-detail",
+      "headerTraceId": "act7-8pvve2efe9-quality-issue-detail",
+      "bodyTraceId": "act7-8pvve2efe9-quality-issue-detail"
+    },
+    {
+      "label": "qa-read-dashboard-before-rectification",
+      "requestTraceId": "act7-8pvve2efe9-dashboard-before",
+      "headerTraceId": "act7-8pvve2efe9-dashboard-before",
+      "bodyTraceId": "act7-8pvve2efe9-dashboard-before"
+    },
+    {
+      "label": "qa-list-open-quality-alerts",
+      "requestTraceId": "act7-8pvve2efe9-alerts-before",
+      "headerTraceId": "act7-8pvve2efe9-alerts-before",
+      "bodyTraceId": "act7-8pvve2efe9-alerts-before"
+    },
+    {
+      "label": "qa-acknowledge-quality-alert",
+      "requestTraceId": "act7-8pvve2efe9-alert-acknowledge",
+      "headerTraceId": "act7-8pvve2efe9-alert-acknowledge",
+      "bodyTraceId": "act7-8pvve2efe9-alert-acknowledge"
+    },
+    {
+      "label": "dept-head-submit-rectification",
+      "requestTraceId": "act7-8pvve2efe9-rectification-submit",
+      "headerTraceId": "act7-8pvve2efe9-rectification-submit",
+      "bodyTraceId": "act7-8pvve2efe9-rectification-submit"
+    },
+    {
+      "label": "qa-review-rectification",
+      "requestTraceId": "act7-8pvve2efe9-rectification-review",
+      "headerTraceId": "act7-8pvve2efe9-rectification-review",
+      "bodyTraceId": "act7-8pvve2efe9-rectification-review"
+    },
+    {
+      "label": "qa-read-rectification-report",
+      "requestTraceId": "act7-8pvve2efe9-rectification-report",
+      "headerTraceId": "act7-8pvve2efe9-rectification-report",
+      "bodyTraceId": "act7-8pvve2efe9-rectification-report"
+    },
+    {
+      "label": "qa-read-dashboard-after-rectification",
+      "requestTraceId": "act7-8pvve2efe9-dashboard-after",
+      "headerTraceId": "act7-8pvve2efe9-dashboard-after",
+      "bodyTraceId": "act7-8pvve2efe9-dashboard-after"
+    },
+    {
+      "label": "qa-list-resolved-quality-alerts",
+      "requestTraceId": "act7-8pvve2efe9-alerts-after",
+      "headerTraceId": "act7-8pvve2efe9-alerts-after",
+      "bodyTraceId": "act7-8pvve2efe9-alerts-after"
+    },
+    {
+      "label": "qa-dashboard-finding-drilldown",
+      "requestTraceId": "act7-8pvve2efe9-dashboard-drilldown-finding",
+      "headerTraceId": "act7-8pvve2efe9-dashboard-drilldown-finding",
+      "bodyTraceId": "act7-8pvve2efe9-dashboard-drilldown-finding"
+    },
+    {
+      "label": "qa-dashboard-rectification-drilldown",
+      "requestTraceId": "act7-8pvve2efe9-dashboard-drilldown-rectification",
+      "headerTraceId": "act7-8pvve2efe9-dashboard-drilldown-rectification",
+      "bodyTraceId": "act7-8pvve2efe9-dashboard-drilldown-rectification"
+    }
+  ]
+}

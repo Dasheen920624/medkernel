@@ -42,8 +42,8 @@ import com.medkernel.shared.context.RequestContext;
  * 这里只验证 Controller 层契约（请求路由、权限、参数校验、响应结构）。
  *
  * <p>权限模型说明：{@code @perm.has('followup.write')} 基于角色推导；
- * 测试中使用 {@code ROLE_MEDICAL_AFFAIRS}（医务处，拥有 followup.write）和
- * {@code ROLE_DOCTOR}（临床医生，仅拥有 followup.read）来驱动权限判断。
+ * 测试中使用 {@code ROLE_MEDICAL_AFFAIRS}、{@code ROLE_DOCTOR} 和
+ * {@code ROLE_NURSE} 验证医务管理、临床医生、护理人员均可执行随访闭环。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -151,7 +151,16 @@ class FollowupEngineControllerTest {
     }
 
     @Test
-    void generatePlan_DoctorLacksWritePermission_ReturnsForbidden() throws Exception {
+    void generatePlan_DoctorRole_ReturnsOk() throws Exception {
+        FollowupPlanDetailResponse mockResponse = new FollowupPlanDetailResponse(
+            "PLAN-DOCTOR-001", "tenant-1", "P1001", "E2001", "I21.900",
+            FollowupPlanStatus.ACTIVE,
+            List.of(new FollowupTaskDetailResponse(
+                "TASK-001", FollowupTaskType.QUESTIONNAIRE, null, FollowupTaskStatus.PENDING
+            ))
+        );
+        when(service.generatePlan(any(FollowupPlanGenerateRequest.class))).thenReturn(mockResponse);
+
         mockMvc.perform(post("/api/v1/engine/followup/plans/generate")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
@@ -160,7 +169,10 @@ class FollowupEngineControllerTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.planId").value("PLAN-DOCTOR-001"));
+
+        verify(service).generatePlan(any(FollowupPlanGenerateRequest.class));
     }
 
     @Test

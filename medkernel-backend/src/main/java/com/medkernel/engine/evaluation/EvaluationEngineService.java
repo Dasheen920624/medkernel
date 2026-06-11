@@ -995,11 +995,10 @@ public class EvaluationEngineService {
     private RuleDslEvaluation evaluateIndicatorRule(
             EvaluationIndicator indicator, String definition, ObjectNode contextJson, String explain) {
         try {
-            ObjectNode dsl = json.createObjectNode();
-            dsl.set("when", json.readTree(definition));
-            dsl.set("then", json.createArrayNode());
-            dsl.put("explain", explain);
-            return ruleEvaluator.evaluate(dsl, contextJson);
+            return ruleEvaluator.evaluateConditionTree(
+                json.readTree(definition),
+                contextJson,
+                json.getNodeFactory().textNode(explain));
         } catch (Exception exception) {
             throw new ApiException(ErrorCode.ENG_EVAL_001,
                 "评估指标规则解析或执行失败：" + indicator.indicatorCode());
@@ -1008,11 +1007,10 @@ public class EvaluationEngineService {
 
     private void validateRuleDefinition(String label, String definition) {
         try {
-            ObjectNode dsl = json.createObjectNode();
-            dsl.set("when", json.readTree(definition));
-            dsl.set("then", json.createArrayNode());
-            dsl.put("explain", label + "规则定义校验");
-            ruleEvaluator.evaluate(dsl, json.createObjectNode());
+            ruleEvaluator.evaluateConditionTree(
+                json.readTree(definition),
+                json.createObjectNode(),
+                json.getNodeFactory().textNode(label + "规则定义校验"));
         } catch (Exception exception) {
             throw new ApiException(ErrorCode.ENG_EVAL_001,
                 label + "规则定义必须是可执行的规则 DSL 条件树");
