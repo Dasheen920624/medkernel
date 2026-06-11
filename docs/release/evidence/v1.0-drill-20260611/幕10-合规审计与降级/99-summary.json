@@ -1,0 +1,258 @@
+{
+  "runTag": "act10-mq8ww9f8",
+  "startedAt": "2026-06-11T03:02:13.172Z",
+  "finishedAt": "2026-06-11T03:02:22.628Z",
+  "deployedJarSha256": "559c1ad8630df4dc34fe57c799b290e9c58a86fcc9b0efa8a7a1621aab02725a",
+  "deployBackup": "/zoesoft/medkernel/backups/deploy-20260611-110134",
+  "backupRestorePath": "/zoesoft/medkernel/backups/act10-mq8ww9f8.schema.dump",
+  "cases": [
+    {
+      "id": "A1",
+      "name": "登录组织域与远程 readiness",
+      "pass": true
+    },
+    {
+      "id": "A2",
+      "name": "幕6审计链追踪和审计快照",
+      "pass": true
+    },
+    {
+      "id": "A3",
+      "name": "数据权限跨科室阻断",
+      "pass": true
+    },
+    {
+      "id": "A4",
+      "name": "敏感字段脱敏预览",
+      "pass": true
+    },
+    {
+      "id": "A5",
+      "name": "导出审批分权",
+      "pass": true
+    },
+    {
+      "id": "A6",
+      "name": "模型缺位诚实 B0 降级",
+      "pass": true
+    },
+    {
+      "id": "A7",
+      "name": "国产化与备份恢复抽查",
+      "pass": true
+    }
+  ],
+  "traceLines": [
+    {
+      "label": "login-audit",
+      "status": 200,
+      "traceId": "e86eae2e-7139-45ac-b7d1-5f550754a162",
+      "path": "/auth/login"
+    },
+    {
+      "label": "login-itOps",
+      "status": 200,
+      "traceId": "140f01bb-bb2d-4ee7-90c0-bd3947fad19f",
+      "path": "/auth/login"
+    },
+    {
+      "label": "login-hospitalAdmin",
+      "status": 200,
+      "traceId": "d80abc86-8f50-4c35-b3d3-18788ab52db0",
+      "path": "/auth/login"
+    },
+    {
+      "label": "login-medical",
+      "status": 200,
+      "traceId": "c165e718-9dc6-4e58-8ccb-639f11cb0772",
+      "path": "/auth/login"
+    },
+    {
+      "label": "login-respiratoryDoctor",
+      "status": 200,
+      "traceId": "2d11b33a-9f44-4341-babf-586325807255",
+      "path": "/auth/login"
+    },
+    {
+      "label": "login-cardiologyDoctor",
+      "status": 200,
+      "traceId": "c3c2ab3e-5549-4528-9fb1-3c4720e1f4eb",
+      "path": "/auth/login"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-audit",
+      "status": 200,
+      "traceId": "48a6065b-7ed7-419e-9d71-91a89767a037",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-itOps",
+      "status": 200,
+      "traceId": "c3074ddf-5066-42a8-a94e-0d639c6d8f81",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-hospitalAdmin",
+      "status": 200,
+      "traceId": "ce4ea309-70d9-4e9b-8509-8032a6428500",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-medical",
+      "status": 200,
+      "traceId": "ba6dbf4a-029c-40ac-881f-54a99d10c084",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-respiratoryDoctor",
+      "status": 200,
+      "traceId": "10e4ecd0-2efc-45a3-8e42-066f5bbf6847",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-security-cardiologyDoctor",
+      "status": 200,
+      "traceId": "d9191773-f77d-411f-ba2c-5e5be7ed5276",
+      "path": "/security/me"
+    },
+    {
+      "label": "act10-mq8ww9f8-diagnose-critical",
+      "status": 200,
+      "traceId": "e32a3f88-bb58-4655-9e34-ed6c9fe3dcb6",
+      "path": "/engine/diagnose/traces/act6-8oh7bn024a-k-event"
+    },
+    {
+      "label": "act10-mq8ww9f8-diagnose-ddi",
+      "status": 200,
+      "traceId": "24f46da0-c763-4328-b45d-f88db9eba2fc",
+      "path": "/engine/diagnose/traces/act6-8oh7bn024a-ddi-event"
+    },
+    {
+      "label": "act10-mq8ww9f8-audit-events-doctor",
+      "status": 200,
+      "traceId": "be425316-f6d5-461e-be3f-f33599b63baf",
+      "path": "/compliance/audit/events?size=20&actorUserId=drill-respiratory-doctor-20260611"
+    },
+    {
+      "label": "act10-mq8ww9f8-audit-events-clinical-event",
+      "status": 200,
+      "traceId": "93ff0bd8-94ad-4f6f-a0dd-bfb521e52c52",
+      "path": "/compliance/audit/events?size=20&resourceType=clinical_event"
+    },
+    {
+      "label": "act10-mq8ww9f8-audit-snapshot",
+      "status": 200,
+      "traceId": "bed34fb8-dd69-4105-b37a-89284ae1df4f",
+      "path": "/compliance/audit/snapshot?reason=%E5%B9%9510%E5%AE%A1%E8%AE%A1%E5%BF%AB%E7%85%A7%20act10-mq8ww9f8"
+    },
+    {
+      "label": "act10-mq8ww9f8-data-policy-before",
+      "status": 200,
+      "traceId": "3ba15068-e65d-47f4-89b0-b38ab783c53f",
+      "path": "/compliance/data-permissions?resourceType=act10_patient_scope&action=READ"
+    },
+    {
+      "label": "act10-mq8ww9f8-data-policy-upsert",
+      "status": 200,
+      "traceId": "2e99f534-37de-4383-9dba-c6e53b3aeb01",
+      "path": "/compliance/data-permissions"
+    },
+    {
+      "label": "act10-mq8ww9f8-data-check-respiratory",
+      "status": 200,
+      "traceId": "412d7b4b-f528-4d7d-b339-7035423c2494",
+      "path": "/compliance/data-permissions:check"
+    },
+    {
+      "label": "act10-mq8ww9f8-data-check-cardiology",
+      "status": 200,
+      "traceId": "e2203c71-2296-41ea-8a0c-d3678c4e9c0d",
+      "path": "/compliance/data-permissions:check"
+    },
+    {
+      "label": "act10-mq8ww9f8-masking-patientName-before",
+      "status": 200,
+      "traceId": "f82616b5-c8f8-4d4d-8c0a-122a77d50cf8",
+      "path": "/compliance/masking-rules?resourceType=act10_patient_export&fieldName=patientName"
+    },
+    {
+      "label": "act10-mq8ww9f8-masking-patientName-upsert",
+      "status": 200,
+      "traceId": "f096d4ad-1521-4195-bb2b-105ad5d26b43",
+      "path": "/compliance/masking-rules"
+    },
+    {
+      "label": "act10-mq8ww9f8-masking-idNo-before",
+      "status": 200,
+      "traceId": "9b584002-0285-43eb-927c-4c95c211d1dd",
+      "path": "/compliance/masking-rules?resourceType=act10_patient_export&fieldName=idNo"
+    },
+    {
+      "label": "act10-mq8ww9f8-masking-idNo-upsert",
+      "status": 200,
+      "traceId": "3465b594-3ec0-4e69-9580-7ec9edf345b0",
+      "path": "/compliance/masking-rules"
+    },
+    {
+      "label": "act10-mq8ww9f8-masking-preview",
+      "status": 200,
+      "traceId": "1f22ea1a-559d-4b46-9d43-5a05de090091",
+      "path": "/compliance/masking-rules:preview"
+    },
+    {
+      "label": "act10-mq8ww9f8-export-request",
+      "status": 200,
+      "traceId": "05fa24bc-c993-44a9-9c48-e727a3451ee7",
+      "path": "/compliance/exports:request"
+    },
+    {
+      "label": "act10-mq8ww9f8-export-self-approve",
+      "status": 403,
+      "traceId": "2e996a57-5f0d-4f5d-932f-c19dec86f212",
+      "path": "/compliance/exports/exp-act10-patient-export-act10-mq8ww9f8.patient-export:approve"
+    },
+    {
+      "label": "act10-mq8ww9f8-export-approve",
+      "status": 200,
+      "traceId": "24340d3a-876e-4fd7-948b-431384d6e86e",
+      "path": "/compliance/exports/exp-act10-patient-export-act10-mq8ww9f8.patient-export:approve"
+    },
+    {
+      "label": "act10-mq8ww9f8-model-status",
+      "status": 200,
+      "traceId": "61cd8086-b531-4e98-95ae-9ffe83234000",
+      "path": "/model-capabilities/status"
+    },
+    {
+      "label": "act10-mq8ww9f8-model-task",
+      "status": 200,
+      "traceId": "633a5d47-8322-456f-8cea-745c8cebd301",
+      "path": "/model-capabilities/tasks"
+    },
+    {
+      "label": "act10-mq8ww9f8-model-task-detail",
+      "status": 200,
+      "traceId": "aa36fea2-8f8a-4009-a257-77bf37b7432d",
+      "path": "/model-capabilities/tasks/task-499db063b0114772933c9fca86b3257c"
+    },
+    {
+      "label": "act10-mq8ww9f8-operations",
+      "status": 200,
+      "traceId": "7233a6b8-0f9e-40f3-8e56-a9a85bfc8f29",
+      "path": "/system/operations"
+    },
+    {
+      "label": "act10-mq8ww9f8-domestic-report",
+      "status": 200,
+      "traceId": "d3afa939-2bae-490c-b374-b953b0fa20d9",
+      "path": "/system/operations/domestic-report"
+    },
+    {
+      "label": "act10-mq8ww9f8-audit-setting-validate",
+      "status": 200,
+      "traceId": "a48652e5-be10-4675-bdd6-9590716f7352",
+      "path": "/compliance/audit/settings/validate"
+    }
+  ],
+  "pass": true
+}

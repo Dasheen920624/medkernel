@@ -424,7 +424,13 @@ describe("KnowledgeGovernance", () => {
       });
       expect(refetchCandidates).toHaveBeenCalled();
       expect(refetchIdentities).toHaveBeenCalled();
-      expect(screen.getByText("候选已通过审核并交由权威替换流程")).toBeInTheDocument();
+      expect(
+        await screen.findByText(
+          "候选已通过审核并交由权威替换流程",
+          {},
+          { timeout: KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS },
+        ),
+      ).toBeInTheDocument();
     },
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );

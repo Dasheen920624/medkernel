@@ -16,12 +16,15 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.security.DataAccessLevel;
 
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -99,6 +102,49 @@ class DataPermissionControllerSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(policyBody()))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("医生可按当前组织域检查目标数据权限，跨科室目标返回不允许")
+    void checkPolicy_doctorWithDepartment_returnsDeniedDecision() throws Exception {
+        when(service.evaluate(
+                argThat(scope -> scope.level() == DataAccessLevel.DEPARTMENT
+                    && "cardiology".equals(scope.scope().departmentId())),
+                argThat(check -> "t-1".equals(check.tenantId())
+                    && "act10_patient_scope".equals(check.resourceType())
+                    && check.action() == DataPermissionAction.READ
+                    && "respiratory-icu".equals(check.targetScope().departmentId()))))
+            .thenReturn(new DataPermissionDecision(
+                "dperm-act10-patient-scope-read",
+                "act10_patient_scope",
+                DataPermissionAction.READ,
+                DataAccessLevel.DEPARTMENT,
+                false,
+                List.of("patientId", "encounterId"),
+                List.of()
+            ));
+
+        mvc.perform(post("/api/v1/compliance/data-permissions:check")
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-act10")
+                    .claim("tenant_id", "t-1")
+                    .claim("hospital_id", "h-1")
+                    .claim("department_id", "cardiology")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "resourceType": "act10_patient_scope",
+                      "action": "READ",
+                      "hospitalId": "h-1",
+                      "departmentId": "respiratory-icu",
+                      "requestedColumns": ["patientId", "encounterId"]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.rowAllowed").value(false))
+            .andExpect(jsonPath("$.data.requiredLevel").value("DEPARTMENT"));
     }
 
     private String policyBody() {

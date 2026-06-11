@@ -1,6 +1,7 @@
 package com.medkernel.compliance.masking;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,12 +17,15 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.security.DataAccessLevel;
 
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -99,6 +103,50 @@ class MaskingRuleControllerSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ruleBody()))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("合规审计角色可按当前数据范围预览脱敏结果")
+    void preview_auditRoleWithTenant_returnsMaskedResult() throws Exception {
+        when(service.mask(
+                argThat(scope -> scope.level() == DataAccessLevel.GROUP
+                    && scope.desensitized()
+                    && "t-1".equals(scope.scope().tenantId())),
+                argThat(request -> "t-1".equals(request.tenantId())
+                    && "act10_patient_export".equals(request.resourceType()))))
+            .thenReturn(new MaskingResult(
+                "act10_patient_export",
+                "DEFAULT",
+                Map.of("patientName", "张*国", "idNo", "**************8888"),
+                List.of("patientName", "idNo"),
+                false
+            ));
+
+        mvc.perform(post("/api/v1/compliance/masking-rules:preview")
+                .with(jwt().jwt(token -> token
+                    .subject("auditor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("group_id", "g-1")
+                    .claim("hospital_id", "h-1")
+                    .claim("roles", List.of("audit-compliance")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "resourceType": "act10_patient_export",
+                      "tenantId": "evil-tenant",
+                      "scenarioCode": "DEFAULT",
+                      "values": {
+                        "patientName": "张建国",
+                        "idNo": "110101196203018888"
+                      },
+                      "sensitiveFields": ["patientName", "idNo"]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.rawAllowed").value(false))
+            .andExpect(jsonPath("$.data.values.patientName").value("张*国"))
+            .andExpect(jsonPath("$.data.maskedFields[0]").value("patientName"));
     }
 
     private String ruleBody() {

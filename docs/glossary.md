@@ -60,10 +60,17 @@
 | 嵌入启动令牌 | Embed Launch Token | HIS / EMR 页面内嵌 MedKernel 临床终端时使用的一次性短效令牌，只展示一次，过期或用过后必须拒绝 |
 | 知识运行时 | Knowledge Runtime | 第三方系统读取当前有效知识包、写标准上下文、查发布对账的稳定 API 门面，不直接读数据库表 |
 | FHIR 门面 | FHIR Facade | 对外提供 FHIR R4 Patient、Observation 等标准资源读写的接口层，负责签名校验、资源映射和审计 |
+| 审计链 | Audit Chain / Trace Chain | 从一次业务动作追到登录者、页面或接口、规则命中、推荐、反馈和审批证据的连续记录；断点必须排查，不能用口头说明替代 |
+| 数据权限 | Data Permission | 按租户、医院、科室、资源、动作和字段共同判断一个人能不能看某条数据或某些列；不只看角色名 |
+| 数据脱敏 | Masking | 对患者姓名、证件号、手机号等敏感字段按规则遮罩；无原文权限时只能看脱敏值 |
+| 敏感导出审批 | Export Approval | 导出患者、审计或质控敏感数据前的申请和第二人审批流程；申请人不能自批 |
+| 诚实降级 | Honest Degradation | 外部模型、知识图谱、搜索或第三方系统不可用时，系统明确告知当前能力受限并走 B0 或人工流程，不伪造模型结果或成功状态 |
+| 备份恢复抽查 | Backup Restore Drill | 把备份恢复到临时库或隔离环境中验证表结构、数据或关键记录可读；抽查不直接改生产库 |
 | 驾驶舱 / 院级驾驶舱 | Executive Dashboard | 院长、医务处和质控办看的全院或科室总览，必须可下钻到质控问题、预警、整改和证据 |
 | 来源追溯 | Provenance | 任何提醒可追溯到指南、文献、知识库哪一条 |
 | 国密 | SM2 / SM3 / SM4 | 国家商用密码标准算法 |
 | 国产化自检 | Domestication Check | 检查当前 OS/JDK/DB/中间件的国产化程度 |
+| 等保 | Classified Protection / MLPS | 网络安全等级保护要求；系统在审计、权限、脱敏、备份、日志留存和安全配置上要能给出可核验证据 |
 | MPI | Master Patient Index | 患者主索引 |
 | DRG / DIP | Diagnosis Related Groups / Diagnosis Intervention Packet | 医保付费分组 |
 | 系统配置中心 | Config Center / 配置管理后台 | 功能开关、认证策略、备份、国产化、Provider、安全基线、日志级别的前台统一管理（挂"安全基线与系统配置"二级菜单）|

@@ -1,7 +1,10 @@
 package com.medkernel.engine.security.auth;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,6 +85,10 @@ class AuthControllerTest {
     private static final String LOGIN_RATE_LIMIT_WINDOW_SECONDS_KEY = "medkernel.auth.login.rate-limit-window-seconds";
     private static final String XSRF_COOKIE = "XSRF-TOKEN";
     private static final String XSRF_HEADER = "X-XSRF-TOKEN";
+    private static final String AUTH_TEST_HOSPITAL = "hospital-auth-main";
+    private static final String AUTH_TEST_DEPARTMENT = "dept-auth-cardiology";
+    private static final String AUTH_TEST_HOSPITAL_ID = "auth-facility-01";
+    private static final String AUTH_TEST_DEPARTMENT_ID = "auth-dept-01";
 
     @BeforeEach
     void setUp() {
@@ -118,6 +125,52 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.platformTenant.name").value("平台主租户（唯一内置）"));
     }
 
+    @Test
+    void loginCookieJwtCarriesPrimaryOrgScopeFromRoleAssignment() throws Exception {
+        List<UserRoleAssignment> assignments =
+            roleAssignmentRepository.findActiveByTenantIdAndUserId(TENANT, USER_ID);
+        roleAssignmentRepository.deleteAll(assignments);
+        jdbcTemplate.update("""
+            DELETE FROM org_unit
+             WHERE tenant_id = ?
+               AND code IN (?, ?)
+            """, TENANT, AUTH_TEST_DEPARTMENT, AUTH_TEST_HOSPITAL);
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name,
+                facility_type, status, created_by, updated_by
+            ) VALUES (?, NULL, ?, ?, 'FACILITY', ?, '登录测试医院',
+                'HOSPITAL', 'ACTIVE', 'test', 'test')
+            """, AUTH_TEST_HOSPITAL_ID, TENANT, "/" + TENANT + "/" + AUTH_TEST_HOSPITAL, AUTH_TEST_HOSPITAL);
+        jdbcTemplate.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name,
+                facility_type, status, created_by, updated_by
+            ) VALUES (?, ?, ?, ?, 'DEPARTMENT', ?, '登录测试心内科',
+                NULL, 'ACTIVE', 'test', 'test')
+            """, AUTH_TEST_DEPARTMENT_ID, AUTH_TEST_HOSPITAL_ID, TENANT,
+            "/" + TENANT + "/" + AUTH_TEST_HOSPITAL + "/" + AUTH_TEST_DEPARTMENT,
+            AUTH_TEST_DEPARTMENT);
+        roleAssignmentRepository.save(new UserRoleAssignment(
+            null, TENANT, USER_ID, RoleCode.DOCTOR.code(), "DEPARTMENT", AUTH_TEST_DEPARTMENT,
+            "Y", Instant.now(), "test", Instant.now(), "test"
+        ));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequest(USERNAME, RAW_PASSWORD, TENANT))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        String token = login.getResponse().getCookie("mk_access").getValue();
+        String payload = new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8);
+        Map<?, ?> claims = objectMapper.readValue(payload, Map.class);
+
+        assertThat(claims.get("tenant_id")).isEqualTo(TENANT);
+        assertThat(claims.get("hospital_id")).isEqualTo(AUTH_TEST_HOSPITAL_ID);
+        assertThat(claims.get("department_id")).isEqualTo(AUTH_TEST_DEPARTMENT_ID);
+    }
+
     @AfterEach
     void cleanUp() {
         // I2: 清理凭证
@@ -128,6 +181,11 @@ class AuthControllerTest {
         List<UserRoleAssignment> assignments =
             roleAssignmentRepository.findActiveByTenantIdAndUserId(TENANT, USER_ID);
         roleAssignmentRepository.deleteAll(assignments);
+        jdbcTemplate.update("""
+            DELETE FROM org_unit
+             WHERE tenant_id = ?
+               AND code IN (?, ?)
+            """, TENANT, AUTH_TEST_DEPARTMENT, AUTH_TEST_HOSPITAL);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'

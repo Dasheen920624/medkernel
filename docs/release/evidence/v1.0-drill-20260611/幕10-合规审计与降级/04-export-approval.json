@@ -1,0 +1,93 @@
+{
+  "runTag": "act10-mq8ww9f8",
+  "request": {
+    "status": 200,
+    "ok": true,
+    "traceId": "05fa24bc-c993-44a9-9c48-e727a3451ee7",
+    "path": "/compliance/exports:request",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "approvalId": "exp-act10-patient-export-act10-mq8ww9f8.patient-export",
+        "resourceType": "act10_patient_export",
+        "exportScopeSnapshot": "{\"departmentId\":\"01KTSAC1SCFJB2RKCY3DHEAGMQ\",\"encounterId\":\"enc-act6-8oh7bn024a\",\"fields\":[\"patientName\",\"idNo\"],\"patientId\":\"mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY\"}",
+        "idempotencyKey": "act10-mq8ww9f8.patient-export",
+        "requestReason": "幕10演练：敏感患者数据导出必须审批 act10-mq8ww9f8",
+        "status": "REQUESTED",
+        "requestedBy": "drill-audit-20260611",
+        "reviewerId": null,
+        "reviewDecision": null,
+        "reviewComment": null,
+        "approvalEvidenceId": null,
+        "approvalEvidenceFileUri": null,
+        "exportUri": null,
+        "exportDigest": null,
+        "exportEvidenceId": null,
+        "exportEvidenceFileUri": null,
+        "version": 1,
+        "requestedAt": "2026-06-11T03:02:16.643788369Z",
+        "reviewedAt": null
+      },
+      "traceId": "05fa24bc-c993-44a9-9c48-e727a3451ee7",
+      "timestamp": "2026-06-11T03:02:16.669989849Z"
+    }
+  },
+  "selfApproval": {
+    "status": 403,
+    "ok": false,
+    "traceId": "2e996a57-5f0d-4f5d-932f-c19dec86f212",
+    "path": "/compliance/exports/exp-act10-patient-export-act10-mq8ww9f8.patient-export:approve",
+    "body": {
+      "type": "urn:medkernel:error:ENG-API-004",
+      "title": "无权限执行该操作",
+      "status": 403,
+      "detail": "申请人与审批人不能相同",
+      "instance": "/medkernel/api/v1/compliance/exports/exp-act10-patient-export-act10-mq8ww9f8.patient-export:approve",
+      "code": "ENG-API-004",
+      "errorClass": "AUTH",
+      "retryable": false,
+      "traceId": "2e996a57-5f0d-4f5d-932f-c19dec86f212"
+    }
+  },
+  "approval": {
+    "status": 200,
+    "ok": true,
+    "traceId": "24340d3a-876e-4fd7-948b-431384d6e86e",
+    "path": "/compliance/exports/exp-act10-patient-export-act10-mq8ww9f8.patient-export:approve",
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "操作成功",
+      "data": {
+        "approvalId": "exp-act10-patient-export-act10-mq8ww9f8.patient-export",
+        "resourceType": "act10_patient_export",
+        "exportScopeSnapshot": "{\"departmentId\":\"01KTSAC1SCFJB2RKCY3DHEAGMQ\",\"encounterId\":\"enc-act6-8oh7bn024a\",\"fields\":[\"patientName\",\"idNo\"],\"patientId\":\"mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY\"}",
+        "idempotencyKey": "act10-mq8ww9f8.patient-export",
+        "requestReason": "幕10演练：敏感患者数据导出必须审批 act10-mq8ww9f8",
+        "status": "APPROVED",
+        "requestedBy": "drill-audit-20260611",
+        "reviewerId": "drill-hospital-admin-20260611",
+        "reviewDecision": "APPROVE",
+        "reviewComment": "幕10演练：第二人审批通过 act10-mq8ww9f8",
+        "approvalEvidenceId": "evd-exp-act10-patient-export-act10-mq8-1092282fde450637-approval",
+        "approvalEvidenceFileUri": "/api/v1/compliance/evidence/snapshots/evd-exp-act10-patient-export-act10-mq8-1092282fde450637-approval/file",
+        "exportUri": null,
+        "exportDigest": null,
+        "exportEvidenceId": null,
+        "exportEvidenceFileUri": null,
+        "version": 2,
+        "requestedAt": "2026-06-11T03:02:16.643788Z",
+        "reviewedAt": "2026-06-11T03:02:16.989692754Z"
+      },
+      "traceId": "24340d3a-876e-4fd7-948b-431384d6e86e",
+      "timestamp": "2026-06-11T03:02:16.995013353Z"
+    }
+  },
+  "passCriteria": [
+    "敏感导出先 REQUESTED",
+    "申请人与审批人不能相同",
+    "第二人审批后状态为 APPROVED 并生成审批证据"
+  ]
+}

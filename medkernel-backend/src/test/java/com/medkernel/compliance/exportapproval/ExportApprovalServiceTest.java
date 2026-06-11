@@ -134,6 +134,37 @@ class ExportApprovalServiceTest {
     }
 
     @Test
+    void approveExportUsesBoundedEvidenceIdForLongApprovalId() {
+        ExportApproval existing = requestedApproval(
+            "exp-act10-patient-export-act10-mq8waf17.patient-export",
+            "doctor-1");
+        when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
+            .thenReturn(Optional.of(existing));
+        when(evidenceService.createSnapshot(eq("t-1"), any(EvidenceCreateDto.class)))
+            .thenAnswer(invocation -> {
+                EvidenceCreateDto dto = invocation.getArgument(1);
+                return evidence(dto.evidenceId(),
+                    "/api/v1/compliance/evidence/snapshots/" + dto.evidenceId() + "/file");
+            });
+        when(repository.save(any(ExportApproval.class)))
+            .thenAnswer(invocation -> invocation.<ExportApproval>getArgument(0));
+        ExportApprovalReviewRequest request = new ExportApprovalReviewRequest(
+            ExportApprovalDecision.APPROVE,
+            "审批通过，允许生成真实导出文件",
+            1L);
+
+        ExportApprovalResponse response = service.reviewExport("t-1", existing.approvalId(), request, "auditor-1");
+
+        ArgumentCaptor<EvidenceCreateDto> evidence = ArgumentCaptor.forClass(EvidenceCreateDto.class);
+        verify(evidenceService).createSnapshot(eq("t-1"), evidence.capture());
+        assertThat(evidence.getValue().evidenceId())
+            .startsWith("evd-exp-act10-patient-export-")
+            .endsWith("-approval")
+            .hasSizeLessThanOrEqualTo(64);
+        assertThat(response.approvalEvidenceId()).isEqualTo(evidence.getValue().evidenceId());
+    }
+
+    @Test
     void reviewExportRejectsSelfApproval() {
         ExportApproval existing = requestedApproval("exp-clinical-case-idem-001", "auditor-1");
         when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))

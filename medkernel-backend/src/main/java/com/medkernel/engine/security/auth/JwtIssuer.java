@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.JwtClaimsResolver;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.security.AuthSessionClaims;
 import com.medkernel.shared.security.AuthJwtProperties;
 import com.medkernel.shared.security.JwtSecretResolver;
@@ -56,7 +57,12 @@ public class JwtIssuer {
 
     public IssuedJwt issueSession(String userId, String tenantId, List<String> roles) {
         Instant now = Instant.now();
-        return issueSession(userId, tenantId, roles, now, now, now.plusSeconds(ttlSeconds()));
+        return issueSession(userId, tenantId, roles, OrgScope.tenant(tenantId), now, now, now.plusSeconds(ttlSeconds()));
+    }
+
+    public IssuedJwt issueSession(String userId, String tenantId, List<String> roles, OrgScope orgScope) {
+        Instant now = Instant.now();
+        return issueSession(userId, tenantId, roles, orgScope, now, now, now.plusSeconds(ttlSeconds()));
     }
 
     public IssuedJwt issueSession(
@@ -65,7 +71,17 @@ public class JwtIssuer {
             List<String> roles,
             Instant sessionStartedAt,
             Instant expiresAt) {
-        return issueSession(userId, tenantId, roles, sessionStartedAt, Instant.now(), expiresAt);
+        return issueSession(userId, tenantId, roles, OrgScope.tenant(tenantId), sessionStartedAt, Instant.now(), expiresAt);
+    }
+
+    public IssuedJwt issueSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            OrgScope orgScope,
+            Instant sessionStartedAt,
+            Instant expiresAt) {
+        return issueSession(userId, tenantId, roles, orgScope, sessionStartedAt, Instant.now(), expiresAt);
     }
 
     public IssuedJwt issueSession(
@@ -75,15 +91,26 @@ public class JwtIssuer {
             Instant sessionStartedAt,
             Instant issuedAt,
             Instant expiresAt) {
+        return issueSession(userId, tenantId, roles, OrgScope.tenant(tenantId), sessionStartedAt, issuedAt, expiresAt);
+    }
+
+    public IssuedJwt issueSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            OrgScope orgScope,
+            Instant sessionStartedAt,
+            Instant issuedAt,
+            Instant expiresAt) {
         try {
-            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .subject(userId)
-                .claim(JwtClaimsResolver.CLAIM_TENANT_ID, tenantId)
                 .claim(JwtClaimsResolver.CLAIM_ROLES, roles)
                 .claim(CLAIM_SESSION_STARTED_AT, sessionStartedAt.getEpochSecond())
                 .issueTime(Date.from(issuedAt))
-                .expirationTime(Date.from(expiresAt))
-                .build();
+                .expirationTime(Date.from(expiresAt));
+            addOrgClaims(builder, tenantId, orgScope);
+            JWTClaimsSet claims = builder.build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
             jwt.sign(new MACSigner(secret));
             return new IssuedJwt(jwt.serialize(), issuedAt, expiresAt, sessionStartedAt);
@@ -94,6 +121,27 @@ public class JwtIssuer {
 
     public long ttlSeconds() {
         return configService == null ? properties.ttlSeconds() : configService.runtimeJwtTtlSeconds(properties);
+    }
+
+    private void addOrgClaims(JWTClaimsSet.Builder builder, String tenantId, OrgScope orgScope) {
+        OrgScope safeScope = orgScope == null ? OrgScope.tenant(tenantId) : orgScope;
+        builder.claim(JwtClaimsResolver.CLAIM_TENANT_ID, firstNonBlank(safeScope.tenantId(), tenantId));
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_GROUP_ID, safeScope.groupId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_HOSPITAL_ID, safeScope.hospitalId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_CAMPUS_ID, safeScope.campusId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_SITE_ID, safeScope.siteId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_DEPARTMENT_ID, safeScope.departmentId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_SPECIALTY_ID, safeScope.specialtyId());
+    }
+
+    private void addClaimIfPresent(JWTClaimsSet.Builder builder, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            builder.claim(key, value);
+        }
+    }
+
+    private String firstNonBlank(String first, String fallback) {
+        return first == null || first.isBlank() ? fallback : first;
     }
 
     public record IssuedJwt(
