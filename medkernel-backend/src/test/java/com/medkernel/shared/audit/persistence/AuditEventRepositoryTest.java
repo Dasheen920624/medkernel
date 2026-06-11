@@ -166,6 +166,40 @@ class AuditEventRepositoryTest {
     }
 
     @Test
+    void findPageAppliesTraceIdFilterWithinTenant() {
+        repository.initChainHead("t-1");
+        repository.initChainHead("t-2");
+
+        Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        repository.insertEvent(sample("t-1", "CREATE", "rule", "r-1",
+            base, null, "GENESIS", "sig-1"));
+        repository.insertEvent(sample("t-1", "PUBLISH", "rule", "r-2",
+            base.plusSeconds(1), null, "GENESIS", "sig-2"));
+        repository.insertEvent(sample("t-2", "PUBLISH", "rule", "r-2",
+            base.plusSeconds(2), null, "GENESIS", "sig-3"));
+
+        AuditEventQuery traceOnly = new AuditEventQuery(
+            null,
+            null,
+            null,
+            "trace-r-2",
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            50);
+
+        List<AuditEventRecord> rows = repository.findPage("t-1", traceOnly);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).tenantId()).isEqualTo("t-1");
+        assertThat(rows.get(0).resourceId()).isEqualTo("r-2");
+        assertThat(rows.get(0).traceId()).isEqualTo("trace-r-2");
+    }
+
+    @Test
     void findPageAppliesOrgEnvironmentOutcomeAndSuperAdminFilters() {
         repository.initChainHead("t-1");
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);

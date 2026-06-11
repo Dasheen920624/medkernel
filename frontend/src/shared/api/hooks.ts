@@ -166,6 +166,7 @@ export interface AuditEventListQuery {
   outcome?: string;
   actorUserId?: string;
   resourceType?: string;
+  traceId?: string;
   from?: string;
   to?: string;
 }
@@ -197,6 +198,7 @@ export function useLargeAuditEvents(query: AuditEventListQuery) {
     ...(query.outcome ? { outcome: query.outcome } : {}),
     ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
     ...(query.resourceType ? { resourceType: query.resourceType } : {}),
+    ...(query.traceId ? { traceId: query.traceId } : {}),
     ...(query.from ? { from: query.from } : {}),
     ...(query.to ? { to: query.to } : {}),
   };
