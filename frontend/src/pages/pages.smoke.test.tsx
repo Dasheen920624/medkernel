@@ -360,7 +360,7 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical cdss-fatigue console", () => {
     renderPage(<CdssFatigue />);
-    expect(screen.getByRole("heading", { name: "智能建议治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "提醒与推荐中枢" })).toBeInTheDocument();
     expect(screen.getByText("全部状态")).toBeInTheDocument();
   });
 

@@ -32,6 +32,7 @@ import {
   UserOutlined,
   CalendarOutlined,
   ExclamationCircleOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -136,6 +137,92 @@ function getFatigueProgressPercent(signal: RecommendationFatigueSignal): number 
   return Math.min(100, Math.floor((signal.triggerCount / signal.governanceThreshold) * 100));
 }
 
+type RecommendationJourneyStep = {
+  title: string;
+  status: string;
+  description: string;
+  evidence?: string;
+};
+
+function textOrDash(value?: string | null) {
+  return value && value.trim() ? value : "暂无";
+}
+
+function getRecommendationJourneySteps(
+  detail: {
+    card: RecommendationCard;
+    trigger?: {
+      triggerId?: string;
+      triggerType?: string;
+      sourceEventId?: string;
+      patientPathwayId?: string;
+      traceId?: string;
+    };
+    feedback: Array<{
+      feedbackType: RecommendationFeedbackType;
+      operatorRole?: string;
+      reasonText?: string;
+    }>;
+    traceId: string;
+  },
+  sources: RecommendationSource[] | undefined,
+  diagnose?: {
+    traceId?: string;
+    ruleId?: string;
+    explanationSnapshot?: string;
+    statusHistory?: Array<{ summary?: string }>;
+  } | null,
+): RecommendationJourneyStep[] {
+  const sourceTitle = sources?.[0]?.title ?? detail.card.sourceSummary;
+  const latestFeedback = detail.feedback[0];
+  return [
+    {
+      title: "触发事件",
+      status: textOrDash(detail.trigger?.triggerType || detail.card.scenarioCode),
+      description: "来自患者上下文、医嘱签署、检验回报或外部系统事件。",
+      evidence: detail.trigger?.sourceEventId || detail.trigger?.triggerId || detail.card.triggerId,
+    },
+    {
+      title: "命中规则",
+      status: textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey),
+      description: "规则引擎与红线检查给出风险级别和推荐动作。",
+      evidence: diagnose?.explanationSnapshot || detail.card.summary,
+    },
+    {
+      title: "知识来源",
+      status: sourceTitle ? "已有来源" : "待补来源",
+      description: sourceTitle || "该卡片暂未返回来源解释，页面不做兜底伪造。",
+      evidence: sources?.[0]?.sourceRef,
+    },
+    {
+      title: "路径上下文",
+      status: textOrDash(detail.trigger?.patientPathwayId),
+      description: "把推荐放回患者路径位置，辅助医生判断下一步。",
+      evidence: detail.trigger?.patientPathwayId,
+    },
+    {
+      title: "待办 / 通知",
+      status: detail.card.status,
+      description: "推荐卡会同步为医生待办或通知；状态以后端闭环为准。",
+      evidence: `traceId: ${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
+    },
+    {
+      title: "医生反馈",
+      status: latestFeedback ? latestFeedback.feedbackType : "待处理",
+      description: latestFeedback?.reasonText || "医生采纳或不采纳时必须留下真实理由。",
+      evidence: latestFeedback?.operatorRole,
+    },
+    {
+      title: "药师复核",
+      status: detail.feedback.some((item) => item.operatorRole === "PHARMACIST")
+        ? "已复核"
+        : "按需复核",
+      description: "高风险 DDI 覆盖进入药师或质控复核视角。",
+      evidence: diagnose?.statusHistory?.[0]?.summary,
+    },
+  ];
+}
+
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 export default function CdssFatigue() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -150,7 +237,7 @@ export default function CdssFatigue() {
   const [size] = useState<number>(10);
   const [statusFilter, setStatusFilter] = useState<RecommendationCardStatus | undefined>(undefined);
   const [riskFilter, setRiskFilter] = useState<RecommendationRiskLevel | undefined>(undefined);
-  const [patientIdFilter, setPatientIdFilter] = useState<string>("");
+  const [quickSearch, setQuickSearch] = useState<string>("");
 
   // 医师反馈表单绑定
   const [feedbackForm] = Form.useForm();
@@ -166,11 +253,25 @@ export default function CdssFatigue() {
   } = useClinicalRecommendationCards({
     status: statusFilter,
     riskLevel: riskFilter,
-    patientId: patientIdFilter || undefined,
     page,
     size,
   });
   const cards: ClinicalRecommendationCard[] = cardsPage?.items ?? [];
+  const quickSearchTerm = quickSearch.trim().toLowerCase();
+  const visibleCards = quickSearchTerm
+    ? cards.filter((card) =>
+        [
+          card.cardId,
+          card.triggerId,
+          card.patientId,
+          card.encounterId,
+          card.patientPathwayId,
+          card.traceId,
+          card.title,
+          card.sourceSummary,
+        ].some((value) => value?.toLowerCase().includes(quickSearchTerm)),
+      )
+    : cards;
   const cardsParsedError = cardsError ? parseApiError(cardsQueryError, "推荐卡列表加载失败") : null;
   let cardsPageState: "forbidden" | "error" | "ready" = "ready";
   if (cardsParsedError) {
@@ -180,7 +281,6 @@ export default function CdssFatigue() {
   const { data: statsData } = useRecommendationStats({
     status: statusFilter,
     riskLevel: riskFilter,
-    patientId: patientIdFilter || undefined,
   });
 
   const { data: detailData, refetch: refetchDetail } = useRecommendationCardDetail(
@@ -228,6 +328,9 @@ export default function CdssFatigue() {
   const triggerCdssMutation = useEvaluateRecommendations();
   const feedbackMutation = useSubmitRecommendationFeedback(selectedCardId || "");
   const selectedFatigueGovernance = getFatigueGovernance(detailData?.card);
+  const selectedJourneySteps = detailData
+    ? getRecommendationJourneySteps(detailData, sourcesData ?? detailData.sources, diagnoseData)
+    : [];
 
   // ACTIVE 临床快照是评估上下文的唯一来源，患者、就诊与配置包版本由服务端再次校验。
   const handleTriggerCdss = async () => {
@@ -391,13 +494,13 @@ export default function CdssFatigue() {
   let cardsTableContent = (
     <Table
       columns={columns}
-      dataSource={cards}
+      dataSource={visibleCards}
       rowKey="cardId"
       loading={cardsLoading}
       pagination={{
         current: page,
         pageSize: size,
-        total: cardsPage?.total ?? 0,
+        total: quickSearchTerm ? visibleCards.length : (cardsPage?.total ?? 0),
         onChange: (p) => setPage(p),
         showTotal: (t) => `共 ${t} 张临床运行提醒卡`,
       }}
@@ -427,11 +530,45 @@ export default function CdssFatigue() {
 
   return (
     <PageShell
-      title="智能建议治理"
-      description="汇总临床运行中的 CDSS 医嘱提醒卡，结合权威医学文献提供透明化解释，支持临床医生实时采纳反馈并监控超频提醒疲劳度治理信号。"
+      title="提醒与推荐中枢"
+      description="把临床推荐卡、待办、通知、医生反馈、知识来源和审计追溯放在同一页，医生先处理风险，质控再复核证据。"
     >
+      <div className={`${styles.surface} ${styles.journeyOverview}`}>
+        <div className={styles.rowBetween}>
+          <div>
+            <div className={styles.sectionTitle}>
+              <AuditOutlined className={styles.iconInfo} />
+              <span>推荐链路总览</span>
+            </div>
+            <div className={styles.textSmall}>
+              从触发事件到医生反馈，按同一条 traceId 解释推荐为什么出现、现在处理到哪一步。
+            </div>
+          </div>
+          <Tag color="blue">一图贯穿</Tag>
+        </div>
+        <div className={styles.journeyPillGrid}>
+          {[
+            "触发事件",
+            "命中规则",
+            "知识来源",
+            "路径上下文",
+            "待办 / 通知",
+            "医生反馈",
+            "药师复核",
+          ].map((label) => (
+            <div className={styles.journeyPill} key={label}>
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className={`${styles.surface} ${styles.filterSurface}`}>
-        <Form layout="inline" className={styles.inlineForm}>
+        <div className={`${styles.sectionTitle} ${styles.sectionGap}`}>
+          <SearchOutlined className={styles.iconInfo} />
+          <span>按患者 ID / traceId / 来源对象查推荐</span>
+        </div>
+        <Form layout="vertical" className={styles.inlineForm}>
           <Form.Item label="状态">
             <Select
               placeholder="全部状态"
@@ -465,16 +602,17 @@ export default function CdssFatigue() {
               <Option value="LOW">LOW (绿线低打扰)</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="患者 ID">
+          <Form.Item label="患者或 traceId" htmlFor="recommendation-quick-search">
             <Input
-              placeholder="输入患者 ID"
+              id="recommendation-quick-search"
+              placeholder="输入患者 ID、traceId、卡片或触发事件"
               allowClear
-              value={patientIdFilter}
+              value={quickSearch}
               onChange={(e) => {
-                setPatientIdFilter(e.target.value);
+                setQuickSearch(e.target.value);
                 setPage(1);
               }}
-              className={styles.controlMd}
+              className={styles.controlLg}
             />
           </Form.Item>
           <Form.Item className={styles.actionItem}>
@@ -623,8 +761,31 @@ export default function CdssFatigue() {
       >
         {detailData && (
           <div>
+            <Card
+              size="small"
+              title="这条推荐是怎么来的"
+              className={`${styles.detailCard} ${styles.sectionGapLg}`}
+            >
+              <div className={styles.journeyGrid}>
+                {selectedJourneySteps.map((step) => (
+                  <div className={styles.journeyStep} key={step.title}>
+                    <div className={styles.journeyStepTitle}>{step.title}</div>
+                    <Tag
+                      color={
+                        step.status === "待处理" || step.status === "PENDING" ? "orange" : "blue"
+                      }
+                    >
+                      {step.status}
+                    </Tag>
+                    <div className={styles.timelineMeta}>{step.description}</div>
+                    {step.evidence && <div className={styles.journeyEvidence}>{step.evidence}</div>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+
             <Descriptions
-              title="提醒卡主数据 Facts"
+              title="推荐卡主数据"
               bordered
               column={3}
               size="small"
@@ -701,7 +862,7 @@ export default function CdssFatigue() {
                   key: "sources",
                   label: (
                     <span>
-                      <ReadOutlined /> 临床学术指南与文献证据 (Evidence)
+                      <ReadOutlined /> 临床指南与来源证据
                     </span>
                   ),
                   children: (
@@ -756,7 +917,7 @@ export default function CdssFatigue() {
                   disabled: detailData.card.status !== "PENDING",
                   label: (
                     <span>
-                      <CheckCircleOutlined /> 医师人机交互反馈 (Feedback)
+                      <CheckCircleOutlined /> 医师反馈
                     </span>
                   ),
                   children: (
@@ -859,7 +1020,7 @@ export default function CdssFatigue() {
                   key: "fatigue",
                   label: (
                     <span>
-                      <DashboardOutlined /> 提醒超频疲劳治理 (Fatigue Signal)
+                      <DashboardOutlined /> 提醒频次治理
                     </span>
                   ),
                   children: (
@@ -953,7 +1114,7 @@ export default function CdssFatigue() {
                 }}
                 className={styles.wideAction}
               >
-                可信推荐归因与决策审计追溯 (diagnose)
+                查看决策链追溯
               </Button>
             </div>
           </div>
