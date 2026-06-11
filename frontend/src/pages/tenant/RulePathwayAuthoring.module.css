@@ -139,6 +139,64 @@
   margin-inline-start: calc(var(--mk-unit) * 8);
 }
 
+.readablePath {
+  padding: calc(var(--mk-unit) * 16);
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.readablePathHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.readableSentence {
+  margin-bottom: 0 !important;
+  color: var(--ant-color-text);
+  font-weight: 600;
+}
+
+.readableFlow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--mk-unit) * 180)), 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.readableFlowItem {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--mk-unit) * 128);
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 8);
+  padding: calc(var(--mk-unit) * 12);
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.readableFlowTitle,
+.readableFlowPrimary,
+.readableFlowMeta {
+  overflow-wrap: anywhere;
+}
+
+.readableFlowTitle {
+  font-size: var(--ant-font-size-sm);
+}
+
+.readableFlowPrimary {
+  color: var(--ant-color-text);
+}
+
+.readableFlowMeta {
+  margin-top: auto;
+  font-size: var(--ant-font-size-sm);
+}
+
 .textStrong {
   color: var(--ant-color-text);
   font-weight: 600;

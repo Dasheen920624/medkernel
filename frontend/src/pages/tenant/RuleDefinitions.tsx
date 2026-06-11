@@ -166,7 +166,7 @@ import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
-const { Text } = Typography;
+const { Paragraph, Text } = Typography;
 
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
 type CreateLayerKey = "l1" | "l2" | "preview" | "l3";
@@ -220,6 +220,31 @@ const RISK_LABELS: Record<RuleSeverity, string> = {
   MEDIUM: "中风险",
   HIGH: "高风险",
   CRITICAL: "红线",
+};
+
+const READABLE_TRIGGER_LABELS: Record<ClinicalTriggerPoint, string> = {
+  "patient-view": "查看患者",
+  "order-sign": "签署医嘱",
+  "medication-prescribe": "开立用药",
+  "result-review": "检验结果审核",
+  "discharge-sign": "签署出院",
+  "followup-alert": "随访提醒",
+};
+
+const RULE_ACTION_LABELS: Record<RuleActionCode, string> = {
+  INFO: "信息提示",
+  REMIND: "一般提醒",
+  STRONG_REMINDER: "强提醒",
+  BLOCK: "阻断",
+  SUGGEST_ORDER: "建议医嘱",
+  AUTO_DOCUMENT: "自动留痕",
+};
+
+const RISK_RANK: Record<RuleSeverity, number> = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3,
+  CRITICAL: 4,
 };
 
 function conditionFragmentStatusColor(status: ConditionFragmentStatus) {
@@ -453,6 +478,155 @@ function conditionValueText(condition: RuleCondition) {
     return "待填写";
   }
   return String(condition.value);
+}
+
+function collectReadableConditions(node: RuleConditionNode): RuleCondition[] {
+  if (!isConditionGroup(node)) return [node];
+  return node.children.flatMap((child) => collectReadableConditions(child));
+}
+
+function readableConditionLabel(condition: RuleCondition) {
+  if (condition.fragment) {
+    return condition.label || condition.fragment.name || condition.fragment.fragmentCode;
+  }
+  return condition.label || condition.expr?.field || condition.fact || "未命名条件";
+}
+
+function readableConditionSentence(condition: RuleCondition) {
+  if (condition.fragment) {
+    return `${readableConditionLabel(condition)}存在`;
+  }
+  const valueText = conditionNeedsValue(condition.operator)
+    ? ` ${conditionValueText(condition)}`
+    : "";
+  return `${readableConditionLabel(condition)}${OPERATOR_LABELS[condition.operator]}${valueText}`;
+}
+
+function highestReadableRisk(tree: RuleConditionTree, fallback: string) {
+  const fallbackRisk =
+    fallback === "LOW" || fallback === "MEDIUM" || fallback === "HIGH" || fallback === "CRITICAL"
+      ? fallback
+      : "LOW";
+  return tree.actions.reduce<RuleSeverity>((current, action) => {
+    return RISK_RANK[action.atSeverity] > RISK_RANK[current] ? action.atSeverity : current;
+  }, fallbackRisk);
+}
+
+function readableScope(applicability: RuleApplicability) {
+  const settingText = applicability.settings.map((setting) => CLINICAL_SETTING_LABELS[setting]);
+  const orgText = [
+    ...(applicability.orgScope.groupIds ?? []).map((value) => `集团 ${value}`),
+    ...(applicability.orgScope.hospitalIds ?? []).map((value) => `医院 ${value}`),
+    ...(applicability.orgScope.deptIds ?? []).map((value) => `科室 ${value}`),
+  ];
+  const effective = applicability.effective;
+  const effectiveText = [
+    effective.from ? `自 ${effective.from} 起` : "立即生效",
+    effective.to ? `至 ${effective.to}` : null,
+    `灰度 ${effective.rolloutPercent}%`,
+  ].filter(Boolean);
+  return [
+    settingText.join("、") || "未配置场景",
+    orgText.join("、") || "当前租户全部组织",
+    effectiveText.join(" · "),
+  ].join(" · ");
+}
+
+function readableSafety(tree: RuleConditionTree) {
+  const requiresConfirmation = tree.actions.some((action) => action.requiresPhysicianConfirmation);
+  const blocking = tree.actions.some((action) => action.actionCode === "BLOCK");
+  return [
+    requiresConfirmation ? "需要医师确认" : "不要求医师确认",
+    blocking ? "阻断类动作须人工留痕" : "不自动开立或修改医嘱",
+  ].join(" · ");
+}
+
+function renderRuleReadablePath(
+  tree: RuleConditionTree,
+  root: RuleConditionGroup | null,
+  definition: RuleDefinition,
+) {
+  const conditions = root ? collectReadableConditions(root) : tree.conditions;
+  const triggerLabel = READABLE_TRIGGER_LABELS[tree.triggerPoint];
+  const highestRisk = highestReadableRisk(tree, definition.riskLevel);
+  const conditionText =
+    conditions.length > 0
+      ? conditions.map(readableConditionSentence).join(tree.logic === "all" ? " 且 " : " 或 ")
+      : "未配置命中条件";
+  const conditionPrimary =
+    conditions.length === 1 ? readableConditionLabel(conditions[0]) : conditionText;
+  const conditionMeta =
+    conditions.length === 1
+      ? `${readableConditionSentence(conditions[0])} · 1 个条件节点`
+      : `${conditions.length} 个条件节点`;
+  const actionText = tree.actions.map((action) => action.summary).join("；") || "未配置处置动作";
+  const actionMeta =
+    tree.actions
+      .map(
+        (action) => `${RULE_ACTION_LABELS[action.actionCode]} · ${RISK_LABELS[action.atSeverity]}`,
+      )
+      .join("；") || "待配置";
+  const flowItems = [
+    {
+      title: "触发时点",
+      primary: triggerLabel,
+      meta: `规则编码 ${definition.ruleCode}`,
+    },
+    {
+      title: "适用范围",
+      primary: readableScope(tree.applicability),
+      meta: "使用真实组织、场景与灰度约束",
+    },
+    {
+      title: "命中条件",
+      primary: conditionPrimary,
+      meta: conditionMeta,
+    },
+    {
+      title: "处置动作",
+      primary: actionText,
+      meta: actionMeta,
+    },
+    {
+      title: "治理与安全",
+      primary: readableSafety(tree),
+      meta: `${RISK_LABELS[highestRisk]} · ${tree.explanationSummary}`,
+    },
+  ];
+
+  return (
+    <section className={styles.readablePath} aria-label="规则可读路径">
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <div className={styles.readablePathHeader}>
+          <Space direction="vertical" size={2}>
+            <Text strong>规则可读路径</Text>
+            <Text type="secondary">面向医生、质控与评审会的只读业务解释。</Text>
+          </Space>
+          {renderRiskTag(highestRisk)}
+        </div>
+        <Paragraph className={styles.readableSentence}>
+          {conditions.length > 0
+            ? `当${conditionText}，规则将在${triggerLabel}时触发${RISK_LABELS[highestRisk]}处置。`
+            : `规则将在${triggerLabel}时触发${RISK_LABELS[highestRisk]}处置，但当前版本未返回可读条件。`}
+        </Paragraph>
+        <div className={styles.readableFlow} role="list">
+          {flowItems.map((item) => (
+            <article key={item.title} className={styles.readableFlowItem} role="listitem">
+              <Text type="secondary" className={styles.readableFlowTitle}>
+                {item.title}
+              </Text>
+              <Text strong className={styles.readableFlowPrimary}>
+                {item.primary}
+              </Text>
+              <Text type="secondary" className={styles.readableFlowMeta}>
+                {item.meta}
+              </Text>
+            </article>
+          ))}
+        </div>
+      </Space>
+    </section>
+  );
 }
 
 function valueKindForOperator(operator: RuleOperator, currentKind: RuleValueKind): RuleValueKind {
@@ -3437,6 +3611,7 @@ export default function RuleDefinitions() {
                 showIcon
                 message={`当前条件根组为「${(detailRoot?.logic ?? detailTree.logic) === "all" ? "全部满足" : "任一满足"}」，支持任意层级嵌套。`}
               />
+              {renderRuleReadablePath(detailTree, detailRoot, detailData.definition)}
               {detailRoot ? (
                 renderReadonlyNode(detailRoot)
               ) : (
