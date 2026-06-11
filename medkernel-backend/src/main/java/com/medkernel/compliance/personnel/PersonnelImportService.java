@@ -127,7 +127,7 @@ public class PersonnelImportService {
         rows.saveAll(parsed);
         auditRecorder.record(
             AuditAction.CREATE,
-            "mk_person_import_job",
+            "mk_identity_person_import_job",
             job.jobId(),
             "人员导入预检，总行数=" + job.totalRows() + "，可提交=" + job.validRows());
         return response(job, List.of());
@@ -173,7 +173,7 @@ public class PersonnelImportService {
             processing, status, success, failure, now, Instant.now()));
         auditRecorder.record(
             AuditAction.CREATE,
-            "mk_person_import_job",
+            "mk_identity_person_import_job",
             completed.jobId(),
             "提交人员导入，成功=" + success + "，失败=" + failure);
         return response(completed, activations);

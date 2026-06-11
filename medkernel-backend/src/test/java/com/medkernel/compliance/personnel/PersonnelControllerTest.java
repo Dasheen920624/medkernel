@@ -138,8 +138,8 @@ class PersonnelControllerTest {
             "text/csv",
             ("""
                 人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识
-                EMP-101,赵医生,HOSP-A,CARDIO,CARDIO-W1,院内人员,住院医师,zhao.doctor,临床医生,工号,EMP-101
-                EMP-102,钱护士,HOSP-A,CARDIO,CARDIO-W1,院内人员,主管护师,qian.nurse,护理人员,工号,EMP-102
+                EMP-101,赵医生,HOSP-A,CARDIO,CARDIO-W1,院内人员,住院医师,zhao.doctor,临床决策使用者,工号,EMP-101
+                EMP-102,钱护士,HOSP-A,CARDIO,CARDIO-W1,院内人员,主管护师,qian.nurse,护理协同人员,工号,EMP-102
                 """).getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         String preview = mvc.perform(multipart("/api/v1/compliance/personnel/imports:preview")
@@ -210,7 +210,7 @@ class PersonnelControllerTest {
             "text/csv",
             ("""
                 人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识
-                EMP-201,孙主任,HOSP-A,CARDIO,CARDIO-W1,院内人员,科主任,sun.doctor,科主任,工号,EMP-201
+                EMP-201,孙主任,HOSP-A,CARDIO,CARDIO-W1,院内人员,科主任,sun.doctor,临床治理负责人,工号,EMP-201
                 """).getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         String preview = mvc.perform(multipart("/api/v1/compliance/personnel/imports:preview")
@@ -257,7 +257,7 @@ class PersonnelControllerTest {
                     "人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识")))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                 .string(org.hamcrest.Matchers.containsString(
-                    "CARDIO-W1,院内人员,主治医师,wang.doctor,临床医生,工号")));
+                    "CARDIO-W1,院内人员,主治医师,wang.doctor,临床决策使用者,工号")));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor admin() {
@@ -265,7 +265,7 @@ class PersonnelControllerTest {
                 .subject("organization-admin")
                 .claim("tenant_id", "tenant-a"))
             .authorities(
-                new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"),
+                new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"),
                 new SimpleGrantedAuthority("org.read"),
                 new SimpleGrantedAuthority("org.write"));
     }

@@ -56,10 +56,13 @@ public class OrgUnitController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) OrgLevel level,
-            @RequestParam(required = false) OrgUnitStatus status) {
+            @RequestParam(required = false) OrgUnitStatus status,
+            @RequestParam(required = false) OrgDirectoryScope scope,
+            @RequestParam(required = false) String ancestorId) {
         PageRequest req = new PageRequest(page, size, sort);
-        if (keyword != null || level != null || status != null) {
-            return ApiResult.ok(service.searchByCurrentTenant(req, keyword, level, status));
+        if (keyword != null || level != null || status != null || scope != null || ancestorId != null) {
+            return ApiResult.ok(
+                service.searchByCurrentTenant(req, keyword, level, status, scope, ancestorId));
         }
         return ApiResult.ok(service.listByCurrentTenant(req));
     }

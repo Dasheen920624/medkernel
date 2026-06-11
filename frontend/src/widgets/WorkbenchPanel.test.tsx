@@ -271,18 +271,19 @@ function expectedLandingFor(roleCode: string, displayName: string) {
   if (roleCode === "integration-operator") {
     return { heading: "信息科工作台", marker: "系统健康" };
   }
-  if (
-    ["platform-knowledge-governor", "knowledge-governor"].includes(roleCode)
-  ) {
+  if (["platform-knowledge-governor", "knowledge-governor"].includes(roleCode)) {
     return { heading: `${displayName}工作台`, marker: "知识治理" };
   }
   if (roleCode === "identity-access-admin") {
     return { heading: "人员与访问工作台", marker: "人员与账号" };
   }
   if (
-    ["clinical-decision-user", "nursing-collaborator", "diagnostic-service-user", "medication-safety-user"].includes(
-      roleCode,
-    )
+    [
+      "clinical-decision-user",
+      "nursing-collaborator",
+      "diagnostic-service-user",
+      "medication-safety-user",
+    ].includes(roleCode)
   ) {
     return { heading: `${displayName}工作台`, marker: "我的待办" };
   }

@@ -138,9 +138,7 @@ function getResponseStatus(error: unknown): number | undefined {
 
 function statusTag(status: EvaluationIndicatorStatus) {
   return (
-    <Tag color={STATUS_COLORS[status]}>
-      {STATUS_LABELS[status] ?? customerEnumLabel(status)}
-    </Tag>
+    <Tag color={STATUS_COLORS[status]}>{STATUS_LABELS[status] ?? customerEnumLabel(status)}</Tag>
   );
 }
 
@@ -268,8 +266,7 @@ export default function QcEvalSets() {
       title: "评估主体",
       dataIndex: "subjectType",
       key: "subjectType",
-      render: (value: EvaluationSubjectType) =>
-        SUBJECT_LABELS[value] ?? customerEnumLabel(value),
+      render: (value: EvaluationSubjectType) => SUBJECT_LABELS[value] ?? customerEnumLabel(value),
     },
     {
       title: "责任科室",

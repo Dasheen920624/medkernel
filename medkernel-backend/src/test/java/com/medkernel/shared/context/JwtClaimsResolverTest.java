@@ -71,7 +71,7 @@ class JwtClaimsResolverTest {
     void rolesClaimSupportsCommaSeparatedString() {
         Jwt token = jwt(Map.of(
             "sub", "u", "tenant_id", "t",
-            "roles", "doctor, qa-manager ,hospital-admin"
+            "roles", "clinical-decision-user, quality-governor ,organization-admin"
         ));
         assertThat(JwtClaimsResolver.resolveRoles(token))
             .containsExactlyInAnyOrder("clinical-decision-user", "quality-governor", "organization-admin");

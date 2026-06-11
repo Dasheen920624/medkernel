@@ -196,9 +196,7 @@ export default function AuthoringAssets() {
       dataIndex: "assetType",
       key: "assetType",
       render: (type: string) => (
-        <Tag color={assetTypeColor(type)}>
-          {assetTypeLabels[type] ?? customerEnumLabel(type)}
-        </Tag>
+        <Tag color={assetTypeColor(type)}>{assetTypeLabels[type] ?? customerEnumLabel(type)}</Tag>
       ),
     },
     {

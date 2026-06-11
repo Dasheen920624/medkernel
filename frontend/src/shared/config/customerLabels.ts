@@ -1,7 +1,7 @@
 type LabelMap = Readonly<Record<string, string>>;
 
 const label = (value: string | null | undefined, labels: LabelMap, fallback = "未识别") =>
-  value ? labels[value] ?? fallback : "未设置";
+  value ? (labels[value] ?? fallback) : "未设置";
 
 export const orgLevelLabels: LabelMap = {
   PLATFORM: "平台治理层",
@@ -327,30 +327,24 @@ export const customerEnumLabels: LabelMap = {
 
 export const orgLevelLabel = (value?: string | null) => label(value, orgLevelLabels);
 export const facilityTypeLabel = (value?: string | null) => label(value, facilityTypeLabels);
-export const appointmentTypeLabel = (value?: string | null) =>
-  label(value, appointmentTypeLabels);
+export const appointmentTypeLabel = (value?: string | null) => label(value, appointmentTypeLabels);
 export const accountStateLabel = (value?: string | null) => label(value, accountStateLabels);
 export const identityProviderLabel = (value?: string | null) =>
   label(value, identityProviderLabels);
 export const delegatedModeLabel = (value?: string | null) => label(value, delegatedModeLabels);
 export const connectionStatusLabel = (value?: string | null) =>
   label(value, connectionStatusLabels);
-export const knowledgeSourceLabel = (value?: string | null) =>
-  label(value, knowledgeSourceLabels);
+export const knowledgeSourceLabel = (value?: string | null) => label(value, knowledgeSourceLabels);
 export const knowledgeCustomizationStatusLabel = (value?: string | null) =>
   label(value, knowledgeCustomizationStatusLabels);
 export const importStatusLabel = (value?: string | null) => label(value, importStatusLabels);
-export const importRowActionLabel = (value?: string | null) =>
-  label(value, importRowActionLabels);
-export const importRowStatusLabel = (value?: string | null) =>
-  label(value, importRowStatusLabels);
+export const importRowActionLabel = (value?: string | null) => label(value, importRowActionLabels);
+export const importRowStatusLabel = (value?: string | null) => label(value, importRowStatusLabels);
 export const riskLabel = (value?: string | null) => label(value, riskLabels, "未分级");
 export const permissionDimensionLabel = (value?: string | null) =>
   label(value, permissionDimensionLabels);
-export const knowledgeDomainLabel = (value?: string | null) =>
-  label(value, knowledgeDomainLabels);
-export const lifecycleStatusLabel = (value?: string | null) =>
-  label(value, lifecycleStatusLabels);
+export const knowledgeDomainLabel = (value?: string | null) => label(value, knowledgeDomainLabels);
+export const lifecycleStatusLabel = (value?: string | null) => label(value, lifecycleStatusLabels);
 export const sourceAuthorityLabel = (value?: string | null) =>
   label(value, sourceAuthorityLabels, "来源未分级");
 export const customerEnumLabel = (value?: string | null) =>

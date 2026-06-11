@@ -604,7 +604,7 @@ class WorkflowTodoRepositoryTest {
             priority,
             WorkflowTodoStatus.PENDING,
             assigneeId,
-            "DOCTOR",
+            "clinical-decision-user",
             patientId,
             "enc-1",
             dueAt,

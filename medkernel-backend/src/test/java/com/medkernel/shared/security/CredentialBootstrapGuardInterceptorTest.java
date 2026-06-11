@@ -70,7 +70,7 @@ class CredentialBootstrapGuardInterceptorTest {
             .build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
             jwt,
-            List.of(new SimpleGrantedAuthority("ROLE_DOCTOR"))));
+            List.of(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
     }
 
     private static MockHttpServletRequest request(String contextPath, String servletPath) {

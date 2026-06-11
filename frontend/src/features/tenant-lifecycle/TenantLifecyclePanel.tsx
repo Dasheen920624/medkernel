@@ -57,9 +57,7 @@ export function TenantLifecyclePanel() {
       <Card title={<Text className={styles.title}>服务机构生命周期</Text>} className={styles.card}>
         <Alert
           message="数据加载失败"
-          description={
-            error instanceof Error ? error.message : "暂时无法读取服务机构生命周期服务"
-          }
+          description={error instanceof Error ? error.message : "暂时无法读取服务机构生命周期服务"}
           type="error"
           showIcon
         />
@@ -205,9 +203,7 @@ export function TenantLifecyclePanel() {
                     无已激活服务模块
                   </Text>
                 )}
-                <Paragraph className={styles.cardDesc}>
-                  当前服务机构已启用的服务范围。
-                </Paragraph>
+                <Paragraph className={styles.cardDesc}>当前服务机构已启用的服务范围。</Paragraph>
               </div>
             </Card>
           </Col>

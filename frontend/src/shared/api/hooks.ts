@@ -1286,10 +1286,7 @@ export function useReviewKnowledgeCandidate() {
   });
 }
 
-export type KnowledgeSourceType =
-  | "PLATFORM_STANDARD"
-  | "LOCAL_CUSTOMIZATION"
-  | "LOCAL_ORIGINAL";
+export type KnowledgeSourceType = "PLATFORM_STANDARD" | "LOCAL_CUSTOMIZATION" | "LOCAL_ORIGINAL";
 
 export type KnowledgeCustomizationStatus = "DRAFT" | "ACTIVE" | "RESTORED";
 
@@ -8569,6 +8566,8 @@ export interface OrgUserDirectoryItem {
   displayName: string;
 }
 
+export type OrgDirectoryScope = "SERVICE_ORGANIZATION" | "BUSINESS_SCOPE";
+
 export function useOrgUnits(params?: {
   page?: number;
   size?: number;
@@ -8576,6 +8575,8 @@ export function useOrgUnits(params?: {
   keyword?: string;
   level?: OrgUnit["level"];
   status?: OrgUnit["status"];
+  scope?: OrgDirectoryScope;
+  ancestorId?: string;
 }) {
   return useQuery({
     queryKey: ["engine", "org", "org-units", params ?? {}],
@@ -8786,6 +8787,7 @@ export interface ComplianceUserRole {
   displayName: string;
   scopeLevel: string;
   scopeCode: string;
+  scopeName: string;
 }
 
 export interface ComplianceUserSummary {

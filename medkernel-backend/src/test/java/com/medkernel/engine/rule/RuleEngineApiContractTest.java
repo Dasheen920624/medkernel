@@ -220,7 +220,7 @@ class RuleEngineApiContractTest {
                 .subject("api05-doctor")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
@@ -228,7 +228,7 @@ class RuleEngineApiContractTest {
                 .subject("api05-specialist")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
     }
 
     private JsonNode evidenceExplanation() {

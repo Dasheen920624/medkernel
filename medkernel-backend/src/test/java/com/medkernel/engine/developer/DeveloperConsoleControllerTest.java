@@ -34,7 +34,7 @@ class DeveloperConsoleControllerTest {
 
         mvc.perform(get("/api/v1/system/dev-console/api-contracts")
                 .with(jwt().jwt(token -> token.subject("doctor-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -42,7 +42,7 @@ class DeveloperConsoleControllerTest {
     void apiContractDirectoryReturnsSanitizedServiceContracts() throws Exception {
         mvc.perform(get("/api/v1/system/dev-console/api-contracts")
                 .with(jwt().jwt(token -> token.subject("ops-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("runtime-operations")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("observability-diagnose")))

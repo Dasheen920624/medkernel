@@ -188,6 +188,8 @@ describe("Bootstrap", () => {
     expect(screen.getByText("改密")).toBeInTheDocument();
     expect(screen.getByText("双因素")).toBeInTheDocument();
     expect(screen.getByText("完成")).toBeInTheDocument();
+    expect(screen.getByText("进入机构工作台")).toBeInTheDocument();
+    expect(screen.getByText("按所在服务机构安全策略完成认证器绑定")).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|首发管理员/);
   });
 
@@ -213,6 +215,8 @@ describe("Bootstrap", () => {
       },
     });
 
+    expect(screen.getByText("进入平台治理")).toBeInTheDocument();
+    expect(screen.getByText("按平台治理安全策略完成认证器绑定")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("当前密码"), { target: { value: "Init@2026pw" } });
     fireEvent.change(screen.getByLabelText("新密码"), { target: { value: "Owner@2026pw" } });
     fireEvent.change(screen.getByLabelText("确认新密码"), { target: { value: "Owner@2026pw" } });

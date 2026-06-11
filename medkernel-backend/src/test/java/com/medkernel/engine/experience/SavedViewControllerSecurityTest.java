@@ -57,7 +57,7 @@ class SavedViewControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .param("pageKey", "terminology.mapping"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].savedViewId").value("sv-01"));
@@ -72,7 +72,7 @@ class SavedViewControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

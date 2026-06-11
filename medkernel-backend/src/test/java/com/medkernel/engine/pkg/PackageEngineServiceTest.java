@@ -2538,7 +2538,7 @@ class PackageEngineServiceTest {
 
         assertThatThrownBy(() -> service.releasePackage("pkg-platform-denied", request))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("平台管理员");
+            .hasMessageContaining("平台知识治理员");
 
         verify(itemRepository, never()).findByTenantIdAndPackageId(any(), any());
         verify(planRepository, never()).save(any(ReleasePlan.class));

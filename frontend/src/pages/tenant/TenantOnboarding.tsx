@@ -46,10 +46,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
-import {
-  customerEnumLabel,
-  facilityTypeLabels,
-} from "@/shared/config/customerLabels";
+import { customerEnumLabel, facilityTypeLabels } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import styles from "./Tenant.module.css";
 

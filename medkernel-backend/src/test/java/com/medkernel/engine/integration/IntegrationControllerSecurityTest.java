@@ -98,7 +98,7 @@ class IntegrationControllerSecurityTest {
     // ==========================================
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void authenticatedItOpsCanReachGetButFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/adapters"))
             .andExpect(status().isBadRequest())
@@ -106,7 +106,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void healthSummaryFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/health"))
             .andExpect(status().isBadRequest())
@@ -114,7 +114,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void adapterHubStatusFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/adapter-hub/status"))
             .andExpect(status().isBadRequest())
@@ -122,7 +122,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void dataContractFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/data-contract")
                 .param("packageVersion", "pkg-2026.06"))
@@ -131,7 +131,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void dataQualityReportGenerationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/data-quality/reports"))
             .andExpect(status().isBadRequest())
@@ -139,7 +139,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_ENGINEER")
+    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
     void authenticatedEngineerCanReachCreateButFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/adapters")
                 .contentType("application/json")
@@ -149,7 +149,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void webhookCreationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/webhooks")
                 .contentType("application/json")
@@ -169,7 +169,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void inboundWebhookFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
                 .contentType("application/json")
@@ -217,7 +217,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void outboundMessageFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/messages/outbound")
                 .contentType("application/json")
@@ -227,7 +227,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_ENGINEER")
+    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
     void onboardingCreationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/onboardings")
                 .contentType("application/json")
@@ -237,7 +237,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void regionalSourceListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/regional-sources"))
             .andExpect(status().isBadRequest())
@@ -245,7 +245,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void callbackDeadLetterReplayFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/callbacks/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
@@ -253,7 +253,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void logsListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/logs"))
             .andExpect(status().isBadRequest())
@@ -261,7 +261,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void deadLetterListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/dead-letter"))
             .andExpect(status().isBadRequest())
@@ -269,7 +269,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void deadLetterReplayFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())

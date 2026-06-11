@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /** 人员批量导入任务。 */
-@Table("mk_person_import_job")
+@Table("mk_identity_person_import_job")
 public record PersonnelImportJob(
     @Id @Column("job_id") String jobId,
     @Column("tenant_id") String tenantId,

@@ -178,7 +178,7 @@ class AuthoringAssetLibraryControllerTest {
                 .subject("asset-reader")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
@@ -186,6 +186,6 @@ class AuthoringAssetLibraryControllerTest {
                 .subject("asset-author")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("medical_affairs")))
-            .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"));
     }
 }

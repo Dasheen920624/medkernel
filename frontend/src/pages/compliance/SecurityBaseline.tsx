@@ -141,10 +141,7 @@ function BaselineOverview({
         <Col xs={24} sm={12} lg={6}>
           <Statistic
             title="运行状态"
-            value={
-              STATUS_LABEL[snapshot.healthStatus] ??
-              customerEnumLabel(snapshot.healthStatus)
-            }
+            value={STATUS_LABEL[snapshot.healthStatus] ?? customerEnumLabel(snapshot.healthStatus)}
           />
         </Col>
       </Row>

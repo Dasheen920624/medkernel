@@ -51,7 +51,7 @@ class ValueMetricsControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/engine/value-metrics/MISSED_CASE_RETROSPECTIVE/drilldown")
@@ -59,7 +59,7 @@ class ValueMetricsControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
@@ -70,7 +70,7 @@ class ValueMetricsControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 }

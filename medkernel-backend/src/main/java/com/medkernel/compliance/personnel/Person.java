@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 租户内自然人主数据。
  */
-@Table("mk_person")
+@Table("mk_identity_person")
 public record Person(
     @Id @Column("person_id") String personId,
     @Column("tenant_id") String tenantId,

@@ -40,7 +40,7 @@ CREATE TABLE mk_knowledge_customization (
 CREATE INDEX idx_knowledge_customization_local
     ON mk_knowledge_customization (tenant_id, local_identity_id, local_version_id);
 
-CREATE TABLE mk_person (
+CREATE TABLE mk_identity_person (
     person_id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL,
     employee_no VARCHAR(128) NOT NULL,
@@ -57,9 +57,9 @@ CREATE TABLE mk_person (
     CONSTRAINT ck_person_status CHECK (status IN ('ACTIVE','INACTIVE','LEFT')),
     CONSTRAINT ck_person_version CHECK (version >= 1)
 );
-CREATE INDEX idx_person_directory ON mk_person (tenant_id, display_name, employee_no);
+CREATE INDEX idx_person_directory ON mk_identity_person (tenant_id, display_name, employee_no);
 
-CREATE TABLE mk_person_appointment (
+CREATE TABLE mk_identity_person_appointment (
     appointment_id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL,
     person_id VARCHAR(64) NOT NULL,
@@ -78,18 +78,18 @@ CREATE TABLE mk_person_appointment (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(64) NOT NULL,
     trace_id VARCHAR(128) NULL,
-    CONSTRAINT fk_person_appointment_person FOREIGN KEY (person_id) REFERENCES mk_person(person_id),
+    CONSTRAINT fk_person_appointment_person FOREIGN KEY (person_id) REFERENCES mk_identity_person(person_id),
     CONSTRAINT ck_person_appointment_type CHECK (appointment_type IN ('INTERNAL','GROUP_SHARED','EXTERNAL_COLLABORATOR','IMPLEMENTATION')),
     CONSTRAINT ck_person_appointment_primary CHECK (primary_flag IN ('Y','N')),
     CONSTRAINT ck_person_appointment_status CHECK (status IN ('PENDING','ACTIVE','ENDED')),
     CONSTRAINT ck_person_appointment_version CHECK (version >= 1)
 );
 CREATE INDEX idx_person_appointment_person
-    ON mk_person_appointment (tenant_id, person_id, status, primary_flag);
+    ON mk_identity_person_appointment (tenant_id, person_id, status, primary_flag);
 CREATE INDEX idx_person_appointment_org
-    ON mk_person_appointment (tenant_id, organization_id, department_id, ward_id, status);
+    ON mk_identity_person_appointment (tenant_id, organization_id, department_id, ward_id, status);
 
-CREATE TABLE mk_person_account_link (
+CREATE TABLE mk_identity_person_account (
     link_id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL,
     person_id VARCHAR(64) NOT NULL,
@@ -101,14 +101,14 @@ CREATE TABLE mk_person_account_link (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(64) NOT NULL,
     trace_id VARCHAR(128) NULL,
-    CONSTRAINT fk_person_account_person FOREIGN KEY (person_id) REFERENCES mk_person(person_id),
+    CONSTRAINT fk_person_account_person FOREIGN KEY (person_id) REFERENCES mk_identity_person(person_id),
     CONSTRAINT uk_person_account_person UNIQUE (tenant_id, person_id),
     CONSTRAINT uk_person_account_user UNIQUE (tenant_id, user_id),
     CONSTRAINT ck_person_account_status CHECK (status IN ('ACTIVE','DISABLED')),
     CONSTRAINT ck_person_account_version CHECK (version >= 1)
 );
 
-CREATE TABLE mk_person_import_job (
+CREATE TABLE mk_identity_person_import_job (
     job_id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL,
     file_name VARCHAR(256) NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE mk_person_import_job (
     CONSTRAINT ck_person_import_version CHECK (version >= 1)
 );
 
-CREATE TABLE mk_person_import_row (
+CREATE TABLE mk_identity_person_import_row (
     row_id VARCHAR(64) PRIMARY KEY,
     job_id VARCHAR(64) NOT NULL,
     tenant_id VARCHAR(64) NOT NULL,
@@ -154,12 +154,13 @@ CREATE TABLE mk_person_import_row (
     result_person_id VARCHAR(64) NULL,
     result_user_id VARCHAR(128) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_person_import_row_job FOREIGN KEY (job_id) REFERENCES mk_person_import_job(job_id),
+    CONSTRAINT fk_person_import_row_job FOREIGN KEY (job_id) REFERENCES mk_identity_person_import_job(job_id),
     CONSTRAINT uk_person_import_row_no UNIQUE (job_id, row_no),
     CONSTRAINT ck_person_import_row_action CHECK (action IN ('CREATE','UPDATE','SKIP','CONFLICT')),
     CONSTRAINT ck_person_import_row_status CHECK (status IN ('VALID','INVALID','SUCCESS','FAILED','SKIPPED'))
 );
-CREATE INDEX idx_person_import_row_job ON mk_person_import_row (job_id, row_no);
+CREATE INDEX idx_person_import_row_job
+    ON mk_identity_person_import_row (tenant_id, job_id, row_no);
 
 ALTER TABLE mk_compliance_data_permission
     ADD COLUMN ward_id VARCHAR(64) NULL;
@@ -175,13 +176,13 @@ COMMENT ON COLUMN mk_knowledge_customization.local_identity_id IS '客户租户�
 COMMENT ON COLUMN mk_knowledge_customization.local_version_id IS '客户租户内派生版本主键';
 COMMENT ON COLUMN mk_knowledge_customization.target_org_unit_id IS '本地定制生效的组织节点';
 COMMENT ON COLUMN mk_knowledge_customization.override_id IS '发布后登记的组织继承覆盖业务 ID';
-COMMENT ON TABLE mk_person IS '租户内自然人主数据，独立于登录账号和外部认证身份';
-COMMENT ON COLUMN mk_person.employee_no IS '租户内稳定人员编号，用于批量导入幂等匹配';
-COMMENT ON TABLE mk_person_appointment IS '人员在医疗机构、科室、病区中的任职关系和有效期';
-COMMENT ON COLUMN mk_person_appointment.ward_id IS '任职所在病区组织节点';
-COMMENT ON COLUMN mk_person_appointment.primary_flag IS '是否为当前主任职，Y 是、N 否';
-COMMENT ON TABLE mk_person_account_link IS '自然人与稳定系统用户主体之间的一对一关联';
-COMMENT ON TABLE mk_person_import_job IS '人员批量导入预检、提交和结果汇总任务';
-COMMENT ON TABLE mk_person_import_row IS '人员批量导入逐行校验、冲突和处理结果';
-COMMENT ON COLUMN mk_person_import_row.ward_code IS '人员导入时用于组织树匹配的病区编码';
-COMMENT ON COLUMN mk_person_import_row.external_subject_digest IS '外部身份国密摘要，禁止保存身份原文';
+COMMENT ON TABLE mk_identity_person IS '租户内自然人主数据，独立于登录账号和外部认证身份';
+COMMENT ON COLUMN mk_identity_person.employee_no IS '租户内稳定人员编号，用于批量导入幂等匹配';
+COMMENT ON TABLE mk_identity_person_appointment IS '人员在医疗机构、科室、病区中的任职关系和有效期';
+COMMENT ON COLUMN mk_identity_person_appointment.ward_id IS '任职所在病区组织节点';
+COMMENT ON COLUMN mk_identity_person_appointment.primary_flag IS '是否为当前主任职，Y 是、N 否';
+COMMENT ON TABLE mk_identity_person_account IS '自然人与稳定系统用户主体之间的一对一关联';
+COMMENT ON TABLE mk_identity_person_import_job IS '人员批量导入预检、提交和结果汇总任务';
+COMMENT ON TABLE mk_identity_person_import_row IS '人员批量导入逐行校验、冲突和处理结果';
+COMMENT ON COLUMN mk_identity_person_import_row.ward_code IS '人员导入时用于组织树匹配的病区编码';
+COMMENT ON COLUMN mk_identity_person_import_row.external_subject_digest IS '外部身份国密摘要，禁止保存身份原文';

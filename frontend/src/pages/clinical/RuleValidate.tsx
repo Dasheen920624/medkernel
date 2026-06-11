@@ -39,11 +39,7 @@ import {
   CLINICAL_TRIGGER_POINT_OPTIONS,
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-  riskLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import styles from "./Clinical.module.css";
 
 function isCriticalSeverity(severity?: string | null) {

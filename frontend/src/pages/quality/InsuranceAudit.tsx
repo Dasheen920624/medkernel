@@ -40,10 +40,7 @@ import {
   type QualityFindingSeverity,
 } from "@/shared/api/hooks";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { Text } = Typography;

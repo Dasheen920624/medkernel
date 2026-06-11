@@ -162,11 +162,7 @@ import {
   isClinicalTriggerPoint,
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-  riskLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
@@ -716,9 +712,13 @@ export default function RuleDefinitions() {
   const canPublishRule = permissionCodes.has("rule.publish");
   const canSignRule =
     (canWriteRule || canPublishRule || permissionCodes.has("evaluation.publish")) &&
-    ["clinical-governor", "quality-governor", "quality-governor", "clinical-governor", "knowledge-governor"].some((role) =>
-      roleCodes.has(role),
-    );
+    [
+      "clinical-governor",
+      "quality-governor",
+      "quality-governor",
+      "clinical-governor",
+      "knowledge-governor",
+    ].some((role) => roleCodes.has(role));
   const canCoordinateRelease =
     canPublishRule && (roleCodes.has("clinical-governor") || roleCodes.has("organization-admin"));
   const canActivateFull = canPublishRule && roleCodes.has("organization-admin");
@@ -4967,9 +4967,7 @@ export default function RuleDefinitions() {
               <Form.Item
                 name="ruleCode"
                 label="规则唯一业务编码"
-                rules={[
-                  { required: true, message: "请输入编码，同一服务空间内不可重复" },
-                ]}
+                rules={[{ required: true, message: "请输入编码，同一服务空间内不可重复" }]}
               >
                 <Input placeholder="输入规则业务编码" />
               </Form.Item>

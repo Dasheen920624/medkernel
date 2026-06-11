@@ -55,7 +55,7 @@ class ContextSnapshotControllerSecurityTest {
     // ─── context.write 权限矩阵 ──────────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotCreateSnapshot() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
@@ -64,7 +64,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_NURSE")
+    @WithMockUser(authorities = "ROLE_NURSING_COLLABORATOR")
     void nurseCannotCreateSnapshot() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
@@ -73,7 +73,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanReachCreateButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.create(any(), any())).thenReturn(null);
         mvc.perform(post("/api/v1/engine/context/snapshots")
@@ -84,7 +84,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_ENGINEER")
+    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
     void implementationEngineerCanReachCreateButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.create(any(), any())).thenReturn(null);
         mvc.perform(post("/api/v1/engine/context/snapshots")
@@ -104,7 +104,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReachReadButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/context/snapshots/ctx-1"))
             .andExpect(status().isBadRequest())
@@ -112,7 +112,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_NURSE")
+    @WithMockUser(authorities = "ROLE_NURSING_COLLABORATOR")
     void nurseCanReachListButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/context/snapshots").param("patientId", "MPI-1"))
             .andExpect(status().isBadRequest())
@@ -120,7 +120,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void auditComplianceCanReachListButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/context/snapshots"))
             .andExpect(status().isBadRequest())
@@ -130,7 +130,7 @@ class ContextSnapshotControllerSecurityTest {
     // ─── 写入接口禁止读权限角色 ─────────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void auditComplianceCannotCreate() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
@@ -139,7 +139,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCannotCreate() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
@@ -157,7 +157,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReachDiagnoseButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/context/snapshots/ctx-1/diagnose"))
             .andExpect(status().isBadRequest())
@@ -165,7 +165,7 @@ class ContextSnapshotControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void auditComplianceCanReachDiagnoseButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/context/snapshots/ctx-1/diagnose"))
             .andExpect(status().isBadRequest())

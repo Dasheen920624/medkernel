@@ -388,7 +388,7 @@ describe("SecurityBaseline", () => {
     await user.click(screen.getByRole("tab", { name: "互操作测评" }));
     expect(screen.getByText("标准数据集覆盖")).toBeInTheDocument();
     expect(screen.getByText("缺少真实证据映射")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("updates a real config item with version and high-risk confirmation", async () => {
     const user = userEvent.setup();

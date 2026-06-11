@@ -27,9 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>测试矩阵：
  * <table>
  *   <tr><th>角色</th><th>有 tenant?</th><th>期望</th></tr>
- *   <tr><td>ROLE_DOCTOR（默认含 org.read）</td><td>否</td><td>400 ENG-BASE-001（数据范围拒）→ 证明 @PreAuthorize 通过</td></tr>
+ *   <tr><td>ROLE_CLINICAL_DECISION_USER（默认含 org.read）</td><td>否</td><td>400 ENG-BASE-001（数据范围拒）→ 证明 @PreAuthorize 通过</td></tr>
  *   <tr><td>ROLE_GUEST（无 org.read）</td><td>否</td><td>403 → 证明 @PreAuthorize 拦截</td></tr>
- *   <tr><td>ROLE_NURSE（默认含 org.read）</td><td>否</td><td>400 ENG-BASE-001</td></tr>
+ *   <tr><td>ROLE_NURSING_COLLABORATOR（默认含 org.read）</td><td>否</td><td>400 ENG-BASE-001</td></tr>
  * </table>
  *
  * <p>使用 dev profile（H2 in-memory + 安全策略 bypass=true），避免 Testcontainers Docker 依赖。
@@ -54,7 +54,7 @@ class OrgUnitControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = {"ROLE_DOCTOR"})
+    @WithMockUser(authorities = {"ROLE_CLINICAL_DECISION_USER"})
     void doctorWithoutTenantIsRejectedByDataScope() throws Exception {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
@@ -72,7 +72,7 @@ class OrgUnitControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_NURSE")
+    @WithMockUser(authorities = "ROLE_NURSING_COLLABORATOR")
     void nurseHasOrgReadButStillNeedsTenant() throws Exception {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
@@ -83,7 +83,7 @@ class OrgUnitControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = {"ROLE_PLATFORM_ADMIN"})
+    @WithMockUser(authorities = {"ROLE_PLATFORM_GOVERNANCE_ADMIN"})
     void platformAdminAlsoNeedsTenantInRequestContext() throws Exception {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
@@ -94,14 +94,14 @@ class OrgUnitControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = {"ROLE_DOCTOR"})
+    @WithMockUser(authorities = {"ROLE_CLINICAL_DECISION_USER"})
     void legacyTenantOrgUnitsRouteIsNotMounted() throws Exception {
         mvc.perform(get("/api/v1/tenant/org-units"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @WithMockUser(authorities = {"ROLE_QA_MANAGER"})
+    @WithMockUser(authorities = {"ROLE_QUALITY_GOVERNOR"})
     void qualityManagerCanReadUserDirectoryButStillNeedsTenant() throws Exception {
         when(orgUserDirectoryService.list(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));

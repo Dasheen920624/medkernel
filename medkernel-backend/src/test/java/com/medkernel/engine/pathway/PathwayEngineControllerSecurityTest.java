@@ -70,7 +70,7 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReadPathwayButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/pathway/pathway-templates/pt-1"))
             .andExpect(status().isBadRequest())
@@ -90,7 +90,7 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanWritePathwayButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates")
                 .contentType("application/json")
@@ -112,7 +112,7 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanPublishButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
                 .contentType("application/json")
@@ -122,7 +122,7 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotPublishPathwayTemplate() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
                 .contentType("application/json")

@@ -28,10 +28,7 @@ import {
   type SecurityProfile,
 } from "@/shared/api/hooks";
 import { parseApiError } from "@/shared/api/errors";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -1199,9 +1196,12 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
   }
 
   if (
-    ["clinical-decision-user", "nursing-collaborator", "diagnostic-service-user", "medication-safety-user"].some((code) =>
-      codes.has(code),
-    )
+    [
+      "clinical-decision-user",
+      "nursing-collaborator",
+      "diagnostic-service-user",
+      "medication-safety-user",
+    ].some((code) => codes.has(code))
   ) {
     return {
       title: `${displayName}工作台`,

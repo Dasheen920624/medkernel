@@ -107,7 +107,7 @@ class InsuranceQualityControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isCreated());
 
         mvc.perform(post("/api/v1/engine/quality/drg-grouping")
@@ -117,7 +117,7 @@ class InsuranceQualityControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isCreated());
 
         mvc.perform(post("/api/v1/engine/quality/insurance-audit")
@@ -127,7 +127,7 @@ class InsuranceQualityControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isCreated());
     }
 
@@ -149,7 +149,7 @@ class InsuranceQualityControllerSecurityTest {
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
@@ -162,7 +162,7 @@ class InsuranceQualityControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 }

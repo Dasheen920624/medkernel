@@ -79,7 +79,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isOk());
@@ -92,7 +92,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isForbidden());
@@ -104,7 +104,7 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isBadRequest())
@@ -118,7 +118,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
                 .andExpect(status().isForbidden());
@@ -131,7 +131,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
                 .andExpect(status().isOk());
@@ -144,7 +144,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
                 .andExpect(status().isForbidden());
@@ -157,7 +157,7 @@ class ModelGatewayControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
                 .andExpect(status().isOk());

@@ -42,10 +42,7 @@ import {
   type MpiPatientDetailResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;

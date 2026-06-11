@@ -193,7 +193,8 @@ class ComplianceUserControllerTest {
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roles[0].code").value("nursing-collaborator"));
+            .andExpect(jsonPath("$.data.roles[0].code").value("nursing-collaborator"))
+            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理空间"));
 
         mvc.perform(delete("/api/v1/compliance/users/{userId}/roles/{roleCode}",
                 "managed-706", "nursing-collaborator")
@@ -226,7 +227,7 @@ class ComplianceUserControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin(String tenantId) {
         return jwt().jwt(token -> token.subject("admin-1").claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
     }
 
     private void saveCredential(String tenantId, String userId, String username) {

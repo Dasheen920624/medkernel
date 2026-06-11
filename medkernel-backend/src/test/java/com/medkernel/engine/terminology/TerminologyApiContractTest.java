@@ -209,7 +209,7 @@ class TerminologyApiContractTest {
                 .subject("api04-implementation-engineer")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("implementation-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_ENGINEER"));
+            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor writeJwt() {
@@ -217,7 +217,7 @@ class TerminologyApiContractTest {
                 .subject("api04-specialist")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor publishJwt() {
@@ -225,7 +225,7 @@ class TerminologyApiContractTest {
                 .subject("api04-it-ops")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("integration-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
+            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 
     private static String standardContextJson(String bodyTail) {

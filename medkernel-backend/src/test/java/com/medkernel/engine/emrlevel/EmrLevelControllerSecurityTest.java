@@ -164,7 +164,7 @@ class EmrLevelControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -177,7 +177,7 @@ class EmrLevelControllerSecurityTest {
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -186,6 +186,6 @@ class EmrLevelControllerSecurityTest {
             .subject("qa-1")
             .claim("tenant_id", "tenant-A")
             .claim("roles", List.of("quality-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"));
+            .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"));
     }
 }

@@ -113,6 +113,7 @@ vi.mock("@/shared/api/hooks", () => ({
               displayName: "临床医生",
               scopeLevel: "DEPARTMENT",
               scopeCode: "dept-cardio",
+              scopeName: "心内科",
             },
           ],
           effectivePermissions: [
@@ -256,15 +257,29 @@ describe("人员与账号", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /批量导入人员/ }));
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
-    expect(fileInput).not.toBeNull();
+    if (!fileInput) throw new Error("未找到人员导入文件输入框");
     const file = new File(["employeeNo,displayName"], "people.csv", { type: "text/csv" });
-    fireEvent.change(fileInput!, { target: { files: [file] } });
+    fireEvent.change(fileInput, { target: { files: [file] } });
     fireEvent.click(screen.getByRole("button", { name: "开始预检" }));
 
     await waitFor(() => expect(previewImport).toHaveBeenCalledWith(file));
     expect(await screen.findByText("登录名已被其他账号使用")).toBeInTheDocument();
     expect(screen.getByText("请先修正冲突行再重新上传")).toBeInTheDocument();
     expect(commitImport).not.toHaveBeenCalled();
+  });
+
+  it("批量导入弹窗可取消并返回人员列表", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: /批量导入人员/ }));
+    expect(screen.getByRole("dialog", { name: "批量导入人员" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "批量导入人员" })).not.toBeInTheDocument(),
+    );
   });
 
   it("详情使用中文层级和权限维度，不暴露英文枚举", async () => {

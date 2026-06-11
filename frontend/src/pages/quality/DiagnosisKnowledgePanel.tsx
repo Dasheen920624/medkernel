@@ -388,9 +388,7 @@ export default function DiagnosisKnowledgePanel() {
       title: "方向",
       dataIndex: "direction",
       key: "direction",
-      render: (value: string) => (
-        <Tag>{DIRECTION_LABEL[value] ?? customerEnumLabel(value)}</Tag>
-      ),
+      render: (value: string) => <Tag>{DIRECTION_LABEL[value] ?? customerEnumLabel(value)}</Tag>,
     },
     { title: "权重", dataIndex: "weight", key: "weight" },
     {

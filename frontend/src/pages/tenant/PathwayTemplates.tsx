@@ -105,10 +105,7 @@ import type {
   SpecialtyMetricBinding,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import PathwayGraphEditor from "./PathwayGraphEditor";
 import {
   createConnectedEdge,

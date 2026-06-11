@@ -657,7 +657,7 @@ class RuleEngineServiceTest {
                     "尝试进入影子运行"
                 )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("仅医务处或医院管理员")
+            .hasMessageContaining("仅临床治理负责人或机构管理员")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.FORBIDDEN);
     }
@@ -1071,7 +1071,7 @@ class RuleEngineServiceTest {
         authenticate(RoleCode.ORGANIZATION_ADMIN);
         assertThatThrownBy(() -> service.transitionGovernance("rule-platform", request))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("平台管理员")
+            .hasMessageContaining("平台知识治理")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.FORBIDDEN);
         verify(releasePort, never()).publish(any());

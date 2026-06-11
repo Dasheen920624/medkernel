@@ -67,12 +67,12 @@ class TenantProvisioningControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdmin() {
         return jwt().jwt(t -> t.subject("platform-admin-1").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdminWithoutMfa() {
         return jwt().jwt(t -> t.subject("platform-admin-no-mfa").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
     }
 
     @Test

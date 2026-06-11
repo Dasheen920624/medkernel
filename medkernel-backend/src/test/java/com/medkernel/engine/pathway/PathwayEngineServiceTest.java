@@ -956,7 +956,7 @@ class PathwayEngineServiceTest {
                 "pt-platform",
                 operationRequest(impact.impactDigest(), "平台路径全量发布", List.of(), null)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("平台管理员");
+            .hasMessageContaining("平台知识治理员");
 
         authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         PathwayTemplatePublishResponse response = service.fullRolloutTemplate(

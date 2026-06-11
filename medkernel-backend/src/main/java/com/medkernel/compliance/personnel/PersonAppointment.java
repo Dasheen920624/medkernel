@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 自然人在医疗组织中的任职关系。
  */
-@Table("mk_person_appointment")
+@Table("mk_identity_person_appointment")
 public record PersonAppointment(
     @Id @Column("appointment_id") String appointmentId,
     @Column("tenant_id") String tenantId,

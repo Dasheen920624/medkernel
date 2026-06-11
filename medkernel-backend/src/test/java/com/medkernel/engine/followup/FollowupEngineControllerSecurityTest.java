@@ -72,7 +72,7 @@ class FollowupEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isOk());
@@ -85,7 +85,7 @@ class FollowupEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
                 .andExpect(status().isOk());
     }
 
@@ -96,7 +96,7 @@ class FollowupEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isOk());
@@ -108,7 +108,7 @@ class FollowupEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isBadRequest())
@@ -122,7 +122,7 @@ class FollowupEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("nursing-collaborator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_NURSE")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_NURSING_COLLABORATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

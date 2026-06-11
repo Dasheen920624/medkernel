@@ -54,7 +54,7 @@ class IdentityBindingControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("admin-1")
                     .claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data").isArray())
             .andExpect(jsonPath("$.data").isEmpty());
@@ -236,7 +236,7 @@ class IdentityBindingControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
 
         org.assertj.core.api.Assertions.assertThat(repository.count()).isZero();
@@ -319,6 +319,6 @@ class IdentityBindingControllerTest {
         return jwt().jwt(token -> token
             .subject(userId)
             .claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
     }
 }

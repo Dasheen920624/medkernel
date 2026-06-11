@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 自然人与系统用户主体之间的稳定关联。
  */
-@Table("mk_person_account_link")
+@Table("mk_identity_person_account")
 public record PersonAccountLink(
     @Id @Column("link_id") String linkId,
     @Column("tenant_id") String tenantId,

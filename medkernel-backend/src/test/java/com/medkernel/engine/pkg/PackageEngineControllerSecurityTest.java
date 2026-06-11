@@ -223,7 +223,7 @@ class PackageEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_ORGANIZATION_ADMIN")
     void authorizedUserButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post(PKG_ROOT)
                 .contentType("application/json")
@@ -262,7 +262,7 @@ class PackageEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotPublishOrRollbackPackage() throws Exception {
         mvc.perform(post(PKG_ROOT)
                 .contentType("application/json")
@@ -308,21 +308,21 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT)
                 .param("assetType", "PATHWAY")
                 .with(jwt()
-                    .jwt(token -> token.subject("specialist-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+                    .jwt(token -> token.subject("clinical-governor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"))))
             .andExpect(status().isOk());
 
         mvc.perform(get(PKG_ROOT)
                 .with(jwt()
-                    .jwt(token -> token.subject("specialist-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+                    .jwt(token -> token.subject("clinical-governor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"))))
             .andExpect(status().isForbidden());
 
         mvc.perform(get(PKG_ROOT)
                 .param("assetType", "TERMINOLOGY")
                 .with(jwt()
                     .jwt(token -> token.subject("doctor-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -362,12 +362,12 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
                 .with(jwt()
                     .jwt(token -> token.subject("integration-operator").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isForbidden());
 
         var platformJwt = jwt()
             .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
 
         mvc.perform(get(PKG_ROOT + "/pkg-commercial/entitlements")
                 .with(platformJwt))
@@ -379,7 +379,7 @@ class PackageEngineControllerSecurityTest {
                 .content(grantEntitlementBody("t-1"))
                 .with(jwt()
                     .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.tenantId").value("tenant-A"));
 
@@ -388,13 +388,13 @@ class PackageEngineControllerSecurityTest {
                 .content(revokeEntitlementBody("t-1"))
                 .with(jwt()
                     .jwt(token -> token.subject("platform-governance-admin").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("REVOKED"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void oldPackagesCustomerRootIsRemoved() throws Exception {
         mvc.perform(get(OLD_ROOT))
             .andExpect(status().isNotFound());
@@ -412,7 +412,7 @@ class PackageEngineControllerSecurityTest {
                 .content(terminologyPackageBody("tenant-A"))
                 .with(jwt()
                     .jwt(token -> token.subject("knowledge-governor").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isCreated());
     }
 
@@ -457,17 +457,17 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(post(PKG_ROOT + "/term-pkg-1/release")
                 .contentType("application/json")
                 .content(syncBodyWithContext("tenant-A")
-                    .replace("[\"it-ops\"]", "[\"medical-affairs\"]"))
+                    .replace("[\"it-ops\"]", "[\"knowledge-governor\"]"))
                 .with(jwt()
-                    .jwt(token -> token.subject("medical-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"))))
+                    .jwt(token -> token.subject("knowledge-governor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.packageId").value("term-pkg-1"));
 
         mvc.perform(get(PKG_ROOT + "/release-adapters")
                 .with(jwt()
-                    .jwt(token -> token.subject("medical-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"))))
+                    .jwt(token -> token.subject("knowledge-governor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
@@ -478,7 +478,7 @@ class PackageEngineControllerSecurityTest {
                         .subject("pathway-author")
                         .claim("tenant_id", "tenant-A")
                         .claim("roles", List.of("organization-admin")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN")))
                 .contentType("application/json")
                 .content(pathwayPackageBody("tenant-A")))
             .andExpect(status().isCreated())
@@ -492,7 +492,7 @@ class PackageEngineControllerSecurityTest {
                 .content(CREATE_BODY)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
@@ -502,7 +502,7 @@ class PackageEngineControllerSecurityTest {
                 .content(ITEM_BODY)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
@@ -512,7 +512,7 @@ class PackageEngineControllerSecurityTest {
                 .content(SYNC_BODY)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
@@ -522,7 +522,7 @@ class PackageEngineControllerSecurityTest {
                 .content(ROLLBACK_BODY)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
@@ -537,7 +537,7 @@ class PackageEngineControllerSecurityTest {
                     """)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-API-002"))
             .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
@@ -550,7 +550,7 @@ class PackageEngineControllerSecurityTest {
                 .content(createBodyWithContext("tenant-B"))
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("ENG-BASE-004"))
             .andExpect(jsonPath("$.detail").value(containsString("租户不一致")));
@@ -577,7 +577,7 @@ class PackageEngineControllerSecurityTest {
                 .content(operationBodyWithContext("tenant-A"))
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.valid").value(true))
             .andExpect(jsonPath("$.data.itemCount").value(1));
@@ -587,7 +587,7 @@ class PackageEngineControllerSecurityTest {
                 .content(syncBodyWithContext("tenant-A"))
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("NOT_SYNCED"))
             .andExpect(jsonPath("$.data.logs[0].syncEvidence").doesNotExist());
@@ -595,7 +595,7 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT + "/pkg-1/sync-logs")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].status").value("NOT_SYNCED"))
             .andExpect(jsonPath("$.data[0].errorCode").value("NOT_SYNCED"));
@@ -656,7 +656,7 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT + "/pilot-templates")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].templateCode").value("TPL.FIRST_RUN"))
             .andExpect(jsonPath("$.data[0].items[0].assetType").value("RULE"));
@@ -664,7 +664,7 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT + "/asset-readiness")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.ready").value(true))
             .andExpect(jsonPath("$.data.readyPackageId").value("pkg-active"));
@@ -674,7 +674,7 @@ class PackageEngineControllerSecurityTest {
                 .content(applyReferencesBodyWithContext("tenant-A"))
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.templateCode").value("TPL.FIRST_RUN"))
             .andExpect(jsonPath("$.data.references[0].referenceId").value("ref-first-run"))
@@ -733,7 +733,7 @@ class PackageEngineControllerSecurityTest {
                 .param("upstreamVersionId", "av-platform-v2")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.upstreamTargetVersion").value("2.0.0"))
             .andExpect(jsonPath("$.data.autoInheritedCount").value(1))
@@ -750,7 +750,7 @@ class PackageEngineControllerSecurityTest {
                 .param("basePackageId", "pkg-base")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-diff-pkg-1.jsonl")))
@@ -766,7 +766,7 @@ class PackageEngineControllerSecurityTest {
                 .param("targetOrgUnitId", "hospital-1")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-offline-pkg-1.json")))
@@ -782,7 +782,7 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(get(PKG_ROOT + "/pkg-1/sync-logs/export")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-sync-evidence-pkg-1.jsonl")))
@@ -801,7 +801,7 @@ class PackageEngineControllerSecurityTest {
                 .content(OFFLINE_IMPORT_BODY)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.packageId").value("pkg-imported"))
             .andExpect(jsonPath("$.data.status").value("DRAFT"))

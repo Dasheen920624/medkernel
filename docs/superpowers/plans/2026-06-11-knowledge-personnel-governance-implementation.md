@@ -1,5 +1,15 @@
 # 医疗知识与人员身份治理实施计划
 
+## 2026-06-12 执行状态
+
+| 任务 | 状态 | 证据 |
+|---|---|---|
+| 1–10 契约、知识血缘、人员身份、批量维护、组织、体验、角色、中文与迁移 | 已完成代码检查点 | [阶段检查点报告](../../audit/knowledge-personnel-governance-checkpoint-20260612.md) |
+| 11 全职责验收 | 自动化覆盖完成，真实全角色浏览器验收待全局 IA 门禁统一执行 | 前端 14 角色工作台测试全绿；代表性本地浏览器走查已完成 |
+| 12 全系统产品重构门禁 | 下一步 | [全系统功能与产品信息架构重构实施计划](2026-06-11-global-product-ia-refactor-implementation.md) |
+
+本计划完成的是第一阶段代码检查点，不等同于 134 发布放行。菜单数量、固定分组和高级工具承载方式尚未裁决，必须由完整功能目录和角色任务证据推导。
+
 ## 目标
 
 将已确认的“平台知识主源 + 机构按需派生”和“自然人 + 任职 + 账号 + 身份来源”落成可运行、可审计、可批量维护、可由全角色前台验收的产品闭环。
@@ -39,9 +49,9 @@
 
 新增：
 
-- `mk_person`
-- `mk_person_appointment`
-- `mk_person_account_link`
+- `mk_identity_person`
+- `mk_identity_person_appointment`
+- `mk_identity_person_account`
 - 人员分页、详情、创建和任职维护接口
 
 约束：
@@ -56,8 +66,8 @@
 
 新增：
 
-- `mk_person_import_job`
-- `mk_person_import_row`
+- `mk_identity_person_import_job`
+- `mk_identity_person_import_row`
 - CSV 模板、预检、提交、结果查询接口
 
 步骤：

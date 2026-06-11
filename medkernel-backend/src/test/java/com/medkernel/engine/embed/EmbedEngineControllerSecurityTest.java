@@ -76,8 +76,8 @@ class EmbedEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
                 .andExpect(status().isOk());
@@ -90,7 +90,7 @@ class EmbedEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
                 .andExpect(status().isForbidden());
@@ -101,8 +101,8 @@ class EmbedEngineControllerSecurityTest {
         mockMvc.perform(post("/api/v1/engine/embed/launch-tokens")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
                 .andExpect(status().isBadRequest())
@@ -124,7 +124,7 @@ class EmbedEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .header("Origin", TRUSTED_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
@@ -138,7 +138,7 @@ class EmbedEngineControllerSecurityTest {
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
             .andExpect(status().isBadRequest())

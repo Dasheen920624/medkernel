@@ -70,13 +70,23 @@ public class OrgUnitService {
             PageRequest request,
             String keyword,
             OrgLevel level,
-            OrgUnitStatus status) {
+            OrgUnitStatus status,
+            OrgDirectoryScope scope,
+            String ancestorId) {
         String tenantId = requireCurrentTenant();
         PageRequest safe = request == null ? PageRequest.defaults() : request;
         String normalizedKeyword = normalizeFilter(keyword);
         String levelCode = level == null ? null : level.name();
         String statusCode = status == null ? null : status.name();
-        long total = repository.countDirectory(tenantId, normalizedKeyword, levelCode, statusCode);
+        String scopeCode = scope == null ? null : scope.name();
+        String normalizedAncestorId = normalizeFilter(ancestorId);
+        long total = repository.countDirectory(
+            tenantId,
+            normalizedKeyword,
+            levelCode,
+            statusCode,
+            scopeCode,
+            normalizedAncestorId);
         if (total == 0) {
             return PageResponse.empty(safe);
         }
@@ -85,6 +95,8 @@ public class OrgUnitService {
             normalizedKeyword,
             levelCode,
             statusCode,
+            scopeCode,
+            normalizedAncestorId,
             safe.offset(),
             safe.safeSize());
         return PageResponse.of(rows, safe, total);

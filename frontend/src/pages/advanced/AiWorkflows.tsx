@@ -146,8 +146,7 @@ export default function AiWorkflows() {
       dataIndex: "desensitizeStrategy",
       key: "desensitizeStrategy",
       width: 130,
-      render: (value: string) =>
-        desensitizeStrategyView[value] ?? customerEnumLabel(value),
+      render: (value: string) => desensitizeStrategyView[value] ?? customerEnumLabel(value),
     },
     {
       title: "结构约束",

@@ -1231,7 +1231,8 @@ class WorkflowCollaborationServiceTest {
         assertThat(saved.sourceType()).isEqualTo(WorkflowTodoSourceType.PATHWAY_NODE);
         assertThat(saved.sourceId()).isEqualTo("pp-1:ASSESS:clock-1");
         assertThat(saved.title()).isEqualTo("路径节点待处理：入径评估");
-        assertThat(saved.summary()).isEqualTo("责任：doctor；签责：dept-head；会诊：nurse；知会：quality");
+        assertThat(saved.summary()).isEqualTo(
+            "责任：clinical-decision-user；签责：clinical-governor；会诊：nursing-collaborator；知会：quality");
         assertThat(saved.priority()).isEqualTo(WorkflowPriority.HIGH);
         assertThat(saved.assigneeRole()).isEqualTo("clinical-decision-user");
         assertThat(saved.dueAt()).isEqualTo(dueAt);

@@ -24,7 +24,7 @@ import {
   Typography,
   Upload,
 } from "antd";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
@@ -33,7 +33,6 @@ import {
   useCommitPersonnelImport,
   useComplianceUserDetail,
   useCreatePersonnel,
-  useOrgUnits,
   usePersonnel,
   usePersonnelDetail,
   usePreviewPersonnelImport,
@@ -43,6 +42,7 @@ import {
   useSetComplianceUserStatus,
   type AppointmentType,
   type CreatePersonnelPayload,
+  type OrgUnit,
   type PersonnelImportResponse,
   type PersonnelSummary,
   type SecurityProfile,
@@ -58,6 +58,7 @@ import {
   riskLabel,
 } from "@/shared/config/customerLabels";
 import { ROLE_OPTIONS } from "@/shared/config/roleCatalog";
+import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -113,6 +114,7 @@ export default function AdminUsers() {
   const [importFile, setImportFile] = useState<File>();
   const [importResult, setImportResult] = useState<PersonnelImportResponse>();
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedRoleOrg, setSelectedRoleOrg] = useState<OrgUnit>();
   const [activations, setActivations] = useState<
     Array<{ username: string; temporaryPassword: string }>
   >([]);
@@ -127,7 +129,6 @@ export default function AdminUsers() {
   const personnel = usePersonnel({ page, size, keyword: keyword.trim() || undefined });
   const detail = usePersonnelDetail(selectedPersonId);
   const accountDetail = useComplianceUserDetail(detail.data?.account?.userId ?? null);
-  const orgUnits = useOrgUnits({ page: 1, size: 500, status: "ACTIVE" });
   const createMutation = useCreatePersonnel();
   const previewMutation = usePreviewPersonnelImport();
   const commitMutation = useCommitPersonnelImport();
@@ -138,44 +139,13 @@ export default function AdminUsers() {
 
   const canRead = hasPermission(security.data, "org.read");
   const canManage = hasPermission(security.data, "org.write");
-  const organizations = useMemo(
-    () =>
-      (orgUnits.data?.items ?? []).filter((unit) =>
-        ["TENANT", "REGION", "FACILITY", "CAMPUS"].includes(unit.level),
-      ),
-    [orgUnits.data?.items],
-  );
-  const departments = useMemo(
-    () =>
-      (orgUnits.data?.items ?? []).filter(
-        (unit) =>
-          unit.level === "DEPARTMENT" &&
-          (!selectedOrganizationId ||
-            unit.orgPath?.startsWith(
-              `${organizations.find((item) => item.id === selectedOrganizationId)?.orgPath}/`,
-            )),
-      ),
-    [orgUnits.data?.items, organizations, selectedOrganizationId],
-  );
-  const wards = useMemo(
-    () =>
-      (orgUnits.data?.items ?? []).filter(
-        (unit) =>
-          unit.level === "WARD" &&
-          (!selectedDepartmentId ||
-            unit.orgPath?.startsWith(
-              `${(orgUnits.data?.items ?? []).find((item) => item.id === selectedDepartmentId)?.orgPath}/`,
-            )),
-      ),
-    [orgUnits.data?.items, selectedDepartmentId],
-  );
-  const orgById = useMemo(
-    () => new Map((orgUnits.data?.items ?? []).map((unit) => [unit.id, unit])),
-    [orgUnits.data?.items],
-  );
-
+  let importActionLabel = "开始预检";
+  if (importResult) importActionLabel = "确认导入";
+  if (importResult?.status === "COMPLETED" || importResult?.status === "PARTIAL") {
+    importActionLabel = "完成";
+  }
   const refresh = async () => {
-    await Promise.all([personnel.refetch(), security.refetch(), orgUnits.refetch()]);
+    await Promise.all([personnel.refetch(), security.refetch()]);
     if (selectedPersonId) await detail.refetch();
   };
 
@@ -277,7 +247,7 @@ export default function AdminUsers() {
 
   const assignRole = async (values: RoleFormValues) => {
     if (!detail.data?.account?.userId) return;
-    const unit = orgById.get(values.orgUnitId);
+    const unit = selectedRoleOrg;
     if (!unit) {
       message.error("请选择有效的组织范围");
       return;
@@ -290,6 +260,7 @@ export default function AdminUsers() {
         scopeCode: unit.id ?? "",
       });
       roleForm.resetFields();
+      setSelectedRoleOrg(undefined);
       message.success("角色范围已生效");
       await accountDetail.refetch();
     } catch (error) {
@@ -506,11 +477,7 @@ export default function AdminUsers() {
             >
               <Input />
             </Form.Item>
-            <Form.Item
-              name="appointmentType"
-              label="人员类型"
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="appointmentType" label="人员类型" rules={[{ required: true }]}>
               <Select
                 options={[
                   { value: "INTERNAL", label: "本机构员工" },
@@ -527,14 +494,9 @@ export default function AdminUsers() {
             label="所属机构"
             rules={[{ required: true, message: "请选择所属机构" }]}
           >
-            <Select
-              showSearch
-              optionFilterProp="label"
+            <OrgUnitSelect
+              scope="SERVICE_ORGANIZATION"
               placeholder="从组织树选择集团、医院、分院或基层机构"
-              options={organizations.map((unit) => ({
-                value: unit.id,
-                label: `${unit.name} · ${orgLevelLabel(unit.level)}`,
-              }))}
               onChange={() => {
                 personForm.setFieldValue("departmentId", undefined);
                 personForm.setFieldValue("wardId", undefined);
@@ -543,23 +505,22 @@ export default function AdminUsers() {
           </Form.Item>
           <Space align="start" wrap className="mk-full-width">
             <Form.Item name="departmentId" label="所属科室">
-              <Select
+              <OrgUnitSelect
                 allowClear
-                showSearch
-                optionFilterProp="label"
-                placeholder="可选"
-                options={departments.map((unit) => ({ value: unit.id, label: unit.name }))}
+                level="DEPARTMENT"
+                ancestorId={selectedOrganizationId}
+                disabled={!selectedOrganizationId}
+                placeholder={selectedOrganizationId ? "可选" : "请先选择所属机构"}
                 onChange={() => personForm.setFieldValue("wardId", undefined)}
               />
             </Form.Item>
             <Form.Item name="wardId" label="所属病区">
-              <Select
+              <OrgUnitSelect
                 allowClear
-                showSearch
-                optionFilterProp="label"
+                level="WARD"
+                ancestorId={selectedDepartmentId}
                 disabled={!selectedDepartmentId}
                 placeholder={selectedDepartmentId ? "可选" : "请先选择科室"}
-                options={wards.map((unit) => ({ value: unit.id, label: unit.name }))}
               />
             </Form.Item>
             <Form.Item name="positionTitle" label="岗位或职务">
@@ -581,9 +542,9 @@ export default function AdminUsers() {
               </Form.Item>
               <Form.Item name="roleCode" label="初始角色">
                 <Select
-                  options={ROLE_OPTIONS.filter((role) => role.code !== "platform-governance-admin").map(
-                    (role) => ({ value: role.code, label: role.name }),
-                  )}
+                  options={ROLE_OPTIONS.filter(
+                    (role) => role.code !== "platform-governance-admin",
+                  ).map((role) => ({ value: role.code, label: role.name }))}
                 />
               </Form.Item>
             </Space>
@@ -620,14 +581,9 @@ export default function AdminUsers() {
         title="批量导入人员"
         open={importOpen}
         width={920}
-        okText={
-          importResult?.status === "COMPLETED" || importResult?.status === "PARTIAL"
-            ? "完成"
-            : importResult
-              ? "确认导入"
-              : "开始预检"
-        }
+        okText={importActionLabel}
         cancelText="取消"
+        cancelButtonProps={{ "aria-label": "取消" }}
         confirmLoading={previewMutation.isPending || commitMutation.isPending}
         okButtonProps={{
           disabled:
@@ -790,9 +746,7 @@ export default function AdminUsers() {
                 </Popconfirm>
                 <Popconfirm
                   title={
-                    accountDetail.data.status === "ACTIVE"
-                      ? "确认停用该账号？"
-                      : "确认启用该账号？"
+                    accountDetail.data.status === "ACTIVE" ? "确认停用该账号？" : "确认启用该账号？"
                   }
                   onConfirm={toggleAccount}
                 >
@@ -808,9 +762,7 @@ export default function AdminUsers() {
                 <Divider />
                 <Title level={5}>角色与组织范围</Title>
                 <Table
-                  rowKey={(record) =>
-                    `${record.code}:${record.scopeLevel}:${record.scopeCode}`
-                  }
+                  rowKey={(record) => `${record.code}:${record.scopeLevel}:${record.scopeCode}`}
                   pagination={false}
                   dataSource={accountDetail.data.roles}
                   columns={[
@@ -822,8 +774,7 @@ export default function AdminUsers() {
                     },
                     {
                       title: "组织范围",
-                      dataIndex: "scopeCode",
-                      render: (value: string) => orgById.get(value)?.name ?? "机构已停用",
+                      dataIndex: "scopeName",
                     },
                     {
                       title: "操作",
@@ -872,16 +823,11 @@ export default function AdminUsers() {
                         label="组织范围"
                         rules={[{ required: true, message: "请选择组织范围" }]}
                       >
-                        <Select
-                          showSearch
-                          optionFilterProp="label"
+                        <OrgUnitSelect
+                          scope="BUSINESS_SCOPE"
                           className="mk-select-wide"
-                          options={(orgUnits.data?.items ?? [])
-                            .filter((unit) => unit.level !== "PLATFORM")
-                            .map((unit) => ({
-                              value: unit.id,
-                              label: `${unit.name} · ${orgLevelLabel(unit.level)}`,
-                            }))}
+                          placeholder="搜索组织名称或编码"
+                          onUnitChange={setSelectedRoleOrg}
                         />
                       </Form.Item>
                       <Form.Item label=" ">

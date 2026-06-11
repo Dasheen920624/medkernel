@@ -267,143 +267,148 @@ beforeEach(() => {
 });
 
 describe("KnowledgeGovernance", () => {
-  it("lets a medical institution derive a governed local draft from platform knowledge", async () => {
-    const user = userEvent.setup();
-    mockUseSecurityProfile.mockReturnValue({
-      data: {
-        dataScope: { tenantId: "tenant-A" },
-        permissions: [
-          { code: "knowledge.write" },
-          { code: "knowledge.publish" },
-          { code: "knowledge.withdraw" },
-          { code: "tenant.override" },
-        ],
-      },
-    });
-    mockUseKnowledgeIdentities.mockReturnValue({
-      data: {
-        items: [{ ...realIdentity, tenantId: "t-1" }],
-        page: 1,
-        size: 20,
-        total: 1,
-        hasNext: false,
-      },
-      refetch: refetchIdentities,
-      isLoading: false,
-      isError: false,
-      error: undefined,
-    });
-    mockUseOrgUnits.mockReturnValue({
-      data: {
-        items: [
-          {
-            id: "hospital-a",
-            level: "FACILITY",
-            code: "HOSP-A",
-            name: "示范医院",
-            status: "ACTIVE",
-          },
-        ],
-        page: 1,
-        size: 500,
-        total: 1,
-      },
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
-
-    renderPage();
-    await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
-    expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox", { name: "生效机构" }));
-    await user.click(
-      await screen.findByText("示范医院 · 医疗服务机构", {
-        selector: ".ant-select-item-option-content",
-      }),
-    );
-    await user.type(screen.getByLabelText("定制原因"), "适配本院诊疗流程");
-    await user.click(screen.getByRole("button", { name: "创建定制草稿" }));
-
-    await waitFor(() =>
-      expect(createCustomization).toHaveBeenCalledWith({
-        platformIdentityId: 42,
-        targetOrgUnitId: "hospital-a",
-        applicableScope: "ALL",
-        reason: "适配本院诊疗流程",
-      }),
-    );
-  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
-
-  it("requires an electronic signature before publishing a high-risk institution version", async () => {
-    const user = userEvent.setup();
-    mockUseSecurityProfile.mockReturnValue({
-      data: {
-        dataScope: { tenantId: "tenant-A" },
-        permissions: [
-          { code: "knowledge.publish" },
-          { code: "tenant.override" },
-        ],
-      },
-    });
-    mockUseKnowledgeCustomizations.mockReturnValue({
-      data: [
-        {
-          customizationId: "kc-high-risk",
-          sourceType: "LOCAL_CUSTOMIZATION",
-          status: "DRAFT",
-          platformIdentityId: 42,
-          platformVersionId: 1001,
-          platformVersionNo: "2026.05",
-          localIdentityId: 43,
-          localVersionId: 2003,
-          riskLevel: "HIGH",
-          targetOrgUnitId: "hospital-a",
-          targetOrganizationName: "示范医院",
-          targetOrgPath: "/tenant-A/hospital-a",
-          applicableScope: "ALL",
-          reason: "适配本院高危诊疗流程",
-          overrideId: null,
-          platformUpdateAvailable: false,
-          updatedAt: "2026-06-11T01:00:00Z",
-        },
-      ],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
-
-    renderPage();
-    await user.click(screen.getByRole("tab", { name: "机构知识" }));
-    await user.click(screen.getByRole("button", { name: "发布机构版本" }));
-
-    expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
-    await user.type(screen.getByLabelText("签名编号"), "sig-local-knowledge-1");
-    await user.type(screen.getByLabelText("复核人工号"), "medical-reviewer-1");
-    await user.type(screen.getByLabelText("复核人姓名"), "医务复核员");
-    fireEvent.change(screen.getByLabelText("签名时间"), {
-      target: { value: "2026-06-11T10:00" },
-    });
-    await user.type(screen.getByLabelText("签名摘要"), "b".repeat(64));
-    await user.click(screen.getByRole("button", { name: "确认发布" }));
-
-    await waitFor(() => {
-      expect(publishCustomization).toHaveBeenCalledWith({
-        customizationId: "kc-high-risk",
-        reason: "医务与质控联合复核通过",
-        publishEvidence: {
-          electronicSignature: {
-            signatureId: "sig-local-knowledge-1",
-            signerId: "medical-reviewer-1",
-            signerName: "医务复核员",
-            signedAt: new Date("2026-06-11T10:00").toISOString(),
-            signatureHash: "b".repeat(64),
-          },
+  it(
+    "lets a medical institution derive a governed local draft from platform knowledge",
+    async () => {
+      const user = userEvent.setup();
+      mockUseSecurityProfile.mockReturnValue({
+        data: {
+          dataScope: { tenantId: "tenant-A" },
+          permissions: [
+            { code: "knowledge.write" },
+            { code: "knowledge.publish" },
+            { code: "knowledge.withdraw" },
+            { code: "tenant.override" },
+          ],
         },
       });
-    });
-  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
+      mockUseKnowledgeIdentities.mockReturnValue({
+        data: {
+          items: [{ ...realIdentity, tenantId: "t-1" }],
+          page: 1,
+          size: 20,
+          total: 1,
+          hasNext: false,
+        },
+        refetch: refetchIdentities,
+        isLoading: false,
+        isError: false,
+        error: undefined,
+      });
+      mockUseOrgUnits.mockReturnValue({
+        data: {
+          items: [
+            {
+              id: "hospital-a",
+              level: "FACILITY",
+              code: "HOSP-A",
+              name: "示范医院",
+              status: "ACTIVE",
+            },
+          ],
+          page: 1,
+          size: 500,
+          total: 1,
+        },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      });
+
+      renderPage();
+      await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
+      expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("combobox", { name: "生效机构" }));
+      await user.click(
+        await screen.findByText("示范医院 · 医疗服务机构", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+      await user.type(screen.getByLabelText("定制原因"), "适配本院诊疗流程");
+      await user.click(screen.getByRole("button", { name: "创建定制草稿" }));
+
+      await waitFor(() =>
+        expect(createCustomization).toHaveBeenCalledWith({
+          platformIdentityId: 42,
+          targetOrgUnitId: "hospital-a",
+          applicableScope: "ALL",
+          reason: "适配本院诊疗流程",
+        }),
+      );
+    },
+    KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "requires an electronic signature before publishing a high-risk institution version",
+    async () => {
+      const user = userEvent.setup();
+      mockUseSecurityProfile.mockReturnValue({
+        data: {
+          dataScope: { tenantId: "tenant-A" },
+          permissions: [{ code: "knowledge.publish" }, { code: "tenant.override" }],
+        },
+      });
+      mockUseKnowledgeCustomizations.mockReturnValue({
+        data: [
+          {
+            customizationId: "kc-high-risk",
+            sourceType: "LOCAL_CUSTOMIZATION",
+            status: "DRAFT",
+            platformIdentityId: 42,
+            platformVersionId: 1001,
+            platformVersionNo: "2026.05",
+            localIdentityId: 43,
+            localVersionId: 2003,
+            riskLevel: "HIGH",
+            targetOrgUnitId: "hospital-a",
+            targetOrganizationName: "示范医院",
+            targetOrgPath: "/tenant-A/hospital-a",
+            applicableScope: "ALL",
+            reason: "适配本院高危诊疗流程",
+            overrideId: null,
+            platformUpdateAvailable: false,
+            updatedAt: "2026-06-11T01:00:00Z",
+          },
+        ],
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      });
+
+      renderPage();
+      await user.click(screen.getByRole("tab", { name: "机构知识" }));
+      await user.click(screen.getByRole("button", { name: "发布机构版本" }));
+
+      expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
+      await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
+      await user.type(screen.getByLabelText("签名编号"), "sig-local-knowledge-1");
+      await user.type(screen.getByLabelText("复核人工号"), "medical-reviewer-1");
+      await user.type(screen.getByLabelText("复核人姓名"), "医务复核员");
+      fireEvent.change(screen.getByLabelText("签名时间"), {
+        target: { value: "2026-06-11T10:00" },
+      });
+      await user.type(screen.getByLabelText("签名摘要"), "b".repeat(64));
+      await user.click(screen.getByRole("button", { name: "确认发布" }));
+
+      await waitFor(() => {
+        expect(publishCustomization).toHaveBeenCalledWith({
+          customizationId: "kc-high-risk",
+          reason: "医务与质控联合复核通过",
+          publishEvidence: {
+            electronicSignature: {
+              signatureId: "sig-local-knowledge-1",
+              signerId: "medical-reviewer-1",
+              signerName: "医务复核员",
+              signedAt: new Date("2026-06-11T10:00").toISOString(),
+              signatureHash: "b".repeat(64),
+            },
+          },
+        });
+      });
+    },
+    KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
+  );
 
   it("keeps diagnosis governance available while the candidate queue is loading", async () => {
     const user = userEvent.setup();
@@ -483,6 +488,10 @@ describe("KnowledgeGovernance", () => {
     renderPage();
 
     expect(screen.getByText("当前筛选下暂无待审核知识身份")).toBeInTheDocument();
+    expect(
+      screen.getByText("知识候选经来源采集、去重和分流后展示；本页只负责审核与发布。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/KNOW-02/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "知识域" }));
     await user.click(screen.getByText("药品说明书"));
 
@@ -622,74 +631,78 @@ describe("KnowledgeGovernance", () => {
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
 
-  it("lets platform governance schedule a successor and grace period", async () => {
-    const retiringIdentity = {
-      ...realIdentity,
-      domain: "DRUG",
-    };
-    const successor = {
-      ...retiringIdentity,
-      id: 43,
-      identityCode: "plat:drug:vte-guide-2026",
-      subject: "VTE 防治指南 2026",
-      currentVersionId: 1002,
-    };
-    mockUseKnowledgeIdentities.mockReturnValue({
-      data: {
-        items: [retiringIdentity, successor],
-        page: 1,
-        size: 20,
-        total: 2,
-        hasNext: false,
-      },
-      refetch: refetchIdentities,
-      isLoading: false,
-      isError: false,
-      error: undefined,
-    });
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.click(screen.getByRole("button", { name: "安排弃用：VTE 防治指南" }));
-    const successorSelect = screen.getByRole("combobox", { name: "后继知识身份" });
-    fireEvent.mouseDown(successorSelect);
-    fireEvent.change(successorSelect, { target: { value: "2026" } });
-    await waitFor(() => {
-      expect(mockUseKnowledgeIdentities).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          domain: "DRUG",
-          status: "ACTIVE",
-          keyword: "2026",
+  it(
+    "lets platform governance schedule a successor and grace period",
+    async () => {
+      const retiringIdentity = {
+        ...realIdentity,
+        domain: "DRUG",
+      };
+      const successor = {
+        ...retiringIdentity,
+        id: 43,
+        identityCode: "plat:drug:vte-guide-2026",
+        subject: "VTE 防治指南 2026",
+        currentVersionId: 1002,
+      };
+      mockUseKnowledgeIdentities.mockReturnValue({
+        data: {
+          items: [retiringIdentity, successor],
           page: 1,
           size: 20,
-        }),
-      );
-    });
-    await user.click(
-      await screen.findByText(/VTE 防治指南 2026/, {
-        selector: ".ant-select-item-option-content",
-      }),
-    );
-    const graceInput = screen.getByLabelText("宽限期结束时间", { selector: "input" });
-    fireEvent.change(graceInput, {
-      target: { value: "2099-07-09T08:00" },
-    });
-    const guidanceInput = screen.getByLabelText("迁移指引", { selector: "textarea" });
-    fireEvent.change(guidanceInput, {
-      target: { value: "迁移到新版指南并重新核对本地覆盖" },
-    });
-    expect(graceInput).toHaveValue("2099-07-09T08:00");
-    expect(guidanceInput).toHaveValue("迁移到新版指南并重新核对本地覆盖");
-    await user.click(screen.getByRole("button", { name: "确认安排弃用" }));
+          total: 2,
+          hasNext: false,
+        },
+        refetch: refetchIdentities,
+        isLoading: false,
+        isError: false,
+        error: undefined,
+      });
+      const user = userEvent.setup();
+      renderPage();
 
-    await waitFor(() => {
-      expect(deprecateIdentity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          identityId: 42,
-          successorIdentityId: 43,
-          migrationGuidance: "迁移到新版指南并重新核对本地覆盖",
+      await user.click(screen.getByRole("button", { name: "安排弃用：VTE 防治指南" }));
+      const successorSelect = screen.getByRole("combobox", { name: "后继知识身份" });
+      fireEvent.mouseDown(successorSelect);
+      fireEvent.change(successorSelect, { target: { value: "2026" } });
+      await waitFor(() => {
+        expect(mockUseKnowledgeIdentities).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            domain: "DRUG",
+            status: "ACTIVE",
+            keyword: "2026",
+            page: 1,
+            size: 20,
+          }),
+        );
+      });
+      await user.click(
+        await screen.findByText(/VTE 防治指南 2026/, {
+          selector: ".ant-select-item-option-content",
         }),
       );
-    });
-  }, KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS);
+      const graceInput = screen.getByLabelText("宽限期结束时间", { selector: "input" });
+      fireEvent.change(graceInput, {
+        target: { value: "2099-07-09T08:00" },
+      });
+      const guidanceInput = screen.getByLabelText("迁移指引", { selector: "textarea" });
+      fireEvent.change(guidanceInput, {
+        target: { value: "迁移到新版指南并重新核对本地覆盖" },
+      });
+      expect(graceInput).toHaveValue("2099-07-09T08:00");
+      expect(guidanceInput).toHaveValue("迁移到新版指南并重新核对本地覆盖");
+      await user.click(screen.getByRole("button", { name: "确认安排弃用" }));
+
+      await waitFor(() => {
+        expect(deprecateIdentity).toHaveBeenCalledWith(
+          expect.objectContaining({
+            identityId: 42,
+            successorIdentityId: 43,
+            migrationGuidance: "迁移到新版指南并重新核对本地覆盖",
+          }),
+        );
+      });
+    },
+    KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
+  );
 });

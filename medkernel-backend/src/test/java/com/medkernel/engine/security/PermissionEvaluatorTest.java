@@ -48,8 +48,8 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void medicalAffairsCanPublishRules() {
-        authenticate(RoleCode.CLINICAL_GOVERNOR);
+    void knowledgeGovernorCanPublishRulesAndKnowledge() {
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
         assertThat(evaluator.has("rule.publish")).isTrue();
         assertThat(evaluator.has("knowledge.publish")).isTrue();
         assertThat(evaluator.has("system.manage")).isFalse();

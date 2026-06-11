@@ -162,7 +162,7 @@ class MpiControllerContractTest {
                 .subject("integration-operator")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("integration-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
+            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 
     private static RequestPostProcessor writeJwt() {
@@ -170,6 +170,6 @@ class MpiControllerContractTest {
                 .subject("organization-admin")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("organization-admin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
     }
 }

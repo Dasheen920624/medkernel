@@ -195,9 +195,7 @@ export default function SystemProviders() {
             <Card>
               <Statistic
                 title="核心服务"
-                value={
-                  STATUS_LABEL[data.healthStatus] ?? customerEnumLabel(data.healthStatus)
-                }
+                value={STATUS_LABEL[data.healthStatus] ?? customerEnumLabel(data.healthStatus)}
                 valueStyle={{
                   color: data.healthStatus === "UP" ? token.colorSuccess : token.colorWarning,
                 }}

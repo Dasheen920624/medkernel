@@ -220,6 +220,14 @@ export default function IdentityBinding() {
     bindings.data.filter((item) => item.status === "ACTIVE").map((item) => item.providerType),
   ).size;
   const isReady = delegated.data.status === "READY";
+  let delegatedAlertType: "success" | "warning" | "info" = "info";
+  if (delegated.data.enabled) delegatedAlertType = "warning";
+  if (isReady) delegatedAlertType = "success";
+  let batchActionLabel = "开始预检";
+  if (batchResult) batchActionLabel = "确认匹配";
+  if (batchResult?.status === "COMPLETED" || batchResult?.status === "PARTIAL") {
+    batchActionLabel = "完成";
+  }
 
   return (
     <>
@@ -256,7 +264,7 @@ export default function IdentityBinding() {
             />
           )}
           <Alert
-            type={isReady ? "success" : delegated.data.enabled ? "warning" : "info"}
+            type={delegatedAlertType}
             showIcon
             message={`${delegatedModeLabel(delegated.data.mode)} · ${connectionStatusLabel(
               delegated.data.status,
@@ -267,7 +275,10 @@ export default function IdentityBinding() {
             <Space size="large" wrap>
               <Statistic title="有效身份关系" value={activeCount} />
               <Statistic title="已使用身份来源" value={providerCount} />
-              <Statistic title="统一身份连接" value={connectionStatusLabel(delegated.data.status)} />
+              <Statistic
+                title="统一身份连接"
+                value={connectionStatusLabel(delegated.data.status)}
+              />
             </Space>
           </Card>
           <Card title="人员身份关系">
@@ -406,13 +417,7 @@ export default function IdentityBinding() {
         title="批量匹配身份来源"
         open={batchOpen}
         width={880}
-        okText={
-          batchResult?.status === "COMPLETED" || batchResult?.status === "PARTIAL"
-            ? "完成"
-            : batchResult
-              ? "确认匹配"
-              : "开始预检"
-        }
+        okText={batchActionLabel}
         cancelText="取消"
         confirmLoading={previewMutation.isPending || commitMutation.isPending}
         okButtonProps={{ disabled: Boolean(batchResult?.conflictRows) }}
@@ -459,9 +464,7 @@ export default function IdentityBinding() {
               <Descriptions bordered size="small" column={3}>
                 <Descriptions.Item label="总人数">{batchResult.totalRows}</Descriptions.Item>
                 <Descriptions.Item label="可匹配">{batchResult.validRows}</Descriptions.Item>
-                <Descriptions.Item label="需处理冲突">
-                  {batchResult.conflictRows}
-                </Descriptions.Item>
+                <Descriptions.Item label="需处理冲突">{batchResult.conflictRows}</Descriptions.Item>
               </Descriptions>
               <Table
                 rowKey="rowNo"

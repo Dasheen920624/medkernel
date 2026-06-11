@@ -73,7 +73,9 @@ function statusTag(status: string) {
   if (status === "GAP") {
     return <Tag color="error">存在差距</Tag>;
   }
-  return <Tag>{status === "INACTIVE" || status === "DISABLED" ? "停用" : customerEnumLabel(status)}</Tag>;
+  return (
+    <Tag>{status === "INACTIVE" || status === "DISABLED" ? "停用" : customerEnumLabel(status)}</Tag>
+  );
 }
 
 function riskTagColor(risk: string) {
@@ -162,9 +164,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         });
       }
       message.success(
-        scope === "tenant"
-          ? "服务机构配置已保存并记录审计"
-          : "系统配置已保存并记录审计",
+        scope === "tenant" ? "服务机构配置已保存并记录审计" : "系统配置已保存并记录审计",
       );
       setSelected(null);
       form.resetFields();
@@ -716,7 +716,9 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
             title: "动作",
             dataIndex: "action",
             render: (value) => (
-              <Tag>{dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别"}</Tag>
+              <Tag>
+                {dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别"}
+              </Tag>
             ),
           },
           {
@@ -764,16 +766,12 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="action" label="动作" rules={[{ required: true }]}>
-                <Select
-                  options={[...dataPermissionActions]}
-                />
+                <Select options={[...dataPermissionActions]} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="minDataLevel" label="最小数据范围" rules={[{ required: true }]}>
-                <Select
-                  options={[...dataPermissionLevels]}
-                />
+                <Select options={[...dataPermissionLevels]} />
               </Form.Item>
             </Col>
           </Row>

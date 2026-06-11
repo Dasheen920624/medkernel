@@ -168,6 +168,6 @@ class AuthoringPreviewControllerTest {
                 .subject("api-author")
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 }

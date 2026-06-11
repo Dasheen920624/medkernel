@@ -122,7 +122,7 @@ class TenantEngineControllerContractTest {
                 .subject("implementer")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("organization-admin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
     }
 
 }

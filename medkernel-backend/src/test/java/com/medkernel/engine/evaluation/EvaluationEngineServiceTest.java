@@ -185,14 +185,14 @@ class EvaluationEngineServiceTest {
     }
 
     @Test
-    void activateIndicatorRejectsSpoofedRequestRoleWhenAuthenticationIsNotHospitalAdmin() {
+    void activateIndicatorRejectsUserWithoutQualityGovernanceResponsibility() {
         EvaluationIndicator gray = indicator("ei-gray", 2, EvaluationIndicatorStatus.GRAY);
         when(indicators.findByIndicatorIdAndTenantId("ei-gray", "tenant-A"))
             .thenReturn(Optional.of(gray));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
         )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
-        authenticate(RoleCode.QUALITY_GOVERNOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
 
         assertThatThrownBy(() -> service.activateIndicator(
             "ei-gray",

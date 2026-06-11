@@ -94,7 +94,9 @@ describe("Login", () => {
       mfaBound: false,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "clinical-decision-user" } });
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
+      target: { value: "clinical-decision-user" },
+    });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/dashboard"));
@@ -181,6 +183,7 @@ describe("Login", () => {
 
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
     expect(screen.getByText("集团医疗智能中枢")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入平台治理账号")).toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
@@ -240,6 +243,7 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: "平台治理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
     expect(screen.queryByText("统一身份暂未接入")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入工号或机构账号")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -268,9 +272,7 @@ describe("Login", () => {
 
     expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
-    expect(
-      screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -383,15 +385,9 @@ describe("Login", () => {
     expect(
       screen.getByText("院方统一身份入口已开放，但当前未配置真实 IdP 连接器。"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "统一认证服务（CAS）（未接通）" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "安全断言认证（SAML）（未接通）" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "统一认证服务（CAS）（未接通）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "安全断言认证（SAML）（未接通）" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "国密数字证书（未接通）" })).toBeDisabled();
   });
 

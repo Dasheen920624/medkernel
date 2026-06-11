@@ -248,10 +248,7 @@ export default function WorkflowTodos() {
       dataIndex: "status",
       key: "status",
       render: (value: WorkflowTodoStatus) => (
-        <Badge
-          status={statusBadge[value]}
-          text={statusText[value] ?? customerEnumLabel(value)}
-        />
+        <Badge status={statusBadge[value]} text={statusText[value] ?? customerEnumLabel(value)} />
       ),
     },
     {

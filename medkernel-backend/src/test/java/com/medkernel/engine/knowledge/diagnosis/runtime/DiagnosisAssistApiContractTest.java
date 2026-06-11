@@ -55,7 +55,7 @@ class DiagnosisAssistApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorForbiddenWithoutRecommendationWrite() throws Exception {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isForbidden());
@@ -69,7 +69,7 @@ class DiagnosisAssistApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanReachButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isBadRequest())
@@ -84,7 +84,7 @@ class DiagnosisAssistApiContractTest {
                 "A_REGULATION", false, 10L)),
             List.of("LOCALX"), "辅助建议，需医师确认（非自动诊断）。", "trace-dx"));
 
-        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_IT_OPS"))
+        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_INTEGRATION_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.candidates[0].confidence").value("STRONG"))
@@ -98,7 +98,7 @@ class DiagnosisAssistApiContractTest {
         when(service.assist(any())).thenReturn(new DiagnosisAssistResponse(
             List.of(), List.of(), DiagnosisAssistService.ADVISORY_EMPTY, "trace-dx"));
 
-        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_IT_OPS"))
+        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_INTEGRATION_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.candidates").isEmpty())

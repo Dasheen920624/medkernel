@@ -78,7 +78,7 @@ public final class DomainOwnershipCatalog {
             tables("tenant_branding", "tenant_success_plan")),
         module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),
         module("compliance-personnel", packages("com.medkernel.compliance.personnel"),
-            prefixes("mk_person"), tables()),
+            prefixes("mk_identity_person"), tables()),
         module("compliance-security", packages(
             "com.medkernel.compliance.datapermission",
             "com.medkernel.compliance.masking",

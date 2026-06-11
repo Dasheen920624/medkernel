@@ -46,10 +46,7 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 
 import styles from "./Clinical.module.css";
 
@@ -532,9 +529,7 @@ export default function Followup() {
           <Space direction="vertical" size="large" className={styles.fullWidth}>
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="计划编号">{selectedPlanDetail.planId}</Descriptions.Item>
-              <Descriptions.Item label="服务空间">
-                {selectedPlanDetail.tenantId}
-              </Descriptions.Item>
+              <Descriptions.Item label="服务空间">{selectedPlanDetail.tenantId}</Descriptions.Item>
               <Descriptions.Item label="患者 ID">{selectedPlanDetail.patientId}</Descriptions.Item>
               <Descriptions.Item label="就诊 ID">
                 {selectedPlanDetail.encounterId}

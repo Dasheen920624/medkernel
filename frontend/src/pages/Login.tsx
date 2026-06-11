@@ -21,10 +21,7 @@ import {
   type LoginTenantOption,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import {
-  connectionStatusLabel,
-  identityProviderLabel,
-} from "@/shared/config/customerLabels";
+import { connectionStatusLabel, identityProviderLabel } from "@/shared/config/customerLabels";
 import { platformTenantDescription } from "@/shared/config/tenantDictionary";
 import styles from "./Login.module.css";
 
@@ -374,7 +371,7 @@ export default function Login() {
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="请输入医院账号"
+                placeholder={isPlatformLayer ? "请输入平台治理账号" : "请输入工号或机构账号"}
                 size="large"
                 autoComplete="username"
               />

@@ -44,7 +44,6 @@ import {
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
-  useOrgUnits,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -69,11 +68,8 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import {
-  customerEnumLabel,
-  orgLevelLabel,
-  riskLabel,
-} from "@/shared/config/customerLabels";
+import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -263,7 +259,6 @@ export default function AdapterHub() {
   const onboardingsQuery = useIntegrationOnboardings();
   const webhooksQuery = useWebhooks();
   const regionalSourcesQuery = useRegionalSources();
-  const orgUnitsQuery = useOrgUnits({ page: 1, size: 500, status: "ACTIVE" });
   const terminologyMappingsQuery = useTerminologyMappings({
     status: "CONFIRMED",
     page: 1,
@@ -294,12 +289,6 @@ export default function AdapterHub() {
   const webhooks = webhooksQuery.data ?? [];
   const firstWebhookId = webhooksQuery.data?.[0]?.webhookId;
   const regionalSources = regionalSourcesQuery.data ?? [];
-  const orgScopeOptions = (orgUnitsQuery.data?.items ?? [])
-    .filter((unit) => unit.level !== "PLATFORM" && unit.orgPath)
-    .map((unit) => ({
-      value: unit.orgPath,
-      label: `${unit.name} · ${orgLevelLabel(unit.level)}`,
-    }));
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
     status?.healthyAdapters ??
@@ -323,8 +312,7 @@ export default function AdapterHub() {
       logsQuery.isError ||
       onboardingsQuery.isError ||
       webhooksQuery.isError ||
-      regionalSourcesQuery.isError ||
-      orgUnitsQuery.isError,
+      regionalSourcesQuery.isError,
   });
 
   useEffect(() => {
@@ -1088,9 +1076,7 @@ export default function AdapterHub() {
                           showIcon
                           message={
                             <Space wrap>
-                              <Tag color="blue">
-                                {customerEnumLabel(signatureResult.status)}
-                              </Tag>
+                              <Tag color="blue">{customerEnumLabel(signatureResult.status)}</Tag>
                               <Tag>{customerEnumLabel(signatureResult.connectionStatus)}</Tag>
                             </Space>
                           }
@@ -1255,12 +1241,10 @@ export default function AdapterHub() {
             />
           </Form.Item>
           <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
+            <OrgUnitSelect
+              scope="BUSINESS_SCOPE"
+              valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              options={orgScopeOptions}
-              loading={orgUnitsQuery.isLoading}
               notFoundContent="暂无可选组织，请先维护组织架构"
             />
           </Form.Item>
@@ -1472,12 +1456,10 @@ export default function AdapterHub() {
             <Input placeholder="例如门诊患者主数据" />
           </Form.Item>
           <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
+            <OrgUnitSelect
+              scope="BUSINESS_SCOPE"
+              valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              options={orgScopeOptions}
-              loading={orgUnitsQuery.isLoading}
               notFoundContent="暂无可选组织，请先维护组织架构"
             />
           </Form.Item>

@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
@@ -43,8 +45,44 @@ class OrgUnitRepositoryTest {
     @Autowired
     OrgUnitRepository repository;
 
+    @Autowired
+    JdbcClient jdbc;
+
+    private OrgUnit hospital;
+    private OrgUnit department;
+
+    @BeforeEach
+    void setUpHierarchy() {
+        hospital = repository.save(newHospital("t-scope", "HOSP-SCOPE", "范围医院"));
+        department = repository.save(new OrgUnit(
+            null, hospital.id(), "t-scope", hospital.orgPath() + "/DEPT-SCOPE",
+            OrgLevel.DEPARTMENT, "DEPT-SCOPE", "范围科室",
+            null, null, null, OrgUnitStatus.ACTIVE,
+            Instant.now(), "system", Instant.now(), "system"
+        ));
+        jdbc.sql("""
+            INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
+            VALUES (:tenantId, :ancestorId, :descendantId, :depth)
+            """)
+            .param("tenantId", "t-scope")
+            .param("ancestorId", hospital.id())
+            .param("descendantId", hospital.id())
+            .param("depth", 0)
+            .update();
+        jdbc.sql("""
+            INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
+            VALUES (:tenantId, :ancestorId, :descendantId, :depth)
+            """)
+            .param("tenantId", "t-scope")
+            .param("ancestorId", hospital.id())
+            .param("descendantId", department.id())
+            .param("depth", 1)
+            .update();
+    }
+
     @AfterEach
     void wipe() {
+        jdbc.sql("DELETE FROM org_closure").update();
         repository.deleteAll();
     }
 
@@ -118,16 +156,31 @@ class OrgUnitRepositoryTest {
         ));
         repository.save(newDepartment("t-2", "DEPT-CARDIO", "另一租户心内科"));
 
-        assertThat(repository.countDirectory("t-1", "心内", "DEPARTMENT", "ACTIVE"))
+        assertThat(repository.countDirectory(
+            "t-1", "心内", "DEPARTMENT", "ACTIVE", null, null))
             .isEqualTo(1);
-        assertThat(repository.pageDirectory("t-1", "心内", "DEPARTMENT", "ACTIVE", 0, 10))
+        assertThat(repository.pageDirectory(
+            "t-1", "心内", "DEPARTMENT", "ACTIVE", null, null, 0, 10))
             .extracting(OrgUnit::code)
             .containsExactly("DEPT-CARDIO");
-        assertThat(repository.pageDirectory("t-1", "cardiology", "DEPARTMENT", "SUSPENDED", 0, 10))
+        assertThat(repository.pageDirectory(
+            "t-1", "cardiology", "DEPARTMENT", "SUSPENDED", null, null, 0, 10))
             .extracting(OrgUnit::code)
             .containsExactly("DEPT-OLD");
-        assertThat(repository.pageDirectory("t-1", null, null, null, 1, 1))
+        assertThat(repository.pageDirectory(
+            "t-1", null, null, null, null, null, 1, 1))
             .hasSize(1);
+    }
+
+    @Test
+    void directorySearchSupportsBusinessScopeAndAncestor() {
+        assertThat(repository.countDirectory(
+            "t-scope", null, null, "ACTIVE", OrgDirectoryScope.SERVICE_ORGANIZATION.name(), null))
+            .isEqualTo(1);
+        assertThat(repository.pageDirectory(
+            "t-scope", null, "DEPARTMENT", "ACTIVE", null, hospital.id(), 0, 10))
+            .extracting(OrgUnit::id)
+            .containsExactly(department.id());
     }
 
     private OrgUnit newHospital(String tenantId, String code, String name) {

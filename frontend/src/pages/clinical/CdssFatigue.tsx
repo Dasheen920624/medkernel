@@ -59,11 +59,7 @@ import type {
   RecommendationRiskLevel,
   RecommendationFeedbackType,
 } from "@/shared/api/hooks";
-import {
-  customerDisplayText,
-  customerEnumLabel,
-  riskLabel,
-} from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import { roleLabel } from "@/shared/config/roleCatalog";
 import styles from "./Clinical.module.css";
 
@@ -231,9 +227,7 @@ function getRecommendationJourneySteps(
       title: "医生反馈",
       status: latestFeedback ? latestFeedback.feedbackType : "待处理",
       description: latestFeedback?.reasonText || "医生采纳或不采纳时必须留下真实理由。",
-      evidence: latestFeedback?.operatorRole
-        ? roleLabel(latestFeedback.operatorRole)
-        : undefined,
+      evidence: latestFeedback?.operatorRole ? roleLabel(latestFeedback.operatorRole) : undefined,
     },
     {
       title: "药师复核",
@@ -836,7 +830,7 @@ export default function CdssFatigue() {
               <Descriptions.Item label="决策场景">
                 <Tag color="cyan">
                   {detailData.trigger?.scenarioCode
-                    ? scenarioLabels[detailData.trigger.scenarioCode] ?? "其他场景"
+                    ? (scenarioLabels[detailData.trigger.scenarioCode] ?? "其他场景")
                     : "未关联"}
                 </Tag>
               </Descriptions.Item>

@@ -207,7 +207,7 @@ class AuditEventRepositoryTest {
         repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-1",
             base, "ROLE_SYSTEM_SUPERADMIN", "tenant:t-1/hospital:h-1", "prod", "FAILED", "sig-a"));
         repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-2",
-            base.plusSeconds(1), "ROLE_PLATFORM_ADMIN", "tenant:t-1/hospital:h-2", "prod", "SUCCESS", "sig-b"));
+            base.plusSeconds(1), "ROLE_PLATFORM_GOVERNANCE_ADMIN", "tenant:t-1/hospital:h-2", "prod", "SUCCESS", "sig-b"));
         repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-3",
             base.plusSeconds(2), "ROLE_SYSTEM_SUPERADMIN", "tenant:t-1/hospital:h-1", "test", "FAILED", "sig-c"));
         repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-4",

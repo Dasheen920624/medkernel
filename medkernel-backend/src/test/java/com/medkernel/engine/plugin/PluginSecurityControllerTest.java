@@ -47,7 +47,7 @@ class PluginSecurityControllerTest {
 
         mvc.perform(post("/api/v1/plugins/register")
                 .with(jwt().jwt(token -> token.subject("doctor-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -192,6 +192,6 @@ class PluginSecurityControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor ops(String tenantId) {
         return jwt().jwt(token -> token.subject("ops-1").claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
+            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 }

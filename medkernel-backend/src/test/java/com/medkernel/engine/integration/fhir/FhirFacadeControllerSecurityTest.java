@@ -51,7 +51,7 @@ class FhirFacadeControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanReachMetadataButDataScopeRequiresTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/fhir/R4/metadata"))
             .andExpect(status().isBadRequest())
@@ -67,7 +67,7 @@ class FhirFacadeControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotCreateFhirResourceThroughIntegrationFacade() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/fhir/R4/Observation")
                 .contentType("application/fhir+json")
@@ -77,7 +77,7 @@ class FhirFacadeControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanReachCreateButDataScopeRequiresTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/fhir/R4/Observation")
                 .contentType("application/fhir+json")

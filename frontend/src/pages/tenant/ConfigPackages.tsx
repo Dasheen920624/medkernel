@@ -1534,9 +1534,7 @@ export default function ConfigPackages() {
                 loading={tenantDirectoryQuery.isLoading}
                 disabled={tenantDirectoryQuery.isError}
                 placeholder={
-                  tenantDirectoryQuery.isError
-                    ? "服务空间目录读取失败"
-                    : "选择已启用服务空间"
+                  tenantDirectoryQuery.isError ? "服务空间目录读取失败" : "选择已启用服务空间"
                 }
                 options={activeCustomerTenants.map((tenant) => ({
                   value: tenant.tenantId,
@@ -2367,8 +2365,7 @@ export default function ConfigPackages() {
                 <Badge
                   status={statusBadge[selectedPackage.status] ?? "default"}
                   text={
-                    statusText[selectedPackage.status] ??
-                    customerEnumLabel(selectedPackage.status)
+                    statusText[selectedPackage.status] ?? customerEnumLabel(selectedPackage.status)
                   }
                 />
               </Descriptions.Item>

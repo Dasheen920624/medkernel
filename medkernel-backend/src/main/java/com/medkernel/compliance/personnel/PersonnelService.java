@@ -157,7 +157,7 @@ public class PersonnelService {
         }
         auditRecorder.record(
             AuditAction.CREATE,
-            "mk_person",
+            "mk_identity_person",
             person.personId(),
             "创建人员与任职，机构=" + organization.name());
         return detail(person.personId(), activation);

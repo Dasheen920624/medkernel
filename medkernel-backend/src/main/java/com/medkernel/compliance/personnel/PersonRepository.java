@@ -16,7 +16,7 @@ public interface PersonRepository extends ListCrudRepository<Person, String> {
     Optional<Person> findByTenantIdAndEmployeeNo(String tenantId, String employeeNo);
 
     @Query("""
-        SELECT COUNT(*) FROM mk_person
+        SELECT COUNT(*) FROM mk_identity_person
         WHERE tenant_id = :tenantId
           AND (:keyword IS NULL
             OR LOWER(display_name) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -25,7 +25,7 @@ public interface PersonRepository extends ListCrudRepository<Person, String> {
     long countDirectory(String tenantId, String keyword);
 
     @Query("""
-        SELECT * FROM mk_person
+        SELECT * FROM mk_identity_person
         WHERE tenant_id = :tenantId
           AND (:keyword IS NULL
             OR LOWER(display_name) LIKE LOWER(CONCAT('%', :keyword, '%'))

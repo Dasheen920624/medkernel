@@ -86,12 +86,12 @@ class EvaluationEngineApiContractTest {
         when(service.listFindings(any(), any())).thenReturn(PageResponse.empty(PageRequest.defaults()));
 
         mvc.perform(get("/api/v1/engine/evaluation/indicators")
-                .with(jwtUser("clinical-governor", "ROLE_MEDICAL_AFFAIRS")))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items.length()").value(0));
 
         mvc.perform(get("/api/v1/engine/evaluation/issues")
-                .with(jwtUser("clinical-governor", "ROLE_MEDICAL_AFFAIRS")))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items.length()").value(0));
 
@@ -102,7 +102,7 @@ class EvaluationEngineApiContractTest {
     @Test
     void removedPluralEvaluationResourceIsNotExposed() throws Exception {
         mvc.perform(get("/api/v1/engine/evaluations/indicators")
-                .with(jwtUser("clinical-governor", "ROLE_MEDICAL_AFFAIRS")))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR")))
             .andExpect(status().isNotFound());
     }
 
@@ -113,7 +113,7 @@ class EvaluationEngineApiContractTest {
                 "er-1", EvaluationRunStatus.RECORDED, 1, 1, 1, "trace-eval"));
 
         mvc.perform(post("/api/v1/engine/evaluation:evaluate")
-                .with(jwtUser("integration-operator", "ROLE_IT_OPS"))
+                .with(jwtUser("integration-operator", "ROLE_INTEGRATION_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(EVALUATE_BODY))
             .andExpect(status().isOk())
@@ -137,7 +137,7 @@ class EvaluationEngineApiContractTest {
         mvc.perform(post("/api/v1/engine/evaluation/rectifications")
                 .queryParam("findingId", "qf-1")
                 .header("Idempotency-Key", "idem-rect-1")
-                .with(jwtUser("clinical-governor", "ROLE_DEPT_HEAD"))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(RECTIFICATION_BODY))
             .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(post("/api/v1/engine/evaluation/rectifications/qf-1/review")
                 .header("Idempotency-Key", "idem-review-1")
-                .with(jwtUser("quality-governor", "ROLE_QA_MANAGER"))
+                .with(jwtUser("quality-governor", "ROLE_QUALITY_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(REVIEW_BODY))
             .andExpect(status().isOk())
@@ -183,7 +183,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(post("/api/v1/engine/rectifications")
                 .header("Idempotency-Key", "idem-dispatch-1")
-                .with(jwtUser("quality-governor", "ROLE_QA_MANAGER"))
+                .with(jwtUser("quality-governor", "ROLE_QUALITY_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(DISPATCH_BODY))
             .andExpect(status().isCreated())
@@ -192,7 +192,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(post("/api/v1/engine/rectifications/rct-1/submit")
                 .header("Idempotency-Key", "idem-submit-1")
-                .with(jwtUser("clinical-governor", "ROLE_DEPT_HEAD"))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(RECTIFICATION_BODY))
             .andExpect(status().isOk())
@@ -200,7 +200,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(post("/api/v1/engine/rectifications/rct-1/review")
                 .header("Idempotency-Key", "idem-review-svc-1")
-                .with(jwtUser("quality-governor", "ROLE_QA_MANAGER"))
+                .with(jwtUser("quality-governor", "ROLE_QUALITY_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(REVIEW_BODY))
             .andExpect(status().isOk())
@@ -208,7 +208,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(post("/api/v1/engine/rectifications/rct-2/waive")
                 .header("Idempotency-Key", "idem-waive-svc-1")
-                .with(jwtUser("quality-governor", "ROLE_QA_MANAGER"))
+                .with(jwtUser("quality-governor", "ROLE_QUALITY_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(WAIVE_BODY))
             .andExpect(status().isOk())
@@ -216,7 +216,7 @@ class EvaluationEngineApiContractTest {
 
         mvc.perform(get("/api/v1/engine/rectifications/report")
                 .queryParam("responsibleDepartmentId", "dept-1")
-                .with(jwtUser("clinical-governor", "ROLE_MEDICAL_AFFAIRS")))
+                .with(jwtUser("clinical-governor", "ROLE_CLINICAL_GOVERNOR")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.totalTasks").value(10))
             .andExpect(jsonPath("$.data.closureRate").value(0.5000));

@@ -64,8 +64,8 @@ public final class ServiceContractCatalog {
             "/api/v1/compliance/personnel",
             permissions("org.read", "org.write"),
             audits(
-                audit(AuditAction.CREATE, "mk_person", "创建人员、任职、平台账号和身份来源关联"),
-                audit(AuditAction.CREATE, "mk_person_import_job", "预检并提交人员批量导入"))),
+                audit(AuditAction.CREATE, "mk_identity_person", "创建人员、任职、平台账号和身份来源关联"),
+                audit(AuditAction.CREATE, "mk_identity_person_import_job", "预检并提交人员批量导入"))),
         contract("authoring-preview", "规则路径编排预览服务",
             "com.medkernel.engine.authoring.AuthoringPreviewController",
             "/api/v1/engine/authoring",

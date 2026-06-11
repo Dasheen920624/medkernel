@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>配合安全提权拦截，本测试将全面验证：
  * <ul>
  *   <li>匿名/无凭证请求敏感探针端点，物理安全拦截返回 403 Forbidden 或者是 401 Unauthorized。</li>
- *   <li>签发合法的 JWT Bearer Token（携带 ROLE_IT_OPS）请求，能够顺利穿透安全切面并获取虚拟线程快照。</li>
+ *   <li>签发合法的 JWT Bearer Token（携带 ROLE_INTEGRATION_OPERATOR）请求，能够顺利穿透安全切面并获取虚拟线程快照。</li>
  * </ul>
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -58,7 +58,7 @@ class RuntimeProbeControllerTest {
     }
 
     /**
-     * 验证在携带合法 ROLE_IT_OPS JWT Bearer 凭证的情况下，能通过探针审计，并获得虚拟线程真实指标。
+     * 验证在携带合法 ROLE_INTEGRATION_OPERATOR JWT Bearer 凭证的情况下，能通过探针审计，并获得虚拟线程真实指标。
      */
     @Test
     @SuppressWarnings("unchecked")

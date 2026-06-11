@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /** 人员批量导入逐行校验和处理结果。 */
-@Table("mk_person_import_row")
+@Table("mk_identity_person_import_row")
 public record PersonnelImportRow(
     @Id @Column("row_id") String rowId,
     @Column("job_id") String jobId,
