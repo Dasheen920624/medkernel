@@ -1,0 +1,170 @@
+{
+  "proof": "rule-readable-134",
+  "baseUrl": "https://193.112.107.134",
+  "credentialRedaction": "credentials loaded from server file; password/token/cookie not persisted",
+  "actor": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-medical-affairs-20260611"
+  },
+  "branch": "main",
+  "mergeCommit": "27d762c50817fe04775e7ebd2fabe0749a248591",
+  "deployBackup": "/zoesoft/medkernel/backups/deploy-20260611-162406",
+  "completedAt": "2026-06-11T08:28:26.339Z",
+  "desktop": {
+    "viewport": {
+      "width": 1440,
+      "height": 1100
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-medical-affairs-20260611"
+    },
+    "detailButtonCount": 10,
+    "readableText": "规则可读路径\n面向医生、质控与评审会的只读业务解释。\n红线\n当危急检验结果大于等于 0，规则将在检验结果审核时触发红线处置。\n触发时点\n检验结果审核\n规则编码 DRILL.ACT85.K.RECHECK.20260611\n适用范围\n住院、门诊、急诊、随访 · 当前租户全部组织 · 立即生效 · 灰度 100%\n使用真实组织、场景与灰度约束\n命中条件\n危急检验结果\n危急检验结果大于等于 0 · 1 个条件节点\n处置动作\n检验结果达到危急值，需立即回报并人工确认\n强提醒 · 红线\n治理与安全\n需要医师确认 · 不自动开立或修改医嘱\n红线 · 依据真实检验结果字段判断是否达到危急值",
+    "metrics": {
+      "viewportWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": []
+    },
+    "captures": [
+      {
+        "label": "desktop 规则库列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-medical-affairs-20260611"
+        },
+        "screenshot": "01-desktop-rule-list.png",
+        "url": "https://193.112.107.134/rule/definitions",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      },
+      {
+        "label": "desktop 规则可读路径抽屉",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-medical-affairs-20260611"
+        },
+        "screenshot": "02-desktop-rule-readable-drawer.png",
+        "url": "https://193.112.107.134/rule/definitions",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      }
+    ]
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-medical-affairs-20260611"
+    },
+    "detailButtonCount": 10,
+    "readableText": "规则可读路径\n面向医生、质控与评审会的只读业务解释。\n红线\n当危急检验结果大于等于 0，规则将在检验结果审核时触发红线处置。\n触发时点\n检验结果审核\n规则编码 DRILL.ACT85.K.RECHECK.20260611\n适用范围\n住院、门诊、急诊、随访 · 当前租户全部组织 · 立即生效 · 灰度 100%\n使用真实组织、场景与灰度约束\n命中条件\n危急检验结果\n危急检验结果大于等于 0 · 1 个条件节点\n处置动作\n检验结果达到危急值，需立即回报并人工确认\n强提醒 · 红线\n治理与安全\n需要医师确认 · 不自动开立或修改医嘱\n红线 · 依据真实检验结果字段判断是否达到危急值",
+    "metrics": {
+      "viewportWidth": 390,
+      "documentScrollWidth": 390,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "css-var-r0 ant-table-css-var ant-table-wrapper",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-nested-loading css-132i2at css-var-r0",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-container",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table css-var-r0 ant-table-css-var",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-container",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-content",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": -168,
+          "width": 340
+        },
+        {
+          "tagName": "table",
+          "className": "",
+          "text": "规则编码规则名称规则类别风险评级状态当前包版本操作DRILL.ACT85.K.RECHECK.20260611幕8.5 血钾危急值复核草稿临床质控红线草稿设计中",
+          "left": -508,
+          "right": 365,
+          "width": 873
+        },
+        {
+          "tagName": "colgroup",
+          "className": "",
+          "text": "",
+          "left": -508,
+          "right": -187,
+          "width": 321
+        }
+      ]
+    },
+    "captures": [
+      {
+        "label": "mobile 规则库列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-medical-affairs-20260611"
+        },
+        "screenshot": "03-mobile-rule-list.png",
+        "url": "https://193.112.107.134/rule/definitions",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      {
+        "label": "mobile 规则可读路径抽屉",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-medical-affairs-20260611"
+        },
+        "screenshot": "04-mobile-rule-readable-drawer.png",
+        "url": "https://193.112.107.134/rule/definitions",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ]
+  }
+}
