@@ -26,6 +26,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MigrationBaselineContractTest {
 
     private static final List<String> DIALECTS = List.of("h2", "postgres", "oracle", "dm", "kingbase");
+
+    @Test
+    void personnelAppointmentAndImportPersistWardAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(
+                dialect, "V115__knowledge_customization_personnel_master.sql");
+            assertThat(ddl)
+                .as("%s 人员任职和导入必须持久化病区", dialect)
+                .contains("ward_id", "ward_code")
+                .contains("病区");
+        }
+    }
+
     private static final List<String> EXPECTED_MIGRATIONS = List.of(
         "V1__init.sql",
         "V2__org_audit_baseline.sql",
@@ -140,7 +153,8 @@ class MigrationBaselineContractTest {
         "V111__package_entitlement.sql",
         "V112__package_physical_convergence.sql",
         "V113__batch_inheritance_resolution_indexes.sql",
-        "V114__terminology_global_potassium_sodium_rule.sql"
+        "V114__terminology_global_potassium_sodium_rule.sql",
+        "V115__knowledge_customization_personnel_master.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -170,7 +184,9 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "mk_term_mapping_snapshot",
+        "knowledge_package", "package_item", "mk_term_mapping_snapshot", "mk_knowledge_customization",
+        "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
+        "mk_identity_person_import_job", "mk_identity_person_import_row",
         "mk_pkg_package_entitlement", "release_plan", "sync_log",
         "mk_pkg_tenant_package_reference",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
@@ -390,7 +406,10 @@ class MigrationBaselineContractTest {
         "idx_mk_ctx_field_catalog_tenant",
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
         "idx_mk_diagnosis_differential_version", "idx_mk_diagnosis_pointer_version",
-        "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant"
+        "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant",
+        "idx_knowledge_customization_local", "idx_person_directory",
+        "idx_person_appointment_person", "idx_person_appointment_org",
+        "idx_person_import_row_job", "idx_compliance_data_permission_ward"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "ck_knowledge_package_access_policy",
@@ -639,14 +658,29 @@ class MigrationBaselineContractTest {
         "uk_mk_dx_diff_version_target",
         "ck_mk_diagnosis_pointer_type", "ck_mk_diagnosis_pointer_target",
         "ck_mk_diagnosis_testcase_conf",
-        "uk_mk_diagnosis_testcase", "uk_mk_diagnosis_confpolicy"
+        "uk_mk_diagnosis_testcase", "uk_mk_diagnosis_confpolicy",
+        "uk_knowledge_customization_scope", "ck_knowledge_customization_source",
+        "ck_knowledge_customization_status", "ck_knowledge_customization_version",
+        "uk_person_employee", "ck_person_status", "ck_person_version",
+        "fk_person_appointment_person", "ck_person_appointment_type",
+        "ck_person_appointment_primary", "ck_person_appointment_status",
+        "ck_person_appointment_version", "fk_person_account_person",
+        "uk_person_account_person", "uk_person_account_user",
+        "ck_person_account_status", "ck_person_account_version",
+        "uk_person_import_digest", "ck_person_import_status",
+        "ck_person_import_version", "fk_person_import_row_job",
+        "uk_person_import_row_no", "ck_person_import_row_action",
+        "ck_person_import_row_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
+        "mk_knowledge_customization",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
         "mapping_conflict", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
+        "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
+        "mk_identity_person_import_job", "mk_identity_person_import_row",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
@@ -2667,18 +2701,21 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void v25ShouldSeedInitialUsersAndRolesInAllDialects() {
+    void v25ShouldSeedOnlyPlatformResponsibilitiesInAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V25__security_user_role_seed.sql");
-            assertThat(ddl).as("%s V25 初始化用户角色数据", dialect)
+            assertThat(ddl).as("%s V25 平台职责初始化", dialect)
                 .contains("user_role_assignment")
-                .contains("admin-1")
-                .contains("implementation-1")
-                .contains("doctor-1")
-                .contains("hospital-admin")
-                .contains("implementation-engineer")
-                .contains("doctor")
-                .contains("migration-v25");
+                .contains("platform-governance-admin-1")
+                .contains("platform-knowledge-governor-1")
+                .contains("migration-v25")
+                .doesNotContain(
+                    "'platform-admin'",
+                    "'group-admin'",
+                    "'hospital-admin'",
+                    "'doctor'",
+                    "'nurse'",
+                    "'implementation-engineer'");
         }
     }
 

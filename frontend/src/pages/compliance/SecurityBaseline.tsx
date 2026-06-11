@@ -18,6 +18,11 @@ import type { RuntimeDependencyStatus, SecurityProfile } from "@/shared/api/hook
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import {
+  customerEnumLabel,
+  permissionDimensionLabel,
+  riskLabel,
+} from "@/shared/config/customerLabels";
+import {
   DataPermissionPanel,
   InteropAssessmentPanel,
   MaskingRulePanel,
@@ -57,6 +62,7 @@ function dataScopeText(profile: SecurityProfile): string {
     scope.campusId,
     scope.siteId,
     scope.departmentId,
+    scope.wardId,
     scope.specialtyId,
   ]
     .filter(Boolean)
@@ -135,7 +141,7 @@ function BaselineOverview({
         <Col xs={24} sm={12} lg={6}>
           <Statistic
             title="运行状态"
-            value={STATUS_LABEL[snapshot.healthStatus] ?? snapshot.healthStatus}
+            value={STATUS_LABEL[snapshot.healthStatus] ?? customerEnumLabel(snapshot.healthStatus)}
           />
         </Col>
       </Row>
@@ -191,13 +197,17 @@ function BaselineOverview({
             scroll={{ x: "max-content" }}
             columns={[
               { title: "权限", dataIndex: "displayName" },
-              { title: "维度", dataIndex: "dimension" },
+              {
+                title: "维度",
+                dataIndex: "dimension",
+                render: permissionDimensionLabel,
+              },
               { title: "对象", dataIndex: "target" },
               { title: "编码", dataIndex: "code" },
               {
                 title: "风险",
                 dataIndex: "risk",
-                render: (risk) => <Tag color="error">{risk}</Tag>,
+                render: (risk) => <Tag color="error">{riskLabel(risk)}</Tag>,
               },
             ]}
           />
@@ -260,7 +270,7 @@ export default function SecurityBaseline() {
           type="info"
           showIcon
           message="当前为只读视图"
-          description="只有平台管理员或安全管理员可以修改配置；读取仍按当前租户和组织范围隔离。"
+          description="只有平台管理员或安全管理员可以修改配置；读取仍按当前服务空间和组织范围隔离。"
         />
       )}
       <Tabs

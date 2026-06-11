@@ -59,8 +59,8 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/engine/quality/dashboard/drilldown")
@@ -68,16 +68,16 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/engine/quality/alerts")
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
@@ -92,8 +92,8 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
@@ -103,8 +103,8 @@ class QualityDashboardControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 }

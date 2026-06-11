@@ -46,7 +46,7 @@ class ThirdPartyKnowledgeRuntimeControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void authenticatedRequestStillRequiresTenantScope() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/knowledge-runtime/effective-package")
                 .param("packageCode", "PKG.AF")

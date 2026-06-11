@@ -50,7 +50,7 @@ class TenantProvisioningControllerTest {
         if (credentials.findByTenantIdAndUserId("t-1", "platform-admin-1").isEmpty()) {
             java.time.Instant now = java.time.Instant.now();
             credentials.save(new PlatformCredential(
-                null, "cred-platform-admin-1", "t-1", "platform-admin-1", "platform-admin",
+                null, "cred-platform-admin-1", "t-1", "platform-admin-1", "platform-governance-admin",
                 "$2a$10$hash", "ACTIVE", "N", mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
                 now, "test", now, "test", "trace-test"));
         }
@@ -67,12 +67,12 @@ class TenantProvisioningControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdmin() {
         return jwt().jwt(t -> t.subject("platform-admin-1").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdminWithoutMfa() {
         return jwt().jwt(t -> t.subject("platform-admin-no-mfa").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
     }
 
     @Test
@@ -100,7 +100,7 @@ class TenantProvisioningControllerTest {
             .andExpect(status().isOk())
             .andExpect(cookie().httpOnly("mk_access", true))
             .andExpect(jsonPath("$.data.tenantId").value("t-hosp2"))
-            .andExpect(jsonPath("$.data.roles[0]").value("hospital-admin"))
+            .andExpect(jsonPath("$.data.roles[0]").value("organization-admin"))
             .andExpect(jsonPath("$.data.mustChangePwd").value(true));
     }
 

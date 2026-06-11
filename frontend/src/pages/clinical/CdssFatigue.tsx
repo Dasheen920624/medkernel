@@ -59,6 +59,8 @@ import type {
   RecommendationRiskLevel,
   RecommendationFeedbackType,
 } from "@/shared/api/hooks";
+import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { roleLabel } from "@/shared/config/roleCatalog";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
@@ -71,6 +73,21 @@ type RecommendationFatigueGovernance = {
   label: string;
   color: string;
   description: string;
+};
+
+const interruptLevelLabels: Record<string, string> = {
+  HARD: "强阻断",
+  STRONG_INTERRUPTIVE: "强阻断",
+  SOFT: "软提醒",
+  NONE: "不打断",
+};
+
+const scenarioLabels: Record<string, string> = {
+  WARD_ORDER: "住院医嘱",
+  "order-sign": "医嘱签署",
+  "patient-view": "患者查看",
+  DISCHARGE: "出院",
+  DEFAULT: "通用场景",
 };
 
 const FORBIDDEN_ERROR_CODES = new Set([
@@ -210,7 +227,7 @@ function getRecommendationJourneySteps(
       title: "医生反馈",
       status: latestFeedback ? latestFeedback.feedbackType : "待处理",
       description: latestFeedback?.reasonText || "医生采纳或不采纳时必须留下真实理由。",
-      evidence: latestFeedback?.operatorRole,
+      evidence: latestFeedback?.operatorRole ? roleLabel(latestFeedback.operatorRole) : undefined,
     },
     {
       title: "药师复核",
@@ -413,7 +430,7 @@ export default function CdssFatigue() {
       ),
     },
     {
-      title: "提醒摘要 Title",
+      title: "提醒摘要",
       dataIndex: "title",
       key: "title",
       className: styles.textStrong,
@@ -435,7 +452,7 @@ export default function CdssFatigue() {
           MEDIUM: "orange",
           LOW: "green",
         };
-        return <Tag color={colors[level] || "blue"}>{level}</Tag>;
+        return <Tag color={colors[level] || "blue"}>{riskLabel(level)}</Tag>;
       },
     },
     {
@@ -444,14 +461,18 @@ export default function CdssFatigue() {
       key: "interruptLevel",
       render: (level: string) => {
         const colors = { HARD: "purple", SOFT: "volcano", NONE: "default" };
-        return <Tag color={colors[level as keyof typeof colors] || "blue"}>{level}</Tag>;
+        return (
+          <Tag color={colors[level as keyof typeof colors] || "blue"}>
+            {interruptLevelLabels[level] ?? "未识别级别"}
+          </Tag>
+        );
       },
     },
     {
       title: "就诊场景",
       dataIndex: "scenarioCode",
       key: "scenarioCode",
-      render: (c: string) => <Tag color="cyan">{c}</Tag>,
+      render: (c: string) => <Tag color="cyan">{scenarioLabels[c] ?? "其他场景"}</Tag>,
     },
     {
       title: "状态",
@@ -459,16 +480,16 @@ export default function CdssFatigue() {
       key: "status",
       render: (status: RecommendationCardStatus) => {
         const config: Record<string, { status: RecommendationBadgeStatus; text: string }> = {
-          PENDING: { status: "warning", text: "待处理 (PENDING)" },
-          VIEWED: { status: "processing", text: "已查看依据 (VIEWED)" },
-          ACCEPTED: { status: "success", text: "已采纳 (ACCEPTED)" },
-          REJECTED: { status: "error", text: "已驳回 (REJECTED)" },
-          DEFERRED: { status: "default", text: "稍后处理 (DEFERRED)" },
-          DISMISSED: { status: "default", text: "已关闭 (DISMISSED)" },
-          SUPPRESSED: { status: "default", text: "疲劳抑制 (SUPPRESSED)" },
-          EXPIRED: { status: "default", text: "已失效 (EXPIRED)" },
+          PENDING: { status: "warning", text: "待处理" },
+          VIEWED: { status: "processing", text: "已查看依据" },
+          ACCEPTED: { status: "success", text: "已采纳" },
+          REJECTED: { status: "error", text: "已驳回" },
+          DEFERRED: { status: "default", text: "稍后处理" },
+          DISMISSED: { status: "default", text: "已关闭" },
+          SUPPRESSED: { status: "default", text: "疲劳抑制" },
+          EXPIRED: { status: "default", text: "已失效" },
         };
-        const current = config[status] ?? { status: "default", text: status };
+        const current = config[status] ?? { status: "default", text: "未识别状态" };
         return <Badge status={current.status} text={current.text} />;
       },
     },
@@ -597,9 +618,9 @@ export default function CdssFatigue() {
               }}
               className={styles.controlSm}
             >
-              <Option value="HIGH">HIGH (红线强阻断)</Option>
-              <Option value="MEDIUM">MEDIUM (黄线软提醒)</Option>
-              <Option value="LOW">LOW (绿线低打扰)</Option>
+              <Option value="HIGH">高风险（红线强阻断）</Option>
+              <Option value="MEDIUM">中风险（黄线软提醒）</Option>
+              <Option value="LOW">低风险（绿线低打扰）</Option>
             </Select>
           </Form.Item>
           <Form.Item label="患者或 traceId" htmlFor="recommendation-quick-search">
@@ -737,7 +758,7 @@ export default function CdssFatigue() {
                 {snapshotDetailQuery.data.packageVersion}
               </Descriptions.Item>
               <Descriptions.Item label="质量">
-                {snapshotDetailQuery.data.qualityStatus}
+                {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
               </Descriptions.Item>
               <Descriptions.Item label="traceId">
                 {snapshotDetailQuery.data.traceId || "未返回"}
@@ -775,7 +796,7 @@ export default function CdssFatigue() {
                         step.status === "待处理" || step.status === "PENDING" ? "orange" : "blue"
                       }
                     >
-                      {step.status}
+                      {customerDisplayText(step.status)}
                     </Tag>
                     <div className={styles.timelineMeta}>{step.description}</div>
                     {step.evidence && <div className={styles.journeyEvidence}>{step.evidence}</div>}
@@ -807,7 +828,11 @@ export default function CdssFatigue() {
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="决策场景">
-                <Tag color="cyan">{detailData.trigger?.scenarioCode || "未关联"}</Tag>
+                <Tag color="cyan">
+                  {detailData.trigger?.scenarioCode
+                    ? (scenarioLabels[detailData.trigger.scenarioCode] ?? "其他场景")
+                    : "未关联"}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="风险分级">
                 <Tag
@@ -817,12 +842,12 @@ export default function CdssFatigue() {
                       : "orange"
                   }
                 >
-                  {detailData.card.riskLevel}
+                  {riskLabel(detailData.card.riskLevel)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="拦截定位">
                 <Tag color={detailData.card.interruptLevel === "HARD" ? "purple" : "volcano"}>
-                  {detailData.card.interruptLevel}
+                  {interruptLevelLabels[detailData.card.interruptLevel] ?? "未识别级别"}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="疲劳治理策略" span={3}>
@@ -843,7 +868,8 @@ export default function CdssFatigue() {
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
-                          {item.operatorId} · {item.operatorRole || "DOCTOR"} · {item.feedbackType}
+                          {item.operatorId} · {roleLabel(item.operatorRole || "DOCTOR")} ·{" "}
+                          {customerEnumLabel(item.feedbackType)}
                         </div>
                         <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
@@ -1160,7 +1186,7 @@ export default function CdssFatigue() {
               </Descriptions.Item>
               <Descriptions.Item label="提醒卡风险定级">
                 <Tag color={diagnoseData.riskLevel === "HIGH" ? "red" : "orange"}>
-                  {diagnoseData.riskLevel || "LOW"}
+                  {riskLabel(diagnoseData.riskLevel || "LOW")}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
@@ -1192,7 +1218,7 @@ export default function CdssFatigue() {
                 {diagnoseData.statusHistory?.map((h, idx) => (
                   <Timeline.Item key={idx} color={h.status === "SIGNED" ? "green" : "blue"}>
                     <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
-                      <span>状态: {h.status}</span>
+                      <span>状态：{customerEnumLabel(h.status)}</span>
                       <span className={styles.timelineMuted}>
                         {new Date(h.changedAt).toLocaleString()}
                       </span>

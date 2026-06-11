@@ -41,15 +41,15 @@ class PermissionEvaluatorTest {
 
     @Test
     void doctorCanReadRecommendationsButNotPublishRules() {
-        authenticate(RoleCode.DOCTOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
         assertThat(evaluator.has("recommendation.read")).isTrue();
         assertThat(evaluator.has("recommendation.accept")).isTrue();
         assertThat(evaluator.has("rule.publish")).isFalse();
     }
 
     @Test
-    void medicalAffairsCanPublishRules() {
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+    void knowledgeGovernorCanPublishRulesAndKnowledge() {
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
         assertThat(evaluator.has("rule.publish")).isTrue();
         assertThat(evaluator.has("knowledge.publish")).isTrue();
         assertThat(evaluator.has("system.manage")).isFalse();
@@ -57,7 +57,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void platformAdminHasEveryNonEmergencyPermission() {
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         for (PermissionCode perm : PermissionCode.values()) {
             if (perm == PermissionCode.ENV_EMERGENCY) {
                 continue;
@@ -71,7 +71,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void canEvaluatesDimensionAndTargetWithoutImplicitMenuShortcut() {
-        authenticate(RoleCode.DOCTOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
 
         assertThat(evaluator.can(PermissionDimension.MENU, "rule-validate")).isTrue();
         assertThat(evaluator.can(PermissionDimension.MENU, "clinical-run")).isFalse();
@@ -81,7 +81,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void platformAdminDoesNotGetEmergencyEnvironmentWithoutBreakGlassGrant() {
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
 
         assertThat(evaluator.can(PermissionDimension.ENVIRONMENT, "emergency")).isFalse();
         assertThat(evaluator.effectivePermissions()).doesNotContain(PermissionCode.ENV_EMERGENCY);
@@ -89,7 +89,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void multipleRolesUnion() {
-        authenticate(RoleCode.DOCTOR, RoleCode.QA_MANAGER);
+        authenticate(RoleCode.CLINICAL_DECISION_USER, RoleCode.QUALITY_GOVERNOR);
         assertThat(evaluator.has("recommendation.accept")).isTrue(); // DOCTOR
         assertThat(evaluator.has("evaluation.publish")).isTrue();    // QA_MANAGER
         assertThat(evaluator.has("system.manage")).isFalse();        // neither
@@ -97,7 +97,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void hasAnyShortCircuits() {
-        authenticate(RoleCode.DOCTOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
         assertThat(evaluator.hasAny("rule.publish", "recommendation.read")).isTrue();
         assertThat(evaluator.hasAny("rule.publish", "system.manage")).isFalse();
         assertThat(evaluator.hasAny()).isFalse();
@@ -105,7 +105,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void hasAllRequiresEveryCode() {
-        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
         assertThat(evaluator.hasAll("rule.read", "rule.publish")).isTrue();
         assertThat(evaluator.hasAll("rule.read", "system.manage")).isFalse();
         assertThat(evaluator.hasAll()).isTrue();
@@ -113,7 +113,7 @@ class PermissionEvaluatorTest {
 
     @Test
     void unknownPermissionCodeReturnsFalse() {
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         assertThat(evaluator.has("does.not.exist")).isFalse();
     }
 

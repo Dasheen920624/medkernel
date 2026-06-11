@@ -65,7 +65,7 @@ class TerminologyServiceTest {
         );
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory(any(), any())).thenReturn(List.of());
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
     }
 
     @AfterEach
@@ -89,7 +89,7 @@ class TerminologyServiceTest {
 
         StandardTerm saved = service.registerStandardTerm(new StandardTermRegistrationRequest(
             "req-term-standard", "trace-term-standard", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("integration-operator"), "pkg-2026.06",
             "LOINC", "2823-3", TermCategory.LAB, "血清钾", "血清钾|血钾|K",
             "2026.06", 88L, "演练标准字典登记"
         ));
@@ -117,7 +117,7 @@ class TerminologyServiceTest {
 
         LocalTerm saved = service.registerLocalTerm(new LocalTermRegistrationRequest(
             "req-term-local", "trace-term-local", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("integration-operator"), "pkg-2026.06",
             "LIS", "K001", TermCategory.LAB, "血钾", "血钾|K", "dept-lab"
         ));
 
@@ -947,7 +947,7 @@ class TerminologyServiceTest {
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId, Boolean semanticAssistEnabled) {
         return new TerminologyCandidateGenerationRequest(
             "req-api04-001", "trace-api04-001", tenantId, "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
             "LIS", null, semanticAssistEnabled
         );
     }
@@ -955,7 +955,7 @@ class TerminologyServiceTest {
     private TerminologyCandidateConfirmRequest confirmRequest(Boolean acknowledged, String reason) {
         return new TerminologyCandidateConfirmRequest(
             "req-api04-confirm", "trace-api04-confirm", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
             "专家逐条确认", null, acknowledged, reason
         );
     }
@@ -963,7 +963,7 @@ class TerminologyServiceTest {
     private TerminologyCandidateBatchConfirmRequest batchConfirmRequest(List<Long> candidateIds) {
         return new TerminologyCandidateBatchConfirmRequest(
             "req-api04-batch", "trace-api04-batch", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
             candidateIds, "批量确认"
         );
     }
@@ -971,7 +971,7 @@ class TerminologyServiceTest {
     private ResolveConflictRequest resolveConflictRequest(String resolutionNote) {
         return new ResolveConflictRequest(
             "req-api04-conflict", "trace-api04-conflict", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
             resolutionNote
         );
     }

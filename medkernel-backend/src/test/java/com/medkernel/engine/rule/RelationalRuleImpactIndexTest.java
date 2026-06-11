@@ -122,7 +122,7 @@ class RelationalRuleImpactIndexTest {
         Instant now = Instant.now();
         return new PathwayNode(
             1L, "node-1", "tenant-A", "pt-1", "ASSESS", "抗凝风险评估",
-            PathwayNodeType.ASSESSMENT, null, 10, "specialist", null, 240, false,
+            PathwayNodeType.ASSESSMENT, null, 10, "knowledge-governor", null, 240, false,
             "{\"ruleRefs\":[{\"ruleId\":\"rule-1\",\"ruleCode\":\"RULE.ANTICOAG\",\"versionId\":\"version-1\"}]}",
             now, "tester", now, "tester", "trace-path");
     }

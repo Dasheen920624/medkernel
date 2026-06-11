@@ -345,16 +345,19 @@ public class VersionReleaseService implements ReleasePort {
             }
         }
         if (platformPublish || highRisk) {
-            requireElectronicSignature(command.electronicSignature());
+            requireIndependentElectronicSignature(
+                command.electronicSignature(), command.actor());
         }
     }
 
-    private void requireElectronicSignature(VersionElectronicSignature signature) {
+    private void requireIndependentElectronicSignature(
+            VersionElectronicSignature signature,
+            String publisherId) {
         if (signature == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险或平台发布必须提供电子签名");
         }
         required(signature.signatureId(), "电子签名 ID");
-        required(signature.signerId(), "签名人 ID");
+        String reviewerId = required(signature.signerId(), "签名人 ID");
         required(signature.signerName(), "签名人姓名");
         if (signature.signedAt() == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "电子签名时间不能为空");
@@ -362,6 +365,11 @@ public class VersionReleaseService implements ReleasePort {
         String hash = required(signature.signatureHash(), "电子签名摘要");
         if (!hash.matches("[0-9a-f]{64}")) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "电子签名摘要必须是 64 位小写 SHA-256");
+        }
+        if (reviewerId.equalsIgnoreCase(required(publisherId, "发布人 ID"))) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "高风险或平台发布的复核人与发布人必须为不同人员");
         }
     }
 

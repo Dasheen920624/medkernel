@@ -15,7 +15,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * <ul>
  *   <li>{@code sub} 表示用户唯一标识 userId（OIDC 标准）</li>
  *   <li>{@code tenant_id} 表示租户物理标识 tenantId（必填属性）</li>
- *   <li>{@code group_id} / {@code hospital_id} / {@code campus_id} / {@code site_id} / {@code department_id} / {@code specialty_id} 表示多租户组织作用域的各层级标识</li>
+ *   <li>{@code group_id} / {@code hospital_id} / {@code campus_id} / {@code site_id} / {@code department_id} / {@code ward_id} / {@code specialty_id} 表示多租户组织作用域的各层级标识</li>
  *   <li>{@code roles} 表示分配的角色编码列表</li>
  * </ul>
  *
@@ -30,6 +30,7 @@ public final class JwtClaimsResolver {
     public static final String CLAIM_CAMPUS_ID = "campus_id";
     public static final String CLAIM_SITE_ID = "site_id";
     public static final String CLAIM_DEPARTMENT_ID = "department_id";
+    public static final String CLAIM_WARD_ID = "ward_id";
     public static final String CLAIM_SPECIALTY_ID = "specialty_id";
     public static final String CLAIM_ROLES = "roles";
 
@@ -50,6 +51,7 @@ public final class JwtClaimsResolver {
             jwt.getClaimAsString(CLAIM_CAMPUS_ID),
             jwt.getClaimAsString(CLAIM_SITE_ID),
             jwt.getClaimAsString(CLAIM_DEPARTMENT_ID),
+            jwt.getClaimAsString(CLAIM_WARD_ID),
             jwt.getClaimAsString(CLAIM_SPECIALTY_ID)
         );
     }

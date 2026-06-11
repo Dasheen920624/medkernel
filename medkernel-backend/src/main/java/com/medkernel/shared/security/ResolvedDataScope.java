@@ -37,7 +37,8 @@ public record ResolvedDataScope(DataAccessLevel level, OrgScope scope, boolean d
                 && same(scope.hospitalId(), requested.hospitalId());
             case DEPARTMENT -> sameKnownParent(scope.groupId(), requested.groupId())
                 && sameKnownParent(scope.hospitalId(), requested.hospitalId())
-                && same(scope.departmentId(), requested.departmentId());
+                && same(scope.departmentId(), requested.departmentId())
+                && sameKnownParent(scope.wardId(), requested.wardId());
             case NONE -> false;
         };
     }

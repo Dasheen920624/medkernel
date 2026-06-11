@@ -35,7 +35,7 @@ class DataScopeResolverTest {
     void departmentScopedDoctorCanOnlyAccessSameDepartment() {
         OrgScope current = new OrgScope("t-1", null, "h-1", null, null, "cardiology", null);
 
-        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.DOCTOR), current, "doctor-1");
+        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.CLINICAL_DECISION_USER), current, "doctor-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.DEPARTMENT);
         assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, "cardiology", null))).isTrue();
@@ -44,10 +44,23 @@ class DataScopeResolverTest {
     }
 
     @Test
+    void wardScopedDoctorCannotCrossWardInsideSameDepartment() {
+        OrgScope current = new OrgScope(
+            "t-1", null, "h-1", null, null, "cardiology", "ward-1", null);
+
+        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.CLINICAL_DECISION_USER), current, "doctor-1");
+
+        assertThat(resolved.canAccess(new OrgScope(
+            "t-1", null, "h-1", null, null, "cardiology", "ward-1", null))).isTrue();
+        assertThat(resolved.canAccess(new OrgScope(
+            "t-1", null, "h-1", null, null, "cardiology", "ward-2", null))).isFalse();
+    }
+
+    @Test
     void hospitalScopedRoleCanAccessSameHospitalButNotOtherHospital() {
         OrgScope current = new OrgScope("t-1", "g-1", "h-1", null, null, null, null);
 
-        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.QA_MANAGER), current, "qa-1");
+        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.QUALITY_GOVERNOR), current, "qa-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.HOSPITAL);
         assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null))).isTrue();
@@ -58,7 +71,7 @@ class DataScopeResolverTest {
     void groupScopedRoleCanAccessSameGroupAcrossHospitals() {
         OrgScope current = new OrgScope("t-1", "g-1", null, null, null, null, null);
 
-        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.GROUP_ADMIN), current, "group-admin-1");
+        ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.ORGANIZATION_ADMIN), current, "group-admin-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.GROUP);
         assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null))).isTrue();
@@ -69,7 +82,7 @@ class DataScopeResolverTest {
     @Test
     void desensitizedPermissionDoesNotExpandRawRowAccess() {
         EffectivePermissionService permissionService = Mockito.mock(EffectivePermissionService.class);
-        UsernamePasswordAuthenticationToken auth = auth(RoleCode.AUDIT_COMPLIANCE);
+        UsernamePasswordAuthenticationToken auth = auth(RoleCode.COMPLIANCE_AUDITOR);
         OrgScope current = OrgScope.tenant("t-1");
         Mockito.when(permissionService.effectivePermissions(auth, current, "auditor-1"))
             .thenReturn(EnumSet.of(PermissionCode.DATA_DESENSITIZED));

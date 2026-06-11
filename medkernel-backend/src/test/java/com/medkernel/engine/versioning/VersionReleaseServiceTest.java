@@ -58,7 +58,7 @@ class VersionReleaseServiceTest {
         assetDependencies = mock(AssetDependencyService.class);
         service = new VersionReleaseService(
             assetVersions, releasePlans, activationTransactions, permissionEvaluator, assetDependencies, CLOCK);
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
         when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(false);
     }
@@ -234,7 +234,7 @@ class VersionReleaseServiceTest {
     void rejectsTenantReleaseWithoutTenantOverridePermission() {
         AssetVersion published = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(published));
-        authenticate(RoleCode.IT_OPS);
+        authenticate(RoleCode.INTEGRATION_OPERATOR);
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(false);
 
         assertThatThrownBy(() -> service.publish(releaseCommand(
@@ -373,6 +373,32 @@ class VersionReleaseServiceTest {
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("电子签名")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(activationTransactions, never()).save(any(VersionActivationTransaction.class));
+        verify(releasePlans, never()).save(any(VersionReleasePlan.class));
+    }
+
+    @Test
+    void rejectsHighRiskPublishWhenReviewerAndPublisherAreSamePerson() {
+        AssetVersion locked = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL)
+            .withOverridePolicy(AssetVersionOverridePolicy.LOCKED);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(locked));
+
+        assertThatThrownBy(() -> service.publish(releaseCommandWithGovernance(
+            "av-v2",
+            "影响摘要 d1",
+            new VersionElectronicSignature(
+                "sig-self-review",
+                "publisher-1",
+                "发布人本人",
+                CLOCK.instant(),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+            completeQualityGate()
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("复核人与发布人必须为不同人员")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
 
@@ -725,8 +751,8 @@ class VersionReleaseServiceTest {
     private VersionElectronicSignature electronicSignature() {
         return new VersionElectronicSignature(
             "sig-20260603-001",
-            "publisher-1",
-            "平台发布人",
+            "reviewer-1",
+            "独立复核人",
             CLOCK.instant(),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         );

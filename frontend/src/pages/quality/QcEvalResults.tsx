@@ -43,6 +43,7 @@ import type {
 import { PageShell } from "@/shared/ui/PageShell";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 const { Text } = Typography;
 
@@ -577,7 +578,7 @@ function TaskSummary({ task }: { task: RectificationTask }) {
   return (
     <Descriptions bordered column={1}>
       <Descriptions.Item label="整改任务">{task.taskId}</Descriptions.Item>
-      <Descriptions.Item label="任务状态">{task.status}</Descriptions.Item>
+      <Descriptions.Item label="任务状态">{customerEnumLabel(task.status)}</Descriptions.Item>
       <Descriptions.Item label="责任科室">{task.responsibleDepartmentId}</Descriptions.Item>
       <Descriptions.Item label="责任人">{task.assigneeUserId ?? "未指定"}</Descriptions.Item>
       <Descriptions.Item label="截止时间">{formatTime(task.dueAt)}</Descriptions.Item>
@@ -603,16 +604,16 @@ function renderLevelTag(level: EvaluationResultLevel) {
     case "CRITICAL":
       return <Tag color="red">严重红线</Tag>;
     default:
-      return <Tag>{level}</Tag>;
+      return <Tag>{customerEnumLabel(level)}</Tag>;
   }
 }
 
 function severityTag(severity: QualityFindingSeverity) {
   const labels: Record<QualityFindingSeverity, string> = {
-    P0: "P0 安全红线",
-    P1: "P1 高危",
-    P2: "P2 中危",
-    P3: "P3 低危",
+    P0: "安全红线",
+    P1: "高危",
+    P2: "中危",
+    P3: "低危",
   };
   const colors: Record<QualityFindingSeverity, string> = {
     P0: "red",
@@ -620,7 +621,7 @@ function severityTag(severity: QualityFindingSeverity) {
     P2: "orange",
     P3: "blue",
   };
-  return <Tag color={colors[severity]}>{labels[severity] ?? severity}</Tag>;
+  return <Tag color={colors[severity]}>{labels[severity] ?? customerEnumLabel(severity)}</Tag>;
 }
 
 function findingStatusTag(status: QualityFindingStatus) {
@@ -638,7 +639,7 @@ function findingStatusTag(status: QualityFindingStatus) {
     CLOSED: "success",
     WAIVED: "default",
   };
-  return <Tag color={colors[status]}>{labels[status] ?? status}</Tag>;
+  return <Tag color={colors[status]}>{labels[status] ?? customerEnumLabel(status)}</Tag>;
 }
 
 function subjectTypeLabel(subjectType: string) {
@@ -650,7 +651,7 @@ function subjectTypeLabel(subjectType: string) {
     PATHWAY: "路径",
     FOLLOWUP: "随访",
   };
-  return labels[subjectType] ?? subjectType;
+  return labels[subjectType] ?? customerEnumLabel(subjectType);
 }
 
 function resolvePageState(

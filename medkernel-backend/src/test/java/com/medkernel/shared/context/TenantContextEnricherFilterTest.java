@@ -43,7 +43,7 @@ class TenantContextEnricherFilterTest {
                 "tenant_id", "t-1",
                 "hospital_id", "h-1",
                 "department_id", "d-1",
-                "roles", List.of("doctor")
+                "roles", List.of("clinical-decision-user")
             )
         );
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));

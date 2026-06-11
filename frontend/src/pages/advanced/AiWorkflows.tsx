@@ -16,6 +16,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 
 import { useModelCapabilitiesStatus, useSecurityProfile } from "@/shared/api/hooks";
 import type { ModelCapabilityStatusResponse } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./AiWorkflows.module.css";
@@ -23,8 +24,8 @@ import styles from "./AiWorkflows.module.css";
 const { Text } = Typography;
 
 const routeStrategyView: Record<string, { color: string; label: string }> = {
-  BASELINE: { color: "blue", label: "B0 基线" },
-  DISABLED: { color: "default", label: "MODEL_DISABLED" },
+  BASELINE: { color: "blue", label: "基础规则能力" },
+  DISABLED: { color: "default", label: "模型能力已关闭" },
   LOCAL_MODEL: { color: "cyan", label: "本地模型策略" },
   EXTERNAL_MODEL: { color: "geekblue", label: "外部模型策略" },
 };
@@ -39,7 +40,7 @@ function routeView(routeStrategy: string) {
   return (
     routeStrategyView[routeStrategy] ?? {
       color: "default",
-      label: routeStrategy || "NOT_AVAILABLE",
+      label: customerEnumLabel(routeStrategy || "NOT_AVAILABLE"),
     }
   );
 }
@@ -51,7 +52,7 @@ function availabilityView(item: ModelCapabilityStatusResponse) {
   if (item.fallbackAvailable) {
     return { color: "success", label: "基线可用" };
   }
-  return { color: "warning", label: "NOT_AVAILABLE" };
+  return { color: "warning", label: "暂不可用" };
 }
 
 function capabilityDetails(item: ModelCapabilityStatusResponse) {
@@ -60,9 +61,12 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       <Descriptions.Item label="能力代码">
         <Text code>{item.capabilityCode}</Text>
       </Descriptions.Item>
-      <Descriptions.Item label="路由策略">{item.routeStrategy}</Descriptions.Item>
-      <Descriptions.Item label="脱敏策略">{item.desensitizeStrategy}</Descriptions.Item>
-      <Descriptions.Item label="租户专属配置">
+      <Descriptions.Item label="路由策略">{routeView(item.routeStrategy).label}</Descriptions.Item>
+      <Descriptions.Item label="脱敏策略">
+        {desensitizeStrategyView[item.desensitizeStrategy] ??
+          customerEnumLabel(item.desensitizeStrategy)}
+      </Descriptions.Item>
+      <Descriptions.Item label="服务空间专属配置">
         {item.configured ? "已配置" : "使用系统默认"}
       </Descriptions.Item>
       <Descriptions.Item label="结构约束">
@@ -142,7 +146,7 @@ export default function AiWorkflows() {
       dataIndex: "desensitizeStrategy",
       key: "desensitizeStrategy",
       width: 130,
-      render: (value: string) => desensitizeStrategyView[value] ?? value,
+      render: (value: string) => desensitizeStrategyView[value] ?? customerEnumLabel(value),
     },
     {
       title: "结构约束",
@@ -233,11 +237,11 @@ export default function AiWorkflows() {
             <strong>{summary.total}</strong>
           </div>
           <div className={styles.summaryItem}>
-            <Text type="secondary">B0 基线</Text>
+            <Text type="secondary">基础规则能力</Text>
             <strong>{summary.baseline}</strong>
           </div>
           <div className={styles.summaryItem}>
-            <Text type="secondary">租户已配置</Text>
+            <Text type="secondary">服务空间已配置</Text>
             <strong>{summary.configured}</strong>
           </div>
           <div className={styles.summaryItem}>

@@ -131,6 +131,7 @@ public class JwtIssuer {
         addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_CAMPUS_ID, safeScope.campusId());
         addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_SITE_ID, safeScope.siteId());
         addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_DEPARTMENT_ID, safeScope.departmentId());
+        addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_WARD_ID, safeScope.wardId());
         addClaimIfPresent(builder, JwtClaimsResolver.CLAIM_SPECIALTY_ID, safeScope.specialtyId());
     }
 

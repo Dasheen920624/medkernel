@@ -28,6 +28,7 @@ import {
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 const { Text } = Typography;
 
@@ -195,10 +196,10 @@ export default function QcAlerts() {
               onChange={setSeverity}
               options={[
                 { value: "HIGH_RISK", label: "高风险" },
-                { value: "P0", label: "P0 安全红线" },
-                { value: "P1", label: "P1 高危" },
-                { value: "P2", label: "P2 中危" },
-                { value: "P3", label: "P3 低危" },
+                { value: "P0", label: "安全红线" },
+                { value: "P1", label: "高危" },
+                { value: "P2", label: "中危" },
+                { value: "P3", label: "低危" },
                 { value: "ALL", label: "全部级别" },
               ]}
             />
@@ -254,9 +255,9 @@ export default function QcAlerts() {
                       <Text>{`证据摘要：${alert.evidenceSummary}`}</Text>
                       <Space wrap>
                         <Text type="secondary">来源</Text>
-                        <Text>{alert.sourceType}</Text>
+                        <Text>{customerEnumLabel(alert.sourceType)}</Text>
                         <Text type="secondary">traceId</Text>
-                        <Text>{alert.traceId ?? "NOT_CONNECTED"}</Text>
+                        <Text>{alert.traceId ?? "未生成追踪标识"}</Text>
                       </Space>
                     </Space>
                   }
@@ -308,7 +309,7 @@ export default function QcAlerts() {
               </Descriptions.Item>
               <Descriptions.Item label="来源对象">{selectedAlert.sourceId}</Descriptions.Item>
               <Descriptions.Item label="traceId">
-                {selectedAlert.traceId ?? "NOT_CONNECTED"}
+                {selectedAlert.traceId ?? "未生成追踪标识"}
               </Descriptions.Item>
             </Descriptions>
 
@@ -425,20 +426,20 @@ function statusTag(status: QualityDashboardAlertStatus) {
   if (status === "RESOLVED") {
     return <Tag color="success">已闭环</Tag>;
   }
-  return <Tag>{status}</Tag>;
+  return <Tag>{customerEnumLabel(status)}</Tag>;
 }
 
 function severityTag(severity: string) {
   if (severity === "P0") {
-    return <Tag color="error">P0 安全红线</Tag>;
+    return <Tag color="error">安全红线</Tag>;
   }
   if (severity === "P1") {
-    return <Tag color="volcano">P1 高危</Tag>;
+    return <Tag color="volcano">高危</Tag>;
   }
   if (severity === "P2") {
-    return <Tag color="gold">P2 中危</Tag>;
+    return <Tag color="gold">中危</Tag>;
   }
-  return <Tag>{severity || "未分级"}</Tag>;
+  return <Tag>{severity ? customerEnumLabel(severity) : "未分级"}</Tag>;
 }
 
 function alertTypeTag(type: string) {
@@ -448,7 +449,7 @@ function alertTypeTag(type: string) {
   if (type === "OVERDUE_RECTIFICATION") {
     return <Tag color="orange">整改逾期</Tag>;
   }
-  return <Tag>{type}</Tag>;
+  return <Tag>{customerEnumLabel(type)}</Tag>;
 }
 
 function countByStatus(alerts: QualityDashboardAlert[], targetStatus: QualityDashboardAlertStatus) {

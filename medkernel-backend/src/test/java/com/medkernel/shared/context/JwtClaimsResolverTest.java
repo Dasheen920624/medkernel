@@ -31,6 +31,7 @@ class JwtClaimsResolverTest {
             "campus_id", "c-1",
             "site_id", "s-1",
             "department_id", "d-1",
+            "ward_id", "w-1",
             "specialty_id", "sp-cardio"
         ));
 
@@ -41,6 +42,7 @@ class JwtClaimsResolverTest {
         assertThat(scope.campusId()).isEqualTo("c-1");
         assertThat(scope.siteId()).isEqualTo("s-1");
         assertThat(scope.departmentId()).isEqualTo("d-1");
+        assertThat(scope.wardId()).isEqualTo("w-1");
         assertThat(scope.specialtyId()).isEqualTo("sp-cardio");
         assertThat(JwtClaimsResolver.resolveUserId(token)).isEqualTo("u-7");
     }
@@ -59,20 +61,20 @@ class JwtClaimsResolverTest {
     void rolesClaimSupportsListForm() {
         Jwt token = jwt(Map.of(
             "sub", "u", "tenant_id", "t",
-            "roles", List.of("doctor", "qa-manager")
+            "roles", List.of("clinical-decision-user", "quality-governor")
         ));
         assertThat(JwtClaimsResolver.resolveRoles(token))
-            .containsExactlyInAnyOrder("doctor", "qa-manager");
+            .containsExactlyInAnyOrder("clinical-decision-user", "quality-governor");
     }
 
     @Test
     void rolesClaimSupportsCommaSeparatedString() {
         Jwt token = jwt(Map.of(
             "sub", "u", "tenant_id", "t",
-            "roles", "doctor, qa-manager ,hospital-admin"
+            "roles", "clinical-decision-user, quality-governor ,organization-admin"
         ));
         assertThat(JwtClaimsResolver.resolveRoles(token))
-            .containsExactlyInAnyOrder("doctor", "qa-manager", "hospital-admin");
+            .containsExactlyInAnyOrder("clinical-decision-user", "quality-governor", "organization-admin");
     }
 
     @Test

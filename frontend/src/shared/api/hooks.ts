@@ -49,6 +49,7 @@ export interface SecurityProfile {
     campusId: string | null;
     siteId: string | null;
     departmentId: string | null;
+    wardId?: string | null;
     specialtyId: string | null;
   };
   mustChangePwd: boolean;
@@ -80,6 +81,7 @@ type StandardApiContextFields = {
   campus_id?: string | null;
   site_id?: string | null;
   department_id?: string | null;
+  ward_id?: string | null;
   specialty_id?: string | null;
   user_id: string;
   role_codes: string[];
@@ -97,7 +99,7 @@ function standardApiContext(
   const roleCodes = profile.roles.map((role) => role.code).filter(Boolean);
   const version = packageVersion?.trim();
   if (!tenantId || roleCodes.length === 0 || !version) {
-    throw new Error("标准上下文缺少租户、角色或包版本，请刷新用户状态后重试。");
+    throw new Error("标准上下文缺少服务空间、角色或包版本，请刷新用户状态后重试。");
   }
   const traceId = crypto.randomUUID();
   return {
@@ -109,6 +111,7 @@ function standardApiContext(
     campus_id: profile.dataScope.campusId,
     site_id: profile.dataScope.siteId,
     department_id: profile.dataScope.departmentId,
+    ward_id: profile.dataScope.wardId,
     specialty_id: profile.dataScope.specialtyId,
     user_id: profile.userId,
     role_codes: roleCodes,
@@ -1283,6 +1286,111 @@ export function useReviewKnowledgeCandidate() {
   });
 }
 
+export type KnowledgeSourceType = "PLATFORM_STANDARD" | "LOCAL_CUSTOMIZATION" | "LOCAL_ORIGINAL";
+
+export type KnowledgeCustomizationStatus = "DRAFT" | "ACTIVE" | "RESTORED";
+
+export interface KnowledgeCustomization {
+  customizationId: string;
+  sourceType: KnowledgeSourceType;
+  status: KnowledgeCustomizationStatus;
+  platformIdentityId: number;
+  platformVersionId: number;
+  platformVersionNo: string;
+  localIdentityId: number;
+  localVersionId: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  targetOrgUnitId: string;
+  targetOrganizationName: string;
+  targetOrgPath: string;
+  applicableScope: string;
+  reason: string | null;
+  overrideId: string | null;
+  platformUpdateAvailable: boolean;
+  updatedAt: string;
+}
+
+export interface CreateKnowledgeCustomizationPayload {
+  platformIdentityId: number;
+  targetOrgUnitId: string;
+  applicableScope: string;
+  reason: string;
+}
+
+export function useKnowledgeCustomizations(enabled = true) {
+  return useQuery({
+    queryKey: ["knowledge", "customizations"],
+    enabled,
+    queryFn: async () => {
+      const response = await apiClient.get<{ data: KnowledgeCustomization[] }>(
+        `${KNOWLEDGE_API_ROOT}/customizations`,
+      );
+      return response.data.data;
+    },
+  });
+}
+
+function useInvalidateKnowledgeCustomizations() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["knowledge", "customizations"] }),
+      queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] }),
+      queryClient.invalidateQueries({ queryKey: ["knowledge", "candidates"] }),
+    ]);
+  };
+}
+
+export function useCreateKnowledgeCustomization() {
+  const invalidate = useInvalidateKnowledgeCustomizations();
+  return useMutation({
+    mutationFn: async (payload: CreateKnowledgeCustomizationPayload) => {
+      const response = await apiClient.post<{ data: KnowledgeCustomization }>(
+        `${KNOWLEDGE_API_ROOT}/customizations`,
+        payload,
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function usePublishKnowledgeCustomization() {
+  const invalidate = useInvalidateKnowledgeCustomizations();
+  return useMutation({
+    mutationFn: async (payload: {
+      customizationId: string;
+      reason: string;
+      publishEvidence?: VersionPublishEvidence;
+    }) => {
+      const response = await apiClient.post<{ data: KnowledgeCustomization }>(
+        `${KNOWLEDGE_API_ROOT}/customizations/${encodeURIComponent(
+          payload.customizationId,
+        )}:publish`,
+        { reason: payload.reason, publishEvidence: payload.publishEvidence },
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestorePlatformKnowledge() {
+  const invalidate = useInvalidateKnowledgeCustomizations();
+  return useMutation({
+    mutationFn: async (payload: { customizationId: string; reason: string }) => {
+      const response = await apiClient.post<{ data: KnowledgeCustomization }>(
+        `${KNOWLEDGE_API_ROOT}/customizations/${encodeURIComponent(
+          payload.customizationId,
+        )}:restore-platform`,
+        { reason: payload.reason },
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
 // ──────────────────────────────────────────
 // 诊断知识治理 · 线3 Spec 1/2/3
 // ──────────────────────────────────────────
@@ -1994,7 +2102,7 @@ export interface SystemConfigUpdatePayload {
 }
 
 export type DataPermissionAction = "READ" | "EXPORT";
-export type DataPermissionStatus = "ACTIVE" | "INACTIVE";
+export type DataPermissionStatus = "ACTIVE" | "DISABLED";
 
 export interface DataPermissionPolicy {
   policyId: string;
@@ -2008,6 +2116,7 @@ export interface DataPermissionPolicy {
   campusId?: string | null;
   siteId?: string | null;
   departmentId?: string | null;
+  wardId?: string | null;
   specialtyId?: string | null;
   status: DataPermissionStatus;
   version: number;
@@ -2028,6 +2137,7 @@ export interface DataPermissionPolicyPayload {
   campusId?: string;
   siteId?: string;
   departmentId?: string;
+  wardId?: string;
   specialtyId?: string;
   status: DataPermissionStatus;
   reason: string;
@@ -8436,8 +8546,12 @@ export interface OrgUnit {
   namePinyin?: string | null;
   facilityType?:
     | "HOSPITAL"
+    | "SPECIALTY_HOSPITAL"
+    | "BRANCH_HOSPITAL"
     | "COMMUNITY_HEALTH_CENTER"
     | "TOWNSHIP_CLINIC"
+    | "VILLAGE_CLINIC"
+    | "OUTPATIENT_CLINIC"
     | "STATION"
     | "OTHER"
     | null;
@@ -8452,6 +8566,8 @@ export interface OrgUserDirectoryItem {
   displayName: string;
 }
 
+export type OrgDirectoryScope = "SERVICE_ORGANIZATION" | "BUSINESS_SCOPE";
+
 export function useOrgUnits(params?: {
   page?: number;
   size?: number;
@@ -8459,6 +8575,8 @@ export function useOrgUnits(params?: {
   keyword?: string;
   level?: OrgUnit["level"];
   status?: OrgUnit["status"];
+  scope?: OrgDirectoryScope;
+  ancestorId?: string;
 }) {
   return useQuery({
     queryKey: ["engine", "org", "org-units", params ?? {}],
@@ -8669,6 +8787,7 @@ export interface ComplianceUserRole {
   displayName: string;
   scopeLevel: string;
   scopeCode: string;
+  scopeName: string;
 }
 
 export interface ComplianceUserSummary {
@@ -8809,6 +8928,194 @@ export function useSetComplianceUserStatus() {
     },
     onSuccess: invalidate,
   });
+}
+
+// ──────────────────────────────────────────
+// 人员主数据 · 人员 / 任职 / 账号 / 身份来源
+// ──────────────────────────────────────────
+export type AppointmentType =
+  | "INTERNAL"
+  | "GROUP_SHARED"
+  | "EXTERNAL_COLLABORATOR"
+  | "IMPLEMENTATION";
+
+export interface PersonnelSummary {
+  personId: string;
+  employeeNo: string;
+  displayName: string;
+  status: "ACTIVE" | "INACTIVE" | "LEFT" | string;
+  appointmentType: AppointmentType | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  wardId: string | null;
+  wardName: string | null;
+  positionTitle: string | null;
+  userId: string | null;
+  username: string | null;
+  accountState: string;
+  identityCount: number;
+}
+
+export interface PersonnelAppointment {
+  appointmentId: string;
+  organizationId: string;
+  organizationName: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  wardId: string | null;
+  wardName: string | null;
+  appointmentType: AppointmentType;
+  positionTitle: string | null;
+  primary: boolean;
+  status: "ACTIVE" | "ENDED" | string;
+}
+
+export interface PersonnelDetail {
+  person: {
+    personId: string;
+    employeeNo: string;
+    displayName: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  primaryAppointment: PersonnelAppointment | null;
+  appointments: PersonnelAppointment[];
+  account: { userId: string; username: string | null; state: string } | null;
+  identities: IdentityBinding[];
+  oneTimeActivation: { username: string; temporaryPassword: string } | null;
+}
+
+export interface CreatePersonnelPayload {
+  employeeNo: string;
+  displayName: string;
+  appointment: {
+    organizationId: string;
+    departmentId?: string;
+    wardId?: string;
+    appointmentType: AppointmentType;
+    positionTitle?: string;
+    primary: boolean;
+  };
+  account?: {
+    loginName: string;
+    roleCode?: string;
+  };
+  identity?: {
+    providerType: IdentityProviderType;
+    externalSubject: string;
+  };
+}
+
+export interface PersonnelImportRow {
+  rowNo: number;
+  employeeNo: string | null;
+  displayName: string | null;
+  action: string;
+  status: string;
+  message: string | null;
+  resultPersonId: string | null;
+}
+
+export interface PersonnelImportResponse {
+  jobId: string;
+  fileName: string;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  conflictRows: number;
+  successRows: number;
+  failureRows: number;
+  rows: PersonnelImportRow[];
+  oneTimeActivations: Array<{ username: string; temporaryPassword: string }>;
+}
+
+export function usePersonnel(params: { page: number; size: number; keyword?: string }) {
+  return useQuery({
+    queryKey: ["compliance", "personnel", params],
+    queryFn: async () => {
+      const response = await apiClient.get<{ data: PageResponse<PersonnelSummary> }>(
+        "/compliance/personnel",
+        { params },
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function usePersonnelDetail(personId: string | null) {
+  return useQuery({
+    queryKey: ["compliance", "personnel", personId],
+    queryFn: async () => {
+      const response = await apiClient.get<{ data: PersonnelDetail }>(
+        `/compliance/personnel/${encodeURIComponent(personId ?? "")}`,
+      );
+      return response.data.data;
+    },
+    enabled: Boolean(personId),
+  });
+}
+
+function useInvalidatePersonnel() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ["compliance", "personnel"] });
+}
+
+export function useCreatePersonnel() {
+  const invalidate = useInvalidatePersonnel();
+  return useMutation({
+    mutationFn: async (payload: CreatePersonnelPayload) => {
+      const response = await apiClient.post<{ data: PersonnelDetail }>(
+        "/compliance/personnel",
+        payload,
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function usePreviewPersonnelImport() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await apiClient.post<{ data: PersonnelImportResponse }>(
+        "/compliance/personnel/imports:preview",
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useCommitPersonnelImport() {
+  const invalidate = useInvalidatePersonnel();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await apiClient.post<{ data: PersonnelImportResponse }>(
+        `/compliance/personnel/imports/${encodeURIComponent(jobId)}:commit`,
+      );
+      return response.data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ["compliance", "identity-bindings"] }),
+      ]);
+    },
+  });
+}
+
+export async function downloadPersonnelImportTemplate() {
+  const response = await apiClient.get<Blob>("/compliance/personnel/import-template", {
+    responseType: "blob",
+  });
+  return response.data;
 }
 
 // ──────────────────────────────────────────

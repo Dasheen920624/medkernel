@@ -23,6 +23,7 @@ import {
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 import styles from "./Clinical.module.css";
 
@@ -227,7 +228,7 @@ export default function Notifications() {
           showIcon
           className={styles.sectionGap}
           message="通知读取失败"
-          description="请检查登录状态、租户上下文或后端通知接口。"
+          description="请检查登录状态、服务空间或后端通知接口。"
         />
       )}
 
@@ -290,7 +291,7 @@ export default function Notifications() {
                   title={
                     <Space wrap>
                       <span className={styles.textStrong}>{item.title}</span>
-                      <Tag color={levelColor[item.level]}>{item.level}</Tag>
+                      <Tag color={levelColor[item.level]}>{levelText[item.level]}</Tag>
                       {isMutedByQuietHours(item.level) && <Tag color="default">免打扰中</Tag>}
                       {quietActiveNow && isQuietBypassLevel(item.level) && (
                         <Tag color="green">安全绕过</Tag>
@@ -318,7 +319,7 @@ export default function Notifications() {
                               key={`${delivery.channelCode}-${delivery.status}`}
                               color={delivery.compensationRequired ? "orange" : "green"}
                             >
-                              {`${delivery.channelName} ${delivery.status}`}
+                              {`${delivery.channelName} ${customerEnumLabel(delivery.status)}`}
                             </Tag>
                           ))}
                           {externalDeliveries.some((delivery) => delivery.compensationRequired) && (

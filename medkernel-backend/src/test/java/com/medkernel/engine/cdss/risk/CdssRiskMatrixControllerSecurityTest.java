@@ -55,7 +55,7 @@ class CdssRiskMatrixControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanReadRiskMatrixButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/cdss/risk-matrix"))
             .andExpect(status().isBadRequest())
@@ -63,7 +63,7 @@ class CdssRiskMatrixControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotUpdateRiskMatrix() throws Exception {
         mvc.perform(put("/api/v1/engine/cdss/risk-matrix")
                 .contentType("application/json")
@@ -72,7 +72,7 @@ class CdssRiskMatrixControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanUpdateRiskMatrixButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(put("/api/v1/engine/cdss/risk-matrix")
                 .contentType("application/json")

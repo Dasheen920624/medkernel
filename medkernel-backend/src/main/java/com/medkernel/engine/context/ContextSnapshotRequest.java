@@ -20,6 +20,7 @@ public record ContextSnapshotRequest(
     @JsonProperty("campus_id") String campusId,
     @JsonProperty("site_id") String siteId,
     @JsonProperty("department_id") String departmentId,
+    @JsonProperty("ward_id") String wardId,
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
@@ -29,6 +30,29 @@ public record ContextSnapshotRequest(
     @NotBlank @JsonProperty("package_version") String packageVersion,
     @NotNull @Valid ContextSnapshotResources resources
 ) {
+
+    public ContextSnapshotRequest(
+            String requestId,
+            String traceId,
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId,
+            String userId,
+            List<String> roleCodes,
+            String patientId,
+            String encounterId,
+            String orgUnitId,
+            String packageVersion,
+            ContextSnapshotResources resources) {
+        this(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, null, specialtyId, userId, roleCodes, patientId,
+            encounterId, orgUnitId, packageVersion, resources);
+    }
 
     public ContextSnapshotRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);

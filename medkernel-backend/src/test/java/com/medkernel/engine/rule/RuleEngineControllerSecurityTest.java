@@ -84,7 +84,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReadRuleButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/rule-1"))
             .andExpect(status().isBadRequest())
@@ -92,7 +92,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanEvaluateRulesButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/evaluate")
                 .contentType("application/json")
@@ -102,7 +102,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanDiagnoseExecutionButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions/rex-1/explain"))
             .andExpect(status().isBadRequest())
@@ -110,7 +110,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanListExecutionsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions"))
             .andExpect(status().isBadRequest())
@@ -118,7 +118,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReadShadowStatsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/rule-1/shadow-stats"))
             .andExpect(status().isBadRequest())
@@ -126,7 +126,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanCaptureOverrideButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
                 .contentType("application/json")
@@ -136,7 +136,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachCreateButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules")
                 .contentType("application/json")
@@ -146,7 +146,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachTestCaseAndSimulateButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/test-cases")
                 .contentType("application/json")
@@ -162,7 +162,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanGovernRuleButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
                 .contentType("application/json")
@@ -178,8 +178,8 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_QA_MANAGER")
-    void qaManagerCanReachRuleSignoffButCannotAdvanceRelease() throws Exception {
+    @WithMockUser(authorities = "ROLE_QUALITY_GOVERNOR")
+    void qualityGovernorCanReachGovernanceEndpointsBeforeDataScopeValidation() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
                 .contentType("application/json")
                 .content(SIGNOFF_BODY))
@@ -189,11 +189,12 @@ class RuleEngineControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
                 .content(TRANSITION_BODY))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachRuleGovernanceTransitionForDraftSubmission() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
@@ -203,7 +204,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachShadowFeedbackButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/shadow-feedback")
                 .contentType("application/json")
@@ -213,7 +214,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachBacktestAndDriftButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/backtest")
                 .contentType("application/json")
@@ -229,7 +230,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotGovernRules() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
                 .contentType("application/json")

@@ -38,6 +38,7 @@ import type {
   KnowledgeSourceEvidence,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./Advanced.module.css";
@@ -67,11 +68,11 @@ const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
 ]);
 
 function domainLabel(value: KnowledgeDomain) {
-  return domainLabels.get(value) ?? value;
+  return domainLabels.get(value) ?? customerEnumLabel(value);
 }
 
 function identityStatusLabel(value: KnowledgeIdentityStatus) {
-  return identityStatusLabels.get(value) ?? value;
+  return identityStatusLabels.get(value) ?? customerEnumLabel(value);
 }
 
 function formatDateTime(value?: string | null) {
@@ -468,7 +469,7 @@ export default function Provenance() {
             message="知识身份读取失败"
             description={getApiErrorMessage(
               identitiesQuery.error,
-              "请检查登录权限、租户上下文或知识服务状态。",
+              "请检查登录权限、服务空间或知识服务状态。",
             )}
           />
         )}

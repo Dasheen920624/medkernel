@@ -147,7 +147,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void runtimeFeatureFlagIsBackedByConfigCenterWithoutRestart() throws Exception {
         assertThat(runtimeFlag("graph-projection").enabled()).isFalse();
 
@@ -175,7 +175,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void configListExposesSeededFeatureFlagMetadata() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.runtime.feature-flags"))
@@ -190,7 +190,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void backupPolicyIsBackedByConfigCenterWithoutRestart() throws Exception {
         assertThat(runtimeOperationsService.snapshot().backup().enabled()).isFalse();
 
@@ -212,14 +212,14 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void jwtTtlIsBackedByConfigCenterWithoutRestart() throws Exception {
         patchHighRiskConfig(JWT_TTL_KEY, "120", "验证 JWT TTL 热生效");
 
         JwtDecoder decoder = NimbusJwtDecoder
             .withSecretKey(new SecretKeySpec(DEV_SECRET.getBytes(), "HmacSHA256"))
             .build();
-        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("doctor")));
+        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("clinical-decision-user")));
 
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(jwt.getExpiresAt()).isNotNull();
@@ -227,7 +227,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void authModeIsBackedByConfigCenterAndRejectsInvalidValue() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.auth."))
@@ -253,7 +253,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void passwordMinLengthCannotBeWeakenedBelowStrongBaseline() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", AUTH_PASSWORD_MIN_LENGTH_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -270,7 +270,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void loggingLevelIsAppliedFromConfigCenterWithoutRestart() throws Exception {
         patchConfig(LOG_LEVEL_KEY, "WARN", "验证日志级别热生效");
 
@@ -279,7 +279,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void highRiskFeatureFlagRequiresSecondConfirmationBeforeUpdate() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
                 .with(itOpsWithMfa())
@@ -353,7 +353,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void configRollbackRestoresPreviousValueAndWritesRollbackHistory() throws Exception {
         patchConfig(GRAPH_FLAG_KEY, "true", "验证配置回滚前置变更");
         assertThat(runtimeFlag("graph-projection").enabled()).isTrue();
@@ -384,7 +384,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void highRiskRollbackRequiresSecondConfirmation() throws Exception {
         patchHighRiskConfig(EXTERNAL_PROVIDER_FLAG_KEY, "true", "先开启高危配置以验证回滚确认");
 
@@ -416,7 +416,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void auditPersistenceFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", AUDIT_FLAG_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -458,7 +458,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void domesticCryptoFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", DOMESTIC_CRYPTO_FLAG_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -540,6 +540,6 @@ class SystemConfigControllerTest {
     private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtFor(String userId) {
         return SecurityMockMvcRequestPostProcessors.jwt()
             .jwt(t -> t.subject(userId).claim("tenant_id", "t-1"))
-            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_IT_OPS"));
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 }

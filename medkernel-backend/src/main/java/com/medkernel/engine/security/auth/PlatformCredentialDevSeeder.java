@@ -17,7 +17,8 @@ import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.shared.context.PlatformTenant;
 
 /**
- * 仅 dev profile：为 13 个业务角色和内置超管各准备一个可登录账号（username=角色码，默认密码 Mk@2026dev，须改密）。
+ * 仅 dev profile：为当前职责角色和内置超管各准备一个可登录账号
+ * （username=角色码，默认密码 Mk@2026dev，须改密）。
  * 幂等：已存在则跳过。生产 profile 不加载本 Bean（无默认口令账号）。
  */
 @Component
@@ -28,19 +29,27 @@ public class PlatformCredentialDevSeeder implements ApplicationRunner {
     private static final String DEV_PASSWORD = "Mk@2026dev";
     private static final Map<String, String[]> ACCOUNTS = Map.ofEntries(
         Map.entry("system-superadmin", new String[]{"system-superadmin-1", "system-superadmin"}),
-        Map.entry("platform-admin", new String[]{"platform-admin-1", "platform-admin"}),
-        Map.entry("group-admin", new String[]{"group-admin-1", "group-admin"}),
-        Map.entry("hospital-admin", new String[]{"admin-1", "hospital-admin"}),
-        Map.entry("it-ops", new String[]{"it-ops-1", "it-ops"}),
-        Map.entry("medical-affairs", new String[]{"medical-affairs-1", "medical-affairs"}),
-        Map.entry("qa-manager", new String[]{"qa-manager-1", "qa-manager"}),
-        Map.entry("insurance-manager", new String[]{"insurance-manager-1", "insurance-manager"}),
-        Map.entry("dept-head", new String[]{"dept-head-1", "dept-head"}),
-        Map.entry("implementation-engineer", new String[]{"implementation-1", "implementation-engineer"}),
-        Map.entry("specialist", new String[]{"specialist-1", "specialist"}),
-        Map.entry("doctor", new String[]{"doctor-1", "doctor"}),
-        Map.entry("nurse", new String[]{"nurse-1", "nurse"}),
-        Map.entry("audit-compliance", new String[]{"audit-1", "audit-compliance"})
+        Map.entry("platform-governance-admin",
+            new String[]{"platform-governance-admin-1", "platform-governance-admin"}),
+        Map.entry("platform-knowledge-governor",
+            new String[]{"platform-knowledge-governor-1", "platform-knowledge-governor"}),
+        Map.entry("organization-admin", new String[]{"organization-admin-1", "organization-admin"}),
+        Map.entry("identity-access-admin", new String[]{"identity-access-admin-1", "identity-access-admin"}),
+        Map.entry("knowledge-governor", new String[]{"knowledge-governor-1", "knowledge-governor"}),
+        Map.entry("clinical-governor", new String[]{"clinical-governor-1", "clinical-governor"}),
+        Map.entry("clinical-decision-user",
+            new String[]{"clinical-decision-user-1", "clinical-decision-user"}),
+        Map.entry("nursing-collaborator",
+            new String[]{"nursing-collaborator-1", "nursing-collaborator"}),
+        Map.entry("medication-safety-user",
+            new String[]{"medication-safety-user-1", "medication-safety-user"}),
+        Map.entry("diagnostic-service-user",
+            new String[]{"diagnostic-service-user-1", "diagnostic-service-user"}),
+        Map.entry("quality-governor", new String[]{"quality-governor-1", "quality-governor"}),
+        Map.entry("compliance-auditor", new String[]{"compliance-auditor-1", "compliance-auditor"}),
+        Map.entry("integration-operator", new String[]{"integration-operator-1", "integration-operator"}),
+        Map.entry("implementation-operator",
+            new String[]{"implementation-operator-1", "implementation-operator"})
     );
 
     private final PlatformCredentialRepository credentials;

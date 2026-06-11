@@ -98,6 +98,7 @@ class DataPermissionServiceTest {
             null,
             null,
             "cardiology",
+            "cardiology-ward-1",
             null,
             DataPermissionStatus.ACTIVE,
             "SYS-06 PR1 行列权限基线",
@@ -107,6 +108,7 @@ class DataPermissionServiceTest {
 
         assertThat(response.policyId()).isEqualTo("dperm-clinical-case-read");
         assertThat(response.resourceType()).isEqualTo("clinical_case");
+        assertThat(response.wardId()).isEqualTo("cardiology-ward-1");
         assertThat(response.allowedColumns()).containsExactly("patientId", "patientName", "diagnosisName");
         ArgumentCaptor<AuditRecordCommand> audit = ArgumentCaptor.forClass(AuditRecordCommand.class);
         verify(auditRecorder).record(audit.capture());
@@ -115,7 +117,8 @@ class DataPermissionServiceTest {
         assertThat(audit.getValue().targetId()).isEqualTo("dperm-clinical-case-read");
         assertThat(audit.getValue().summary()).contains("SYS-06 PR1 行列权限基线");
         verify(orgAssignments).requireActiveScopeReferences(
-            "t-1", "g-1", "h-1", null, null, "cardiology", null);
+            "t-1", "g-1", "h-1", null, null,
+            "cardiology", "cardiology-ward-1", null);
     }
 
     @Test
@@ -125,6 +128,7 @@ class DataPermissionServiceTest {
             DataPermissionAction.READ,
             DataAccessLevel.NONE,
             List.of("patientId"),
+            null,
             null,
             null,
             null,
@@ -159,6 +163,7 @@ class DataPermissionServiceTest {
             null,
             null,
             "cardiology",
+            null,
             null,
             "ACTIVE",
             1L,

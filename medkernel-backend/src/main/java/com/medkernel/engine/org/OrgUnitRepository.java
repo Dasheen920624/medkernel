@@ -112,32 +112,66 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
     List<OrgUnit> pageByTenantId(String tenantId, int offset, int limit);
 
     @Query("""
-        SELECT COUNT(*) FROM org_unit
-        WHERE tenant_id = :tenantId
+        SELECT COUNT(*) FROM org_unit u
+        WHERE u.tenant_id = :tenantId
           AND (:keyword IS NULL
-            OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-            OR LOWER(code) LIKE LOWER(CONCAT('%', :keyword, '%'))
-            OR LOWER(COALESCE(specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:level IS NULL OR level_code = :level)
-          AND (:status IS NULL OR status = :status)
+            OR LOWER(u.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(u.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(COALESCE(u.specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND (:level IS NULL OR u.level_code = :level)
+          AND (:status IS NULL OR u.status = :status)
+          AND (
+            :scope IS NULL
+            OR (:scope = 'SERVICE_ORGANIZATION'
+                AND u.level_code IN ('TENANT','REGION','FACILITY','CAMPUS'))
+            OR (:scope = 'BUSINESS_SCOPE' AND u.level_code <> 'PLATFORM')
+          )
+          AND (
+            :ancestorId IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM org_closure c
+              WHERE c.tenant_id = u.tenant_id
+                AND c.ancestor_id = :ancestorId
+                AND c.descendant_id = u.id
+            )
+          )
         """)
     long countDirectory(
         @Param("tenantId") String tenantId,
         @Param("keyword") String keyword,
         @Param("level") String level,
-        @Param("status") String status
+        @Param("status") String status,
+        @Param("scope") String scope,
+        @Param("ancestorId") String ancestorId
     );
 
     @Query("""
-        SELECT * FROM org_unit
-        WHERE tenant_id = :tenantId
+        SELECT u.* FROM org_unit u
+        WHERE u.tenant_id = :tenantId
           AND (:keyword IS NULL
-            OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-            OR LOWER(code) LIKE LOWER(CONCAT('%', :keyword, '%'))
-            OR LOWER(COALESCE(specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:level IS NULL OR level_code = :level)
-          AND (:status IS NULL OR status = :status)
-        ORDER BY name, code
+            OR LOWER(u.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(u.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(COALESCE(u.specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND (:level IS NULL OR u.level_code = :level)
+          AND (:status IS NULL OR u.status = :status)
+          AND (
+            :scope IS NULL
+            OR (:scope = 'SERVICE_ORGANIZATION'
+                AND u.level_code IN ('TENANT','REGION','FACILITY','CAMPUS'))
+            OR (:scope = 'BUSINESS_SCOPE' AND u.level_code <> 'PLATFORM')
+          )
+          AND (
+            :ancestorId IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM org_closure c
+              WHERE c.tenant_id = u.tenant_id
+                AND c.ancestor_id = :ancestorId
+                AND c.descendant_id = u.id
+            )
+          )
+        ORDER BY u.name, u.code
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<OrgUnit> pageDirectory(
@@ -145,6 +179,8 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
         @Param("keyword") String keyword,
         @Param("level") String level,
         @Param("status") String status,
+        @Param("scope") String scope,
+        @Param("ancestorId") String ancestorId,
         @Param("offset") int offset,
         @Param("limit") int limit
     );

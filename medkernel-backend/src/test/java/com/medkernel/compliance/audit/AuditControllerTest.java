@@ -64,7 +64,7 @@ class AuditControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void auditComplianceHasReadButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/compliance/audit/events"))
             .andExpect(status().isBadRequest())
@@ -72,7 +72,7 @@ class AuditControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorIsForbiddenFromReadingAudit() throws Exception {
         mvc.perform(get("/api/v1/compliance/audit/events"))
             .andExpect(status().isForbidden());
@@ -86,7 +86,7 @@ class AuditControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void auditComplianceCanReachSnapshotButDataScopeFails() throws Exception {
         mvc.perform(post("/api/v1/compliance/audit/snapshot?reason=test"))
             .andExpect(status().isBadRequest())
@@ -94,7 +94,7 @@ class AuditControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotExportSnapshot() throws Exception {
         mvc.perform(post("/api/v1/compliance/audit/snapshot?reason=test"))
             .andExpect(status().isForbidden());
@@ -123,7 +123,7 @@ class AuditControllerTest {
             "FAILED",
             "ENG-AUDIT-001",
             Instant.parse("2026-01-01T00:00:01Z"),
-            "ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_ADMIN",
+            "ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_GOVERNANCE_ADMIN",
             "tenant:t-1/hospital:h-1",
             "prod",
             "{\"enabled\":true}",
@@ -145,11 +145,11 @@ class AuditControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("audit-controller-reader")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("audit-compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
+                    .claim("roles", List.of("compliance-auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].eventId").value("evt-super-1"))
-            .andExpect(jsonPath("$.data.items[0].actorRoles").value("ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_ADMIN"))
+            .andExpect(jsonPath("$.data.items[0].actorRoles").value("ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_GOVERNANCE_ADMIN"))
             .andExpect(jsonPath("$.data.items[0].orgPath").value("tenant:t-1/hospital:h-1"))
             .andExpect(jsonPath("$.data.items[0].environmentKey").value("prod"))
             .andExpect(jsonPath("$.data.items[0].outcome").value("FAILED"))
@@ -174,8 +174,8 @@ class AuditControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("audit-controller-platform-admin")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("platform-admin")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
+                    .claim("roles", List.of("platform-governance-admin")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isOk())

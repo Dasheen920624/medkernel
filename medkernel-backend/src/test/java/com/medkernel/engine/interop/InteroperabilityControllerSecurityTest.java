@@ -62,7 +62,7 @@ class InteroperabilityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanExportRuleMappingButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/interoperability/rules/cds-hooks:export")
                 .contentType("application/json")
@@ -81,7 +81,7 @@ class InteroperabilityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanImportControlledCqlButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/interoperability/rules/cql:import")
                 .contentType("application/json")

@@ -46,6 +46,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { customerEnumLabel, facilityTypeLabels } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import styles from "./Tenant.module.css";
 
@@ -66,7 +67,7 @@ const levelRank: Record<OrgLevelCode, number> = {
 
 const levelLabel: Record<OrgLevelCode, string> = {
   PLATFORM: "平台权威层",
-  TENANT: "租户根",
+  TENANT: "服务机构根节点",
   REGION: "区域/联合体",
   FACILITY: "医疗机构",
   CAMPUS: "院区",
@@ -78,11 +79,10 @@ const facilityTypeOptions: Array<{
   value: NonNullable<OrgUnit["facilityType"]>;
   label: string;
 }> = [
-  { value: "HOSPITAL", label: "医院" },
-  { value: "COMMUNITY_HEALTH_CENTER", label: "社区卫生服务中心" },
-  { value: "TOWNSHIP_CLINIC", label: "乡镇卫生院" },
-  { value: "STATION", label: "卫生服务站" },
-  { value: "OTHER", label: "其他医疗机构" },
+  ...Object.entries(facilityTypeLabels).map(([value, label]) => ({
+    value: value as NonNullable<OrgUnit["facilityType"]>,
+    label,
+  })),
 ];
 
 const themeOptions = [
@@ -140,13 +140,13 @@ function PlatformTenantProvisioning() {
   const columns = useMemo<ColumnsType<TenantSummary>>(
     () => [
       {
-        title: "租户标识",
+        title: "服务空间标识",
         dataIndex: "tenantId",
         key: "tenantId",
         render: (tenantId: string) => <span className={styles.orgCode}>{tenantId}</span>,
       },
       {
-        title: "租户名称",
+        title: "服务机构名称",
         dataIndex: "name",
         key: "name",
         render: (name: string) => <Text strong>{name}</Text>,
@@ -157,7 +157,7 @@ function PlatformTenantProvisioning() {
         key: "status",
         render: (status: string) => (
           <Tag color={status === "ACTIVE" ? "success" : "default"}>
-            {status === "ACTIVE" ? "已启用" : status}
+            {status === "ACTIVE" ? "已启用" : customerEnumLabel(status)}
           </Tag>
         ),
       },
@@ -185,19 +185,19 @@ function PlatformTenantProvisioning() {
       void refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(form, error)) return;
-      message.error(getApiErrorMessage(error, "客户租户开通失败"));
+      message.error(getApiErrorMessage(error, "服务空间开通失败"));
     }
   }
 
   if (isLoading) {
     return (
       <PageShell
-        title="客户租户开通"
-        description="读取客户租户台账"
+        title="服务空间开通"
+        description="读取服务空间台账"
         state="loading"
         stateProps={{
-          title: "正在加载客户租户",
-          description: "正在读取平台已开通的客户租户。",
+          title: "正在加载服务空间",
+          description: "正在读取平台已开通的服务空间。",
         }}
       >
         <></>
@@ -208,12 +208,12 @@ function PlatformTenantProvisioning() {
   if (isError) {
     return (
       <PageShell
-        title="客户租户开通"
+        title="服务空间开通"
         description="请重试或联系平台运维"
         state="error"
         stateProps={{
-          title: "客户租户台账读取失败",
-          description: "请重试；若持续失败，请带 traceId 联系平台运维排查租户供应接口。",
+          title: "服务空间台账读取失败",
+          description: "请重试；若持续失败，请带追踪标识联系平台运维排查开通接口。",
           onRetry: () => refetch(),
         }}
       >
@@ -225,28 +225,28 @@ function PlatformTenantProvisioning() {
   return (
     <>
       <PageShell
-        title="客户租户开通"
-        description="创建独立客户租户并交付首个管理员账号"
+        title="服务空间开通"
+        description="为集团、医院或其他服务机构创建独立空间并交付首个管理员账号"
         primary={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-            开通客户租户
+            开通服务空间
           </Button>
         }
       >
-        <Card title="客户租户">
+        <Card title="服务空间">
           <Table
             dataSource={tenants}
             columns={columns}
             rowKey="tenantId"
             pagination={{ pageSize: 10 }}
-            locale={{ emptyText: "尚未开通客户租户" }}
+            locale={{ emptyText: "尚未开通服务空间" }}
             size="small"
           />
         </Card>
       </PageShell>
 
       <Modal
-        title="开通客户租户"
+        title="开通服务空间"
         open={formOpen}
         okText="确认开通"
         cancelText="取消"
@@ -261,9 +261,9 @@ function PlatformTenantProvisioning() {
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item
             name="tenantId"
-            label="租户标识"
+            label="服务空间标识"
             rules={[
-              { required: true, message: "请输入租户标识" },
+              { required: true, message: "请输入服务空间标识" },
               {
                 pattern: /^[a-z0-9-]{2,64}$/,
                 message: "仅允许 2-64 位小写字母、数字和连字符",
@@ -274,8 +274,8 @@ function PlatformTenantProvisioning() {
           </Form.Item>
           <Form.Item
             name="tenantName"
-            label="租户名称"
-            rules={[{ required: true, message: "请输入租户名称" }]}
+            label="服务机构名称"
+            rules={[{ required: true, message: "请输入服务机构名称" }]}
           >
             <Input placeholder="例如 人民医院" autoComplete="organization" />
           </Form.Item>
@@ -296,7 +296,7 @@ function PlatformTenantProvisioning() {
       </Modal>
 
       <Modal
-        title="客户租户已开通"
+        title="服务空间已开通"
         open={Boolean(provisioned)}
         footer={
           <Button type="primary" onClick={() => setProvisioned(null)}>
@@ -308,7 +308,7 @@ function PlatformTenantProvisioning() {
         {provisioned && (
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Text>
-              租户 <Text strong>{provisioned.tenantId}</Text> 与管理员{" "}
+              服务空间 <Text strong>{provisioned.tenantId}</Text> 与管理员{" "}
               <Text strong>{provisioned.adminUsername}</Text> 已创建。
             </Text>
             {provisioned.tempPassword ? (
@@ -470,11 +470,11 @@ function CustomerTenantImplementation() {
   if (orgLoading || readinessLoading) {
     return (
       <PageShell
-        title="租户实施配置"
+        title="机构实施配置"
         description="读取组织树与实施就绪状态"
         state="loading"
         stateProps={{
-          title: "正在加载租户实施状态",
+          title: "正在加载机构实施状态",
           description: "正在读取组织树、开通就绪门和当前品牌信息。",
         }}
       >
@@ -486,12 +486,12 @@ function CustomerTenantImplementation() {
   if (orgError || readinessError) {
     return (
       <PageShell
-        title="租户实施配置"
+        title="机构实施配置"
         description="请重试或联系信息科"
         state="error"
         stateProps={{
-          title: "租户实施状态读取失败",
-          description: "请重试；若持续失败，请带 traceId 联系信息科排查租户与组织引擎接口。",
+          title: "机构实施状态读取失败",
+          description: "请重试；若持续失败，请带追踪标识联系信息科排查服务空间与组织接口。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -506,12 +506,12 @@ function CustomerTenantImplementation() {
   if (!readiness || readinessSteps.length === 0) {
     return (
       <PageShell
-        title="租户实施配置"
+        title="机构实施配置"
         description="等待实施就绪检查返回步骤"
         state="empty"
         stateProps={{
           title: "暂无实施就绪步骤",
-          description: "当前租户尚未返回实施就绪步骤，请确认租户上下文已经建立。",
+          description: "当前服务机构尚未返回实施就绪步骤，请确认服务空间已经建立。",
           onRetry: () => {
             void refetchReadiness();
           },
@@ -526,8 +526,8 @@ function CustomerTenantImplementation() {
 
   return (
     <PageShell
-      title="租户实施配置"
-      description="配置当前客户租户的组织与品牌，实时核查实施就绪状态"
+      title="机构实施配置"
+      description="配置当前服务机构的组织与品牌，实时核查实施就绪状态"
     >
       <Space direction="vertical" size="large" className="mk-full-width">
         <Row gutter={[16, 16]}>
@@ -667,7 +667,7 @@ function CustomerTenantImplementation() {
                         label="组织编码"
                         rules={[{ required: true, message: "请输入组织编码" }]}
                       >
-                        <Input placeholder="输入租户内唯一组织编码" />
+                        <Input placeholder="输入当前服务空间内唯一组织编码" />
                       </Form.Item>
 
                       <Form.Item
@@ -821,7 +821,7 @@ function CustomerTenantImplementation() {
                       <div className={styles.brandPreviewBody}>
                         <div className={styles.brandPreviewLine} />
                         <div className={styles.brandPreviewLineShort} />
-                        <Tag color="success">{watchHospitalName} · 已连接当前租户</Tag>
+                        <Tag color="success">{watchHospitalName} · 已归属当前服务空间</Tag>
                       </div>
                     </div>
                   </div>
@@ -841,12 +841,12 @@ export default function TenantOnboarding() {
   if (security.isLoading) {
     return (
       <PageShell
-        title="租户管理"
-        description="读取当前租户上下文"
+        title="服务机构管理"
+        description="读取当前服务空间"
         state="loading"
         stateProps={{
-          title: "正在确认租户范围",
-          description: "正在读取当前用户的租户与权限画像。",
+          title: "正在确认服务机构范围",
+          description: "正在读取当前用户的服务空间与权限画像。",
         }}
       >
         <></>
@@ -858,11 +858,11 @@ export default function TenantOnboarding() {
   if (security.isError || !tenantId) {
     return (
       <PageShell
-        title="租户管理"
-        description="当前租户上下文不可用"
+        title="服务机构管理"
+        description="当前服务空间不可用"
         state="error"
         stateProps={{
-          title: "无法确认当前租户",
+          title: "无法确认当前服务机构",
           description: "请重新登录；若持续失败，请带 traceId 联系平台运维排查安全画像。",
           onRetry: () => security.refetch(),
         }}

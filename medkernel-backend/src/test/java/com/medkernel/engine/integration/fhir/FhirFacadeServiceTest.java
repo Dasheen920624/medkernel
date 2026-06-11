@@ -81,8 +81,10 @@ class FhirFacadeServiceTest {
     void setUp() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-fhir",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
-            "it-ops"));
+            new OrgScope(
+                "tenant-A", "group-A", "hospital-A", "campus-A",
+                "site-A", "dept-A", "ward-A", "specialty-A"),
+            "integration-operator"));
         when(resources.save(any())).thenAnswer(invocation -> withCanonicalId(invocation.getArgument(0), 101L));
         when(mappings.save(any())).thenAnswer(invocation -> withMappingId(invocation.getArgument(0), 201L));
         when(events.receiveAsync(any())).thenReturn(new ClinicalEventAcceptedResponse(
@@ -141,6 +143,8 @@ class FhirFacadeServiceTest {
         assertThat(mappingCaptor.getValue().fhirId()).isEqualTo("obs-1");
         assertThat(mappingCaptor.getValue().canonicalResourceId()).isEqualTo(101L);
         assertThat(mappingCaptor.getValue().mappingStatus()).isEqualTo(FhirMappingStatus.ACTIVE);
+        assertThat(mappingCaptor.getValue().orgPath()).isEqualTo(
+            "tenant-A/group-A/hospital-A/campus-A/site-A/dept-A/ward-A/specialty-A");
 
         ArgumentCaptor<ClinicalEventRequest> eventCaptor = ArgumentCaptor.forClass(ClinicalEventRequest.class);
         verify(events).receiveAsync(eventCaptor.capture());

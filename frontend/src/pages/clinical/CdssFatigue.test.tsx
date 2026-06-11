@@ -273,7 +273,7 @@ describe("CdssFatigue", () => {
       size: 10,
     });
     expect(screen.getAllByText("patient-real-1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("WARD_ORDER").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("住院医嘱").length).toBeGreaterThan(0);
     expect(screen.getByText("已采纳")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("采纳率")).toBeInTheDocument();

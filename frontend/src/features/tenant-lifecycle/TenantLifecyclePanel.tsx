@@ -41,7 +41,7 @@ export function TenantLifecyclePanel() {
 
   if (isLoading) {
     return (
-      <Card title={<Text className={styles.title}>租户生命周期</Text>} className={styles.card}>
+      <Card title={<Text className={styles.title}>服务机构生命周期</Text>} className={styles.card}>
         <div className={styles.loaderContainer}>
           <Spin size="large" />
           <Text type="secondary" className={styles.loaderText}>
@@ -54,10 +54,10 @@ export function TenantLifecyclePanel() {
 
   if (error || !data) {
     return (
-      <Card title={<Text className={styles.title}>租户生命周期</Text>} className={styles.card}>
+      <Card title={<Text className={styles.title}>服务机构生命周期</Text>} className={styles.card}>
         <Alert
           message="数据加载失败"
-          description={error instanceof Error ? error.message : "暂时无法读取租户生命周期服务"}
+          description={error instanceof Error ? error.message : "暂时无法读取服务机构生命周期服务"}
           type="error"
           showIcon
         />
@@ -104,7 +104,7 @@ export function TenantLifecyclePanel() {
     <Card
       title={
         <Space direction="vertical" size={2}>
-          <Text className={styles.title}>租户生命周期</Text>
+          <Text className={styles.title}>服务机构生命周期</Text>
           <Text className={styles.subtitle}>查看当前试点阶段、健康度和已启用范围</Text>
         </Space>
       }
@@ -147,7 +147,7 @@ export function TenantLifecyclePanel() {
               size="small"
               title={
                 <span className={styles.cardIconTitle}>
-                  <SafetyCertificateOutlined /> 租户健康度得分
+                  <SafetyCertificateOutlined /> 服务机构健康度
                 </span>
               }
               className={styles.card}
@@ -203,7 +203,7 @@ export function TenantLifecyclePanel() {
                     无已激活服务模块
                   </Text>
                 )}
-                <Paragraph className={styles.cardDesc}>当前租户已启用的服务范围。</Paragraph>
+                <Paragraph className={styles.cardDesc}>当前服务机构已启用的服务范围。</Paragraph>
               </div>
             </Card>
           </Col>
@@ -234,7 +234,7 @@ export function TenantLifecyclePanel() {
                   </Text>
                 )}
                 <Paragraph className={styles.cardDesc}>
-                  当前租户已加载生效的临床路径与医疗规范知识库集合。
+                  当前服务机构已加载生效的临床路径与医疗规范知识库集合。
                 </Paragraph>
               </div>
             </Card>

@@ -73,7 +73,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReadAndFeedbackButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations/cards/card-1"))
             .andExpect(status().isBadRequest())
@@ -91,7 +91,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void legacyRootRecommendationCardRoutesAreNotMounted() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations"))
             .andExpect(status().isNotFound());
@@ -106,7 +106,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCannotCreateRecommendationTrigger() throws Exception {
         mvc.perform(post("/api/v1/engine/recommendations:evaluate")
                 .contentType("application/json")
@@ -120,7 +120,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void itOpsCanCreateTriggerButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/recommendations:evaluate")
                 .contentType("application/json")
@@ -136,7 +136,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanQueryFatigueSignalsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations/fatigue-signals"))
             .andExpect(status().isBadRequest())

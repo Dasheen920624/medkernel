@@ -25,6 +25,7 @@ public record DataPermissionPolicyRequest(
     @Size(max = 64) String campusId,
     @Size(max = 64) String siteId,
     @Size(max = 64) String departmentId,
+    @Size(max = 64) String wardId,
     @Size(max = 64) String specialtyId,
     @NotNull DataPermissionStatus status,
     @NotBlank @Size(max = 512) String reason,

@@ -50,6 +50,7 @@ import {
   type RuleGroup,
 } from "@/shared/config/conditionModel";
 import { PageShell } from "@/shared/ui/PageShell";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import type { StepKey } from "@/shared/ui/StepFlow.contract";
@@ -136,7 +137,9 @@ function getResponseStatus(error: unknown): number | undefined {
 }
 
 function statusTag(status: EvaluationIndicatorStatus) {
-  return <Tag color={STATUS_COLORS[status]}>{STATUS_LABELS[status] ?? status}</Tag>;
+  return (
+    <Tag color={STATUS_COLORS[status]}>{STATUS_LABELS[status] ?? customerEnumLabel(status)}</Tag>
+  );
 }
 
 function resolvePageState(isLoading: boolean, isError: boolean, responseStatus?: number) {
@@ -263,7 +266,7 @@ export default function QcEvalSets() {
       title: "评估主体",
       dataIndex: "subjectType",
       key: "subjectType",
-      render: (value: EvaluationSubjectType) => SUBJECT_LABELS[value] ?? value,
+      render: (value: EvaluationSubjectType) => SUBJECT_LABELS[value] ?? customerEnumLabel(value),
     },
     {
       title: "责任科室",
@@ -857,7 +860,9 @@ export default function QcEvalSets() {
           {simulationResult && (
             <Descriptions bordered column={1}>
               <Descriptions.Item label="运行 ID">{simulationResult.runId}</Descriptions.Item>
-              <Descriptions.Item label="运行状态">{simulationResult.status}</Descriptions.Item>
+              <Descriptions.Item label="运行状态">
+                {customerEnumLabel(simulationResult.status)}
+              </Descriptions.Item>
               <Descriptions.Item label="结果数">{simulationResult.resultCount}</Descriptions.Item>
               <Descriptions.Item label="缺陷数">{simulationResult.findingCount}</Descriptions.Item>
               <Descriptions.Item label="整改任务">{simulationResult.taskCount}</Descriptions.Item>

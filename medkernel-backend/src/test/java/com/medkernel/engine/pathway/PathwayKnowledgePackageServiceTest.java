@@ -129,7 +129,7 @@ class PathwayKnowledgePackageServiceTest {
             null,
             null,
             "author-A",
-            List.of("hospital-admin"),
+            List.of("organization-admin"),
             "1.0.0",
             "PKG.COPD",
             "COPD",

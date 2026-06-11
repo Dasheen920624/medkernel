@@ -34,6 +34,7 @@ import type {
   ProjectionTargetType,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { ProjectionGraphCanvas } from "./ProjectionGraphCanvas";
 import { projectionObjectLabel, projectionPredicateLabel } from "./projectionGraph";
@@ -79,7 +80,7 @@ function formatDateTime(value?: string | null) {
 function statusTag(status?: ProjectionSyncStatus | string | null) {
   const value = status ?? "UNKNOWN";
   const color = value === "SUCCESS" || value === "UP" || value === "READY" ? "success" : "warning";
-  return <Tag color={color}>{statusText[value] ?? value}</Tag>;
+  return <Tag color={color}>{statusText[value] ?? customerEnumLabel(value)}</Tag>;
 }
 
 function diffPanel(title: string, items: ProjectionDiffItem[]) {

@@ -139,14 +139,14 @@ class AuthoringBatchJobControllerTest {
                 .subject("batch-author")
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("medical_affairs")))
-            .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"));
     }
 
     private static RequestPostProcessor packageAuthorJwt() {
         return jwt().jwt(token -> token
                 .subject("package-author")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("it_ops")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
+                .claim("roles", List.of("implementation-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
     }
 }

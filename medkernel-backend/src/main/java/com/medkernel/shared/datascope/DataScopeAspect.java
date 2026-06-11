@@ -74,7 +74,7 @@ public class DataScopeAspect {
             case FACILITY -> notBlank(scope.hospitalId()) || notBlank(scope.siteId());
             case CAMPUS -> notBlank(scope.campusId());
             case DEPARTMENT -> notBlank(scope.departmentId());
-            case WARD -> notBlank(scope.departmentId());
+            case WARD -> notBlank(scope.wardId());
         };
     }
 

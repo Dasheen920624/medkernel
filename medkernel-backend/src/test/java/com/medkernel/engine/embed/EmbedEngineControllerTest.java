@@ -46,7 +46,7 @@ class EmbedEngineControllerTest {
     private static final String LAUNCH_TOKEN_BODY = """
         {
           "userId": "DOCTOR-001",
-          "roleCode": "doctor",
+          "roleCode": "clinical-decision-user",
           "patientId": "P1001",
           "encounterId": "E2001",
           "triggerPoint": "ORDER_SIGN",
@@ -92,8 +92,8 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_TOKEN_BODY))
             .andExpect(status().isOk())
@@ -109,7 +109,7 @@ class EmbedEngineControllerTest {
     @Test
     void validateAndExchange_PostBodyReturnsOkWithThreeRouteContext() throws Exception {
         EmbedLaunchContextResponse mockResponse = new EmbedLaunchContextResponse(
-            "DOCTOR-001", "doctor", "tenant-1", "P1001", "E2001", "order-sign", true, "trace-123",
+            "DOCTOR-001", "clinical-decision-user", "tenant-1", "P1001", "E2001", "order-sign", true, "trace-123",
             EmbedIntegrationMode.SDK, "order-sign", "hook-order-001", EmbedModelStatus.MODEL_DISABLED,
             EmbedConnectionStatus.CONNECTED, "1.0", "https://his.hospital.com"
         );
@@ -120,8 +120,8 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .header("Origin", "https://his.hospital.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
@@ -150,8 +150,8 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(FEEDBACK_BODY))
             .andExpect(status().isOk())
@@ -171,8 +171,8 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("it-ops")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
+                    .claim("roles", List.of("integration-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ORIGIN_BODY))
             .andExpect(status().isOk());
@@ -188,8 +188,8 @@ class EmbedEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0]").value("https://his.hospital.com"));
 

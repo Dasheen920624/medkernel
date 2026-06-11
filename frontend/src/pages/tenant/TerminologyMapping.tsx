@@ -237,10 +237,15 @@ function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], c
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
-function hasHospitalAdminRole(roles: SecurityProfile["roles"] | undefined) {
+function hasOrganizationAdminRole(roles: SecurityProfile["roles"] | undefined) {
   return (roles ?? []).some((role) => {
     const normalized = role.code.trim().toUpperCase().replace(/[-.]/g, "_");
-    return normalized === "HOSPITAL_ADMIN" || normalized === "ROLE_HOSPITAL_ADMIN";
+    return (
+      normalized === "ORGANIZATION_ADMIN" ||
+      normalized === "ROLE_ORGANIZATION_ADMIN" ||
+      normalized === "PLATFORM_GOVERNANCE_ADMIN" ||
+      normalized === "ROLE_PLATFORM_GOVERNANCE_ADMIN"
+    );
   });
 }
 
@@ -253,7 +258,7 @@ function packageScopeOptions(profile: SecurityProfile | undefined) {
     { level: "CAMPUS", code: scope.campusId, label: "当前院区" },
     { level: "FACILITY", code: facilityId, label: "当前机构" },
     { level: "REGION", code: scope.groupId, label: "当前区域" },
-    { level: "TENANT", code: scope.tenantId, label: "当前租户" },
+    { level: "TENANT", code: scope.tenantId, label: "当前服务空间" },
   ]
     .filter((item): item is { level: string; code: string; label: string } => Boolean(item.code))
     .map((item) => ({
@@ -890,7 +895,7 @@ export default function TerminologyMapping() {
           <Form.Item name="releaseMode" label="发布模式" rules={[{ required: true }]}>
             <Radio.Group>
               <Radio value="GRAY">10% 灰度</Radio>
-              <Radio value="FULL" disabled={!hasHospitalAdminRole(security.data?.roles)}>
+              <Radio value="FULL" disabled={!hasOrganizationAdminRole(security.data?.roles)}>
                 全量
               </Radio>
             </Radio.Group>

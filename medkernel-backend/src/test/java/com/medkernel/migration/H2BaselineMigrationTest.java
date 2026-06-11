@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 114;
+    private static final int LATEST_MIGRATION_VERSION = 115;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -51,27 +51,26 @@ class H2BaselineMigrationTest {
         Integer assignmentCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM user_role_assignment WHERE tenant_id = 't-1' AND active_flag = 'Y'",
             Integer.class);
-        assertThat(assignmentCount).as("首次接管前只初始化业务角色绑定").isEqualTo(15);
+        assertThat(assignmentCount).as("平台空间只初始化两类平台职责").isEqualTo(2);
 
         List<String> seededUsers = jdbc.queryForList("""
             SELECT user_id FROM user_role_assignment
             WHERE tenant_id = 't-1'
             ORDER BY user_id
             """, String.class);
-        assertThat(seededUsers)
-            .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1",
-                "med-technician-1", "pharmacist-1")
-            .doesNotContain("system-superadmin-1");
+        assertThat(seededUsers).containsExactly(
+            "platform-governance-admin-1",
+            "platform-knowledge-governor-1");
 
         Integer tenantUserCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM tenant_user WHERE tenant_id = 't-1'",
             Integer.class);
-        assertThat(tenantUserCount).as("首次接管前统一租户用户目录不含占位超管").isEqualTo(15);
+        assertThat(tenantUserCount).as("平台用户目录不混入客户机构职责").isEqualTo(2);
 
         Integer roleCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM sys_role WHERE tenant_id = 'SYSTEM' AND built_in_flag = 'Y'",
             Integer.class);
-        assertThat(roleCount).as("系统内置 16 角色目录").isEqualTo(16);
+        assertThat(roleCount).as("系统内置 15 个全新职责角色").isEqualTo(15);
 
         List<String> dimensions = jdbc.queryForList("""
             SELECT DISTINCT dimension FROM sys_permission

@@ -42,8 +42,8 @@ import com.medkernel.shared.context.RequestContext;
  * 这里只验证 Controller 层契约（请求路由、权限、参数校验、响应结构）。
  *
  * <p>权限模型说明：{@code @perm.has('followup.write')} 基于角色推导；
- * 测试中使用 {@code ROLE_MEDICAL_AFFAIRS}、{@code ROLE_DOCTOR} 和
- * {@code ROLE_NURSE} 验证医务管理、临床医生、护理人员均可执行随访闭环。
+ * 测试中使用 {@code ROLE_CLINICAL_GOVERNOR}、{@code ROLE_CLINICAL_DECISION_USER} 和
+ * {@code ROLE_NURSING_COLLABORATOR} 验证医务管理、临床医生、护理人员均可执行随访闭环。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -87,8 +87,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
             .andExpect(status().isOk())
@@ -112,8 +112,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyMissingContextSnapshotId))
             .andExpect(status().isBadRequest());
@@ -140,8 +140,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyMissingTaskTypes))
             .andExpect(status().isOk())
@@ -165,8 +165,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
             .andExpect(status().isOk())
@@ -186,8 +186,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.totalPlans").value(4))
             .andExpect(jsonPath("$.data.activePlans").value(2))
@@ -218,8 +218,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.planId").value("PLAN-001"))
             .andExpect(jsonPath("$.data.patientId").value("P1001"))
@@ -266,8 +266,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].taskId").value("TASK-001"))
             .andExpect(jsonPath("$.data.items[0].planId").value("PLAN-001"))
@@ -300,8 +300,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(QUESTIONNAIRE_DISPATCH_BODY))
             .andExpect(status().isOk())
@@ -331,8 +331,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ABNORMAL_BODY))
             .andExpect(status().isOk());
@@ -361,8 +361,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ABNORMAL_REPORT_BODY))
             .andExpect(status().isOk())
@@ -385,8 +385,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyMissingPlanId))
             .andExpect(status().isBadRequest());
@@ -423,8 +423,8 @@ class FollowupEngineControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                    .claim("roles", List.of("clinical-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(RESULT_BODY))
             .andExpect(status().isOk())

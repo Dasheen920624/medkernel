@@ -80,7 +80,7 @@ const profile: SecurityProfile = {
   username: "it.owner",
   roles: [
     {
-      code: "it-ops",
+      code: "integration-operator",
       displayName: "信息科",
       source: "DEFAULT",
       scopeLevel: null,
@@ -420,13 +420,13 @@ describe("TerminologyMapping experience sample", () => {
     );
   });
 
-  it("separates specialist authoring from medical-affairs publishing", () => {
-    const specialistProfile: SecurityProfile = {
+  it("separates diagnostic-service authoring from knowledge-governance publishing", () => {
+    const diagnosticServiceProfile: SecurityProfile = {
       ...profile,
       roles: [
         {
-          code: "specialist",
-          displayName: "专科专家",
+          code: "diagnostic-service-user",
+          displayName: "医技协同人员",
           source: "DEFAULT",
           scopeLevel: null,
           scopeCode: null,
@@ -436,7 +436,7 @@ describe("TerminologyMapping experience sample", () => {
         ["term.read", "term.write"].includes(permission.code),
       ),
     };
-    configureQuery({}, specialistProfile);
+    configureQuery({}, diagnosticServiceProfile);
     const view = renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
@@ -445,12 +445,12 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByRole("button", { name: "发布映射包" })).toBeDisabled();
     expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith(false);
 
-    const medicalAffairsProfile: SecurityProfile = {
+    const knowledgeGovernorProfile: SecurityProfile = {
       ...profile,
       roles: [
         {
-          code: "medical-affairs",
-          displayName: "医务处",
+          code: "knowledge-governor",
+          displayName: "机构知识治理员",
           source: "DEFAULT",
           scopeLevel: null,
           scopeCode: null,
@@ -460,7 +460,7 @@ describe("TerminologyMapping experience sample", () => {
         ["term.read", "term.publish"].includes(permission.code),
       ),
     };
-    configureQuery({}, medicalAffairsProfile);
+    configureQuery({}, knowledgeGovernorProfile);
     view.rerender(
       <ConfigProvider>
         <TerminologyMapping />

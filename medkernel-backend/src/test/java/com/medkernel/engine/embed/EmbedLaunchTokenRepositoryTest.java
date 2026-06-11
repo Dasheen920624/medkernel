@@ -48,7 +48,7 @@ class EmbedLaunchTokenRepositoryTest {
             "tkn-sql-bind",
             "tenant-A",
             "doctor-1",
-            "doctor",
+            "clinical-decision-user",
             "P100",
             "E200",
             "patient-view",

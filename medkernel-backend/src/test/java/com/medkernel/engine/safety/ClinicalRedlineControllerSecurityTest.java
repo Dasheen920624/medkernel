@@ -49,8 +49,8 @@ class ClinicalRedlineControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine/safety/redlines")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -87,8 +87,8 @@ class ClinicalRedlineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.contentStatus").value("CONFIGURED"))
             .andExpect(jsonPath("$.data.redlines[0].redlineId").value("redline-ddi-warfarin-nsaid"))
@@ -118,8 +118,8 @@ class ClinicalRedlineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -151,7 +151,7 @@ class ClinicalRedlineControllerSecurityTest {
                     .subject("medical-admin-1")
                     .claim("tenant_id", "tenant-A")
                     .claim("roles", List.of("medical_affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("PASSED"))
             .andExpect(jsonPath("$.data.requiredSilentHours").value(168))

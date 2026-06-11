@@ -21,6 +21,7 @@ import {
   type LoginTenantOption,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { connectionStatusLabel, identityProviderLabel } from "@/shared/config/customerLabels";
 import { platformTenantDescription } from "@/shared/config/tenantDictionary";
 import styles from "./Login.module.css";
 
@@ -65,10 +66,10 @@ function getPlatformContextDescription({
   hasCustomerTenants: boolean;
 }) {
   if (!activeTenant) {
-    return "等待后端返回平台或客户租户后才能登录。";
+    return "正在等待服务端返回可登录的机构。";
   }
   if (isPlatformLayer && hasCustomerTenants) {
-    return "仅平台开发者和运维人员管理全局知识源时使用；客户定制不会回写平台主租户。";
+    return "仅供平台治理、知识标准维护和系统运维人员使用；机构定制不会回写平台标准。";
   }
   return platformTenantDescription;
 }
@@ -214,7 +215,7 @@ export default function Login() {
   async function handleSubmit(values: { username: string; password: string; tenantId?: string }) {
     setErrorMsg(null);
     if (!activeTenant) {
-      setErrorMsg("租户目录未就绪，后端未返回可登录租户，不能提交登录。");
+      setErrorMsg("机构目录未就绪，服务端未返回可登录机构，不能提交登录。");
       return;
     }
     try {
@@ -297,10 +298,10 @@ export default function Login() {
               </div>
             </div>
             <Title level={2} className={styles.cardTitle}>
-              登录工作台
+              {isPlatformLayer ? "登录平台治理" : "登录机构工作台"}
             </Title>
             <Text type="secondary">
-              {canUseDelegatedLogin ? "使用客户或集团账号继续" : "使用平台账号继续"}
+              {canUseDelegatedLogin ? "使用所在机构账号继续" : "使用平台治理账号继续"}
             </Text>
           </div>
 
@@ -313,7 +314,7 @@ export default function Login() {
                 }
                 onClick={() => setShowPlatformTenant(false)}
               >
-                集团院内户
+                机构用户
               </Button>
               <Button
                 aria-pressed={showPlatformTenant}
@@ -322,7 +323,7 @@ export default function Login() {
                 }
                 onClick={() => setShowPlatformTenant(true)}
               >
-                主平台户
+                平台治理
               </Button>
             </div>
           )}
@@ -332,18 +333,18 @@ export default function Login() {
             <Alert
               type="info"
               showIcon
-              message="正在读取租户目录"
-              description="登录租户以服务端目录为唯一来源，请稍候。"
+              message="正在读取机构目录"
+              description="可登录机构以服务端目录为唯一来源，请稍候。"
             />
           )}
           {loginTenantDirectory.isError && (
             <Alert
               type="error"
               showIcon
-              message="租户目录读取失败"
+              message="机构目录读取失败"
               description={getApiErrorMessage(
                 loginTenantDirectory.error,
-                "暂时无法读取后端租户目录，登录入口已暂停提交。",
+                "暂时无法读取服务端机构目录，登录入口已暂停提交。",
               )}
             />
           )}
@@ -351,8 +352,8 @@ export default function Login() {
             <Alert
               type="warning"
               showIcon
-              message="没有可登录租户"
-              description="后端未返回平台或客户租户，登录入口已暂停提交。"
+              message="没有可登录机构"
+              description="服务端未返回平台治理空间或医疗服务机构，登录入口已暂停提交。"
             />
           )}
 
@@ -370,7 +371,7 @@ export default function Login() {
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="请输入医院账号"
+                placeholder={isPlatformLayer ? "请输入平台治理账号" : "请输入工号或机构账号"}
                 size="large"
                 autoComplete="username"
               />
@@ -388,9 +389,9 @@ export default function Login() {
               />
             </Form.Item>
             {canUseDelegatedLogin ? (
-              <div className={styles.tenantChoiceSection} aria-label="客户或集团租户">
+              <div className={styles.tenantChoiceSection} aria-label="所在机构">
                 <Text strong className={styles.fieldLabel}>
-                  登录租户
+                  所在机构
                 </Text>
                 <div className={styles.tenantChoiceGroup}>
                   {visibleTenants.map((tenant) => {
@@ -411,19 +412,19 @@ export default function Login() {
                   })}
                 </div>
                 <Text type="secondary" className={styles.helperText}>
-                  客户和集团账号优先进入本租户；平台主租户在下方第二层。
+                  请选择本次工作的集团、医院或医疗服务机构。
                 </Text>
               </div>
             ) : (
               <div className={styles.platformContext}>
                 <SafetyCertificateOutlined aria-hidden="true" />
                 <div>
-                  <Text strong>{activeTenant ? "平台主租户自动进入" : "租户目录未就绪"}</Text>
+                  <Text strong>{activeTenant ? "平台治理入口" : "机构目录未就绪"}</Text>
                   <Text type="secondary" className={styles.helperText}>
                     {platformContextDescription}
                   </Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {activeTenant?.name ?? "无可登录租户"}
+                    {activeTenant ? "平台标准与全局治理空间" : "无可登录机构"}
                   </Text>
                 </div>
               </div>
@@ -517,7 +518,7 @@ export default function Login() {
                       key={provider}
                       loading={delegatedAuthStatus.isLoading}
                     >
-                      {provider}（{delegatedState}）
+                      {identityProviderLabel(provider)}（{connectionStatusLabel(delegatedState)}）
                     </Button>
                   ))
                 ) : (
@@ -559,10 +560,10 @@ export default function Login() {
 
 function tenantKindLabel(tenant: LoginTenantOption) {
   if (tenant.kind === "GROUP") {
-    return "集团租户";
+    return "医疗集团";
   }
   if (tenant.kind === "HOSPITAL") {
-    return "医院租户";
+    return "医院";
   }
-  return tenant.kind === "PLATFORM" ? "平台主租户" : "客户租户";
+  return tenant.kind === "PLATFORM" ? "平台治理" : "医疗服务机构";
 }

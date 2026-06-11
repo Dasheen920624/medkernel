@@ -78,8 +78,8 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
           data: {
             primaryTenants: hasCustomerTenants
               ? [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }]
-              : [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
-            platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+              : [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
+            platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
             hasCustomerTenants,
           },
         },
@@ -227,9 +227,9 @@ describe("page smoke coverage", () => {
 
   it("renders the compliance admin-users console", () => {
     renderPage(<AdminUsers />);
-    expect(screen.getByRole("heading", { name: "用户管理" })).toBeInTheDocument();
-    expect(screen.getByText("正在读取用户")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "人员与账号" })).toBeInTheDocument();
+    expect(screen.getByText("正在读取人员主数据")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /刷新/ })).toBeInTheDocument();
   });
 
   it("renders an advanced tool page with advanced-only messaging", () => {
@@ -282,13 +282,12 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
-    expect(screen.getByText("使用平台账号继续")).toBeInTheDocument();
-    expect(await screen.findByText("平台主租户自动进入")).toBeInTheDocument();
-    expect(await screen.findByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(screen.getByText("使用平台治理账号继续")).toBeInTheDocument();
+    expect(await screen.findByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("服务空间标识")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeInTheDocument();
@@ -306,11 +305,11 @@ describe("page smoke coverage", () => {
     );
 
     expect(await screen.findByLabelText("登录类型切换")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "集团院内户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "机构用户" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
@@ -318,7 +317,7 @@ describe("page smoke coverage", () => {
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
     expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "OIDC（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
     expect(screen.getByText(/真实院方 IdP/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CAS（待院方配置）" })).not.toBeInTheDocument();
   });

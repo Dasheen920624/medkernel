@@ -266,7 +266,7 @@ describe("AdminAudit", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(
       query({
         userId: "it-ops-1",
-        username: "it-ops",
+        username: "integration-operator",
         permissions: [{ code: "list.export" }, { code: "audit.read" }],
         menuKeys: ["admin-audit"],
       }) as never,

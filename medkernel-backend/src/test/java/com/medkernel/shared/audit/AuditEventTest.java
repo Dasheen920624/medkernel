@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.shared.context.OrgScope;
+
 class AuditEventTest {
 
     @Test
@@ -30,5 +32,16 @@ class AuditEventTest {
         assertThat(ev.outcome()).isEqualTo("FAILED");
         assertThat(ev.errorCode()).isEqualTo("ENG-CONTEXT-002");
         assertThat(ev.payloadDigest()).isEqualTo("abc");
+    }
+
+    @Test
+    void organizationPathPreservesWardBetweenDepartmentAndSpecialty() {
+        OrgScope scope = new OrgScope(
+            "tenant-A", "group-A", "hospital-A", "campus-A",
+            "site-A", "dept-A", "ward-A", "specialty-A");
+
+        assertThat(AuditEvent.orgPath(scope)).isEqualTo(
+            "tenant:tenant-A/group:group-A/hospital:hospital-A/campus:campus-A/"
+                + "site:site-A/department:dept-A/ward:ward-A/specialty:specialty-A");
     }
 }

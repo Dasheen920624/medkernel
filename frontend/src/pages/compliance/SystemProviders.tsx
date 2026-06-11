@@ -20,6 +20,7 @@ import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
+import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -194,7 +195,7 @@ export default function SystemProviders() {
             <Card>
               <Statistic
                 title="核心服务"
-                value={STATUS_LABEL[data.healthStatus] ?? data.healthStatus}
+                value={STATUS_LABEL[data.healthStatus] ?? customerEnumLabel(data.healthStatus)}
                 valueStyle={{
                   color: data.healthStatus === "UP" ? token.colorSuccess : token.colorWarning,
                 }}
@@ -230,7 +231,7 @@ export default function SystemProviders() {
                 dataIndex: "status",
                 render: (status) => (
                   <Tag color={STATUS_COLOR[status] ?? "default"}>
-                    {STATUS_LABEL[status] ?? status}
+                    {STATUS_LABEL[status] ?? customerEnumLabel(status)}
                   </Tag>
                 ),
               },
@@ -336,7 +337,9 @@ export default function SystemProviders() {
                   {
                     title: "风险",
                     dataIndex: "risk",
-                    render: (risk) => <Tag color={RISK_COLOR[risk] ?? "default"}>{risk}</Tag>,
+                    render: (risk) => (
+                      <Tag color={RISK_COLOR[risk] ?? "default"}>{riskLabel(risk)}</Tag>
+                    ),
                   },
                   {
                     title: "配置来源",

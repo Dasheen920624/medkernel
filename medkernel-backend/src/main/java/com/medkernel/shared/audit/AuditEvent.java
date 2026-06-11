@@ -153,6 +153,7 @@ public record AuditEvent(
         addSegment(segments, "campus", scope.campusId());
         addSegment(segments, "site", scope.siteId());
         addSegment(segments, "department", scope.departmentId());
+        addSegment(segments, "ward", scope.wardId());
         addSegment(segments, "specialty", scope.specialtyId());
         return segments.isEmpty() ? null : String.join("/", segments);
     }

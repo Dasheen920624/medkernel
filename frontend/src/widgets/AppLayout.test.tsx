@@ -175,9 +175,9 @@ function permissionProfile(menuKeys: string[]) {
     username: "chen.ming",
     menuKeys,
     roles: [
-      { code: "doctor", displayName: "临床医生" },
-      ...(hasTerminologyMapping ? [{ code: "it-ops", displayName: "信息科" }] : []),
-      ...(hasAdapterHub ? [{ code: "it-ops", displayName: "信息科" }] : []),
+      { code: "clinical-decision-user", displayName: "临床医生" },
+      ...(hasTerminologyMapping ? [{ code: "integration-operator", displayName: "信息科" }] : []),
+      ...(hasAdapterHub ? [{ code: "integration-operator", displayName: "信息科" }] : []),
     ],
     permissions: [
       ...menuKeys.map(menuPermission),
@@ -451,7 +451,7 @@ describe("AppLayout", () => {
     await screen.findByRole("menuitem", { name: /修改密码/ });
     expect(screen.getAllByText("chen.ming").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("临床医生").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("租户 t-1 / 医院 h-1 / 科室 d-1")).toBeInTheDocument();
+    expect(screen.getByText("服务空间 t-1 / 医院 h-1 / 科室 d-1")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /修改密码/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /退出登录/ })).toBeInTheDocument();
   });

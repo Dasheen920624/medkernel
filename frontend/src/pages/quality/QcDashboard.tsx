@@ -33,6 +33,7 @@ import type {
   QualityValueMetric,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 import styles from "./Quality.module.css";
 
@@ -387,7 +388,7 @@ function ValueMetricList({ metrics }: { metrics: QualityValueMetric[] }) {
               {metric.status === "AVAILABLE" ? (
                 <Text strong>{formatMetricValue(metric)}</Text>
               ) : (
-                <Tag color="warning">NOT_AVAILABLE</Tag>
+                <Tag color="warning">暂不可用</Tag>
               )}
             </Space>
             <Text type="secondary">{metric.explanation}</Text>
@@ -421,7 +422,7 @@ function AlertList({
           <Space direction="vertical" size={4} className={styles.fullWidth}>
             <Space className={styles.rowBetween} wrap>
               <Space wrap>
-                <Tag color="error">{alert.severity}</Tag>
+                <Tag color="error">{customerEnumLabel(alert.severity)}</Tag>
                 <Text strong>{alert.title}</Text>
               </Space>
               <Text type="secondary">{formatDateTime(alert.createdAt)}</Text>
@@ -433,7 +434,7 @@ function AlertList({
                   ? `科室：${departmentNames.get(alert.departmentId) ?? alert.departmentId}`
                   : "全院"}
               </Tag>
-              <Tag>{alert.sourceType}</Tag>
+              <Tag>{customerEnumLabel(alert.sourceType)}</Tag>
               {alert.traceId && <Text type="secondary">traceId: {alert.traceId}</Text>}
             </Space>
           </Space>
@@ -465,7 +466,7 @@ function EvidenceDrawer({
     <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="middle" className={styles.fullWidth}>
         <Space className={styles.rowBetween} wrap>
-          <Tag color="processing">{drilldownType}</Tag>
+          <Tag color="processing">{customerEnumLabel(drilldownType)}</Tag>
           <Text type="secondary">
             {query.data ? `共 ${query.data.total} 项，当前 ${items.length} 项` : "等待读取"}
           </Text>
@@ -522,7 +523,7 @@ function EvidenceItem({
         <Space className={styles.rowBetween} wrap>
           <Space wrap>
             <Tag color={item.severity === "P0" || item.severity === "P1" ? "error" : "default"}>
-              {item.severity}
+              {customerEnumLabel(item.severity)}
             </Tag>
             <Text strong>{item.title}</Text>
           </Space>
@@ -535,8 +536,8 @@ function EvidenceItem({
               ? (departmentNames.get(item.departmentId) ?? item.departmentId)
               : "全院"}
           </Tag>
-          <Tag>{item.status}</Tag>
-          <Tag>{item.sourceType}</Tag>
+          <Tag>{customerEnumLabel(item.status)}</Tag>
+          <Tag>{customerEnumLabel(item.sourceType)}</Tag>
           <Text type="secondary">sourceId: {item.sourceId}</Text>
           {item.traceId && <Text type="secondary">{item.traceId}</Text>}
         </Space>
@@ -575,7 +576,7 @@ function formatCount(value: number): string {
 
 function formatMetricValue(metric: QualityValueMetric): string {
   if (metric.status !== "AVAILABLE" || metric.value === null) {
-    return "NOT_AVAILABLE";
+    return "暂不可用";
   }
   if (metric.unit === "%") {
     const percent = metric.value <= 1 ? metric.value * 100 : metric.value;

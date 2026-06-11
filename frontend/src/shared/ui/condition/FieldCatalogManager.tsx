@@ -139,7 +139,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
       dataIndex: "source",
       width: 90,
       render: (source?: string | null) =>
-        source === "TENANT" ? <Tag color="green">租户</Tag> : <Tag>平台</Tag>,
+        source === "TENANT" ? <Tag color="green">服务机构</Tag> : <Tag>平台</Tag>,
     },
     {
       title: "操作",

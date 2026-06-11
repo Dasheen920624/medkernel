@@ -48,7 +48,7 @@ class ExportApprovalControllerSecurityTest {
 
     @Test
     @DisplayName("审计合规角色可到达导出申请，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void requestExport_auditRoleWithoutTenant_returns400() throws Exception {
         mvc.perform(post("/api/v1/compliance/exports:request")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -59,7 +59,7 @@ class ExportApprovalControllerSecurityTest {
 
     @Test
     @DisplayName("普通医生无 audit.export 权限，不能申请敏感数据导出")
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void requestExport_doctorRole_returns403() throws Exception {
         mvc.perform(post("/api/v1/compliance/exports:request")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -81,7 +81,7 @@ class ExportApprovalControllerSecurityTest {
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "compliance")
                     .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody()))
             .andExpect(status().isOk())
@@ -104,7 +104,7 @@ class ExportApprovalControllerSecurityTest {
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "compliance")
                     .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].status").value("REQUESTED"));
     }
@@ -124,7 +124,7 @@ class ExportApprovalControllerSecurityTest {
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "compliance")
                     .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(approveBody()))
             .andExpect(status().isOk())
@@ -133,7 +133,7 @@ class ExportApprovalControllerSecurityTest {
 
     @Test
     @DisplayName("普通医生无 audit.export 权限，不能审批导出申请")
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void approveExport_doctorRole_returns403() throws Exception {
         mvc.perform(post("/api/v1/compliance/exports/exp-clinical-case-idem-001:approve")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class ExportApprovalControllerSecurityTest {
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "compliance")
                     .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(completeBody()))
             .andExpect(status().isOk())

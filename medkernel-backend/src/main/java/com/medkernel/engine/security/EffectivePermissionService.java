@@ -151,11 +151,11 @@ public class EffectivePermissionService {
         }
         return switch (assignment.scopeLevel().trim().toUpperCase(Locale.ROOT)) {
             case "TENANT" -> matches(assignedCode, scope.tenantId());
-            case "GROUP" -> matches(assignedCode, scope.groupId());
-            case "HOSPITAL" -> matches(assignedCode, scope.hospitalId());
+            case "REGION" -> matches(assignedCode, scope.groupId());
+            case "FACILITY" -> matches(assignedCode, scope.hospitalId());
             case "CAMPUS" -> matches(assignedCode, scope.campusId());
-            case "SITE" -> matches(assignedCode, scope.siteId());
             case "DEPARTMENT" -> matches(assignedCode, scope.departmentId());
+            case "WARD" -> matches(assignedCode, scope.wardId());
             case "SPECIALTY" -> matches(assignedCode, scope.specialtyId());
             default -> false;
         };
@@ -238,6 +238,7 @@ public class EffectivePermissionService {
             safe.campusId(),
             safe.siteId(),
             safe.departmentId(),
+            safe.wardId(),
             safe.specialtyId()
         );
     }

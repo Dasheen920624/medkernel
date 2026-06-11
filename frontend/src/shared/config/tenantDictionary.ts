@@ -1,7 +1,8 @@
 export const platformTenantId = "t-1";
 export const defaultTenantId = platformTenantId;
-export const platformTenantLabel = "平台主租户（唯一内置）";
-export const platformTenantDescription = "全局医疗知识和标准包的源租户；客户租户进入工作台后分配。";
+export const platformTenantLabel = "平台治理空间";
+export const platformTenantDescription =
+  "维护全局医疗知识、标准包和平台策略；机构业务在各自组织空间内运行。";
 
 export const loginTenantOptions = [
   {

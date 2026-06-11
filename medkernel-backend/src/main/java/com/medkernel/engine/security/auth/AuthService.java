@@ -160,11 +160,11 @@ public class AuthService {
 
     private int scopeSpecificity(UserRoleAssignment assignment) {
         return switch (scopeLevel(assignment)) {
+            case "WARD" -> 60;
             case "DEPARTMENT" -> 50;
-            case "SITE" -> 40;
-            case "CAMPUS" -> 35;
-            case "HOSPITAL" -> 30;
-            case "GROUP" -> 20;
+            case "CAMPUS" -> 40;
+            case "FACILITY" -> 30;
+            case "REGION" -> 20;
             case "SPECIALTY" -> 10;
             default -> 0;
         };
@@ -176,7 +176,9 @@ public class AuthService {
         if ("TENANT".equals(level)) {
             return OrgScope.tenant(tenantId);
         }
-        OrgUnit unit = orgUnits.findByTenantIdAndCode(tenantId, code).orElse(null);
+        OrgUnit unit = orgUnits.findByTenantIdAndId(tenantId, code)
+            .or(() -> orgUnits.findByTenantIdAndCode(tenantId, code))
+            .orElse(null);
         if (unit == null) {
             return fallbackOrgScope(tenantId, level, code);
         }
@@ -189,17 +191,14 @@ public class AuthService {
         String campusId = null;
         String siteId = null;
         String departmentId = null;
+        String wardId = null;
         String specialtyId = null;
         OrgLevel level = unit.level();
-        if ("SITE".equals(assignmentLevel)) {
-            siteId = unit.id();
-            hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
-            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
-        } else if ("SPECIALTY".equals(assignmentLevel)) {
+        if ("SPECIALTY".equals(assignmentLevel)) {
             specialtyId = firstText(unit.specialtyId(), unit.id());
-        } else if (level == OrgLevel.REGION || "GROUP".equals(assignmentLevel)) {
+        } else if (level == OrgLevel.REGION || "REGION".equals(assignmentLevel)) {
             groupId = unit.id();
-        } else if (level == OrgLevel.FACILITY || "HOSPITAL".equals(assignmentLevel)) {
+        } else if (level == OrgLevel.FACILITY || "FACILITY".equals(assignmentLevel)) {
             hospitalId = unit.id();
             groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
         } else if (level == OrgLevel.CAMPUS) {
@@ -208,19 +207,35 @@ public class AuthService {
             groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
         } else if (level == OrgLevel.DEPARTMENT) {
             departmentId = unit.id();
+            campusId = ancestorId(tenantId, unit, OrgLevel.CAMPUS);
+            hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
+            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
+        } else if (level == OrgLevel.WARD || "WARD".equals(assignmentLevel)) {
+            wardId = unit.id();
+            departmentId = ancestorId(tenantId, unit, OrgLevel.DEPARTMENT);
+            campusId = ancestorId(tenantId, unit, OrgLevel.CAMPUS);
             hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
             groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
         }
-        return new OrgScope(tenantId, groupId, hospitalId, campusId, siteId, departmentId, specialtyId);
+        return new OrgScope(
+            tenantId,
+            groupId,
+            hospitalId,
+            campusId,
+            siteId,
+            departmentId,
+            wardId,
+            specialtyId);
     }
 
     private OrgScope fallbackOrgScope(String tenantId, String level, String code) {
         return switch (level) {
-            case "GROUP" -> new OrgScope(tenantId, code, null, null, null, null, null);
-            case "HOSPITAL" -> new OrgScope(tenantId, null, code, null, null, null, null);
+            case "REGION" -> new OrgScope(tenantId, code, null, null, null, null, null);
+            case "FACILITY" -> new OrgScope(tenantId, null, code, null, null, null, null);
             case "CAMPUS" -> new OrgScope(tenantId, null, null, code, null, null, null);
-            case "SITE" -> new OrgScope(tenantId, null, null, null, code, null, null);
             case "DEPARTMENT" -> new OrgScope(tenantId, null, null, null, null, code, null);
+            case "WARD" -> new OrgScope(
+                tenantId, null, null, null, null, null, code, null);
             case "SPECIALTY" -> new OrgScope(tenantId, null, null, null, null, null, code);
             default -> OrgScope.tenant(tenantId);
         };

@@ -85,13 +85,13 @@ class DiagnosisKnowledgeApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorForbiddenFromPublish() throws Exception {
         mockMvc.perform(post(PUBLISH)).andExpect(status().isForbidden());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanReachReadButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(get(CRITERIA))
             .andExpect(status().isBadRequest())
@@ -99,7 +99,7 @@ class DiagnosisKnowledgeApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
     void medicalAffairsCanReachWriteButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(post(CRITERIA).contentType(MediaType.APPLICATION_JSON).content(CRITERION_JSON))
             .andExpect(status().isBadRequest())
@@ -114,7 +114,7 @@ class DiagnosisKnowledgeApiContractTest {
             100L, "t-1", 10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR,
             null, null, null, Instant.now(), "u", Instant.now(), "u", "tr"));
 
-        mockMvc.perform(post(CRITERIA).with(tenantJwt("ROLE_MEDICAL_AFFAIRS"))
+        mockMvc.perform(post(CRITERIA).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON).content(CRITERION_JSON))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.findingTermCode").value("FEVER"));
@@ -122,7 +122,7 @@ class DiagnosisKnowledgeApiContractTest {
 
     @Test
     void medicalAffairsWithTenantCanCreateEvidenceCompleteAsset() throws Exception {
-        mockMvc.perform(post(ASSETS).with(tenantJwt("ROLE_MEDICAL_AFFAIRS"))
+        mockMvc.perform(post(ASSETS).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -130,7 +130,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-1",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "identity": {
                         "identitySlug": "chronic-kidney-disease",
@@ -164,7 +164,7 @@ class DiagnosisKnowledgeApiContractTest {
 
     @Test
     void medicalAffairsWithTenantCanCreateEvidenceCompleteVersion() throws Exception {
-        mockMvc.perform(post(NEW_VERSION).with(tenantJwt("ROLE_MEDICAL_AFFAIRS"))
+        mockMvc.perform(post(NEW_VERSION).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -172,7 +172,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-v2",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["medical-affairs"],
+                      "role_codes": ["clinical-governor"],
                       "package_version": "pkg-2026.06",
                       "source": {
                         "sourceCode": "SRC.CKD.2027",
@@ -205,7 +205,7 @@ class DiagnosisKnowledgeApiContractTest {
         when(service.publishDiagnosis(eq(1L), eq(10L), any(), any()))
             .thenThrow(new ApiException(ErrorCode.ENG_DX_006, "测试病例 CASE-1 期望 WEAK 实得 STRONG"));
 
-        mockMvc.perform(post(PUBLISH).with(tenantJwt("ROLE_MEDICAL_AFFAIRS")))
+        mockMvc.perform(post(PUBLISH).with(tenantJwt("ROLE_KNOWLEDGE_GOVERNOR")))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("ENG-DX-006"));
     }

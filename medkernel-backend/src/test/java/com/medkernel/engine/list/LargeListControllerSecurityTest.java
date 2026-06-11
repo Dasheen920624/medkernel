@@ -71,8 +71,8 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
                 .andExpect(status().isOk());
 
         verify(service).queryAuditEvents(any(PageQuery.class));
@@ -101,7 +101,7 @@ class LargeListControllerSecurityTest {
             "SUCCESS",
             null,
             Instant.parse("2026-06-06T12:00:01Z"),
-            "ROLE_AUDIT_COMPLIANCE",
+            "ROLE_COMPLIANCE_AUDITOR",
             "tenant:tenant-1/hospital:hospital-1",
             "prod",
             "{\"enabled\":true}",
@@ -116,8 +116,8 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("auditor-1")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].actionCode").value("EXPORT"))
                 .andExpect(jsonPath("$.data.items[0].summary").value("导出审计证据"))
@@ -138,8 +138,8 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-LIST-006"));
     }
@@ -150,8 +150,8 @@ class LargeListControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER")))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(EXPORT_BODY))
                 .andExpect(status().isOk());
@@ -159,13 +159,13 @@ class LargeListControllerSecurityTest {
 
     @Test
     void testExportWithInvalidRole_ShouldReturnForbidden() throws Exception {
-        // 医保办角色没有 list.export 权限
+        // 临床决策使用者没有 list.export 权限
         mockMvc.perform(post("/api/v1/large-lists/exports")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("insurance-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INSURANCE_MANAGER")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(EXPORT_BODY))
                 .andExpect(status().isForbidden());
@@ -177,8 +177,8 @@ class LargeListControllerSecurityTest {
                 .param("size", "20")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("qa-manager")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

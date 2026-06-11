@@ -23,6 +23,7 @@ public record DataPermissionPolicy(
     @Column("campus_id") String campusId,
     @Column("site_id") String siteId,
     @Column("department_id") String departmentId,
+    @Column("ward_id") String wardId,
     @Column("specialty_id") String specialtyId,
     @Column("status") String status,
     @Column("version") Long version,
@@ -35,7 +36,7 @@ public record DataPermissionPolicy(
 
     public DataPermissionPolicy withId(Long newId) {
         return new DataPermissionPolicy(newId, policyId, tenantId, resourceType, action, minDataLevel,
-            allowedColumnsJson, groupId, hospitalId, campusId, siteId, departmentId, specialtyId, status,
-            version, createdAt, createdBy, updatedAt, updatedBy, traceId);
+            allowedColumnsJson, groupId, hospitalId, campusId, siteId, departmentId, wardId,
+            specialtyId, status, version, createdAt, createdBy, updatedAt, updatedBy, traceId);
     }
 }

@@ -144,7 +144,7 @@ class RuleRepositoryTest {
             versionId,
             RuleSignoffStage.COMMITTEE,
             1,
-            "medical-affairs",
+            "clinical-governor",
             "reviewer-2",
             RuleSignoffDecision.APPROVED,
             "同意进入影子验证",

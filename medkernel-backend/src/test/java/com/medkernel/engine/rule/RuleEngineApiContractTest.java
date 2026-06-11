@@ -91,7 +91,7 @@ class RuleEngineApiContractTest {
                       "trace_id": "trace-rule",
                       "tenant_id": "t-1",
                       "user_id": "api05-specialist",
-                      "role_codes": ["specialist"],
+                      "role_codes": ["knowledge-governor"],
                       "package_version": "1.0.0",
                       "ruleCode": "RULE.CARDIOLOGY.HR",
                       "name": "心率质控复核",
@@ -178,7 +178,7 @@ class RuleEngineApiContractTest {
                       "trace_id": "trace-rule",
                       "tenant_id": "t-1",
                       "user_id": "api05-doctor",
-                      "role_codes": ["doctor"],
+                      "role_codes": ["clinical-decision-user"],
                       "package_version": "pkg-1",
                       "triggerPoint": "order-sign",
                       "contextSnapshotId": "snapshot-1",
@@ -219,16 +219,16 @@ class RuleEngineApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api05-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("doctor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
+                .claim("roles", List.of("clinical-decision-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api05-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("specialist")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
+                .claim("roles", List.of("knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
     }
 
     private JsonNode evidenceExplanation() {

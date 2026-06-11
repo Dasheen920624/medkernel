@@ -162,6 +162,7 @@ import {
   isClinicalTriggerPoint,
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
+import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
 import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
@@ -440,7 +441,9 @@ function renderRiskTag(level: string) {
     CRITICAL: "magenta",
   };
   return (
-    <Tag color={colors[level] ?? "default"}>{RISK_LABELS[level as RuleSeverity] ?? level}</Tag>
+    <Tag color={colors[level] ?? "default"}>
+      {RISK_LABELS[level as RuleSeverity] ?? riskLabel(level)}
+    </Tag>
   );
 }
 
@@ -451,7 +454,10 @@ function renderStatus(status: string) {
     OFFLINE: { text: "已下线封存", status: "default" },
     ARCHIVED: { text: "已归档历史", status: "default" },
   };
-  const config = statusMap[status] || { text: status, status: "processing" };
+  const config = statusMap[status] || {
+    text: customerEnumLabel(status),
+    status: "processing",
+  };
   return <Badge status={config.status} text={config.text} />;
 }
 
@@ -464,7 +470,10 @@ function renderDeploymentStatus(status: string) {
     DEPRECATED: { text: "已弃用", status: "default" },
     RETIRED: { text: "已退役", status: "default" },
   };
-  const config = statusMap[status] || { text: status, status: "processing" };
+  const config = statusMap[status] || {
+    text: customerEnumLabel(status),
+    status: "processing",
+  };
   return <Badge status={config.status} text={config.text} />;
 }
 
@@ -527,7 +536,7 @@ function readableScope(applicability: RuleApplicability) {
   ].filter(Boolean);
   return [
     settingText.join("、") || "未配置场景",
-    orgText.join("、") || "当前租户全部组织",
+    orgText.join("、") || "当前服务空间全部组织",
     effectiveText.join(" · "),
   ].join(" · ");
 }
@@ -703,12 +712,16 @@ export default function RuleDefinitions() {
   const canPublishRule = permissionCodes.has("rule.publish");
   const canSignRule =
     (canWriteRule || canPublishRule || permissionCodes.has("evaluation.publish")) &&
-    ["medical-affairs", "qa-manager", "insurance-manager", "dept-head", "specialist"].some((role) =>
-      roleCodes.has(role),
-    );
+    [
+      "clinical-governor",
+      "quality-governor",
+      "quality-governor",
+      "clinical-governor",
+      "knowledge-governor",
+    ].some((role) => roleCodes.has(role));
   const canCoordinateRelease =
-    canPublishRule && (roleCodes.has("medical-affairs") || roleCodes.has("hospital-admin"));
-  const canActivateFull = canPublishRule && roleCodes.has("hospital-admin");
+    canPublishRule && (roleCodes.has("clinical-governor") || roleCodes.has("organization-admin"));
+  const canActivateFull = canPublishRule && roleCodes.has("organization-admin");
   const [page, setPage] = useState(1);
   const [size] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -2827,7 +2840,7 @@ export default function RuleDefinitions() {
       dataIndex: "status",
       key: "status",
       render: (status: ConditionFragmentStatus) => (
-        <Tag color={conditionFragmentStatusColor(status)}>{status}</Tag>
+        <Tag color={conditionFragmentStatusColor(status)}>{customerEnumLabel(status)}</Tag>
       ),
     },
     {
@@ -2931,11 +2944,13 @@ export default function RuleDefinitions() {
           <Space>
             <Badge status={selected ? "processing" : "default"} />
             <Text strong>{snapshot.snapshotId}</Text>
-            <Tag color={snapshot.status === "ACTIVE" ? "green" : "default"}>{snapshot.status}</Tag>
+            <Tag color={snapshot.status === "ACTIVE" ? "green" : "default"}>
+              {customerEnumLabel(snapshot.status)}
+            </Tag>
           </Space>
           <Text type="secondary">
             患者 {snapshot.patientId || "-"} · 就诊 {snapshot.encounterId || "-"} · 质量{" "}
-            {snapshot.qualityStatus}
+            {customerDisplayText(snapshot.qualityStatus)}
           </Text>
           {snapshot.createdAt && <Text type="secondary">创建时间 {snapshot.createdAt}</Text>}
         </Space>
@@ -3002,7 +3017,9 @@ export default function RuleDefinitions() {
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="快照 ID">{snapshot.snapshotId}</Descriptions.Item>
-          <Descriptions.Item label="质量状态">{snapshot.qualityStatus}</Descriptions.Item>
+          <Descriptions.Item label="质量状态">
+            {customerDisplayText(snapshot.qualityStatus)}
+          </Descriptions.Item>
           <Descriptions.Item label="绑定包版本">
             {snapshot.packageVersion || selectedRulePackageVersion || "-"}
           </Descriptions.Item>
@@ -3075,7 +3092,7 @@ export default function RuleDefinitions() {
           {result.severity && renderRiskTag(result.severity)}
           {result.contextQualityStatus && (
             <Tag color={result.contextQualityStatus === "COMPLETE" ? "green" : "orange"}>
-              快照质量：{result.contextQualityStatus}
+              快照质量：{customerDisplayText(result.contextQualityStatus)}
             </Tag>
           )}
         </Space>
@@ -3107,7 +3124,7 @@ export default function RuleDefinitions() {
             {snapshotDetailQuery.data.snapshotId}
           </Descriptions.Item>
           <Descriptions.Item label="质量状态">
-            {snapshotDetailQuery.data.qualityStatus}
+            {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
           </Descriptions.Item>
           <Descriptions.Item label="绑定包版本">
             {snapshotDetailQuery.data.packageVersion || createPackageVersion || "-"}
@@ -3145,7 +3162,7 @@ export default function RuleDefinitions() {
           {snapshotDetailQuery.data.snapshotId}
         </Descriptions.Item>
         <Descriptions.Item label="质量状态">
-          {snapshotDetailQuery.data.qualityStatus}
+          {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
         </Descriptions.Item>
         <Descriptions.Item label="绑定包版本">
           {snapshotDetailQuery.data.packageVersion || selectedRulePackageVersion || "-"}
@@ -3643,7 +3660,7 @@ export default function RuleDefinitions() {
                     ...(detailTree.applicability.orgScope.deptIds ?? []).map(
                       (value) => `科室 ${value}`,
                     ),
-                  ].join("、") || "当前租户全部组织"}
+                  ].join("、") || "当前服务空间全部组织"}
                 </Descriptions.Item>
                 <Descriptions.Item label="生效范围">
                   {detailTree.applicability.effective.from ?? "立即生效"} 至{" "}
@@ -3889,7 +3906,7 @@ export default function RuleDefinitions() {
                           </Space>
                         </Descriptions.Item>
                         <Descriptions.Item label="最高严重等级">
-                          {simulateResult.severity}
+                          {riskLabel(simulateResult.severity)}
                         </Descriptions.Item>
                         <Descriptions.Item label="确认要求">
                           {simulateResult.actions.some(
@@ -4950,7 +4967,7 @@ export default function RuleDefinitions() {
               <Form.Item
                 name="ruleCode"
                 label="规则唯一业务编码"
-                rules={[{ required: true, message: "请输入编码，同租户下不可重复" }]}
+                rules={[{ required: true, message: "请输入编码，同一服务空间内不可重复" }]}
               >
                 <Input placeholder="输入规则业务编码" />
               </Form.Item>
@@ -5169,9 +5186,9 @@ export default function RuleDefinitions() {
                       rules={[{ required: true, message: "请选择状态" }]}
                     >
                       <Select>
-                        <Option value="DRAFT">DRAFT 草稿</Option>
-                        <Option value="ACTIVE">ACTIVE 可复用</Option>
-                        <Option value="RETIRED">RETIRED 退役</Option>
+                        <Option value="DRAFT">草稿</Option>
+                        <Option value="ACTIVE">可复用</Option>
+                        <Option value="RETIRED">已退役</Option>
                       </Select>
                     </Form.Item>
                   </Col>

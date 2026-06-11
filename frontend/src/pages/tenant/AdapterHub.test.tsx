@@ -15,6 +15,7 @@ import {
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
+  useOrgUnits,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -51,6 +52,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useIntegrationAdapters: vi.fn(),
   useIntegrationLogs: vi.fn(),
   useIntegrationOnboardings: vi.fn(),
+  useOrgUnits: vi.fn(),
   useRegionalSources: vi.fn(),
   useRegisterRegionalSource: vi.fn(),
   useReplayDeadLetter: vi.fn(),
@@ -67,7 +69,7 @@ const profile: SecurityProfile = {
   username: "it.owner",
   roles: [
     {
-      code: "it-ops",
+      code: "integration-operator",
       displayName: "信息科",
       source: "DEFAULT",
       scopeLevel: null,
@@ -334,6 +336,28 @@ function mutation<T>(result: T) {
 
 function setupMocks() {
   vi.mocked(useSecurityProfile).mockReturnValue(query(profile) as never);
+  vi.mocked(useOrgUnits).mockReturnValue(
+    query({
+      items: [
+        {
+          id: "hospital-1",
+          tenantId: "tenant-1",
+          parentId: "tenant-root",
+          orgPath: "/tenant-1/hospital-1",
+          level: "FACILITY",
+          facilityType: "HOSPITAL",
+          code: "HOSP-1",
+          name: "示范医院",
+          status: "ACTIVE",
+        },
+      ],
+      page: 1,
+      size: 500,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    }) as never,
+  );
   vi.mocked(useIntegrationAdapters).mockReturnValue(query([hisAdapter]) as never);
   vi.mocked(useAdapterHubStatus).mockReturnValue(query(status) as never);
   vi.mocked(useIntegrationDataContract).mockReturnValue(query(undefined) as never);
@@ -425,7 +449,7 @@ describe("AdapterHub", () => {
 
     expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "新增适配器" })).toHaveLength(1);
-    expect(screen.getAllByText("NOT_CONNECTED").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("缺少检查报告时间映射")).toBeInTheDocument();
     expect(screen.getByText("死信重放")).toBeInTheDocument();
     expect(screen.getByText("数据质量看板")).toBeInTheDocument();
@@ -594,7 +618,7 @@ describe("AdapterHub", () => {
       webhookId: "clinical-events",
       payload: '{"event":"clinical.test"}',
     });
-    expect(await screen.findByText("NOT_TESTED")).toBeInTheDocument();
+    expect(await screen.findByText("未发起外部连通测试")).toBeInTheDocument();
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
   }, 15_000);
 
@@ -621,23 +645,24 @@ describe("AdapterHub", () => {
       target: { value: "市三院" },
     });
     await user.click(screen.getByLabelText("可信等级"));
-    await user.click(screen.getByTitle("MEDIUM"));
+    await user.click(screen.getByTitle("中风险"));
     fireEvent.change(screen.getByLabelText("可信证据"), {
       target: { value: "区域互认协议与接口验收单" },
     });
-    fireEvent.change(screen.getByLabelText("组织范围"), {
-      target: { value: "集团/总院" },
-    });
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("示范医院 · 医疗服务机构"));
     await user.click(screen.getByRole("button", { name: "保存区域来源" }));
 
-    expect(registerSource.mutateAsync).toHaveBeenCalledWith({
-      sourceId: "regional-image",
-      regionalNetworkName: "区域影像互认平台",
-      sourceOrganizationId: "hospital-3",
-      sourceOrganizationName: "市三院",
-      trustLevel: "MEDIUM",
-      evidenceText: "区域互认协议与接口验收单",
-      orgPath: "集团/总院",
+    await waitFor(() => {
+      expect(registerSource.mutateAsync).toHaveBeenCalledWith({
+        sourceId: "regional-image",
+        regionalNetworkName: "区域影像互认平台",
+        sourceOrganizationId: "hospital-3",
+        sourceOrganizationName: "市三院",
+        trustLevel: "MEDIUM",
+        evidenceText: "区域互认协议与接口验收单",
+        orgPath: "/tenant-1/hospital-1",
+      });
     });
   }, 15_000);
 

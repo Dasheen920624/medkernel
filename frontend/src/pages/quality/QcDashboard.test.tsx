@@ -151,7 +151,7 @@ describe("QcDashboard", () => {
     expect(screen.getByText("整改闭环率")).toBeInTheDocument();
     expect(screen.getByText("60.0%")).toBeInTheDocument();
     expect(screen.getByText("医保违规减少")).toBeInTheDocument();
-    expect(screen.getByText("NOT_AVAILABLE")).toBeInTheDocument();
+    expect(screen.getByText("暂不可用")).toBeInTheDocument();
     expect(screen.getByText("P1 问题聚集")).toBeInTheDocument();
     expect(screen.queryByText("质控驾驶舱汇总接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/485|92\.8|演示/)).not.toBeInTheDocument();

@@ -108,7 +108,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageMergesCustomerLocalOverridesWithPlatformActiveIdentities() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity localOverride = identityRow(200L, "t-hospital", "DRUG.X");
         KnowledgeIdentity platformShadowed = identityRow(100L, "t-1", "DRUG.X");
         KnowledgeIdentity platformOnly = identityRow(101L, "t-1", "DRUG.Y");
@@ -133,7 +133,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void getFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
         when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platform));
@@ -147,7 +147,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void getPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
         KnowledgeIdentity local = identityRow(200L, "t-hospital", "DRUG.X");
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());

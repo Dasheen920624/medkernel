@@ -53,6 +53,18 @@ public class IdentityBindingService {
     }
 
     /**
+     * 查询指定租户成员的身份来源。
+     */
+    @Transactional(readOnly = true)
+    public List<IdentityBindingResponse> listForUser(String tenantId, String userId) {
+        return repository.findByTenantIdAndUserIdOrderByUpdatedAtDesc(
+                requireTenant(tenantId), userId.trim())
+            .stream()
+            .map(IdentityBindingResponse::from)
+            .toList();
+    }
+
+    /**
      * 创建租户内外部身份绑定。同一身份重复提交到同一用户时按幂等成功返回，
      * 已绑定其他用户或同一用户已有同类型身份时返回冲突。
      */
@@ -64,25 +76,49 @@ public class IdentityBindingService {
         String providerType = request.providerType().name();
         String externalSubject = request.externalSubject().trim();
         String digest = DIGEST_PREFIX + crypto.sm3Hex(externalSubject);
+        return createDigest(
+            safeTenant,
+            userId,
+            providerType,
+            digest,
+            subjectHint(externalSubject),
+            request.reason());
+    }
+
+    /**
+     * 使用已计算的国密摘要建立身份来源，供不保存身份原文的批量导入任务调用。
+     */
+    @Transactional
+    public IdentityBindingResponse createDigest(
+            String tenantId,
+            String userId,
+            String providerType,
+            String digest,
+            String subjectHint,
+            String reason) {
+        String safeTenant = requireTenant(tenantId);
+        String safeUserId = userId.trim();
+        requireKnownUser(safeTenant, safeUserId);
 
         var existingSubject = repository.findByTenantIdAndProviderTypeAndExternalSubjectDigest(
             safeTenant, providerType, digest);
         if (existingSubject.isPresent()) {
             IdentityBinding existing = existingSubject.get();
-            if (ACTIVE.equals(existing.status()) && userId.equals(existing.userId())) {
+            if (ACTIVE.equals(existing.status()) && safeUserId.equals(existing.userId())) {
                 return IdentityBindingResponse.from(existing);
             }
             if (ACTIVE.equals(existing.status())) {
                 throw ApiException.conflict("该外部身份已绑定其他用户");
             }
             repository.findByTenantIdAndUserIdAndProviderTypeAndStatus(
-                    safeTenant, userId, providerType, ACTIVE)
+                    safeTenant, safeUserId, providerType, ACTIVE)
                 .ifPresent(ignored -> {
                     throw ApiException.conflict("该用户已绑定同类型外部身份");
                 });
-            return rebind(existing, userId, request.reason());
+            return rebind(existing, safeUserId, reason);
         }
-        repository.findByTenantIdAndUserIdAndProviderTypeAndStatus(safeTenant, userId, providerType, ACTIVE)
+        repository.findByTenantIdAndUserIdAndProviderTypeAndStatus(
+                safeTenant, safeUserId, providerType, ACTIVE)
             .ifPresent(ignored -> {
                 throw ApiException.conflict("该用户已绑定同类型外部身份");
             });
@@ -93,10 +129,10 @@ public class IdentityBindingService {
             null,
             "idb-" + Ulid.newUlid(),
             safeTenant,
-            userId,
+            safeUserId,
             providerType,
             digest,
-            subjectHint(externalSubject),
+            subjectHint,
             ACTIVE,
             1L,
             null,
@@ -110,7 +146,7 @@ public class IdentityBindingService {
             AuditAction.PERMISSION_CHANGE,
             "mk_compliance_identity_binding",
             saved.bindingId(),
-            "绑定外部身份：" + providerType + "；原因：" + compact(request.reason()),
+            "绑定外部身份：" + providerType + "；原因：" + compact(reason),
             null,
             response,
             null));

@@ -45,7 +45,9 @@ class RuntimeTaskServiceTest {
     void setUp() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-runtime",
-            new OrgScope("tenant-A", "group-A", "hospital-A", null, null, "dept-A", null),
+            new OrgScope(
+                "tenant-A", "group-A", "hospital-A", null, null,
+                "dept-A", "ward-A", null),
             "tester"));
         when(payloadStorage.put(any(), any())).thenReturn(new PayloadRef(
             PayloadRef.STORAGE_INLINE,
@@ -140,6 +142,8 @@ class RuntimeTaskServiceTest {
         assertThat(submitted.status()).isEqualTo(RuntimeTaskStatus.UNREAD);
         assertThat(polled.taskId()).isEqualTo(submitted.taskId());
         assertThat(polled.status()).isEqualTo(RuntimeTaskStatus.UNREAD);
+        assertThat(latestRecord.get().orgPath())
+            .isEqualTo("tenant-A/group-A/hospital-A/dept-A/ward-A");
         verify(executor, never()).execute(any());
     }
 

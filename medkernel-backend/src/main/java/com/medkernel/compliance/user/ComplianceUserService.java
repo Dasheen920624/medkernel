@@ -29,11 +29,13 @@ import com.medkernel.engine.security.auth.CredentialAdminService;
 import com.medkernel.engine.security.auth.CredentialCreationResult;
 import com.medkernel.engine.security.auth.PasswordResetTokenResponse;
 import com.medkernel.engine.security.auth.ResetPasswordResponse;
+import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -48,6 +50,7 @@ public class ComplianceUserService {
     private final CredentialAdminService credentialAdmin;
     private final EffectivePermissionService effectivePermissions;
     private final AuditRecorder auditRecorder;
+    private final OrgUnitRepository organizations;
 
     public ComplianceUserService(
             TenantUserRepository users,
@@ -55,13 +58,15 @@ public class ComplianceUserService {
             UserRoleAssignmentRepository roleAssignments,
             CredentialAdminService credentialAdmin,
             EffectivePermissionService effectivePermissions,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            OrgUnitRepository organizations) {
         this.users = users;
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.credentialAdmin = credentialAdmin;
         this.effectivePermissions = effectivePermissions;
         this.auditRecorder = auditRecorder;
+        this.organizations = organizations;
     }
 
     /**
@@ -326,7 +331,22 @@ public class ComplianceUserService {
             assignment.roleCode(),
             assignment.role().map(RoleCode::displayName).orElse(assignment.roleCode()),
             assignment.scopeLevel(),
-            assignment.scopeCode());
+            assignment.scopeCode(),
+            scopeName(assignment));
+    }
+
+    private String scopeName(UserRoleAssignment assignment) {
+        return organizations.findByTenantIdAndId(tenantId(), assignment.scopeCode())
+            .map(unit -> unit.name())
+            .orElseGet(() -> "TENANT".equals(assignment.scopeLevel())
+                ? tenantScopeName()
+                : "组织已停用");
+    }
+
+    private String tenantScopeName() {
+        return PlatformTenant.isPlatformTenant(tenantId())
+            ? PlatformTenant.SCOPE_DISPLAY_NAME
+            : "当前服务机构";
     }
 
     private void saveRole(String userId, String roleCode, String scopeLevel, String scopeCode) {
@@ -407,9 +427,9 @@ public class ComplianceUserService {
     private int managementLevel(RoleCode role) {
         return switch (role) {
             case SYSTEM_SUPERADMIN -> 4;
-            case PLATFORM_ADMIN -> 3;
-            case GROUP_ADMIN -> 2;
-            case HOSPITAL_ADMIN -> 1;
+            case PLATFORM_GOVERNANCE_ADMIN, PLATFORM_KNOWLEDGE_GOVERNOR -> 3;
+            case ORGANIZATION_ADMIN -> 2;
+            case IDENTITY_ACCESS_ADMIN -> 1;
             default -> 0;
         };
     }
@@ -417,7 +437,7 @@ public class ComplianceUserService {
     private String normalizeScopeLevel(String scopeLevel) {
         String normalized = scopeLevel == null ? "" : scopeLevel.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "TENANT", "GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT", "SPECIALTY" -> normalized;
+            case "TENANT", "REGION", "FACILITY", "CAMPUS", "DEPARTMENT", "WARD", "SPECIALTY" -> normalized;
             default -> throw new ApiException(ErrorCode.BAD_REQUEST, "非法的作用域级别: " + scopeLevel);
         };
     }

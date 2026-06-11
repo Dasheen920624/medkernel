@@ -67,7 +67,7 @@ describe("Login", () => {
         mode: "BOTH",
         enabled: true,
         status: "NOT_CONNECTED",
-        providers: ["OIDC", "CAS", "SAML", "国密CA"],
+        providers: ["OIDC", "CAS", "SAML", "SM_CA"],
         message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
       },
       isLoading: false,
@@ -75,8 +75,8 @@ describe("Login", () => {
     };
     loginTenantDirectoryState = {
       data: {
-        primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
-        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        primaryTenants: [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
+        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: false,
       },
       isLoading: false,
@@ -88,18 +88,20 @@ describe("Login", () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "doctor-1",
       tenantId: "t-1",
-      roles: ["doctor"],
+      roles: ["clinical-decision-user"],
       mustChangePwd: false,
       mfaRequired: false,
       mfaBound: false,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "doctor" } });
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
+      target: { value: "clinical-decision-user" },
+    });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/dashboard"));
     expect(mutateAsyncMock).toHaveBeenCalledWith({
-      username: "doctor",
+      username: "clinical-decision-user",
       password: "Mk@2026dev",
       tenantId: "t-1",
     });
@@ -109,7 +111,7 @@ describe("Login", () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "platform-owner",
       tenantId: "t-1",
-      roles: ["platform-admin"],
+      roles: ["platform-governance-admin"],
       mustChangePwd: true,
       mfaRequired: true,
       mfaBound: false,
@@ -170,7 +172,7 @@ describe("Login", () => {
   it("登录页以登录卡片居中为主，平台状态默认隐藏", () => {
     render(<Login />);
 
-    expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
     expect(screen.queryByLabelText("登录上下文")).not.toBeInTheDocument();
     expect(screen.queryByText("平台管理入口")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).not.toBeInTheDocument();
@@ -181,9 +183,10 @@ describe("Login", () => {
 
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
     expect(screen.getByText("集团医疗智能中枢")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入平台治理账号")).toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
-    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
+    expect(screen.getByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
@@ -194,18 +197,18 @@ describe("Login", () => {
     };
     render(<Login />);
 
-    expect(screen.getByText("没有可登录租户")).toBeInTheDocument();
-    expect(screen.getByText("租户目录未就绪")).toBeInTheDocument();
-    expect(screen.getByText("无可登录租户")).toBeInTheDocument();
+    expect(screen.getByText("没有可登录机构")).toBeInTheDocument();
+    expect(screen.getByText("机构目录未就绪")).toBeInTheDocument();
+    expect(screen.getByText("无可登录机构")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeDisabled();
-    expect(screen.queryByText("平台主租户（唯一内置）")).not.toBeInTheDocument();
+    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
   });
 
   it("已有客户租户时优先显示客户或集团租户，平台主租户退居第二层", async () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -214,7 +217,7 @@ describe("Login", () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "hosp-admin",
       tenantId: "t-hospital",
-      roles: ["hospital-admin"],
+      roles: ["organization-admin"],
       mustChangePwd: false,
       mfaRequired: false,
       mfaBound: false,
@@ -223,11 +226,11 @@ describe("Login", () => {
 
     const modeSwitch = screen.getByLabelText("登录类型切换");
     expect(modeSwitch).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "集团院内户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "机构用户" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
@@ -236,10 +239,11 @@ describe("Login", () => {
       "true",
     );
     expect(screen.queryByRole("combobox", { name: /客户|集团|租户/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("平台主租户（唯一内置）")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "主平台户" })).toBeInTheDocument();
+    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "平台治理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
     expect(screen.queryByText("统一身份暂未接入")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入工号或机构账号")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -256,7 +260,7 @@ describe("Login", () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -264,18 +268,18 @@ describe("Login", () => {
     };
     render(<Login />);
 
-    fireEvent.click(screen.getByRole("button", { name: "主平台户" }));
+    fireEvent.click(screen.getByRole("button", { name: "平台治理" }));
 
-    expect(await screen.findByText("平台主租户（唯一内置）")).toBeInTheDocument();
-    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
-    expect(screen.getByText(/仅平台开发者和运维人员管理全局知识源时使用/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
+    expect(screen.getByText("平台治理入口")).toBeInTheDocument();
+    expect(screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "集团院内户" }));
+    fireEvent.click(screen.getByRole("button", { name: "机构用户" }));
 
     expect(await screen.findByRole("button", { name: /集团总院/ })).toHaveAttribute(
       "aria-pressed",
@@ -367,7 +371,7 @@ describe("Login", () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -381,17 +385,17 @@ describe("Login", () => {
     expect(
       screen.getByText("院方统一身份入口已开放，但当前未配置真实 IdP 连接器。"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "OIDC（NOT_CONNECTED）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "CAS（NOT_CONNECTED）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "SAML（NOT_CONNECTED）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "国密CA（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "统一认证服务（CAS）（未接通）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "安全断言认证（SAML）（未接通）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "国密数字证书（未接通）" })).toBeDisabled();
   });
 
   it("统一身份状态不返回提供方时不展示本地伪造方式", async () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -415,7 +419,11 @@ describe("Login", () => {
     expect(
       await screen.findByText("后端未返回统一身份方式，暂不展示登录跳转入口。"),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "OIDC（NOT_CONNECTED）" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "CAS（NOT_CONNECTED）" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "开放式身份认证（OIDC）（未接通）" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "统一认证服务（CAS）（未接通）" }),
+    ).not.toBeInTheDocument();
   });
 });

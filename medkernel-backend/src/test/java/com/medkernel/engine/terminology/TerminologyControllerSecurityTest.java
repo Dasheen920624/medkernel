@@ -38,7 +38,7 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_ENGINEER")
+    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
     void implementationEngineerCanReadButDataScopeRejectsMissingTenant() throws Exception {
         when(terminologyService.pageLocalTerms(any(PageRequest.class), any(LocalTermFilter.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
@@ -56,7 +56,7 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
     void specialistCanReachCandidateConfirmationButStillNeedsTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mappings/10/confirm")
                 .contentType("application/json")
@@ -66,7 +66,7 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void oldMappingPackagePublishRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/publish")
                 .contentType("application/json")
@@ -75,7 +75,7 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void oldMappingPackageRollbackRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/rollback")
                 .contentType("application/json")

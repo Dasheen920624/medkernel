@@ -7,6 +7,7 @@ public record ComplianceUserRole(
     String code,
     String displayName,
     String scopeLevel,
-    String scopeCode
+    String scopeCode,
+    String scopeName
 ) {
 }

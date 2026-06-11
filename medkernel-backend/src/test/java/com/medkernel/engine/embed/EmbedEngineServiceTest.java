@@ -56,7 +56,7 @@ class EmbedEngineServiceTest {
 
     @Test
     void generateToken_SucceedsAndSavesUNUSEDToken() {
-        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest("user-1", "doctor", "P100", "E200", "patient-view", 60);
+        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest("user-1", "clinical-decision-user", "P100", "E200", "patient-view", 60);
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EmbedLaunchTokenResponse res = service.generateToken(req);
@@ -71,7 +71,7 @@ class EmbedEngineServiceTest {
     @Test
     void generateToken_NormalizesTriggerPointAndDefaultHookToCdsHookWireValue() {
         EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
-            "user-1", "doctor", "P100", "E200", "ORDER_SIGN", 60,
+            "user-1", "clinical-decision-user", "P100", "E200", "ORDER_SIGN", 60,
             EmbedIntegrationMode.API, null, null);
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -89,7 +89,7 @@ class EmbedEngineServiceTest {
     @Test
     void generateToken_RejectsUnsupportedCdsHookBeforeSavingToken() {
         EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
-            "user-1", "doctor", "P100", "E200", "OUTPATIENT", 60,
+            "user-1", "clinical-decision-user", "P100", "E200", "OUTPATIENT", 60,
             EmbedIntegrationMode.IFRAME, null, null);
 
         assertThatThrownBy(() -> service.generateToken(req))
@@ -103,7 +103,7 @@ class EmbedEngineServiceTest {
     @Test
     void generateToken_PersistsThreeRouteAndCdsHookContract() {
         EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
-            "user-1", "doctor", "P100", "E200", "patient-view", 60,
+            "user-1", "clinical-decision-user", "P100", "E200", "patient-view", 60,
             EmbedIntegrationMode.SDK, "patient-view", "hook-instance-001");
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -123,7 +123,7 @@ class EmbedEngineServiceTest {
         String tokenVal = "tkn-123456";
         Instant expiredAt = Instant.now().plusSeconds(60);
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", expiredAt, Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -154,7 +154,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_NormalizesRequestedCdsHookAliasBeforeConsumingToken() {
         String tokenVal = "tkn-api";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "order-sign",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "order-sign",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             EmbedIntegrationMode.API.name(), "order-sign", "hook-order-001", null
         );
@@ -180,7 +180,7 @@ class EmbedEngineServiceTest {
         String tokenVal = "tkn-" + mode.name();
         String hookInstance = "hook-" + mode.name();
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "result-review",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "result-review",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             mode.name(), "result-review", hookInstance, null
         );
@@ -205,7 +205,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_MissingOriginThrowsForbiddenBeforeConsumingToken() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
         );
@@ -227,7 +227,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_ModeMismatchThrowsBadRequestBeforeConsumingToken() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             EmbedIntegrationMode.SDK.name(), "patient-view", "hook-instance-001", null
         );
@@ -249,7 +249,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_RevokedTokenThrowsConflict() {
         String tokenVal = "tkn-revoked";
         EmbedLaunchToken revoked = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "REVOKED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
         );
@@ -271,7 +271,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_AlreadyUSEDToken_ThrowsConflict() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -291,7 +291,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_ExpiredToken_ThrowsExpiredAndSetsEXPIRED() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().minusSeconds(10), Instant.now().minusSeconds(100), "user-1", Instant.now().minusSeconds(100), "user-1", "trace-1"
         );
 
@@ -313,7 +313,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_OriginNotInWhitelist_ThrowsForbidden() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -333,7 +333,7 @@ class EmbedEngineServiceTest {
     void feedback_SucceedsAndPublishesAudit() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -373,7 +373,7 @@ class EmbedEngineServiceTest {
     void feedback_UnusedTokenRejectsCallbackWithoutSuccessAudit() {
         String tokenVal = "tkn-unused";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -391,12 +391,12 @@ class EmbedEngineServiceTest {
     void validateAndExchange_AtomicConsumeReplayLosesRaceThrowsUsedWithoutSuccessAudit() {
         String tokenVal = "tkn-replay";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
             EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
         );
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            1L, tokenVal, "tenant-1", "user-1", "clinical-decision-user", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-2", "trace-1",
             EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", Instant.now()
         );

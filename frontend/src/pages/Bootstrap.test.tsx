@@ -105,7 +105,7 @@ describe("Bootstrap", () => {
     renderBootstrap({
       phase: "change-password",
       login: {
-        userId: "hospital-admin",
+        userId: "organization-admin",
         tenantId: "t-hospital",
         mustChangePwd: true,
         mfaRequired: false,
@@ -138,7 +138,7 @@ describe("Bootstrap", () => {
       userId: "platform-owner",
       tenantId: "t-1",
       username: "platform-owner",
-      roles: ["platform-admin"],
+      roles: ["platform-governance-admin"],
       mustChangePwd: true,
     });
     const { container } = renderBootstrap();
@@ -149,8 +149,8 @@ describe("Bootstrap", () => {
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
-    expect(screen.getByText("平台主租户自动绑定")).toBeInTheDocument();
-    expect(screen.getByText("客户集团和医院租户进入工作台后开通。")).toBeInTheDocument();
+    expect(screen.getByText("平台治理空间自动绑定")).toBeInTheDocument();
+    expect(screen.getByText("集团和医院服务空间进入平台治理后开通。")).toBeInTheDocument();
     expect(container.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("账号"), { target: { value: "platform-owner" } });
@@ -171,9 +171,9 @@ describe("Bootstrap", () => {
   it("客户租户首次登录只展示账号安全设置，不混入平台接管语义", () => {
     const { container } = renderBootstrap({
       phase: "change-password",
-      username: "hospital-admin",
+      username: "organization-admin",
       login: {
-        userId: "hospital-admin",
+        userId: "organization-admin",
         tenantId: "t-hospital",
         roles: ["tenant-admin"],
         mustChangePwd: true,
@@ -188,6 +188,8 @@ describe("Bootstrap", () => {
     expect(screen.getByText("改密")).toBeInTheDocument();
     expect(screen.getByText("双因素")).toBeInTheDocument();
     expect(screen.getByText("完成")).toBeInTheDocument();
+    expect(screen.getByText("进入机构工作台")).toBeInTheDocument();
+    expect(screen.getByText("按所在服务机构安全策略完成认证器绑定")).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|首发管理员/);
   });
 
@@ -206,13 +208,15 @@ describe("Bootstrap", () => {
       login: {
         userId: "platform-owner",
         tenantId: "t-1",
-        roles: ["platform-admin"],
+        roles: ["platform-governance-admin"],
         mustChangePwd: true,
         mfaRequired: true,
         mfaBound: false,
       },
     });
 
+    expect(screen.getByText("进入平台治理")).toBeInTheDocument();
+    expect(screen.getByText("按平台治理安全策略完成认证器绑定")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("当前密码"), { target: { value: "Init@2026pw" } });
     fireEvent.change(screen.getByLabelText("新密码"), { target: { value: "Owner@2026pw" } });
     fireEvent.change(screen.getByLabelText("确认新密码"), { target: { value: "Owner@2026pw" } });

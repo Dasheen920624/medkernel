@@ -18,7 +18,7 @@ class JwtIssuerTest {
     @Test
     void issuedTokenCarriesSubTenantRolesAndIsVerifiable() {
         JwtIssuer issuer = new JwtIssuer(SECRET, 28800);
-        String token = issuer.issue("doctor-1", "t-1", List.of("doctor", "qa-manager"));
+        String token = issuer.issue("doctor-1", "t-1", List.of("clinical-decision-user", "quality-governor"));
 
         JwtDecoder decoder = NimbusJwtDecoder
             .withSecretKey(new SecretKeySpec(SECRET.getBytes(), "HmacSHA256")).build();
@@ -26,7 +26,7 @@ class JwtIssuerTest {
 
         assertThat(jwt.getSubject()).isEqualTo("doctor-1");
         assertThat(jwt.getClaimAsString("tenant_id")).isEqualTo("t-1");
-        assertThat(jwt.getClaimAsStringList("roles")).containsExactly("doctor", "qa-manager");
+        assertThat(jwt.getClaimAsStringList("roles")).containsExactly("clinical-decision-user", "quality-governor");
         assertThat(jwt.getExpiresAt()).isNotNull();
     }
 }

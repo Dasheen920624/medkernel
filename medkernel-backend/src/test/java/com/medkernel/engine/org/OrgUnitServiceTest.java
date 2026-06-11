@@ -67,13 +67,18 @@ class OrgUnitServiceTest {
     void searchesActiveDepartmentsWithinCurrentTenant() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-99"), "u-1"));
         Mockito.when(repository.countDirectory(
-            "t-99", "心内", "DEPARTMENT", "ACTIVE")).thenReturn(1L);
+            "t-99", "心内", "DEPARTMENT", "ACTIVE", null, "hospital-1")).thenReturn(1L);
         Mockito.when(repository.pageDirectory(
-            "t-99", "心内", "DEPARTMENT", "ACTIVE", 0, 20))
+            "t-99", "心内", "DEPARTMENT", "ACTIVE", null, "hospital-1", 0, 20))
             .thenReturn(List.of(sample("t-99", "hospital-1", OrgLevel.DEPARTMENT, "CARD", "dept-1")));
 
         PageResponse<OrgUnit> page = service.searchByCurrentTenant(
-            PageRequest.defaults(), " 心内 ", OrgLevel.DEPARTMENT, OrgUnitStatus.ACTIVE);
+            PageRequest.defaults(),
+            " 心内 ",
+            OrgLevel.DEPARTMENT,
+            OrgUnitStatus.ACTIVE,
+            null,
+            "hospital-1");
 
         assertThat(page.total()).isEqualTo(1L);
         assertThat(page.items()).extracting(OrgUnit::id).containsExactly("dept-1");

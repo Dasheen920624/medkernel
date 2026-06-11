@@ -119,15 +119,15 @@ class PathwayEngineApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api06-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("doctor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"));
+                .claim("roles", List.of("clinical-decision-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api06-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("specialist")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
+                .claim("roles", List.of("knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
     }
 }

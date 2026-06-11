@@ -63,14 +63,14 @@ class CredentialBootstrapGuardInterceptorTest {
             .header("alg", "HS256")
             .subject("doctor-1")
             .claim("tenant_id", "t-1")
-            .claim("roles", List.of("doctor"))
+            .claim("roles", List.of("clinical-decision-user"))
             .issuedAt(Instant.now())
             .expiresAt(Instant.now().plusSeconds(600))
             .claims(claims -> claims.putAll(Map.of("user_id", "doctor-1")))
             .build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
             jwt,
-            List.of(new SimpleGrantedAuthority("ROLE_DOCTOR"))));
+            List.of(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
     }
 
     private static MockHttpServletRequest request(String contextPath, String servletPath) {

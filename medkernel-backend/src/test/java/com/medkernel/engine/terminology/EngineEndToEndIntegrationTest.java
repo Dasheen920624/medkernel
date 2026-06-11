@@ -149,7 +149,7 @@ class EngineEndToEndIntegrationTest {
         // 触发确定性候选生成：标准字典 normalized_name 提供真实别名，禁止靠字符相似度误配。
         TerminologyCandidateGenerationResponse generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
             "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
-            "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",
+            "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("knowledge-governor"), "pkg-stroke-2026",
             "HIS", null, null
         ));
         assertEquals(1, generation.generatedCount(), "字典规则引擎发现了 1 个候选映射");
@@ -167,7 +167,7 @@ class EngineEndToEndIntegrationTest {
             candidate.id(),
             new TerminologyCandidateConfirmRequest(
                 "req-e2e-term-confirm", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
-                "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",
+                "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("knowledge-governor"), "pkg-stroke-2026",
                 "专家组最终确认", "医生人工确认", true, "已核对诊断编码和院内词条"
             )
         );

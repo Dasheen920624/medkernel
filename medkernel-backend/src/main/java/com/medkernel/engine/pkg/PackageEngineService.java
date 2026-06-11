@@ -3858,11 +3858,14 @@ public class PackageEngineService {
         if (request.strategy() != ReleaseStrategy.FULL) {
             return;
         }
-        RoleCode requiredRole = PlatformTenant.ID.equals(pack.tenantId())
-            ? RoleCode.PLATFORM_ADMIN
-            : RoleCode.HOSPITAL_ADMIN;
-        if (!AuthenticatedRoleGuard.has(requiredRole)) {
-            String roleName = requiredRole == RoleCode.PLATFORM_ADMIN ? "平台管理员" : "医院管理员";
+        boolean platformPackage = PlatformTenant.ID.equals(pack.tenantId());
+        boolean allowed = platformPackage
+            ? AuthenticatedRoleGuard.has(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR)
+                || AuthenticatedRoleGuard.has(RoleCode.PLATFORM_GOVERNANCE_ADMIN)
+            : AuthenticatedRoleGuard.has(RoleCode.KNOWLEDGE_GOVERNOR)
+                || AuthenticatedRoleGuard.has(RoleCode.ORGANIZATION_ADMIN);
+        if (!allowed) {
+            String roleName = platformPackage ? "平台知识治理员" : "机构知识治理员或机构管理员";
             throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "配置包直接全量发布必须由" + roleName + "确认"

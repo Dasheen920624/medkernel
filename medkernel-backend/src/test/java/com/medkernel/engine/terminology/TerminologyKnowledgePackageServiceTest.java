@@ -164,7 +164,7 @@ class TerminologyKnowledgePackageServiceTest {
         return new TerminologyPackageBuildRequest(
             "req-term-package", "trace-term-package", "tenant-A",
             null, "hospital-A", null, null, "CARD", null, "author-A",
-            List.of("hospital-admin"), "2026.06",
+            List.of("organization-admin"), "2026.06",
             "TERM.LAB", "2026.06", "检验术语映射包", scopeLevel, scopeCode
         );
     }

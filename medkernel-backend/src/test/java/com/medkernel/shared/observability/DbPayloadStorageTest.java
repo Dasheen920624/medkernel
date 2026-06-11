@@ -52,7 +52,9 @@ class DbPayloadStorageTest {
     void putPersistsPayloadInDatabaseAndGetReturnsExactBytes() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-db-1",
-            new OrgScope("tenant-A", "group-A", "hospital-A", null, null, "dept-A", null),
+            new OrgScope(
+                "tenant-A", "group-A", "hospital-A", null, null,
+                "dept-A", "ward-A", null),
             "doctor-1"));
         byte[] payload = "{\"patient\":\"masked\",\"score\":3}".getBytes(StandardCharsets.UTF_8);
 
@@ -71,7 +73,7 @@ class DbPayloadStorageTest {
         assertThat(rows).hasSize(1);
         PayloadStoreRecord row = rows.get(0);
         assertThat(row.tenantId()).isEqualTo("tenant-A");
-        assertThat(row.orgPath()).isEqualTo("tenant-A/group-A/hospital-A/dept-A");
+        assertThat(row.orgPath()).isEqualTo("tenant-A/group-A/hospital-A/dept-A/ward-A");
         assertThat(row.createdBy()).isEqualTo("doctor-1");
         assertThat(row.payloadBase64()).isNotBlank();
     }

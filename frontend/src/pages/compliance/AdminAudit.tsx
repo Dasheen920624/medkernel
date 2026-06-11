@@ -676,7 +676,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按租户隔离并保留摘要、签名和 traceId；敏感导出必须先申请、由他人审批，再由后端生成并登记真实文件摘要。"
+          description="事件按服务空间隔离并保留摘要、签名和追踪标识；敏感导出必须先申请、由他人审批，再由后端生成并登记真实文件摘要。"
         />
         <Tabs
           defaultActiveKey="events"
@@ -829,7 +829,7 @@ export default function AdminAudit() {
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="组织范围">
-                {selectedAuditEvent.orgPath ?? "当前租户"}
+                {selectedAuditEvent.orgPath ?? "当前服务空间"}
               </Descriptions.Item>
               <Descriptions.Item label="环境">
                 {selectedAuditEvent.environmentKey ?? "未标记"}

@@ -36,8 +36,8 @@ class AuditRecorderTest {
             "doctor-1",
             "n/a",
             List.of(
-                new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"),
-                new SimpleGrantedAuthority("ROLE_DOCTOR"))));
+                new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"),
+                new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
 
         List<AuditEvent> captured = new ArrayList<>();
         ApplicationEventPublisher capturingBus = event -> {
@@ -62,7 +62,7 @@ class AuditRecorderTest {
         assertThat(captured).containsExactly(event);
         assertThat(event.traceId()).isEqualTo("trace-recorder");
         assertThat(event.actorUserId()).isEqualTo("doctor-1");
-        assertThat(event.actorRoles()).isEqualTo("ROLE_AUDIT_COMPLIANCE,ROLE_DOCTOR");
+        assertThat(event.actorRoles()).isEqualTo("ROLE_CLINICAL_DECISION_USER,ROLE_COMPLIANCE_AUDITOR");
         assertThat(event.orgPath()).isEqualTo("tenant:t-1/group:g-1/hospital:h-1/department:d-1");
         assertThat(event.environmentKey()).isEqualTo("dev-local");
         assertThat(event.resourceType()).isEqualTo("rule");

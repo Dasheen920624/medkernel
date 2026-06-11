@@ -59,8 +59,8 @@ class ObservabilityDiagnoseControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("ops-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("it-ops")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+                    .claim("roles", List.of("integration-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.traceId").value("trace-x"))
             .andExpect(jsonPath("$.data.durationMs").value(42))
@@ -76,8 +76,8 @@ class ObservabilityDiagnoseControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isForbidden());
     }
 }

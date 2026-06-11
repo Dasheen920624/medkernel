@@ -59,7 +59,7 @@ class ComplianceUserControllerTest {
         saveCredential("t-1", "managed-701", "managed.one");
         saveCredential("t-1", "managed-702", "managed.two");
         saveCredential("t-2", "managed-hidden", "hidden.one");
-        saveRole("t-1", "managed-701", "doctor");
+        saveRole("t-1", "managed-701", "clinical-decision-user");
 
         mvc.perform(get("/api/v1/compliance/users")
                 .param("page", "1")
@@ -84,7 +84,7 @@ class ComplianceUserControllerTest {
                       "credentialManaged": false,
                       "userId": "delegated-701",
                       "displayName": "委托身份医生",
-                      "roleCode": "doctor"
+                      "roleCode": "clinical-decision-user"
                     }
                     """))
             .andExpect(status().isOk())
@@ -127,13 +127,13 @@ class ComplianceUserControllerTest {
     @Test
     void returnsRealAssignedRolesAndEffectivePermissionsForUserDetail() throws Exception {
         saveCredential("t-1", "managed-703", "managed.three");
-        saveRole("t-1", "managed-703", "doctor");
+        saveRole("t-1", "managed-703", "clinical-decision-user");
 
         mvc.perform(get("/api/v1/compliance/users/{userId}", "managed-703")
                 .with(admin("t-1")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("managed-703"))
-            .andExpect(jsonPath("$.data.roles[0].code").value("doctor"))
+            .andExpect(jsonPath("$.data.roles[0].code").value("clinical-decision-user"))
             .andExpect(jsonPath("$.data.effectivePermissions[*].code", hasItem("context.read")));
     }
 
@@ -144,7 +144,7 @@ class ComplianceUserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "doctor",
+                      "roleCode": "clinical-decision-user",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
@@ -170,7 +170,7 @@ class ComplianceUserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "platform-admin",
+                      "roleCode": "platform-governance-admin",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
@@ -187,16 +187,17 @@ class ComplianceUserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "nurse",
+                      "roleCode": "nursing-collaborator",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roles[0].code").value("nurse"));
+            .andExpect(jsonPath("$.data.roles[0].code").value("nursing-collaborator"))
+            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理空间"));
 
         mvc.perform(delete("/api/v1/compliance/users/{userId}/roles/{roleCode}",
-                "managed-706", "nurse")
+                "managed-706", "nursing-collaborator")
                 .param("scopeLevel", "TENANT")
                 .param("scopeCode", "t-1")
                 .with(admin("t-1")))
@@ -205,7 +206,7 @@ class ComplianceUserControllerTest {
 
         UserRoleAssignment history = roleAssignments
             .findByTenantIdAndUserIdAndRoleCodeAndScopeLevelAndScopeCode(
-                "t-1", "managed-706", "nurse", "TENANT", "t-1")
+                "t-1", "managed-706", "nursing-collaborator", "TENANT", "t-1")
             .orElseThrow();
         org.assertj.core.api.Assertions.assertThat(history.activeFlag()).isEqualTo("N");
     }
@@ -226,7 +227,7 @@ class ComplianceUserControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin(String tenantId) {
         return jwt().jwt(token -> token.subject("admin-1").claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
     }
 
     private void saveCredential(String tenantId, String userId, String username) {

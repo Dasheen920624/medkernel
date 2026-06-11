@@ -79,7 +79,7 @@ public class TenantProvisioningService {
             .toList();
     }
 
-    /** 开通新租户：建租户根组织 + 首个医院管理员账号（须首登改密）+ hospital-admin 角色。 */
+    /** 开通客户服务空间：建根组织 + 首个机构管理员账号（须首登改密）。 */
     @Transactional
     public ProvisionTenantResponse provisionTenant(ProvisionTenantRequest req) {
         String tenantId = req.tenantId().trim();
@@ -112,7 +112,7 @@ public class TenantProvisioningService {
             credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
         roleAssignments.save(new UserRoleAssignment(
-            null, tenantId, adminUserId, RoleCode.HOSPITAL_ADMIN.code(), "TENANT", tenantId, "Y",
+            null, tenantId, adminUserId, RoleCode.ORGANIZATION_ADMIN.code(), "TENANT", tenantId, "Y",
             now, actor, now, actor));
 
         auditRecorder.record(AuditAction.CREATE, "platform_tenant", tenantId,

@@ -51,7 +51,7 @@ class PackageEntitlementServiceTest {
         service = new PackageEntitlementService(
             packageRepository, entitlementRepository, orgUnitRepository, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-entitlement", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
+            "trace-entitlement", OrgScope.tenant(PlatformTenant.ID), "platform-governance-admin"));
     }
 
     @AfterEach
@@ -100,9 +100,9 @@ class PackageEntitlementServiceTest {
             now.minus(1, ChronoUnit.DAYS),
             "旧授权已撤销",
             now.minus(60, ChronoUnit.DAYS),
-            "platform-admin",
+            "platform-governance-admin",
             now.minus(1, ChronoUnit.DAYS),
-            "platform-admin",
+            "platform-governance-admin",
             "trace-old");
         when(packageRepository.findByPackageIdAndTenantId("pkg-commercial", PlatformTenant.ID))
             .thenReturn(Optional.of(pack));
@@ -159,9 +159,9 @@ class PackageEntitlementServiceTest {
             Instant.now().plus(20, ChronoUnit.DAYS),
             "商业许可已审批",
             grantedAt,
-            "platform-admin",
+            "platform-governance-admin",
             grantedAt,
-            "platform-admin",
+            "platform-governance-admin",
             "trace-old");
         when(packageRepository.findByPackageIdAndTenantId("pkg-commercial", PlatformTenant.ID))
             .thenReturn(Optional.of(pack));
@@ -211,9 +211,9 @@ class PackageEntitlementServiceTest {
                 now.minus(1, ChronoUnit.MINUTES),
                 "试用授权",
                 now.minus(30, ChronoUnit.DAYS),
-                "platform-admin",
+                "platform-governance-admin",
                 now.minus(30, ChronoUnit.DAYS),
-                "platform-admin",
+                "platform-governance-admin",
                 "trace-expired")));
 
         assertThatThrownBy(() -> service.assertUsable("tenant-A", pack))
@@ -291,9 +291,9 @@ class PackageEntitlementServiceTest {
             accessPolicy,
             KnowledgePackageStatus.ACTIVE,
             now,
-            "platform-admin",
+            "platform-governance-admin",
             now,
-            "platform-admin",
+            "platform-governance-admin",
             "trace-package");
     }
 
@@ -314,9 +314,9 @@ class PackageEntitlementServiceTest {
             expiresAt,
             "授权依据",
             grantedAt,
-            "platform-admin",
+            "platform-governance-admin",
             grantedAt,
-            "platform-admin",
+            "platform-governance-admin",
             "trace-entitlement");
     }
 }

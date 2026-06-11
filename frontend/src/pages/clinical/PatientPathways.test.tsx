@@ -471,11 +471,11 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
     await user.click(screen.getByRole("tab", { name: /登记变异/ }));
     await user.click(screen.getByRole("combobox", { name: "变异分类" }));
-    await user.click(await screen.findByText("CLINICAL (临床原因)"));
+    await user.click(await screen.findByText("临床原因"));
     await user.type(screen.getByPlaceholderText("如 CLINICAL_ESCALATION"), "CLINICAL_ESCALATION");
     await user.type(screen.getByPlaceholderText("如 主管医师"), "主管医师");
     await user.click(screen.getByRole("combobox", { name: "处置决策" }));
-    await user.click(await screen.findByText("REENTER (再入径)"));
+    await user.click(await screen.findByText("再次进入路径"));
     await user.click(screen.getByRole("combobox", { name: "再入径节点" }));
     await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
     await user.type(

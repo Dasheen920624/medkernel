@@ -172,7 +172,7 @@ class PathwayEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway", OrgScope.tenant("tenant-A"), "tester"));
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
     }
 
     @AfterEach
@@ -899,16 +899,16 @@ class PathwayEngineServiceTest {
             .thenReturn(List.of());
         PathwayTemplateImpactResponse impact = service.templateImpact("pt-1");
 
-        authenticate(RoleCode.DOCTOR);
+        authenticate(RoleCode.CLINICAL_DECISION_USER);
         assertThatThrownBy(() -> service.fullRolloutTemplate(
-            "pt-1", operationRequest(impact.impactDigest(), "全量前复核", List.of("hospital-admin"), null)))
+            "pt-1", operationRequest(impact.impactDigest(), "全量前复核", List.of("organization-admin"), null)))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_004);
 
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         PathwayTemplatePublishResponse response = service.fullRolloutTemplate(
-            "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("doctor"), null));
+            "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("clinical-decision-user"), null));
 
         assertThat(response.releaseStep()).isEqualTo("full_rollout");
         assertThat(response.impactDigest()).isEqualTo(impact.impactDigest());
@@ -951,14 +951,14 @@ class PathwayEngineServiceTest {
             VersionReleaseStatus.PUBLISHED, "FULL 全量激活：平台路径影响摘要"));
         PathwayTemplateImpactResponse impact = service.templateImpact("pt-platform");
 
-        authenticate(RoleCode.HOSPITAL_ADMIN);
+        authenticate(RoleCode.ORGANIZATION_ADMIN);
         assertThatThrownBy(() -> service.fullRolloutTemplate(
                 "pt-platform",
                 operationRequest(impact.impactDigest(), "平台路径全量发布", List.of(), null)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("平台管理员");
+            .hasMessageContaining("平台知识治理员");
 
-        authenticate(RoleCode.PLATFORM_ADMIN);
+        authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
         PathwayTemplatePublishResponse response = service.fullRolloutTemplate(
             "pt-platform",
             operationRequest(impact.impactDigest(), "平台路径全量发布", List.of(), null));
@@ -1001,7 +1001,7 @@ class PathwayEngineServiceTest {
         PathwayTemplateImpactResponse impact = unifiedService.templateImpact("pt-1");
 
         PathwayTemplatePublishResponse response = unifiedService.fullRolloutTemplate(
-            "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("hospital-admin"), null));
+            "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("organization-admin"), null));
 
         assertThat(response.releaseEvidence()).contains("FULL 全量激活：路径影响摘要");
         verify(releasePort).publish(any());
@@ -1041,7 +1041,7 @@ class PathwayEngineServiceTest {
 
         assertThatThrownBy(() -> unifiedService.rollbackTemplate(
             "pt-current",
-            operationRequest(impact.impactDigest(), "灰度异常，回滚到上一版本", List.of("hospital-admin"), "pt-old")))
+            operationRequest(impact.impactDigest(), "灰度异常，回滚到上一版本", List.of("organization-admin"), "pt-old")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_004);
@@ -1097,7 +1097,7 @@ class PathwayEngineServiceTest {
 
         PathwayTemplatePublishResponse response = unifiedService.rollbackTemplate(
             "pt-current",
-            operationRequest(impact.impactDigest(), "灰度异常，回滚到上一版本", List.of("hospital-admin"), "pt-old"));
+            operationRequest(impact.impactDigest(), "灰度异常，回滚到上一版本", List.of("organization-admin"), "pt-old"));
 
         assertThat(response.releaseEvidence()).contains("ROLLBACK 回滚：路径影响摘要");
         verify(releasePort).rollback(any());
@@ -1188,10 +1188,10 @@ class PathwayEngineServiceTest {
             PathwayNodeType.ASSESSMENT,
             10,
             false,
-            "doctor",
-            "dept-head",
-            List.of("nurse"),
-            List.of("medical-affairs"),
+            "clinical-decision-user",
+            "clinical-governor",
+            List.of("nursing-collaborator"),
+            List.of("clinical-governor"),
             clockSlaConfig("ADMISSION", 0, 120, 180),
             120);
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
@@ -1220,10 +1220,10 @@ class PathwayEngineServiceTest {
         assertThat(command.encounterId()).isEqualTo("enc-1");
         assertThat(command.nodeCode()).isEqualTo("ASSESS");
         assertThat(command.nodeName()).isEqualTo("ASSESS");
-        assertThat(command.responsibleRole()).isEqualTo("doctor");
-        assertThat(command.accountableRole()).isEqualTo("dept-head");
-        assertThat(command.consultedRoles()).containsExactly("nurse");
-        assertThat(command.informedRoles()).containsExactly("medical-affairs");
+        assertThat(command.responsibleRole()).isEqualTo("clinical-decision-user");
+        assertThat(command.accountableRole()).isEqualTo("clinical-governor");
+        assertThat(command.consultedRoles()).containsExactly("nursing-collaborator");
+        assertThat(command.informedRoles()).containsExactly("clinical-governor");
         assertThat(command.dueAt()).isNotNull();
         assertThat(command.deepLink()).startsWith("/clinical/pathways?patientPathwayId=pp-");
         assertThat(command.traceId()).isEqualTo("trace-pathway");
@@ -1650,11 +1650,11 @@ class PathwayEngineServiceTest {
         PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
         PathwayNode assess = nodeWithRaci(
             "ASSESS", PathwayNodeType.ASSESSMENT, 10, false,
-            "doctor", "dept-head", List.of("nurse"), List.of("medical-affairs"),
+            "clinical-decision-user", "clinical-governor", List.of("nursing-collaborator"), List.of("clinical-governor"),
             clockSlaConfig("NODE_START", 0, 60, 90), 60);
         PathwayNode followup = nodeWithRaci(
             "FOLLOWUP", PathwayNodeType.FOLLOWUP, 20, true,
-            "nurse", "doctor", List.of("doctor"), List.of("dept-head"),
+            "nursing-collaborator", "clinical-decision-user", List.of("clinical-decision-user"), List.of("clinical-governor"),
             clockSlaConfig("NODE_START", 0, 120, 180), 120);
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(runtime));
@@ -1684,10 +1684,10 @@ class PathwayEngineServiceTest {
             ArgumentCaptor.forClass(PathwayNodeWorklistCommand.class);
         verify(worklist).openNodeTodo(openCap.capture());
         assertThat(openCap.getValue().nodeCode()).isEqualTo("FOLLOWUP");
-        assertThat(openCap.getValue().responsibleRole()).isEqualTo("nurse");
-        assertThat(openCap.getValue().accountableRole()).isEqualTo("doctor");
-        assertThat(openCap.getValue().consultedRoles()).containsExactly("doctor");
-        assertThat(openCap.getValue().informedRoles()).containsExactly("dept-head");
+        assertThat(openCap.getValue().responsibleRole()).isEqualTo("nursing-collaborator");
+        assertThat(openCap.getValue().accountableRole()).isEqualTo("clinical-decision-user");
+        assertThat(openCap.getValue().consultedRoles()).containsExactly("clinical-decision-user");
+        assertThat(openCap.getValue().informedRoles()).containsExactly("clinical-governor");
         assertThat(openCap.getValue().dueAt()).isNotNull();
     }
 
@@ -1749,7 +1749,7 @@ class PathwayEngineServiceTest {
 
         PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
             "req-advance-1", "trace-pathway", "tenant-A", null, null, null, null,
-            null, null, "doctor-1", List.of("doctor"), "pkg-2026.06",
+            null, null, "doctor-1", List.of("clinical-decision-user"), "pkg-2026.06",
             "ctx-real-1", "pp-1", PathwayAdvanceEventType.COMPLETE, null, null,
             null, null, null, null, null, null, null, "evt-real-1"));
 
@@ -1932,7 +1932,7 @@ class PathwayEngineServiceTest {
             "pt-1",
             new PathwaySimulateRequest(
                 "req-sim-1", "trace-pathway", "tenant-A", null, null, null, null,
-                null, null, "doctor-1", List.of("doctor"), "pkg-2026.06",
+                null, null, "doctor-1", List.of("clinical-decision-user"), "pkg-2026.06",
                 PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null,
                 "ctx-real-1", "ASSESS", List.of()));
 

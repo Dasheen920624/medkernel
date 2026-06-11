@@ -52,7 +52,7 @@ class RealtimeCdsHookControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void doctorCanEvaluateOrderSignCdsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/cds-hooks:evaluate")
                 .contentType("application/json")

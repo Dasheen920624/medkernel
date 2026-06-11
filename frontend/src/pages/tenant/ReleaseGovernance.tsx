@@ -52,6 +52,7 @@ import {
   type VersionReleasePlan,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import styles from "./ReleaseGovernance.module.css";
 
 const { Text, Title } = Typography;
@@ -525,7 +526,9 @@ export default function ReleaseGovernance() {
                 版本差异
               </Title>
               <Descriptions size="small" column={1}>
-                <Descriptions.Item label="变化类型">{simulation.diff.changeType}</Descriptions.Item>
+                <Descriptions.Item label="变化类型">
+                  {customerEnumLabel(simulation.diff.changeType)}
+                </Descriptions.Item>
                 <Descriptions.Item label="当前版本">
                   {simulation.diff.currentVersionNo ?? "首次发布"}
                 </Descriptions.Item>
@@ -544,7 +547,7 @@ export default function ReleaseGovernance() {
                 <Space>
                   回放执行
                   <Tag color={simulation.replay.status === "UNSUPPORTED" ? "error" : "processing"}>
-                    {simulation.replay.status}
+                    {customerEnumLabel(simulation.replay.status)}
                   </Tag>
                 </Space>
               </Space>
@@ -565,7 +568,7 @@ export default function ReleaseGovernance() {
           <div className={styles.toolbar}>
             <Space wrap>
               <Tag color={releasePlan.status === "PAUSED" ? "error" : "processing"}>
-                {releasePlan.status}
+                {customerEnumLabel(releasePlan.status)}
               </Tag>
               <Text>当前阶段 {releasePlan.rolloutStageIndex + 1}</Text>
             </Space>
@@ -651,7 +654,11 @@ export default function ReleaseGovernance() {
           { title: "模板", dataIndex: "templateName" },
           { title: "适用维度", dataIndex: "applicableScope" },
           { title: "说明", dataIndex: "description", render: (value) => value || "未填写" },
-          { title: "状态", dataIndex: "status", render: (value) => <Tag>{value}</Tag> },
+          {
+            title: "状态",
+            dataIndex: "status",
+            render: (value) => <Tag>{customerEnumLabel(value)}</Tag>,
+          },
         ]}
       />
       <Card size="small" title="批量预演与生效">
@@ -720,7 +727,11 @@ export default function ReleaseGovernance() {
               { title: "资产身份", dataIndex: "assetIdentity" },
               { title: "覆盖方式", dataIndex: "overrideMode" },
               { title: "传播", dataIndex: "propagation" },
-              { title: "状态", dataIndex: "status", render: (value) => <Tag>{value}</Tag> },
+              {
+                title: "状态",
+                dataIndex: "status",
+                render: (value) => <Tag>{customerEnumLabel(value)}</Tag>,
+              },
               { title: "校验说明", dataIndex: "issue", render: (value) => value || "通过" },
             ]}
           />

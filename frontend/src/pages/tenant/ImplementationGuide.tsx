@@ -29,7 +29,7 @@ import styles from "./Tenant.module.css";
 const { Text, Title } = Typography;
 
 const targetLabelByPath: Record<string, string> = {
-  "/tenant/onboarding": "租户实施配置",
+  "/tenant/onboarding": "机构实施配置",
   "/adapter/hub": "适配器中心",
   "/config/packages": "配置包中心",
   "/terminology/mapping": "字典映射",
@@ -96,7 +96,7 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请带 traceId 联系信息科排查租户引擎接口。",
+          description: "请重试；若持续失败，请带追踪标识联系信息科排查服务空间接口。",
           onRetry: () => refetch(),
         }}
       >
@@ -109,11 +109,11 @@ export default function ImplementationGuide() {
     return (
       <PageShell
         title="客户实施向导"
-        description="等待租户服务包返回步骤"
+        description="等待服务机构实施服务返回步骤"
         state="empty"
         stateProps={{
           title: "暂无实施步骤",
-          description: "当前租户尚未返回实施步骤，请先确认租户与组织范围已建立。",
+          description: "当前服务机构尚未返回实施步骤，请先确认服务空间与组织范围已建立。",
         }}
       >
         <></>
@@ -168,7 +168,7 @@ export default function ImplementationGuide() {
           <Col xs={24} md={8}>
             <Card className={styles.readinessSummaryCard}>
               <Statistic title="下一配置页" value={targetLabel(primaryTarget.targetPath)} />
-              <Text type="secondary">所有跳转均来自租户引擎返回的 targetPath</Text>
+              <Text type="secondary">所有跳转均来自实施服务返回的目标页面</Text>
             </Card>
           </Col>
         </Row>

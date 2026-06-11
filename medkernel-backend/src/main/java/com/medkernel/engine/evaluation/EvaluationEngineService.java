@@ -288,8 +288,9 @@ public class EvaluationEngineService {
                 && indicator.status() != EvaluationIndicatorStatus.GRAY) {
             throw new ApiException(ErrorCode.ENG_EVAL_003);
         }
-        if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活仅医院管理员可执行");
+        if (!AuthenticatedRoleGuard.has(RoleCode.QUALITY_GOVERNOR)
+                && !AuthenticatedRoleGuard.has(RoleCode.ORGANIZATION_ADMIN)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活仅质量治理员或机构管理员可执行");
         }
         releasePort.publish(releaseCommand(
             indicator,

@@ -51,7 +51,7 @@ class MaskingRuleControllerSecurityTest {
 
     @Test
     @DisplayName("合规审计角色可到达脱敏规则列表，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void listRules_auditRoleWithoutTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/masking-rules"))
             .andExpect(status().isBadRequest())
@@ -60,7 +60,7 @@ class MaskingRuleControllerSecurityTest {
 
     @Test
     @DisplayName("普通医生无 audit.read 权限，读取脱敏规则直接 403")
-    @WithMockUser(authorities = "ROLE_DOCTOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void listRules_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/masking-rules"))
             .andExpect(status().isForbidden());
@@ -79,14 +79,14 @@ class MaskingRuleControllerSecurityTest {
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "cardiology")
                     .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
     @DisplayName("信息科可到达脱敏规则写接口，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_IT_OPS")
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void putRule_itOpsWithoutTenant_returns400() throws Exception {
         mvc.perform(put("/api/v1/compliance/masking-rules")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -97,7 +97,7 @@ class MaskingRuleControllerSecurityTest {
 
     @Test
     @DisplayName("合规审计角色无 system.manage 权限，不能写脱敏规则")
-    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
     void putRule_auditRole_returns403() throws Exception {
         mvc.perform(put("/api/v1/compliance/masking-rules")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -128,8 +128,8 @@ class MaskingRuleControllerSecurityTest {
                     .claim("tenant_id", "t-1")
                     .claim("group_id", "g-1")
                     .claim("hospital_id", "h-1")
-                    .claim("roles", List.of("audit-compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE")))
+                    .claim("roles", List.of("compliance-auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

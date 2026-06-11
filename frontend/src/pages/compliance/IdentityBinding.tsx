@@ -1,75 +1,64 @@
-import { useState } from "react";
+import {
+  DisconnectOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App,
   Button,
   Card,
+  Descriptions,
   Form,
   Input,
   Modal,
   Select,
   Space,
+  Statistic,
   Table,
   Tag,
   Typography,
+  Upload,
 } from "antd";
-import { DisconnectOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useMemo, useState } from "react";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
+  useCommitPersonnelImport,
   useCreateIdentityBinding,
   useDelegatedAuthStatus,
   useIdentityBindings,
-  useOrgUsers,
+  usePersonnel,
+  usePreviewPersonnelImport,
   useSecurityProfile,
   useUnbindIdentityBinding,
+  type IdentityBinding as IdentityBindingRecord,
+  type IdentityProviderType,
+  type PersonnelImportResponse,
+  type SecurityProfile,
 } from "@/shared/api/hooks";
-import type {
-  IdentityBinding as IdentityBindingRecord,
-  IdentityProviderType,
-  SecurityProfile,
-} from "@/shared/api/hooks";
+import {
+  connectionStatusLabel,
+  delegatedModeLabel,
+  identityProviderLabel,
+  importRowStatusLabel,
+} from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const { Dragger } = Upload;
 
-const STATUS_LABEL: Record<string, string> = {
-  READY: "就绪",
-  NOT_CONNECTED: "未连接",
-  DISABLED: "未启用",
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  READY: "success",
-  NOT_CONNECTED: "default",
-  DISABLED: "warning",
-};
-
-const PROVIDER_LABEL: Record<IdentityProviderType, string> = {
-  OIDC: "OIDC",
-  CAS: "CAS",
-  SAML: "SAML",
-  EMPLOYEE_NO: "员工号",
-  SM_CA: "国密 CA",
-};
-
-const PROVIDER_OPTIONS = Object.entries(PROVIDER_LABEL).map(([value, label]) => ({
-  value: value as IdentityProviderType,
-  label,
-}));
-
-interface CreateBindingForm {
+type CreateBindingForm = {
   userId: string;
   providerType: IdentityProviderType;
   externalSubject: string;
   reason: string;
-}
+};
 
-interface UnbindForm {
-  reason: string;
-}
+type UnbindForm = { reason: string };
 
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
@@ -77,7 +66,7 @@ function hasPermission(profile: SecurityProfile | undefined, code: string) {
 
 function formatTime(value: string) {
   const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return value;
+  if (Number.isNaN(timestamp)) return "时间未知";
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -94,48 +83,63 @@ export default function IdentityBinding() {
   const delegated = useDelegatedAuthStatus();
   const bindings = useIdentityBindings();
   const [userSearch, setUserSearch] = useState("");
-  const users = useOrgUsers({ page: 1, size: 50, keyword: userSearch || undefined });
+  const personnel = usePersonnel({ page: 1, size: 100, keyword: userSearch || undefined });
   const createMutation = useCreateIdentityBinding();
   const unbindMutation = useUnbindIdentityBinding();
+  const previewMutation = usePreviewPersonnelImport();
+  const commitMutation = useCommitPersonnelImport();
   const [createOpen, setCreateOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchFile, setBatchFile] = useState<File>();
+  const [batchResult, setBatchResult] = useState<PersonnelImportResponse>();
   const [unbindTarget, setUnbindTarget] = useState<IdentityBindingRecord | null>(null);
   const [createForm] = Form.useForm<CreateBindingForm>();
   const [unbindForm] = Form.useForm<UnbindForm>();
 
   const canManage = hasPermission(security.data, "org.write");
+  const peopleByUserId = useMemo(
+    () =>
+      new Map(
+        (personnel.data?.items ?? [])
+          .filter((person) => person.userId)
+          .map((person) => [person.userId as string, person]),
+      ),
+    [personnel.data?.items],
+  );
+  const userOptions = useMemo(
+    () =>
+      (personnel.data?.items ?? [])
+        .filter((person) => person.userId)
+        .map((person) => ({
+          value: person.userId as string,
+          label: `${person.displayName} · ${person.employeeNo}`,
+        })),
+    [personnel.data?.items],
+  );
 
   const refresh = async () => {
     await Promise.all([
       bindings.refetch(),
       delegated.refetch(),
       security.refetch(),
-      users.refetch(),
+      personnel.refetch(),
     ]);
-  };
-
-  const closeCreate = () => {
-    setCreateOpen(false);
-    createForm.resetFields();
   };
 
   const submitCreate = async (values: CreateBindingForm) => {
     try {
       await createMutation.mutateAsync({
-        userId: values.userId.trim(),
+        userId: values.userId,
         providerType: values.providerType,
         externalSubject: values.externalSubject.trim(),
         reason: values.reason.trim(),
       });
-      message.success("身份绑定已生效");
-      closeCreate();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "身份绑定失败"));
+      message.success("身份来源已绑定");
+      setCreateOpen(false);
+      createForm.resetFields();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "身份来源绑定失败"));
     }
-  };
-
-  const closeUnbind = () => {
-    setUnbindTarget(null);
-    unbindForm.resetFields();
   };
 
   const submitUnbind = async (values: UnbindForm) => {
@@ -146,86 +150,108 @@ export default function IdentityBinding() {
         reason: values.reason.trim(),
         expectedVersion: unbindTarget.version,
       });
-      message.success("身份绑定已解除，历史记录已保留");
-      closeUnbind();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "身份解绑失败"));
+      message.success("身份来源已解绑，历史证据继续保留");
+      setUnbindTarget(null);
+      unbindForm.resetFields();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "身份来源解绑失败"));
     }
+  };
+
+  const previewBatch = async () => {
+    if (!batchFile) {
+      message.warning("请先选择身份匹配文件");
+      return;
+    }
+    try {
+      setBatchResult(await previewMutation.mutateAsync(batchFile));
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "批量匹配预检失败"));
+    }
+  };
+
+  const commitBatch = async () => {
+    if (!batchResult) return;
+    try {
+      const result = await commitMutation.mutateAsync(batchResult.jobId);
+      setBatchResult(result);
+      message.success(`已完成 ${result.successRows} 人的身份匹配`);
+      await bindings.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "批量匹配失败"));
+    }
+  };
+
+  const closeBatch = () => {
+    setBatchOpen(false);
+    setBatchFile(undefined);
+    setBatchResult(undefined);
   };
 
   if (security.isLoading || bindings.isLoading || delegated.isLoading) {
     return (
-      <PageShell title="身份绑定" description="正在读取当前租户的身份绑定">
+      <PageShell title="身份来源" description="正在读取机构统一身份状态">
         <PageState state="loading" />
       </PageShell>
     );
   }
-
   if (security.isError || bindings.isError || delegated.isError) {
     return (
-      <PageShell title="身份绑定" description="身份绑定状态读取失败">
+      <PageShell title="身份来源" description="机构统一身份状态读取失败">
         <PageState
           state="error"
-          title="暂时无法读取身份绑定"
-          description="请检查登录状态、租户上下文和统一身份服务。"
-          action={
-            <Button icon={<ReloadOutlined />} onClick={refresh}>
-              重试
-            </Button>
-          }
+          title="暂时无法读取身份来源"
+          description="请检查登录状态、机构范围和统一身份服务连接。"
+          action={<Button onClick={refresh}>重试</Button>}
         />
       </PageShell>
     );
   }
-
-  const delegatedStatus = delegated.data;
-  if (!security.data || !delegatedStatus || !bindings.data) {
+  if (!security.data || !delegated.data || !bindings.data) {
     return (
-      <PageShell title="身份绑定" description="当前租户暂无可用身份数据">
-        <PageState state="empty" title="暂无身份绑定状态" />
+      <PageShell title="身份来源" description="暂无可用身份数据">
+        <PageState state="empty" title="暂无身份来源状态" />
       </PageShell>
     );
   }
 
-  const statusLabel = STATUS_LABEL[delegatedStatus.status] ?? delegatedStatus.status;
-  const statusColor = STATUS_COLOR[delegatedStatus.status] ?? "default";
-  const userOptions = (users.data?.items ?? []).map((user) => ({
-    value: user.userId,
-    label: `${user.displayName} · ${user.userId}`,
-  }));
-  const userNames = new Map(
-    (users.data?.items ?? []).map((user) => [user.userId, user.displayName]),
-  );
-  let alertType: "success" | "warning" | "info" = "info";
-  if (delegatedStatus.status === "READY") {
-    alertType = "success";
-  } else if (delegatedStatus.enabled) {
-    alertType = "warning";
+  const activeCount = bindings.data.filter((item) => item.status === "ACTIVE").length;
+  const providerCount = new Set(
+    bindings.data.filter((item) => item.status === "ACTIVE").map((item) => item.providerType),
+  ).size;
+  const isReady = delegated.data.status === "READY";
+  let delegatedAlertType: "success" | "warning" | "info" = "info";
+  if (delegated.data.enabled) delegatedAlertType = "warning";
+  if (isReady) delegatedAlertType = "success";
+  let batchActionLabel = "开始预检";
+  if (batchResult) batchActionLabel = "确认匹配";
+  if (batchResult?.status === "COMPLETED" || batchResult?.status === "PARTIAL") {
+    batchActionLabel = "完成";
   }
 
   return (
     <>
       <PageShell
-        title="身份绑定"
-        description="管理员工号、统一身份和国密证书与系统用户的唯一关系"
+        title="身份来源"
+        description="维护院内工号、统一认证和国密证书与人员账号的唯一关系"
         primary={
           canManage ? (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setUserSearch("");
-                setCreateOpen(true);
-              }}
-            >
-              新增绑定
+            <Button type="primary" icon={<UploadOutlined />} onClick={() => setBatchOpen(true)}>
+              批量匹配身份
             </Button>
           ) : undefined
         }
         extras={
-          <Button icon={<ReloadOutlined />} onClick={refresh}>
-            刷新
-          </Button>
+          <Space wrap>
+            {canManage && (
+              <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+                单个绑定
+              </Button>
+            )}
+            <Button icon={<ReloadOutlined />} onClick={refresh}>
+              刷新
+            </Button>
+          </Space>
         }
       >
         <Space direction="vertical" size="large" className="mk-full-width">
@@ -234,80 +260,68 @@ export default function IdentityBinding() {
               type="info"
               showIcon
               message="当前为只读视图"
-              description="只有具备组织管理权限的管理员可以新增或解除身份绑定。"
+              description="只有机构管理员或信息科管理员可以新增、批量匹配或解除身份来源。"
             />
           )}
-
           <Alert
-            type={alertType}
+            type={delegatedAlertType}
             showIcon
-            message={
-              <Space wrap>
-                <Text strong>统一身份模式</Text>
-                <Tag>{delegatedStatus.mode}</Tag>
-                <Tag color={statusColor}>{statusLabel}</Tag>
-              </Space>
-            }
-            description={delegatedStatus.message}
+            message={`${delegatedModeLabel(delegated.data.mode)} · ${connectionStatusLabel(
+              delegated.data.status,
+            )}`}
+            description={delegated.data.message}
           />
-
-          <Card title="绑定记录">
+          <Card>
+            <Space size="large" wrap>
+              <Statistic title="有效身份关系" value={activeCount} />
+              <Statistic title="已使用身份来源" value={providerCount} />
+              <Statistic
+                title="统一身份连接"
+                value={connectionStatusLabel(delegated.data.status)}
+              />
+            </Space>
+          </Card>
+          <Card title="人员身份关系">
             <Table<IdentityBindingRecord>
               rowKey="bindingId"
               dataSource={bindings.data}
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: false,
-                showTotal: (total) => `共 ${total} 条记录`,
-              }}
-              locale={{ emptyText: "当前租户暂无身份绑定" }}
-              scroll={{ x: 760 }}
+              pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
+              locale={{ emptyText: "当前机构尚未绑定身份来源" }}
+              scroll={{ x: 820 }}
               columns={[
                 {
-                  title: "系统用户",
+                  title: "人员",
                   dataIndex: "userId",
-                  width: 180,
-                  render: (userId: string) => (
-                    <Space direction="vertical" size={0}>
-                      <Text>{userNames.get(userId) ?? "显示名未加载"}</Text>
-                      <Text type="secondary">{userId}</Text>
-                    </Space>
-                  ),
+                  render: (userId: string) => {
+                    const person = peopleByUserId.get(userId);
+                    return (
+                      <Space direction="vertical" size={0}>
+                        <Text strong>{person?.displayName ?? "人员信息待同步"}</Text>
+                        <Text type="secondary">
+                          {person ? `人员编号：${person.employeeNo}` : "账号已存在"}
+                        </Text>
+                      </Space>
+                    );
+                  },
                 },
                 {
-                  title: "身份源",
+                  title: "身份来源",
                   dataIndex: "providerType",
-                  width: 130,
-                  render: (provider: IdentityProviderType) => (
-                    <Tag>{PROVIDER_LABEL[provider] ?? provider}</Tag>
-                  ),
+                  render: (value: string) => <Tag>{identityProviderLabel(value)}</Tag>,
                 },
-                {
-                  title: "外部身份",
-                  dataIndex: "subjectHint",
-                  width: 180,
-                },
+                { title: "脱敏标识", dataIndex: "subjectHint" },
                 {
                   title: "状态",
                   dataIndex: "status",
-                  width: 110,
-                  render: (status: IdentityBindingRecord["status"]) => (
-                    <Tag color={status === "ACTIVE" ? "success" : "default"}>
-                      {status === "ACTIVE" ? "已绑定" : "已解绑"}
+                  render: (value: string) => (
+                    <Tag color={value === "ACTIVE" ? "success" : "default"}>
+                      {value === "ACTIVE" ? "已绑定" : "已解绑"}
                     </Tag>
                   ),
                 },
-                {
-                  title: "最近更新",
-                  dataIndex: "updatedAt",
-                  width: 190,
-                  render: formatTime,
-                },
+                { title: "最近更新", dataIndex: "updatedAt", render: formatTime },
                 {
                   title: "操作",
-                  key: "actions",
-                  width: 100,
-                  fixed: "right",
                   render: (_, record) =>
                     canManage && record.status === "ACTIVE" ? (
                       <Button
@@ -329,13 +343,16 @@ export default function IdentityBinding() {
       </PageShell>
 
       <Modal
-        title="新增身份绑定"
+        title="单个绑定身份来源"
         open={createOpen}
         okText="确认绑定"
         cancelText="取消"
         confirmLoading={createMutation.isPending}
         onOk={() => createForm.submit()}
-        onCancel={closeCreate}
+        onCancel={() => {
+          setCreateOpen(false);
+          createForm.resetFields();
+        }}
         destroyOnClose
       >
         <Form<CreateBindingForm>
@@ -346,33 +363,38 @@ export default function IdentityBinding() {
         >
           <Form.Item
             name="userId"
-            label="系统用户"
-            rules={[{ required: true, message: "请选择系统用户" }]}
+            label="人员账号"
+            rules={[{ required: true, message: "请选择人员账号" }]}
           >
             <Select
               showSearch
               filterOption={false}
               onSearch={setUserSearch}
-              placeholder="选择当前租户用户"
+              placeholder="按姓名或人员编号搜索"
               options={userOptions}
-              loading={users.isLoading}
-              disabled={users.isError}
-              notFoundContent={users.isError ? "用户目录读取失败" : "暂无可绑定用户"}
+              loading={personnel.isLoading}
+              notFoundContent="没有已开通账号的人员"
             />
           </Form.Item>
           <Form.Item
             name="providerType"
-            label="身份源"
-            rules={[{ required: true, message: "请选择身份源" }]}
+            label="身份来源"
+            rules={[{ required: true, message: "请选择身份来源" }]}
           >
-            <Select options={PROVIDER_OPTIONS} />
+            <Select
+              options={["EMPLOYEE_NO", "SM_CA", "OIDC", "CAS", "SAML"].map((value) => ({
+                value,
+                label: identityProviderLabel(value),
+              }))}
+            />
           </Form.Item>
           <Form.Item
             name="externalSubject"
-            label="外部身份"
+            label="院内身份标识"
+            extra="系统只保存不可逆摘要与脱敏提示，不保存身份原文。"
             rules={[
-              { required: true, whitespace: true, message: "请输入外部身份标识" },
-              { max: 512, message: "外部身份不能超过 512 个字符" },
+              { required: true, whitespace: true, message: "请输入院内身份标识" },
+              { max: 512, message: "院内身份标识不能超过 512 个字符" },
             ]}
           >
             <Input autoComplete="off" maxLength={512} />
@@ -392,37 +414,116 @@ export default function IdentityBinding() {
       </Modal>
 
       <Modal
-        title="解除身份绑定"
+        title="批量匹配身份来源"
+        open={batchOpen}
+        width={880}
+        okText={batchActionLabel}
+        cancelText="取消"
+        confirmLoading={previewMutation.isPending || commitMutation.isPending}
+        okButtonProps={{ disabled: Boolean(batchResult?.conflictRows) }}
+        onCancel={closeBatch}
+        onOk={() => {
+          if (batchResult?.status === "COMPLETED" || batchResult?.status === "PARTIAL") {
+            closeBatch();
+          } else if (batchResult) {
+            void commitBatch();
+          } else {
+            void previewBatch();
+          }
+        }}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          <Alert
+            type="info"
+            showIcon
+            message="按人员编号批量匹配，先预检后提交"
+            description="使用人员导入模板填写身份来源和院内身份标识。已有人员会更新身份关系，新人员可同时完成建档与账号开通。"
+          />
+          {!batchResult && (
+            <Dragger
+              accept=".csv,text/csv"
+              maxCount={1}
+              beforeUpload={(file) => {
+                setBatchFile(file);
+                return false;
+              }}
+              onRemove={() => {
+                setBatchFile(undefined);
+                return true;
+              }}
+            >
+              <p className="ant-upload-drag-icon">
+                <UploadOutlined />
+              </p>
+              <p>点击或拖入身份匹配文件</p>
+            </Dragger>
+          )}
+          {batchResult && (
+            <>
+              <Descriptions bordered size="small" column={3}>
+                <Descriptions.Item label="总人数">{batchResult.totalRows}</Descriptions.Item>
+                <Descriptions.Item label="可匹配">{batchResult.validRows}</Descriptions.Item>
+                <Descriptions.Item label="需处理冲突">{batchResult.conflictRows}</Descriptions.Item>
+              </Descriptions>
+              <Table
+                rowKey="rowNo"
+                size="small"
+                pagination={{ pageSize: 10, hideOnSinglePage: true }}
+                dataSource={batchResult.rows}
+                columns={[
+                  { title: "人员编号", dataIndex: "employeeNo" },
+                  { title: "姓名", dataIndex: "displayName" },
+                  {
+                    title: "校验结果",
+                    dataIndex: "status",
+                    render: (value: string) => (
+                      <Tag color={value === "VALID" || value === "SUCCESS" ? "success" : "error"}>
+                        {importRowStatusLabel(value)}
+                      </Tag>
+                    ),
+                  },
+                  { title: "说明", dataIndex: "message", render: (value) => value ?? "校验通过" },
+                ]}
+              />
+            </>
+          )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title="解除身份来源"
         open={Boolean(unbindTarget)}
         okText="确认解绑"
         cancelText="取消"
         okButtonProps={{ danger: true }}
         confirmLoading={unbindMutation.isPending}
         onOk={() => unbindForm.submit()}
-        onCancel={closeUnbind}
+        onCancel={() => {
+          setUnbindTarget(null);
+          unbindForm.resetFields();
+        }}
         destroyOnClose
       >
-        <Space direction="vertical" size="middle" className="mk-full-width">
-          <Alert
-            type="warning"
-            showIcon
-            message="解绑后该外部身份不能继续登录"
-            description="历史记录和审计证据会保留；需要恢复时应重新绑定。"
-          />
-          <Form<UnbindForm> form={unbindForm} layout="vertical" onFinish={submitUnbind}>
-            <Form.Item
-              name="reason"
-              label="解绑原因"
-              rules={[
-                { required: true, whitespace: true, message: "请输入解绑原因" },
-                { min: 4, message: "解绑原因至少 4 个字符" },
-                { max: 500, message: "解绑原因不能超过 500 个字符" },
-              ]}
-            >
-              <TextArea rows={3} maxLength={500} showCount />
-            </Form.Item>
-          </Form>
-        </Space>
+        <Alert
+          type="warning"
+          showIcon
+          message="解绑后该身份不能继续用于登录"
+          description="人员档案、账号和历史审计不会删除；需要恢复时应重新绑定。"
+        />
+        <Form<UnbindForm> form={unbindForm} layout="vertical" onFinish={submitUnbind}>
+          <Form.Item
+            name="reason"
+            label="解绑原因"
+            rules={[
+              { required: true, whitespace: true, message: "请输入解绑原因" },
+              { min: 4, message: "解绑原因至少 4 个字符" },
+              { max: 500, message: "解绑原因不能超过 500 个字符" },
+            ]}
+          >
+            <TextArea rows={3} maxLength={500} showCount />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

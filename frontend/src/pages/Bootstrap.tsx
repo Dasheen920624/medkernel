@@ -36,6 +36,7 @@ import {
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -55,20 +56,26 @@ const handoverSignals = [
   },
 ];
 
-const accountSecuritySignals = [
-  {
-    label: "修改临时密码",
-    value: "首次登录先建立仅本人掌握的长期凭据",
-  },
-  {
-    label: "绑定双因素认证",
-    value: "按当前租户安全策略完成认证器绑定",
-  },
-  {
-    label: "进入租户工作台",
-    value: "安全设置完成后返回当前租户继续工作",
-  },
-];
+function buildAccountSecuritySignals(platformSetup: boolean) {
+  return [
+    {
+      label: "修改临时密码",
+      value: "首次登录先建立仅本人掌握的长期凭据",
+    },
+    {
+      label: "绑定双因素认证",
+      value: platformSetup
+        ? "按平台治理安全策略完成认证器绑定"
+        : "按所在服务机构安全策略完成认证器绑定",
+    },
+    {
+      label: platformSetup ? "进入平台治理" : "进入机构工作台",
+      value: platformSetup
+        ? "安全设置完成后返回平台治理空间继续工作"
+        : "安全设置完成后返回所在服务机构继续工作",
+    },
+  ];
+}
 
 type BootstrapPhase =
   | "init-token"
@@ -111,6 +118,8 @@ export default function Bootstrap() {
   const location = useLocation();
   const state = (location.state ?? {}) as BootstrapLocationState;
   const accountSecuritySetup = state.phase === "change-password" || state.phase === "mfa";
+  const platformSecuritySetup =
+    accountSecuritySetup && (state.login?.tenantId ?? state.tenantId) === platformTenantId;
   const [phase, setPhase] = useState<BootstrapPhase>(() => normalizePhase(state.phase));
   const [initToken, setInitToken] = useState("");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
@@ -182,7 +191,15 @@ export default function Bootstrap() {
         { title: "双因素" },
         { title: "完成" },
       ];
-  const signals = accountSecuritySetup ? accountSecuritySignals : handoverSignals;
+  const signals = accountSecuritySetup
+    ? buildAccountSecuritySignals(platformSecuritySetup)
+    : handoverSignals;
+  const accountSecurityLead = platformSecuritySetup
+    ? "首次登录需要修改临时密码；如平台治理策略要求，再绑定双因素认证。完成后进入平台治理工作台。"
+    : "首次登录需要修改临时密码；如所在服务机构策略要求，再绑定双因素认证。完成后进入机构工作台。";
+  const accountSecurityDoneDescription = platformSecuritySetup
+    ? "当前账号已完成首次安全设置，可以进入平台治理工作台。"
+    : "当前账号已完成首次安全设置，可以进入机构工作台。";
 
   const goLogin = () => navigate("/login");
 
@@ -361,7 +378,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="首发管理员已经建立，请返回登录。后续账号与租户统一在工作台内维护。"
+            subTitle="首发管理员已经建立，请返回登录。后续账号与服务空间统一在工作台内维护。"
             extra={[
               <Button
                 aria-label="返回登录"
@@ -413,8 +430,8 @@ export default function Bootstrap() {
           </Title>
           <Text className={styles.lead}>
             {accountSecuritySetup
-              ? "首次登录需要修改临时密码；如当前租户策略要求，再绑定双因素认证。完成后进入当前租户工作台。"
-              : "使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。"}
+              ? accountSecurityLead
+              : "使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。集团、医院及其他服务机构进入平台治理后再开通。"}
           </Text>
           <ul
             className={styles.signalList}
@@ -496,13 +513,13 @@ export default function Bootstrap() {
                 </Title>
                 <Paragraph type="secondary">
                   接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                  。首发管理员属于平台主租户（唯一内置），客户集团和医院租户进入工作台后开通。
+                  。首发管理员属于平台治理空间（唯一内置），集团和医院服务空间进入平台治理后开通。
                 </Paragraph>
                 <div className={styles.bootstrapTenantContext}>
                   <SafetyCertificateOutlined aria-hidden="true" />
                   <div>
-                    <Text strong>平台主租户自动绑定</Text>
-                    <Text type="secondary">客户集团和医院租户进入工作台后开通。</Text>
+                    <Text strong>平台治理空间自动绑定</Text>
+                    <Text type="secondary">集团和医院服务空间进入平台治理后开通。</Text>
                   </div>
                 </div>
                 <Form
@@ -672,7 +689,7 @@ export default function Bootstrap() {
                   绑定双因素认证
                 </Title>
                 <Paragraph type="secondary">
-                  当前账号必须完成双因素认证后才能执行高危配置、租户管理和应急操作。
+                  当前账号必须完成双因素认证后才能执行高危配置、服务机构管理和应急操作。
                 </Paragraph>
                 {mfaSetup && (
                   <div className={styles.mfaSetupGrid}>
@@ -787,8 +804,8 @@ export default function Bootstrap() {
                 title={accountSecuritySetup ? "账号安全设置完成" : "首发身份接管完成"}
                 subTitle={
                   accountSecuritySetup
-                    ? "当前账号已完成首次安全设置，可以进入当前租户工作台。"
-                    : "现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户管理中维护。"
+                    ? accountSecurityDoneDescription
+                    : "现在可以返回登录进入平台治理；集团、医院和其他服务空间后续在服务机构管理中维护。"
                 }
                 extra={[
                   recoveryCode ? (

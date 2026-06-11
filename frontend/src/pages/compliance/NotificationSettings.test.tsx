@@ -121,7 +121,7 @@ describe("NotificationSettings", () => {
     expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "同步与接入" })).not.toBeChecked();
-    expect(screen.getByText(/NOT_CONNECTED/)).toHaveTextContent(
+    expect(screen.getByText(/未连接/)).toHaveTextContent(
       "不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递",
     );
     expect(screen.queryByText("默认夜班医生静默")).not.toBeInTheDocument();

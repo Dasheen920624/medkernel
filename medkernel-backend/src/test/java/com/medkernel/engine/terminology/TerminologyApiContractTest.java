@@ -208,24 +208,24 @@ class TerminologyApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api04-implementation-engineer")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("implementation-engineer")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_ENGINEER"));
+                .claim("roles", List.of("implementation-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api04-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("specialist")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SPECIALIST"));
+                .claim("roles", List.of("knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor publishJwt() {
         return jwt().jwt(token -> token
                 .subject("api04-it-ops")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("it-ops")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"));
+                .claim("roles", List.of("integration-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 
     private static String standardContextJson(String bodyTail) {
@@ -241,7 +241,7 @@ class TerminologyApiContractTest {
               "department_id": "d-1",
               "specialty_id": "sp-1",
               "user_id": "u-99",
-              "role_codes": ["specialist"],
+              "role_codes": ["knowledge-governor"],
               "package_version": "pkg-2026.06"
               %s
             }

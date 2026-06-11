@@ -68,6 +68,7 @@ import {
   useTenants,
 } from "@/shared/api/hooks";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import type {
   AuthoringAssetLibraryItem,
   EngineAssetType,
@@ -135,7 +136,7 @@ const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }>
 
 const orgLevelLabel: Record<OrgUnit["level"], string> = {
   PLATFORM: "平台",
-  TENANT: "租户",
+  TENANT: "服务空间",
   REGION: "区域/联合体",
   FACILITY: "医疗机构",
   CAMPUS: "院区",
@@ -145,8 +146,12 @@ const orgLevelLabel: Record<OrgUnit["level"], string> = {
 
 const facilityTypeLabel: Record<NonNullable<OrgUnit["facilityType"]>, string> = {
   HOSPITAL: "医院",
+  SPECIALTY_HOSPITAL: "专科医院",
+  BRANCH_HOSPITAL: "分院",
   COMMUNITY_HEALTH_CENTER: "社区卫生服务中心",
   TOWNSHIP_CLINIC: "乡镇卫生院",
+  VILLAGE_CLINIC: "村卫生室",
+  OUTPATIENT_CLINIC: "门诊部",
   STATION: "卫生服务站",
   OTHER: "其他医疗机构",
 };
@@ -157,7 +162,7 @@ function orgUnitTypeLabel(unit: OrgUnit) {
 
 const inheritancePerspectiveOptions: Array<{ value: InheritancePerspective; label: string }> = [
   { value: "PLATFORM", label: "平台视角" },
-  { value: "TENANT", label: "租户视角" },
+  { value: "TENANT", label: "服务机构视角" },
   { value: "ORG", label: "当前机构" },
 ];
 
@@ -177,14 +182,14 @@ function isAuthoringPackageAssetType(value: string): value is AuthoringPackageAs
   return authoringAssetTypes.includes(value as AuthoringPackageAssetType);
 }
 
-function hasHospitalAdminRole(roles: Array<{ code?: string }> | undefined) {
+function hasOrganizationAdminRole(roles: Array<{ code?: string }> | undefined) {
   return (roles ?? []).some((role) => {
     const normalized = (role.code ?? "").trim().toUpperCase().replace(/[-.]/g, "_");
     return (
-      normalized === "HOSPITAL_ADMIN" ||
-      normalized === "ROLE_HOSPITAL_ADMIN" ||
-      normalized === "TENANT_ADMIN" ||
-      normalized === "ROLE_TENANT_ADMIN"
+      normalized === "ORGANIZATION_ADMIN" ||
+      normalized === "ROLE_ORGANIZATION_ADMIN" ||
+      normalized === "PLATFORM_GOVERNANCE_ADMIN" ||
+      normalized === "ROLE_PLATFORM_GOVERNANCE_ADMIN"
     );
   });
 }
@@ -299,7 +304,7 @@ function syncLogStatusText(status: string) {
 
 function sourceTierText(sourceTier: string | null | undefined) {
   if (sourceTier === "PLATFORM") return "平台基线";
-  if (sourceTier === "TENANT") return "租户定制";
+  if (sourceTier === "TENANT") return "服务机构定制";
   if (sourceTier === "ORG") return "本级定制";
   if (sourceTier === "PARENT_ORG") return "继承上级定制";
   if (sourceTier === "DISABLED") return "已停用";
@@ -400,7 +405,7 @@ export default function ConfigPackages() {
       adapter.healthStatus === "HEALTHY" &&
       adapter.connectorAvailable,
   );
-  const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
+  const canDirectFullRelease = hasOrganizationAdminRole(securityProfile?.roles);
   const canManageEntitlements =
     securityProfile?.dataScope.tenantId === platformTenantId &&
     hasPermission(securityProfile, "platform.publish");
@@ -776,12 +781,12 @@ export default function ConfigPackages() {
           reason: values.reason.trim(),
         },
       });
-      message.success("租户授权已开通或续期");
+      message.success("服务空间授权已开通或续期");
       entitlementForm.resetFields();
     } catch (err: unknown) {
       if (Array.isArray((err as { errorFields?: unknown[] }).errorFields)) return;
       if (applyApiFieldErrors(entitlementForm, err)) return;
-      message.error(getApiErrorMessage(err, "租户授权操作失败"));
+      message.error(getApiErrorMessage(err, "服务空间授权操作失败"));
     }
   };
 
@@ -804,12 +809,12 @@ export default function ConfigPackages() {
         tenantId: revokingEntitlement.tenantId,
         reason: values.reason.trim(),
       });
-      message.success(`已撤销租户 ${revokingEntitlement.tenantId} 的包授权`);
+      message.success(`已撤销服务空间 ${revokingEntitlement.tenantId} 的包授权`);
       closeRevokeEntitlementModal();
     } catch (err: unknown) {
       if (Array.isArray((err as { errorFields?: unknown[] }).errorFields)) return;
       if (applyApiFieldErrors(revokeEntitlementForm, err)) return;
-      message.error(getApiErrorMessage(err, "撤销租户授权失败"));
+      message.error(getApiErrorMessage(err, "撤销服务空间授权失败"));
     }
   };
 
@@ -1119,7 +1124,9 @@ export default function ConfigPackages() {
       render: (_: unknown, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.asset_identity}</Text>
-          <Tag color={assetTypeColor(record.asset_type)}>{record.asset_type}</Tag>
+          <Tag color={assetTypeColor(record.asset_type)}>
+            {customerEnumLabel(record.asset_type)}
+          </Tag>
         </Space>
       ),
     },
@@ -1128,7 +1135,9 @@ export default function ConfigPackages() {
       dataIndex: "override_mode",
       key: "override_mode",
       width: 150,
-      render: (mode: string) => <Tag color={mode === "DISABLE" ? "red" : "blue"}>{mode}</Tag>,
+      render: (mode: string) => (
+        <Tag color={mode === "DISABLE" ? "red" : "blue"}>{customerEnumLabel(mode)}</Tag>
+      ),
     },
     {
       title: "传播",
@@ -1136,7 +1145,9 @@ export default function ConfigPackages() {
       key: "propagation",
       width: 160,
       render: (propagation: string) => (
-        <Tag color={propagation === "EXCLUSIVE" ? "orange" : "green"}>{propagation}</Tag>
+        <Tag color={propagation === "EXCLUSIVE" ? "orange" : "green"}>
+          {customerEnumLabel(propagation)}
+        </Tag>
       ),
     },
     {
@@ -1192,7 +1203,7 @@ export default function ConfigPackages() {
       width: 110,
       render: (policy: string) => (
         <Tag color={policy === "ENTITLED" ? "gold" : "green"}>
-          {policy === "ENTITLED" ? "按租户授权" : "开放"}
+          {policy === "ENTITLED" ? "按服务空间授权" : "开放"}
         </Tag>
       ),
     },
@@ -1218,7 +1229,10 @@ export default function ConfigPackages() {
       key: "status",
       width: 110,
       render: (status: string) => (
-        <Badge status={statusBadge[status] ?? "default"} text={statusText[status] ?? status} />
+        <Badge
+          status={statusBadge[status] ?? "default"}
+          text={statusText[status] ?? customerEnumLabel(status)}
+        />
       ),
     },
     {
@@ -1382,7 +1396,7 @@ export default function ConfigPackages() {
           label="配置包编码"
           rules={[{ required: true, message: "请输入配置包编码" }]}
         >
-          <Input placeholder="输入租户内唯一配置包编码" />
+          <Input placeholder="输入当前服务空间内唯一配置包编码" />
         </Form.Item>
         <Form.Item
           name="packageVersion"
@@ -1408,8 +1422,8 @@ export default function ConfigPackages() {
             rules={[{ required: true, message: "请选择访问策略" }]}
           >
             <Select>
-              <Option value="OPEN">开放给所有租户</Option>
-              <Option value="ENTITLED">按租户授权</Option>
+              <Option value="OPEN">开放给所有服务空间</Option>
+              <Option value="ENTITLED">按服务空间授权</Option>
             </Select>
           </Form.Item>
         )}
@@ -1425,7 +1439,7 @@ export default function ConfigPackages() {
 
   const entitlementColumns: ColumnsType<PackageEntitlement> = [
     {
-      title: "租户",
+      title: "服务空间",
       dataIndex: "tenantId",
       key: "tenantId",
       width: 180,
@@ -1446,7 +1460,7 @@ export default function ConfigPackages() {
       width: 100,
       render: (status: string) => (
         <Tag color={entitlementStatusColor[status] ?? "default"}>
-          {entitlementStatusText[status] ?? status}
+          {entitlementStatusText[status] ?? customerEnumLabel(status)}
         </Tag>
       ),
     },
@@ -1488,7 +1502,7 @@ export default function ConfigPackages() {
 
   const entitlementModal = (
     <Modal
-      title={`租户授权 · ${entitlementPackage?.packageCode ?? ""}`}
+      title={`服务空间授权 · ${entitlementPackage?.packageCode ?? ""}`}
       open={Boolean(entitlementPackage)}
       onCancel={closeEntitlementModal}
       footer={<Button onClick={closeEntitlementModal}>关闭</Button>}
@@ -1505,14 +1519,14 @@ export default function ConfigPackages() {
           type="info"
           showIcon
           message="授权只控制受限平台包"
-          description="未授权租户不可见也不可下发；授权到期后保留审计历史，但停止解析。"
+          description="未授权服务空间不可见也不可下发；授权到期后保留审计历史，但停止解析。"
         />
         <Form form={entitlementForm} name="package-entitlement-grant" layout="vertical">
           <div className={styles.entitlementFormGrid}>
             <Form.Item
               name="targetTenantId"
-              label="目标租户"
-              rules={[{ required: true, message: "请选择目标租户" }]}
+              label="目标服务空间"
+              rules={[{ required: true, message: "请选择目标服务空间" }]}
             >
               <Select
                 showSearch
@@ -1520,13 +1534,13 @@ export default function ConfigPackages() {
                 loading={tenantDirectoryQuery.isLoading}
                 disabled={tenantDirectoryQuery.isError}
                 placeholder={
-                  tenantDirectoryQuery.isError ? "租户目录读取失败" : "选择已启用客户租户"
+                  tenantDirectoryQuery.isError ? "服务空间目录读取失败" : "选择已启用服务空间"
                 }
                 options={activeCustomerTenants.map((tenant) => ({
                   value: tenant.tenantId,
                   label: `${tenant.name} · ${tenant.tenantId}`,
                 }))}
-                notFoundContent="没有可授权的已启用客户租户"
+                notFoundContent="没有可授权的已启用服务空间"
               />
             </Form.Item>
             <Form.Item
@@ -1542,7 +1556,7 @@ export default function ConfigPackages() {
               className={styles.formAlert}
               type="error"
               showIcon
-              message="客户租户目录读取失败"
+              message="服务空间目录读取失败"
               action={<Button onClick={() => void tenantDirectoryQuery.refetch()}>重试</Button>}
             />
           )}
@@ -1586,7 +1600,7 @@ export default function ConfigPackages() {
                 onChange: setEntitlementPage,
               }}
               size="small"
-              locale={{ emptyText: "尚未向任何租户开通授权" }}
+              locale={{ emptyText: "尚未向任何服务空间开通授权" }}
               scroll={{ x: 760 }}
             />
           </div>
@@ -1597,7 +1611,7 @@ export default function ConfigPackages() {
 
   const revokeEntitlementModal = (
     <Modal
-      title="撤销租户授权"
+      title="撤销服务空间授权"
       open={Boolean(revokingEntitlement)}
       okText="确认撤销授权"
       cancelText="取消"
@@ -1611,8 +1625,8 @@ export default function ConfigPackages() {
         className={styles.formAlert}
         type="warning"
         showIcon
-        message={`撤销租户 ${revokingEntitlement?.tenantId ?? ""} 的授权`}
-        description="撤销后该租户将无法继续解析或下发此平台包，历史授权记录仍保留用于审计。"
+        message={`撤销服务空间 ${revokingEntitlement?.tenantId ?? ""} 的授权`}
+        description="撤销后该服务空间将无法继续解析或下发此平台包，历史授权记录仍保留用于审计。"
       />
       <Form
         form={revokeEntitlementForm}
@@ -1862,7 +1876,7 @@ export default function ConfigPackages() {
           type="info"
           showIcon
           message="导入后保持草案状态"
-          description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
+          description="系统会先校验格式、服务空间和内容摘要，通过后生成本地草案；仍需按本机构流程发布后才会生效。"
         />
         <Upload
           accept=".json,application/json"
@@ -1946,7 +1960,7 @@ export default function ConfigPackages() {
                   ))}
                 </Space>
               ) : (
-                "当前租户尚未生成配置包；可从首发模板或离线包创建草案。"
+                "当前服务机构尚未生成配置包；可从首发模板或离线包创建草案。"
               ),
             action: <Button onClick={() => setOfflineImportModalVisible(true)}>导入离线包</Button>,
             onRetry: () => {
@@ -2191,7 +2205,7 @@ export default function ConfigPackages() {
                 type="info"
                 showIcon
                 message="输入资产身份和平台上游版本后查看继承差异"
-                description="结果由后端按平台基线、租户覆盖和组织闭包计算，页面只展示真实返回。"
+                description="结果由后端按平台基线、服务机构覆盖和组织闭包计算，页面只展示真实返回。"
               />
             )}
           </Space>
@@ -2350,7 +2364,9 @@ export default function ConfigPackages() {
               <Descriptions.Item label="状态">
                 <Badge
                   status={statusBadge[selectedPackage.status] ?? "default"}
-                  text={statusText[selectedPackage.status] ?? selectedPackage.status}
+                  text={
+                    statusText[selectedPackage.status] ?? customerEnumLabel(selectedPackage.status)
+                  }
                 />
               </Descriptions.Item>
               <Descriptions.Item label="名称" span={3}>

@@ -50,8 +50,8 @@ class WorkflowNotificationSettingsControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.inAppEnabled").value(true))
             .andExpect(jsonPath("$.data.webhookEnabled").value(false))
@@ -67,8 +67,8 @@ class WorkflowNotificationSettingsControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("doctor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

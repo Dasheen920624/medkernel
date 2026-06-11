@@ -655,6 +655,7 @@ public class FhirFacadeService {
             nonNull(scope.campusId()),
             nonNull(scope.siteId()),
             nonNull(scope.departmentId()),
+            nonNull(scope.wardId()),
             nonNull(scope.specialtyId()));
     }
 
