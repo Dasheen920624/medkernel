@@ -4,10 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useCheckDataPermission,
   useDataPermissionPolicies,
   useInteropAssessment,
   useMaskingRules,
   useOrgUnits,
+  usePreviewMasking,
   useRuntimeOperations,
   useSecurityProfile,
   useSystemConfigs,
@@ -21,10 +23,12 @@ import {
 import SecurityBaseline from "./SecurityBaseline";
 
 vi.mock("@/shared/api/hooks", () => ({
+  useCheckDataPermission: vi.fn(),
   useDataPermissionPolicies: vi.fn(),
   useInteropAssessment: vi.fn(),
   useMaskingRules: vi.fn(),
   useOrgUnits: vi.fn(),
+  usePreviewMasking: vi.fn(),
   useRuntimeOperations: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSystemConfigs: vi.fn(),
@@ -60,6 +64,8 @@ describe("SecurityBaseline", () => {
   const updateTenantConfig = vi.fn();
   const upsertPolicy = vi.fn();
   const upsertMasking = vi.fn();
+  const checkDataPermission = vi.fn();
+  const previewMasking = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -312,6 +318,25 @@ describe("SecurityBaseline", () => {
     updateTenantConfig.mockResolvedValue({});
     upsertPolicy.mockResolvedValue({});
     upsertMasking.mockResolvedValue({});
+    checkDataPermission.mockResolvedValue({
+      policyId: "policy-1",
+      resourceType: "clinical_case",
+      action: "READ",
+      requiredLevel: "HOSPITAL",
+      rowAllowed: false,
+      allowedColumns: ["patientId", "encounterId"],
+      deniedColumns: ["patientName"],
+    });
+    previewMasking.mockResolvedValue({
+      resourceType: "clinical_case",
+      scenarioCode: "DEFAULT",
+      values: {
+        patientName: "张*",
+        encounterId: "enc-1",
+      },
+      maskedFields: ["patientName"],
+      rawAllowed: false,
+    });
     vi.mocked(useUpdateSystemConfig).mockReturnValue({
       mutateAsync: updateConfig,
       isPending: false,
@@ -326,6 +351,14 @@ describe("SecurityBaseline", () => {
     } as never);
     vi.mocked(useUpsertMaskingRule).mockReturnValue({
       mutateAsync: upsertMasking,
+      isPending: false,
+    } as never);
+    vi.mocked(useCheckDataPermission).mockReturnValue({
+      mutateAsync: checkDataPermission,
+      isPending: false,
+    } as never);
+    vi.mocked(usePreviewMasking).mockReturnValue({
+      mutateAsync: previewMasking,
       isPending: false,
     } as never);
   });
@@ -347,7 +380,9 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("patientId, encounterId")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
-    expect(screen.getByText("patientName")).toBeInTheDocument();
+    expect(
+      screen.getByRole("row", { name: /clinical_case patientName DEFAULT KEEP_FIRST_LAST/ }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/保留前 1 位/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "互操作测评" }));
@@ -433,5 +468,57 @@ describe("SecurityBaseline", () => {
 
     await user.click(within(dialog).getByRole("combobox", { name: "科室" }));
     expect(screen.getByRole("option", { name: "心内科 · DEPT-1" })).toBeInTheDocument();
+  });
+
+  it("runs a data permission trial against the backend decision contract", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "数据权限" }));
+    expect(screen.getByRole("heading", { name: "权限试算" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "执行权限试算" }));
+
+    await waitFor(() =>
+      expect(checkDataPermission).toHaveBeenCalledWith({
+        resourceType: "clinical_case",
+        action: "READ",
+        groupId: undefined,
+        hospitalId: undefined,
+        campusId: undefined,
+        siteId: undefined,
+        departmentId: undefined,
+        specialtyId: undefined,
+        requestedColumns: ["patientId", "encounterId"],
+      }),
+    );
+    expect(await screen.findByText("行级不允许")).toBeInTheDocument();
+    expect(screen.getByText("patientName")).toBeInTheDocument();
+  });
+
+  it("previews masking rules with explicit operator-provided values", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
+    expect(screen.getByRole("heading", { name: "脱敏预览" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "预览值 JSON" }), {
+      target: { value: '{"patientName":"张三","encounterId":"enc-1"}' },
+    });
+    await user.click(screen.getByRole("button", { name: "执行脱敏预览" }));
+
+    await waitFor(() =>
+      expect(previewMasking).toHaveBeenCalledWith({
+        resourceType: "clinical_case",
+        scenarioCode: "DEFAULT",
+        sensitiveFields: ["patientName"],
+        values: {
+          patientName: "张三",
+          encounterId: "enc-1",
+        },
+      }),
+    );
+    expect(await screen.findByText("已按规则脱敏")).toBeInTheDocument();
+    expect(screen.getByText("张*")).toBeInTheDocument();
   });
 });

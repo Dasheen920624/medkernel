@@ -4,6 +4,7 @@ import {
   Button,
   Checkbox,
   Col,
+  Descriptions,
   Form,
   Input,
   InputNumber,
@@ -19,6 +20,8 @@ import {
 } from "antd";
 import {
   EditOutlined,
+  ExperimentOutlined,
+  EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -26,19 +29,23 @@ import {
 import { useState } from "react";
 
 import {
+  useCheckDataPermission,
   useDataPermissionPolicies,
   useInteropAssessment,
   useMaskingRules,
   useOrgUnits,
+  usePreviewMasking,
   useSystemConfigs,
   useTenantSystemConfigs,
   useUpdateSystemConfig,
   useUpdateTenantSystemConfig,
   useUpsertDataPermissionPolicy,
   useUpsertMaskingRule,
+  type DataPermissionCheckResult,
   type DataPermissionPolicy,
   type DataPermissionPolicyPayload,
   type InteropAssessmentItem,
+  type MaskingPreviewResult,
   type MaskingRule,
   type MaskingRulePayload,
   type OrgUnit,
@@ -324,6 +331,61 @@ type DataPermissionForm = Omit<DataPermissionPolicyPayload, "allowedColumns"> & 
   allowedColumns: string[];
 };
 
+type DataPermissionTrialForm = {
+  resourceType?: string;
+  action?: DataPermissionPolicyPayload["action"];
+  groupId?: string;
+  hospitalId?: string;
+  campusId?: string;
+  siteId?: string;
+  departmentId?: string;
+  specialtyId?: string;
+  requestedColumns?: string[];
+};
+
+type MaskingPreviewForm = {
+  resourceType?: string;
+  scenarioCode?: string;
+  sensitiveFields?: string[];
+  valuesJson?: string;
+};
+
+function normalizeOptional(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function renderTagList(values: string[] | undefined, emptyText = "无") {
+  if (!values || values.length === 0) return <Text type="secondary">{emptyText}</Text>;
+  return (
+    <Space wrap size={[4, 4]}>
+      {values.map((value) => (
+        <Tag key={value}>{value}</Tag>
+      ))}
+    </Space>
+  );
+}
+
+function displayPreviewValue(value: unknown) {
+  if (value === null) return "null";
+  if (value === undefined) return "未返回";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function parseMaskingPreviewValues(value?: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value ?? "{}");
+  } catch {
+    throw new Error("预览值 JSON 格式不合法");
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("预览值 JSON 必须是对象格式");
+  }
+  return parsed as Record<string, unknown>;
+}
+
 const scopeLevels: Array<{
   field: keyof DataPermissionForm;
   orgLevel: OrgUnit["level"];
@@ -354,7 +416,9 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
     status: "ACTIVE",
   });
   const upsert = useUpsertDataPermissionPolicy();
+  const checkPermission = useCheckDataPermission();
   const [selected, setSelected] = useState<DataPermissionPolicy | null>();
+  const [trialResult, setTrialResult] = useState<DataPermissionCheckResult | null>(null);
   const [form] = Form.useForm<DataPermissionForm>();
   const modalOpen = selected !== undefined;
   const activeOrgUnits = (orgUnits.data?.items ?? []).filter(
@@ -391,6 +455,23 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
         ]),
     ).values(),
   );
+  const defaultPolicy = policies.data?.[0];
+  const trialInitialValues: DataPermissionTrialForm = defaultPolicy
+    ? {
+        resourceType: defaultPolicy.resourceType,
+        action: defaultPolicy.action,
+        groupId: defaultPolicy.groupId ?? undefined,
+        hospitalId: defaultPolicy.hospitalId ?? undefined,
+        campusId: defaultPolicy.campusId ?? undefined,
+        siteId: defaultPolicy.siteId ?? undefined,
+        departmentId: defaultPolicy.departmentId ?? undefined,
+        specialtyId: defaultPolicy.specialtyId ?? undefined,
+        requestedColumns: defaultPolicy.allowedColumns,
+      }
+    : {
+        action: "READ",
+        requestedColumns: [],
+      };
 
   function openCreate() {
     setSelected(null);
@@ -438,6 +519,26 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
     }
   }
 
+  async function runTrial(values: DataPermissionTrialForm) {
+    try {
+      const result = await checkPermission.mutateAsync({
+        resourceType: values.resourceType?.trim() ?? "",
+        action: values.action ?? "READ",
+        groupId: normalizeOptional(values.groupId),
+        hospitalId: normalizeOptional(values.hospitalId),
+        campusId: normalizeOptional(values.campusId),
+        siteId: normalizeOptional(values.siteId),
+        departmentId: normalizeOptional(values.departmentId),
+        specialtyId: normalizeOptional(values.specialtyId),
+        requestedColumns: values.requestedColumns ?? [],
+      });
+      setTrialResult(result);
+      message.success("权限试算完成");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "权限试算失败"));
+    }
+  }
+
   if (policies.isLoading) return <PageState state="loading" />;
   if (policies.isError) {
     return <PageState state="error" title="数据权限策略读取失败" onRetry={policies.refetch} />;
@@ -453,6 +554,129 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
           description="当前仍可查看策略；恢复组织目录后才能新增或调整作用域。"
         />
       )}
+      <Space direction="vertical" size="small" className="mk-full-width">
+        <Typography.Title level={5} className="mk-title-tight">
+          权限试算
+        </Typography.Title>
+        <Alert
+          type="info"
+          showIcon
+          message="按当前登录身份与组织范围试算数据访问结果"
+          description="试算调用后端权限裁决端点，只展示真实返回的行级结果和字段级拒绝清单。"
+        />
+        <Form
+          key={defaultPolicy?.policyId ?? "empty-data-permission-trial"}
+          name="dataPermissionTrial"
+          layout="vertical"
+          initialValues={trialInitialValues}
+          onFinish={(values) => void runTrial(values)}
+        >
+          <Row gutter={12}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="resourceType"
+                label="资源类型"
+                rules={[{ required: true, whitespace: true }]}
+              >
+                <Input placeholder="如 clinical_case" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="action" label="动作" rules={[{ required: true }]}>
+                <Select
+                  options={[
+                    { value: "READ", label: "读取" },
+                    { value: "EXPORT", label: "导出" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="requestedColumns"
+                label="请求字段"
+                rules={[{ required: true, type: "array", min: 1 }]}
+              >
+                <Select mode="tags" tokenSeparators={[","]} placeholder="输入字段后回车" />
+              </Form.Item>
+            </Col>
+          </Row>
+          {scopeLevels.map(({ field }, index) =>
+            index % 2 === 0 ? (
+              <Row gutter={12} key={field}>
+                {scopeLevels.slice(index, index + 2).map((scope) => (
+                  <Col xs={24} md={12} key={scope.field}>
+                    <Form.Item name={scope.field} label={scope.label}>
+                      <Select
+                        allowClear
+                        showSearch
+                        filterOption={false}
+                        onSearch={setOrgSearch}
+                        placeholder={`选择${scope.label}`}
+                        options={scopeOptions.get(scope.field)}
+                        loading={orgUnits.isLoading}
+                        disabled={orgUnits.isError}
+                        notFoundContent={`暂无可选${scope.label}`}
+                      />
+                    </Form.Item>
+                  </Col>
+                ))}
+              </Row>
+            ) : null,
+          )}
+          <Row gutter={12} align="bottom">
+            <Col xs={24} md={12}>
+              <Form.Item name="specialtyId" label="专科">
+                <Select
+                  allowClear
+                  showSearch
+                  filterOption={false}
+                  onSearch={setOrgSearch}
+                  placeholder="选择专科"
+                  options={specialtyOptions}
+                  loading={orgUnits.isLoading}
+                  disabled={orgUnits.isError}
+                  notFoundContent="组织目录中暂无专科"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  aria-label="执行权限试算"
+                  icon={<ExperimentOutlined />}
+                  loading={checkPermission.isPending}
+                >
+                  执行权限试算
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+        {trialResult && (
+          <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
+            <Descriptions.Item label="行级结果">
+              <Tag color={trialResult.rowAllowed ? "success" : "error"}>
+                {trialResult.rowAllowed ? "行级允许" : "行级不允许"}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="命中策略">
+              {trialResult.policyId ?? "未返回策略"}
+            </Descriptions.Item>
+            <Descriptions.Item label="资源类型">{trialResult.resourceType}</Descriptions.Item>
+            <Descriptions.Item label="动作">{trialResult.action}</Descriptions.Item>
+            <Descriptions.Item label="要求范围">{trialResult.requiredLevel}</Descriptions.Item>
+            <Descriptions.Item label="允许字段">
+              {renderTagList(trialResult.allowedColumns)}
+            </Descriptions.Item>
+            <Descriptions.Item label="拒绝字段">
+              {renderTagList(trialResult.deniedColumns)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Space>
       <Space className="mk-push-inline-start-auto">
         <Button
           type="primary"
@@ -596,9 +820,24 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
   const rules = useMaskingRules();
   const upsert = useUpsertMaskingRule();
+  const preview = usePreviewMasking();
   const [selected, setSelected] = useState<MaskingRule | null>();
+  const [previewResult, setPreviewResult] = useState<MaskingPreviewResult | null>(null);
   const [form] = Form.useForm<MaskingForm>();
   const modalOpen = selected !== undefined;
+  const defaultRule = rules.data?.[0];
+  const previewInitialValues: MaskingPreviewForm = defaultRule
+    ? {
+        resourceType: defaultRule.resourceType,
+        scenarioCode: defaultRule.scenarioCode ?? "DEFAULT",
+        sensitiveFields: [defaultRule.fieldName],
+        valuesJson: JSON.stringify({ [defaultRule.fieldName]: "" }, null, 2),
+      }
+    : {
+        scenarioCode: "DEFAULT",
+        sensitiveFields: [],
+        valuesJson: "{}",
+      };
 
   function openCreate() {
     setSelected(null);
@@ -645,6 +884,21 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
     }
   }
 
+  async function runPreview(values: MaskingPreviewForm) {
+    try {
+      const result = await preview.mutateAsync({
+        resourceType: values.resourceType?.trim() ?? "",
+        scenarioCode: normalizeOptional(values.scenarioCode),
+        values: parseMaskingPreviewValues(values.valuesJson),
+        sensitiveFields: values.sensitiveFields ?? [],
+      });
+      setPreviewResult(result);
+      message.success("脱敏预览完成");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "脱敏预览失败"));
+    }
+  }
+
   if (rules.isLoading) return <PageState state="loading" />;
   if (rules.isError) {
     return <PageState state="error" title="脱敏规则读取失败" onRetry={rules.refetch} />;
@@ -652,6 +906,111 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
 
   return (
     <Space direction="vertical" size="middle" className="mk-full-width">
+      <Space direction="vertical" size="small" className="mk-full-width">
+        <Typography.Title level={5} className="mk-title-tight">
+          脱敏预览
+        </Typography.Title>
+        <Alert
+          type="info"
+          showIcon
+          message="使用后端脱敏引擎预览字段输出"
+          description="预览值由操作者显式输入，页面只呈现后端返回的脱敏字段与输出值。"
+        />
+        <Form
+          key={defaultRule?.ruleId ?? "empty-masking-preview"}
+          name="maskingPreview"
+          layout="vertical"
+          initialValues={previewInitialValues}
+          onFinish={(values) => void runPreview(values)}
+        >
+          <Row gutter={12}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="resourceType"
+                label="资源类型"
+                rules={[{ required: true, whitespace: true }]}
+              >
+                <Input placeholder="如 clinical_case" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="scenarioCode" label="使用场景">
+                <Input placeholder="DEFAULT" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="sensitiveFields"
+                label="敏感字段"
+                rules={[{ required: true, type: "array", min: 1 }]}
+              >
+                <Select mode="tags" tokenSeparators={[","]} placeholder="输入字段后回车" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="valuesJson"
+            label="预览值 JSON"
+            rules={[
+              { required: true, whitespace: true },
+              {
+                validator: (_rule, value) => {
+                  try {
+                    parseMaskingPreviewValues(value);
+                    return Promise.resolve();
+                  } catch (error: unknown) {
+                    return Promise.reject(
+                      error instanceof Error ? error : new Error("预览值 JSON 格式不合法"),
+                    );
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.TextArea rows={5} />
+          </Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            aria-label="执行脱敏预览"
+            icon={<EyeOutlined />}
+            loading={preview.isPending}
+          >
+            执行脱敏预览
+          </Button>
+        </Form>
+        {previewResult && (
+          <Space direction="vertical" size="small" className="mk-full-width">
+            <Alert
+              type={previewResult.rawAllowed ? "warning" : "success"}
+              showIcon
+              message={previewResult.rawAllowed ? "允许查看原文" : "已按规则脱敏"}
+              description={`资源类型：${previewResult.resourceType}；场景：${previewResult.scenarioCode ?? "DEFAULT"}`}
+            />
+            <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
+              <Descriptions.Item label="脱敏字段">
+                {renderTagList(previewResult.maskedFields)}
+              </Descriptions.Item>
+              <Descriptions.Item label="原文许可">
+                {previewResult.rawAllowed ? "允许" : "不允许"}
+              </Descriptions.Item>
+            </Descriptions>
+            <Table
+              rowKey="field"
+              size="small"
+              pagination={false}
+              dataSource={Object.entries(previewResult.values).map(([field, value]) => ({
+                field,
+                value: displayPreviewValue(value),
+              }))}
+              columns={[
+                { title: "字段", dataIndex: "field" },
+                { title: "预览输出", dataIndex: "value" },
+              ]}
+            />
+          </Space>
+        )}
+      </Space>
       <Space className="mk-push-inline-start-auto">
         <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>
           新增规则
