@@ -1583,6 +1583,77 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "已全量生效模板可复制为同编码下一版草稿",
+    async () => {
+      const publishedDetail = createTemplateDetail();
+      apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...publishedDetail,
+        template: publishedTemplate,
+        deploymentStatus: "PUBLISHED",
+        metricBindings: [
+          ...publishedDetail.metricBindings,
+          {
+            id: 2,
+            bindingId: "bind-followup",
+            templateId: "pt-path-1",
+            nodeCode: "FOLLOWUP",
+            metricCode: "PATH.TIME.FOLLOWUP",
+          },
+        ],
+      };
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
+      apiMocks.createTemplate.mockResolvedValue({
+        ...createTemplateDetail(),
+        template: {
+          ...draftTemplate,
+          templateId: "pt-path-copy-v3",
+          templateVersion: 3,
+        },
+      });
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
+
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      expect((within(dialog).getByLabelText("路径模型代码") as HTMLInputElement).value).toBe(
+        "PATH.CARDIO.REVIEW",
+      );
+      expect((within(dialog).getByLabelText("模板版本号") as HTMLInputElement).value).toBe("3");
+
+      await user.click(within(dialog).getByRole("button", { name: "OK" }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
+      const payload = apiMocks.createTemplate.mock.calls[0][0] as {
+        templateCode: string;
+        templateVersion: number;
+        parentTemplateId: string;
+        nodes: Array<{ nodeCode: string }>;
+        edges: Array<{ edgeCode: string; fromNodeCode: string; toNodeCode: string }>;
+        metricBindings: Array<{ nodeCode: string; metricCode: string }>;
+      };
+      expect(payload.templateCode).toBe("PATH.CARDIO.REVIEW");
+      expect(payload.templateVersion).toBe(3);
+      expect(payload.parentTemplateId).toBe("pt-path-published");
+      expect(payload.nodes.map((node) => node.nodeCode)).toEqual(["ASSESS", "FOLLOWUP"]);
+      expect(payload.metricBindings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ nodeCode: "ASSESS", metricCode: "PATH.TIME.ASSESS" }),
+          expect.objectContaining({ nodeCode: "FOLLOWUP", metricCode: "PATH.TIME.FOLLOWUP" }),
+        ]),
+      );
+      expect(payload.edges).toEqual([
+        expect.objectContaining({
+          edgeCode: "EDGE.ASSESS.FOLLOWUP",
+          fromNodeCode: "ASSESS",
+          toNodeCode: "FOLLOWUP",
+        }),
+      ]);
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径回滚目标来自同编码已下线历史版本查询",
     async () => {
       apiMocks.templateListData = { items: [publishedTemplate], total: 1 };

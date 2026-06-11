@@ -17,6 +17,7 @@ import {
   Row,
   Col,
   Timeline,
+  Grid,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
 import {
@@ -27,6 +28,7 @@ import {
   RightCircleOutlined,
   WarningOutlined,
   DisconnectOutlined,
+  BranchesOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
@@ -50,6 +52,9 @@ import type {
   PathwayOutcomeBinding,
   PathwayCoordinationWarning,
   PathwayVariance,
+  ClinicalClock,
+  PathwayNode,
+  PathwayEdge,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
@@ -133,10 +138,105 @@ function formatDateTime(value?: string) {
   return value ? new Date(value).toLocaleString() : "未记录";
 }
 
+function pathwayNodeTypeText(type?: string) {
+  const text: Record<string, string> = {
+    SCREENING: "筛查",
+    ASSESSMENT: "评估",
+    EXAM: "检查",
+    LAB: "检验",
+    MEDICATION: "用药",
+    SURGERY: "手术",
+    NURSING: "护理",
+    REHAB: "康复",
+    DISCHARGE: "出院",
+    FOLLOWUP: "随访",
+    QUALITY: "质控",
+    DECISION: "分支决策",
+    PARALLEL: "并行节点",
+    WAIT_TIMER: "等待时钟",
+    SUBPATHWAY: "子路径",
+    MANUAL_GATE: "人工确认",
+    ORDER_SET: "医嘱组",
+  };
+  return type ? (text[type] ?? type) : "未标注";
+}
+
+function pathwayEdgeTypeText(type?: string) {
+  const text: Record<string, string> = {
+    DEFAULT: "标准流转",
+    CONDITION: "条件流转",
+    RISK_STRATIFICATION: "风险分层",
+    PATIENT_CHOICE: "患者选择",
+    RESOURCE_UNAVAILABLE: "资源不可用",
+    PHYSICIAN_DECISION: "医生决策",
+    ROLLBACK: "回退",
+    JOIN: "汇合",
+  };
+  return type ? (text[type] ?? type) : "流转";
+}
+
+function formatWindowMinutes(minutes?: number) {
+  if (!minutes || minutes <= 0) return "无固定时窗";
+  if (minutes < 60) return `${minutes} 分钟`;
+  if (minutes % 1440 === 0) return `${minutes / 1440} 天`;
+  if (minutes % 60 === 0) return `${minutes / 60} 小时`;
+  return `${minutes} 分钟`;
+}
+
+function parseJsonRecord(value?: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function nodeVisibleSummary(node: PathwayNode) {
+  const config = parseJsonRecord(node.configJson);
+  const summary = config?.visibleSummary;
+  return typeof summary === "string" && summary.trim() ? summary.trim() : null;
+}
+
+function pathwayRuntimeNodeState(
+  node: PathwayNode,
+  pathway: PatientPathway,
+  currentSortOrder: number,
+) {
+  if (pathway.status === "EXITED") {
+    return { label: "已退径", color: "red", variant: "paused" as const };
+  }
+  if (pathway.status === "COMPLETED") {
+    return { label: "已完成", color: "green", variant: "completed" as const };
+  }
+  if (node.nodeCode === pathway.currentNodeCode) {
+    return { label: "当前节点", color: "blue", variant: "current" as const };
+  }
+  if (currentSortOrder > 0 && node.sortOrder < currentSortOrder) {
+    return { label: "已完成", color: "green", variant: "completed" as const };
+  }
+  return { label: "待执行", color: "default", variant: "pending" as const };
+}
+
+function edgeReadableLabel(edge: PathwayEdge) {
+  return `${pathwayEdgeTypeText(edge.edgeType)}：${edge.fromNodeCode} → ${edge.toNodeCode}`;
+}
+
+function firstClockForNode(clocks: ClinicalClock[], nodeCode: string) {
+  return clocks.find((clock) => clock.nodeCode === nodeCode);
+}
+
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
   const [varianceDrawerVisible, setVarianceDrawerVisible] = useState<boolean>(false);
+  const screens = Grid.useBreakpoint();
+  const isWideViewport =
+    screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
+  const pathwayFactColumn = isWideViewport ? 3 : 1;
 
   // 分页状态
   const [page, setPage] = useState<number>(1);
@@ -240,13 +340,23 @@ export default function PatientPathways() {
     status === "ENTERED" || status === "NODE_EXECUTING" || status === "VARIANCE";
 
   const templateNodes = templateDetail?.nodes ?? [];
+  const sortedTemplateNodes = [...templateNodes].sort(
+    (left, right) => left.sortOrder - right.sortOrder,
+  );
+  const runtimeClocks = clocksData ?? detailData?.clocks ?? [];
   const currentTemplateSortOrder =
     templateNodes.find((node) => node.nodeCode === detailData?.patientPathway.currentNodeCode)
       ?.sortOrder ?? 0;
+  const runtimeNodeStateClass = {
+    completed: styles.pathwayRuntimeNodeCompleted,
+    current: styles.pathwayRuntimeNodeCurrent,
+    paused: styles.pathwayRuntimeNodePaused,
+    pending: styles.pathwayRuntimeNodePending,
+  };
   const milestoneTimelineItems = (detailData?.milestoneStatuses ?? []).map(
     (milestone: PathwayMilestoneRuntimeStatus) => {
       const nodeCodes = milestone.nodeCodes ?? [];
-      const clocksForMilestone = (clocksData ?? detailData?.clocks ?? []).filter((clock) =>
+      const clocksForMilestone = runtimeClocks.filter((clock) =>
         nodeCodes.includes(clock.nodeCode),
       );
 
@@ -633,7 +743,7 @@ export default function PatientPathways() {
           setSelectedContextSnapshotId("");
           enterForm.resetFields();
         }}
-        width={680}
+        width="min(680px, calc(100vw - 32px))"
         confirmLoading={enterPathwayMutation.isPending}
         destroyOnClose
       >
@@ -705,7 +815,7 @@ export default function PatientPathways() {
             <span>患者临床路径推进与解释追溯控制台</span>
           </div>
         }
-        width={960}
+        width="min(960px, 100vw)"
         onClose={() => setSelectedPathwayId(null)}
         open={!!selectedPathwayId}
         destroyOnClose
@@ -715,7 +825,7 @@ export default function PatientPathways() {
             <Descriptions
               title="入径运行事实 facts"
               bordered
-              column={3}
+              column={pathwayFactColumn}
               size="small"
               className={styles.sectionGapLg}
             >
@@ -744,12 +854,120 @@ export default function PatientPathways() {
                   text={detailData.patientPathway.status}
                 />
               </Descriptions.Item>
-              <Descriptions.Item label="准入时间" span={3}>
+              <Descriptions.Item label="准入时间" span={pathwayFactColumn}>
                 {detailData.patientPathway.enteredAt
                   ? new Date(detailData.patientPathway.enteredAt).toLocaleString()
                   : "未知"}
               </Descriptions.Item>
             </Descriptions>
+
+            {templateDetail && sortedTemplateNodes.length > 0 && (
+              <Card
+                title={
+                  <div className={styles.sectionTitle}>
+                    <BranchesOutlined className={styles.iconInfo} />
+                    <span>医生只读路径图</span>
+                  </div>
+                }
+                className={`${styles.detailCard} ${styles.sectionGapLg}`}
+              >
+                <section aria-label="医生只读路径图" className={styles.pathwayReadOnlyGraph}>
+                  <div className={styles.pathwayGraphHeader}>
+                    <div>
+                      <div className={styles.pathwayGraphTitle}>{templateDetail.template.name}</div>
+                      <div className={styles.contentText}>
+                        {templateDetail.template.description &&
+                        templateDetail.template.description !== templateDetail.template.name
+                          ? templateDetail.template.description
+                          : "按已发布路径模板显示运行态全貌。"}
+                      </div>
+                    </div>
+                    <Tag color="blue" className={styles.pathwayCurrentTag}>
+                      当前患者位置
+                    </Tag>
+                  </div>
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="已完成/当前/待执行只读展示，不自动开立或修改医嘱。"
+                    className={styles.sectionGap}
+                  />
+                  <div className={styles.pathwayRuntimeLegend} aria-label="路径状态图例">
+                    <span>
+                      <Badge status="success" text="已完成" />
+                    </span>
+                    <span>
+                      <Badge status="processing" text="当前节点" />
+                    </span>
+                    <span>
+                      <Badge status="default" text="待执行" />
+                    </span>
+                  </div>
+                  <div className={styles.pathwayRuntimeGraph}>
+                    {sortedTemplateNodes.map((node) => {
+                      const state = pathwayRuntimeNodeState(
+                        node,
+                        detailData.patientPathway,
+                        currentTemplateSortOrder,
+                      );
+                      const activeClock = firstClockForNode(runtimeClocks, node.nodeCode);
+                      const summary = nodeVisibleSummary(node);
+                      const outgoingEdges = (templateDetail.edges ?? [])
+                        .filter((edge) => edge.fromNodeCode === node.nodeCode)
+                        .sort((left, right) => left.priority - right.priority);
+
+                      return (
+                        <div key={node.nodeId} className={styles.pathwayRuntimeSegment}>
+                          <article
+                            className={`${styles.pathwayRuntimeNode} ${
+                              runtimeNodeStateClass[state.variant]
+                            }`}
+                            aria-label={`路径节点 ${node.nodeCode} ${state.label}`}
+                          >
+                            <div className={styles.pathwayRuntimeNodeHeader}>
+                              <Tag color="geekblue">{node.nodeCode}</Tag>
+                              <Tag color={state.color}>{state.label}</Tag>
+                            </div>
+                            <div className={styles.pathwayRuntimeNodeName}>{node.name}</div>
+                            <div className={styles.pathwayRuntimeNodeMeta}>
+                              <span>{pathwayNodeTypeText(node.nodeType)}</span>
+                              <span>{node.responsibleRole || "责任角色未配置"}</span>
+                              <span>{formatWindowMinutes(node.timeWindowMinutes)}</span>
+                              {node.terminalFlag && <span>终点</span>}
+                            </div>
+                            {activeClock && (
+                              <div className={styles.pathwayRuntimeEvidence}>
+                                <span>时钟 {activeClock.clockId}</span>
+                                <Tag
+                                  color={clockStatusColor(activeClock.status)}
+                                  className={styles.tagCompact}
+                                >
+                                  {clockStatusText(activeClock.status)}
+                                </Tag>
+                                {activeClock.metricCode && <span>{activeClock.metricCode}</span>}
+                              </div>
+                            )}
+                            {summary && <div className={styles.contentText}>{summary}</div>}
+                          </article>
+                          {outgoingEdges.length > 0 && (
+                            <div className={styles.pathwayRuntimeEdges}>
+                              {outgoingEdges.map((edge) => (
+                                <div key={edge.edgeId} className={styles.pathwayRuntimeEdge}>
+                                  <span>{edgeReadableLabel(edge)}</span>
+                                  {edge.conditionJson && (
+                                    <span className={styles.codeText}>条件已配置</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </Card>
+            )}
 
             {(detailData.coordinationWarnings ?? []).length > 0 && (
               <Card
@@ -1167,7 +1385,7 @@ export default function PatientPathways() {
             <span>临床路径变异事实</span>
           </div>
         }
-        width={640}
+        width="min(640px, 100vw)"
         onClose={() => setVarianceDrawerVisible(false)}
         open={varianceDrawerVisible}
         destroyOnClose
