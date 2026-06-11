@@ -1,0 +1,652 @@
+{
+  "proof": "security-baseline-trial-preview-134",
+  "runTag": "security-baseline-proof-mq9fwja9",
+  "generatedAt": "2026-06-11T11:54:49.412Z",
+  "baseUrl": "https://193.112.107.134",
+  "deployed": {
+    "host": "193.112.107.134",
+    "source": "codex-demo-drill-security-baseline-trial-preview-13a93a5b",
+    "mainCommit": "13a93a5b",
+    "backup": "/zoesoft/medkernel/backups/deploy-20260611-193235",
+    "jarSha256": "51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e",
+    "readiness": "UP"
+  },
+  "credentialLocation": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "credentialRedaction": "凭据仅从服务器受限文件读取；证据不写入口令、Cookie、令牌或签名材料。",
+  "businessObjects": {
+    "dataPermission": {
+      "resourceType": "act10_patient_scope",
+      "action": "READ",
+      "hospitalId": "01KTSAC1JJB2V2X4F9DBF1NSVR",
+      "departmentId": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+      "requestedColumns": [
+        "patientId",
+        "encounterId",
+        "departmentId",
+        "patientName",
+        "idNo"
+      ]
+    },
+    "masking": {
+      "resourceType": "act10_patient_export",
+      "scenarioCode": "DEFAULT",
+      "sensitiveFields": [
+        "patientName",
+        "idNo"
+      ],
+      "values": {
+        "patientName": "张建国",
+        "idNo": "110101196203018888",
+        "encounterId": "enc-act6-8oh7bn024a"
+      },
+      "expectedValues": {
+        "patientName": "张*国",
+        "idNo": "**************8888"
+      }
+    }
+  },
+  "actor": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-hospital-admin-20260611"
+  },
+  "preflight": {
+    "dataPolicy": {
+      "status": 200,
+      "traceId": "47c9aec9-b03e-4d5f-b4f9-9fb2c8a5366a",
+      "count": 1,
+      "firstPolicy": {
+        "policyId": "dperm-act10-patient-scope-read",
+        "tenantId": "drill-hospital-20260611",
+        "resourceType": "act10_patient_scope",
+        "action": "READ",
+        "minDataLevel": "DEPARTMENT",
+        "allowedColumns": [
+          "patientId",
+          "encounterId",
+          "departmentId"
+        ],
+        "groupId": null,
+        "hospitalId": "01KTSAC1JJB2V2X4F9DBF1NSVR",
+        "campusId": null,
+        "siteId": null,
+        "departmentId": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+        "specialtyId": null,
+        "status": "ACTIVE",
+        "version": 4,
+        "createdAt": "2026-06-11T02:45:16.469296Z",
+        "createdBy": "drill-it-ops-20260611",
+        "updatedAt": "2026-06-11T03:02:16.096842Z",
+        "updatedBy": "drill-it-ops-20260611",
+        "traceId": "2e99f534-37de-4383-9dba-c6e53b3aeb01"
+      }
+    },
+    "maskingRules": {
+      "status": 200,
+      "traceId": "cc429ab4-6eed-4482-8c5e-07d2da2d3f94",
+      "count": 2,
+      "fields": [
+        "idNo",
+        "patientName"
+      ]
+    },
+    "dataAccess": {
+      "status": 200,
+      "traceId": "1077646e-ba32-4645-aa19-dc2b39d0ae7c",
+      "decision": {
+        "policyId": "dperm-act10-patient-scope-read",
+        "resourceType": "act10_patient_scope",
+        "action": "READ",
+        "requiredLevel": "DEPARTMENT",
+        "rowAllowed": false,
+        "allowedColumns": [
+          "patientId",
+          "encounterId",
+          "departmentId"
+        ],
+        "deniedColumns": [
+          "patientName",
+          "idNo"
+        ]
+      }
+    },
+    "maskingPreview": {
+      "status": 200,
+      "traceId": "a5b3a275-2ddc-44a3-bda4-91753bd4a625",
+      "result": {
+        "resourceType": "act10_patient_export",
+        "scenarioCode": "DEFAULT",
+        "values": {
+          "patientName": "张*国",
+          "idNo": "**************8888",
+          "encounterId": "enc-act6-8oh7bn024a"
+        },
+        "maskedFields": [
+          "patientName",
+          "idNo"
+        ],
+        "rawAllowed": false
+      }
+    }
+  },
+  "viewports": [
+    {
+      "label": "desktop-1440",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "selectedScope": {
+        "hospital": {
+          "id": "01KTSAC1JJB2V2X4F9DBF1NSVR",
+          "code": "drill-hospital",
+          "name": "演练总医院"
+        },
+        "department": {
+          "id": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+          "code": "dept-respiratory-icu",
+          "name": "呼吸与危重症医学科"
+        }
+      },
+      "responses": {
+        "dataPermission": {
+          "status": 200,
+          "traceId": "92875541-1023-4f91-928c-6ae0d73b2a5d",
+          "result": {
+            "policyId": "dperm-act10-patient-scope-read",
+            "resourceType": "act10_patient_scope",
+            "action": "READ",
+            "requiredLevel": "DEPARTMENT",
+            "rowAllowed": false,
+            "allowedColumns": [
+              "patientId",
+              "encounterId",
+              "departmentId"
+            ],
+            "deniedColumns": [
+              "patientName",
+              "idNo"
+            ]
+          }
+        },
+        "maskingPreview": {
+          "status": 200,
+          "traceId": "e52ff251-aece-4aad-9c74-7b8cd57a7708",
+          "result": {
+            "resourceType": "act10_patient_export",
+            "scenarioCode": "DEFAULT",
+            "values": {
+              "patientName": "张*国",
+              "idNo": "**************8888",
+              "encounterId": "enc-act6-8oh7bn024a"
+            },
+            "maskedFields": [
+              "patientName",
+              "idNo"
+            ],
+            "rawAllowed": false
+          }
+        }
+      },
+      "screenshots": [
+        {
+          "label": "desktop-1440 数据权限页填写权限试算",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "01-desktop-data-permission-form.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 1440,
+            "height": 1100
+          }
+        },
+        {
+          "label": "desktop-1440 权限试算返回后端裁决结果",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "02-desktop-data-permission-result.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 1440,
+            "height": 1100
+          }
+        },
+        {
+          "label": "desktop-1440 脱敏规则页填写脱敏预览",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "03-desktop-masking-form.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 1440,
+            "height": 1100
+          }
+        },
+        {
+          "label": "desktop-1440 脱敏预览返回字段级输出",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "04-desktop-masking-result.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 1440,
+            "height": 1100
+          }
+        }
+      ],
+      "layoutMetrics": [
+        {
+          "step": "data-permission-form",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": []
+        },
+        {
+          "step": "data-permission-result",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": []
+        },
+        {
+          "step": "masking-preview-form",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": []
+        },
+        {
+          "step": "masking-preview-result",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": []
+        }
+      ],
+      "diagnostics": {
+        "failedRequests": [],
+        "clientErrors": [],
+        "serverErrors": [],
+        "consoleErrors": []
+      }
+    },
+    {
+      "label": "mobile-390",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "selectedScope": {
+        "hospital": {
+          "id": "01KTSAC1JJB2V2X4F9DBF1NSVR",
+          "code": "drill-hospital",
+          "name": "演练总医院"
+        },
+        "department": {
+          "id": "01KTSAC1SCFJB2RKCY3DHEAGMQ",
+          "code": "dept-respiratory-icu",
+          "name": "呼吸与危重症医学科"
+        }
+      },
+      "responses": {
+        "dataPermission": {
+          "status": 200,
+          "traceId": "eb3a3fc1-f22f-4997-a36a-bfb848fd6dc5",
+          "result": {
+            "policyId": "dperm-act10-patient-scope-read",
+            "resourceType": "act10_patient_scope",
+            "action": "READ",
+            "requiredLevel": "DEPARTMENT",
+            "rowAllowed": false,
+            "allowedColumns": [
+              "patientId",
+              "encounterId",
+              "departmentId"
+            ],
+            "deniedColumns": [
+              "patientName",
+              "idNo"
+            ]
+          }
+        },
+        "maskingPreview": {
+          "status": 200,
+          "traceId": "c8d358be-8d5a-4d69-8c9e-2a60f3752a72",
+          "result": {
+            "resourceType": "act10_patient_export",
+            "scenarioCode": "DEFAULT",
+            "values": {
+              "patientName": "张*国",
+              "idNo": "**************8888",
+              "encounterId": "enc-act6-8oh7bn024a"
+            },
+            "maskedFields": [
+              "patientName",
+              "idNo"
+            ],
+            "rawAllowed": false
+          }
+        }
+      },
+      "screenshots": [
+        {
+          "label": "mobile-390 数据权限页填写权限试算",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "05-mobile-data-permission-form.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 权限试算返回后端裁决结果",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "06-mobile-data-permission-result.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 脱敏规则页填写脱敏预览",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "07-mobile-masking-form.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 脱敏预览返回字段级输出",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-hospital-admin-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "08-mobile-masking-result.png",
+          "url": "https://193.112.107.134/security/baseline",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        }
+      ],
+      "layoutMetrics": [
+        {
+          "step": "data-permission-form",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "div",
+              "className": "ant-tabs-nav-list",
+              "text": "基线概览系统配置数据权限脱敏规则互操作测评",
+              "left": 24,
+              "right": 446,
+              "width": 422,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-tabs-tab",
+              "text": "互操作测评",
+              "left": 376,
+              "right": 446,
+              "width": 70,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-tabs-tab-btn",
+              "text": "互操作测评",
+              "left": 376,
+              "right": 446,
+              "width": 70,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "data-permission-result",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "资源类型动作最小范围允许字段状态操作 act10_patient_scopeREADDEPARTMENTpatientId, encounterId, depa",
+              "left": 24,
+              "right": 817,
+              "width": 793,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "资源类型动作最小范围允许字段状态操作",
+              "left": 24,
+              "right": 817,
+              "width": 793,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "资源类型动作最小范围允许字段状态操作",
+              "left": 24,
+              "right": 817,
+              "width": 793,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "最小范围",
+              "left": 279,
+              "right": 403,
+              "width": 125,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "允许字段",
+              "left": 403,
+              "right": 673,
+              "width": 270,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "状态",
+              "left": 673,
+              "right": 753,
+              "width": 80,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "操作",
+              "left": 753,
+              "right": 817,
+              "width": 64,
+              "visible": true
+            },
+            {
+              "tagName": "tbody",
+              "className": "ant-table-tbody",
+              "text": "act10_patient_scopeREADDEPARTMENTpatientId, encounterId, departmentId启用",
+              "left": 24,
+              "right": 817,
+              "width": 793,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "masking-preview-form",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "div",
+              "className": "ant-tabs-nav-list",
+              "text": "基线概览系统配置数据权限脱敏规则互操作测评",
+              "left": 1,
+              "right": 423,
+              "width": 422,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-tabs-tab",
+              "text": "互操作测评",
+              "left": 353,
+              "right": 423,
+              "width": 70,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-tabs-tab-btn",
+              "text": "互操作测评",
+              "left": 353,
+              "right": 423,
+              "width": 70,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "masking-preview-result",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "资源类型字段场景策略保留范围状态操作 act10_patient_exportidNoDEFAULTKEEP_LAST保留前 0 位 / 后 4 位启用act1",
+              "left": 24,
+              "right": 865,
+              "width": 841,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "资源类型字段场景策略保留范围状态操作",
+              "left": 24,
+              "right": 865,
+              "width": 841,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "资源类型字段场景策略保留范围状态操作",
+              "left": 24,
+              "right": 865,
+              "width": 841,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "场景",
+              "left": 308,
+              "right": 400,
+              "width": 92,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "策略",
+              "left": 400,
+              "right": 561,
+              "width": 161,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "保留范围",
+              "left": 561,
+              "right": 721,
+              "width": 160,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "状态",
+              "left": 721,
+              "right": 801,
+              "width": 80,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "操作",
+              "left": 801,
+              "right": 865,
+              "width": 64,
+              "visible": true
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "failedRequests": [],
+        "clientErrors": [],
+        "serverErrors": [],
+        "consoleErrors": []
+      }
+    }
+  ],
+  "checks": {
+    "dataPermissionPost200": true,
+    "dataPermissionUsesAct10Resource": true,
+    "maskingPreviewPost200": true,
+    "maskedPatientName": true,
+    "maskedIdNo": true,
+    "desktopNoPageOverflow": true,
+    "mobileNoPageOverflow": true,
+    "noFailedRequestsOrConsoleErrors": true
+  },
+  "pass": true
+}
