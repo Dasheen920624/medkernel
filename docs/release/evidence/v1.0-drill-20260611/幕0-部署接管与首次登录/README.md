@@ -23,6 +23,19 @@
 | Trace 清单 | [trace-ids.txt](trace-ids.txt)、[api-evidence-sanitized.json](api-evidence-sanitized.json) | 全链路 traceId 可追溯，API 样例已脱敏 |
 | 凭据存放 | [credential-location.txt](credential-location.txt) | 仓库只记录服务器路径与权限，不记录接管码、密码、TOTP 密钥或恢复码 |
 
+## 2.1 幕8.5 UI 重演（2026-06-11）
+
+本次按 §2.5 执行契约补做客户视角前台走查。接管动作已完成，不能为了演示重置系统；因此只重读已完成页、登录页和验收自检页。MFA 恢复码属于一次性敏感凭据，本次不截图绑定页，只用成功登录和账号安全状态证明流程可用。
+
+| 角色 | 页面路由 | 前台动作 | 截图 |
+|---|---|---|---|
+| 未登录访客 | `/login` | 打开登录页，确认租户、账号、密码入口可识别，未填写任何凭据 | [00-ui-login-entry.png](ui-replay/00-ui-login-entry.png) |
+| 未登录访客 | `/bootstrap` | 重读首次部署页，确认已接管系统给出返回登录提示 | [01-ui-bootstrap-completed.png](ui-replay/01-ui-bootstrap-completed.png) |
+| 信息科 | `/dashboard` | 使用幕1信息科账号重新登录工作台，确认可进入真实工作台 | [02-ui-it-ops-dashboard-after-login.png](ui-replay/02-ui-it-ops-dashboard-after-login.png) |
+| 信息科 | `/workbench/readiness-validation` | 打开验收自检页，重读就绪、阻塞、未启用状态 | [03-ui-readiness-validation.png](ui-replay/03-ui-readiness-validation.png) |
+
+结构化摘要见 [00-ui-replay-summary.json](ui-replay/00-ui-replay-summary.json)。该 JSON 不含密码、MFA 秘钥、恢复码、Cookie 或 Token。
+
 ## 3. 暴露并关闭的问题
 
 | 问题 | 根因 | 处理 | 复验证据 |

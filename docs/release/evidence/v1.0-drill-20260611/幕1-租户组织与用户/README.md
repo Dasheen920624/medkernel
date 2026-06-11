@@ -9,11 +9,27 @@
 关键结论：
 
 - 演练租户：演练总医院（drill-hospital-20260611）
-- 组织树：租户根 + 演练总医院 + 7 个科室。
+- 组织树：幕1基线为租户根 + 演练总医院 + 7 个科室；幕8.5 前台复演后新增/核对「演练·幕8.5门诊协同科」，现场组织节点为 10。
 - 主账号：9 个演练账号，覆盖信息科、医务处、医保办、医生、护士、医技、药师、审计员。
 - 角色覆盖：16/16 个内置角色。
 - 组织范围：用户详情实证含 `TENANT`、`HOSPITAL`、`DEPARTMENT` 三类范围；所有平台管理凭证账号已完成首登设置。
 - 越权验证：医生读取用户管理 403；审计员创建用户 403；审计流存在 authorization FAILED 事件。
+
+## 幕8.5 UI 重演（2026-06-11）
+
+本次补做客户视角前台操作：医院管理员在页面里核对组织树、新建/核对科室、新建/核对外部身份观察员并查看角色范围；心内科医生交叉登录访问用户管理，页面返回「当前权限不足」。
+
+| 角色 | 页面路由 | 前台动作 | 结果 | 截图 |
+|---|---|---|---|---|
+| 医院管理员 | `/tenant/onboarding` | 查看组织树、就绪进度和新增组织表单 | 组织节点 10、就绪 100%、阻塞 0 | [10-ui-tenant-onboarding-before.png](ui-replay/10-ui-tenant-onboarding-before.png) |
+| 医院管理员 | `/tenant/onboarding` | 保存/核对「演练·幕8.5门诊协同科」 | 科室已存在于组织树，复演不重复创建 | [11-ui-tenant-onboarding-org-created.png](ui-replay/11-ui-tenant-onboarding-org-created.png) |
+| 医院管理员 | `/admin/users` | 打开用户管理，核对新建用户入口和账号安全列 | 用户、角色、状态、账号安全可见 | [12-ui-admin-users-before-create.png](ui-replay/12-ui-admin-users-before-create.png) |
+| 医院管理员 | `/admin/users` | 新建/核对外部身份用户「演练·幕8.5观察员」 | 使用外部身份避免一次性临时密码进入证据 | [13-ui-admin-users-created-external-user.png](ui-replay/13-ui-admin-users-created-external-user.png) |
+| 医院管理员 | `/admin/users` | 打开观察员详情，核对角色与数据范围 | 角色为临床医生，范围为当前租户 | [14-ui-admin-users-role-detail.png](ui-replay/14-ui-admin-users-role-detail.png) |
+| 医院管理员 | `/onboarding/guide` | 重走客户实施向导 | 6/6 步就绪，下一步指向配置包中心 | [15-ui-onboarding-guide.png](ui-replay/15-ui-onboarding-guide.png) |
+| 心内科医生 | `/admin/users` | 交叉登录访问用户管理 | 页面显示「当前权限不足」 | [16-ui-admin-users-forbidden-doctor.png](ui-replay/16-ui-admin-users-forbidden-doctor.png) |
+
+结构化摘要见 [00-ui-replay-summary.json](ui-replay/00-ui-replay-summary.json)。本批没有截图或提交任何密码、Cookie、MFA 恢复码。
 
 ## 证据文件
 
@@ -34,6 +50,7 @@
 | `12-ui-admin-users.png` | 医院管理员访问用户管理页截图 |
 | `13-ui-implementation-guide.png` | 医院管理员访问客户实施向导页截图 |
 | `14-ui-screenshots.json` | Playwright 截图路由、标题与账号说明 |
+| `ui-replay/` | 幕8.5 前台重演截图和脱敏摘要，按 §2.5 补齐带 URL 证据 |
 | `trace-ids.txt` | API 调用状态码与 traceId 摘要 |
 | `credential-location.txt` | 服务器凭据文件位置和权限说明 |
 

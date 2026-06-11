@@ -1,0 +1,123 @@
+{
+  "_uiStep": "幕1 UI 重演",
+  "capturedAt": "2026-06-11T04:01:34.567Z",
+  "baseUrl": "https://193.112.107.134",
+  "evidenceId": "75f17d58e0f1aba6",
+  "sensitiveDataPolicy": "脚本不输出密码、MFA 秘钥、恢复码、Cookie、Token；截图避开一次性凭据页面。",
+  "steps": [
+    {
+      "_uiStep": "幕1-01",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/tenant/onboarding",
+      "action": "打开租户实施配置页，查看组织树与实施就绪状态",
+      "result": "组织节点数、就绪进度、阻塞项和新增组织表单均在同页可见",
+      "screenshot": "10-ui-tenant-onboarding-before.png",
+      "url": "https://193.112.107.134/tenant/onboarding",
+      "label": "租户实施配置总览"
+    },
+    {
+      "_uiStep": "幕1-02",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/tenant/onboarding",
+      "action": "前台保存科室：演练·幕8.5门诊协同科",
+      "result": "already_present",
+      "note": "组织树中已存在本次复演科室",
+      "businessObject": {
+        "code": "dept-act85-collab-20260611",
+        "name": "演练·幕8.5门诊协同科"
+      },
+      "screenshot": "11-ui-tenant-onboarding-org-created.png",
+      "url": "https://193.112.107.134/tenant/onboarding",
+      "label": "组织节点创建结果"
+    },
+    {
+      "_uiStep": "幕1-03",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/admin/users",
+      "action": "打开用户管理页，确认新建用户入口与账号安全列",
+      "result": "用户、角色、状态、账号安全与查看入口可见",
+      "screenshot": "12-ui-admin-users-before-create.png",
+      "url": "https://193.112.107.134/admin/users",
+      "label": "用户管理总览"
+    },
+    {
+      "_uiStep": "幕1-04",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/admin/users",
+      "action": "前台创建外部身份用户：演练·幕8.5观察员",
+      "result": "already_present",
+      "note": "用户列表中已存在本次复演观察员",
+      "businessObject": {
+        "userId": "external-act85-observer-20260611",
+        "displayName": "演练·幕8.5观察员",
+        "role": "临床医生"
+      },
+      "screenshot": "13-ui-admin-users-created-external-user.png",
+      "url": "https://193.112.107.134/admin/users",
+      "label": "外部身份用户创建结果"
+    },
+    {
+      "_uiStep": "幕1-05",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/admin/users",
+      "action": "打开观察员详情，核对角色与数据范围",
+      "result": "opened",
+      "note": "已打开观察员详情抽屉核对角色范围",
+      "screenshot": "14-ui-admin-users-role-detail.png",
+      "url": "https://193.112.107.134/admin/users",
+      "label": "用户角色详情"
+    },
+    {
+      "_uiStep": "幕1-06",
+      "role": "医院管理员",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-hospital-admin-20260611"
+      },
+      "route": "/onboarding/guide",
+      "action": "重走上线准备向导",
+      "result": "六步准备状态与跳转入口可见",
+      "screenshot": "15-ui-onboarding-guide.png",
+      "url": "https://193.112.107.134/onboarding/guide",
+      "label": "上线准备向导"
+    },
+    {
+      "_uiStep": "幕1-07",
+      "role": "心内科医生",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-cardiology-doctor-20260611"
+      },
+      "route": "/admin/users",
+      "action": "交叉登录验证临床医生访问用户管理",
+      "result": "forbidden_or_redirected",
+      "screenshot": "16-ui-admin-users-forbidden-doctor.png",
+      "url": "https://193.112.107.134/admin/users",
+      "label": "医生越权访问反馈"
+    }
+  ],
+  "findings": [
+    "本次创建外部身份观察员，避免一次性临时密码出现在页面证据中。",
+    "若对象已存在，脚本不重复创建，保留前台定位与状态核对证据。"
+  ]
+}
