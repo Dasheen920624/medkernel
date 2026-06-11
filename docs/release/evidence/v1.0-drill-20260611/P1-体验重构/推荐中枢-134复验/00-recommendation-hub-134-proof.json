@@ -1,0 +1,255 @@
+{
+  "runAt": "2026-06-11T07:44:55.430Z",
+  "environment": "https://193.112.107.134",
+  "route": "/cdss/fatigue",
+  "source": "codex-demo-drill-recommendation-hub-17f4cc4d",
+  "deployBackup": "/zoesoft/medkernel/backups/deploy-20260611-154250",
+  "actor": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-respiratory-doctor-20260611"
+  },
+  "checks": {
+    "desktopTexts": true,
+    "desktopQuickSearch": true,
+    "desktopNoHorizontalOverflow": true,
+    "drawerOpened": true,
+    "drawerTexts": true,
+    "mobileTexts": true,
+    "mobileQuickSearch": true,
+    "mobileNoHorizontalOverflow": true
+  },
+  "pass": true,
+  "observations": {
+    "desktop": {
+      "missingTexts": [],
+      "quickSearchPlaceholderVisible": true,
+      "cardActionCount": 10,
+      "metrics": {
+        "viewportWidth": 1440,
+        "documentScrollWidth": 1440,
+        "horizontalOverflowPx": 0,
+        "overflowingNodes": [
+          {
+            "tagName": "table",
+            "className": "",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理rc-04eafe45-5bc5-4e35-8c7e-fd4574e7ba8b华法林合用阿司",
+            "left": 265,
+            "right": 1482,
+            "width": 1217
+          },
+          {
+            "tagName": "thead",
+            "className": "ant-table-thead",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理",
+            "left": 265,
+            "right": 1482,
+            "width": 1217
+          },
+          {
+            "tagName": "tr",
+            "className": "",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理",
+            "left": 265,
+            "right": 1482,
+            "width": 1217
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "管理",
+            "left": 1328,
+            "right": 1482,
+            "width": 154
+          },
+          {
+            "tagName": "tbody",
+            "className": "ant-table-tbody",
+            "text": "rc-04eafe45-5bc5-4e35-8c7e-fd4574e7ba8b华法林合用阿司匹林出血风险规则mpi-01KTSWK7P3XQQ8VC0JZFZ6",
+            "left": 265,
+            "right": 1482,
+            "width": 1217
+          },
+          {
+            "tagName": "tr",
+            "className": "ant-table-row ant-table-row-level-0",
+            "text": "rc-04eafe45-5bc5-4e35-8c7e-fd4574e7ba8b华法林合用阿司匹林出血风险规则mpi-01KTSWK7P3XQQ8VC0JZFZ6",
+            "left": 265,
+            "right": 1482,
+            "width": 1217
+          },
+          {
+            "tagName": "td",
+            "className": "ant-table-cell",
+            "text": "查看与人机反馈",
+            "left": 1328,
+            "right": 1482,
+            "width": 154
+          },
+          {
+            "tagName": "button",
+            "className": "ant-btn css-132i2at css-var-r0",
+            "text": "查看与人机反馈",
+            "left": 1344,
+            "right": 1466,
+            "width": 122
+          }
+        ]
+      }
+    },
+    "drawer": {
+      "opened": true,
+      "missingTexts": [],
+      "screenshot": {
+        "label": "医生打开推荐详情，看到七段推荐来源链路",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-respiratory-doctor-20260611"
+        },
+        "screenshot": "02-desktop-recommendation-drawer.png",
+        "url": "https://193.112.107.134/cdss/fatigue",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        }
+      },
+      "metrics": {
+        "viewportWidth": 1440,
+        "documentScrollWidth": 1440,
+        "horizontalOverflowPx": 0,
+        "overflowingNodes": []
+      }
+    },
+    "mobile": {
+      "missingTexts": [],
+      "quickSearchPlaceholderVisible": true,
+      "cardActionCount": 10,
+      "metrics": {
+        "viewportWidth": 390,
+        "documentScrollWidth": 390,
+        "horizontalOverflowPx": 0,
+        "overflowingNodes": [
+          {
+            "tagName": "table",
+            "className": "",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理rc-04eafe45-5bc5-4e35-8c7e-fd4574e7ba8b华法林合用阿司",
+            "left": 25,
+            "right": 1242,
+            "width": 1217
+          },
+          {
+            "tagName": "thead",
+            "className": "ant-table-thead",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理",
+            "left": 25,
+            "right": 1242,
+            "width": 1217
+          },
+          {
+            "tagName": "tr",
+            "className": "",
+            "text": "卡片编号提醒摘要 Title患者 ID严重度拦截级别就诊场景状态管理",
+            "left": 25,
+            "right": 1242,
+            "width": 1217
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "患者 ID",
+            "left": 219,
+            "right": 487,
+            "width": 268
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "严重度",
+            "left": 487,
+            "right": 597,
+            "width": 110
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "拦截级别",
+            "left": 597,
+            "right": 795,
+            "width": 198
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "就诊场景",
+            "left": 795,
+            "right": 973,
+            "width": 177
+          },
+          {
+            "tagName": "th",
+            "className": "ant-table-cell",
+            "text": "状态",
+            "left": 973,
+            "right": 1088,
+            "width": 115
+          }
+        ]
+      }
+    }
+  },
+  "screenshots": [
+    {
+      "label": "医生桌面端查看提醒与推荐中枢和推荐链路总览",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-respiratory-doctor-20260611"
+      },
+      "screenshot": "01-desktop-recommendation-hub.png",
+      "url": "https://193.112.107.134/cdss/fatigue",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "label": "医生打开推荐详情，看到七段推荐来源链路",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-respiratory-doctor-20260611"
+      },
+      "screenshot": "02-desktop-recommendation-drawer.png",
+      "url": "https://193.112.107.134/cdss/fatigue",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "label": "医生移动端查看推荐中枢筛选区和链路节点，无横向溢出",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-respiratory-doctor-20260611"
+      },
+      "screenshot": "03-mobile-recommendation-hub.png",
+      "url": "https://193.112.107.134/cdss/fatigue",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "label": "医生移动端滚动到患者 / traceId 检索输入，筛选控件保持单列可用",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-respiratory-doctor-20260611"
+      },
+      "screenshot": "04-mobile-recommendation-search.png",
+      "url": "https://193.112.107.134/cdss/fatigue",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "credentialLocation": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "credentialRedaction": "凭据仅从服务器受限文件读取；本摘要不写入口令、Cookie、令牌或签名材料。"
+}
