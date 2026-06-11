@@ -1,0 +1,55 @@
+MedKernel 国产化自检报告
+服务: medkernel
+环境: govcloud / govcloud
+生成时间: 2026-06-11T06:17:51.602557710Z
+整体状态: WARN
+摘要: 2 项通过，3 项警告，0 项失败，2 项待现场确认
+
+[WARN] 操作系统 (OS)
+实际: Linux 6.6.119-49.22.oc9.x86_64 amd64
+目标: 麒麟 / 统信 / openEuler
+原因: 当前操作系统未命中国产化目标清单，不标记通过。
+建议: 在麒麟、统信或 openEuler 目标机重新运行自检，或修正 medkernel.runtime.domestic-profile.target-os。
+证据: System.getProperty(os.name/os.version/os.arch)
+
+[WARN] JDK 运行时 (JDK)
+实际: BellSoft · 21.0.7 · OpenJDK 64-Bit Server VM
+目标: KAE-JDK 21 / BiSheng JDK 21
+原因: 当前 JDK 厂商未命中国产化目标清单，不标记通过。
+建议: 在 KAE-JDK 或 BiSheng JDK 目标运行时重新运行自检。
+证据: System.getProperty(java.vendor/java.version/java.vm.name)
+
+[WARN] 关系数据库 (DATABASE)
+实际: postgres · classpath:db/migration/postgres
+目标: 达梦 / 人大金仓
+原因: 当前数据库方言未命中国产化目标清单，不标记通过。
+建议: 切换 dm 或 kingbase profile，并重新运行五方言迁移 smoke。
+证据: medkernel.runtime.database-dialect + medkernel.runtime.migration-location
+
+[PASS] 国密算法 Provider (CRYPTO)
+实际: SM2=已注册 / SM3=已注册 / SM4=已注册
+目标: SM2 / SM3 / SM4
+原因: 当前 JVM 已注册所需国密算法 Provider。
+建议: 保留国密 smoke 与 Provider 版本证据。
+证据: java.security.Security.getAlgorithms
+
+[PASS] 中间件与部署形态 (MIDDLEWARE)
+实际: govcloud · profiles=govcloud
+目标: 国产化交付 profile / 目标中间件探活
+原因: 当前已启用国产化交付 profile。
+建议: 保留部署 profile 与中间件健康检查证据。
+证据: Spring activeProfiles + medkernel.runtime.deployment-mode
+
+[UNKNOWN] 国产浏览器 (BROWSER)
+实际: 服务端快照无法读取客户端浏览器
+目标: 国产浏览器现场版本
+原因: 服务端无法读取客户端浏览器，不标记通过。
+建议: 在交付现场用目标国产浏览器打开本页，保存浏览器 UA 与页面验收截图。
+证据: 现场浏览器验收
+
+[UNKNOWN] 国密 CA / 身份证书链 (CA)
+实际: 未检测到院方国密 CA 连接器
+目标: 院方国密 CA / OIDC / SAML 证书链
+原因: 当前运行快照未发现真实院方国密 CA 连接器，不标记通过。
+建议: 配置真实 IdP/CA 连接器并完成证书链探活后重新导出报告。
+证据: 运行时依赖与身份委托配置

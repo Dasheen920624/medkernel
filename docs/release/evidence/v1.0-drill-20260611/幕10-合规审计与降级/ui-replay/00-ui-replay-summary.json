@@ -1,0 +1,330 @@
+{
+  "runTag": "act10-l2-mq93tngz-9425",
+  "startedFromL1RunTag": "act10-mq8ww9f8",
+  "generatedAt": "2026-06-11T06:17:51.526Z",
+  "baseUrl": "https://193.112.107.134",
+  "credentialLocation": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "actors": {
+    "audit": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-audit-20260611"
+    },
+    "itOps": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-it-ops-20260611"
+    },
+    "hospitalAdmin": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-hospital-admin-20260611"
+    }
+  },
+  "screenshots": [
+    {
+      "label": "审计员按操作人查看幕6医生操作事件",
+      "actor": "drill-audit-20260611",
+      "route": "/admin/audit",
+      "operation": "按操作人筛选审计事件",
+      "screenshot": "01-ui-audit-events-doctor-filter.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "审计事件详情能看见 Trace ID、载荷摘要和链签名",
+      "actor": "drill-audit-20260611",
+      "route": "/admin/audit",
+      "operation": "打开审计事件详情",
+      "screenshot": "02-ui-audit-event-detail-trace.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "审计员在专家模式查看 clinical_event 与 trace 字段",
+      "actor": "drill-audit-20260611",
+      "route": "/admin/audit",
+      "operation": "专家模式按对象类型筛选审计事件",
+      "screenshot": "03-ui-audit-events-clinical-resource.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "审计员在前台填写审计日志导出申请理由",
+      "actor": "drill-audit-20260611",
+      "route": "/admin/audit",
+      "operation": "填写导出申请",
+      "screenshot": "04-ui-audit-export-request-modal.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "审计员能在导出审批页看到自己提交的待审批申请",
+      "actor": "drill-audit-20260611",
+      "route": "/admin/audit",
+      "operation": "查看待审批申请",
+      "screenshot": "05-ui-audit-export-requested.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "医院管理员在前台看到他人提交的导出申请并可审批",
+      "actor": "drill-hospital-admin-20260611",
+      "route": "/admin/audit",
+      "operation": "查看他人导出申请",
+      "screenshot": "06-ui-audit-export-pending-admin.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "导出申请审批后在前台显示已批准并保留证据入口",
+      "actor": "drill-hospital-admin-20260611",
+      "route": "/admin/audit",
+      "operation": "完成导出审批",
+      "screenshot": "07-ui-audit-export-approved.png",
+      "url": "https://193.112.107.134/admin/audit"
+    },
+    {
+      "label": "信息科在安全基线页查看账号、MFA、高风险权限和运行状态",
+      "actor": "drill-it-ops-20260611",
+      "route": "/security/baseline",
+      "operation": "查看安全基线概览",
+      "screenshot": "08-ui-security-baseline-overview.png",
+      "url": "https://193.112.107.134/security/baseline"
+    },
+    {
+      "label": "系统配置页展示高风险配置来源、风险等级和审计原因入口",
+      "actor": "drill-it-ops-20260611",
+      "route": "/security/baseline",
+      "operation": "查看系统配置",
+      "screenshot": "09-ui-security-system-configs.png",
+      "url": "https://193.112.107.134/security/baseline"
+    },
+    {
+      "label": "数据权限页能看到幕10策略和允许字段",
+      "actor": "drill-it-ops-20260611",
+      "route": "/security/baseline",
+      "operation": "查看数据权限策略",
+      "screenshot": "10-ui-security-data-permissions.png",
+      "url": "https://193.112.107.134/security/baseline"
+    },
+    {
+      "label": "脱敏规则页能看到 patientName 与 idNo 的遮罩策略",
+      "actor": "drill-it-ops-20260611",
+      "route": "/security/baseline",
+      "operation": "查看脱敏规则",
+      "screenshot": "11-ui-security-masking-rules.png",
+      "url": "https://193.112.107.134/security/baseline"
+    },
+    {
+      "label": "互操作测评页展示证据计数和差距原因",
+      "actor": "drill-it-ops-20260611",
+      "route": "/security/baseline",
+      "operation": "查看互操作测评",
+      "screenshot": "12-ui-security-interop-assessment.png",
+      "url": "https://193.112.107.134/security/baseline"
+    },
+    {
+      "label": "运行状态页显示核心服务、依赖、备份就绪和诚实降级提示",
+      "actor": "drill-it-ops-20260611",
+      "route": "/system/providers",
+      "operation": "查看运行状态总览",
+      "screenshot": "13-ui-runtime-providers-overview.png",
+      "url": "https://193.112.107.134/system/providers"
+    },
+    {
+      "label": "运行状态专家模式展示 profile、方言、功能开关和备份诊断",
+      "actor": "drill-it-ops-20260611",
+      "route": "/system/providers",
+      "operation": "查看运行状态专家诊断",
+      "screenshot": "14-ui-runtime-providers-expert.png",
+      "url": "https://193.112.107.134/system/providers"
+    },
+    {
+      "label": "国产化自检页展示 OS、JDK、DB、国密算法和逐项结果",
+      "actor": "drill-it-ops-20260611",
+      "route": "/advanced/domestic",
+      "operation": "查看国产化自检",
+      "screenshot": "15-ui-domestic-check-overview.png",
+      "url": "https://193.112.107.134/advanced/domestic"
+    },
+    {
+      "label": "国产化自检可按不兼容项过滤并保留未连接状态",
+      "actor": "drill-it-ops-20260611",
+      "route": "/advanced/domestic",
+      "operation": "过滤国产化不兼容项",
+      "screenshot": "16-ui-domestic-check-issues.png",
+      "url": "https://193.112.107.134/advanced/domestic"
+    }
+  ],
+  "frontendActions": [
+    "审计员在 /admin/audit 按操作人和对象类型筛选审计事件并打开详情。",
+    "审计员在 /admin/audit 前台提交审计日志导出申请。",
+    "医院管理员在 /admin/audit 前台审批他人导出申请。",
+    "信息科在 /security/baseline 查看系统配置、数据权限、脱敏规则和互操作测评。",
+    "信息科在 /system/providers 查看运行状态、诚实降级和备份恢复诊断。",
+    "信息科在 /advanced/domestic 查看国产化自检并导出报告。"
+  ],
+  "reviews": [
+    {
+      "id": "UI-ACT10-AUDIT-01",
+      "pages": [
+        "/admin/audit"
+      ],
+      "score": 6,
+      "conclusion": "审计事件、详情、导出申请和他人审批均可前台完成；直接按 traceId 搜索和从审计页跳诊断链仍不够直接。",
+      "followUp": "增加 traceId 搜索、审计详情中的诊断链跳转和导出审批证据显著入口。"
+    },
+    {
+      "id": "UI-ACT10-SECBASE-01",
+      "pages": [
+        "/security/baseline"
+      ],
+      "score": 5,
+      "conclusion": "系统配置、数据权限、脱敏规则和互操作证据均有页面；但跨科室权限试算和脱敏预览仍只能用接口佐证。",
+      "followUp": "在安全基线页补受控的权限试算与脱敏预览面板，默认使用演练患者和当前登录组织域。"
+    },
+    {
+      "id": "UI-ACT10-RUNTIME-01",
+      "pages": [
+        "/system/providers",
+        "/advanced/domestic"
+      ],
+      "score": 7,
+      "conclusion": "运行状态、未连接/模型未启用、备份恢复诊断和国产化自检均可页面读取，报告可导出。",
+      "followUp": "后续只需把正式院方证书替换纳入上线清单；页面状态不能为未接入能力刷绿。"
+    }
+  ],
+  "correlations": {
+    "audit": {
+      "auditEventDoctorTrace": {
+        "label": "act10-mq8ww9f8-audit-events-doctor",
+        "status": 200,
+        "traceId": "be425316-f6d5-461e-be3f-f33599b63baf",
+        "path": "/compliance/audit/events?size=20&actorUserId=drill-respiratory-doctor-20260611"
+      },
+      "auditSnapshotTrace": {
+        "label": "act10-mq8ww9f8-audit-snapshot",
+        "status": 200,
+        "traceId": "bed34fb8-dd69-4105-b37a-89284ae1df4f",
+        "path": "/compliance/audit/snapshot?reason=%E5%B9%9510%E5%AE%A1%E8%AE%A1%E5%BF%AB%E7%85%A7%20act10-mq8ww9f8"
+      }
+    },
+    "securityBaseline": {
+      "dataPolicyCheck": {
+        "status": 200,
+        "count": 1
+      },
+      "maskingList": {
+        "status": 200,
+        "count": 2
+      },
+      "l1DataPermission": {
+        "resourceType": "act10_patient_scope",
+        "respiratoryAllowed": true,
+        "cardiologyDenied": true
+      },
+      "l1MaskingPreview": {
+        "rawAllowed": false,
+        "maskedFields": [
+          "patientName",
+          "idNo"
+        ],
+        "values": {
+          "patientName": "张*国",
+          "idNo": "**************8888",
+          "encounterId": "enc-act6-8oh7bn024a"
+        }
+      }
+    },
+    "runtimeAndDomestic": {
+      "operations": {
+        "status": 200,
+        "healthStatus": "UP",
+        "dependencyStatuses": [
+          {
+            "key": "database",
+            "status": "UP"
+          },
+          {
+            "key": "prometheus",
+            "status": "UP"
+          },
+          {
+            "key": "backup-restore",
+            "status": "DEGRADED"
+          },
+          {
+            "key": "graph-projection",
+            "status": "NOT_CONNECTED"
+          },
+          {
+            "key": "search-projection",
+            "status": "NOT_CONNECTED"
+          },
+          {
+            "key": "dify-workflow",
+            "status": "MODEL_DISABLED"
+          },
+          {
+            "key": "model-gateway",
+            "status": "MODEL_DISABLED"
+          },
+          {
+            "key": "external-provider",
+            "status": "NOT_CONNECTED"
+          }
+        ]
+      },
+      "l1Runtime": {
+        "healthStatus": "UP",
+        "dependencies": [
+          {
+            "key": "database",
+            "status": "UP"
+          },
+          {
+            "key": "prometheus",
+            "status": "UP"
+          },
+          {
+            "key": "backup-restore",
+            "status": "DEGRADED"
+          },
+          {
+            "key": "graph-projection",
+            "status": "NOT_CONNECTED"
+          },
+          {
+            "key": "search-projection",
+            "status": "NOT_CONNECTED"
+          },
+          {
+            "key": "dify-workflow",
+            "status": "MODEL_DISABLED"
+          },
+          {
+            "key": "model-gateway",
+            "status": "MODEL_DISABLED"
+          },
+          {
+            "key": "external-provider",
+            "status": "NOT_CONNECTED"
+          }
+        ],
+        "backupRestore": {
+          "backupPath": "/zoesoft/medkernel/backups/act10-mq8ww9f8.schema.dump",
+          "restoreDb": "medkernel_act10_mq8ww9f8_restore",
+          "tableCount": 172,
+          "migrationCount": 0,
+          "flywayTablePresent": true
+        }
+      },
+      "l1ModelDegrade": {
+        "status": "DEGRADED",
+        "modelMode": "B0",
+        "fallbackUsed": true,
+        "traceId": "633a5d47-8322-456f-8cea-745c8cebd301"
+      }
+    }
+  },
+  "downloadedReport": "domestic-check-report.txt",
+  "passCriteria": [
+    "幕10 L1 A1-A7 全部为 true，L2 不重复破坏性备份恢复。",
+    "审计日志、导出审批、安全基线、运行状态、国产化自检均有带 URL 截图。",
+    "至少一个合规动作在前台完成：审计员申请导出，医院管理员二人审批。",
+    "前台缺口登记为优化项，不用 API 证据冒充页面验收。"
+  ],
+  "pass": true
+}
