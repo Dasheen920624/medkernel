@@ -1,0 +1,669 @@
+{
+  "proof": "pathway-readable-134",
+  "baseUrl": "https://193.112.107.134",
+  "route": [
+    "/pathway/patients",
+    "/pathway/templates"
+  ],
+  "source": "codex-demo-drill-path-readable-1f32dbfb",
+  "mergeCommit": "1f32dbfbcaffa83c18470462da714645ee430355",
+  "deployBackup": "/zoesoft/medkernel/backups/deploy-20260611-173711",
+  "completedAt": "2026-06-11T09:57:37.390Z",
+  "credentialLocation": "/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json",
+  "credentialRedaction": "凭据仅从服务器受限文件读取；本摘要不写入口令、Cookie、令牌或签名材料。",
+  "businessObjects": {
+    "capTemplateCode": "TPL.DRILL.CAP.1781126077791",
+    "capTemplateId": "pt-e8b9a1f1-f423-44aa-ba6c-835c7246c186"
+  },
+  "checks": {
+    "patientDesktop": true,
+    "patientMobile": true,
+    "patientReadOnly": true,
+    "patientEdges": true,
+    "templateDesktop": true,
+    "templateMobile": true,
+    "noHorizontalOverflow": true
+  },
+  "pass": true,
+  "patientDesktop": {
+    "viewport": {
+      "width": 1440,
+      "height": 1100
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-respiratory-doctor-20260611"
+    },
+    "nodeCount": 6,
+    "currentNodeCount": 1,
+    "deleteButtonCount": 0,
+    "edgeVisible": true,
+    "graphText": "CAP 社区获得性肺炎临床路径\n幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。\n当前患者位置\n已完成/当前/待执行只读展示，不自动开立或修改医嘱。\n已完成\n当前节点\n待执行\nCAP_ASSESS\n当前节点\n入院评估（CURB-65）\n评估\n呼吸科医生\n1 天\n时钟 cc-0a7c6567-d378-459e-815f-6c695297f8cc\n运行中\nCAP.ASSESS_24H\n先完成 CURB-65 风险评估，作为抗感染路径入口。\n标准流转：CAP_ASSESS → CAP_EMPIRIC_ABX\nCAP_EMPIRIC_ABX\n待执行\n经验性抗感染（关联 R3 药品）\n用药\n呼吸科医生\n无固定时窗\n治疗节点明确药品、医保规则和药师/医保协作角色。\n标准流转：CAP_EMPIRIC_ABX → CAP_EFFECT_EVAL\nCAP_EFFECT_EVAL\n待执行\n48-72h 疗效评估\n评估\n呼吸科医生\n3 天\n到 48-72h 必须复评，随后进入降阶梯或升级分支。\n条件流转：CAP_EFFECT_EVAL → CAP_DEESCALATE\n条件已配置\n标准流转：CAP_EFFECT_EVAL → CAP_UPGRADE\nCAP_DEESCALATE\n待执行\n降阶梯治疗\n用药\n呼吸科医生\n无固定时窗\n疗效稳定时窄谱化或口服序贯，准备出院评估。\n标准流转：CAP_DEESCALATE → CAP_DISCHARGE_ASSESS\nCAP_UPGRADE\n待执行\n抗菌升级/变异登记\n用药\n呼吸科医生\n无固定时窗\n疗效不佳时升级抗菌方案并登记路径变异。\n标准流转：CAP_UPGRADE → CAP_DISCHARGE_ASSESS\nCAP_DISCHARGE_ASSESS\n待执行\n出院评估（症状+影像）\n出院\n呼吸科医生\n无固定时窗\n终点\n满足症状和影像标准后完成出院评估，后续幕7接随访。",
+    "metrics": {
+      "viewportWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "ant-drawer-content-wrapper ant-drawer-panel-motion-right-appear ant-drawer-panel-motion-right-appear-active",
+          "text": "患者临床路径推进与解释追溯控制台入径运行事实 facts患者 IDmpi-01KTSWK7P3XQQ8VC0JZFZ63AMY就诊编号enc-act6-8oh7",
+          "left": 622,
+          "right": 1582,
+          "width": 960,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-content",
+          "text": "患者临床路径推进与解释追溯控制台入径运行事实 facts患者 IDmpi-01KTSWK7P3XQQ8VC0JZFZ63AMY就诊编号enc-act6-8oh7",
+          "left": 622,
+          "right": 1582,
+          "width": 960,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-header",
+          "text": "患者临床路径推进与解释追溯控制台",
+          "left": 622,
+          "right": 1582,
+          "width": 960,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-header-title",
+          "text": "患者临床路径推进与解释追溯控制台",
+          "left": 646,
+          "right": 1558,
+          "width": 912,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-title",
+          "text": "患者临床路径推进与解释追溯控制台",
+          "left": 678,
+          "right": 1558,
+          "width": 880,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "_drawerTitle_1a5cp_484",
+          "text": "患者临床路径推进与解释追溯控制台",
+          "left": 678,
+          "right": 1558,
+          "width": 880,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-body",
+          "text": "入径运行事实 facts患者 IDmpi-01KTSWK7P3XQQ8VC0JZFZ63AMY就诊编号enc-act6-8oh7bn024a所用模型pt-e8b",
+          "left": 622,
+          "right": 1582,
+          "width": 960,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "",
+          "text": "入径运行事实 facts患者 IDmpi-01KTSWK7P3XQQ8VC0JZFZ63AMY就诊编号enc-act6-8oh7bn024a所用模型pt-e8b",
+          "left": 646,
+          "right": 1558,
+          "width": 912,
+          "visible": true
+        }
+      ]
+    },
+    "diagnostics": {
+      "failedRequests": [],
+      "clientErrors": [],
+      "serverErrors": [],
+      "consoleErrors": []
+    },
+    "captures": [
+      {
+        "label": "desktop 医生患者路径列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-respiratory-doctor-20260611"
+        },
+        "screenshot": "01-desktop-patient-pathways-list.png",
+        "url": "https://193.112.107.134/pathway/patients",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      },
+      {
+        "label": "desktop 医生只读路径图抽屉",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-respiratory-doctor-20260611"
+        },
+        "screenshot": "02-desktop-patient-readonly-graph.png",
+        "url": "https://193.112.107.134/pathway/patients",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      }
+    ]
+  },
+  "patientMobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-respiratory-doctor-20260611"
+    },
+    "nodeCount": 6,
+    "currentNodeCount": 1,
+    "deleteButtonCount": 0,
+    "edgeVisible": true,
+    "graphText": "CAP 社区获得性肺炎临床路径\n幕5演练：成人 CAP 从入院评估、经验性抗感染、48-72h 评估到降阶梯/升级和出院评估的可读路径图。\n当前患者位置\n已完成/当前/待执行只读展示，不自动开立或修改医嘱。\n已完成\n当前节点\n待执行\nCAP_ASSESS\n当前节点\n入院评估（CURB-65）\n评估\n呼吸科医生\n1 天\n时钟 cc-0a7c6567-d378-459e-815f-6c695297f8cc\n运行中\nCAP.ASSESS_24H\n先完成 CURB-65 风险评估，作为抗感染路径入口。\n标准流转：CAP_ASSESS → CAP_EMPIRIC_ABX\nCAP_EMPIRIC_ABX\n待执行\n经验性抗感染（关联 R3 药品）\n用药\n呼吸科医生\n无固定时窗\n治疗节点明确药品、医保规则和药师/医保协作角色。\n标准流转：CAP_EMPIRIC_ABX → CAP_EFFECT_EVAL\nCAP_EFFECT_EVAL\n待执行\n48-72h 疗效评估\n评估\n呼吸科医生\n3 天\n到 48-72h 必须复评，随后进入降阶梯或升级分支。\n条件流转：CAP_EFFECT_EVAL → CAP_DEESCALATE\n条件已配置\n标准流转：CAP_EFFECT_EVAL → CAP_UPGRADE\nCAP_DEESCALATE\n待执行\n降阶梯治疗\n用药\n呼吸科医生\n无固定时窗\n疗效稳定时窄谱化或口服序贯，准备出院评估。\n标准流转：CAP_DEESCALATE → CAP_DISCHARGE_ASSESS\nCAP_UPGRADE\n待执行\n抗菌升级/变异登记\n用药\n呼吸科医生\n无固定时窗\n疗效不佳时升级抗菌方案并登记路径变异。\n标准流转：CAP_UPGRADE → CAP_DISCHARGE_ASSESS\nCAP_DISCHARGE_ASSESS\n待执行\n出院评估（症状+影像）\n出院\n呼吸科医生\n无固定时窗\n终点\n满足症状和影像标准后完成出院评估，后续幕7接随访。",
+    "metrics": {
+      "viewportWidth": 390,
+      "documentScrollWidth": 390,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "css-var-r0 ant-table-css-var ant-table-wrapper",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-nested-loading css-132i2at css-var-r0",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-container",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table css-var-r0 ant-table-css-var",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-container",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-content",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": -675,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "table",
+          "className": "",
+          "text": "实例编号患者 ID就诊 ID路径模板当前流转节点流转状态操作pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fcmpi-01KTSWK",
+          "left": -1015,
+          "right": 365,
+          "width": 1380,
+          "visible": true
+        },
+        {
+          "tagName": "colgroup",
+          "className": "",
+          "text": "",
+          "left": -1015,
+          "right": -896,
+          "width": 119,
+          "visible": true
+        }
+      ]
+    },
+    "diagnostics": {
+      "failedRequests": [],
+      "clientErrors": [],
+      "serverErrors": [],
+      "consoleErrors": []
+    },
+    "captures": [
+      {
+        "label": "mobile 医生患者路径列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-respiratory-doctor-20260611"
+        },
+        "screenshot": "03-mobile-patient-pathways-list.png",
+        "url": "https://193.112.107.134/pathway/patients",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      {
+        "label": "mobile 医生只读路径图抽屉",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-respiratory-doctor-20260611"
+        },
+        "screenshot": "04-mobile-patient-readonly-graph.png",
+        "url": "https://193.112.107.134/pathway/patients",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ]
+  },
+  "templateDesktop": {
+    "viewport": {
+      "width": 1440,
+      "height": 1100
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-role-specialist-20260611"
+    },
+    "currentVersion": 1,
+    "copiedCode": "TPL.DRILL.CAP.1781126077791",
+    "copiedVersion": 2,
+    "nodeFieldCount": 6,
+    "edgeFieldCount": 6,
+    "drawerMetrics": {
+      "viewportWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "ant-drawer-content-wrapper ant-drawer-panel-motion-right-appear ant-drawer-panel-motion-right-appear-active",
+          "text": "路径配置与真实快照试运行控制台当前路径版本已全量生效，拓扑结构写保护；修改需创建新版本。维护已全量生效拓扑时先复制为下一版草稿，再走影响预览、灰度发布和回滚证据",
+          "left": 1318,
+          "right": 2398,
+          "width": 1080,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-content",
+          "text": "路径配置与真实快照试运行控制台当前路径版本已全量生效，拓扑结构写保护；修改需创建新版本。维护已全量生效拓扑时先复制为下一版草稿，再走影响预览、灰度发布和回滚证据",
+          "left": 1318,
+          "right": 2398,
+          "width": 1080,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-header",
+          "text": "路径配置与真实快照试运行控制台",
+          "left": 1318,
+          "right": 2398,
+          "width": 1080,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-header-title",
+          "text": "路径配置与真实快照试运行控制台",
+          "left": 1342,
+          "right": 2374,
+          "width": 1032,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-title",
+          "text": "路径配置与真实快照试运行控制台",
+          "left": 1374,
+          "right": 2374,
+          "width": 1000,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "_drawerTitle_imh0f_37",
+          "text": "路径配置与真实快照试运行控制台",
+          "left": 1374,
+          "right": 2374,
+          "width": 1000,
+          "visible": true
+        },
+        {
+          "tagName": "span",
+          "className": "",
+          "text": "路径配置与真实快照试运行控制台",
+          "left": 1374,
+          "right": 1614,
+          "width": 240,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-drawer-body",
+          "text": "当前路径版本已全量生效，拓扑结构写保护；修改需创建新版本。维护已全量生效拓扑时先复制为下一版草稿，再走影响预览、灰度发布和回滚证据。复制为新版本路径拓扑、试运行",
+          "left": 1318,
+          "right": 2398,
+          "width": 1080,
+          "visible": true
+        }
+      ]
+    },
+    "dialogMetrics": {
+      "viewportWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": []
+    },
+    "diagnostics": {
+      "failedRequests": [],
+      "clientErrors": [
+        {
+          "url": "https://193.112.107.134/medkernel/api/v1/engine/evaluation/indicators?status=ACTIVE&page=1&size=100",
+          "status": 403
+        },
+        {
+          "url": "https://193.112.107.134/medkernel/api/v1/engine/evaluation/indicators?status=ACTIVE&page=1&size=100",
+          "status": 403
+        }
+      ],
+      "serverErrors": [],
+      "consoleErrors": []
+    },
+    "captures": [
+      {
+        "label": "desktop 专科专家路径模板列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "05-desktop-template-list.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      },
+      {
+        "label": "desktop 已发布模板复制入口",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "06-desktop-template-copy-action.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      },
+      {
+        "label": "desktop 复制为新版本弹窗与 L2 节点画布",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "07-desktop-template-copy-dialog.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 1440,
+          "height": 1100
+        }
+      }
+    ]
+  },
+  "templateMobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "actor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-role-specialist-20260611"
+    },
+    "currentVersion": 1,
+    "copiedCode": "TPL.DRILL.CAP.1781126077791",
+    "copiedVersion": 2,
+    "nodeFieldCount": 6,
+    "edgeFieldCount": 6,
+    "drawerMetrics": {
+      "viewportWidth": 390,
+      "documentScrollWidth": 390,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "css-var-r0 ant-table-css-var ant-table-wrapper",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-nested-loading css-132i2at css-var-r0",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-container",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table css-var-r0 ant-table-css-var",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-container",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-content",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "table",
+          "className": "",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": 365,
+          "width": 827,
+          "visible": true
+        },
+        {
+          "tagName": "colgroup",
+          "className": "",
+          "text": "",
+          "left": -462,
+          "right": -231,
+          "width": 231,
+          "visible": true
+        }
+      ]
+    },
+    "dialogMetrics": {
+      "viewportWidth": 390,
+      "documentScrollWidth": 390,
+      "horizontalOverflowPx": 0,
+      "overflowingNodes": [
+        {
+          "tagName": "div",
+          "className": "css-var-r0 ant-table-css-var ant-table-wrapper",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-nested-loading css-132i2at css-var-r0",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-spin-container",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table css-var-r0 ant-table-css-var",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-container",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "div",
+          "className": "ant-table-content",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": -122,
+          "width": 340,
+          "visible": true
+        },
+        {
+          "tagName": "table",
+          "className": "",
+          "text": "模板代码路径名称关联病种层级入径版本状态管理动作TPL.DRILL.CAP.1781126077791CAP 社区获得性肺炎临床路径ZD0456SPECIALT",
+          "left": -462,
+          "right": 365,
+          "width": 827,
+          "visible": true
+        },
+        {
+          "tagName": "colgroup",
+          "className": "",
+          "text": "",
+          "left": -462,
+          "right": -231,
+          "width": 231,
+          "visible": true
+        }
+      ]
+    },
+    "diagnostics": {
+      "failedRequests": [],
+      "clientErrors": [
+        {
+          "url": "https://193.112.107.134/medkernel/api/v1/engine/evaluation/indicators?status=ACTIVE&page=1&size=100",
+          "status": 403
+        },
+        {
+          "url": "https://193.112.107.134/medkernel/api/v1/engine/evaluation/indicators?status=ACTIVE&page=1&size=100",
+          "status": 403
+        }
+      ],
+      "serverErrors": [],
+      "consoleErrors": []
+    },
+    "captures": [
+      {
+        "label": "mobile 专科专家路径模板列表",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "08-mobile-template-list.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      {
+        "label": "mobile 已发布模板复制入口",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "09-mobile-template-copy-action.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      },
+      {
+        "label": "mobile 复制为新版本弹窗与 L2 节点画布",
+        "actor": {
+          "tenantId": "drill-hospital-20260611",
+          "username": "drill-role-specialist-20260611"
+        },
+        "screenshot": "10-mobile-template-copy-dialog.png",
+        "url": "https://193.112.107.134/pathway/templates",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ]
+  }
+}
