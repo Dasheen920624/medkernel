@@ -1,0 +1,332 @@
+{
+  "runTag": "act9-2grf0t4vdy",
+  "adapters": {
+    "adtAdapterId": "his-adt-act9-2grf0t4vdy",
+    "lisAdapterId": "lis-result-act9-2grf0t4vdy",
+    "fhirAdapterId": "fhir-r4-act9-2grf0t4vdy",
+    "deadAdapterId": "quality-dead-act9-2grf0t4vdy"
+  },
+  "webhooks": {
+    "fhirWebhookId": "fhir-sign-act9-2grf0t4vdy",
+    "callbackWebhookId": "quality-callback-act9-2grf0t4vdy",
+    "hisWebhookId": "his-inbound-act9-2grf0t4vdy",
+    "lisWebhookId": "lis-inbound-act9-2grf0t4vdy"
+  },
+  "onboardingIds": [
+    "onboard-his-act9-2grf0t4vdy",
+    "onboard-lis-act9-2grf0t4vdy",
+    "onboard-fhir-act9-2grf0t4vdy"
+  ],
+  "createOps": {
+    "hisAdapter": {
+      "status": 200,
+      "ok": true,
+      "traceId": "99137b4e-ef50-45eb-9c11-2fb49066de97",
+      "path": "/engine/integration/adapters",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 16,
+          "adapterId": "his-adt-act9-2grf0t4vdy",
+          "tenantId": "drill-hospital-20260611",
+          "name": "幕9 HIS ADT 入站适配器 act9-2grf0t4vdy",
+          "protocolType": "HL7",
+          "status": "ACTIVE",
+          "configJson": "{\"fieldMappings\":[{\"sourcePath\":\"/patient/mpi\",\"targetPath\":\"/patient/mpi\"},{\"sourcePath\":\"/patient/name\",\"targetPath\":\"/patient/name\"},{\"sourcePath\":\"/encounter/encounterId\",\"targetPath\":\"/encounter/encounterId\"},{\"sourcePath\":\"/encounter/encounterType\",\"targetPath\":\"/encounter/encounterType\"},{\"sourcePath\":\"/diagnosis/code\",\"targetPath\":\"/conditions/0/code\"},{\"sourcePath\":\"/diagnosis/displayName\",\"targetPath\":\"/conditions/0/displayName\"}]}",
+          "healthStatus": "NOT_CONNECTED",
+          "rttMs": 0,
+          "lastHeartbeatAt": null,
+          "createdAt": "2026-06-11T01:44:05.136562428Z",
+          "createdBy": "system",
+          "updatedAt": "2026-06-11T01:44:05.136566096Z",
+          "updatedBy": "system"
+        },
+        "traceId": "99137b4e-ef50-45eb-9c11-2fb49066de97",
+        "timestamp": "2026-06-11T01:44:05.200475842Z"
+      }
+    },
+    "lisAdapter": {
+      "status": 200,
+      "ok": true,
+      "traceId": "4d7ec1ae-f2b0-46cc-bf6c-85ecc87b5143",
+      "path": "/engine/integration/adapters",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 17,
+          "adapterId": "lis-result-act9-2grf0t4vdy",
+          "tenantId": "drill-hospital-20260611",
+          "name": "幕9 LIS 危急值入站适配器 act9-2grf0t4vdy",
+          "protocolType": "REST",
+          "status": "ACTIVE",
+          "configJson": "{\"fieldMappings\":[{\"sourcePath\":\"/patient/mpi\",\"targetPath\":\"/patient/mpi\"},{\"sourcePath\":\"/encounter/encounterId\",\"targetPath\":\"/encounter/encounterId\"},{\"sourcePath\":\"/observation/code\",\"targetPath\":\"/observations/0/code\"},{\"sourcePath\":\"/observation/displayName\",\"targetPath\":\"/observations/0/displayName\"},{\"sourcePath\":\"/observation/valueNumeric\",\"targetPath\":\"/observations/0/valueNumeric\"},{\"sourcePath\":\"/observation/unit\",\"targetPath\":\"/observations/0/unit\"},{\"sourcePath\":\"/observation/criticalFlag\",\"targetPath\":\"/observations/0/criticalFlag\"}]}",
+          "healthStatus": "NOT_CONNECTED",
+          "rttMs": 0,
+          "lastHeartbeatAt": null,
+          "createdAt": "2026-06-11T01:44:05.255240052Z",
+          "createdBy": "system",
+          "updatedAt": "2026-06-11T01:44:05.255240503Z",
+          "updatedBy": "system"
+        },
+        "traceId": "4d7ec1ae-f2b0-46cc-bf6c-85ecc87b5143",
+        "timestamp": "2026-06-11T01:44:05.268417715Z"
+      }
+    },
+    "fhirSigningWebhook": {
+      "status": 200,
+      "ok": true,
+      "traceId": "8b12035f-944d-4b89-b68f-cd6ae4a61e5a",
+      "path": "/engine/integration/webhooks",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 14,
+          "webhookId": "fhir-sign-act9-2grf0t4vdy",
+          "name": "幕9 FHIR 签名密钥 act9-2grf0t4vdy",
+          "callbackUrl": "https://127.0.0.1/fhir-signature-placeholder",
+          "eventsSubscribed": "FHIR_CREATE",
+          "status": "ACTIVE",
+          "createdAt": "2026-06-11T01:44:05.330224764Z",
+          "updatedAt": "2026-06-11T01:44:05.330225385Z",
+          "sharedSecret": "[REDACTED]"
+        },
+        "traceId": "8b12035f-944d-4b89-b68f-cd6ae4a61e5a",
+        "timestamp": "2026-06-11T01:44:05.343685542Z"
+      }
+    },
+    "fhirAdapter": {
+      "status": 200,
+      "ok": true,
+      "traceId": "a0034b8d-d1bb-4fda-a925-15dbd9d9564d",
+      "path": "/engine/integration/adapters",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 18,
+          "adapterId": "fhir-r4-act9-2grf0t4vdy",
+          "tenantId": "drill-hospital-20260611",
+          "name": "幕9 FHIR R4 门面 act9-2grf0t4vdy",
+          "protocolType": "FHIR",
+          "status": "ACTIVE",
+          "configJson": "{\"baseUrl\":\"https://127.0.0.1/fhir-outbound-placeholder\",\"connectTimeoutMs\":500,\"requestTimeoutMs\":500,\"fhir\":{\"enabled\":true,\"signatureWebhookId\":\"fhir-sign-act9-2grf0t4vdy\",\"defaultPackageVersion\":\"2026.06.11-act8-8sinb347c5\",\"desensitizeResponse\":true}}",
+          "healthStatus": "NOT_CONNECTED",
+          "rttMs": 0,
+          "lastHeartbeatAt": null,
+          "createdAt": "2026-06-11T01:44:05.391318197Z",
+          "createdBy": "system",
+          "updatedAt": "2026-06-11T01:44:05.391318648Z",
+          "updatedBy": "system"
+        },
+        "traceId": "a0034b8d-d1bb-4fda-a925-15dbd9d9564d",
+        "timestamp": "2026-06-11T01:44:05.398673154Z"
+      }
+    },
+    "callbackWebhook": {
+      "status": 200,
+      "ok": true,
+      "traceId": "e6f8a12a-1813-4e35-8aca-a453e70883ea",
+      "path": "/engine/integration/webhooks",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 15,
+          "webhookId": "quality-callback-act9-2grf0t4vdy",
+          "name": "幕9 质控告警出站 Webhook act9-2grf0t4vdy",
+          "callbackUrl": "https://203.0.113.10/medkernel-callback",
+          "eventsSubscribed": "QUALITY_ALERT,RECTIFICATION",
+          "status": "ACTIVE",
+          "createdAt": "2026-06-11T01:44:05.447909283Z",
+          "updatedAt": "2026-06-11T01:44:05.447909864Z",
+          "sharedSecret": "[REDACTED]"
+        },
+        "traceId": "e6f8a12a-1813-4e35-8aca-a453e70883ea",
+        "timestamp": "2026-06-11T01:44:05.457036625Z"
+      }
+    },
+    "deadAdapter": {
+      "status": 200,
+      "ok": true,
+      "traceId": "d93450a0-fe48-4eeb-b5c4-04b252e42769",
+      "path": "/engine/integration/adapters",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 19,
+          "adapterId": "quality-dead-act9-2grf0t4vdy",
+          "tenantId": "drill-hospital-20260611",
+          "name": "幕9 质控告警断连适配器 act9-2grf0t4vdy",
+          "protocolType": "REST",
+          "status": "ACTIVE",
+          "configJson": "{\"baseUrl\":\"https://203.0.113.10\",\"outboundPath\":\"/quality-alert\",\"healthPath\":\"/health\",\"connectTimeoutMs\":500,\"requestTimeoutMs\":500}",
+          "healthStatus": "NOT_CONNECTED",
+          "rttMs": 0,
+          "lastHeartbeatAt": null,
+          "createdAt": "2026-06-11T01:44:05.516833261Z",
+          "createdBy": "system",
+          "updatedAt": "2026-06-11T01:44:05.516833951Z",
+          "updatedBy": "system"
+        },
+        "traceId": "d93450a0-fe48-4eeb-b5c4-04b252e42769",
+        "timestamp": "2026-06-11T01:44:05.523915504Z"
+      }
+    },
+    "hisWebhook": {
+      "status": 200,
+      "ok": true,
+      "traceId": "996cfc85-f099-4dc3-9e93-97202896ad56",
+      "path": "/engine/integration/webhooks",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 16,
+          "webhookId": "his-inbound-act9-2grf0t4vdy",
+          "name": "幕9 HIS 入站 Webhook act9-2grf0t4vdy",
+          "callbackUrl": "https://127.0.0.1/his-inbound-placeholder",
+          "eventsSubscribed": "ADT_A01,ADT_A08",
+          "status": "ACTIVE",
+          "createdAt": "2026-06-11T01:44:05.578414063Z",
+          "updatedAt": "2026-06-11T01:44:05.578414584Z",
+          "sharedSecret": "[REDACTED]"
+        },
+        "traceId": "996cfc85-f099-4dc3-9e93-97202896ad56",
+        "timestamp": "2026-06-11T01:44:05.590895994Z"
+      }
+    },
+    "lisWebhook": {
+      "status": 200,
+      "ok": true,
+      "traceId": "d555d339-ce74-4afb-b6fd-24fbef4f9ea8",
+      "path": "/engine/integration/webhooks",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "id": 17,
+          "webhookId": "lis-inbound-act9-2grf0t4vdy",
+          "name": "幕9 LIS 入站 Webhook act9-2grf0t4vdy",
+          "callbackUrl": "https://127.0.0.1/lis-inbound-placeholder",
+          "eventsSubscribed": "LIS_RESULT_CRITICAL",
+          "status": "ACTIVE",
+          "createdAt": "2026-06-11T01:44:05.838506741Z",
+          "updatedAt": "2026-06-11T01:44:05.838525968Z",
+          "sharedSecret": "[REDACTED]"
+        },
+        "traceId": "d555d339-ce74-4afb-b6fd-24fbef4f9ea8",
+        "timestamp": "2026-06-11T01:44:05.854622959Z"
+      }
+    },
+    "hisOnboarding": {
+      "status": 200,
+      "ok": true,
+      "traceId": "1d69d5ae-bbad-45f9-9334-eb552bedc67a",
+      "path": "/engine/integration/onboardings",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "onboardingId": "onboard-his-act9-2grf0t4vdy",
+          "name": "幕9 HIS 入院消息联调 act9-2grf0t4vdy",
+          "status": "REQUESTED",
+          "routeType": "ADAPTER",
+          "routeReference": "/api/v1/engine/integration/adapters/his-adt-act9-2grf0t4vdy",
+          "healthStatus": "NOT_CONNECTED",
+          "mappedFieldCount": 6,
+          "blockers": [
+            "未完成鉴权配置",
+            "未完成字段映射",
+            "NOT_CONNECTED：未接入真实外部连接器，不阻断主流程"
+          ],
+          "sourceSystem": "HIS",
+          "businessScenario": "ADT 入院/更新触发 CAP 入径",
+          "orgPath": "tenant:drill-hospital-20260611/department:01KTSAC1SCFJB2RKCY3DHEAGMQ",
+          "callbackWebhookId": "his-inbound-act9-2grf0t4vdy",
+          "createdAt": "2026-06-11T01:44:05.920285283Z",
+          "updatedAt": "2026-06-11T01:44:05.920285283Z"
+        },
+        "traceId": "1d69d5ae-bbad-45f9-9334-eb552bedc67a",
+        "timestamp": "2026-06-11T01:44:05.934560466Z"
+      }
+    },
+    "lisOnboarding": {
+      "status": 200,
+      "ok": true,
+      "traceId": "a95ca1c4-5155-4d3f-8513-d5e9cad4c486",
+      "path": "/engine/integration/onboardings",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "onboardingId": "onboard-lis-act9-2grf0t4vdy",
+          "name": "幕9 LIS 危急值联调 act9-2grf0t4vdy",
+          "status": "REQUESTED",
+          "routeType": "ADAPTER",
+          "routeReference": "/api/v1/engine/integration/adapters/lis-result-act9-2grf0t4vdy",
+          "healthStatus": "NOT_CONNECTED",
+          "mappedFieldCount": 7,
+          "blockers": [
+            "未完成鉴权配置",
+            "未完成字段映射",
+            "NOT_CONNECTED：未接入真实外部连接器，不阻断主流程"
+          ],
+          "sourceSystem": "LIS",
+          "businessScenario": "危急值结果回流触发推荐闭环",
+          "orgPath": "tenant:drill-hospital-20260611/department:01KTSAC1SCFJB2RKCY3DHEAGMQ",
+          "callbackWebhookId": "lis-inbound-act9-2grf0t4vdy",
+          "createdAt": "2026-06-11T01:44:05.996451755Z",
+          "updatedAt": "2026-06-11T01:44:05.996451755Z"
+        },
+        "traceId": "a95ca1c4-5155-4d3f-8513-d5e9cad4c486",
+        "timestamp": "2026-06-11T01:44:06.010600240Z"
+      }
+    },
+    "fhirOnboarding": {
+      "status": 200,
+      "ok": true,
+      "traceId": "98742a7a-6f75-4965-bee8-72414c803e9e",
+      "path": "/engine/integration/onboardings",
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "操作成功",
+        "data": {
+          "onboardingId": "onboard-fhir-act9-2grf0t4vdy",
+          "name": "幕9 FHIR R4 查询与写入联调 act9-2grf0t4vdy",
+          "status": "REQUESTED",
+          "routeType": "FHIR",
+          "routeReference": "/api/v1/engine/integration/fhir/R4",
+          "healthStatus": "NOT_CONNECTED",
+          "mappedFieldCount": 0,
+          "blockers": [
+            "未完成鉴权配置",
+            "NOT_CONNECTED：未接入真实外部连接器，不阻断主流程"
+          ],
+          "sourceSystem": "FHIR-GATEWAY",
+          "businessScenario": "第三方查询 Patient/Observation 并回流 Observation",
+          "orgPath": "tenant:drill-hospital-20260611/department:01KTSAC1SCFJB2RKCY3DHEAGMQ",
+          "callbackWebhookId": null,
+          "createdAt": "2026-06-11T01:44:06.057109015Z",
+          "updatedAt": "2026-06-11T01:44:06.057109015Z"
+        },
+        "traceId": "98742a7a-6f75-4965-bee8-72414c803e9e",
+        "timestamp": "2026-06-11T01:44:06.064861812Z"
+      }
+    }
+  }
+}

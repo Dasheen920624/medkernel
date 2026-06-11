@@ -13,9 +13,13 @@ import java.util.concurrent.TimeoutException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.medkernel.shared.api.error.ApiException;
@@ -34,6 +38,7 @@ public class ClinicalEventEngineDispatcher {
     private final AsyncTaskExecutor taskExecutor;
     private final ClinicalEventProperties properties;
     private final SystemConfigService systemConfigService;
+    private final TransactionTemplate nestedDispatchTransaction;
 
     public ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters) {
         this(adapters, new SimpleAsyncTaskExecutor("clinical-event-dispatch-"), new ClinicalEventProperties());
@@ -43,7 +48,17 @@ public class ClinicalEventEngineDispatcher {
     public ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters,
                                          @Qualifier("applicationTaskExecutor") AsyncTaskExecutor taskExecutor,
                                          ClinicalEventProperties properties,
-                                         SystemConfigService systemConfigService) {
+                                         SystemConfigService systemConfigService,
+                                         ObjectProvider<PlatformTransactionManager> transactionManagerProvider) {
+        this(adapters, taskExecutor, properties, systemConfigService,
+            transactionManagerProvider == null ? null : transactionManagerProvider.getIfAvailable());
+    }
+
+    private ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters,
+                                          AsyncTaskExecutor taskExecutor,
+                                          ClinicalEventProperties properties,
+                                          SystemConfigService systemConfigService,
+                                          PlatformTransactionManager transactionManager) {
         this.adapters = new EnumMap<>(ClinicalEventEngine.class);
         for (ClinicalEventEngineAdapter adapter : adapters == null ? List.<ClinicalEventEngineAdapter>of() : adapters) {
             this.adapters.put(adapter.engine(), adapter);
@@ -53,12 +68,32 @@ public class ClinicalEventEngineDispatcher {
             : taskExecutor;
         this.properties = properties == null ? new ClinicalEventProperties() : properties;
         this.systemConfigService = systemConfigService;
+        if (transactionManager == null) {
+            this.nestedDispatchTransaction = null;
+        } else {
+            this.nestedDispatchTransaction = new TransactionTemplate(transactionManager);
+            this.nestedDispatchTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
+        }
     }
 
     ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters,
                                   AsyncTaskExecutor taskExecutor,
                                   ClinicalEventProperties properties) {
-        this(adapters, taskExecutor, properties, null);
+        this(adapters, taskExecutor, properties, null, (PlatformTransactionManager) null);
+    }
+
+    ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters,
+                                  AsyncTaskExecutor taskExecutor,
+                                  ClinicalEventProperties properties,
+                                  PlatformTransactionManager transactionManager) {
+        this(adapters, taskExecutor, properties, null, transactionManager);
+    }
+
+    ClinicalEventEngineDispatcher(List<ClinicalEventEngineAdapter> adapters,
+                                  AsyncTaskExecutor taskExecutor,
+                                  ClinicalEventProperties properties,
+                                  SystemConfigService systemConfigService) {
+        this(adapters, taskExecutor, properties, systemConfigService, (PlatformTransactionManager) null);
     }
 
     public List<ClinicalEventEngineDispatchResult> dispatch(ClinicalEventContext context) {
@@ -80,7 +115,9 @@ public class ClinicalEventEngineDispatcher {
                 engine, null, "事件触发求值预算已耗尽，未继续派发 " + engine);
         }
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            return dispatchInCurrentThread(engine, context);
+            return nestedDispatchTransaction == null
+                ? dispatchInCurrentThread(engine, context)
+                : dispatchInNestedTransaction(engine, context);
         }
         Future<ClinicalEventEngineDispatchResult> future = taskExecutor.submit(dispatchTask(engine, context));
         try {
@@ -108,6 +145,24 @@ public class ClinicalEventEngineDispatcher {
         } catch (Exception exception) {
             return ClinicalEventEngineDispatchResult.unavailable(
                 engine, null, "事件触发求值不可用: " + exception.getMessage());
+        }
+    }
+
+    private ClinicalEventEngineDispatchResult dispatchInNestedTransaction(
+            ClinicalEventEngine engine,
+            ClinicalEventContext context) {
+        try {
+            return nestedDispatchTransaction.execute(status -> {
+                try {
+                    return dispatchTask(engine, context).call();
+                } catch (Exception exception) {
+                    throw new DispatchFailureException(exception);
+                }
+            });
+        } catch (DispatchFailureException exception) {
+            return unavailable(engine, exception.getCause());
+        } catch (RuntimeException exception) {
+            return unavailable(engine, exception);
         }
     }
 
@@ -146,5 +201,17 @@ public class ClinicalEventEngineDispatcher {
             throw new ApiException(ErrorCode.ENG_EVENT_005, "缺少临床事件引擎适配器: " + engine);
         }
         return adapter;
+    }
+
+    private ClinicalEventEngineDispatchResult unavailable(ClinicalEventEngine engine, Throwable cause) {
+        String message = cause == null ? "未知错误" : cause.getMessage();
+        return ClinicalEventEngineDispatchResult.unavailable(
+            engine, null, "事件触发求值不可用: " + message);
+    }
+
+    private static final class DispatchFailureException extends RuntimeException {
+        private DispatchFailureException(Throwable cause) {
+            super(cause);
+        }
     }
 }

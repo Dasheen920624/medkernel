@@ -16,6 +16,9 @@ import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
@@ -125,6 +128,42 @@ class ClinicalEventEngineDispatcherTest {
         assertThat(observedThread).hasValue(callerThread);
     }
 
+    @Test
+    void dispatchIsolatesUnavailableEngineInNestedTransactionWhenCallerTransactionIsActive() {
+        RecordingTransactionManager txManager = new RecordingTransactionManager();
+        ClinicalEventEngineAdapter unavailableRule = new ClinicalEventEngineAdapter() {
+            @Override
+            public ClinicalEventEngine engine() {
+                return ClinicalEventEngine.RULE;
+            }
+
+            @Override
+            public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
+                throw new IllegalStateException("规则引擎数据库写入失败");
+            }
+        };
+        ClinicalEventEngineDispatcher dispatcher = new ClinicalEventEngineDispatcher(
+            List.of(unavailableRule, fast(ClinicalEventEngine.PATHWAY), fast(ClinicalEventEngine.CDSS)),
+            new SimpleAsyncTaskExecutor("clinical-dispatch-nested-test-"),
+            new ClinicalEventProperties(1024, Duration.ofSeconds(1), 10, 3, List.of(1L)),
+            txManager);
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        List<ClinicalEventEngineDispatchResult> results = dispatcher.dispatch(context());
+
+        assertThat(results).hasSize(3);
+        assertThat(results.get(0).engine()).isEqualTo(ClinicalEventEngine.RULE);
+        assertThat(results.get(0).status()).isEqualTo(ClinicalEventEngineDispatchStatus.UNAVAILABLE);
+        assertThat(results.get(0).message()).contains("规则引擎数据库写入失败");
+        assertThat(results.get(1).status()).isEqualTo(ClinicalEventEngineDispatchStatus.DISPATCHED);
+        assertThat(results.get(2).status()).isEqualTo(ClinicalEventEngineDispatchStatus.DISPATCHED);
+        assertThat(txManager.propagationBehaviors())
+            .containsExactly(
+                TransactionDefinition.PROPAGATION_NESTED,
+                TransactionDefinition.PROPAGATION_NESTED,
+                TransactionDefinition.PROPAGATION_NESTED);
+    }
+
     private ClinicalEventEngineAdapter fast(ClinicalEventEngine engine) {
         return new ClinicalEventEngineAdapter() {
             @Override
@@ -137,6 +176,41 @@ class ClinicalEventEngineDispatcherTest {
                 return ClinicalEventEngineDispatchResult.dispatched(engine, "ok-" + engine.name(), "已处理");
             }
         };
+    }
+
+    private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+        private final List<Integer> propagationBehaviors = new java.util.ArrayList<>();
+
+        private RecordingTransactionManager() {
+            setNestedTransactionAllowed(true);
+        }
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+            propagationBehaviors.add(definition.getPropagationBehavior());
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+        }
+
+        @Override
+        protected void doCleanupAfterCompletion(Object transaction) {
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+        }
+
+        private List<Integer> propagationBehaviors() {
+            return List.copyOf(propagationBehaviors);
+        }
     }
 
     private ClinicalEventContext context() {

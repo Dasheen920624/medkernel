@@ -214,6 +214,7 @@
 - **额外**：断连/重试/降级演示（拔线→恢复），对照 `onboarding-acceptance-checklist.md` 出验收单。
 - **通过判据**：六案例全通有报文证据；健康状态页对每个适配器的状态可读（健康/未连接/配置非法/异常）。
 - **同步产出**：**《第三方对接案例集》**（独立文档，docs/handbook/user-guides/third-party-cases.md）；《合规运维手册》「适配器运维」章。
+- **执行结果（2026-06-11）**：幕9已在 134 完成，证据见 `docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md`。最终批次 `act9-2grf0t4vdy` 六案例全部 `PASSED`：C1 HIS ADT 入站 `200`、临床事件 `201`、CAP 患者路径详情 `200`；C2 LIS 危急值入站 `200`、临床事件 `201`、推荐卡查询 `200`；C3 FHIR R4 Patient/Observation create `201`、read/search `200`；C4 嵌入式临床终端 Origin `200`、令牌签发 `200`、launch `200`，返回患者上下文且 `MODEL_DISABLED` 诚实保留；C5 质控出站消息 `200`，第二次重试进入 `DEAD_LETTER`，人工重放 `200`；C6 第三方知识运行时 effective-package `200`、context-snapshots `201`、reconciliation `200`。本幕同步修复并部署两个真实缺口：临床事件下游引擎嵌套事务隔离、嵌入启动令牌消费 SQL 参数绑定；发布到 134 的 jar SHA-256 为 `47a9f15b990ff307a22c5119ee15d79a35975a245870c400e98850b6e7db0e13`，readiness `UP`。
 
 ### 幕10 · 合规、审计与降级
 

@@ -31,7 +31,7 @@ public interface EmbedLaunchTokenRepository extends CrudRepository<EmbedLaunchTo
         UPDATE embed_launch_token
            SET status = 'USED',
                consumed_at = :consumedAt,
-               updated_at = :updatedAt,
+               updated_at = :consumedAt,
                updated_by = :updatedBy
          WHERE token = :token
            AND tenant_id = :tenantId
