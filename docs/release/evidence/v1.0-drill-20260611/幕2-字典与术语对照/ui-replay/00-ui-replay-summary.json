@@ -1,0 +1,88 @@
+{
+  "_uiStep": "幕2 UI 重演",
+  "capturedAt": "2026-06-11T04:01:45.570Z",
+  "baseUrl": "https://193.112.107.134",
+  "evidenceId": "d83257d2c113d4e7",
+  "sensitiveDataPolicy": "脚本不输出密码、MFA 秘钥、恢复码、Cookie、Token；截图避开一次性凭据页面。",
+  "steps": [
+    {
+      "_uiStep": "幕2-01",
+      "role": "信息科",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-it-ops-20260611"
+      },
+      "route": "/terminology/mapping",
+      "action": "打开字典映射页，查看标准字典、院内待映射、高危候选与冲突",
+      "result": "映射总览、候选映射、冲突待裁与映射包发布区可见",
+      "screenshot": "20-ui-terminology-overview.png",
+      "url": "https://193.112.107.134/terminology/mapping",
+      "label": "字典映射总览"
+    },
+    {
+      "_uiStep": "幕2-02",
+      "role": "信息科",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-it-ops-20260611"
+      },
+      "route": "/terminology/mapping",
+      "action": "打开高危候选确认弹窗但不提交",
+      "result": "系统要求勾选高危风险确认并填写理由；未对高危映射执行确认",
+      "screenshot": "21-ui-high-risk-confirmation-modal.png",
+      "url": "https://193.112.107.134/terminology/mapping",
+      "label": "高危确认弹窗"
+    },
+    {
+      "_uiStep": "幕2-03",
+      "role": "信息科",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-it-ops-20260611"
+      },
+      "route": "/terminology/mapping",
+      "action": "查看冲突待裁列表",
+      "result": "页面用一对多冲突、风险、待裁说明呈现冲突；尚未提供前台新建冲突入口",
+      "screenshot": "22-ui-conflict-readable.png",
+      "url": "https://193.112.107.134/terminology/mapping",
+      "label": "冲突待裁"
+    },
+    {
+      "_uiStep": "幕2-04",
+      "role": "信息科",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-it-ops-20260611"
+      },
+      "route": "/terminology/mapping",
+      "action": "检查构建映射包前台入口",
+      "result": "modal_opened",
+      "note": "构建草稿弹窗可见，本批不提交新版本以避免污染配置包业务命名",
+      "screenshot": "23-ui-build-package-entry.png",
+      "url": "https://193.112.107.134/terminology/mapping",
+      "label": "构建映射包入口"
+    },
+    {
+      "_uiStep": "幕2-05",
+      "role": "信息科",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-it-ops-20260611"
+      },
+      "route": "/terminology/mapping",
+      "action": "检查发布与回滚前台入口",
+      "result": {
+        "publishDisabled": true,
+        "rollbackDisabled": true
+      },
+      "note": "页面有发布/回滚入口，但当前生效包无可回滚历史版本；草稿→确认→替换→回滚全状态机仍缺前台新建映射入口",
+      "screenshot": "24-ui-package-publish-rollback-entry.png",
+      "url": "https://193.112.107.134/terminology/mapping",
+      "label": "映射包发布与回滚入口"
+    }
+  ],
+  "findings": [
+    "本页没有发现“新建本地映射/手工登记映射”的前台入口，幕8.5 按体验缺口登记，不用 API 补做客户面动作。",
+    "高危候选为医疗安全敏感项，本次只验证二次确认门槛，不提交确认。"
+  ]
+}
