@@ -10,6 +10,7 @@ import {
   downloadDomesticCompatibilityReport,
   bindBootstrapMfa,
   changePassword,
+  checkDataPermission,
   checkBootstrapInitToken,
   completeApprovedExportJob,
   createIdentityBinding,
@@ -26,6 +27,7 @@ import {
   fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
+  previewMasking,
   saveThemePreference,
   saveExperienceViewSnapshot,
   requestExportApproval,
@@ -3467,6 +3469,64 @@ describe("experience foundation api helpers", () => {
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(6, "/compliance/exports", {
       params: { resourceType: "AUDIT_EVENT", status: "REQUESTED" },
+    });
+  });
+
+  it("runs compliance trial and masking preview through audited backend commands", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            policyId: "policy-1",
+            resourceType: "clinical_case",
+            action: "READ",
+            requiredLevel: "HOSPITAL",
+            rowAllowed: false,
+            allowedColumns: ["patientId", "encounterId"],
+            deniedColumns: ["patientName"],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            resourceType: "clinical_case",
+            scenarioCode: "DEFAULT",
+            values: { patientName: "张*" },
+            maskedFields: ["patientName"],
+            rawAllowed: false,
+          },
+        },
+      });
+
+    await expect(
+      checkDataPermission({
+        resourceType: "clinical_case",
+        action: "READ",
+        requestedColumns: ["patientId", "encounterId", "patientName"],
+        hospitalId: "h-1",
+      }),
+    ).resolves.toMatchObject({ rowAllowed: false, deniedColumns: ["patientName"] });
+    await expect(
+      previewMasking({
+        resourceType: "clinical_case",
+        scenarioCode: "DEFAULT",
+        values: { patientName: "张三" },
+        sensitiveFields: ["patientName"],
+      }),
+    ).resolves.toMatchObject({ rawAllowed: false, maskedFields: ["patientName"] });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/compliance/data-permissions:check", {
+      resourceType: "clinical_case",
+      action: "READ",
+      requestedColumns: ["patientId", "encounterId", "patientName"],
+      hospitalId: "h-1",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/compliance/masking-rules:preview", {
+      resourceType: "clinical_case",
+      scenarioCode: "DEFAULT",
+      values: { patientName: "张三" },
+      sensitiveFields: ["patientName"],
     });
   });
 
