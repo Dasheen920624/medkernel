@@ -261,6 +261,10 @@ describe("CdssFatigue", () => {
   it("renders clinical reminder cards from trigger context and real aggregate stats", () => {
     renderCdssFatigue();
 
+    expect(screen.getByRole("heading", { name: "提醒与推荐中枢" })).toBeInTheDocument();
+    expect(screen.getByText("推荐链路总览")).toBeInTheDocument();
+    expect(screen.getByText("按患者 ID / traceId / 来源对象查推荐")).toBeInTheDocument();
+    expect(screen.getByLabelText("患者或 traceId")).toBeInTheDocument();
     expect(mockUseClinicalRecommendationCards).toHaveBeenCalledWith({
       status: undefined,
       riskLevel: undefined,
@@ -309,8 +313,17 @@ describe("CdssFatigue", () => {
 
     await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
 
+    expect(await screen.findByText("这条推荐是怎么来的")).toBeInTheDocument();
+    expect(screen.getAllByText("触发事件").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("命中规则").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识来源").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("路径上下文").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("待办 / 通知").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("医生反馈").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("药师复核").length).toBeGreaterThan(0);
+    expect(screen.getByText(/trace-rec/)).toBeInTheDocument();
     expect(await screen.findByText(/doctor-real-1/)).toBeInTheDocument();
-    expect(screen.getByText("已确认风险，按指南处理。")).toBeInTheDocument();
+    expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /确认并予以采纳/ }));
 
@@ -412,7 +425,7 @@ describe("CdssFatigue", () => {
     renderCdssFatigue();
 
     await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
-    await user.click(screen.getByRole("tab", { name: /提醒超频疲劳治理/ }));
+    await user.click(screen.getByRole("tab", { name: /提醒频次治理/ }));
 
     expect(await screen.findByText("红线不可抑制")).toBeInTheDocument();
     expect(screen.getByText("medkernel.cdss.fatigue.policy")).toBeInTheDocument();
