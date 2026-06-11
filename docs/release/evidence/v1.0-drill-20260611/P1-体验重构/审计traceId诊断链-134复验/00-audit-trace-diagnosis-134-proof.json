@@ -1,0 +1,774 @@
+{
+  "runTag": "audit-trace-proof-mq9dnbzi",
+  "generatedAt": "2026-06-11T10:51:34.000Z",
+  "baseUrl": "https://193.112.107.134",
+  "deployed": {
+    "host": "193.112.107.134",
+    "source": "codex-demo-drill-audit-trace-jump-74353b56",
+    "mainCommit": "74353b56edc3a8f6c4550e6a301359642c6f5334",
+    "backup": "/zoesoft/medkernel/backups/deploy-20260611-183604",
+    "jarSha256": "51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e",
+    "readiness": "UP"
+  },
+  "pass": true,
+  "actor": {
+    "tenantId": "drill-hospital-20260611",
+    "username": "drill-audit-20260611"
+  },
+  "target": {
+    "traceId": "act6-8oh7bn024a-k-event",
+    "auditList": {
+      "status": 200,
+      "count": 7,
+      "totalEstimate": 7,
+      "firstEvent": {
+        "eventId": "4c9f39f4-4178-41d5-aacf-7890a7f97720",
+        "actionCode": "EXECUTE",
+        "resourceType": "clinical_event",
+        "resourceId": "evt-act6-8oh7bn024a-k-critical",
+        "summary": "处理临床事件成功 type=REPORT engines=RULE:DISPATCHED:规则引擎已接收临床事件上下文|PATHWAY:DISPATCHED:路径引擎已接收临床事件上下文|CDSS:DISPATCHED:CDSS 推荐已完成确定性评估 cards=1 sources=规则 DRILL.ACT6.K.LOINC.8o33w90beb v1 命中",
+        "traceId": "act6-8oh7bn024a-k-event"
+      }
+    },
+    "diagnosis": {
+      "status": 200,
+      "traceId": "act6-8oh7bn024a-k-event",
+      "stateCount": 8,
+      "payloadCount": 0,
+      "firstState": {
+        "fromStatus": null,
+        "toStatus": "RECEIVED",
+        "reason": "INITIAL_RECEIVE",
+        "actor": "drill-lab-technician-20260611",
+        "traceId": "act6-8oh7bn024a-k-event",
+        "error": null,
+        "occurredAt": "2026-06-10T23:06:35.885775Z"
+      },
+      "firstPayload": null
+    }
+  },
+  "viewports": [
+    {
+      "label": "desktop-1440",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-audit-20260611"
+      },
+      "rowCountOnScreen": 15,
+      "screenshots": [
+        {
+          "label": "desktop-1440 审计页按 Trace ID 直搜命中真实事件",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "01-desktop-audit-trace-search.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          }
+        },
+        {
+          "label": "desktop-1440 审计详情显示 Trace ID 与诊断链入口",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "02-desktop-audit-detail-trace-entry.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          }
+        },
+        {
+          "label": "desktop-1440 诊断链展示状态流转",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "03-desktop-trace-diagnosis-state.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          }
+        },
+        {
+          "label": "desktop-1440 诊断链展示 Payload 摘要区域",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "desktop-1440",
+          "screenshot": "04-desktop-trace-diagnosis-payload.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 1440,
+            "height": 1000
+          }
+        }
+      ],
+      "layoutMetrics": [
+        {
+          "step": "trace-search",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": []
+        },
+        {
+          "step": "audit-detail",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "div",
+              "className": "ant-drawer-content-wrapper ant-drawer-panel-motion-right-appear ant-drawer-panel-motion-right-appear-start",
+              "text": "审计事件详情摘要处理临床事件成功 type=REPORT engines=RULE:DISPATCHED:规则引擎已接收临床事件上下文|PATHWAY:DISP",
+              "left": 1440,
+              "right": 2200,
+              "width": 760,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-drawer-content",
+              "text": "审计事件详情摘要处理临床事件成功 type=REPORT engines=RULE:DISPATCHED:规则引擎已接收临床事件上下文|PATHWAY:DISP",
+              "left": 1440,
+              "right": 2200,
+              "width": 760,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-drawer-header",
+              "text": "审计事件详情",
+              "left": 1440,
+              "right": 2200,
+              "width": 760,
+              "visible": true
+            },
+            {
+              "tagName": "div",
+              "className": "ant-drawer-header-title",
+              "text": "审计事件详情",
+              "left": 1464,
+              "right": 2176,
+              "width": 712,
+              "visible": true
+            },
+            {
+              "tagName": "button",
+              "className": "ant-drawer-close",
+              "text": "",
+              "left": 1464,
+              "right": 1488,
+              "width": 24,
+              "visible": true
+            },
+            {
+              "tagName": "span",
+              "className": "anticon anticon-close",
+              "text": "",
+              "left": 1468,
+              "right": 1484,
+              "width": 16,
+              "visible": true
+            },
+            {
+              "tagName": "svg",
+              "className": "",
+              "text": "",
+              "left": 1468,
+              "right": 1484,
+              "width": 16,
+              "visible": true
+            },
+            {
+              "tagName": "path",
+              "className": "",
+              "text": "",
+              "left": 1470,
+              "right": 1482,
+              "width": 12,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "trace-diagnosis-state",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "状态原因执行人时间错误 - → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 0",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "状态原因执行人时间错误",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "状态原因执行人时间错误",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "时间",
+              "left": 1278,
+              "right": 1445,
+              "width": 167,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "错误",
+              "left": 1445,
+              "right": 1505,
+              "width": 60,
+              "visible": true
+            },
+            {
+              "tagName": "tbody",
+              "className": "ant-table-tbody",
+              "text": "- → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 07:06:35-- → ",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "ant-table-row ant-table-row-level-0",
+              "text": "- → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 07:06:35-",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "td",
+              "className": "ant-table-cell",
+              "text": "2026/06/11 07:06:35",
+              "left": 1278,
+              "right": 1445,
+              "width": 167,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "trace-diagnosis-payload",
+          "viewportWidth": 1440,
+          "documentScrollWidth": 1440,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "状态原因执行人时间错误 - → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 0",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "状态原因执行人时间错误",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "状态原因执行人时间错误",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "时间",
+              "left": 1278,
+              "right": 1445,
+              "width": 167,
+              "visible": true
+            },
+            {
+              "tagName": "th",
+              "className": "ant-table-cell",
+              "text": "错误",
+              "left": 1445,
+              "right": 1505,
+              "width": 60,
+              "visible": true
+            },
+            {
+              "tagName": "tbody",
+              "className": "ant-table-tbody",
+              "text": "- → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 07:06:35-- → ",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "ant-table-row ant-table-row-level-0",
+              "text": "- → RECEIVEDINITIAL_RECEIVEdrill-lab-technician-202606112026/06/11 07:06:35-",
+              "left": 704,
+              "right": 1505,
+              "width": 801,
+              "visible": true
+            },
+            {
+              "tagName": "td",
+              "className": "ant-table-cell",
+              "text": "2026/06/11 07:06:35",
+              "left": 1278,
+              "right": 1445,
+              "width": 167,
+              "visible": true
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "failedRequests": [],
+        "clientErrors": [],
+        "serverErrors": [],
+        "consoleErrors": []
+      }
+    },
+    {
+      "label": "mobile-390",
+      "actor": {
+        "tenantId": "drill-hospital-20260611",
+        "username": "drill-audit-20260611"
+      },
+      "rowCountOnScreen": 15,
+      "screenshots": [
+        {
+          "label": "mobile-390 审计页按 Trace ID 直搜命中真实事件",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "05-mobile-audit-trace-search.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 审计详情显示 Trace ID 与诊断链入口",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "06-mobile-audit-detail-trace-entry.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 诊断链展示状态流转",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "07-mobile-trace-diagnosis-state.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        {
+          "label": "mobile-390 诊断链展示 Payload 摘要区域",
+          "actor": {
+            "tenantId": "drill-hospital-20260611",
+            "username": "drill-audit-20260611"
+          },
+          "viewportLabel": "mobile-390",
+          "screenshot": "08-mobile-trace-diagnosis-payload.png",
+          "url": "https://193.112.107.134/admin/audit",
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        }
+      ],
+      "layoutMetrics": [
+        {
+          "step": "trace-search",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情 2026/6/11 07:06:36drill-lab-technician-20260611EXECUTE处理临床事件成功 typ",
+              "left": 24,
+              "right": 946,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "colgroup",
+              "className": "",
+              "text": "",
+              "left": 24,
+              "right": 946,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": 354,
+              "right": 494,
+              "width": 140,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": 494,
+              "right": 774,
+              "width": 280,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": 774,
+              "right": 874,
+              "width": 100,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": 874,
+              "right": 946,
+              "width": 72,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "时间操作人操作摘要结果详情",
+              "left": 24,
+              "right": 946,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情",
+              "left": 24,
+              "right": 946,
+              "width": 922,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "audit-detail",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情 2026/6/11 07:06:36drill-lab-technician-20260611EXECUTE处理临床事件成功 typ",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "colgroup",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": -376,
+              "width": 180,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -376,
+              "right": -226,
+              "width": 150,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -226,
+              "right": -86,
+              "width": 140,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -86,
+              "right": 194,
+              "width": 280,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "trace-diagnosis-state",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情 2026/6/11 07:06:36drill-lab-technician-20260611EXECUTE处理临床事件成功 typ",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "colgroup",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": -376,
+              "width": 180,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -376,
+              "right": -226,
+              "width": 150,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -226,
+              "right": -86,
+              "width": 140,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -86,
+              "right": 194,
+              "width": 280,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            }
+          ]
+        },
+        {
+          "step": "trace-diagnosis-payload",
+          "viewportWidth": 390,
+          "documentScrollWidth": 390,
+          "horizontalOverflowPx": 0,
+          "overflowingNodes": [
+            {
+              "tagName": "table",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情 2026/6/11 07:06:36drill-lab-technician-20260611EXECUTE处理临床事件成功 typ",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "colgroup",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -556,
+              "right": -376,
+              "width": 180,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -376,
+              "right": -226,
+              "width": 150,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -226,
+              "right": -86,
+              "width": 140,
+              "visible": true
+            },
+            {
+              "tagName": "col",
+              "className": "",
+              "text": "",
+              "left": -86,
+              "right": 194,
+              "width": 280,
+              "visible": true
+            },
+            {
+              "tagName": "thead",
+              "className": "ant-table-thead",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            },
+            {
+              "tagName": "tr",
+              "className": "",
+              "text": "时间操作人操作摘要结果详情",
+              "left": -556,
+              "right": 366,
+              "width": 922,
+              "visible": true
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "failedRequests": [],
+        "clientErrors": [],
+        "serverErrors": [],
+        "consoleErrors": []
+      }
+    }
+  ],
+  "criteria": {
+    "traceIdSearchIsBackendFiltered": true,
+    "diagnosisJumpShowsStateHistory": true,
+    "payloadSummaryAreaReadable": true,
+    "desktopNoPageOverflow": true,
+    "mobileNoPageOverflow": true
+  }
+}

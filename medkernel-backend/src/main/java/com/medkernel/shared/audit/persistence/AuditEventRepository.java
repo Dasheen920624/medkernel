@@ -163,6 +163,11 @@ public class AuditEventRepository {
             params.add(query.actorUserId());
             types.add(Types.VARCHAR);
         }
+        if (query.traceId() != null) {
+            sql.append(" AND trace_id = ? ");
+            params.add(query.traceId());
+            types.add(Types.VARCHAR);
+        }
         if (query.orgPathPrefix() != null) {
             sql.append(" AND (org_path = ? OR org_path LIKE ?) ");
             params.add(query.orgPathPrefix());

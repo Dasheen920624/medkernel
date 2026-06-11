@@ -169,6 +169,7 @@ export interface AuditEventListQuery {
   outcome?: string;
   actorUserId?: string;
   resourceType?: string;
+  traceId?: string;
   from?: string;
   to?: string;
 }
@@ -200,6 +201,7 @@ export function useLargeAuditEvents(query: AuditEventListQuery) {
     ...(query.outcome ? { outcome: query.outcome } : {}),
     ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
     ...(query.resourceType ? { resourceType: query.resourceType } : {}),
+    ...(query.traceId ? { traceId: query.traceId } : {}),
     ...(query.from ? { from: query.from } : {}),
     ...(query.to ? { to: query.to } : {}),
   };
@@ -2145,6 +2147,28 @@ export interface DataPermissionPolicyPayload {
   expectedVersion?: number;
 }
 
+export interface DataPermissionCheckPayload {
+  resourceType: string;
+  action: DataPermissionAction;
+  groupId?: string;
+  hospitalId?: string;
+  campusId?: string;
+  siteId?: string;
+  departmentId?: string;
+  specialtyId?: string;
+  requestedColumns: string[];
+}
+
+export interface DataPermissionCheckResult {
+  policyId?: string | null;
+  resourceType: string;
+  action: DataPermissionAction;
+  requiredLevel: string;
+  rowAllowed: boolean;
+  allowedColumns: string[];
+  deniedColumns: string[];
+}
+
 export type MaskingStrategy = "REDACT" | "KEEP_LAST" | "KEEP_FIRST_LAST" | "EMAIL" | "FIXED";
 export type MaskingRuleStatus = "ACTIVE" | "INACTIVE";
 
@@ -2178,6 +2202,21 @@ export interface MaskingRulePayload {
   status: MaskingRuleStatus;
   reason: string;
   expectedVersion?: number;
+}
+
+export interface MaskingPreviewPayload {
+  resourceType: string;
+  scenarioCode?: string;
+  values: Record<string, unknown>;
+  sensitiveFields: string[];
+}
+
+export interface MaskingPreviewResult {
+  resourceType: string;
+  scenarioCode?: string | null;
+  values: Record<string, unknown>;
+  maskedFields: string[];
+  rawAllowed: boolean;
 }
 
 export interface InteropEvidence {
@@ -2316,6 +2355,16 @@ export async function fetchDataPermissionPolicies(
   return data.data ?? [];
 }
 
+export async function checkDataPermission(
+  payload: DataPermissionCheckPayload,
+): Promise<DataPermissionCheckResult> {
+  const { data } = await apiClient.post<{ data: DataPermissionCheckResult }>(
+    "/compliance/data-permissions:check",
+    payload,
+  );
+  return data.data;
+}
+
 export async function upsertDataPermissionPolicy(
   payload: DataPermissionPolicyPayload,
 ): Promise<DataPermissionPolicy> {
@@ -2333,6 +2382,16 @@ export async function fetchMaskingRules(
     params,
   });
   return data.data ?? [];
+}
+
+export async function previewMasking(
+  payload: MaskingPreviewPayload,
+): Promise<MaskingPreviewResult> {
+  const { data } = await apiClient.post<{ data: MaskingPreviewResult }>(
+    "/compliance/masking-rules:preview",
+    payload,
+  );
+  return data.data;
 }
 
 export async function upsertMaskingRule(payload: MaskingRulePayload): Promise<MaskingRule> {
@@ -2438,6 +2497,10 @@ export function useDataPermissionPolicies(
   });
 }
 
+export function useCheckDataPermission() {
+  return useMutation({ mutationFn: checkDataPermission });
+}
+
 export function useUpsertDataPermissionPolicy() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -2452,6 +2515,10 @@ export function useMaskingRules(params: { resourceType?: string; fieldName?: str
     queryKey: ["compliance", "masking-rules", params],
     queryFn: () => fetchMaskingRules(params),
   });
+}
+
+export function usePreviewMasking() {
+  return useMutation({ mutationFn: previewMasking });
 }
 
 export function useUpsertMaskingRule() {

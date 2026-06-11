@@ -4,7 +4,7 @@
 
 **Goal:** 在第一阶段提交后、134 演练前，完成全系统功能盘点、产品裁决、菜单与路由重构、页面任务化和 14 角色验收。
 
-**Architecture:** 以功能目录为权威输入，先做能力到客户任务的裁决，再改菜单、路由、权限和页面，最后用自动化矩阵与真实浏览器角色旅程锁定结果。五个客户主域保持稳定，高级技术能力默认隐藏；不保留旧名称和错误归属的兼容入口。
+**Architecture:** 以功能目录、任务旅程和医疗引擎中枢使命为权威输入，先比较候选信息架构并完成证据化裁决，再改菜单、路由、权限和页面，最后用自动化矩阵与真实浏览器角色旅程锁定结果。不预设菜单数量、固定分组或专业能力承载方式，不保留旧名称和错误归属的兼容入口。
 
 **Tech Stack:** Java 21、Spring Boot、Spring Security、Flyway、React、TypeScript、Ant Design、Vitest、Testing Library、Playwright、Markdown 证据。
 
@@ -39,7 +39,7 @@ Expected: FAIL，报告目录文件缺失或路由未登记。
 
 Expected: PASS，且无重复菜单、孤儿认证路由或空裁决。
 
-### Task 2: 锁定目标五域信息架构
+### Task 2: 证据化裁决目标信息架构
 
 **Files:**
 - Modify: `docs/CONSTITUTION.md`
@@ -50,21 +50,25 @@ Expected: PASS，且无重复菜单、孤儿认证路由或空裁决。
 - Test: `frontend/src/shared/config/routes.test.ts`
 - Test: `medkernel-backend/src/test/java/com/medkernel/engine/security/MenuPermissionControllerTest.java`
 
-- [ ] **Step 1: 写五域名称、顺序和归属失败测试**
+- [ ] **Step 1: 建立候选架构与评价矩阵**
 
-断言一级域依次为“工作台、机构治理、知识配置、临床协同、质量与运营”，高级工具保持隐藏；同一菜单键只出现一次。
+至少比较领域型、角色任务型、生命周期型和混合型架构；逐项评价任务频率、角色重叠、上下文连续性、风险、移动端、权限、交付成本和可发现性。现行 `5+1` 仅作为候选方案。
 
-- [ ] **Step 2: 运行前后端测试并确认失败**
+- [ ] **Step 2: 形成唯一裁决并写失败测试**
+
+基于功能目录和 14 角色旅程确定一级入口、分组、顺序、专业能力承载方式及页面归属；测试断言裁决后的唯一结构、唯一菜单键和无孤儿能力。
+
+- [ ] **Step 3: 运行前后端测试并确认失败**
 
 Run: `npm test -- --run src/shared/config/routes.test.ts`
 
 Run: `mvn -q -Dtest=MenuPermissionControllerTest test`
 
-- [ ] **Step 3: 更新产品权威文档**
+- [ ] **Step 4: 更新产品权威文档**
 
-同步五域定位、功能归属原则、专家工具边界和新术语；删除“试点准备”“合规运维”等不再适合作为长期产品域的旧权威表述。
+同步新架构定位、功能归属原则、专业能力承载方式和新术语；删除不再成立的 `5+1` 锁、旧域名称和旧权威表述。
 
-- [ ] **Step 4: 完成菜单裁决矩阵**
+- [ ] **Step 5: 完成菜单裁决矩阵**
 
 矩阵必须给出每个菜单的原名称、目标名称、原域、目标域、顺序、主角色、次角色、页面和权限。
 
@@ -89,7 +93,7 @@ Run: `mvn -q -Dtest=MenuPermissionControllerTest test`
 
 - [ ] **Step 3: 修改后端菜单目录**
 
-按目标五域改 `sectionKey`、展示名和顺序；稳定权限码仅在仍表达同一业务责任时保留，错误权限语义直接重建，不做别名。
+按最终裁决改 `sectionKey`、展示名和顺序；稳定权限码仅在仍表达同一业务责任时保留，错误权限语义直接重建，不做别名。
 
 - [ ] **Step 4: 修改前端路由与侧栏**
 
@@ -185,7 +189,7 @@ Expected: 14 角色菜单快照全部通过，前后端目录完全一致。
 
 智能内容明显标识来源和限制，高风险必须人工确认，不自动开嘱，模型不可用时主链路诚实降级。
 
-### Task 7: 重构质量与运营功能
+### Task 7: 重构质量、合规、运行与集成功能
 
 **Files:**
 - Modify: `frontend/src/pages/quality/QcDashboard.tsx`
@@ -284,4 +288,3 @@ Run: 项目 T-GATE 命令。
 - [ ] **Step 4: 放行或阻止 134 演练**
 
 只有所有硬门禁通过时，`docs/_HANDOFF.md` 才能写“允许进入 134 清库演练”；否则继续修复，不得绕过。
-

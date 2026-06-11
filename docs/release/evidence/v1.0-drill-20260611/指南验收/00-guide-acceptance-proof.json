@@ -1,0 +1,1294 @@
+{
+  "runAt": "2026-06-11T12:19:20.417Z",
+  "pass": true,
+  "git": {
+    "branch": "codex/demo-drill-guide-acceptance",
+    "commit": "f87573d382bd"
+  },
+  "scope": {
+    "docs": [
+      "docs/handbook/user-guides/README.md",
+      "docs/handbook/user-guides/tenant-readiness.md",
+      "docs/handbook/user-guides/clinical-runtime.md",
+      "docs/handbook/user-guides/quality-improvement.md",
+      "docs/handbook/user-guides/compliance-operations.md",
+      "docs/handbook/user-guides/third-party-cases.md",
+      "docs/handbook/training/README.md",
+      "docs/handbook/training/clinician.md",
+      "docs/handbook/training/operator.md",
+      "docs/handbook/training/quality-officer.md",
+      "docs/glossary.md"
+    ],
+    "evidence": [
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/README.md",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/README.md",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/02-desktop-rule-readable-drawer.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/README.md",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/07-desktop-template-copy-dialog.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/README.md",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/README.md",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+      "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png"
+    ]
+  },
+  "sections": [
+    {
+      "id": "required-docs",
+      "pass": true,
+      "checks": [
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "exists": true
+        },
+        {
+          "file": "docs/glossary.md",
+          "exists": true
+        }
+      ]
+    },
+    {
+      "id": "required-p1-evidence",
+      "pass": true,
+      "checks": [
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/02-desktop-rule-readable-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/07-desktop-template-copy-dialog.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+          "exists": true
+        }
+      ]
+    },
+    {
+      "id": "content-anchors",
+      "pass": true,
+      "checks": [
+        {
+          "id": "guide-index-p1-evidence",
+          "file": "docs/handbook/user-guides/README.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "P1 第一批 134 复验证据",
+              "present": true
+            },
+            {
+              "needle": "规则可读路径 P1 复验证据",
+              "present": true
+            },
+            {
+              "needle": "Trace ID 诊断链",
+              "present": true
+            },
+            {
+              "needle": "权限试算和脱敏预览",
+              "present": true
+            }
+          ],
+          "excludes": []
+        },
+        {
+          "id": "clinical-runtime-p1-path-and-recommendation",
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "P1 已补提醒与推荐中枢",
+              "present": true
+            },
+            {
+              "needle": "提醒与推荐中枢",
+              "present": true
+            },
+            {
+              "needle": "按患者、traceId 或来源对象检索推荐卡",
+              "present": true
+            },
+            {
+              "needle": "医生只读路径图",
+              "present": true
+            },
+            {
+              "needle": "复制为新版本",
+              "present": true
+            },
+            {
+              "needle": "P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+              "present": true
+            },
+            {
+              "needle": "P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+              "present": true
+            },
+            {
+              "needle": "OPT-WORKFLOW-01",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "后续将升级为“提醒与推荐中枢”",
+              "absent": true
+            },
+            {
+              "needle": "医生端仍需只读全图增强",
+              "absent": true
+            },
+            {
+              "needle": "没有“整条路径图 + 当前患者位置”视图，因此 `OPT-VIS-02` 继续成立",
+              "absent": true
+            },
+            {
+              "needle": "后续由 `OPT-PATH-UI-01` 增加“复制为新版本”主入口",
+              "absent": true
+            },
+            {
+              "needle": "OPT-IA-01`、`OPT-TRACE-01` 和 `OPT-WORKFLOW-01` 继续进入体验重构",
+              "absent": true
+            }
+          ]
+        },
+        {
+          "id": "tenant-readiness-rule-readable",
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "P1 规则可读路径",
+              "present": true
+            },
+            {
+              "needle": "自然语言摘要和只读流程节点",
+              "present": true
+            },
+            {
+              "needle": "规则可读路径 134 复验",
+              "present": true
+            },
+            {
+              "needle": "质控或专科角色打开规则详情的“规则可读路径”",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "规则需要给非配置者看的自然语言摘要和流程图只读视图",
+              "absent": true
+            },
+            {
+              "needle": "现有可读预览仍偏技术",
+              "absent": true
+            },
+            {
+              "needle": "后续通过 `OPT-VIS-01` 增加",
+              "absent": true
+            }
+          ]
+        },
+        {
+          "id": "compliance-trace-and-security-baseline",
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "按 Trace ID",
+              "present": true
+            },
+            {
+              "needle": "诊断链入口",
+              "present": true
+            },
+            {
+              "needle": "数据权限试算",
+              "present": true
+            },
+            {
+              "needle": "脱敏预览面板",
+              "present": true
+            },
+            {
+              "needle": "P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+              "present": true
+            },
+            {
+              "needle": "P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+              "present": true
+            },
+            {
+              "needle": "P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "L2 暂无前台试算器",
+              "absent": true
+            },
+            {
+              "needle": "幕10 L2 已登记 traceId 直搜、权限试算和脱敏预览面板三个后续点",
+              "absent": true
+            },
+            {
+              "needle": "页面能看到规则；L1 接口证明 patientName 与 idNo 被遮罩",
+              "absent": true
+            }
+          ]
+        },
+        {
+          "id": "clinician-training-p1",
+          "file": "docs/handbook/training/clinician.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "医生只读路径图",
+              "present": true
+            },
+            {
+              "needle": "提醒与推荐中枢",
+              "present": true
+            },
+            {
+              "needle": "七段推荐链路",
+              "present": true
+            },
+            {
+              "needle": "traceId 或来源对象",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "后续会补患者 / trace 检索",
+              "absent": true
+            },
+            {
+              "needle": "记录为体验问题，不当作医生培训失败",
+              "absent": true
+            }
+          ]
+        },
+        {
+          "id": "operator-training-p1",
+          "file": "docs/handbook/training/operator.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "Trace ID 直搜",
+              "present": true
+            },
+            {
+              "needle": "诊断链",
+              "present": true
+            },
+            {
+              "needle": "数据权限试算",
+              "present": true
+            },
+            {
+              "needle": "脱敏预览",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "审计页不能直接按 traceId 搜",
+              "absent": true
+            },
+            {
+              "needle": "安全基线页不能直接试算权限和脱敏",
+              "absent": true
+            },
+            {
+              "needle": "使用接口证据佐证",
+              "absent": true
+            }
+          ]
+        },
+        {
+          "id": "quality-training-rule-readable",
+          "file": "docs/handbook/training/quality-officer.md",
+          "pass": true,
+          "includes": [
+            {
+              "needle": "规则可读路径",
+              "present": true
+            },
+            {
+              "needle": "自然语言摘要",
+              "present": true
+            },
+            {
+              "needle": "技术字段只用于专家排错",
+              "present": true
+            }
+          ],
+          "excludes": [
+            {
+              "needle": "本轮已登记 `OPT-VIS-01`",
+              "absent": true
+            },
+            {
+              "needle": "后续补自然语言回显和只读流程图",
+              "absent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-links",
+      "pass": true,
+      "checks": [
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "../../MEDKERNEL_FOUNDATION_AND_SERVICES.md",
+          "target": "docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "tenant-readiness.md",
+          "target": "docs/handbook/user-guides/tenant-readiness.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "clinical-runtime.md",
+          "target": "docs/handbook/user-guides/clinical-runtime.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "quality-improvement.md",
+          "target": "docs/handbook/user-guides/quality-improvement.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "compliance-operations.md",
+          "target": "docs/handbook/user-guides/compliance-operations.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "third-party-cases.md",
+          "target": "docs/handbook/user-guides/third-party-cases.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/README.md",
+          "link": "../../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md",
+          "target": "docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕3-知识治理/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕3-知识治理/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/11-ui-tenant-onboarding-org-created.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/11-ui-tenant-onboarding-org-created.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/14-ui-admin-users-role-detail.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/14-ui-admin-users-role-detail.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/15-ui-onboarding-guide.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕1-租户组织与用户/ui-replay/15-ui-onboarding-guide.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/ui-replay/20-ui-terminology-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/ui-replay/20-ui-terminology-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/ui-replay/21-ui-high-risk-confirmation-modal.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕2-字典与术语对照/ui-replay/21-ui-high-risk-confirmation-modal.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕3-知识治理/ui-replay/01-knowledge-governance-ledger.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕3-知识治理/ui-replay/01-knowledge-governance-ledger.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕3-知识治理/ui-replay/03-provenance-potassium-source.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕3-知识治理/ui-replay/03-provenance-potassium-source.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/01-rule-definitions-list.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/01-rule-definitions-list.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/05-rule-test-cases-rerun.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/05-rule-test-cases-rerun.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/08-rule-validate-console.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/08-rule-validate-console.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/01-config-package-ledger.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/01-config-package-ledger.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/02-config-package-release-modal.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/02-config-package-release-modal.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/03-release-governance-simulation.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/03-release-governance-simulation.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/tenant-readiness.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/04-release-governance-template.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/04-release-governance-template.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/03-pathway-graph-review.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/03-pathway-graph-review.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/07-doctor-pathway-runtime-detail.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/07-doctor-pathway-runtime-detail.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/05-critical-notification-read.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/05-critical-notification-read.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/06-critical-card-feedback-before.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/06-critical-card-feedback-before.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "quality-improvement.md",
+          "target": "docs/handbook/user-guides/quality-improvement.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/01-followup-existing-plans.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/01-followup-existing-plans.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/02-followup-generate-form.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/02-followup-generate-form.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/03-followup-plan-created.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/03-followup-plan-created.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/04-nurse-followup-drawer.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/04-nurse-followup-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/clinical-runtime.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/06-nurse-abnormal-reported.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/06-nurse-abnormal-reported.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/act7-quality-flow.mmd",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/act7-quality-flow.mmd",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/07-qc-alerts-list.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/07-qc-alerts-list.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/09-qc-alert-after-action.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/09-qc-alert-after-action.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/10-qc-dashboard-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/10-qc-dashboard-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/quality-improvement.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/ui-replay/03-ui-readiness-validation.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕0-部署接管与首次登录/ui-replay/03-ui-readiness-validation.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "third-party-cases.md",
+          "target": "docs/handbook/user-guides/third-party-cases.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../contracts/integration/field-mapping-template.json",
+          "target": "docs/contracts/integration/field-mapping-template.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/10-ui-security-data-permissions.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/10-ui-security-data-permissions.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/compliance-operations.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/02-case-c1-his-adt-admission.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/02-case-c1-his-adt-admission.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/03-case-c2-lis-critical-result.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/03-case-c2-lis-critical-result.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/04-case-c3-fhir-patient-observation.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/04-case-c3-fhir-patient-observation.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/05-case-c4-his-embedded-terminal.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/05-case-c4-his-embedded-terminal.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/06-case-c5-quality-webhook-retry-dead-letter.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/06-case-c5-quality-webhook-retry-dead-letter.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/07-case-c6-third-party-knowledge-runtime.json",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/07-case-c6-third-party-knowledge-runtime.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../contracts/integration/field-mapping-example-his-adt.json",
+          "target": "docs/contracts/integration/field-mapping-example-his-adt.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../contracts/events/integration-outbound-queued-event.v1.json",
+          "target": "docs/contracts/events/integration-outbound-queued-event.v1.json",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/user-guides/third-party-cases.md",
+          "link": "../../contracts/integration/onboarding-acceptance-checklist.md",
+          "target": "docs/contracts/integration/onboarding-acceptance-checklist.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/README.md",
+          "link": "../../MEDKERNEL_FOUNDATION_AND_SERVICES.md",
+          "target": "docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/README.md",
+          "link": "clinician.md",
+          "target": "docs/handbook/training/clinician.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/README.md",
+          "link": "quality-officer.md",
+          "target": "docs/handbook/training/quality-officer.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/README.md",
+          "link": "operator.md",
+          "target": "docs/handbook/training/operator.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../user-guides/clinical-runtime.md",
+          "target": "docs/handbook/user-guides/clinical-runtime.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/02-desktop-patient-readonly-graph.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/02-desktop-recommendation-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/09-critical-todo-completed.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/09-critical-todo-completed.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/14-ddi-todo-completed.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/14-ddi-todo-completed.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/clinician.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../user-guides/compliance-operations.md",
+          "target": "docs/handbook/user-guides/compliance-operations.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../user-guides/third-party-cases.md",
+          "target": "docs/handbook/user-guides/third-party-cases.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/01-ui-audit-events-doctor-filter.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/01-desktop-audit-trace-search.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/03-desktop-trace-diagnosis-state.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/04-ui-audit-export-request-modal.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/05-ui-audit-export-requested.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/05-ui-audit-export-requested.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/06-ui-audit-export-pending-admin.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/06-ui-audit-export-pending-admin.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/07-ui-audit-export-approved.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/08-ui-security-baseline-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/08-ui-security-baseline-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/02-desktop-data-permission-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/04-desktop-masking-result.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/13-ui-runtime-providers-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/14-ui-runtime-providers-expert.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/14-ui-runtime-providers-expert.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/15-ui-domestic-check-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/16-ui-domestic-check-issues.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/16-ui-domestic-check-issues.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/operator.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../user-guides/quality-improvement.md",
+          "target": "docs/handbook/user-guides/quality-improvement.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../user-guides/tenant-readiness.md",
+          "target": "docs/handbook/user-guides/tenant-readiness.md",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/01-rule-definitions-list.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/01-rule-definitions-list.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/02-desktop-rule-readable-drawer.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/02-desktop-rule-readable-drawer.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/03-rule-act85-draft-visible.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/03-rule-act85-draft-visible.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/05-rule-test-cases-rerun.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/05-rule-test-cases-rerun.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/08-rule-validate-console.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕4-规则配置与模拟/ui-replay/08-rule-validate-console.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/07-qc-alerts-list.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/07-qc-alerts-list.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/09-qc-alert-after-action.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/09-qc-alert-after-action.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/10-qc-dashboard-overview.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/10-qc-dashboard-overview.png",
+          "exists": true
+        },
+        {
+          "file": "docs/handbook/training/quality-officer.md",
+          "link": "../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png",
+          "target": "docs/release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png",
+          "exists": true
+        }
+      ]
+    }
+  ]
+}

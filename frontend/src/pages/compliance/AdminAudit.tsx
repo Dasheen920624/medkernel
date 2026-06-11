@@ -7,6 +7,7 @@ import {
   LeftOutlined,
   RightOutlined,
   SafetyCertificateOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -36,10 +37,13 @@ import {
   useReviewExportApproval,
   useSecurityProfile,
   useSubmitLargeListExport,
+  useTraceDiagnosis,
   useVerifyEvidence,
   type AuditEventRow,
   type EvidenceVerifyResult,
   type ExportApproval,
+  type TracePayloadSummary,
+  type TraceStateTransition,
 } from "@/shared/api/hooks";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
@@ -72,6 +76,21 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
   const value = filters.find((filter) => filter.key === key)?.value;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function formatTime(value?: string | null) {
+  if (!value) return "-";
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(timestamp);
 }
 
 function hasPermission(
@@ -172,6 +191,7 @@ export default function AdminAudit() {
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([undefined]);
   const [expertMode, setExpertMode] = useState(false);
   const [selectedAuditEvent, setSelectedAuditEvent] = useState<AuditEventRow>();
+  const [diagnosisTraceId, setDiagnosisTraceId] = useState("");
   const [requestOpen, setRequestOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<{
     approval: ExportApproval;
@@ -202,6 +222,7 @@ export default function AdminAudit() {
   const reviewApproval = useReviewExportApproval();
   const completeApproval = useCompleteApprovedExportJob();
   const verifyEvidence = useVerifyEvidence();
+  const traceDiagnosis = useTraceDiagnosis(diagnosisTraceId, Boolean(diagnosisTraceId));
 
   const routeAllowed = !security.data || canAccessRoute(route, security.data);
   const rows = events.data?.items ?? [];
@@ -268,7 +289,10 @@ export default function AdminAudit() {
           <Button
             aria-label={`查看详情 ${record.eventId}`}
             icon={<EyeOutlined />}
-            onClick={() => setSelectedAuditEvent(record)}
+            onClick={() => {
+              setDiagnosisTraceId("");
+              setSelectedAuditEvent(record);
+            }}
           />
         </Tooltip>
       ),
@@ -397,6 +421,115 @@ export default function AdminAudit() {
       >
         证据
       </Button>
+    );
+  }
+
+  function renderTraceDiagnosis() {
+    if (!selectedAuditEvent) return null;
+    const eventTraceId = selectedAuditEvent.traceId?.trim();
+    const diagnosisEnabled = Boolean(diagnosisTraceId);
+
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space wrap>
+          <Button
+            aria-label={`打开诊断链 ${eventTraceId || "未返回"}`}
+            icon={<SafetyCertificateOutlined />}
+            disabled={!eventTraceId}
+            onClick={() => setDiagnosisTraceId(eventTraceId ?? "")}
+          >
+            打开诊断链
+          </Button>
+          {!eventTraceId && <Text type="secondary">该事件未返回 Trace ID</Text>}
+        </Space>
+        {diagnosisEnabled && traceDiagnosis.isLoading && <PageState state="loading" />}
+        {diagnosisEnabled && traceDiagnosis.isError && (
+          <PageState state="error" title="诊断链读取失败或无权查看" />
+        )}
+        {diagnosisEnabled && traceDiagnosis.data && (
+          <>
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="Trace ID">
+                <Text code copyable>
+                  {traceDiagnosis.data.traceId}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="耗时">
+                {traceDiagnosis.data.durationMs === null ||
+                traceDiagnosis.data.durationMs === undefined
+                  ? "-"
+                  : `${traceDiagnosis.data.durationMs} ms`}
+              </Descriptions.Item>
+              <Descriptions.Item label="开始">
+                {formatTime(traceDiagnosis.data.startedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="结束">
+                {formatTime(traceDiagnosis.data.endedAt)}
+              </Descriptions.Item>
+            </Descriptions>
+            <Table<TraceStateTransition>
+              rowKey={(record) =>
+                [
+                  record.traceId,
+                  record.occurredAt,
+                  record.fromStatus,
+                  record.toStatus,
+                  record.actor,
+                  record.reason,
+                ]
+                  .map((value) => value ?? "")
+                  .join("|")
+              }
+              dataSource={traceDiagnosis.data.stateHistory}
+              pagination={false}
+              locale={{ emptyText: "无状态流转记录" }}
+              scroll={{ x: "max-content" }}
+              columns={[
+                {
+                  title: "状态",
+                  render: (_value, record) =>
+                    `${record.fromStatus ?? "-"} → ${record.toStatus ?? "-"}`,
+                },
+                { title: "原因", dataIndex: "reason" },
+                { title: "执行人", dataIndex: "actor" },
+                {
+                  title: "时间",
+                  dataIndex: "occurredAt",
+                  render: (value) => formatTime(value),
+                },
+                {
+                  title: "错误",
+                  render: (_value, record) =>
+                    record.error ? (
+                      <Tag color="error">
+                        {record.error.errorCode ?? record.error.errorClass ?? "ERROR"}
+                      </Tag>
+                    ) : (
+                      "-"
+                    ),
+                },
+              ]}
+            />
+            <Table<TracePayloadSummary>
+              rowKey={(record) => record.digest}
+              dataSource={traceDiagnosis.data.payloads}
+              pagination={false}
+              locale={{ emptyText: "无 Payload 摘要" }}
+              scroll={{ x: "max-content" }}
+              columns={[
+                { title: "摘要", dataIndex: "digest" },
+                { title: "内容类型", dataIndex: "contentType" },
+                { title: "存储", dataIndex: "storageType" },
+                {
+                  title: "大小",
+                  dataIndex: "sizeBytes",
+                  render: (value) => `${value} B`,
+                },
+              ]}
+            />
+          </>
+        )}
+      </Space>
     );
   }
 
@@ -586,6 +719,20 @@ export default function AdminAudit() {
                       ) : null
                     }
                   />
+                  <Space wrap size="small">
+                    <Input.Search
+                      aria-label="Trace ID 搜索"
+                      placeholder="输入 Trace ID"
+                      value={filterValue(filters, "traceId") ?? ""}
+                      allowClear
+                      enterButton={<SearchOutlined />}
+                      onChange={(event) =>
+                        updateFilter("traceId", event.target.value.trim() || undefined)
+                      }
+                      onSearch={(value) => updateFilter("traceId", value.trim() || undefined)}
+                      className="mk-search-sm"
+                    />
+                  </Space>
                   <PageState
                     state={pageState}
                     title="当前筛选下暂无审计事件"
@@ -641,72 +788,78 @@ export default function AdminAudit() {
       <Drawer
         title="审计事件详情"
         aria-label="审计事件详情"
-        width={640}
+        width="min(760px, 100vw)"
         open={Boolean(selectedAuditEvent)}
-        onClose={() => setSelectedAuditEvent(undefined)}
+        onClose={() => {
+          setDiagnosisTraceId("");
+          setSelectedAuditEvent(undefined);
+        }}
         destroyOnClose
       >
         {selectedAuditEvent && (
-          <Descriptions bordered size="small" column={1}>
-            <Descriptions.Item label="摘要">{selectedAuditEvent.summary}</Descriptions.Item>
-            <Descriptions.Item label="发生时间">
-              {new Date(selectedAuditEvent.occurredAt).toLocaleString()}
-            </Descriptions.Item>
-            <Descriptions.Item label="操作人">
-              {selectedAuditEvent.actorUserId ?? "系统"}
-            </Descriptions.Item>
-            <Descriptions.Item label="操作">
-              <Text code>{selectedAuditEvent.actionCode}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="业务对象">
-              {selectedAuditEvent.resourceType} / {selectedAuditEvent.resourceId}
-            </Descriptions.Item>
-            <Descriptions.Item label="执行结果">
-              {outcomeTag(selectedAuditEvent.outcome)}
-            </Descriptions.Item>
-            <Descriptions.Item label="错误码">
-              {selectedAuditEvent.errorCode ?? "无"}
-            </Descriptions.Item>
-            <Descriptions.Item label="Trace ID">
-              <Text code copyable>
-                {selectedAuditEvent.traceId ?? "未返回"}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="事件 ID">
-              <Text code copyable>
-                {selectedAuditEvent.eventId}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="组织范围">
-              {selectedAuditEvent.orgPath ?? "当前服务空间"}
-            </Descriptions.Item>
-            <Descriptions.Item label="环境">
-              {selectedAuditEvent.environmentKey ?? "未标记"}
-            </Descriptions.Item>
-            <Descriptions.Item label="角色">
-              {selectedAuditEvent.actorRoles ?? "未返回"}
-            </Descriptions.Item>
-            <Descriptions.Item label="载荷摘要">
-              <Text code copyable>
-                {selectedAuditEvent.payloadDigest ?? "未生成"}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="链签名">
-              <Text code copyable>
-                {selectedAuditEvent.signature ?? "未生成"}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="变更前快照">
-              <Typography.Paragraph code copyable>
-                {selectedAuditEvent.beforeSnapshot ?? "无变更前快照"}
-              </Typography.Paragraph>
-            </Descriptions.Item>
-            <Descriptions.Item label="变更后快照">
-              <Typography.Paragraph code copyable>
-                {selectedAuditEvent.afterSnapshot ?? "无变更后快照"}
-              </Typography.Paragraph>
-            </Descriptions.Item>
-          </Descriptions>
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="摘要">{selectedAuditEvent.summary}</Descriptions.Item>
+              <Descriptions.Item label="发生时间">
+                {new Date(selectedAuditEvent.occurredAt).toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="操作人">
+                {selectedAuditEvent.actorUserId ?? "系统"}
+              </Descriptions.Item>
+              <Descriptions.Item label="操作">
+                <Text code>{selectedAuditEvent.actionCode}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="业务对象">
+                {selectedAuditEvent.resourceType} / {selectedAuditEvent.resourceId}
+              </Descriptions.Item>
+              <Descriptions.Item label="执行结果">
+                {outcomeTag(selectedAuditEvent.outcome)}
+              </Descriptions.Item>
+              <Descriptions.Item label="错误码">
+                {selectedAuditEvent.errorCode ?? "无"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Trace ID">
+                <Text code copyable>
+                  {selectedAuditEvent.traceId ?? "未返回"}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="事件 ID">
+                <Text code copyable>
+                  {selectedAuditEvent.eventId}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="组织范围">
+                {selectedAuditEvent.orgPath ?? "当前服务空间"}
+              </Descriptions.Item>
+              <Descriptions.Item label="环境">
+                {selectedAuditEvent.environmentKey ?? "未标记"}
+              </Descriptions.Item>
+              <Descriptions.Item label="角色">
+                {selectedAuditEvent.actorRoles ?? "未返回"}
+              </Descriptions.Item>
+              <Descriptions.Item label="载荷摘要">
+                <Text code copyable>
+                  {selectedAuditEvent.payloadDigest ?? "未生成"}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="链签名">
+                <Text code copyable>
+                  {selectedAuditEvent.signature ?? "未生成"}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="变更前快照">
+                <Typography.Paragraph code copyable>
+                  {selectedAuditEvent.beforeSnapshot ?? "无变更前快照"}
+                </Typography.Paragraph>
+              </Descriptions.Item>
+              <Descriptions.Item label="变更后快照">
+                <Typography.Paragraph code copyable>
+                  {selectedAuditEvent.afterSnapshot ?? "无变更后快照"}
+                </Typography.Paragraph>
+              </Descriptions.Item>
+            </Descriptions>
+            {renderTraceDiagnosis()}
+          </Space>
         )}
       </Drawer>
       <Modal

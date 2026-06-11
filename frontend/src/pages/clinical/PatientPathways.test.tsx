@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -407,7 +407,7 @@ describe("PatientPathways", () => {
     expect(mockUsePatientPathwayDetail).toHaveBeenCalledWith("pp-real-1");
     expect(screen.getByText("患者临床路径推进与解释追溯控制台")).toBeInTheDocument();
     expect(screen.getByText("clock-1")).toBeInTheDocument();
-    expect(screen.getByText(/STROKE.TIME_TO_CT/)).toBeInTheDocument();
+    expect(screen.getAllByText(/STROKE.TIME_TO_CT/).length).toBeGreaterThan(0);
     expect(screen.getByText("急诊 / 第 0 天 / M-ASSESS")).toBeInTheDocument();
     expect(screen.getByText("当前里程碑")).toBeInTheDocument();
     expect(screen.getByText("节点: ASSESS")).toBeInTheDocument();
@@ -419,6 +419,25 @@ describe("PatientPathways", () => {
     expect(refetchVariances).toHaveBeenCalled();
     expect(screen.getByText("var-1")).toBeInTheDocument();
     expect(screen.getByText("影像检查发现高危指征")).toBeInTheDocument();
+  });
+
+  it("shows the full pathway graph as a doctor read-only view with the current node highlighted", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
+
+    const graph = screen.getByRole("region", { name: "医生只读路径图" });
+    expect(within(graph).getByText("卒中急诊路径")).toBeInTheDocument();
+    expect(within(graph).getByText("当前患者位置")).toBeInTheDocument();
+    expect(within(graph).getByText("入径评估")).toBeInTheDocument();
+    expect(within(graph).getByText("随访复评")).toBeInTheDocument();
+    expect(within(graph).getByText("标准流转：ASSESS → FOLLOWUP")).toBeInTheDocument();
+    expect(within(graph).getByLabelText("路径节点 ASSESS 当前节点")).toBeInTheDocument();
+    expect(
+      within(graph).getByText("已完成/当前/待执行只读展示，不自动开立或修改医嘱。"),
+    ).toBeInTheDocument();
+    expect(within(graph).queryByRole("button", { name: /删除/ })).not.toBeInTheDocument();
   });
 
   it("advances the current node through the backend mutation and refreshes facts", async () => {

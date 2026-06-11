@@ -30,11 +30,13 @@ export function buildAuditEventQuery(
   const actorUserId = stringFilter(filters, "actorUserId");
   const resourceType = stringFilter(filters, "resourceType");
   const outcome = stringFilter(filters, "outcome");
+  const traceId = stringFilter(filters, "traceId");
 
   if (action) query.action = action;
   if (actorUserId) query.actorUserId = actorUserId;
   if (resourceType) query.resourceType = resourceType;
   if (outcome) query.outcome = outcome;
+  if (traceId) query.traceId = traceId;
   if (dateRange) {
     query.from = startOfLocalDayIso(dateRange[0]);
     query.to = nextLocalDayIso(dateRange[1]);

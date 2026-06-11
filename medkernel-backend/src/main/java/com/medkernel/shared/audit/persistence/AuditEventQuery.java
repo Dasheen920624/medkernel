@@ -11,6 +11,7 @@ import java.time.Instant;
  * @param action       动作过滤；null 表示不过滤
  * @param resourceType 资源类型过滤；null 表示不过滤
  * @param actorUserId  操作人过滤；null 表示不过滤
+ * @param traceId      链路追踪ID过滤；null 表示不过滤
  * @param orgPathPrefix 组织路径前缀过滤；null 表示不过滤
  * @param environmentKey 环境过滤；null 表示不过滤
  * @param outcome      成功/失败结果过滤；null 表示不过滤
@@ -27,6 +28,7 @@ public record AuditEventQuery(
     String action,
     String resourceType,
     String actorUserId,
+    String traceId,
     String orgPathPrefix,
     String environmentKey,
     String outcome,
@@ -51,8 +53,42 @@ public record AuditEventQuery(
                            Instant to,
                            Long cursor,
                            int size) {
-        this(action, resourceType, actorUserId, orgPathPrefix, environmentKey, outcome,
+        this(action, resourceType, actorUserId, null, orgPathPrefix, environmentKey, outcome,
             superAdminOnly, from, to, cursor, size, 0L, "id", "DESC");
+    }
+
+    public AuditEventQuery(String action,
+                           String resourceType,
+                           String actorUserId,
+                           String traceId,
+                           String orgPathPrefix,
+                           String environmentKey,
+                           String outcome,
+                           boolean superAdminOnly,
+                           Instant from,
+                           Instant to,
+                           Long cursor,
+                           int size) {
+        this(action, resourceType, actorUserId, traceId, orgPathPrefix, environmentKey, outcome,
+            superAdminOnly, from, to, cursor, size, 0L, "id", "DESC");
+    }
+
+    public AuditEventQuery(String action,
+                           String resourceType,
+                           String actorUserId,
+                           String orgPathPrefix,
+                           String environmentKey,
+                           String outcome,
+                           boolean superAdminOnly,
+                           Instant from,
+                           Instant to,
+                           Long cursor,
+                           int size,
+                           Long offset,
+                           String sortField,
+                           String sortDirection) {
+        this(action, resourceType, actorUserId, null, orgPathPrefix, environmentKey, outcome,
+            superAdminOnly, from, to, cursor, size, offset, sortField, sortDirection);
     }
 
     public AuditEventQuery(String action,
@@ -62,7 +98,7 @@ public record AuditEventQuery(
                            Instant to,
                            Long cursor,
                            int size) {
-        this(action, resourceType, actorUserId, null, null, null, false, from, to, cursor, size);
+        this(action, resourceType, actorUserId, null, null, null, null, false, from, to, cursor, size);
     }
 
     long safeOffset() {

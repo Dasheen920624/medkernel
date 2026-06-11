@@ -126,6 +126,7 @@ class LargeListEngineServiceTest {
             "action", "LOGIN",
             "resourceType", "USER",
             "actorUserId", "doctor-1",
+            "traceId", "trace-7",
             "outcome", "SUCCESS",
             "environmentKey", "prod",
             "orgPathPrefix", "tenant-1/hospital-1",
@@ -141,6 +142,7 @@ class LargeListEngineServiceTest {
         assertEquals("LOGIN", query.getValue().action());
         assertEquals("USER", query.getValue().resourceType());
         assertEquals("doctor-1", query.getValue().actorUserId());
+        assertEquals("trace-7", query.getValue().traceId());
         assertEquals("SUCCESS", query.getValue().outcome());
         assertEquals("prod", query.getValue().environmentKey());
         assertEquals("tenant-1/hospital-1", query.getValue().orgPathPrefix());
@@ -347,6 +349,7 @@ class LargeListEngineServiceTest {
               "action":"LOGIN",
               "resourceType":"USER",
               "actorUserId":"doctor-1",
+              "traceId":"trace-7",
               "outcome":"SUCCESS",
               "environmentKey":"prod",
               "orgPathPrefix":"tenant-1/hospital-1",
@@ -368,6 +371,7 @@ class LargeListEngineServiceTest {
         assertEquals("LOGIN", query.getValue().action());
         assertEquals("USER", query.getValue().resourceType());
         assertEquals("doctor-1", query.getValue().actorUserId());
+        assertEquals("trace-7", query.getValue().traceId());
         assertEquals("SUCCESS", query.getValue().outcome());
         assertEquals("prod", query.getValue().environmentKey());
         assertEquals("tenant-1/hospital-1", query.getValue().orgPathPrefix());

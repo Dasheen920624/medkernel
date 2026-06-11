@@ -11,6 +11,7 @@ import {
   useReviewExportApproval,
   useSecurityProfile,
   useSubmitLargeListExport,
+  useTraceDiagnosis,
   useVerifyEvidence,
 } from "@/shared/api/hooks";
 
@@ -26,6 +27,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useReviewExportApproval: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSubmitLargeListExport: vi.fn(),
+  useTraceDiagnosis: vi.fn(),
   useVerifyEvidence: vi.fn(),
 }));
 
@@ -72,6 +74,30 @@ describe("AdminAudit", () => {
   const reviewApproval = vi.fn();
   const completeApproval = vi.fn();
   const verifyEvidence = vi.fn();
+  const traceDiagnosis = {
+    traceId: "trace-7",
+    startedAt: "2026-06-06T12:00:00Z",
+    endedAt: "2026-06-06T12:00:03Z",
+    durationMs: 3000,
+    stateHistory: [
+      {
+        traceId: "trace-7",
+        fromStatus: "PENDING",
+        toStatus: "SIGNED",
+        reason: "审计链签名完成",
+        actor: "audit-service",
+        occurredAt: "2026-06-06T12:00:02Z",
+      },
+    ],
+    payloads: [
+      {
+        digest: "sm3:payload-7",
+        contentType: "application/json",
+        storageType: "audit_event",
+        sizeBytes: 256,
+      },
+    ],
+  };
   const approvals = [
     {
       approvalId: "exp-audit-other",
@@ -194,6 +220,10 @@ describe("AdminAudit", () => {
       mutateAsync: verifyEvidence,
       isPending: false,
     } as never);
+    vi.mocked(useTraceDiagnosis).mockImplementation(
+      (traceId: string, enabled = true) =>
+        query(enabled && traceId === "trace-7" ? traceDiagnosis : undefined) as never,
+    );
     vi.mocked(useLargeAuditEvents).mockImplementation(
       (request) =>
         query(
@@ -261,12 +291,14 @@ describe("AdminAudit", () => {
         { key: "actorUserId", value: "auditor-1" },
         { key: "resourceType", value: "audit" },
         { key: "outcome", value: "FAILED" },
+        { key: "traceId", value: "trace-7" },
       ]),
     ).toEqual({
       action: "EXPORT",
       actorUserId: "auditor-1",
       resourceType: "audit",
       outcome: "FAILED",
+      traceId: "trace-7",
       from,
       to,
     });
@@ -290,15 +322,32 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("opens the persisted audit detail with resource, trace and redacted snapshots", async () => {
+  it("searches audit events by traceId without entering expert mode", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    await user.type(screen.getByLabelText("Trace ID 搜索"), " trace-7 ");
+
+    await waitFor(() =>
+      expect(useLargeAuditEvents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cursor: undefined, traceId: "trace-7" }),
+      ),
+    );
+  });
+
+  it("opens the persisted audit detail with resource, trace, diagnosis chain and redacted snapshots", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
     await user.click(screen.getByRole("button", { name: "查看详情 evt-7" }));
+    await user.click(screen.getByRole("button", { name: "打开诊断链 trace-7" }));
 
     expect(screen.getByRole("dialog", { name: "审计事件详情" })).toBeInTheDocument();
     expect(screen.getByText("audit / snapshot-7")).toBeInTheDocument();
-    expect(screen.getByText("trace-7")).toBeInTheDocument();
+    expect(screen.getAllByText("trace-7")).toHaveLength(2);
+    expect(screen.getByText("审计链签名完成")).toBeInTheDocument();
+    expect(screen.getByText("sm3:payload-7")).toBeInTheDocument();
+    expect(useTraceDiagnosis).toHaveBeenLastCalledWith("trace-7", true);
     expect(screen.getByText('{"enabled":true}')).toBeInTheDocument();
     expect(screen.getByText('{"enabled":false}')).toBeInTheDocument();
   });

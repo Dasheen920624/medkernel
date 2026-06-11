@@ -12,6 +12,7 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -31,6 +32,7 @@ import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
   ApartmentOutlined,
   CheckCircleOutlined,
+  CopyOutlined,
   DeleteOutlined,
   DeploymentUnitOutlined,
   FolderOpenOutlined,
@@ -234,6 +236,13 @@ type PathwayOutcomeBindingDraft = {
   refCode?: string;
   indicatorCode: string;
   packageVersion?: string;
+};
+
+type PathwayOutcomeBindingInput = {
+  scope?: PathwayOutcomeScope;
+  refCode?: string | null;
+  indicatorCode?: string;
+  packageVersion?: string | null;
 };
 
 type PathwayDslPayload = {
@@ -856,7 +865,7 @@ function normalizeMetricBindings(nodes?: PathwayNodeFormValue[]) {
     }));
 }
 
-function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingDraft[]) {
+function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingInput[]) {
   return (bindings ?? [])
     .filter((binding) => cleanText(binding.indicatorCode))
     .map<PathwayOutcomeBindingDraft>((binding) => ({
@@ -1116,6 +1125,123 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
   };
 }
 
+function criteriaFormValueFromJson(value: string | undefined, label: "入径" | "出径") {
+  const parsed = parseLooseJson(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const record = parsed as Record<string, unknown>;
+  const next: PathwayCriteriaFormValue = {};
+  try {
+    if (record.include) {
+      next.includeTree = dslToRootGroup(record.include);
+    }
+  } catch {
+    next.includeTree = createDefaultPathwayCriteriaTree(`${label}纳入条件`);
+  }
+  try {
+    if (record.exclude) {
+      next.excludeTree = dslToRootGroup(record.exclude);
+    }
+  } catch {
+    next.excludeTree = createDefaultPathwayCriteriaTree(`${label}排除条件`);
+  }
+  return next.includeTree || next.excludeTree ? next : undefined;
+}
+
+function edgeFormValueFromDetail(edge: PathwayEdge): PathwayEdgeFormValue {
+  const base: PathwayEdgeFormValue = {
+    edgeCode: edge.edgeCode,
+    fromNodeCode: edge.fromNodeCode,
+    toNodeCode: edge.toNodeCode,
+    edgeType: edge.edgeType,
+    priority: edge.priority,
+  };
+  const condition = parseLooseJson(edge.conditionJson);
+  if (!condition) {
+    return base;
+  }
+  try {
+    const conditionTree = dslToRootGroup(condition);
+    if (typeof condition === "object" && !Array.isArray(condition)) {
+      const record = condition as Record<string, unknown>;
+      if (typeof record.fact === "string") {
+        const value = record.value;
+        return {
+          ...base,
+          conditionTree,
+          conditionFact: record.fact,
+          conditionOperator:
+            typeof record.operator === "string"
+              ? (record.operator as PathwayEdgeFormValue["conditionOperator"])
+              : "equals",
+          conditionValue: value === undefined || value === null ? undefined : String(value),
+          conditionValueKind: inferPathwayConditionValueKind(value),
+        };
+      }
+    }
+    return {
+      ...base,
+      conditionTree,
+      conditionJson: formatJson(condition),
+    };
+  } catch {
+    return {
+      ...base,
+      conditionJson: edge.conditionJson,
+    };
+  }
+}
+
+function formValuesFromDetailCopy(detail: PathwayTemplateDetailResponse): PathwayTemplateFormValue {
+  const metricByNode = new Map(
+    detail.metricBindings
+      .filter((binding) => cleanText(binding.nodeCode) && cleanText(binding.metricCode))
+      .map((binding) => [binding.nodeCode, binding.metricCode]),
+  );
+  return {
+    packageId: detail.template.packageId,
+    templateCode: detail.template.templateCode,
+    name: detail.template.name,
+    diseaseCode: detail.template.diseaseCode,
+    templateLevel: detail.template.templateLevel,
+    parentTemplateId: detail.template.templateId,
+    templateVersion: Number(detail.template.templateVersion ?? 0) + 1,
+    entryMode: detail.template.entryMode,
+    startNodeCode: detail.template.startNodeCode ?? detail.nodes[0]?.nodeCode ?? "",
+    sourceRef: detail.template.sourceRef,
+    description: detail.template.description,
+    entryCriteria: criteriaFormValueFromJson(detail.template.entryCriteriaJson, "入径"),
+    exitCriteria: criteriaFormValueFromJson(detail.template.exitCriteriaJson, "出径"),
+    milestones: detail.milestones.map<PathwayMilestoneFormValue>((milestone) => ({
+      phaseCode: milestone.phaseCode,
+      phaseName: milestone.phaseName,
+      milestoneCode: milestone.milestoneCode,
+      name: milestone.name,
+      dayOffset: milestone.dayOffset,
+      expectedOffsetMinutes: milestone.expectedOffsetMinutes,
+      achievementCriteria: normalizeNodeConfig(parseLooseJson(milestone.achievementCriteriaJson)),
+      sortOrder: milestone.sortOrder,
+    })),
+    nodes: detail.nodes.map<PathwayNodeFormValue>((node) => ({
+      nodeCode: node.nodeCode,
+      name: node.name,
+      nodeType: node.nodeType,
+      milestoneCode: node.milestoneCode,
+      sortOrder: node.sortOrder,
+      responsibleRole: node.responsibleRole,
+      accountableRole: node.accountableRole,
+      consultedRoles: parseRoleListJson(node.consultedRolesJson),
+      informedRoles: parseRoleListJson(node.informedRolesJson),
+      timeWindowMinutes: node.timeWindowMinutes,
+      terminal: node.terminalFlag,
+      disabled: Boolean(node.disabledFlag),
+      metricCode: metricByNode.get(node.nodeCode),
+      config: normalizeNodeConfig(parseLooseJson(node.configJson)),
+    })),
+    edges: detail.edges.map(edgeFormValueFromDetail),
+    outcomeBindings: normalizeOutcomeBindings(detail.outcomeBindings),
+  };
+}
+
 function duplicatedCodes(values: Array<string | undefined>) {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
@@ -1184,6 +1310,10 @@ function findPathwayTopologyIssues(
 
 export default function PathwayTemplates() {
   const { message: messageApi, modal } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  const isWideViewport =
+    screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
+  const detailDescriptionColumn = isWideViewport ? 2 : 1;
   const [page, setPage] = useState<number>(1);
   const [size] = useState<number>(10);
 
@@ -1555,6 +1685,26 @@ export default function PathwayTemplates() {
       outcomeBindings: [],
     });
     setPathwayDslJson(buildDraftDslPreview([], [], []));
+  };
+
+  const handleCopyTemplateAsNewVersion = () => {
+    if (!detailData) return;
+    const nextValues = formValuesFromDetailCopy(detailData);
+    templateForm.resetFields();
+    templateForm.setFieldsValue(nextValues);
+    setSelectedPathwayPrototype("blank");
+    setPathwayDslJson(
+      buildDraftDslPreview(
+        nextValues.milestones,
+        nextValues.nodes,
+        nextValues.edges,
+        nextValues.outcomeBindings,
+      ),
+    );
+    resetSimulation();
+    setCreateExpertMode(false);
+    setCreateTemplateVisible(true);
+    messageApi.success(`已复制为 v${nextValues.templateVersion}.0 草稿，请核查后提交。`);
   };
 
   const applyPathwayPrototype = (prototypeKey: PathwayPrototypeKey) => {
@@ -3632,7 +3782,7 @@ export default function PathwayTemplates() {
     );
   } else if (releaseImpact) {
     releaseImpactSummary = (
-      <Descriptions bordered column={2} size="small">
+      <Descriptions bordered column={detailDescriptionColumn} size="small">
         <Descriptions.Item label="影响分析状态">
           <Tag color={releaseImpact.analysisStatus === "COMPLETE" ? "green" : "orange"}>
             {releaseImpact.analysisStatus}
@@ -3800,7 +3950,7 @@ export default function PathwayTemplates() {
           key: "l1",
           label: "基础模板",
           children: (
-            <Descriptions bordered column={2} className={styles.marginTopMd}>
+            <Descriptions bordered column={detailDescriptionColumn} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
               <Descriptions.Item label="模板代码">
                 {detailData.template.templateCode}
@@ -3829,20 +3979,20 @@ export default function PathwayTemplates() {
               <Descriptions.Item label="起始节点">
                 {detailData.template.startNodeCode ?? "未设置"}
               </Descriptions.Item>
-              <Descriptions.Item label="入径条件" span={2}>
+              <Descriptions.Item label="入径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
                   {cleanText(detailData.template.entryCriteriaJson) ?? "未配置"}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="出径条件" span={2}>
+              <Descriptions.Item label="出径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
                   {cleanText(detailData.template.exitCriteriaJson) ?? "未配置"}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="知识来源" span={2}>
+              <Descriptions.Item label="知识来源" span={detailDescriptionColumn}>
                 {detailData.template.sourceRef}
               </Descriptions.Item>
-              <Descriptions.Item label="说明" span={2}>
+              <Descriptions.Item label="说明" span={detailDescriptionColumn}>
                 {detailData.template.description || "未填写"}
               </Descriptions.Item>
             </Descriptions>
@@ -4129,7 +4279,7 @@ export default function PathwayTemplates() {
                       </Col>
                     </Row>
                     {selectedSnapshotDetail && (
-                      <Descriptions bordered size="small" column={2}>
+                      <Descriptions bordered size="small" column={detailDescriptionColumn}>
                         <Descriptions.Item label="快照">
                           {selectedSnapshotDetail.snapshotId}
                         </Descriptions.Item>
@@ -4334,7 +4484,7 @@ export default function PathwayTemplates() {
 
       <Drawer
         title="路径知识包"
-        width={560}
+        width="min(560px, 100vw)"
         onClose={() => setPackageDrawerVisible(false)}
         open={packageDrawerVisible}
         destroyOnClose
@@ -4412,7 +4562,7 @@ export default function PathwayTemplates() {
           setCreateTemplateVisible(false);
           setCreatePreviewRunResult(null);
         }}
-        width={980}
+        width="min(980px, calc(100vw - 32px))"
         confirmLoading={createTemplateMutation.isPending}
         destroyOnClose
       >
@@ -4453,7 +4603,7 @@ export default function PathwayTemplates() {
               )}
           </div>
         }
-        width={1080}
+        width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);
           setDetailActiveTab("l1");
@@ -4475,6 +4625,20 @@ export default function PathwayTemplates() {
               showIcon
               className={styles.marginBottomLg}
             />
+            {activeDeployment && (
+              <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`} wrap>
+                <span className={`${styles.textSmall} ${styles.textSecondary}`}>
+                  维护已全量生效拓扑时先复制为下一版草稿，再走影响预览、灰度发布和回滚证据。
+                </span>
+                <Button
+                  type="primary"
+                  icon={<CopyOutlined />}
+                  onClick={handleCopyTemplateAsNewVersion}
+                >
+                  复制为新版本
+                </Button>
+              </Space>
+            )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
                 路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在专家模式显示。
