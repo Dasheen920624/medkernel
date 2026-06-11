@@ -710,7 +710,7 @@ public class PathwayEngineService {
     }
 
     private static String releaseOrgScope(PathwayTemplate template) {
-        return notBlank(template.packageId(), "tenant:" + template.tenantId());
+        return "tenant:" + template.tenantId();
     }
 
     private static String releaseApplicableScope(PathwayTemplate template) {

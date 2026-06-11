@@ -10,6 +10,10 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.pathway.PathwayTemplate;
+import com.medkernel.engine.pathway.PathwayTemplateRepository;
+import com.medkernel.engine.rule.RuleDefinition;
+import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.BatchResolvedAsset;
@@ -17,6 +21,7 @@ import com.medkernel.engine.versioning.InheritanceBatchResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.VersionedAssetIdentity;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.PlatformTenant;
@@ -34,18 +39,24 @@ public class EffectiveKnowledgePackageResolver {
     private final InheritanceResolver inheritanceResolver;
     private final PackageEntitlementService entitlementService;
     private final AssetVersionRepository assetVersionRepository;
+    private final RuleDefinitionRepository ruleRepository;
+    private final PathwayTemplateRepository pathwayRepository;
 
     public EffectiveKnowledgePackageResolver(
             KnowledgePackageRepository packageRepository,
             PackageItemRepository itemRepository,
             InheritanceResolver inheritanceResolver,
             PackageEntitlementService entitlementService,
-            AssetVersionRepository assetVersionRepository) {
+            AssetVersionRepository assetVersionRepository,
+            RuleDefinitionRepository ruleRepository,
+            PathwayTemplateRepository pathwayRepository) {
         this.packageRepository = packageRepository;
         this.itemRepository = itemRepository;
         this.inheritanceResolver = inheritanceResolver;
         this.entitlementService = entitlementService;
         this.assetVersionRepository = assetVersionRepository;
+        this.ruleRepository = ruleRepository;
+        this.pathwayRepository = pathwayRepository;
     }
 
     public EffectiveKnowledgePackageResponse resolve(
@@ -132,12 +143,18 @@ public class EffectiveKnowledgePackageResolver {
         List<PackageItem> declaredItems =
             itemRepository.findByTenantIdAndPackageId(pack.tenantId(), pack.packageId());
         Map<VersionedAssetIdentity, PackageItem> declaredByIdentity = new LinkedHashMap<>();
+        List<String> declaredApplicableScopes = new ArrayList<>();
         List<PackageItem> embeddedItems = new ArrayList<>();
         for (PackageItem item : declaredItems) {
             if (embeddedTerminologyItem(pack, item)) {
                 embeddedItems.add(item);
             } else {
-                declaredByIdentity.put(new VersionedAssetIdentity(item.assetType(), item.assetId()), item);
+                VersionedAssetIdentity identity = declaredIdentity(pack.tenantId(), item);
+                declaredByIdentity.put(identity, item);
+                String assetScope = declaredAssetApplicableScope(pack.tenantId(), identity, item.assetVersion());
+                if (assetScope != null && !assetScope.isBlank()) {
+                    declaredApplicableScopes.add(assetScope);
+                }
             }
         }
         List<BatchResolvedAsset> batch = declaredByIdentity.isEmpty()
@@ -145,7 +162,7 @@ public class EffectiveKnowledgePackageResolver {
             : inheritanceResolver.resolveBatch(new InheritanceBatchResolveQuery(
                 effectiveTenantId,
                 List.copyOf(declaredByIdentity.keySet()),
-                scopes(applicableScope, pack.packageVersion()),
+                scopes(applicableScope, pack.packageVersion(), declaredApplicableScopes),
                 effectiveTargetOrgUnitId,
                 effectiveAt));
         Map<VersionedAssetIdentity, BatchResolvedAsset> resolvedByIdentity = new LinkedHashMap<>();
@@ -186,9 +203,9 @@ public class EffectiveKnowledgePackageResolver {
             ));
         }
 
-        for (PackageItem declaredItem : declaredByIdentity.values()) {
-            VersionedAssetIdentity identity =
-                new VersionedAssetIdentity(declaredItem.assetType(), declaredItem.assetId());
+        for (Map.Entry<VersionedAssetIdentity, PackageItem> entry : declaredByIdentity.entrySet()) {
+            VersionedAssetIdentity identity = entry.getKey();
+            PackageItem declaredItem = entry.getValue();
             BatchResolvedAsset batchItem = resolvedByIdentity.get(identity);
             if (batchItem == null) {
                 throw new ApiException(
@@ -209,7 +226,7 @@ public class EffectiveKnowledgePackageResolver {
             if (version == null) {
                 throw new ApiException(ErrorCode.CONFLICT, "统一继承解析返回空版本: " + itemIdentity(declaredItem));
             }
-            effectiveItems.add(toEffectiveItem(identity, declaredItem.assetVersion(), resolved));
+            effectiveItems.add(toEffectiveItem(declaredItem, resolved));
         }
 
         for (BatchResolvedAsset batchItem : batch) {
@@ -247,6 +264,65 @@ public class EffectiveKnowledgePackageResolver {
             List.of());
     }
 
+    private VersionedAssetIdentity declaredIdentity(String sourceTenantId, PackageItem item) {
+        if (item.assetType() == VersionedAssetType.TERMINOLOGY) {
+            return new VersionedAssetIdentity(VersionedAssetType.PACKAGE, terminologyPackageCode(item.assetId()));
+        }
+        return new VersionedAssetIdentity(item.assetType(), unifiedAssetIdentity(sourceTenantId, item));
+    }
+
+    private String unifiedAssetIdentity(String sourceTenantId, PackageItem item) {
+        return switch (item.assetType()) {
+            case RULE -> ruleRepository.findByRuleIdAndTenantId(item.assetId(), sourceTenantId)
+                .map(RuleDefinition::ruleCode)
+                .orElse(item.assetId());
+            case PATHWAY -> pathwayRepository.findByTemplateIdAndTenantId(item.assetId(), sourceTenantId)
+                .map(PathwayTemplate::templateCode)
+                .orElse(item.assetId());
+            default -> item.assetId();
+        };
+    }
+
+    private String terminologyPackageCode(String assetId) {
+        String[] parts = assetId == null ? new String[0] : assetId.split("\\|", -1);
+        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "术语映射包资产 ID 必须为 packageCode|scopeLevel|scopeCode: " + assetId);
+        }
+        return parts[0].trim();
+    }
+
+    private String declaredAssetApplicableScope(
+            String sourceTenantId,
+            VersionedAssetIdentity identity,
+            String declaredVersion) {
+        return assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                sourceTenantId,
+                identity.assetType(),
+                identity.assetIdentity(),
+                declaredVersion)
+            .map(AssetVersion::applicableScope)
+            .orElse(null);
+    }
+
+    private EffectivePackageItem toEffectiveItem(
+            PackageItem declaredItem,
+            ResolvedAssetVersion resolved) {
+        AssetVersion version = resolved.version();
+        return new EffectivePackageItem(
+            declaredItem.assetType(),
+            declaredItem.assetId(),
+            declaredItem.assetVersion(),
+            version.versionNo(),
+            version.tenantId(),
+            resolved.sourceOrgPath(),
+            resolved.sourceTier(),
+            resolved.inherited(),
+            resolved.overridden(),
+            true,
+            version.versionId(),
+            version.contentHash());
+    }
+
     private EffectivePackageItem toEffectiveItem(
             VersionedAssetIdentity identity,
             String declaredVersion,
@@ -267,10 +343,18 @@ public class EffectiveKnowledgePackageResolver {
             version.contentHash());
     }
 
-    private List<String> scopes(String applicableScope, String packageVersion) {
+    private List<String> scopes(
+            String applicableScope,
+            String packageVersion,
+            List<String> declaredApplicableScopes) {
         Set<String> values = new LinkedHashSet<>();
         if (applicableScope != null && !applicableScope.isBlank()) {
             values.add(applicableScope.trim());
+        }
+        for (String declaredApplicableScope : declaredApplicableScopes) {
+            if (declaredApplicableScope != null && !declaredApplicableScope.isBlank()) {
+                values.add(declaredApplicableScope.trim());
+            }
         }
         values.add(required(packageVersion, "知识包版本"));
         values.add(GLOBAL_SCOPE);

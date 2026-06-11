@@ -22,10 +22,10 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                item.standard_term_id,
                item.standard_code,
                CASE
-                   WHEN version.org_path = 'DEPARTMENT:' || :departmentScope THEN 'DEPARTMENT'
-                   WHEN version.org_path = 'CAMPUS:' || :campusScope THEN 'CAMPUS'
-                   WHEN version.org_path = 'FACILITY:' || :facilityScope THEN 'FACILITY'
-                   WHEN version.org_path = 'REGION:' || :regionScope THEN 'REGION'
+                   WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
+                   WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
+                   WHEN version.org_path = 'facility:' || :facilityScope THEN 'FACILITY'
+                   WHEN version.org_path = 'region:' || :regionScope THEN 'REGION'
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
@@ -48,11 +48,11 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
            AND (:targetDictionaryKey IS NULL OR item.target_dictionary_key = :targetDictionaryKey)
            AND (:category IS NULL OR item.category = :category)
            AND (
-                version.org_path = 'TENANT:' || :tenantScope
-             OR version.org_path = 'REGION:' || :regionScope
-             OR version.org_path = 'FACILITY:' || :facilityScope
-             OR version.org_path = 'CAMPUS:' || :campusScope
-             OR version.org_path = 'DEPARTMENT:' || :departmentScope
+                version.org_path = 'tenant:' || :tenantScope
+             OR version.org_path = 'region:' || :regionScope
+             OR version.org_path = 'facility:' || :facilityScope
+             OR version.org_path = 'campus:' || :campusScope
+             OR version.org_path = 'department:' || :departmentScope
            )
          ORDER BY item.mapping_id
         """)
@@ -78,10 +78,10 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                item.standard_term_id,
                item.standard_code,
                CASE
-                   WHEN version.org_path = 'DEPARTMENT:' || :departmentScope THEN 'DEPARTMENT'
-                   WHEN version.org_path = 'CAMPUS:' || :campusScope THEN 'CAMPUS'
-                   WHEN version.org_path = 'FACILITY:' || :facilityScope THEN 'FACILITY'
-                   WHEN version.org_path = 'REGION:' || :regionScope THEN 'REGION'
+                   WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
+                   WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
+                   WHEN version.org_path = 'facility:' || :facilityScope THEN 'FACILITY'
+                   WHEN version.org_path = 'region:' || :regionScope THEN 'REGION'
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
@@ -102,11 +102,11 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
            AND item.target_dictionary_key = :targetDictionaryKey
            AND item.standard_code = :standardCode
            AND (
-                version.org_path = 'TENANT:' || :tenantScope
-             OR version.org_path = 'REGION:' || :regionScope
-             OR version.org_path = 'FACILITY:' || :facilityScope
-             OR version.org_path = 'CAMPUS:' || :campusScope
-             OR version.org_path = 'DEPARTMENT:' || :departmentScope
+                version.org_path = 'tenant:' || :tenantScope
+             OR version.org_path = 'region:' || :regionScope
+             OR version.org_path = 'facility:' || :facilityScope
+             OR version.org_path = 'campus:' || :campusScope
+             OR version.org_path = 'department:' || :departmentScope
            )
          ORDER BY item.mapping_id
         """)

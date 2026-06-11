@@ -1,0 +1,38 @@
+{
+  "act": "幕8-配置包与发布治理",
+  "evidenceType": "backend-deploy",
+  "deployedAt": "2026-06-11T08:52:03+08:00",
+  "source": "codex-demo-drill-act8-pathway-scope-fix",
+  "target": "root@193.112.107.134",
+  "jar": "/zoesoft/medkernel/lib/medkernel.jar",
+  "jarSha256": "6db9e32f5c968abcfe3e6900a2341e8cc414cf5157bed69bb09836ff380b1657",
+  "jarSizeBytes": 74070246,
+  "backup": "/zoesoft/medkernel/backups/deploy-20260611-085203",
+  "service": {
+    "active": "active",
+    "enabled": "enabled",
+    "nRestarts": 0,
+    "mainPid": 2053022
+  },
+  "health": {
+    "readiness": {
+      "httpStatus": 200,
+      "body": {
+        "status": "UP"
+      }
+    },
+    "nginxReadiness": {
+      "httpStatus": 200,
+      "url": "https://127.0.0.1/medkernel/actuator/health/readiness"
+    }
+  },
+  "localVerificationBeforeDeploy": [
+    "mvn -q -Dtest=PathwayEngineServiceTest#createTemplatePersistsNodesEdgesAndMetricBindings test",
+    "mvn -q -Dtest=EffectiveKnowledgePackageResolverTest#resolvesRuleAndPathwayBusinessIdsThroughUnifiedVersionCodes test",
+    "mvn -q -Dtest=EffectiveKnowledgePackageResolverTest,PackageEngineServiceTest,InheritanceResolverTest,PathwayEngineServiceTest,ReleaseGovernanceControllerTest,SafetyWithdrawalServiceTest test"
+  ],
+  "notes": [
+    "本次发布包含路径统一资产组织生效域修正，以及有效包解析纳入声明资产真实 applicableScope。",
+    "发布脚本构建 jar 时跳过测试；测试证据来自发布前本地验证命令。"
+  ]
+}
