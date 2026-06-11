@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-06-11T05:22:23.602Z",
+  "act": "幕7-随访与质控评估",
+  "actors": {
+    "respiratoryDoctor": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-respiratory-doctor-20260611"
+    },
+    "respiratoryNurse": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-respiratory-nurse-20260611"
+    },
+    "qaManager": {
+      "tenantId": "drill-hospital-20260611",
+      "username": "drill-role-qa-manager-20260611"
+    }
+  },
+  "patient": {
+    "mpiId": "mpi-01KTSWK7P3XQQ8VC0JZFZ63AMY",
+    "encounterId": "enc-act6-8oh7bn024a",
+    "patientPathwayId": "pp-9b4c8389-c46e-4a12-bf5f-6d66be5768fc",
+    "packageVersion": "2026.06.11-act2-024101"
+  },
+  "questionnaire": {
+    "status": "no_pending_questionnaire"
+  },
+  "alertAction": {
+    "status": "acknowledged_from_ui"
+  },
+  "steps": [
+    "医生前台查看并生成随访计划。",
+    "护士前台办理随访、填报问卷并上报异常事件。",
+    "质控员前台查看预警、确认处置证据并下钻驾驶舱。"
+  ],
+  "findings": [
+    {
+      "id": "OPT-FOLLOWUP-01",
+      "title": "随访异常进入通知/待办的聚合仍不统一",
+      "decision": "体验重构继续把随访异常、待办和质控预警串到同一闭环视图。"
+    }
+  ],
+  "screenshots": [
+    {
+      "label": "医生前台查看 CAP 患者随访计划和统计",
+      "screenshot": "01-followup-existing-plans.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "医生前台选择 ACTIVE 快照并准备生成随访计划",
+      "screenshot": "02-followup-generate-form.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "医生前台生成或复用随访计划后列表刷新",
+      "screenshot": "03-followup-plan-created.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "护士前台进入随访计划办理抽屉",
+      "screenshot": "04-nurse-followup-drawer.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "护士前台填报问卷或显示无待填问卷",
+      "screenshot": "05-nurse-questionnaire-result.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "护士前台上报随访异常事件并显示证据",
+      "screenshot": "06-nurse-abnormal-reported.png",
+      "url": "https://193.112.107.134/clinical/followup"
+    },
+    {
+      "label": "质控员前台查看真实预警",
+      "screenshot": "07-qc-alerts-list.png",
+      "url": "https://193.112.107.134/qc/alerts"
+    },
+    {
+      "label": "质控预警处置证据抽屉",
+      "screenshot": "08-qc-alert-evidence.png",
+      "url": "https://193.112.107.134/qc/alerts"
+    },
+    {
+      "label": "质控预警确认动作后状态",
+      "screenshot": "09-qc-alert-after-action.png",
+      "url": "https://193.112.107.134/qc/alerts"
+    },
+    {
+      "label": "院级质控驾驶舱显示真实指标和打开预警",
+      "screenshot": "10-qc-dashboard-overview.png",
+      "url": "https://193.112.107.134/qc/dashboard"
+    },
+    {
+      "label": "质控驾驶舱真实下钻证据",
+      "screenshot": "11-qc-dashboard-drilldown.png",
+      "url": "https://193.112.107.134/qc/dashboard"
+    }
+  ]
+}

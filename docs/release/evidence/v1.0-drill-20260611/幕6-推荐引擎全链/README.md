@@ -47,6 +47,25 @@
 | `08-retire-duplicate-ddi-rule.json` | 重复 DDI 规则 `FULL -> MONITOR -> RETIRED` 退役证据，主规则保持 `FULL` |
 | `trace-ids.txt` | 本幕 API 演练 traceId 汇总 |
 
+## 幕8.5 前台复演
+
+幕8.5 第三批在浏览器里补做幕6客户视角走查：外部 LIS/HIS 仍由 API 扮演触发源，医生、心内科医生和临床药师的接收、查看、反馈、复核动作均在前台页面完成，截图统一落在 [ui-replay/](ui-replay/)。
+
+| 角色 | 页面路由 | 前台操作 | 截图 |
+|---|---|---|---|
+| 呼吸科医生 | `/mpi` | 查看演练患者 360、标准快照和在径路径 | [01-mpi-patient-360.png](ui-replay/01-mpi-patient-360.png) |
+| 呼吸科医生 | `/pathway/patients` | 定位患者路径当前节点与关键时钟 | [02-pathway-runtime-position.png](ui-replay/02-pathway-runtime-position.png) |
+| 呼吸科医生 | `/workflow/todos` | 接收血钾危急值临床提醒 | [03-critical-todo-received.png](ui-replay/03-critical-todo-received.png) |
+| 呼吸科医生 | `/notifications` | 查看并标记血钾危急值通知已读 | [04-critical-notification-received.png](ui-replay/04-critical-notification-received.png)、[05-critical-notification-read.png](ui-replay/05-critical-notification-read.png) |
+| 呼吸科医生 | `/cdss/fatigue` | 查看血钾推荐卡、打开可信归因、前台采纳 | [06-critical-card-feedback-before.png](ui-replay/06-critical-card-feedback-before.png)、[07-critical-card-diagnose.png](ui-replay/07-critical-card-diagnose.png)、[08-critical-card-accepted.png](ui-replay/08-critical-card-accepted.png) |
+| 呼吸科医生 | `/workflow/todos` | 确认危急值待办闭环或无待处理 | [09-critical-todo-completed.png](ui-replay/09-critical-todo-completed.png) |
+| 心内科医生 | `/workflow/todos`、`/notifications` | 接收 DDI 待办和通知 | [10-ddi-todo-received.png](ui-replay/10-ddi-todo-received.png)、[11-ddi-notification-center.png](ui-replay/11-ddi-notification-center.png) |
+| 心内科医生 | `/cdss/fatigue` | 查看 DDI 推荐卡并前台填写覆盖理由 | [12-ddi-card-feedback-before.png](ui-replay/12-ddi-card-feedback-before.png)、[13-ddi-card-rejected.png](ui-replay/13-ddi-card-rejected.png) |
+| 心内科医生 | `/workflow/todos` | 确认 DDI 待办闭环或无待处理 | [14-ddi-todo-completed.png](ui-replay/14-ddi-todo-completed.png) |
+| 临床药师 | `/cdss/fatigue` | 复核 DDI 覆盖后的推荐卡 | [15-pharmacist-ddi-review.png](ui-replay/15-pharmacist-ddi-review.png) |
+
+四问结论：推荐运行链前台可操作，推荐卡本身能解释来源；但入口仍分散在 MPI、患者路径、待办、通知和“智能建议治理”之间，现场回答“推荐引擎在哪里”仍不够直接。新增 `OPT-WORKFLOW-01`：新危急值推荐卡未稳定聚合到医生待办第一页，待办中心需要患者 / trace / 来源对象检索，并修复推荐卡与待办状态同步。
+
 ## 保留限制
 
 - 推荐卡已自动生成待办，但反馈闭环后待办状态与通知触达仍分散；后续体验重构应把推荐卡、患者路径、待办、疲劳治理聚合到统一运行视图。

@@ -30,6 +30,21 @@
 | C6 第三方知识运行时 | [07-case-c6-third-party-knowledge-runtime.json](07-case-c6-third-party-knowledge-runtime.json) | 有效包查询、标准上下文快照写入、发布对账查询均通过 |
 | 总览与 traceId | [08-act9-third-party-case-overview.json](08-act9-third-party-case-overview.json)、[trace-ids.txt](trace-ids.txt) | 6 案例总览、53 条请求 traceId、最终健康状态 |
 
+## 幕8.5 前台复演
+
+幕8.5 第三批补齐幕9客户视角页面证据：信息科管理员在 `/adapter/hub` 前台查看适配器总览、健康诊断、死信重放、数据质量、接入向导与区域来源。截图统一落在 [ui-replay/](ui-replay/)。
+
+| 角色 | 页面路由 | 前台操作 | 截图 |
+|---|---|---|---|
+| 信息科管理员 | `/adapter/hub` | 查看连接率、未连接数、字段映射覆盖与适配器清单 | [01-adapter-hub-overview.png](ui-replay/01-adapter-hub-overview.png) |
+| 信息科管理员 | `/adapter/hub` | 触发一次健康诊断，页面只展示后端真实状态 | [02-adapter-health-diagnosis.png](ui-replay/02-adapter-health-diagnosis.png) |
+| 信息科管理员 | `/adapter/hub` | 查看失败、重试或死信重放页 | [03-adapter-dead-letter.png](ui-replay/03-adapter-dead-letter.png) |
+| 信息科管理员 | `/adapter/hub` | 查看数据质量看板的必填率、映射率和时效率入口 | [04-adapter-data-quality.png](ui-replay/04-adapter-data-quality.png) |
+| 信息科管理员 | `/adapter/hub` | 查看接入向导与必接系统状态 | [05-adapter-onboarding.png](ui-replay/05-adapter-onboarding.png) |
+| 信息科管理员 | `/adapter/hub` | 查看区域来源入口和数据接入契约提示 | [06-adapter-regional-source.png](ui-replay/06-adapter-regional-source.png) |
+
+四问结论：适配器状态页能让客户读懂 `NOT_CONNECTED`、`MISCONFIGURED` 与 `DEAD_LETTER`，没有把未接通系统伪装成绿色；但 C1-C6 六案例与页面状态之间仍缺演示视角映射，登记 `UI-ACT9-ADAPTER-01`，后续可增加案例视图分组。
+
 ## 真实限制
 
 - 本地脚本访问 134 仍需关闭 TLS 证书校验，原因是演练环境使用自签证书；正式部署必须替换为院方信任证书。

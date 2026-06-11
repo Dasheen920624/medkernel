@@ -41,6 +41,19 @@
 | 路径历史数据修复 | [00-remote-data-repair-pathway-scope.json](00-remote-data-repair-pathway-scope.json) | 134 演练路径资产改为 `tenant:drill-hospital-20260611` |
 | 术语包历史数据修复 | [00-remote-data-repair-terminology-package-scope.json](00-remote-data-repair-terminology-package-scope.json) | 134 演练术语包资产改为小写语义组织范围 |
 
+## 幕8.5 前台复演
+
+幕8.5 第三批补齐幕8客户视角页面证据：本轮只做前台入口、台账可读性、发布弹窗和发布治理页面复测，不重复执行真实全量发布或撤回，避免扰动幕8 L1 已经完成并撤回校验过的资产。截图统一落在 [ui-replay/](ui-replay/)。
+
+| 角色 | 页面路由 | 前台操作 | 截图 |
+|---|---|---|---|
+| 信息科管理员 | `/config/packages` | 检索幕8配置包并查看台账业务状态 | [01-config-package-ledger.png](ui-replay/01-config-package-ledger.png) |
+| 信息科管理员 | `/config/packages` | 打开发布配置包弹窗，核对灰度 / 全量策略与真实适配器 | [02-config-package-release-modal.png](ui-replay/02-config-package-release-modal.png) |
+| 医务处质控员 | `/config/releases` | 查看发布治理影响模拟与灰度入口 | [03-release-governance-simulation.png](ui-replay/03-release-governance-simulation.png) |
+| 医务处质控员 | `/config/releases` | 查看覆盖模板和批量复用入口 | [04-release-governance-template.png](ui-replay/04-release-governance-template.png) |
+
+四问结论：配置包与发布治理入口可被客户找到，发布弹窗能解释灰度 / 全量与适配器；`OPT-PKG-01` 继续成立，普通台账仍同时暴露业务编码和统一版本资产 / 包 ID，应把技术 ID 收进专家或调试视图。`UI-ACT8-REPLAY-01` 登记为本轮限制：L2 不重复真实全量 / 撤回，幕8 L1 证据仍是运行链主证据。
+
 ## 真实限制
 
 - 本地脚本访问 134 仍需 `NODE_TLS_REJECT_UNAUTHORIZED=0`，原因是演练环境使用自签 TLS 证书。
