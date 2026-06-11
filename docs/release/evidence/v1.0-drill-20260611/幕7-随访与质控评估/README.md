@@ -49,3 +49,18 @@
 - 随访计划和质控闭环已能走通，但随访异常进入待办/通知的实时聚合仍不统一，继续进入体验重构清单。
 - 指标全量激活必须由医院管理员执行，手册需把“质控办发布 + 管理员激活”的审批边界说清。
 - 驾驶舱部分价值指标诚实返回 `NOT_AVAILABLE`，例如科室维度缺少责任科室字段时不填 0。
+
+## 幕8.5 前台复演
+
+幕8.5 第三批补齐幕7客户视角页面证据：医生在 `/clinical/followup` 查看和生成随访计划，护士在同一入口办理随访、填报或确认无待填问卷并上报异常，质控员在 `/qc/alerts` 与 `/qc/dashboard` 前台处理预警和查看下钻证据。截图统一落在 [ui-replay/](ui-replay/)。
+
+| 角色 | 页面路由 | 前台操作 | 截图 |
+|---|---|---|---|
+| 呼吸科医生 | `/clinical/followup` | 查看 CAP 患者随访计划和统计 | [01-followup-existing-plans.png](ui-replay/01-followup-existing-plans.png) |
+| 呼吸科医生 | `/clinical/followup` | 选择 ACTIVE 快照，生成或复用随访计划 | [02-followup-generate-form.png](ui-replay/02-followup-generate-form.png)、[03-followup-plan-created.png](ui-replay/03-followup-plan-created.png) |
+| 呼吸科护士 | `/clinical/followup` | 进入随访办理抽屉，填报问卷或确认无待填问卷 | [04-nurse-followup-drawer.png](ui-replay/04-nurse-followup-drawer.png)、[05-nurse-questionnaire-result.png](ui-replay/05-nurse-questionnaire-result.png) |
+| 呼吸科护士 | `/clinical/followup` | 前台上报随访异常并展示证据 | [06-nurse-abnormal-reported.png](ui-replay/06-nurse-abnormal-reported.png) |
+| 质控办 | `/qc/alerts` | 查看真实预警、打开处置证据、确认动作后复查状态 | [07-qc-alerts-list.png](ui-replay/07-qc-alerts-list.png)、[08-qc-alert-evidence.png](ui-replay/08-qc-alert-evidence.png)、[09-qc-alert-after-action.png](ui-replay/09-qc-alert-after-action.png) |
+| 质控办 | `/qc/dashboard` | 查看院级驾驶舱并下钻真实证据 | [10-qc-dashboard-overview.png](ui-replay/10-qc-dashboard-overview.png)、[11-qc-dashboard-drilldown.png](ui-replay/11-qc-dashboard-drilldown.png) |
+
+四问结论：随访、预警、驾驶舱三类页面能支撑现场讲解，预警可在前台确认；护士问卷在复演时没有新的待填项，页面如实显示无待填，不用 API 伪造完成。`OPT-FOLLOWUP-01` 继续保留：随访异常、待办、通知与质控预警仍需要统一闭环视图。

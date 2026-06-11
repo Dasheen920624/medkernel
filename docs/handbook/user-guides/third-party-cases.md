@@ -30,6 +30,8 @@
 | C5 | 质控预警出站推送断连重试 | Webhook 出站 / 死信 | 出站 `200`，第二次重试 `DEAD_LETTER`，重放 `200` | [06-case-c5-quality-webhook-retry-dead-letter.json](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/06-case-c5-quality-webhook-retry-dead-letter.json) |
 | C6 | 第三方读取知识运行时 | REST API | 有效包 `200`，上下文快照 `201`，发布对账 `200` | [07-case-c6-third-party-knowledge-runtime.json](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/07-case-c6-third-party-knowledge-runtime.json) |
 
+幕8.5 补齐了 `/adapter/hub` 的前台页面证据。给厂商演示时，先用 [适配器总览](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png) 解释连接率和必接系统，再用 [健康诊断](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png)、[死信重放](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png)、[数据质量](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png)、[接入向导](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png) 和 [区域来源](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png) 回答“断连、配置非法、死信和字段质量怎么处理”。页面状态必须按真实后端结果展示，未接通就是 `NOT_CONNECTED` 或 `MISCONFIGURED`。
+
 ## 3. C1 HIS 入院消息
 
 HIS 发送 ADT 入院消息，MedKernel 先做 Webhook 验签，再按字段映射把院内字段转成标准上下文，最后登记临床事件并关联已有 CAP 患者路径。

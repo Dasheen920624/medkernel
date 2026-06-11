@@ -1,7 +1,7 @@
 # 能力可见性矩阵
 
 > 范围：幕8.5 前台重新演练的活矩阵。计划原口径为 71 Controller × 44 页面；本分支按当前仓库 `rg '@RestController'` 实测为 75 个 Controller，后续全量批次以实际仓库扫描为准。
-> 状态：第一批覆盖幕0–2；第二批覆盖幕3–5。结论分为「可见可操作」「局部可见」「API-only/缺口」「未到本批」。
+> 状态：第一批覆盖幕0–2；第二批覆盖幕3–5；第三批覆盖幕6–9。结论分为「可见可操作」「局部可见」「API-only/缺口」「未到本批」。
 
 ## 第一批结论（幕0–2）
 
@@ -38,6 +38,23 @@
 | `PathwayEngineController` | `/pathway/templates` L2 图与发布流 | 可见可操作（配置者） | 配置者查看 6 节点图和 7 步发布流；医生不能进入配置页 | [路径图](../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/03-pathway-graph-review.png)、[医生配置拒绝](../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/05-pathway-doctor-config-forbidden.png) | OPT-VIS-02：拆分医生只读图和实施编辑图 |
 | `PathwayEngineController` | `/pathway/patients` | 可见可操作（医生运行态） | 呼吸科医生可看患者路径列表、当前节点、里程碑和关键时钟 | [患者路径列表](../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/06-doctor-patient-pathway-list.png)、[患者路径详情](../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/ui-replay/07-doctor-pathway-runtime-detail.png) | OPT-VIS-02：在医生页补整条路径图和当前位置高亮 |
 
+## 第三批结论（幕6–9）
+
+| 后端能力 / Controller | 客户页面 | 本批结论 | 前台实测动作 | 证据 | 后续动作 |
+|---|---|---|---|---|---|
+| `MpiController` / `ContextSnapshotController` | `/mpi` | 可见可操作 | 医生查看演练患者 360、标准上下文快照和在径路径锚点 | [患者 360](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png) | 无 |
+| `PathwayEngineController` | `/pathway/patients` | 可见可操作（运行态） | 医生定位患者当前节点、里程碑和关键时钟 | [路径位置](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png) | OPT-VIS-02 仍由第二批承接 |
+| `ClinicalEventController` | 外部 LIS/HIS 触发源 | API-only/合规 | 血钾危急值与 DDI 事件由脚本扮演外部系统注入，不替代客户面操作 | [幕6 README](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/README.md) | 继续作为外部系统接入能力，不要求医生页面新建临床事件 |
+| `WorkflowTodoController` | `/workflow/todos` | 局部可见 | 医生查看危急值 / DDI 待办并复查闭环状态 | [危急值待办](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png)、[DDI 待办](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/10-ddi-todo-received.png) | OPT-WORKFLOW-01：补患者 / trace / 来源对象检索和状态同步 |
+| `WorkflowNotificationController` | `/notifications` | 局部可见 | 医生查看危急值 / DDI 通知，危急值通知可前台标记已读 | [通知已读](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/05-critical-notification-read.png)、[DDI 通知](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/11-ddi-notification-center.png) | OPT-WORKFLOW-01 同步处理通知与推荐卡闭环 |
+| `RecommendationEngineController` | `/cdss/fatigue` | 可见可操作 | 医生查看推荐卡、可信归因，前台采纳危急值和覆盖 DDI；药师复核覆盖结果 | [推荐卡依据](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/06-critical-card-feedback-before.png)、[可信归因](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/07-critical-card-diagnose.png)、[药师复核](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png) | OPT-IA-01 / OPT-TRACE-01：升级为提醒与推荐中枢和链路一张图 |
+| `FollowupEngineController` | `/clinical/followup` | 可见可操作 | 医生查看并生成 / 复用随访计划，护士办理随访并上报异常 | [随访计划](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/01-followup-existing-plans.png)、[异常上报](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/06-nurse-abnormal-reported.png) | OPT-FOLLOWUP-01：随访异常、待办、通知、质控预警统一闭环 |
+| `QualityDashboardController` | `/qc/alerts`、`/qc/dashboard` | 可见可操作 | 质控员查看预警、打开处置证据、确认动作并下钻驾驶舱 | [预警证据](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png)、[驾驶舱下钻](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png) | 无 |
+| `PackageEngineController` | `/config/packages` | 可见可操作 | 信息科管理员检索配置包、打开发布弹窗并核对适配器 | [配置包台账](../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/01-config-package-ledger.png)、[发布弹窗](../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/02-config-package-release-modal.png) | OPT-PKG-01：普通视图隐藏技术 ID |
+| `ReleaseGovernanceController` | `/config/releases` | 可见可操作 | 医务处质控员查看影响模拟、灰度入口、覆盖模板和批量复用入口 | [影响模拟](../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/03-release-governance-simulation.png)、[覆盖模板](../../release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/ui-replay/04-release-governance-template.png) | 无 |
+| `IntegrationController` | `/adapter/hub` | 可见可操作 | 信息科查看适配器总览、健康诊断、死信重放、数据质量、接入向导和区域来源 | [适配器总览](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png)、[死信重放](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png)、[接入向导](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png) | UI-ACT9-ADAPTER-01：增加 C1-C6 案例分组视图 |
+| `FhirFacadeController` / `InteroperabilityController` | 第三方 API 与案例集文档 | API-only/合规 | FHIR R4 与互操作导入导出本体是厂商接口，前台只在适配器中心展示状态 | [第三方案例集](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md) | 写入第三方案例集，不要求客户页面手工模拟厂商接口 |
+
 ## 缺口登记
 
 | 缺口 ID | 影响页面 | 问题 | 安全口径 | 归属 |
@@ -47,11 +64,15 @@
 | OPT-VIS-01 | `/rule/definitions`、`/rule/validate` | 规则可读预览仍暴露字段路径/技术 ID，非配置者无规则库入口 | 医生只读解释从规则校验/推荐卡进入，不能放开配置权限 | 体验重构线 |
 | OPT-VIS-02 | `/pathway/templates`、`/pathway/patients` | 配置图和医生运行态割裂，医生无法在图上口述整条 CAP 路径 | 医生不进配置页；需提供只读路径图 | 体验重构线 |
 | OPT-PATH-UI-01 | `/pathway/templates` | 已发布模板写保护但缺少“复制为新版本”维护入口 | 不直接改全量生效拓扑；走新版本、影响预览和灰度发布 | 体验重构线 |
+| OPT-WORKFLOW-01 | `/workflow/todos`、`/notifications`、`/cdss/fatigue` | 推荐卡、待办和通知闭环状态不统一，新推荐卡难按患者 / trace 找到 | 不用手工改数据库制造已完成；前台必须可查可闭环 | 体验重构线 |
+| OPT-FOLLOWUP-01 | `/clinical/followup`、`/workflow/todos`、`/notifications`、`/qc/alerts` | 随访异常、待办、通知和质控预警聚合不统一 | 护士无待填问卷时如实显示，不用 API 造假 | 体验重构线 |
+| OPT-PKG-01 | `/config/packages` | 普通台账同时暴露业务编码和统一版本资产 / 包 ID | 默认视图保留业务信号，专家视图保留对账字段 | 体验重构线 |
+| UI-ACT9-ADAPTER-01 | `/adapter/hub` | 适配器状态可读，但 C1-C6 六案例与健康状态缺演示分组 | 未接通系统必须保留 `NOT_CONNECTED` / `MISCONFIGURED`，不刷绿 | 体验重构线 |
 
 ## 后续批次
 
 | 批次 | 覆盖幕 | 重点 |
 |---|---|---|
 | 第二批 | 幕3–5 | 已完成；缺口进入上方登记表 |
-| 第三批 | 幕6–9 | 推荐/待办/通知闭环、随访与质控、配置包发布治理、适配器健康状态 |
+| 第三批 | 幕6–9 | 已完成；缺口进入上方登记表 |
 | 幕10 L2 | 幕10 | 审计日志、运行状态、国产化自检、安全基线与系统配置页面 |

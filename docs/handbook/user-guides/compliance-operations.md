@@ -121,6 +121,18 @@
 
 幕9 C5 使用 `203.0.113.10` 作为 TEST-NET-3 断连目标，真实生成 `NOT_CONNECTED`、`DEAD_LETTER` 与重放证据。
 
+幕8.5 前台复演补齐了适配器中心页面讲解材料：
+
+| 现场问题 | 页面 | 讲解截图 |
+|---|---|---|
+| 值守人员先看哪里 | `/adapter/hub` | [适配器总览](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/01-adapter-hub-overview.png) |
+| 健康诊断是否真实 | `/adapter/hub` | [健康诊断](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/02-adapter-health-diagnosis.png) |
+| 断连和死信在哪里处理 | `/adapter/hub` | [死信重放](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/03-adapter-dead-letter.png) |
+| 数据质量和接入准备怎么看 | `/adapter/hub` | [数据质量](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/04-adapter-data-quality.png)、[接入向导](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/05-adapter-onboarding.png) |
+| 区域来源和契约在哪里 | `/adapter/hub` | [区域来源](../../release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/ui-replay/06-adapter-regional-source.png) |
+
+复演结论：页面能读懂 `NOT_CONNECTED`、`MISCONFIGURED` 与 `DEAD_LETTER`，不会把未接通系统伪装成成功；后续体验重构可把 C1-C6 案例按场景分组展示在适配器中心。
+
 ### 2.4 出错怎么办
 
 | 现象 | 常见原因 | 处理 |

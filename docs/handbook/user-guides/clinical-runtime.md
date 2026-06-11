@@ -1,6 +1,6 @@
 # MedKernel · 临床运行用户手册
 
-> 状态：已由全流程演练幕5-7激活 · 幕8.5 已补临床路径前台复演配图；运行态推荐、医生闭环和智能随访仍随幕8.5第三批复演
+> 状态：已由全流程演练幕5-7激活 · 幕8.5 已补临床路径、运行态推荐、医生闭环和智能随访前台复演配图
 > 适用：临床医生 / 护士 / 科主任 / 专科专家 / 医务处质控员
 > 证据：幕5真实演练归档在 [CAP 临床路径证据](../../release/evidence/v1.0-drill-20260611/幕5-CAP临床路径/README.md)；幕6真实演练归档在 [推荐引擎全链证据](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/README.md)；幕7真实演练归档在 [随访与质控评估证据](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/README.md)
 
@@ -149,7 +149,19 @@
 | 6 | 医生反馈 | 接受、拒绝、延后或关闭必须填写原因；高风险卡必须医师确认 |
 | 7 | 质控/药师复核 | 统计、疲劳信号、反馈理由和 traceId 可追溯 |
 
-### 2.4 出错怎么办
+### 2.4 幕8.5 前台复演怎么讲
+
+| 现场问题 | 页面 | 讲解截图 |
+|---|---|---|
+| 这个患者在哪里 | `/mpi`、`/pathway/patients` | [患者 360](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/01-mpi-patient-360.png)、[路径位置](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/02-pathway-runtime-position.png) |
+| 危急值提醒从哪里收 | `/workflow/todos`、`/notifications` | [待办提醒](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/03-critical-todo-received.png)、[通知已读](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/05-critical-notification-read.png) |
+| 医生怎么确认 | `/cdss/fatigue` | [推荐卡反馈区](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/06-critical-card-feedback-before.png)、[前台采纳](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/08-critical-card-accepted.png) |
+| 为什么这么推荐 | `/cdss/fatigue` | [可信归因抽屉](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/07-critical-card-diagnose.png) |
+| DDI 覆盖后谁复核 | `/cdss/fatigue` | [覆盖理由](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/13-ddi-card-rejected.png)、[药师复核](../../release/evidence/v1.0-drill-20260611/幕6-推荐引擎全链/ui-replay/15-pharmacist-ddi-review.png) |
+
+复演结论：前台能完成推荐接收、通知已读、医生采纳 / 覆盖、待办闭环和药师复核；但“推荐引擎在哪里”仍需要跨 MPI、路径、待办、通知和提醒治理多页解释，`OPT-IA-01`、`OPT-TRACE-01` 和 `OPT-WORKFLOW-01` 继续进入体验重构。
+
+### 2.5 出错怎么办
 
 | 现象 | 常见原因 | 处理 |
 |---|---|---|
@@ -158,7 +170,7 @@
 | 推荐卡重复 | 历史规则重复发布 | 走正式治理状态机退役重复规则；幕6已将重复 DDI 规则退役，保留主规则 |
 | 待办有、通知没有 | 推荐卡与通知触达没有统一联动 | 不伪造成失败；登记为体验重构项，后续在“提醒与推荐中枢”统一 |
 
-### 2.5 找谁
+### 2.6 找谁
 
 - 临床事件、术语映射和规则命中：医务处质控员 / 规则治理负责人。
 - 医生推荐卡处理：对应科室医生。
@@ -205,7 +217,18 @@
 | 6 | 护士回流随访结果 | 返回新的 `contextSnapshotId` |
 | 7 | 质控办使用回流快照运行评估 | 进入 [质控改进用户手册](quality-improvement.md) 的指标与整改闭环 |
 
-### 3.4 权限边界
+### 3.4 幕8.5 前台复演怎么讲
+
+| 现场问题 | 页面 | 讲解截图 |
+|---|---|---|
+| 医生从哪里看随访计划 | `/clinical/followup` | [随访计划和统计](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/01-followup-existing-plans.png) |
+| 怎么生成计划 | `/clinical/followup` | [选择 ACTIVE 快照](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/02-followup-generate-form.png)、[计划列表刷新](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/03-followup-plan-created.png) |
+| 护士在哪里办理 | `/clinical/followup` | [随访办理抽屉](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/04-nurse-followup-drawer.png)、[问卷结果](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/05-nurse-questionnaire-result.png) |
+| 异常怎么上报 | `/clinical/followup` | [异常上报证据](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/06-nurse-abnormal-reported.png) |
+
+复演时没有新的待填问卷，护士页如实显示无待填项；这是正确降级，不用接口造一份问卷来冒充前台完成。
+
+### 3.5 权限边界
 
 | 角色 | 能做什么 | 幕7结果 |
 |---|---|---|
@@ -214,7 +237,7 @@
 | 护士 | 不能配置质控指标 | 创建评估指标返回 403 |
 | 质控办 | 运行评估、处理质控问题 | 随访回流后接入质控改进链路 |
 
-### 3.5 出错怎么办
+### 3.6 出错怎么办
 
 | 现象 | 常见原因 | 处理 |
 |---|---|---|

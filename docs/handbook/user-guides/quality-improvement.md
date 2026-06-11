@@ -91,6 +91,17 @@ flowchart LR
 | 6 | 质控办运行评估并查看结果 | 生成 2 条结果、1 条 P1 问题和 1 个整改任务 |
 | 7 | 科主任提交整改，质控办复核关闭 | 整改任务 `CLOSED`，驾驶舱闭环数更新 |
 
+幕8.5 前台复演补齐了质控预警和驾驶舱页面讲解材料：
+
+| 现场问题 | 页面 | 讲解截图 |
+|---|---|---|
+| 质控员从哪里看预警 | `/qc/alerts` | [预警列表](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/07-qc-alerts-list.png) |
+| 预警证据怎么展开 | `/qc/alerts` | [处置证据抽屉](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/08-qc-alert-evidence.png) |
+| 处理后怎么确认 | `/qc/alerts` | [确认后状态](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/09-qc-alert-after-action.png) |
+| 院级怎么总览 | `/qc/dashboard` | [驾驶舱总览](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/10-qc-dashboard-overview.png)、[下钻证据](../../release/evidence/v1.0-drill-20260611/幕7-随访与质控评估/ui-replay/11-qc-dashboard-drilldown.png) |
+
+复演结论：预警可在前台确认，驾驶舱可下钻真实证据；随访异常、通知、待办和质控预警之间仍需统一闭环视图，登记为 `OPT-FOLLOWUP-01`。
+
 ---
 
 ## 6. 权限边界
