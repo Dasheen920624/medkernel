@@ -24,6 +24,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
  * SYS-06 敏感数据导出审批服务。
@@ -35,6 +36,8 @@ public class ExportApprovalService {
     private static final String APPROVAL_EVIDENCE_TYPE = "COMPLIANCE_EXPORT_APPROVAL";
     private static final String EXPORT_EVIDENCE_TYPE = "COMPLIANCE_EXPORT";
     private static final int AUDIT_SUMMARY_MAX_LENGTH = 512;
+    private static final int EVIDENCE_ID_MAX_LENGTH = 64;
+    private static final int EVIDENCE_ID_HASH_LENGTH = 16;
 
     private final ExportApprovalRepository repository;
     private final EvidenceService evidenceService;
@@ -287,7 +290,7 @@ public class ExportApprovalService {
     private EvidenceResponse createReviewEvidence(
             String tenantId, ExportApproval approval, ExportApprovalReviewRequest request, String actor) {
         return evidenceService.createSnapshot(tenantId, new EvidenceCreateDto(
-            "evd-" + approval.approvalId() + "-approval",
+            evidenceId(approval.approvalId(), "approval"),
             RequestContext.currentTraceId(),
             APPROVAL_EVIDENCE_TYPE,
             AuditAction.REVIEW.name(),
@@ -311,7 +314,7 @@ public class ExportApprovalService {
             LargeListExportArtifact artifact,
             String actor) {
         return evidenceService.createSnapshot(tenantId, new EvidenceCreateDto(
-            "evd-" + approval.approvalId() + "-export",
+            evidenceId(approval.approvalId(), "export"),
             RequestContext.currentTraceId(),
             EXPORT_EVIDENCE_TYPE,
             AuditAction.EXPORT.name(),
@@ -374,6 +377,28 @@ public class ExportApprovalService {
     private String approvalId(String resourceType, String idempotencyKey) {
         return "exp-" + resourceType.replace('_', '-') + "-"
             + idempotencyKey.toLowerCase(Locale.ROOT).replace('_', '-');
+    }
+
+    private String evidenceId(String approvalId, String suffix) {
+        String raw = "evd-" + approvalId + "-" + suffix;
+        String safe = raw
+            .replaceAll("[^A-Za-z0-9_-]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-|-$", "");
+        if (safe.length() <= EVIDENCE_ID_MAX_LENGTH) {
+            return safe;
+        }
+        String digest = Sha256ContentHash.sha256(safe, "导出审批证据 ID 源材料不能为空")
+            .substring(0, EVIDENCE_ID_HASH_LENGTH);
+        String evidenceSuffix = "-" + suffix;
+        int prefixLength = EVIDENCE_ID_MAX_LENGTH
+            - 1
+            - EVIDENCE_ID_HASH_LENGTH
+            - evidenceSuffix.length();
+        return safe.substring(0, prefixLength).replaceAll("-+$", "")
+            + "-"
+            + digest
+            + evidenceSuffix;
     }
 
     private String normalizeResourceType(String resourceType) {

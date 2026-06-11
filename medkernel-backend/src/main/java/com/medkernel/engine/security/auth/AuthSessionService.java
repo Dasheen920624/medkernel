@@ -11,6 +11,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.JwtClaimsResolver;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthSessionClaims;
 import com.medkernel.shared.security.AuthSessionProperties;
@@ -44,9 +45,17 @@ public class AuthSessionService {
     }
 
     public JwtIssuer.IssuedJwt issueInitialSession(String userId, String tenantId, List<String> roles) {
+        return issueInitialSession(userId, tenantId, roles, OrgScope.tenant(tenantId));
+    }
+
+    public JwtIssuer.IssuedJwt issueInitialSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            OrgScope orgScope) {
         AuthSessionProperties policy = runtimePolicy();
         Instant now = Instant.now();
-        return issueWithinPolicy(userId, tenantId, roles, now, now, policy);
+        return issueWithinPolicy(userId, tenantId, roles, orgScope, now, now, policy);
     }
 
     public RenewedSession renew(Jwt jwt) {
@@ -55,8 +64,9 @@ public class AuthSessionService {
         Instant sessionStartedAt = sessionStartedAt(jwt);
         String tenantId = jwt.getClaimAsString(JwtClaimsResolver.CLAIM_TENANT_ID);
         List<String> roles = List.copyOf(JwtClaimsResolver.resolveRoles(jwt));
+        OrgScope orgScope = JwtClaimsResolver.resolveOrgScope(jwt);
         JwtIssuer.IssuedJwt issued = issueWithinPolicy(
-            jwt.getSubject(), tenantId, roles, sessionStartedAt, now, policy);
+            jwt.getSubject(), tenantId, roles, orgScope, sessionStartedAt, now, policy);
         return new RenewedSession(issued, status(issued.expiresAt(), sessionStartedAt, now, policy));
     }
 
@@ -73,6 +83,7 @@ public class AuthSessionService {
             String userId,
             String tenantId,
             List<String> roles,
+            OrgScope orgScope,
             Instant sessionStartedAt,
             Instant now,
             AuthSessionProperties policy) {
@@ -87,7 +98,7 @@ public class AuthSessionService {
         if (!expiresAt.isAfter(now)) {
             throw new ApiException(ErrorCode.ENG_AUTH_012);
         }
-        return jwtIssuer.issueSession(userId, tenantId, roles, sessionStartedAt, now, expiresAt);
+        return jwtIssuer.issueSession(userId, tenantId, roles, orgScope, sessionStartedAt, now, expiresAt);
     }
 
     private static SessionStatusResponse status(

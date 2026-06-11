@@ -1,9 +1,13 @@
 package com.medkernel.engine.security.auth;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.engine.security.MfaRequirementPolicy;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
@@ -17,6 +21,8 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.context.OrgLevel;
+import com.medkernel.shared.context.OrgScope;
 
 /**
  * 平台账号登录服务：校验平台凭证 → 取激活角色 → 签发 JWT；成功/失败均留痕审计。
@@ -35,6 +41,7 @@ public class AuthService {
     private final LoginAttemptService loginAttempts;
     private final PasswordPolicyService passwordPolicy;
     private final MfaSecretCodec mfaSecretCodec;
+    private final OrgUnitRepository orgUnits;
 
     public AuthService(PlatformCredentialRepository credentials,
                        UserRoleAssignmentRepository roleAssignments,
@@ -45,7 +52,8 @@ public class AuthService {
                        SystemConfigService configService,
                        LoginAttemptService loginAttempts,
                        PasswordPolicyService passwordPolicy,
-                       MfaSecretCodec mfaSecretCodec) {
+                       MfaSecretCodec mfaSecretCodec,
+                       OrgUnitRepository orgUnits) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
@@ -56,6 +64,7 @@ public class AuthService {
         this.loginAttempts = loginAttempts;
         this.passwordPolicy = passwordPolicy;
         this.mfaSecretCodec = mfaSecretCodec;
+        this.orgUnits = orgUnits;
     }
 
     public AuthResult login(String tenantId, String username, String rawPassword) {
@@ -92,10 +101,11 @@ public class AuthService {
             throw new ApiException(ErrorCode.ENG_AUTH_002);
         }
         loginAttempts.resetOnSuccess(tenantId, username);
-        List<String> roles = roleAssignments
-            .findActiveByTenantIdAndUserId(tenantId, cred.userId())
-            .stream().map(UserRoleAssignment::roleCode).distinct().toList();
-        JwtIssuer.IssuedJwt jwt = sessionService.issueInitialSession(cred.userId(), tenantId, roles);
+        List<UserRoleAssignment> assignments = roleAssignments
+            .findActiveByTenantIdAndUserId(tenantId, cred.userId());
+        List<String> roles = assignments.stream().map(UserRoleAssignment::roleCode).distinct().toList();
+        JwtIssuer.IssuedJwt jwt = sessionService.issueInitialSession(
+            cred.userId(), tenantId, roles, primaryOrgScope(tenantId, assignments));
         // I3: 成功路径用 AuditRecorder.publish
         auditRecorder.record(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
@@ -136,6 +146,111 @@ public class AuthService {
         public String jwt() {
             return issuedJwt.token();
         }
+    }
+
+    private OrgScope primaryOrgScope(String tenantId, List<UserRoleAssignment> assignments) {
+        return assignments.stream()
+            .filter(UserRoleAssignment::active)
+            .max(Comparator.comparingInt(this::scopeSpecificity)
+                .thenComparing(UserRoleAssignment::roleCode)
+                .thenComparing(UserRoleAssignment::scopeCode))
+            .map(assignment -> orgScopeOf(tenantId, assignment))
+            .orElseGet(() -> OrgScope.tenant(tenantId));
+    }
+
+    private int scopeSpecificity(UserRoleAssignment assignment) {
+        return switch (scopeLevel(assignment)) {
+            case "DEPARTMENT" -> 50;
+            case "SITE" -> 40;
+            case "CAMPUS" -> 35;
+            case "HOSPITAL" -> 30;
+            case "GROUP" -> 20;
+            case "SPECIALTY" -> 10;
+            default -> 0;
+        };
+    }
+
+    private OrgScope orgScopeOf(String tenantId, UserRoleAssignment assignment) {
+        String level = scopeLevel(assignment);
+        String code = safeCode(assignment.scopeCode(), tenantId);
+        if ("TENANT".equals(level)) {
+            return OrgScope.tenant(tenantId);
+        }
+        OrgUnit unit = orgUnits.findByTenantIdAndCode(tenantId, code).orElse(null);
+        if (unit == null) {
+            return fallbackOrgScope(tenantId, level, code);
+        }
+        return orgScopeFromUnit(tenantId, level, unit);
+    }
+
+    private OrgScope orgScopeFromUnit(String tenantId, String assignmentLevel, OrgUnit unit) {
+        String groupId = null;
+        String hospitalId = null;
+        String campusId = null;
+        String siteId = null;
+        String departmentId = null;
+        String specialtyId = null;
+        OrgLevel level = unit.level();
+        if ("SITE".equals(assignmentLevel)) {
+            siteId = unit.id();
+            hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
+            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
+        } else if ("SPECIALTY".equals(assignmentLevel)) {
+            specialtyId = firstText(unit.specialtyId(), unit.id());
+        } else if (level == OrgLevel.REGION || "GROUP".equals(assignmentLevel)) {
+            groupId = unit.id();
+        } else if (level == OrgLevel.FACILITY || "HOSPITAL".equals(assignmentLevel)) {
+            hospitalId = unit.id();
+            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
+        } else if (level == OrgLevel.CAMPUS) {
+            campusId = unit.id();
+            hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
+            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
+        } else if (level == OrgLevel.DEPARTMENT) {
+            departmentId = unit.id();
+            hospitalId = ancestorId(tenantId, unit, OrgLevel.FACILITY);
+            groupId = ancestorId(tenantId, unit, OrgLevel.REGION);
+        }
+        return new OrgScope(tenantId, groupId, hospitalId, campusId, siteId, departmentId, specialtyId);
+    }
+
+    private OrgScope fallbackOrgScope(String tenantId, String level, String code) {
+        return switch (level) {
+            case "GROUP" -> new OrgScope(tenantId, code, null, null, null, null, null);
+            case "HOSPITAL" -> new OrgScope(tenantId, null, code, null, null, null, null);
+            case "CAMPUS" -> new OrgScope(tenantId, null, null, code, null, null, null);
+            case "SITE" -> new OrgScope(tenantId, null, null, null, code, null, null);
+            case "DEPARTMENT" -> new OrgScope(tenantId, null, null, null, null, code, null);
+            case "SPECIALTY" -> new OrgScope(tenantId, null, null, null, null, null, code);
+            default -> OrgScope.tenant(tenantId);
+        };
+    }
+
+    private String ancestorId(String tenantId, OrgUnit unit, OrgLevel targetLevel) {
+        String parentId = unit.parentId();
+        while (parentId != null && !parentId.isBlank()) {
+            OrgUnit parent = orgUnits.findByTenantIdAndId(tenantId, parentId).orElse(null);
+            if (parent == null) {
+                return null;
+            }
+            if (parent.level() == targetLevel) {
+                return parent.id();
+            }
+            parentId = parent.parentId();
+        }
+        return null;
+    }
+
+    private String scopeLevel(UserRoleAssignment assignment) {
+        return assignment.scopeLevel() == null ? "TENANT" : assignment.scopeLevel().trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String safeCode(String code, String tenantId) {
+        return code == null || code.isBlank() ? tenantId : code.trim();
+    }
+
+    private String firstText(String first, String fallback) {
+        return first == null || first.isBlank() ? fallback : first;
     }
 
 }
