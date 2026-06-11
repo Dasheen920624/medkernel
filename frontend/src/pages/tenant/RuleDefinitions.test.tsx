@@ -1026,6 +1026,81 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
+    "规则详情用业务语言展示触发条件、动作与治理路径",
+    async () => {
+      apiMocks.ruleListData = { items: [draftRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        version: {
+          ...createRuleDetail().version,
+          dslJson: JSON.stringify({
+            trigger: "result-review",
+            applicability: {
+              population: {},
+              orgScope: { hospitalIds: ["HOSP-A"], deptIds: ["DEPT-A"] },
+              settings: ["INPATIENT", "ED"],
+              effective: { from: "2026-07-01", rolloutPercent: 25 },
+            },
+            when: {
+              all: [
+                {
+                  expr: { field: "observations[].valueNumeric", select: "latest" },
+                  operator: "gte",
+                  value: 6.5,
+                  ui: {
+                    id: "condition-potassium",
+                    label: "血钾最新结果",
+                    valueKind: "number",
+                  },
+                },
+              ],
+            },
+            then: [
+              {
+                actionCode: "STRONG_REMINDER",
+                atSeverity: "CRITICAL",
+                indicator: "critical",
+                summary: "检验结果达到危急值，需立即回报并人工确认",
+                detail: "命中后须在 15 分钟内完成危急值回报、确认与记录，不自动开立或修改医嘱。",
+                source: { label: "检验危急值管理制度 2026" },
+                suggestions: [],
+                overrideReasons: ["已完成危急值回报"],
+                requiresPhysicianConfirmation: true,
+              },
+            ],
+            explain: {
+              summary: "依据真实检验结果字段判断是否达到危急值",
+              authoring: { layer: "L2_VISUAL_TREE", conditionCount: 1 },
+            },
+          }),
+        },
+      };
+
+      await openDraftRuleDrawer();
+
+      const readablePath = await screen.findByRole("region", { name: "规则可读路径" });
+      expect(
+        within(readablePath).getByText(
+          "当血钾最新结果大于等于 6.5，规则将在检验结果审核时触发红线处置。",
+        ),
+      ).toBeInTheDocument();
+      expect(within(readablePath).getByText("触发时点")).toBeInTheDocument();
+      expect(within(readablePath).getByText("检验结果审核")).toBeInTheDocument();
+      expect(within(readablePath).getByText("适用范围")).toBeInTheDocument();
+      expect(within(readablePath).getByText(/住院、急诊/)).toBeInTheDocument();
+      expect(within(readablePath).getByText("命中条件")).toBeInTheDocument();
+      expect(within(readablePath).getByText("血钾最新结果")).toBeInTheDocument();
+      expect(within(readablePath).getByText("处置动作")).toBeInTheDocument();
+      expect(
+        within(readablePath).getByText("检验结果达到危急值，需立即回报并人工确认"),
+      ).toBeInTheDocument();
+      expect(within(readablePath).getByText("治理与安全")).toBeInTheDocument();
+      expect(within(readablePath).getByText(/医师确认/)).toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "从真实上下文快照详情运行规则仿真，不要求人工粘贴 JSON",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
