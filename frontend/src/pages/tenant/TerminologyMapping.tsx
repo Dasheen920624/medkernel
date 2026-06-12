@@ -35,6 +35,7 @@ import {
   useLocalTerms,
   usePackages,
   usePackageReleaseAdapters,
+  useRejectTerminologyCandidate,
   useReleasePackage,
   useRollbackPackage,
   useSaveView,
@@ -292,11 +293,14 @@ export default function TerminologyMapping() {
     rowCount: number;
   }>();
   const [selectedMapping, setSelectedMapping] = useState<TermMapping>();
+  const [activeCandidate, setActiveCandidate] = useState<TermMappingCandidate>();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [confirmForm] = Form.useForm();
+  const [rejectForm] = Form.useForm();
   const [buildForm] = Form.useForm();
   const [publishForm] = Form.useForm();
   const [rollbackForm] = Form.useForm();
@@ -319,16 +323,17 @@ export default function TerminologyMapping() {
     sourceSystem: getFilterValue(filters, "sourceSystem"),
     status: "UNMAPPED",
   });
+  // 待确认队列必须完整加载：普通候选同样需要在前台可见并可批量确认。
   const candidates = useTerminologyCandidates({
     page: 0,
     size: PAGE_SIZE,
     status: "PENDING",
-    riskLevel: "HIGH",
   });
   const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
   const packages = usePackages({ page: 0, size: 10, assetType: "TERMINOLOGY" });
   const releaseAdapters = usePackageReleaseAdapters(canPublish);
   const confirmCandidate = useConfirmTerminologyCandidate();
+  const rejectCandidate = useRejectTerminologyCandidate();
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
   const buildPackage = useBuildTerminologyKnowledgePackage();
   const publishPackage = useReleasePackage();
@@ -399,7 +404,11 @@ export default function TerminologyMapping() {
   const packageItems = packages.data?.items ?? [];
   const highRiskCandidates = candidateItems.filter((candidate) => candidate.highRiskFlag);
   const ordinaryCandidates = candidateItems.filter((candidate) => !candidate.highRiskFlag);
-  const selectedCandidate = highRiskCandidates[0] ?? candidateItems[0];
+  // 审核人可以从候选行选择处置对象；未选择时默认队首高危候选。
+  const selectedCandidate =
+    candidateItems.find((candidate) => candidate.id === activeCandidate?.id) ??
+    highRiskCandidates[0] ??
+    candidateItems[0];
   const selectedPackage = packageItems[0];
   const currentPackageVersion = selectedPackage?.packageVersion;
   const requestPackageVersion = currentPackageVersion ?? AUTHORING_CONTEXT_VERSION;
@@ -426,7 +435,14 @@ export default function TerminologyMapping() {
   if (!routeAllowed) pageState = "forbidden";
   else if (query.isLoading) pageState = "loading";
   else if (query.isError) pageState = "error";
-  else if (mappingItems.length === 0) pageState = "empty";
+  // 只要还有待审候选、待裁冲突或映射包，审核工作台必须保持可见，不得被映射空态吞没。
+  else if (
+    mappingItems.length === 0 &&
+    candidateItems.length === 0 &&
+    conflictItems.length === 0 &&
+    packageItems.length === 0
+  )
+    pageState = "empty";
 
   const exportRequest = buildAsyncExportRequest({
     resourceType: "TERMINOLOGY_MAPPING",
@@ -484,6 +500,36 @@ export default function TerminologyMapping() {
       dataIndex: "evidenceText",
       render: (value?: string) => value ?? "暂无候选证据",
     },
+    {
+      title: "操作",
+      key: "actions",
+      width: 160,
+      render: (_, candidate) => (
+        <Space size="small">
+          <Button
+            size="small"
+            disabled={!canWrite}
+            onClick={() => {
+              setActiveCandidate(candidate);
+              setConfirmOpen(true);
+            }}
+          >
+            确认
+          </Button>
+          <Button
+            size="small"
+            danger
+            disabled={!canWrite}
+            onClick={() => {
+              setActiveCandidate(candidate);
+              setRejectOpen(true);
+            }}
+          >
+            驳回
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   const conflictColumns: ColumnsType<MappingConflict> = [
@@ -521,7 +567,29 @@ export default function TerminologyMapping() {
       },
     });
     setConfirmOpen(false);
+    setActiveCandidate(undefined);
     confirmForm.resetFields();
+  }
+
+  // 驳回是错配候选（尤其高危互斥近似）的安全处置出口；驳回理由必填并留审计责任。
+  async function submitRejection() {
+    if (!selectedCandidate) return;
+    let values: { reviewNote: string };
+    try {
+      values = await rejectForm.validateFields();
+    } catch {
+      return;
+    }
+    await rejectCandidate.mutateAsync({
+      candidateId: selectedCandidate.id,
+      request: {
+        packageVersion: requestPackageVersion,
+        reviewNote: values.reviewNote.trim(),
+      },
+    });
+    setRejectOpen(false);
+    setActiveCandidate(undefined);
+    rejectForm.resetFields();
   }
 
   async function submitOrdinaryBatchConfirmation() {
@@ -838,6 +906,32 @@ export default function TerminologyMapping() {
             name="highRiskReason"
             label="高危确认理由"
             rules={[{ required: true, message: "请填写高危确认理由" }]}
+          >
+            <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="驳回映射候选"
+        open={rejectOpen}
+        onCancel={() => setRejectOpen(false)}
+        onOk={() => void submitRejection()}
+        okText="提交驳回"
+        okButtonProps={{ danger: true }}
+        destroyOnClose
+      >
+        <Form form={rejectForm} layout="vertical" preserve={false}>
+          <Alert
+            type="warning"
+            showIcon
+            className={styles.sectionAlert}
+            message={selectedCandidate?.evidenceText ?? "驳回前请核对候选证据。"}
+            description="驳回后该候选不再出现在待确认队列；驳回理由将进入审计责任链。"
+          />
+          <Form.Item
+            name="reviewNote"
+            label="驳回理由"
+            rules={[{ required: true, whitespace: true, message: "请填写驳回理由" }]}
           >
             <Input.TextArea rows={3} maxLength={500} />
           </Form.Item>

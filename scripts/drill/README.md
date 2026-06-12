@@ -22,3 +22,5 @@
 | `audit-trace-diagnosis-ui-proof.mjs`           | P1/幕10  | `UI-ACT10-AUDIT-01` 审计页 Trace ID 直搜与诊断链跳转的 134 桌面 / 390px 移动前台复验脚本              |
 | `guide-acceptance-proof.mjs`                   | 指南验收 | 使用指南、角色培训、术语表和 P1 证据锚点的可复跑一致性验收脚本                                        |
 | `security-baseline-trial-preview-ui-proof.mjs` | P1/幕10  | `UI-ACT10-SECBASE-01` 安全基线页权限试算与脱敏预览的 134 桌面 / 390px 移动前台复验脚本                |
+| `p5-core-readiness-probe.mjs`                  | P5       | P5 第二轮全新演练核心只读探针：知识/规则/路径/临床/质控/审计等代表 API 与演示文本扫描                 |
+| `p5-act2-terminology-cross-role.mjs`           | P5/幕2   | 幕2 术语与字典跨角色旅程：API 铺底（参考字典 + HIS/LIS 模拟）→ 医技候选确认/驳回 → 知识治理员映射包 → 角色边界走查 |

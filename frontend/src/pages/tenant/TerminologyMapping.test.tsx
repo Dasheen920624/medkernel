@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,7 @@ import {
   useBuildTerminologyKnowledgePackage,
   useConfirmTerminologyCandidate,
   useGenerateTerminologyCandidates,
+  useRejectTerminologyCandidate,
   useLocalTerms,
   usePackages,
   usePackageReleaseAdapters,
@@ -44,6 +45,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useBuildTerminologyKnowledgePackage: vi.fn(),
   useConfirmTerminologyCandidate: vi.fn(),
   useGenerateTerminologyCandidates: vi.fn(),
+  useRejectTerminologyCandidate: vi.fn(),
   useLocalTerms: vi.fn(),
   usePackages: vi.fn(),
   usePackageReleaseAdapters: vi.fn(),
@@ -290,6 +292,7 @@ function configureQuery(
   vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
   } as never);
@@ -394,7 +397,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(useStandardTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
     expect(useLocalTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
     expect(useTerminologyCandidates).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "PENDING", riskLevel: "HIGH" }),
+      expect.objectContaining({ status: "PENDING" }),
     );
     expect(useTerminologyConflicts).toHaveBeenCalledWith(
       expect.objectContaining({ status: "OPEN" }),
@@ -417,6 +420,14 @@ describe("TerminologyMapping experience sample", () => {
     await userEvent.click(screen.getByTitle("2"));
     expect(useTerminologyMappings).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2, size: 20, sort: "updatedAt,desc" }),
+    );
+  });
+
+  it("loads the full pending candidate queue instead of only high-risk entries", () => {
+    renderPage();
+
+    expect(vi.mocked(useTerminologyCandidates)).toHaveBeenCalledWith(
+      expect.not.objectContaining({ riskLevel: "HIGH" }),
     );
   });
 
@@ -499,6 +510,70 @@ describe("TerminologyMapping experience sample", () => {
         highRiskAcknowledged: true,
         highRiskReason: "已核对 LIS 原始值和 LOINC 来源版本",
       }),
+    });
+  });
+
+  it("keeps the candidate review workspace visible when no mapping is confirmed yet", () => {
+    configureQuery({
+      data: { ...defaultData, items: [], total: 0 },
+    });
+
+    renderPage();
+
+    expect(screen.queryByText("当前筛选范围内没有可核查的映射条目。")).not.toBeInTheDocument();
+    expect(screen.getByText("候选映射")).toBeInTheDocument();
+    expect(screen.getByText("冲突待裁")).toBeInTheDocument();
+    expect(screen.getByText(/钾 \/ 钠不可互换/)).toBeInTheDocument();
+  });
+
+  it("rejects a high-risk mismatched candidate with a mandatory review note", async () => {
+    const rejectCandidate = vi.fn().mockResolvedValue({
+      ...highRiskCandidate,
+      status: "REJECTED",
+    });
+    vi.mocked(useRejectTerminologyCandidate).mockReturnValue({
+      mutateAsync: rejectCandidate,
+    } as never);
+
+    renderPage();
+
+    const candidateRow = screen.getByRole("row", { name: /#901/ });
+    await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
+    expect(screen.getByText("驳回映射候选")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
+    expect(rejectCandidate).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText("驳回理由"), "钾/钠互斥高危错配，标准侧为血清钠");
+    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
+
+    expect(rejectCandidate).toHaveBeenCalledWith({
+      candidateId: 901,
+      request: expect.objectContaining({
+        packageVersion: "2026.06",
+        reviewNote: "钾/钠互斥高危错配，标准侧为血清钠",
+      }),
+    });
+  });
+
+  it("confirms a selected candidate from its own row instead of only the queue head", async () => {
+    const confirmCandidate = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
+    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
+      mutateAsync: confirmCandidate,
+    } as never);
+
+    renderPage();
+
+    const ordinaryRow = screen.getByRole("row", { name: /#902/ });
+    await userEvent.click(within(ordinaryRow).getByRole("button", { name: /^确\s*认$/ }));
+    expect(screen.getByText("确认普通候选")).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
+    await userEvent.type(screen.getByLabelText("高危确认理由"), "编码与名称精确匹配，确认映射");
+    await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
+
+    expect(confirmCandidate).toHaveBeenCalledWith({
+      candidateId: 902,
+      request: expect.objectContaining({ packageVersion: "2026.06" }),
     });
   });
 
@@ -730,7 +805,26 @@ describe("TerminologyMapping experience sample", () => {
     const view = renderPage();
     expect(screen.getByText("正在加载")).toBeInTheDocument();
 
+    // 页面级空态只在映射、候选、冲突和映射包都为空时出现，避免吞没待审候选工作台。
     configureQuery({ data: { ...defaultData, items: [], total: 0, hasNext: false } });
+    vi.mocked(useTerminologyCandidates).mockReturnValue({
+      data: pageData([]),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+    vi.mocked(useTerminologyConflicts).mockReturnValue({
+      data: pageData([]),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+    vi.mocked(usePackages).mockReturnValue({
+      data: pageData([]),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
     view.rerender(
       <ConfigProvider>
         <TerminologyMapping />
