@@ -216,3 +216,32 @@
 2. 从合并后的精确 `origin/main` 重建制品；对 134 做发布前备份、隔离恢复和留痕后部署。
 3. 部署后验证 manifest、服务健康、Flyway、知识 0、文献资料库根地址仍为空。
 4. 重新运行 14 角色菜单路由冒烟，确认 implementation-operator `/admin/users` 不再越权，并将 post-deploy 证据回写本报告与 `_HANDOFF.md`。
+
+## 14. d432 部署与前端路由守卫追加缺陷
+
+| 检查项 | 结果 |
+|---|---|
+| PR / 主线 | PR #567 squash merge，`d432caa764d495861b4c945cfdb3073b781217af`，CI 8/8 通过 |
+| 发布前有效备份 | `/zoesoft/medkernel/backups/p4-d432-predeploy-20260612-175338` |
+| 有效备份隔离恢复 | `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0 |
+| 失败备份留痕 | `p4-d432-predeploy-20260612-175224` 为 dump 目录权限问题，`p4-d432-predeploy-20260612-175259` 为证据统计表名错误；均未执行破坏性动作 |
+| 程序发布自动备份 | `/zoesoft/medkernel/backups/deploy-20260612-175403` |
+| Post-deploy 证据 | `/zoesoft/medkernel/backups/p4-d432-predeploy-20260612-175338/evidence/post-deploy-d432.properties` |
+| manifest | `source/commit=d432caa764d495861b4c945cfdb3073b781217af` |
+| 服务健康 | `medkernel|nginx|postgresql = active|active|active`，HTTP/HTTPS readiness 200 |
+| Flyway / 表数 | `117|117`，public 基表 178 |
+| 知识与文献资料 | 知识仍为 `0|0|0|0|0|0`；文献资料库根地址仍为空 |
+
+d432 复验结论：后端守卫与 CSV BOM 修复已部署，但 implementation-operator 前台访问 `/admin/users` 仍显示“当前权限不足”。失败证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-d432/implementation-operator-admin-users-d432.json` 与失败截图。
+
+追加根因：后端 `DefaultPermissionPolicy` 已授予 `MENU_ADMIN_USERS`、`org.read`、`org.write`，后端 `PersonnelController` 与 `ComplianceUserController` 已放通 `IMPLEMENTATION_OPERATOR`；但前端 `routes.ts` 中 `/admin/users` 的 `requiredRoles` 仍只列出 `system-superadmin`、`platform-governance-admin`、`organization-admin`、`identity-access-admin`，路由层先于页面和 API 请求拦截。
+
+本地补丁与验证：
+
+- 红灯：`npm test -- src/shared/config/routes.test.ts` 新增 implementation-operator 访问 `/admin/users` 断言后失败，38 项中 1 fail。
+- 修复：`frontend/src/shared/config/routes.ts` 的 `/admin/users` `requiredRoles` 追加 `implementation-operator`。
+- 绿灯：`npm test -- src/shared/config/routes.test.ts`，38/38 通过。
+- 绿灯：`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest,ComplianceUserControllerTest,PersonnelControllerTest' test`，32/32 通过。
+- `bash scripts/check-comment-zh.sh`、authenticity/config/migration guards、`git diff --check`：通过。
+
+待闭环：前端路由补丁需提交 PR、CI、合并、重新备份部署并复验 implementation-operator `/admin/users`。

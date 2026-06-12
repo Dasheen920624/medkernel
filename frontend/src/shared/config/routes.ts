@@ -813,6 +813,7 @@ const routeMetaInputs: RouteMetaInput[] = [
       "platform-governance-admin",
       "organization-admin",
       "identity-access-admin",
+      "implementation-operator",
     ],
     experience: readonlyExperience(
       "人员与访问管理员 / 机构管理员",

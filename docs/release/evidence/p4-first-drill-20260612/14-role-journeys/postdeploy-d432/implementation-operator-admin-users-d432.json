@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-06-12T09:57:37.282Z",
+  "commit": "d432caa764d495861b4c945cfdb3073b781217af",
+  "role": "implementation-operator",
+  "route": "/admin/users",
+  "status": "FAILED",
+  "consoleErrors": [],
+  "failedRequests": [],
+  "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('main').getByRole('heading').first() to be visible\u001b[22m\n\n    at [stdin]:40:17",
+  "screenshot": "/Users/zhikunzheng/.codex/worktrees/c41d/codex/docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-d432/implementation-operator-admin-users-d432-failed.png"
+}

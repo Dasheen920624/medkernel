@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-12 P4 d432 后端修复已部署，前端路由守卫补丁待 PR/部署
+
+- 当前执行线：P4 134 首轮 14 角色演练缺陷闭环；当前工作分支 `codex/p4-14-role-postdeploy`，本会话继续执行，不开新线程。
+- PR #567 已 squash 合并为 `d432caa764d495861b4c945cfdb3073b781217af`，CI 8/8 通过；134 已部署该版本，manifest/commit 为 `d432caa764d495861b4c945cfdb3073b781217af`，服务健康。
+- d432 发布前有效备份：`/zoesoft/medkernel/backups/p4-d432-predeploy-20260612-175338/evidence/predeploy-backup.properties`，隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0。失败留痕：`p4-d432-predeploy-20260612-175224` 为 dump 目录权限问题，`p4-d432-predeploy-20260612-175259` 为证据统计表名错误，二者均 `destructive_action_performed=false`。
+- d432 发布自动备份：`/zoesoft/medkernel/backups/deploy-20260612-175403`；post-deploy 证据：`/zoesoft/medkernel/backups/p4-d432-predeploy-20260612-175338/evidence/post-deploy-d432.properties`。
+- d432 前台复验仍失败：implementation-operator 访问 `/admin/users` 仍进入“当前权限不足”。失败证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-d432/implementation-operator-admin-users-d432.json` 与同目录失败截图。
+- 新根因：后端 API 守卫和默认权限已放通，但前端 `frontend/src/shared/config/routes.ts` 的 `/admin/users` `requiredRoles` 缺少 `implementation-operator`，导致路由层在请求页面前拦截。
+- 本地补丁：`/admin/users` 前端路由加入 `implementation-operator`；`frontend/src/shared/config/routes.test.ts` 新增 implementation-operator 可访问人员与账号断言。
+- 本地验证：先红灯 `npm test -- src/shared/config/routes.test.ts` 复现 1 fail；修复后 `npm test -- src/shared/config/routes.test.ts` 38/38 通过；`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest,ComplianceUserControllerTest,PersonnelControllerTest' test` 32/32 通过；`check-comment-zh`、authenticity/config/migration guards、`git diff --check` 通过。
+- 正式知识生产仍未放行：文献资料库根地址仍未配置；正式根地址必须在系统配置页维护为 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得使用服务器 IP、存储厂商硬编码、`tmp`、本机目录或非加密 HTTP。
+
+## 当前下一步
+
+1. 提交前端 route guard 补丁和 d432 失败证据，创建 PR，等 CI 通过并 squash 合并。
+2. 从合并后的精确 `origin/main` 重建前端/后端制品；对 134 再做发布前备份、隔离恢复和留痕后部署。
+3. 部署后复验 manifest、服务、Flyway、知识 0、文献资料库根地址仍为空，并重新运行 implementation-operator `/admin/users` 前台复验。
+4. 若该缺陷关闭，再继续完整 14 角色菜单路由冒烟；P4 问题关闭后才重新备份清库进入 P5。
+
 ## 2026-06-12 P4 14 角色首轮演练发现缺陷，本地修复待 PR/部署闭环
 
 - 当前执行线：P4 134 首轮 14 角色演练；当前工作分支 `codex/p4-14-role-drill`，本会话继续执行，不开新线程。
