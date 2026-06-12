@@ -588,6 +588,13 @@ describe("route metadata", () => {
       }),
     ).toBe(true);
     expect(
+      canAccessRoute(usersRoute, {
+        roles: [{ code: "implementation-operator" }],
+        permissions: [{ code: "org.read" }],
+        menuKeys: ["admin-users"],
+      }),
+    ).toBe(true);
+    expect(
       canAccessRoute(identityRoute, {
         roles: [{ code: "identity-access-admin" }],
         permissions: [{ code: "org.read" }],
