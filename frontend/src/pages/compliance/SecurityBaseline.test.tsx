@@ -200,8 +200,7 @@ describe("SecurityBaseline", () => {
         },
         {
           key: "medkernel.knowledge.literature.material-root-uri",
-          value:
-            "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/",
+          value: "",
           valueType: "STRING",
           displayName: "平台知识文献资料库根地址",
           risk: "HIGH",
@@ -389,13 +388,9 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("国密增强")).toBeInTheDocument();
     expect(screen.getByText("平台知识文献资料")).toBeInTheDocument();
     expect(screen.getAllByText("平台知识文献资料库根地址").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未配置").length).toBeGreaterThan(0);
     expect(
-      screen.getAllByText(
-        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/",
-      ).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/支持对象存储或受管资料库，配置中心维护，禁止 tmp 临时目录/),
+      screen.getByText(/正式知识生产前必须通过配置中心维护对象存储或 HTTPS 网关等受管资料库/),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "编辑 国密增强" })).toBeDisabled();
 

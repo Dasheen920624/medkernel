@@ -55,8 +55,7 @@ class SystemConfigControllerTest {
     private static final String AUTH_PASSWORD_MIN_LENGTH_KEY = "medkernel.auth.password.min-length";
     private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
-    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT =
-        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/";
+    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT = "";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
@@ -281,7 +280,7 @@ class SystemConfigControllerTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
-    void knowledgeLiteratureMaterialRootUriUsesManagedStorageSeedAndRejectsTmp() throws Exception {
+    void knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.knowledge.literature."))
             .andExpect(status().isOk())
@@ -328,6 +327,9 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.data.value").value(yearlyManagedStorageUri))
             .andExpect(jsonPath("$.data.source").value("API"))
             .andExpect(jsonPath("$.data.version").value(2));
+
+        assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+            .isEqualTo(yearlyManagedStorageUri);
     }
 
     @Test

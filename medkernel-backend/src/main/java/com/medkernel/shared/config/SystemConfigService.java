@@ -64,8 +64,7 @@ public class SystemConfigService {
     public static final long DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS = 300_000L;
     public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
-    public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI =
-        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/";
+    public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI = "";
     private static final Set<String> FORBIDDEN_KNOWLEDGE_LITERATURE_URI_SCHEMES =
         Set.of("file", "tmp", "local", "classpath", "http");
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
