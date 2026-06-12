@@ -45,8 +45,19 @@ TDD 留痕：先红灯（后端 `TerminologyServiceTest` 缺 `rejectCandidate` �
 - 前端：`npm run verify` 全量通过（功能目录随新端点重新生成）；`npm run build` 通过。
 - 门禁：中文注释 0 fail / 0 warn；真实性、配置边界、迁移规约扫描 0 阻断；`git diff --check` 通过。
 
-## 5. 待办（修复部署后回填）
+## 5. 修复部署与复验（2026-06-13，`postdeploy-d8bf7f4f/`）
 
-1. 134 部署修复构建后重跑本脚本：驳回钾/钠错配候选 → 批量确认普通候选 → 构建映射包草稿（`08`–`12` 截图编号已预留）。
-2. 映射包灰度/全量发布依赖健康发布适配器；全新机构需先由集成运维员完成系统接入（幕9 前置），届时回收「灰度（机构知识治理员）→ 全量（机构管理员，配置包页）」跨角色发布链。
-3. 一对多冲突的前台处置入口（当前仅展示无动作）列入观察，若后续幕仍无承载页面则另行登记。
+- PR #575 squash 合并为 `d8bf7f4fb1e949d853d62579856692ba9d3e48d4`，CI 8/8 绿。
+- 发布前备份：`/zoesoft/medkernel/backups/p5-d8bf7f4-predeploy-20260613-061959`，隔离恢复 Flyway `118|118|118`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、术语铺底 `5|4|5|1`、临时恢复库残留 0。失败留痕 `p5-d8bf7f4-predeploy-20260613-061923`（pg_dump 目录权限，未执行破坏性动作）。
+- 部署：manifest `source/commit=d8bf7f4f…`，jar SHA `7445480b…` 与本地一致；服务 `active|active|active`，HTTP/HTTPS readiness `200|200`；程序发布自动备份 `deploy-20260613-062101`；post-deploy 证据 `post-deploy-d8bf7f4f.properties`。
+- 修复后旅程复跑（医技协同人员真实前台）全部通过：
+  - 候选/冲突面板可见（P5-ACT2-02 关闭）：`01`–`03` 截图显示高危告警、批量禁用提示、冲突待裁。
+  - 行级驳回入口 5 个；钾/钠错配高危候选驳回成功（P5-ACT2-01 关闭）：`08`、`09`。
+  - 普通候选 4 条批量确认成功，待审清零、映射台账「已确认」4 条（P5-ACT2-03 关闭）：`10`。
+  - 机构知识治理员前台构建映射包 `TERM.P5.MAPPING` 草稿成功：`11`、`12`。
+- 汇总 JSON：`postdeploy-d8bf7f4f/00-act2-summary.json`（`wrongPairRejected=true`、`ordinaryBatchConfirmed=true`、`confirmedMappingsAfter=4`、`pendingCandidatesAfter=0`、`packageBuilt=true`）。
+
+## 6. 遗留待办（后续幕回收）
+
+1. 映射包灰度/全量发布依赖健康发布适配器；当前机构发布适配器 0（`releaseAdapterCount=0`），须由集成运维员先完成系统接入（幕9 前置），届时回收「灰度（机构知识治理员）→ 全量（机构管理员，配置包页）」跨角色发布链。
+2. 一对多冲突的前台处置入口（当前仅展示无动作，驳回候选后冲突仍 OPEN）列入观察，若后续幕仍无承载页面则另行登记缺陷。

@@ -135,6 +135,8 @@ TDD 闭环（本地绿灯，待部署复验）：
 - 修复：新增 `POST /engine/terminology/mappings/{id}/reject`（term.write、理由必填、仅 PENDING 可驳回）；前端候选行级「确认/驳回」操作、驳回弹窗、空态判定收窄为映射/候选/冲突/映射包全空、候选队列加载全部 PENDING。
 - 验证：后端术语全套 53/53；前端页面套件 16/16、`npm run verify` 全量与生产构建通过（功能目录随新端点再生成）；中文注释、真实性、配置边界、迁移规约门禁与 `git diff --check` 通过。
 
+部署与复验（2026-06-13）：PR #575 合并为 `d8bf7f4f`，发布前备份 `p5-d8bf7f4-predeploy-20260613-061959` 隔离恢复通过（Flyway `118|118|118`、178 表、知识 0、术语铺底 `5|4|5|1`、临时库残留 0）；部署后 manifest/jar 精确匹配、readiness `200|200`。修复后旅程复跑通过：行级驳回 5 入口、钾/钠错配候选驳回、普通候选批量确认 4 条、待审清零、映射包草稿 `TERM.P5.MAPPING` 前台构建成功。三项缺陷关闭。遗留：发布链依赖健康适配器（当前 0，幕9 前置）；一对多冲突无前台处置入口（观察项）。证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕2-术语与字典/postdeploy-d8bf7f4f/`。
+
 ## 6. 当前 134 状态
 
 - manifest：`source/commit=ab2132891a208e72a1573c82e6a79d665918310b`。
