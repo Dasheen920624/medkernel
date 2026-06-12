@@ -8,6 +8,7 @@
 - 分支：`codex/global-product-ia-refactor`
 - 阶段：P2 全系统产品门禁已通过；“平台知识文献资料库根地址”配置中心追加补丁已完成本地验证，待提交推送。
 - 下一阶段：P3 演练前发布准备。进入 134 前必须先备份、留痕、确认恢复路径；不得跳过。
+- 后续更正：P3 已完成，P4 已完成首次清库、V1-V116 从零迁移和全新部署检查点；当前状态以 `docs/_HANDOFF.md` 与 `docs/audit/p4-first-fresh-deployment-acceptance.md` 为准。
 
 ## 已完成
 
@@ -16,7 +17,7 @@
 - 14 角色菜单快照与任务旅程：`docs/audit/product-role-journeys.md`
 - 前后端菜单、权限、路由、页面命名和角色工作台同源重构。
 - 全中文、专家模式隐藏、客户主任务入口和桌面/移动端打开性验收。
-- 新增正式文献资料存储入口：配置中心键 `medkernel.knowledge.literature.material-root-uri`，客户可见名“平台知识文献资料库根地址”，当前默认资料库根 `cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/`；兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不在路径中硬编码当前服务器 IP 或存储厂商；系统配置页可查看维护，`tmp`、`file://`、非加密 HTTP 被后端校验拒绝。
+- 新增正式文献资料存储入口：配置中心键 `medkernel.knowledge.literature.material-root-uri`，客户可见名“平台知识文献资料库根地址”，初始为空并显示“未配置”；兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不硬编码当前服务器 IP、存储厂商或默认桶；只能通过系统配置页维护，`tmp`、`file://`、本机目录和非加密 HTTP 被后端校验拒绝。
 
 ## 关键证据
 
@@ -26,7 +27,7 @@
 - E2E：`npx playwright test --project=chromium`，31 passed。
 - T-GATE：40 项门禁自测通过；真实性、配置边界、迁移规约 all-mode 均 0 阻断；中文注释 0 fail / 0 warn；`git diff --check` 通过。
 - Browser 冒烟：`http://127.0.0.1:5173/login` 可打开，显示中文登录、平台治理切换、所在机构和统一身份入口。
-- 追加聚焦：`mvn -q -Dtest=SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriUsesManagedStorageSeedAndRejectsTmp test` 通过；`npm test -- src/pages/compliance/SecurityBaseline.test.tsx` 7 tests 通过。
+- 追加聚焦：`mvn -q -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration test` 通过；`npm --prefix frontend test -- src/pages/compliance/SecurityBaseline.test.tsx` 7 tests 通过。
 - Docker 容器烟测：本机 Docker Desktop 已恢复；旧 `medkernel-dev-*`、`medkernel-dify-*` 和过期 Oracle 容器已清理；`mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 通过，真实 PostgreSQL、Oracle、H2 均迁移到 V116。
 
 ## 风险与未冒领
