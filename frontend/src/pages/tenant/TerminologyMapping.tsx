@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   Checkbox,
@@ -52,6 +53,7 @@ import {
   type TermMapping,
   type TermMappingCandidate,
 } from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
@@ -278,6 +280,8 @@ function candidateRiskTag(candidate: TermMappingCandidate) {
 }
 
 export default function TerminologyMapping() {
+  // 治理动作失败必须可见可追责，错误提示统一走应用级 message。
+  const { message } = AntdApp.useApp();
   const savedViews = useSavedViews(VIEW_KEY);
   const saveView = useSaveView();
   const submitExport = useSubmitLargeListExport();
@@ -557,15 +561,20 @@ export default function TerminologyMapping() {
   async function submitHighRiskConfirmation() {
     if (!selectedCandidate) return;
     const values = await confirmForm.validateFields();
-    await confirmCandidate.mutateAsync({
-      candidateId: selectedCandidate.id,
-      request: {
-        packageVersion: requestPackageVersion,
-        reviewNote: selectedCandidate.highRiskFlag ? "逐条确认高危候选" : "确认普通候选",
-        highRiskAcknowledged: Boolean(values.highRiskAcknowledged),
-        highRiskReason: values.highRiskReason,
-      },
-    });
+    try {
+      await confirmCandidate.mutateAsync({
+        candidateId: selectedCandidate.id,
+        request: {
+          packageVersion: requestPackageVersion,
+          reviewNote: selectedCandidate.highRiskFlag ? "逐条确认高危候选" : "确认普通候选",
+          highRiskAcknowledged: Boolean(values.highRiskAcknowledged),
+          highRiskReason: values.highRiskReason,
+        },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "候选确认失败，请稍后重试"));
+      return;
+    }
     setConfirmOpen(false);
     setActiveCandidate(undefined);
     confirmForm.resetFields();
@@ -580,13 +589,18 @@ export default function TerminologyMapping() {
     } catch {
       return;
     }
-    await rejectCandidate.mutateAsync({
-      candidateId: selectedCandidate.id,
-      request: {
-        packageVersion: requestPackageVersion,
-        reviewNote: values.reviewNote.trim(),
-      },
-    });
+    try {
+      await rejectCandidate.mutateAsync({
+        candidateId: selectedCandidate.id,
+        request: {
+          packageVersion: requestPackageVersion,
+          reviewNote: values.reviewNote.trim(),
+        },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "候选驳回失败，请稍后重试"));
+      return;
+    }
     setRejectOpen(false);
     setActiveCandidate(undefined);
     rejectForm.resetFields();
@@ -596,10 +610,14 @@ export default function TerminologyMapping() {
     if (ordinaryCandidates.length === 0 || highRiskCandidates.length > 0) {
       return;
     }
-    await batchConfirmCandidates.mutateAsync({
-      candidateIds: ordinaryCandidates.map((candidate) => candidate.id),
-      request: { packageVersion: requestPackageVersion, reviewNote: "批量确认普通候选" },
-    });
+    try {
+      await batchConfirmCandidates.mutateAsync({
+        candidateIds: ordinaryCandidates.map((candidate) => candidate.id),
+        request: { packageVersion: requestPackageVersion, reviewNote: "批量确认普通候选" },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "批量确认失败，请稍后重试"));
+    }
   }
 
   function openBuildPackage() {
@@ -618,13 +636,18 @@ export default function TerminologyMapping() {
     const values = await buildForm.validateFields();
     const scope = scopeOptions.find((item) => item.value === values.scopeKey);
     if (!scope) return;
-    await buildPackage.mutateAsync({
-      packageCode: values.packageCode.trim(),
-      packageVersion: values.packageVersion.trim(),
-      scopeLevel: scope.level,
-      scopeCode: scope.code,
-      name: values.name.trim(),
-    });
+    try {
+      await buildPackage.mutateAsync({
+        packageCode: values.packageCode.trim(),
+        packageVersion: values.packageVersion.trim(),
+        scopeLevel: scope.level,
+        scopeCode: scope.code,
+        name: values.name.trim(),
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "映射包草稿构建失败，请稍后重试"));
+      return;
+    }
     setBuildOpen(false);
     buildForm.resetFields();
   }
@@ -644,18 +667,23 @@ export default function TerminologyMapping() {
       return;
     }
     publishForm.setFields([{ name: "targetOrgUnitId", errors: [] }]);
-    await publishPackage.mutateAsync({
-      packageId: selectedPackage.packageId,
-      request: {
-        packageVersion: currentPackageVersion,
-        strategy: values.releaseMode === "FULL" ? "FULL" : "GRAYSCALE",
-        targetOrgUnitId: values.targetOrgUnitId,
-        scopeType,
-        scopeValue: values.releaseMode === "FULL" ? "" : (scopeCode ?? values.targetOrgUnitId),
-        adapterIds: values.adapterIds,
-        reason: values.reason,
-      },
-    });
+    try {
+      await publishPackage.mutateAsync({
+        packageId: selectedPackage.packageId,
+        request: {
+          packageVersion: currentPackageVersion,
+          strategy: values.releaseMode === "FULL" ? "FULL" : "GRAYSCALE",
+          targetOrgUnitId: values.targetOrgUnitId,
+          scopeType,
+          scopeValue: values.releaseMode === "FULL" ? "" : (scopeCode ?? values.targetOrgUnitId),
+          adapterIds: values.adapterIds,
+          reason: values.reason,
+        },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "映射包发布失败，请稍后重试"));
+      return;
+    }
     setPublishOpen(false);
     publishForm.resetFields();
   }
@@ -663,17 +691,22 @@ export default function TerminologyMapping() {
   async function submitRollback() {
     if (!selectedPackage || !currentPackageVersion) return;
     const values = await rollbackForm.validateFields();
-    await rollbackPackage.mutateAsync({
-      packageId: selectedPackage.packageId,
-      request: {
-        packageVersion: currentPackageVersion,
-        targetPackageId: values.targetPackageId,
-        confirmedCurrentVersion: currentPackageVersion,
-        confirmedTargetVersion: values.confirmedTargetVersion,
-        reason: values.reason,
-        confirmedHighRisk: values.confirmedHighRisk,
-      },
-    });
+    try {
+      await rollbackPackage.mutateAsync({
+        packageId: selectedPackage.packageId,
+        request: {
+          packageVersion: currentPackageVersion,
+          targetPackageId: values.targetPackageId,
+          confirmedCurrentVersion: currentPackageVersion,
+          confirmedTargetVersion: values.confirmedTargetVersion,
+          reason: values.reason,
+          confirmedHighRisk: values.confirmedHighRisk,
+        },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "映射包回滚失败，请稍后重试"));
+      return;
+    }
     setRollbackOpen(false);
     rollbackForm.resetFields();
   }

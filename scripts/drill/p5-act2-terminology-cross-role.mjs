@@ -539,9 +539,19 @@ async function walkKnowledgeGovernor(browser, credentials, summary) {
       await buildModal.getByRole("button", { name: "创建草稿" }).click();
       await buildModal.waitFor({ state: "hidden", timeout: 15000 }).catch(() => undefined);
       await waitForQuiet(page);
-      observations.packageBuilt = true;
+      // 构建成功必须以服务端事实为准：回查包列表确认草稿真实落库，
+      // 不允许把“模态框关闭”当成功（曾把 ENG-API-007 失败误记为通过）。
+      const packagesAfterBuild = await apiGet(context, "/engine/pkg/packages?page=0&size=20", "pkg-verify");
+      const builtItems = packagesAfterBuild.body?.data?.items ?? [];
+      observations.packageBuilt = builtItems.some((item) => item.packageCode === "TERM.P5.MAPPING");
+      if (!observations.packageBuilt) {
+        summary.failures.push({
+          step: "构建映射包草稿 TERM.P5.MAPPING（服务端回查未找到）",
+          detail: { status: packagesAfterBuild.status, itemCount: builtItems.length },
+        });
+      }
       steps.push(
-        await capture(browser, page, "12-ui-terminology-package-built.png", "映射包草稿构建完成后的发布面板"),
+        await capture(browser, page, "12-ui-terminology-package-built.png", "映射包草稿构建后的发布面板（服务端回查为准）"),
       );
     }
 
