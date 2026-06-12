@@ -279,3 +279,28 @@ b685 完整 14 角色菜单路由冒烟结论：仍失败，失败点为 impleme
 - `git diff --check`：通过。
 
 待闭环：本聚合补丁需提交 PR、CI、合并、重新备份部署；部署后重新运行完整 14 角色菜单路由冒烟，确认不再存在菜单可见但路由拒绝的产品缺陷。
+
+## 16. fd843 精确部署与 14 角色菜单路由闭环
+
+| 检查项 | 结果 |
+|---|---|
+| PR / 主线 | PR #569 squash merge，`fd84369ded18f98568fcc5b4d9e7b216c25ebdda`，CI 8/8 通过 |
+| 本地精确构建 | 后端 jar SHA-256 `1f3d2e7af3a657a3aa741e2073b210ec1ab3a5ec344a2af89e57d492562c9036`；前端 `npm run build` 通过 |
+| 发布前有效备份 | `/zoesoft/medkernel/backups/p4-fd843-predeploy-20260612-184145` |
+| 有效备份隔离恢复 | `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、临时恢复库清理 0 |
+| 失败备份留痕 | `p4-fd843-predeploy-20260612-183907` 临时恢复库名含 `-`；`p4-fd843-predeploy-20260612-183958` 应用库账号无建库权限；`p4-fd843-predeploy-20260612-184040` postgres 恢复用户不可读 dump。均未部署、未清库，`destructive_action_performed=false` |
+| 程序发布自动备份 | `/zoesoft/medkernel/backups/deploy-20260612-184219` |
+| Post-deploy 证据 | `/zoesoft/medkernel/backups/p4-fd843-predeploy-20260612-184145/evidence/post-deploy-fd843.properties` |
+| manifest | `source/commit=fd84369ded18f98568fcc5b4d9e7b216c25ebdda` |
+| 制品匹配 | `jar_matches_expected=YES` |
+| 服务健康 | `medkernel|nginx|postgresql = active|active|active`，HTTP/HTTPS readiness 200 |
+| Flyway / 表数 | `117|117`，public 基表 178 |
+| 知识与文献资料 | 知识仍为 `0|0|0|0|0|0`；文献资料库根地址仍为空 |
+
+完整菜单路由复验：
+
+- 证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-fd843/full-14-role-menu-smoke-fd843.json`。
+- 结果：14/14 职责角色通过，134 条默认菜单路由通过。
+- 说明：`diagnostic-service-user:/terminology/mapping` 页面内存在导出动作权限提示 1 条，但页面主标题加载、无页面级无权限、无 4xx API、无 console error；该提示为动作权限边界，不构成菜单路由失败。
+
+裁决：P4 首轮 14 角色菜单路由缺陷闭环。进入 P5 第二轮全新演练前，仍必须重新备份、隔离恢复并确认回退路径；正式知识生产继续阻断，直到系统配置页维护合规的受管文献资料库根地址。

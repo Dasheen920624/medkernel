@@ -1,5 +1,22 @@
 # 会话接力
 
+## 2026-06-12 P4 fd843 精确部署完成，14 角色菜单路由冒烟通过
+
+- 当前执行线：P4 134 首轮 14 角色菜单路由缺陷已闭环；当前工作分支 `codex/p4-14-role-deploy-fd843`，本会话继续执行，不开新线程。
+- PR #569 已 squash 合并为 `fd84369ded18f98568fcc5b4d9e7b216c25ebdda`，CI 8/8 通过；134 已部署该精确版本，manifest/commit 为 `fd84369ded18f98568fcc5b4d9e7b216c25ebdda`。
+- fd843 发布前有效备份：`/zoesoft/medkernel/backups/p4-fd843-predeploy-20260612-184145/evidence/predeploy-backup.properties`，隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0，临时恢复库清理 0。
+- fd843 发布前失败留痕：`p4-fd843-predeploy-20260612-183907` 为临时恢复库名含 `-` 导致 SQL 语法错误；`p4-fd843-predeploy-20260612-183958` 为应用数据库账号无 `CREATE DATABASE` 权限；`p4-fd843-predeploy-20260612-184040` 为 postgres 恢复用户不可读 root 目录下 dump。三次均未部署、未清库，`destructive_action_performed=false`。
+- fd843 程序发布自动备份：`/zoesoft/medkernel/backups/deploy-20260612-184219`；post-deploy 证据：`/zoesoft/medkernel/backups/p4-fd843-predeploy-20260612-184145/evidence/post-deploy-fd843.properties`。
+- fd843 post-deploy：jar SHA-256 `1f3d2e7af3a657a3aa741e2073b210ec1ab3a5ec344a2af89e57d492562c9036` 且 `jar_matches_expected=YES`；`medkernel|nginx|postgresql = active|active|active`；HTTP/HTTPS readiness 200；Flyway `117|117`；public 基表 178；知识 `0|0|0|0|0|0`；文献资料库根地址仍为空。
+- fd843 完整 14 角色菜单路由冒烟通过：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-fd843/full-14-role-menu-smoke-fd843.json`，14/14 角色、134 条默认菜单路由通过。`diagnostic-service-user:/terminology/mapping` 存在页面内导出动作权限提示 1 条，但页面标题加载、无页面级无权限、无 4xx API、无 console error，不构成菜单路由失败。
+- 正式知识生产仍未放行：文献资料库根地址仍未配置；正式根地址必须在系统配置页维护为 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得使用服务器 IP、存储厂商硬编码、`tmp`、本机目录或非加密 HTTP。
+
+## 当前下一步
+
+1. 提交 fd843 发布与 14 角色菜单路由通过证据，创建 PR，等 CI 通过并 squash 合并。
+2. 证据合并后，P4 菜单路由缺陷闭环；进入 P5 第二轮全新演练前准备。
+3. P5 前必须先重新备份、隔离恢复、确认回退路径，再按“全新处理”清库；仍不得在正式文献资料库根地址配置前生产正式知识。
+
 ## 2026-06-12 P4 b685 已部署，14 角色菜单守卫聚合补丁待 PR/部署
 
 - 当前执行线：P4 134 首轮 14 角色菜单路由演练缺陷闭环；当前工作分支 `codex/p4-14-role-final`，本会话继续执行，不开新线程。
