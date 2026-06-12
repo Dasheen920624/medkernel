@@ -1,7 +1,6 @@
 package com.medkernel.compliance.personnel;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -191,8 +190,8 @@ public class PersonnelImportService {
             String tenantId,
             byte[] bytes,
             Instant now) {
-        try (var reader = new InputStreamReader(
-                new ByteArrayInputStream(bytes), StandardCharsets.UTF_8)) {
+        String csv = stripUtf8Bom(new String(bytes, StandardCharsets.UTF_8));
+        try (var reader = new StringReader(csv)) {
             var records = CSVFormat.DEFAULT.builder()
                 .setHeader()
                 .setSkipHeaderRecord(true)
@@ -221,6 +220,13 @@ public class PersonnelImportService {
                 ErrorCode.VALIDATION_FAILED,
                 "CSV 解析失败，请使用系统模板并保持 UTF-8 编码");
         }
+    }
+
+    private String stripUtf8Bom(String content) {
+        if (content == null || content.isEmpty() || content.charAt(0) != '\uFEFF') {
+            return content;
+        }
+        return content.substring(1);
     }
 
     private PersonnelImportRow validateRow(

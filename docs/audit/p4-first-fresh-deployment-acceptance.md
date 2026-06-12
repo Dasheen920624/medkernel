@@ -176,3 +176,43 @@
 | 知识数据 | `0|0|0|0|0|0` |
 
 裁决：`090e4155` 是当前 P4 首轮演练的有效运行基线。正式知识生产继续阻断；下一步是从真实前台执行 14 角色 P4 全流程。
+
+## 13. 14 角色首轮演练与本地修复
+
+> 状态：首轮真实前台演练已完成账号、组织树、14 角色工作台与主动作冒烟；菜单路由冒烟暴露 2 个产品缺陷。本节记录本地修复与待部署门禁，134 当前运行版本仍为 `090e4155d90b74bc90259200483e8f4d7ecf6cbf`，不得冒充线上已生效。
+
+| 检查项 | 结果 |
+|---|---|
+| 演练前有效备份 | `/zoesoft/medkernel/backups/p4-pre-14-role-drill-20260612-164536`，隔离恢复 `117|117`、178 张表、知识 `0|0|0|0|0|0` |
+| 失败备份留痕 | `/zoesoft/medkernel/backups/p4-pre-14-role-drill-20260612-164432/evidence/pre-drill-backup-failed.properties`，未执行破坏性动作 |
+| 目标租户 | `p4-hospital` / `P4全新演练医院` |
+| 组织树 | 租户根、`P4-GROUP`、`P4-HOSP`、`P4-CAMPUS`、`CARDIO`、`CARDIO-W1` |
+| 受控凭据文件 | `/zoesoft/medkernel/conf/p4-14-role-drill-credentials-20260612.json`，`600|medkernel|medkernel`，不入仓库、不入聊天记录 |
+| 14 角色工作台与主动作 | `docs/release/evidence/p4-first-drill-20260612/14-role-journeys/00-role-journey-summary.json`，14/14 通过 |
+| 菜单路由失败证据 | `docs/release/evidence/p4-first-drill-20260612/14-role-journeys/debug-menu-smoke/fail-implementation-operator-admin-users.json` 与同名截图 |
+| 文献资料库根地址 | 仍为空，未配置正式受管 URI，未生成正式知识 |
+
+演练暴露并已本地修复的缺陷：
+
+| 缺陷 | 根因 | 修复 |
+|---|---|---|
+| 人员批量导入模板保留 UTF-8 BOM 时，首列 `人员编号` 被解析为带 BOM 的表头，预检状态为 `HAS_ISSUES` | 后端直接以字节流进入 CSV 解析，没有剥离 UTF-8 BOM | `PersonnelImportService` 在 UTF-8 解码后剥离首字符 BOM，并新增 `previewsCsvImportWhenDownloadedTemplateKeepsUtf8Bom` 回归 |
+| 实施运维员菜单包含“人员与账号”，但访问 `/admin/users` 显示“当前权限不足” | 默认权限与前端菜单已授予 implementation-operator `org.read/org.write` 和 `MENU_ADMIN_USERS`，后端 `PersonnelController`、`ComplianceUserController` 守卫未纳入 `IMPLEMENTATION_OPERATOR` | 两个控制器读写守卫加入 `IMPLEMENTATION_OPERATOR`，新增人员建档和账号维护回归 |
+
+本地红绿与门禁证据：
+
+- 红灯：`mvn -f medkernel-backend/pom.xml -Dtest='ComplianceUserControllerTest,PersonnelControllerTest' test` 曾复现 3 个失败：implementation-operator 账号维护 403、人员维护 403、BOM CSV 预检非 READY。
+- 绿灯：`mvn -f medkernel-backend/pom.xml -Dtest='ComplianceUserControllerTest,PersonnelControllerTest' test`，16 tests，0 failures。
+- 绿灯：`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest,ComplianceUserControllerTest,PersonnelControllerTest' test`，32 tests，0 failures。
+- `bash scripts/check-comment-zh.sh`：0 fail，0 warn。
+- `node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`：扫描 3 个文件，0 阻断。
+- `node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`：扫描 3 个文件，0 阻断。
+- `node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`：扫描 0 个迁移文件，0 阻断。
+- `git diff --check`：通过。
+
+待闭环：
+
+1. 将本地修复与本节证据提交 PR，CI 通过后 squash 合并到 `main`。
+2. 从合并后的精确 `origin/main` 重建制品；对 134 做发布前备份、隔离恢复和留痕后部署。
+3. 部署后验证 manifest、服务健康、Flyway、知识 0、文献资料库根地址仍为空。
+4. 重新运行 14 角色菜单路由冒烟，确认 implementation-operator `/admin/users` 不再越权，并将 post-deploy 证据回写本报告与 `_HANDOFF.md`。

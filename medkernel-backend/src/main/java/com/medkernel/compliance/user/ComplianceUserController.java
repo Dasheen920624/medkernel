@@ -32,10 +32,10 @@ public class ComplianceUserController {
 
     private static final String READ_GUARD =
         "@perm.has('org.read') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN')";
+            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
     private static final String WRITE_GUARD =
         "@perm.has('org.write') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN')";
+            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
 
     private final ComplianceUserService service;
 

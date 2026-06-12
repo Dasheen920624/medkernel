@@ -1,0 +1,119 @@
+{
+  "status": "PASSED",
+  "checkedAt": "2026-06-12T09:09:29.742Z",
+  "roleCount": 14,
+  "results": [
+    {
+      "code": "platform-governance-admin",
+      "layer": "platform",
+      "dashboard": "平台治理管理员工作台",
+      "primaryLabel": "管理服务机构",
+      "primaryPath": "/tenant/onboarding",
+      "status": "PASSED"
+    },
+    {
+      "code": "platform-knowledge-governor",
+      "layer": "platform",
+      "dashboard": "平台知识治理员工作台",
+      "primaryLabel": "审核发布平台知识",
+      "primaryPath": "/knowledge/governance",
+      "status": "PASSED"
+    },
+    {
+      "code": "organization-admin",
+      "layer": "customer",
+      "dashboard": "机构管理员工作台",
+      "primaryLabel": "管理服务机构",
+      "primaryPath": "/tenant/onboarding",
+      "status": "PASSED"
+    },
+    {
+      "code": "identity-access-admin",
+      "layer": "customer",
+      "dashboard": "人员与访问管理员工作台",
+      "primaryLabel": "管理人员与账号",
+      "primaryPath": "/admin/users",
+      "status": "PASSED"
+    },
+    {
+      "code": "knowledge-governor",
+      "layer": "customer",
+      "dashboard": "机构知识治理员工作台",
+      "primaryLabel": "审核发布机构知识",
+      "primaryPath": "/knowledge/governance",
+      "status": "PASSED"
+    },
+    {
+      "code": "clinical-governor",
+      "layer": "customer",
+      "dashboard": "临床治理负责人工作台",
+      "primaryLabel": "审阅提醒与推荐",
+      "primaryPath": "/cdss/fatigue",
+      "status": "PASSED"
+    },
+    {
+      "code": "clinical-decision-user",
+      "layer": "customer",
+      "dashboard": "临床决策使用者工作台",
+      "primaryLabel": "继续处理协同任务",
+      "primaryPath": "/workflow/todos",
+      "status": "PASSED"
+    },
+    {
+      "code": "nursing-collaborator",
+      "layer": "customer",
+      "dashboard": "护理协同人员工作台",
+      "primaryLabel": "继续处理协同任务",
+      "primaryPath": "/workflow/todos",
+      "status": "PASSED"
+    },
+    {
+      "code": "medication-safety-user",
+      "layer": "customer",
+      "dashboard": "药事安全人员工作台",
+      "primaryLabel": "审阅提醒与推荐",
+      "primaryPath": "/cdss/fatigue",
+      "status": "PASSED"
+    },
+    {
+      "code": "diagnostic-service-user",
+      "layer": "customer",
+      "dashboard": "医技协同人员工作台",
+      "primaryLabel": "维护术语与字典",
+      "primaryPath": "/terminology/mapping",
+      "status": "PASSED"
+    },
+    {
+      "code": "quality-governor",
+      "layer": "customer",
+      "dashboard": "质量与医保治理员工作台",
+      "primaryLabel": "处理质量问题与整改",
+      "primaryPath": "/qc/alerts",
+      "status": "PASSED"
+    },
+    {
+      "code": "compliance-auditor",
+      "layer": "customer",
+      "dashboard": "合规审计员工作台",
+      "primaryLabel": "查看审计与证据",
+      "primaryPath": "/admin/audit",
+      "status": "PASSED"
+    },
+    {
+      "code": "integration-operator",
+      "layer": "customer",
+      "dashboard": "集成运维员工作台",
+      "primaryLabel": "维护系统接入",
+      "primaryPath": "/adapter/hub",
+      "status": "PASSED"
+    },
+    {
+      "code": "implementation-operator",
+      "layer": "customer",
+      "dashboard": "实施运维员工作台",
+      "primaryLabel": "继续实施与验收",
+      "primaryPath": "/onboarding/guide",
+      "status": "PASSED"
+    }
+  ]
+}

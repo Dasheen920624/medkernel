@@ -176,6 +176,60 @@ class PersonnelControllerTest {
     }
 
     @Test
+    void previewsCsvImportWhenDownloadedTemplateKeepsUtf8Bom() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "院内人员-bom.csv",
+            "text/csv",
+            ("\uFEFF人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识\n"
+                + "EMP-103,吴医生,HOSP-A,CARDIO,CARDIO-W1,院内人员,住院医师,wu.doctor,临床决策使用者,工号,EMP-103\n")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        mvc.perform(multipart("/api/v1/compliance/personnel/imports:preview")
+                .file(file)
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("READY"))
+            .andExpect(jsonPath("$.data.validRows").value(1))
+            .andExpect(jsonPath("$.data.rows[0].employeeNo").value("EMP-103"));
+    }
+
+    @Test
+    void implementationOperatorCanMaintainPersonnelDuringOnboarding() throws Exception {
+        mvc.perform(get("/api/v1/compliance/personnel")
+                .param("page", "1")
+                .param("size", "20")
+                .with(implementationOperator()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(0));
+
+        mvc.perform(post("/api/v1/compliance/personnel")
+                .with(implementationOperator())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "employeeNo": "EMP-104",
+                      "displayName": "实施创建医生",
+                      "appointment": {
+                        "organizationId": "hospital-a",
+                        "departmentId": "dept-cardio",
+                        "wardId": "ward-cardio-1",
+                        "appointmentType": "INTERNAL",
+                        "positionTitle": "住院医师",
+                        "primary": true
+                      },
+                      "account": {
+                        "loginName": "impl.created",
+                        "roleCode": "clinical-decision-user"
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.person.employeeNo").value("EMP-104"))
+            .andExpect(jsonPath("$.data.account.username").value("impl.created"));
+    }
+
+    @Test
     void reimportUpdatesExistingPersonAppointmentAndKeepsOwnedAccountAndIdentityIdempotent()
             throws Exception {
         mvc.perform(post("/api/v1/compliance/personnel")
@@ -266,6 +320,16 @@ class PersonnelControllerTest {
                 .claim("tenant_id", "tenant-a"))
             .authorities(
                 new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"),
+                new SimpleGrantedAuthority("org.read"),
+                new SimpleGrantedAuthority("org.write"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor implementationOperator() {
+        return jwt().jwt(token -> token
+                .subject("implementation-operator")
+                .claim("tenant_id", "tenant-a"))
+            .authorities(
+                new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"),
                 new SimpleGrantedAuthority("org.read"),
                 new SimpleGrantedAuthority("org.write"));
     }
