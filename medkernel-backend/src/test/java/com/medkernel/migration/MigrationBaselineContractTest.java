@@ -26,6 +26,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MigrationBaselineContractTest {
 
     private static final List<String> DIALECTS = List.of("h2", "postgres", "oracle", "dm", "kingbase");
+    private static final List<String> QUALITY_TRACE_TABLES = List.of(
+        "evaluation_indicator",
+        "evaluation_run",
+        "evaluation_result",
+        "quality_finding",
+        "rectification_task",
+        "rectification_review",
+        "evaluation_idempotency_key"
+    );
 
     @Test
     void personnelAppointmentAndImportPersistWardAcrossAllDialects() {
@@ -156,7 +165,8 @@ class MigrationBaselineContractTest {
         "V114__terminology_global_potassium_sodium_rule.sql",
         "V115__knowledge_customization_personnel_master.sql",
         "V116__platform_seed_config_source.sql",
-        "V117__nullable_unconfigured_system_config.sql"
+        "V117__nullable_unconfigured_system_config.sql",
+        "V118__trace_id_contract_width.sql"
     );
 
     @Test
@@ -173,6 +183,50 @@ class MigrationBaselineContractTest {
                 .containsIgnoringCase("null");
         }
     }
+
+    @Test
+    void traceIdPersistenceWidthMatchesInboundContractAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String patchDdl = readMigration(dialect, "V118__trace_id_contract_width.sql");
+            assertThat(patchDdl)
+                .as("%s 追踪标识持久化宽度必须与入站契约一致", dialect)
+                .containsIgnoringCase("platform_credential")
+                .containsIgnoringCase("mk_security_bootstrap_init_token")
+                .containsIgnoringCase("trace_id")
+                .contains("128");
+
+            String qualityDdl = Set.of("oracle", "dm").contains(dialect)
+                ? patchDdl
+                : readMigration(dialect, "V14__evaluation_quality_api.sql");
+            for (String table : QUALITY_TRACE_TABLES) {
+                assertThat(hasTraceIdWidth(qualityDdl, table, 128))
+                    .as("%s 的 %s.trace_id 必须支持 128 字符", dialect, table)
+                    .isTrue();
+            }
+        }
+    }
+
+    private static boolean hasTraceIdWidth(String ddl, String table, int width) {
+        Pattern targetTable = Pattern.compile(
+            "(?i)(?:CREATE|ALTER)\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"
+                + Pattern.quote(table) + "\\b");
+        Pattern nextTable = Pattern.compile(
+            "(?i)(?:CREATE|ALTER)\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?");
+        Pattern widthPattern = Pattern.compile(
+            "(?is)trace_id\\s+(?:SET\\s+DATA\\s+TYPE\\s+|TYPE\\s+)?"
+                + "VARCHAR2?\\s*\\(\\s*" + width + "(?:\\s+CHAR)?\\s*\\)");
+
+        var targetMatcher = targetTable.matcher(ddl);
+        while (targetMatcher.find()) {
+            var nextMatcher = nextTable.matcher(ddl);
+            int end = nextMatcher.find(targetMatcher.end()) ? nextMatcher.start() : ddl.length();
+            if (widthPattern.matcher(ddl.substring(targetMatcher.start(), end)).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
         "audit_event", "source_document", "source_version",

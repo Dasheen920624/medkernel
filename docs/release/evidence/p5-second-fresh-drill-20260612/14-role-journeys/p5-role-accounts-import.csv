@@ -1,0 +1,12 @@
+人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识
+P5-EMP-002,P5第二轮·人员访问管理员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,访问治理专员,identity-access-admin,人员与访问管理员,工号,P5-EMP-002
+P5-EMP-003,P5第二轮·机构知识治理员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,知识治理专员,knowledge-governor,机构知识治理员,工号,P5-EMP-003
+P5-EMP-004,P5第二轮·临床治理负责人,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,临床治理负责人,clinical-governor,临床治理负责人,工号,P5-EMP-004
+P5-EMP-005,P5第二轮·临床决策医师,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,主治医师,clinical-decision-user,临床决策使用者,工号,P5-EMP-005
+P5-EMP-006,P5第二轮·护理协同人员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,责任护士,nursing-collaborator,护理协同人员,工号,P5-EMP-006
+P5-EMP-007,P5第二轮·药事安全人员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,临床药师,medication-safety-user,药事安全人员,工号,P5-EMP-007
+P5-EMP-008,P5第二轮·医技协同人员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,医技技师,diagnostic-service-user,医技协同人员,工号,P5-EMP-008
+P5-EMP-009,P5第二轮·质量医保治理员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,质控医保专员,quality-governor,质量与医保治理员,工号,P5-EMP-009
+P5-EMP-010,P5第二轮·合规审计员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,院内人员,合规审计员,compliance-auditor,合规审计员,工号,P5-EMP-010
+P5-EMP-011,P5第二轮·集成运维员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,实施人员,集成运维工程师,integration-operator,集成运维员,工号,P5-EMP-011
+P5-EMP-012,P5第二轮·实施运维员,P5-HOSP,P5-CARDIO,P5-CARDIO-W1,实施人员,实施交付工程师,implementation-operator,实施运维员,工号,P5-EMP-012

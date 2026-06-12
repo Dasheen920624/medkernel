@@ -1,0 +1,36 @@
+{
+  "status": "PASSED",
+  "checkedAt": "2026-06-12T12:15:25.261Z",
+  "tenantId": "p5-hospital",
+  "imported": [
+    "identity-access-admin",
+    "knowledge-governor",
+    "clinical-governor",
+    "clinical-decision-user",
+    "nursing-collaborator",
+    "medication-safety-user",
+    "diagnostic-service-user",
+    "quality-governor",
+    "compliance-auditor",
+    "integration-operator",
+    "implementation-operator"
+  ],
+  "activationCount": 11,
+  "csvFile": "p5-role-accounts-import.csv",
+  "credentialFile": "/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json",
+  "credentialFileMode": "600|medkernel|medkernel",
+  "consoleErrors": [],
+  "failedRequests": [],
+  "traces": [
+    {
+      "path": "/medkernel/api/v1/compliance/personnel/imports:preview",
+      "status": 200,
+      "traceId": "f55b1d51-949b-4c98-9b00-51dd7af0a181"
+    },
+    {
+      "path": "/medkernel/api/v1/compliance/personnel/imports/pij-01KTXW34JYQM1QNKWRPXBHASNN:commit",
+      "status": 200,
+      "traceId": "8de70421-faf7-480b-97ba-27ae815838b6"
+    }
+  ]
+}

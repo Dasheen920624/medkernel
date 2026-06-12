@@ -106,6 +106,31 @@ class ComplianceUserControllerTest {
     }
 
     @Test
+    void createsManagedPlatformUserWithSupportedLongTraceId() throws Exception {
+        String traceId = "trace-" + "x".repeat(80);
+
+        mvc.perform(post("/api/v1/compliance/users")
+                .header("X-Trace-Id", traceId)
+                .with(systemSuperAdmin("t-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "credentialManaged": true,
+                      "userId": "platform-knowledge-governor",
+                      "displayName": "平台知识治理员",
+                      "username": "platform-knowledge-governor",
+                      "roleCode": "platform-knowledge-governor"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        PlatformCredential credential = credentials
+            .findByTenantIdAndUserId("t-1", "platform-knowledge-governor")
+            .orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(credential.traceId()).isEqualTo(traceId);
+    }
+
+    @Test
     void externalIdentityUserCannotUsePasswordOperations() throws Exception {
         mvc.perform(post("/api/v1/compliance/users")
                 .with(admin("t-1"))
@@ -252,6 +277,12 @@ class ComplianceUserControllerTest {
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin(String tenantId) {
         return jwt().jwt(token -> token.subject("admin-1").claim("tenant_id", tenantId))
             .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor systemSuperAdmin(
+            String tenantId) {
+        return jwt().jwt(token -> token.subject("system-root").claim("tenant_id", tenantId))
+            .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor implementationOperator(

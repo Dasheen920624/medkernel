@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "code": "OK",
+  "message": "操作成功",
+  "data": {
+    "initialized": true
+  },
+  "traceId": "3b3c0d34-27da-426f-af40-013eda60f810",
+  "timestamp": "2026-06-12T11:57:56.953491667Z"
+}

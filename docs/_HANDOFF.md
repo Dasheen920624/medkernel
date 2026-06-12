@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-12 P5 第二轮全新演练进行中，V118 追踪标识宽度修复待 PR/部署
+
+- 当前执行线：P5 134 第二轮全新演练与第一阶段正式验收；当前工作分支 `codex/p5-fresh-drill-prep`，基于 `origin/main=04ab9ed984bbcdec467ff3ead86a001cefbe3aa8`。
+- P5 清库前有效备份：`/zoesoft/medkernel/backups/p5-pre-clear-20260612-190951`；隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、临时恢复库清理 0。
+- 已按全新基线完成清库、V1–V117 从零迁移、首发管理员创建、首次改密、MFA 绑定与独立重登录。首发凭据仅保存在 `/zoesoft/medkernel/conf/p5-first-admin-credentials-20260612.json`，权限 `600|medkernel|medkernel`。
+- 已从真实前台创建客户租户 `p5-hospital`、机构管理员、五级组织树，并批量导入和激活 11 个客户职责角色。受控凭据仅保存在 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`。
+- 创建平台职责角色时暴露真实缺陷：合法 65 字符 `X-Trace-Id` 可通过入站校验，但 `platform_credential.trace_id` 仍为 `VARCHAR(64)`，导致 `platform-knowledge-governor` 创建返回 500 并事务回滚。`platform-governance-admin` 已创建但尚未改密/MFA。
+- 本地 TDD 已形成 V118：五方言同时把 `platform_credential.trace_id` 与 `mk_security_bootstrap_init_token.trace_id` 扩为 128，并补齐 Oracle/达梦质量域 7 个历史 64 字符字段；新增控制器回归、迁移清单、H2 基线、五方言静态合同和 PostgreSQL/Oracle/H2 真实迁移烟测。
+- 当前 134 仍运行 `fd84369ded18f98568fcc5b4d9e7b216c25ebdda`、Flyway `117|117`、追踪标识列宽 64；服务 `medkernel|nginx|postgresql=active|active|active`，HTTPS readiness 200，178 张表，知识 `0|0|0|0|0|0`，文献资料库根地址长度 0。不得把本地 V118 写成现场已生效。
+- 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`；浏览器证据：`docs/release/evidence/p5-second-fresh-drill-20260612/`。
+
+## 当前下一步
+
+1. 本地复核已完成：后端 340 个测试套件、2221 项测试全绿；前端 89 个文件、651 项测试及生产构建通过；真实 PostgreSQL/Oracle/H2 迁移烟测到 V118；T-GATE 38/38，真实性、配置边界、迁移规约、中文注释、JSON、相对链接、敏感信息和差异门禁均通过。
+2. 提交 V118、P5 阶段证据和接力文档，推送 PR，等待 CI 全绿并 squash 合并。
+3. 从精确合并后的 `origin/main` 重建制品；发布前重新备份并隔离恢复，部署到 134，验证 Flyway V118 与两处 `trace_id` 列宽 128，且当前 P5 租户、组织、账号数据完整。
+4. 用原 65 字符追踪标识重试创建 `platform-knowledge-governor`，激活两个平台职责角色，继续 14 角色全菜单、主任务和端到端旅程。
+5. P5 全流程、恢复、医疗安全、最小化、五方言与 GA 门禁全部通过后，形成第一阶段正式验收并冻结结构；在此之前不得配置正式资料库或生成正式知识，不得进入 P6。
+
 ## 2026-06-12 P4 fd843 精确部署完成，14 角色菜单路由冒烟通过
 
 - 当前执行线：P4 134 首轮 14 角色菜单路由缺陷已闭环；当前工作分支 `codex/p4-14-role-deploy-fd843`，本会话继续执行，不开新线程。
