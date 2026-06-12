@@ -157,7 +157,7 @@ if [[ "$FRONTEND" -eq 1 ]]; then
   [[ -f "$FRONTEND_DIR/dist/index.html" ]] || die "未找到 frontend/dist/index.html"
   DIST_TAR="$STAGING/dist.tar.gz"
   info "打包前端 dist.tar.gz ..."
-  tar -czf "$DIST_TAR" -C "$FRONTEND_DIR" dist
+  COPYFILE_DISABLE=1 tar -czf "$DIST_TAR" -C "$FRONTEND_DIR" dist
   [[ "$(tar -tzf "$DIST_TAR" | grep -c '^dist/index.html$')" -gt 0 ]] || die "dist.tar.gz 内未发现 dist/index.html"
   ok "前端包：dist.tar.gz"
 fi
