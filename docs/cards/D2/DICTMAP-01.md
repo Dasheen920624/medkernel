@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 页面卡，消费 [API-04](API-04.md) `/engine/terminology/**` 现有候选/确认/发布 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `knowledge-configuration` / menuKey `terminology-mapping` / menuLabel `术语与字典` / path `/terminology/mapping` / requiredPermissions `menu.terminology-mapping` + `term.read` / requiredRoles 集成运维员、平台/机构知识治理员、医技协同人员。
+- 路由元数据：sectionKey `knowledge-configuration` / menuKey `terminology-mapping` / menuLabel `术语与字典` / path `/terminology/mapping` / requiredPermissions `menu.terminology-mapping` + `term.read` / requiredRoles 集成运维员、实施运维员、平台/机构知识治理员、医技协同人员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 字典/映射列表 + 候选面板（高危红标）+ 逐条确认弹层 + 映射包 7 步流 + 六态。
 - 主按钮 ≤1（确认/发布）/ 默认筛选 ≤3（标准系统/状态/风险）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（确认/发布权）/ 数据（org）/ 资产（映射包）/ 环境。

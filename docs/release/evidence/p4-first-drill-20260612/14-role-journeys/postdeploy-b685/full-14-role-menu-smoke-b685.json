@@ -1,0 +1,1240 @@
+{
+  "checkedAt": "2026-06-12T10:14:30.672Z",
+  "commit": "b68502e78e5697c68122355ae19ac1fd62260a6b",
+  "status": "FAILED",
+  "roleCount": 14,
+  "results": [
+    {
+      "role": "platform-governance-admin",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "平台治理管理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/tenant/onboarding",
+          "status": "PASSED",
+          "heading": "服务机构",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/users",
+          "status": "PASSED",
+          "heading": "人员与账号",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/identity-binding",
+          "status": "PASSED",
+          "heading": "身份来源",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/onboarding/guide",
+          "status": "PASSED",
+          "heading": "实施与验收",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/config/packages",
+          "status": "PASSED",
+          "heading": "配置包与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/dashboard",
+          "status": "PASSED",
+          "heading": "质量与运营概览",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/baseline",
+          "status": "PASSED",
+          "heading": "安全基线与系统配置",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/system/providers",
+          "status": "PASSED",
+          "heading": "运行保障",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications/settings",
+          "status": "PASSED",
+          "heading": "通知偏好",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/ai-workflows",
+          "status": "PASSED",
+          "heading": "AI 工作流",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/domestic",
+          "status": "PASSED",
+          "heading": "国产化自检",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "tenant-onboarding",
+        "admin-users",
+        "identity-bindings",
+        "implementation-guide",
+        "knowledge-governance",
+        "config-packages",
+        "qc-dashboard",
+        "admin-audit",
+        "security-baseline",
+        "system-providers",
+        "notification-settings",
+        "provenance",
+        "ai-workflows",
+        "domestic-check"
+      ]
+    },
+    {
+      "role": "platform-knowledge-governor",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "平台知识治理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/config/packages",
+          "status": "PASSED",
+          "heading": "配置包与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/terminology/mapping",
+          "status": "PASSED",
+          "heading": "术语与字典",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/rule/definitions",
+          "status": "PASSED",
+          "heading": "规则中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/templates",
+          "status": "PASSED",
+          "heading": "路径中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/graph",
+          "status": "PASSED",
+          "heading": "图谱查询",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/ai-workflows",
+          "status": "PASSED",
+          "heading": "AI 工作流",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "knowledge-governance",
+        "config-packages",
+        "terminology-mapping",
+        "rule-definitions",
+        "pathway-templates",
+        "admin-audit",
+        "provenance",
+        "graph-explore",
+        "ai-workflows"
+      ]
+    },
+    {
+      "role": "organization-admin",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "机构管理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/tenant/onboarding",
+          "status": "PASSED",
+          "heading": "服务机构",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/users",
+          "status": "PASSED",
+          "heading": "人员与账号",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/identity-binding",
+          "status": "PASSED",
+          "heading": "身份来源",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/onboarding/guide",
+          "status": "PASSED",
+          "heading": "实施与验收",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/config/packages",
+          "status": "PASSED",
+          "heading": "配置包与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/dashboard",
+          "status": "PASSED",
+          "heading": "质量与运营概览",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/baseline",
+          "status": "PASSED",
+          "heading": "安全基线与系统配置",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/system/providers",
+          "status": "PASSED",
+          "heading": "运行保障",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications/settings",
+          "status": "PASSED",
+          "heading": "通知偏好",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/domestic",
+          "status": "PASSED",
+          "heading": "国产化自检",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "tenant-onboarding",
+        "admin-users",
+        "identity-bindings",
+        "implementation-guide",
+        "knowledge-governance",
+        "config-packages",
+        "qc-dashboard",
+        "admin-audit",
+        "security-baseline",
+        "system-providers",
+        "notification-settings",
+        "provenance",
+        "domestic-check"
+      ]
+    },
+    {
+      "role": "identity-access-admin",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "人员与访问管理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/users",
+          "status": "PASSED",
+          "heading": "人员与账号",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/identity-binding",
+          "status": "PASSED",
+          "heading": "身份来源",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/baseline",
+          "status": "PASSED",
+          "heading": "安全基线与系统配置",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "admin-users",
+        "identity-bindings",
+        "admin-audit",
+        "security-baseline"
+      ]
+    },
+    {
+      "role": "knowledge-governor",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "机构知识治理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/config/packages",
+          "status": "PASSED",
+          "heading": "配置包与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/terminology/mapping",
+          "status": "PASSED",
+          "heading": "术语与字典",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/rule/definitions",
+          "status": "PASSED",
+          "heading": "规则中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/templates",
+          "status": "PASSED",
+          "heading": "路径中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/graph",
+          "status": "PASSED",
+          "heading": "图谱查询",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/ai-workflows",
+          "status": "PASSED",
+          "heading": "AI 工作流",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "knowledge-governance",
+        "config-packages",
+        "terminology-mapping",
+        "rule-definitions",
+        "pathway-templates",
+        "admin-audit",
+        "provenance",
+        "graph-explore",
+        "ai-workflows"
+      ]
+    },
+    {
+      "role": "clinical-governor",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "临床治理负责人工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/rule/definitions",
+          "status": "PASSED",
+          "heading": "规则中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/templates",
+          "status": "PASSED",
+          "heading": "路径中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/mpi",
+          "status": "PASSED",
+          "heading": "患者主索引 MPI",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/patients",
+          "status": "PASSED",
+          "heading": "患者路径",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/cdss/fatigue",
+          "status": "PASSED",
+          "heading": "提醒与推荐中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/workflow/todos",
+          "status": "PASSED",
+          "heading": "工作流协同待办中心",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/clinical/followup",
+          "status": "PASSED",
+          "heading": "智能随访工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/dashboard",
+          "status": "PASSED",
+          "heading": "质量与运营概览",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/alerts",
+          "status": "PASSED",
+          "heading": "质量问题",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications",
+          "status": "PASSED",
+          "heading": "消息通知",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "knowledge-governance",
+        "rule-definitions",
+        "pathway-templates",
+        "mpi",
+        "patient-pathways",
+        "cdss-fatigue",
+        "workflow-todos",
+        "clinical-followup",
+        "qc-dashboard",
+        "qc-alerts",
+        "notifications",
+        "provenance"
+      ]
+    },
+    {
+      "role": "clinical-decision-user",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "临床决策使用者工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/mpi",
+          "status": "PASSED",
+          "heading": "患者主索引 MPI",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/patients",
+          "status": "PASSED",
+          "heading": "患者路径",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/cdss/fatigue",
+          "status": "PASSED",
+          "heading": "提醒与推荐中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/workflow/todos",
+          "status": "PASSED",
+          "heading": "工作流协同待办中心",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/clinical/followup",
+          "status": "PASSED",
+          "heading": "智能随访工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications",
+          "status": "PASSED",
+          "heading": "消息通知",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "mpi",
+        "patient-pathways",
+        "cdss-fatigue",
+        "workflow-todos",
+        "clinical-followup",
+        "notifications"
+      ]
+    },
+    {
+      "role": "nursing-collaborator",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "护理协同人员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/mpi",
+          "status": "PASSED",
+          "heading": "患者主索引 MPI",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/patients",
+          "status": "PASSED",
+          "heading": "患者路径",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/workflow/todos",
+          "status": "PASSED",
+          "heading": "工作流协同待办中心",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/clinical/followup",
+          "status": "PASSED",
+          "heading": "智能随访工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications",
+          "status": "PASSED",
+          "heading": "消息通知",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "mpi",
+        "patient-pathways",
+        "workflow-todos",
+        "clinical-followup",
+        "notifications"
+      ]
+    },
+    {
+      "role": "medication-safety-user",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "药事安全人员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/rule/definitions",
+          "status": "PASSED",
+          "heading": "规则中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/pathway/patients",
+          "status": "PASSED",
+          "heading": "患者路径",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/cdss/fatigue",
+          "status": "PASSED",
+          "heading": "提醒与推荐中枢",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/workflow/todos",
+          "status": "PASSED",
+          "heading": "工作流协同待办中心",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications",
+          "status": "PASSED",
+          "heading": "消息通知",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "knowledge-governance",
+        "rule-definitions",
+        "patient-pathways",
+        "cdss-fatigue",
+        "workflow-todos",
+        "notifications",
+        "provenance"
+      ]
+    },
+    {
+      "role": "diagnostic-service-user",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "医技协同人员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/terminology/mapping",
+          "status": "PASSED",
+          "heading": "术语与字典",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/mpi",
+          "status": "PASSED",
+          "heading": "患者主索引 MPI",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/workflow/todos",
+          "status": "PASSED",
+          "heading": "工作流协同待办中心",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications",
+          "status": "PASSED",
+          "heading": "消息通知",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "terminology-mapping",
+        "mpi",
+        "workflow-todos",
+        "notifications"
+      ]
+    },
+    {
+      "role": "quality-governor",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "质量与医保治理员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/knowledge/governance",
+          "status": "PASSED",
+          "heading": "知识审核与发布",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/dashboard",
+          "status": "PASSED",
+          "heading": "质量与运营概览",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/alerts",
+          "status": "PASSED",
+          "heading": "质量问题",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/insurance",
+          "status": "PASSED",
+          "heading": "医保智能审核",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/qc/eval/sets",
+          "status": "PASSED",
+          "heading": "评估指标库",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "knowledge-governance",
+        "qc-dashboard",
+        "qc-alerts",
+        "insurance-audit",
+        "qc-eval-sets",
+        "admin-audit",
+        "provenance"
+      ]
+    },
+    {
+      "role": "compliance-auditor",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "合规审计员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/provenance",
+          "status": "PASSED",
+          "heading": "知识来源追溯",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "admin-audit",
+        "provenance"
+      ]
+    },
+    {
+      "role": "integration-operator",
+      "status": "PASSED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "集成运维员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/identity-binding",
+          "status": "PASSED",
+          "heading": "身份来源",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/adapter/hub",
+          "status": "PASSED",
+          "heading": "系统接入",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/terminology/mapping",
+          "status": "PASSED",
+          "heading": "术语与字典",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/audit",
+          "status": "PASSED",
+          "heading": "审计与证据",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/baseline",
+          "status": "PASSED",
+          "heading": "安全基线与系统配置",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/system/providers",
+          "status": "PASSED",
+          "heading": "运行保障",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/notifications/settings",
+          "status": "PASSED",
+          "heading": "通知偏好",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/graph",
+          "status": "PASSED",
+          "heading": "图谱查询",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/ai-workflows",
+          "status": "PASSED",
+          "heading": "AI 工作流",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/domestic",
+          "status": "PASSED",
+          "heading": "国产化自检",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/advanced/dev-console",
+          "status": "PASSED",
+          "heading": "开发者控制台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "identity-bindings",
+        "adapter-hub",
+        "terminology-mapping",
+        "admin-audit",
+        "security-baseline",
+        "system-providers",
+        "notification-settings",
+        "graph-explore",
+        "ai-workflows",
+        "domestic-check",
+        "dev-console"
+      ]
+    },
+    {
+      "role": "implementation-operator",
+      "status": "FAILED",
+      "routes": [
+        {
+          "path": "/dashboard",
+          "status": "PASSED",
+          "heading": "实施运维员工作台",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/tenant/onboarding",
+          "status": "PASSED",
+          "heading": "服务机构",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/admin/users",
+          "status": "PASSED",
+          "heading": "人员与账号",
+          "deniedCount": 0,
+          "newConsoleErrors": 0,
+          "newFailedRequests": 0
+        },
+        {
+          "path": "/security/identity-binding",
+          "status": "STARTED"
+        }
+      ],
+      "consoleErrors": [],
+      "failedRequests": [],
+      "menuKeys": [
+        "workbench",
+        "tenant-onboarding",
+        "admin-users",
+        "identity-bindings",
+        "implementation-guide",
+        "adapter-hub",
+        "knowledge-governance",
+        "config-packages",
+        "terminology-mapping",
+        "admin-audit",
+        "security-baseline",
+        "system-providers",
+        "notification-settings",
+        "provenance",
+        "graph-explore",
+        "ai-workflows",
+        "domestic-check",
+        "dev-console"
+      ],
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('main').getByRole('heading').first() to be visible\u001b[22m\n\n    at [stdin]:54:23",
+      "screenshot": "/Users/zhikunzheng/.codex/worktrees/c41d/codex/docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/full-menu-implementation-operator-failed.png"
+    }
+  ]
+}

@@ -1,5 +1,25 @@
 # 会话接力
 
+## 2026-06-12 P4 b685 已部署，14 角色菜单守卫聚合补丁待 PR/部署
+
+- 当前执行线：P4 134 首轮 14 角色菜单路由演练缺陷闭环；当前工作分支 `codex/p4-14-role-final`，本会话继续执行，不开新线程。
+- PR #568 已 squash 合并为 `b68502e78e5697c68122355ae19ac1fd62260a6b`，CI 8/8 通过；134 已部署该版本，manifest/commit 为 `b68502e78e5697c68122355ae19ac1fd62260a6b`，服务健康。
+- b685 发布前有效备份：`/zoesoft/medkernel/backups/p4-b685-predeploy-20260612-181139/evidence/predeploy-backup.properties`，隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0。
+- b685 发布自动备份：`/zoesoft/medkernel/backups/deploy-20260612-181202`；post-deploy 证据：`/zoesoft/medkernel/backups/p4-b685-predeploy-20260612-181139/evidence/post-deploy-b685.properties`。
+- b685 定向复验已通过：implementation-operator 可进入 `/admin/users`，证据 `docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/implementation-operator-admin-users-b685.json` 与同目录截图。
+- b685 完整 14 角色菜单冒烟仍失败：implementation-operator 访问 `/security/identity-binding` 显示“当前权限不足”，证据 `docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/full-14-role-menu-smoke-b685.json` 与同目录失败截图。
+- 聚合根因：后端 `DefaultPermissionPolicyTest` 14 角色菜单快照已授予 implementation-operator `identity-bindings`、`knowledge-governance`、`terminology-mapping`，但前端 `routes.ts` 对 `/security/identity-binding`、`/knowledge/governance`、`/terminology/mapping` 的 `requiredRoles` 未同步，导致菜单可见但路由层拦截。
+- 本地补丁：三条路由显式加入 `implementation-operator`；`frontend/src/shared/config/routes.test.ts` 新增后端默认菜单快照解析与前端路由守卫一致性回归，避免后续同类错配逐个靠线上冒烟发现；`IDBIND-01`、`DICTMAP-01` 页面卡同步角色描述。
+- 本地验证：红灯 `npm test -- src/shared/config/routes.test.ts` 先复现 implementation-operator 身份来源拦截，聚合测试又发现 `knowledge-governance`、`terminology-mapping` 两处同类错配；修复后 `npm test -- src/shared/config/routes.test.ts` 39/39 通过，`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest' test` 16/16 通过，`npm run build` 通过，`check-comment-zh`、`authenticity-guard --mode=all`、`config-boundary-guard --mode=inventory`、`git diff --check` 通过。
+- 正式知识生产仍未放行：文献资料库根地址仍未配置；正式根地址必须在系统配置页维护为 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得使用服务器 IP、存储厂商硬编码、`tmp`、本机目录或非加密 HTTP。
+
+## 当前下一步
+
+1. 提交三处前端 route guard 聚合补丁、b685 失败/通过证据与验收报告追加，创建 PR，等 CI 通过并 squash 合并。
+2. 从合并后的精确 `origin/main` 重建前端/后端制品；对 134 再做发布前备份、隔离恢复和留痕后部署。
+3. 部署后复验 manifest、服务、Flyway、知识 0、文献资料库根地址仍为空，并重新运行完整 14 角色菜单路由冒烟。
+4. 若 P4 菜单路由全绿，再回写 post-deploy 证据；P4 问题关闭后才重新备份清库进入 P5。
+
 ## 2026-06-12 P4 d432 后端修复已部署，前端路由守卫补丁待 PR/部署
 
 - 当前执行线：P4 134 首轮 14 角色演练缺陷闭环；当前工作分支 `codex/p4-14-role-postdeploy`，本会话继续执行，不开新线程。

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   canAccessRoute,
@@ -8,6 +10,24 @@ import {
   customerRouteMetas,
 } from "./routes";
 import { ROLE_OPTIONS } from "./roleCatalog";
+
+function backendDefaultMenuSnapshots(): Map<string, string[]> {
+  const source = readFileSync(
+    resolve(
+      process.cwd(),
+      "../medkernel-backend/src/test/java/com/medkernel/engine/security/DefaultPermissionPolicyTest.java",
+    ),
+    "utf8",
+  );
+  const snapshots = new Map<string, string[]>();
+  const entryPattern = /Map\.entry\(RoleCode\.([A-Z_]+), List\.of\(([\s\S]*?)\)\)/g;
+  for (const match of source.matchAll(entryPattern)) {
+    const roleCode = match[1].toLowerCase().replace(/_/g, "-");
+    const menuKeys = Array.from(match[2].matchAll(/"([^"]+)"/g), (quoted) => quoted[1]);
+    snapshots.set(roleCode, menuKeys);
+  }
+  return snapshots;
+}
 
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
@@ -361,6 +381,7 @@ describe("route metadata", () => {
     expect(route?.requiredPermissions).toEqual(["menu.terminology-mapping", "term.read"]);
     expect(route?.requiredRoles).toEqual([
       "integration-operator",
+      "implementation-operator",
       "platform-knowledge-governor",
       "knowledge-governor",
       "diagnostic-service-user",
@@ -383,6 +404,13 @@ describe("route metadata", () => {
       canAccessRoute(route, {
         roles: [{ code: "diagnostic-service-user" }],
         permissions: [{ code: "term.read" }, { code: "term.write" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "implementation-operator" }],
+        permissions: [{ code: "term.read" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
@@ -571,7 +599,11 @@ describe("route metadata", () => {
     const usersRoute = findRouteByPath("/admin/users");
     const identityRoute = findRouteByPath("/security/identity-binding");
 
-    for (const roleCode of ["platform-knowledge-governor", "knowledge-governor"]) {
+    for (const roleCode of [
+      "platform-knowledge-governor",
+      "knowledge-governor",
+      "implementation-operator",
+    ]) {
       expect(
         canAccessRoute(knowledgeRoute, {
           roles: [{ code: roleCode }],
@@ -601,6 +633,43 @@ describe("route metadata", () => {
         menuKeys: ["identity-bindings"],
       }),
     ).toBe(true);
+    expect(
+      canAccessRoute(identityRoute, {
+        roles: [{ code: "implementation-operator" }],
+        permissions: [{ code: "org.read" }],
+        menuKeys: ["identity-bindings"],
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps frontend route guards aligned with backend default menu snapshots", () => {
+    const routeByMenuKey = new Map(
+      routeMetas
+        .filter((route) => route.requireAuth && route.menuKey)
+        .map((route) => [route.menuKey, route]),
+    );
+    const snapshots = backendDefaultMenuSnapshots();
+    const mismatches: string[] = [];
+
+    expect(snapshots.size).toBe(14);
+    snapshots.forEach((menuKeys, roleCode) => {
+      menuKeys.forEach((menuKey) => {
+        const route = routeByMenuKey.get(menuKey);
+        if (!route) {
+          mismatches.push(`${roleCode}:${menuKey}:missing-route`);
+          return;
+        }
+        const allowed = canAccessRoute(route, {
+          roles: [{ code: roleCode }],
+          permissions: route.requiredPermissions.map((code) => ({ code })),
+          menuKeys: [menuKey],
+        });
+        if (!allowed) {
+          mismatches.push(`${roleCode}:${menuKey}:${route.path}`);
+        }
+      });
+    });
+    expect(mismatches).toEqual([]);
   });
 
   it("limits graph exploration to projection readers in advanced technical roles", () => {
@@ -762,6 +831,7 @@ describe("route metadata", () => {
         requiredRoles: [
           "identity-access-admin",
           "integration-operator",
+          "implementation-operator",
           "platform-governance-admin",
           "organization-admin",
         ],
