@@ -1,0 +1,11 @@
+{
+  "code": "implementation-operator",
+  "layer": "customer",
+  "route": "/admin/users",
+  "url": "https://193.112.107.134/admin/users",
+  "error": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('main').getByRole('heading').first() to be visible\u001b[22m\n",
+  "consoleErrors": [],
+  "failedRequests": [],
+  "bodyPreview": "集团医疗智能中枢\n工作台\n机构治理\n服务机构\n实施与验收\n系统接入\n知识配置\n配置包与发布\n质量与运营\n审计与证据\n安全与配置\n运行保障\n机构治理\n/\n人员与账号\n搜索\n审计快照\n默认\nimplementation-operator\n实施运维员\n当前权限不足\n该页面包含受控数据，请联系信息科主任调整角色或数据范围。",
+  "screenshot": "/Users/zhikunzheng/.codex/worktrees/c41d/codex/docs/release/evidence/p4-first-drill-20260612/14-role-journeys/debug-menu-smoke/fail-implementation-operator-admin-users.png"
+}

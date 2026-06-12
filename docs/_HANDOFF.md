@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-12 P4 14 角色首轮演练发现缺陷，本地修复待 PR/部署闭环
+
+- 当前执行线：P4 134 首轮 14 角色演练；当前工作分支 `codex/p4-14-role-drill`，本会话继续执行，不开新线程。
+- 当前主线：`origin/main=a203289c82612ae65e06fb694bf3405ce5f67a61`，包含 P4 090e4155 精确重发证据文档追加；134 现场当前运行 manifest 仍为 `090e4155d90b74bc90259200483e8f4d7ecf6cbf`，本地修复尚未部署。
+- 演练前有效备份：`/zoesoft/medkernel/backups/p4-pre-14-role-drill-20260612-164536`，隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、首发身份/MFA 与角色分配正常。失败备份留痕：`/zoesoft/medkernel/backups/p4-pre-14-role-drill-20260612-164432/evidence/pre-drill-backup-failed.properties`，未执行破坏性动作。
+- 已通过真实前台创建客户租户 `p4-hospital`、组织树、11 个客户角色账号；另以受控 API 前置创建 2 个平台治理角色账号。14 个角色登录工作台与唯一主动作冒烟已通过，证据在 `docs/release/evidence/p4-first-drill-20260612/14-role-journeys/00-role-journey-summary.json` 及同目录截图。
+- 暴露缺陷 1：人员批量导入模板保留 UTF-8 BOM 时，后端将首列表头解析为带 BOM，导致预检 `HAS_ISSUES`。已本地修复 `PersonnelImportService` 剥离 BOM，并新增回归。
+- 暴露缺陷 2：实施运维员菜单含“人员与账号”，但 `/admin/users` 显示“当前权限不足”。根因是后端 `PersonnelController`、`ComplianceUserController` 守卫缺少 `IMPLEMENTATION_OPERATOR`，已本地修复并新增人员/账号维护回归。失败证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/debug-menu-smoke/fail-implementation-operator-admin-users.json` 与同名截图。
+- 本地验证已通过：`mvn -f medkernel-backend/pom.xml -Dtest='ComplianceUserControllerTest,PersonnelControllerTest' test`（16 tests）、`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest,ComplianceUserControllerTest,PersonnelControllerTest' test`（32 tests）、`bash scripts/check-comment-zh.sh`、`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`git diff --check`。
+- 受控凭据文件：`/zoesoft/medkernel/conf/p4-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`；凭据、MFA secret、恢复码不得写入仓库或聊天记录。`organization-admin` 因首次 UI 自动化超时未捕获恢复码，但已完成改密/MFA，二次登录前台验证通过。
+- 正式知识生产仍未放行：文献资料库根地址仍未配置；正式根地址必须在系统配置页维护为 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得使用服务器 IP、存储厂商硬编码、`tmp`、本机目录或非加密 HTTP。
+
+## 当前下一步
+
+1. 提交本地修复、演练证据与 `docs/audit/p4-first-fresh-deployment-acceptance.md` 追加；创建 PR，等待 CI 通过并 squash 合并。
+2. 从合并后的精确 `origin/main` 重建制品；对 134 执行发布前备份、隔离恢复和留痕后部署。
+3. 部署后验证 manifest、服务、Flyway、知识 0、文献资料库根地址仍为空，并重新运行 14 角色菜单路由冒烟，确认 implementation-operator `/admin/users` 不再越权。
+4. Post-deploy 证据回写本文件和 P4 验收报告后，若 P4 问题关闭，再重新备份并清库进入 P5 第二轮完整重演；不得复用首轮业务结果冒充通过。
+
 ## 2026-06-12 P4 090e4155 精确重发完成，待进入 14 角色演练
 
 - 当前执行线：P4 134 首轮演练。当前工作分支 `codex/p4-final-deploy-evidence` 仅用于提交本轮证据更新；合并后从最新 `origin/main` 继续，不开新线程。

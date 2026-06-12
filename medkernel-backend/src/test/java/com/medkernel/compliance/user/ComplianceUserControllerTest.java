@@ -138,6 +138,30 @@ class ComplianceUserControllerTest {
     }
 
     @Test
+    void implementationOperatorCanMaintainUsersDuringOnboarding() throws Exception {
+        saveCredential("t-1", "managed-710", "managed.ten");
+
+        mvc.perform(get("/api/v1/compliance/users")
+                .with(implementationOperator("t-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(1));
+
+        mvc.perform(post("/api/v1/compliance/users")
+                .with(implementationOperator("t-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "credentialManaged": false,
+                      "userId": "implementation-created",
+                      "displayName": "实施创建人员",
+                      "roleCode": "clinical-decision-user"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.user.userId").value("implementation-created"));
+    }
+
+    @Test
     void rejectsRoleAssignmentForUnknownTenantUser() throws Exception {
         mvc.perform(post("/api/v1/compliance/users/{userId}/roles", "missing-user")
                 .with(admin("t-1"))
@@ -228,6 +252,15 @@ class ComplianceUserControllerTest {
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin(String tenantId) {
         return jwt().jwt(token -> token.subject("admin-1").claim("tenant_id", tenantId))
             .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor implementationOperator(
+            String tenantId) {
+        return jwt().jwt(token -> token.subject("impl-1").claim("tenant_id", tenantId))
+            .authorities(
+                new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"),
+                new SimpleGrantedAuthority("org.read"),
+                new SimpleGrantedAuthority("org.write"));
     }
 
     private void saveCredential(String tenantId, String userId, String username) {
