@@ -1,0 +1,59 @@
+{
+  "status": "PASSED",
+  "checkedAt": "2026-06-12T12:13:54.191Z",
+  "tenantId": "p5-hospital",
+  "created": [
+    "P5-GROUP",
+    "P5-HOSP",
+    "P5-CAMPUS",
+    "P5-CARDIO",
+    "P5-CARDIO-W1"
+  ],
+  "expected": [
+    "P5-GROUP",
+    "P5-HOSP",
+    "P5-CAMPUS",
+    "P5-CARDIO",
+    "P5-CARDIO-W1"
+  ],
+  "missing": [],
+  "consoleErrors": [],
+  "failedRequests": [],
+  "traces": [
+    {
+      "path": "/medkernel/api/v1/auth/login",
+      "status": 200,
+      "traceId": "a7dd40f3-d40f-4407-9479-4f7bcacde90e"
+    },
+    {
+      "path": "/medkernel/api/v1/auth/session/renew",
+      "status": 200,
+      "traceId": "78ab4b3d-fe9f-4a3e-a043-414528c3e0ec"
+    },
+    {
+      "path": "/medkernel/api/v1/engine/org/org-units",
+      "status": 200,
+      "traceId": "01dc17bf-922c-41bd-b0a4-22ea531d5b47"
+    },
+    {
+      "path": "/medkernel/api/v1/engine/org/org-units",
+      "status": 200,
+      "traceId": "8e480767-5554-48df-b340-776a91b928e3"
+    },
+    {
+      "path": "/medkernel/api/v1/engine/org/org-units",
+      "status": 200,
+      "traceId": "dc8690ad-0f58-40fd-8760-760377987561"
+    },
+    {
+      "path": "/medkernel/api/v1/engine/org/org-units",
+      "status": 200,
+      "traceId": "0512dcd7-42eb-4e10-9abf-c3ea59998d61"
+    },
+    {
+      "path": "/medkernel/api/v1/engine/org/org-units",
+      "status": 200,
+      "traceId": "19d8b151-96fd-4adf-ac8e-dddb95b47b2e"
+    }
+  ]
+}

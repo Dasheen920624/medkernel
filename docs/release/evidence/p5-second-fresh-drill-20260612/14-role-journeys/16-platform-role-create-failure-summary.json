@@ -1,0 +1,25 @@
+{
+  "status": "PRODUCT_DEFECT_REPRODUCED",
+  "serverFlyway": "117|117",
+  "request": {
+    "targetUserId": "platform-knowledge-governor",
+    "targetRoleCode": "platform-knowledge-governor",
+    "traceId": "p5-platform-role-create-platform-knowledge-governor-1781266622733",
+    "traceIdLength": 65
+  },
+  "response": {
+    "httpStatus": 500,
+    "transactionRolledBack": true
+  },
+  "rootCause": {
+    "inboundTraceIdMaxLength": 128,
+    "platformCredentialTraceIdColumnLength": 64,
+    "databaseError": "追踪标识超过持久化列宽"
+  },
+  "currentPlatformRoles": {
+    "platform-governance-admin": "CREATED_PENDING_ACTIVATION",
+    "platform-knowledge-governor": "NOT_CREATED"
+  },
+  "plannedFix": "V118五方言迁移统一追踪标识持久化宽度为128，并补偿Oracle/达梦质量域历史差异",
+  "deployed": false
+}

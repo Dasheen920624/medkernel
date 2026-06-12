@@ -1,0 +1,21 @@
+{
+  "phase": "P5第二轮全新演练",
+  "status": "IN_PROGRESS",
+  "preClearBackup": "/zoesoft/medkernel/backups/p5-pre-clear-20260612-190951",
+  "backupSha256": "79a5451d6c211608497c55923da3a70938b25b837937683e03bf14e7a6429689",
+  "isolatedRestore": {
+    "flyway": "117|117",
+    "publicBaseTables": 178,
+    "knowledgeCounts": "0|0|0|0|0|0",
+    "materialRootLength": 0,
+    "restoreCleanupCount": 0
+  },
+  "freshDatabase": {
+    "flyway": "117|117",
+    "publicBaseTables": 178,
+    "knowledgeCounts": "0|0|0|0|0|0",
+    "materialRootLength": 0,
+    "bootstrapInitializedBeforeUi": false
+  },
+  "formalKnowledgeProductionAllowed": false
+}

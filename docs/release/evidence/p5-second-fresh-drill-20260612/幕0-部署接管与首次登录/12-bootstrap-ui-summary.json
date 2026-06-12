@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-06-12T12:01:52Z",
+  "host": "193.112.107.134",
+  "sourceCommit": "fd84369ded18f98568fcc5b4d9e7b216c25ebdda",
+  "credentialLocation": "/zoesoft/medkernel/conf/p5-first-admin-credentials-20260612.json",
+  "credentialModeOwner": "600|medkernel|medkernel",
+  "credentialStatus": "READY",
+  "initializedBefore": false,
+  "initializedAfter": true,
+  "username": "p5-platform-admin-20260612",
+  "roles": [
+    "system-superadmin"
+  ],
+  "mustChangePwd": false,
+  "mfaRequired": true,
+  "mfaBound": true,
+  "dashboardRelogin": true,
+  "bootstrapClosed": true,
+  "browserErrors": 0,
+  "unexpectedFailedRequests": 0,
+  "expectedNavigationAborts": 0,
+  "result": "PASSED"
+}

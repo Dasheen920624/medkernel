@@ -1,0 +1,118 @@
+{
+  "status": "PASSED",
+  "checkedAt": "2026-06-12T12:16:18.377Z",
+  "tenantId": "p5-hospital",
+  "accountCount": 11,
+  "results": [
+    {
+      "username": "clinical-decision-user",
+      "roleCode": "clinical-decision-user",
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false,
+      "roles": [
+        "clinical-decision-user"
+      ]
+    },
+    {
+      "username": "clinical-governor",
+      "roleCode": "clinical-governor",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "clinical-governor"
+      ]
+    },
+    {
+      "username": "compliance-auditor",
+      "roleCode": "compliance-auditor",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "compliance-auditor"
+      ]
+    },
+    {
+      "username": "diagnostic-service-user",
+      "roleCode": "diagnostic-service-user",
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false,
+      "roles": [
+        "diagnostic-service-user"
+      ]
+    },
+    {
+      "username": "identity-access-admin",
+      "roleCode": "identity-access-admin",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "identity-access-admin"
+      ]
+    },
+    {
+      "username": "implementation-operator",
+      "roleCode": "implementation-operator",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "implementation-operator"
+      ]
+    },
+    {
+      "username": "integration-operator",
+      "roleCode": "integration-operator",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "integration-operator"
+      ]
+    },
+    {
+      "username": "knowledge-governor",
+      "roleCode": "knowledge-governor",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "knowledge-governor"
+      ]
+    },
+    {
+      "username": "medication-safety-user",
+      "roleCode": "medication-safety-user",
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false,
+      "roles": [
+        "medication-safety-user"
+      ]
+    },
+    {
+      "username": "nursing-collaborator",
+      "roleCode": "nursing-collaborator",
+      "mustChangePwd": false,
+      "mfaRequired": false,
+      "mfaBound": false,
+      "roles": [
+        "nursing-collaborator"
+      ]
+    },
+    {
+      "username": "quality-governor",
+      "roleCode": "quality-governor",
+      "mustChangePwd": false,
+      "mfaRequired": true,
+      "mfaBound": true,
+      "roles": [
+        "quality-governor"
+      ]
+    }
+  ]
+}
