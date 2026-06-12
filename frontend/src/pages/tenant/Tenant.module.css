@@ -51,10 +51,12 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: calc(var(--mk-unit) * 24);
   align-items: start;
+  min-width: 0;
 }
 
 .onboardingPanel {
   height: 100%;
+  min-width: 0;
 }
 
 .formHint {
@@ -206,6 +208,6 @@
 
 @media (max-width: 48em) {
   .onboardingGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
