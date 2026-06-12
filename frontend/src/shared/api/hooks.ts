@@ -9032,7 +9032,10 @@ export interface PersonnelImportResponse {
   oneTimeActivations: Array<{ username: string; temporaryPassword: string }>;
 }
 
-export function usePersonnel(params: { page: number; size: number; keyword?: string }) {
+export function usePersonnel(
+  params: { page: number; size: number; keyword?: string },
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["compliance", "personnel", params],
     queryFn: async () => {
@@ -9042,6 +9045,7 @@ export function usePersonnel(params: { page: number; size: number; keyword?: str
       );
       return response.data.data;
     },
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -9428,7 +9432,7 @@ export function useRenewSession() {
 }
 
 // ──────────────────────────────────────────
-// 鉴权 · 平台租户开通（平台管理员）
+// 鉴权 · 平台租户开通（平台治理管理员）
 // ──────────────────────────────────────────
 export interface TenantSummary {
   tenantId: string;

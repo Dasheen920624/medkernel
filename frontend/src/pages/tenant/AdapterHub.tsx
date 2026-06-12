@@ -1613,7 +1613,7 @@ function QualityReportCard({ report }: { report: DataQualityReport }) {
       </div>
       <Descriptions size="small" column={2}>
         <Descriptions.Item label="报告 ID">{report.reportId}</Descriptions.Item>
-        <Descriptions.Item label="traceId">{report.traceId ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="追踪号">{report.traceId ?? "暂无"}</Descriptions.Item>
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>

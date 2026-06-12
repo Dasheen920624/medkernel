@@ -221,7 +221,7 @@ function getRecommendationJourneySteps(
       title: "待办 / 通知",
       status: detail.card.status,
       description: "推荐卡会同步为医生待办或通知；状态以后端闭环为准。",
-      evidence: `traceId: ${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
+      evidence: `追踪号：${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
     },
     {
       title: "医生反馈",
@@ -523,7 +523,7 @@ export default function CdssFatigue() {
         pageSize: size,
         total: quickSearchTerm ? visibleCards.length : (cardsPage?.total ?? 0),
         onChange: (p) => setPage(p),
-        showTotal: (t) => `共 ${t} 张临床运行提醒卡`,
+        showTotal: (t) => `共 ${t} 张临床协同提醒卡`,
       }}
       className="medkernel-table"
     />
@@ -562,7 +562,7 @@ export default function CdssFatigue() {
               <span>推荐链路总览</span>
             </div>
             <div className={styles.textSmall}>
-              从触发事件到医生反馈，按同一条 traceId 解释推荐为什么出现、现在处理到哪一步。
+              从触发事件到医生反馈，按同一追踪号解释推荐为什么出现、现在处理到哪一步。
             </div>
           </div>
           <Tag color="blue">一图贯穿</Tag>
@@ -587,7 +587,7 @@ export default function CdssFatigue() {
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <div className={`${styles.sectionTitle} ${styles.sectionGap}`}>
           <SearchOutlined className={styles.iconInfo} />
-          <span>按患者 ID / traceId / 来源对象查推荐</span>
+          <span>按患者标识 / 追踪号 / 来源对象查推荐</span>
         </div>
         <Form layout="vertical" className={styles.inlineForm}>
           <Form.Item label="状态">
@@ -623,10 +623,10 @@ export default function CdssFatigue() {
               <Option value="LOW">低风险（绿线低打扰）</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="患者或 traceId" htmlFor="recommendation-quick-search">
+          <Form.Item label="患者或追踪号" htmlFor="recommendation-quick-search">
             <Input
               id="recommendation-quick-search"
-              placeholder="输入患者 ID、traceId、卡片或触发事件"
+              placeholder="输入患者标识、追踪号、卡片或触发事件"
               allowClear
               value={quickSearch}
               onChange={(e) => {
@@ -760,7 +760,7 @@ export default function CdssFatigue() {
               <Descriptions.Item label="质量">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
               </Descriptions.Item>
-              <Descriptions.Item label="traceId">
+              <Descriptions.Item label="追踪号">
                 {snapshotDetailQuery.data.traceId || "未返回"}
               </Descriptions.Item>
             </Descriptions>
@@ -1178,7 +1178,7 @@ export default function CdssFatigue() {
               <Descriptions.Item label="推荐 Trigger ID">
                 <span className={styles.codeText}>{diagnoseData.executionId}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="链路 Trace ID">
+              <Descriptions.Item label="链路 追踪号">
                 <span className={styles.codeText}>{diagnoseData.traceId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">

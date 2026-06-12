@@ -76,7 +76,7 @@ describe("SecurityBaseline", () => {
         roles: [
           {
             code: "platform-governance-admin",
-            displayName: "平台管理员",
+            displayName: "平台治理管理员",
             source: "PLATFORM_SEED",
             scopeLevel: "TENANT",
             scopeCode: "t-1",
@@ -502,8 +502,8 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
     expect(screen.getByRole("heading", { name: "脱敏预览" })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "预览值 JSON" }), {
-      target: { value: '{"patientName":"张三","encounterId":"enc-1"}' },
+    fireEvent.change(screen.getByRole("textbox", { name: "预览样例值" }), {
+      target: { value: "张三" },
     });
     await user.click(screen.getByRole("button", { name: "执行脱敏预览" }));
 
@@ -514,7 +514,6 @@ describe("SecurityBaseline", () => {
         sensitiveFields: ["patientName"],
         values: {
           patientName: "张三",
-          encounterId: "enc-1",
         },
       }),
     );

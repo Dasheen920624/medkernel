@@ -135,7 +135,7 @@ describe("Notifications", () => {
       page: 1,
       size: 10,
     });
-    expect(screen.getByRole("heading", { name: "通知中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "消息通知" })).toBeInTheDocument();
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
     expect(screen.getByText("患者报告呼吸困难，需要处理。")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
@@ -522,7 +522,7 @@ describe("Notifications", () => {
     renderNotifications();
 
     expect(screen.getByText("免打扰状态暂不可确认")).toBeInTheDocument();
-    expect(screen.getByText("通知设置接口暂不可用，请刷新或到设置页确认。")).toBeInTheDocument();
+    expect(screen.getByText("通知偏好接口暂不可用，请刷新或到设置页确认。")).toBeInTheDocument();
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
   });
 });

@@ -352,7 +352,7 @@ type MaskingPreviewForm = {
   resourceType?: string;
   scenarioCode?: string;
   sensitiveFields?: string[];
-  valuesJson?: string;
+  sampleValue?: string;
 };
 
 function normalizeOptional(value?: string | null) {
@@ -374,21 +374,8 @@ function renderTagList(values: string[] | undefined, emptyText = "无") {
 function displayPreviewValue(value: unknown) {
   if (value === null) return "null";
   if (value === undefined) return "未返回";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "object") return "结构化值已隐藏";
   return String(value);
-}
-
-function parseMaskingPreviewValues(value?: string): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value ?? "{}");
-  } catch {
-    throw new Error("预览值 JSON 格式不合法");
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("预览值 JSON 必须是对象格式");
-  }
-  return parsed as Record<string, unknown>;
 }
 
 const scopeLevels: Array<{
@@ -852,12 +839,12 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
         resourceType: defaultRule.resourceType,
         scenarioCode: defaultRule.scenarioCode ?? "DEFAULT",
         sensitiveFields: [defaultRule.fieldName],
-        valuesJson: JSON.stringify({ [defaultRule.fieldName]: "" }, null, 2),
+        sampleValue: "",
       }
     : {
         scenarioCode: "DEFAULT",
         sensitiveFields: [],
-        valuesJson: "{}",
+        sampleValue: "",
       };
 
   function openCreate() {
@@ -907,10 +894,13 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
 
   async function runPreview(values: MaskingPreviewForm) {
     try {
+      const sampleValues = Object.fromEntries(
+        (values.sensitiveFields ?? []).map((field) => [field, values.sampleValue ?? ""]),
+      );
       const result = await preview.mutateAsync({
         resourceType: values.resourceType?.trim() ?? "",
         scenarioCode: normalizeOptional(values.scenarioCode),
-        values: parseMaskingPreviewValues(values.valuesJson),
+        values: sampleValues,
         sensitiveFields: values.sensitiveFields ?? [],
       });
       setPreviewResult(result);
@@ -970,25 +960,11 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
             </Col>
           </Row>
           <Form.Item
-            name="valuesJson"
-            label="预览值 JSON"
-            rules={[
-              { required: true, whitespace: true },
-              {
-                validator: (_rule, value) => {
-                  try {
-                    parseMaskingPreviewValues(value);
-                    return Promise.resolve();
-                  } catch (error: unknown) {
-                    return Promise.reject(
-                      error instanceof Error ? error : new Error("预览值 JSON 格式不合法"),
-                    );
-                  }
-                },
-              },
-            ]}
+            name="sampleValue"
+            label="预览样例值"
+            rules={[{ required: true, whitespace: true }]}
           >
-            <Input.TextArea rows={5} />
+            <Input placeholder="输入一条用于验证脱敏效果的样例值" />
           </Form.Item>
           <Button
             type="primary"

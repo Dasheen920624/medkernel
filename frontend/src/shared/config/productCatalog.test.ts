@@ -84,13 +84,16 @@ describe("product function catalog", () => {
     const backendEntries = extractBackendMenuEntries();
     const frontendEntries = routeMetas
       .filter((route) => route.requireAuth && route.menuKey && route.menuLabel)
-      .map((route) => ({
-        sectionKey: route.sectionKey,
-        menuKey: route.menuKey,
-        label: route.menuLabel,
-        permission: `MENU_${route.menuKey.replaceAll("-", "_").toUpperCase()}`,
-        placement: route.placement,
-      }));
+      .map((route) => {
+        const menuKey = route.menuKey as string;
+        return {
+          sectionKey: route.sectionKey,
+          menuKey,
+          label: route.menuLabel,
+          permission: `MENU_${menuKey.replace(/-/g, "_").toUpperCase()}`,
+          placement: route.placement,
+        };
+      });
 
     expect(backendEntries).toHaveLength(30);
     expect(frontendEntries).toHaveLength(30);

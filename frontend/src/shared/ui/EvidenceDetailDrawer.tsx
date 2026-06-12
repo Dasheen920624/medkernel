@@ -79,7 +79,7 @@ export function EvidenceDetailDrawer({
             </section>
           );
         })}
-        {expertMode && traceId && <Text type="secondary">traceId: {traceId}</Text>}
+        {expertMode && traceId && <Text type="secondary">追踪号：{traceId}</Text>}
       </Space>
     );
   }

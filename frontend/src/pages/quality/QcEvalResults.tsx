@@ -127,7 +127,7 @@ export default function QcEvalResults() {
   );
   const error = resultsQuery.error ?? findingsQuery.error;
   const parsedError =
-    resultsQuery.isError || findingsQuery.isError ? parseApiError(error, "评估结果读取失败") : null;
+    resultsQuery.isError || findingsQuery.isError ? parseApiError(error, "评价结果读取失败") : null;
 
   const metrics = useMemo(
     () => ({
@@ -234,7 +234,7 @@ export default function QcEvalResults() {
       ),
     },
     {
-      title: "traceId",
+      title: "追踪号",
       dataIndex: "traceId",
       key: "traceId",
       render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
@@ -287,7 +287,7 @@ export default function QcEvalResults() {
       ),
     },
     {
-      title: "traceId",
+      title: "追踪号",
       dataIndex: "traceId",
       key: "traceId",
       render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
@@ -310,10 +310,10 @@ export default function QcEvalResults() {
   return (
     <>
       <PageShell
-        title="评估结果"
-        description="按真实评估结果追溯问题证据"
+        title="质量问题来源"
+        description="按真实评价结果追溯问题证据"
         extras={
-          <Button aria-label="刷新评估结果" icon={<ReloadOutlined />} onClick={refreshAll}>
+          <Button aria-label="刷新评价结果" icon={<ReloadOutlined />} onClick={refreshAll}>
             刷新
           </Button>
         }
@@ -325,9 +325,9 @@ export default function QcEvalResults() {
           findings,
         )}
         stateProps={{
-          title: parsedError?.message ?? "当前筛选下暂无真实评估结果",
+          title: parsedError?.message ?? "当前筛选下暂无真实评价结果",
           description: parsedError
-            ? "请稍后重试，或带 traceId 联系信息科核查。"
+            ? "请稍后重试，或凭追踪号联系信息科核查。"
             : "后端当前没有返回符合筛选条件的结果或问题。",
           traceId: parsedError?.traceId,
           onRetry: refreshAll,
@@ -380,7 +380,7 @@ export default function QcEvalResults() {
           <Space wrap size="middle" className="mk-full-width">
             <MetricCard
               icon={<DatabaseOutlined />}
-              title="真实评估结果总数"
+              title="真实评价结果总数"
               value={`${metrics.totalResults} 例`}
             />
             <MetricCard
@@ -402,13 +402,13 @@ export default function QcEvalResults() {
             />
           </Space>
 
-          <Card title="评估结果台账">
+          <Card title="评价结果台账">
             <Table
               dataSource={results}
               columns={resultColumns}
               rowKey={(record) => record.resultId}
               loading={resultsQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无真实评估结果" /> }}
+              locale={{ emptyText: <Empty description="暂无真实评价结果" /> }}
               pagination={{
                 total: resultsQuery.data?.total ?? 0,
                 pageSize: 20,
@@ -467,7 +467,7 @@ export default function QcEvalResults() {
                     drawerFinding.responsibleDepartmentId)
                   : "未指定"}
               </Descriptions.Item>
-              <Descriptions.Item label="traceId">{drawerFinding.traceId ?? "--"}</Descriptions.Item>
+              <Descriptions.Item label="追踪号">{drawerFinding.traceId ?? "--"}</Descriptions.Item>
             </Descriptions>
 
             <Alert

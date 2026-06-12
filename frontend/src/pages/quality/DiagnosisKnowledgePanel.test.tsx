@@ -246,7 +246,7 @@ describe("DiagnosisKnowledgePanel", () => {
     fillField("签名 ID", "sig-platform-11");
     fillField("签名时间", "2026-06-10T01:00");
     fillField("签名人 ID", "platform-admin-1");
-    fillField("签名人姓名", "平台管理员");
+    fillField("签名人姓名", "平台治理管理员");
     fillField("签名摘要", "b".repeat(64));
 
     const publishButton = screen.getByRole("button", { name: /通过门禁并发布/ });
@@ -277,7 +277,7 @@ describe("DiagnosisKnowledgePanel", () => {
           electronicSignature: {
             signatureId: "sig-platform-11",
             signerId: "platform-admin-1",
-            signerName: "平台管理员",
+            signerName: "平台治理管理员",
             signedAt: new Date("2026-06-10T01:00").toISOString(),
             signatureHash: "b".repeat(64),
           },

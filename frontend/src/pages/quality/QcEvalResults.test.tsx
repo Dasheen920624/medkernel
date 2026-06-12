@@ -166,8 +166,8 @@ describe("QcEvalResults", () => {
       }),
     );
 
-    expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
-    expect(screen.getByText("真实评估结果总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
+    expect(screen.getByText("真实评价结果总数")).toBeInTheDocument();
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
     expect(screen.getByText("IND.VTE.REAL")).toBeInTheDocument();
     expect(screen.getByText("v2")).toBeInTheDocument();

@@ -105,7 +105,7 @@ export default function Notifications() {
         type="warning"
         showIcon
         message="免打扰状态暂不可确认"
-        description="通知设置接口暂不可用，请刷新或到设置页确认。"
+        description="通知偏好接口暂不可用，请刷新或到设置页确认。"
       />
     );
   } else if (notificationSettings?.quietHoursEnabled) {
@@ -151,7 +151,7 @@ export default function Notifications() {
 
   return (
     <PageShell
-      title="通知中心"
+      title="消息通知"
       description="查看真实业务通知并同步已读状态。"
       extras={
         <Space wrap>

@@ -36,7 +36,7 @@ describe("PageState", () => {
     expect(screen.getByRole("button", { name: "导入配置包" })).toBeInTheDocument();
   });
 
-  it("renders error traceId and retry action", () => {
+  it("renders error tracking number and retry action", () => {
     const retry = vi.fn();
     const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
@@ -46,7 +46,7 @@ describe("PageState", () => {
 
     render(<PageState state="error" traceId="trace-001" onRetry={retry} />);
     expect(screen.getByText(/trace-001/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /复制 traceId/ }));
+    fireEvent.click(screen.getByRole("button", { name: /复制追踪号/ }));
     expect(writeText).toHaveBeenCalledWith("trace-001");
     screen.getByRole("button", { name: "重试" }).click();
     expect(retry).toHaveBeenCalledTimes(1);

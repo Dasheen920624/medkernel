@@ -171,7 +171,7 @@ const inheritanceAssetTypeOptions: Array<{ value: EngineAssetType; label: string
   { value: "PATHWAY", label: "临床路径 (PATHWAY)" },
   { value: "CONDITION_FRAGMENT", label: "条件片段 (CONDITION_FRAGMENT)" },
   { value: "EVALUATION", label: "质控评估指标 (EVALUATION)" },
-  { value: "TERMINOLOGY", label: "术语字典映射 (TERMINOLOGY)" },
+  { value: "TERMINOLOGY", label: "术语与字典" },
   { value: "KNOWLEDGE", label: "知识资产 (KNOWLEDGE)" },
 ];
 
@@ -408,7 +408,8 @@ export default function ConfigPackages() {
   const canDirectFullRelease = hasOrganizationAdminRole(securityProfile?.roles);
   const canManageEntitlements =
     securityProfile?.dataScope.tenantId === platformTenantId &&
-    hasPermission(securityProfile, "platform.publish");
+    hasPermission(securityProfile, "platform.publish") &&
+    hasPermission(securityProfile, "tenant.read");
   const tenantDirectoryQuery = useTenants(canManageEntitlements);
   const activeCustomerTenants = (tenantDirectoryQuery.data ?? []).filter(
     (tenant) => tenant.tenantId !== platformTenantId && tenant.status === "ACTIVE",
@@ -998,7 +999,7 @@ export default function ConfigPackages() {
       .catch(() => {
         setOfflineImportContent("");
         setOfflineImportSummary(null);
-        message.error("离线包 JSON 文件无法识别，请重新选择有效文件。");
+        message.error("离线包文件无法识别，请重新选择有效文件。");
       });
     return false;
   };
@@ -1006,7 +1007,7 @@ export default function ConfigPackages() {
   const handleImportOfflinePackage = async () => {
     const offlinePackageJson = offlineImportContent.trim();
     if (!offlinePackageJson) {
-      message.error("请先选择离线包 JSON 文件。");
+      message.error("请先选择离线包文件。");
       return;
     }
     try {
@@ -1883,7 +1884,7 @@ export default function ConfigPackages() {
           showUploadList={false}
           beforeUpload={handleOfflineImportFile}
         >
-          <Button icon={<UploadOutlined aria-hidden="true" />}>选择 JSON 文件</Button>
+          <Button icon={<UploadOutlined aria-hidden="true" />}>选择离线包文件</Button>
         </Upload>
         {offlineImportSummary && (
           <Descriptions bordered column={2} size="small">
@@ -1907,11 +1908,11 @@ export default function ConfigPackages() {
   if (pageStateLoading) {
     return (
       <PageShell
-        title="配置包中心"
+        title="配置包与发布"
         description="读取配置包发布事实"
         state="loading"
         stateProps={{
-          title: "正在加载配置包中心",
+          title: "正在加载配置包与发布",
           description: "正在读取配置包列表、首发模板和资产就绪门。",
         }}
       >
@@ -1923,12 +1924,12 @@ export default function ConfigPackages() {
   if (pageStateError) {
     return (
       <PageShell
-        title="配置包中心"
+        title="配置包与发布"
         description="请重试或联系信息科"
         state="error"
         stateProps={{
-          title: "配置包中心读取失败",
-          description: "请重试；若持续失败，请带 traceId 排查配置包和资产准备接口。",
+          title: "配置包与发布读取失败",
+          description: "请重试；若持续失败，请凭追踪号排查配置包和资产准备接口。",
           onRetry: () => {
             void packageQuery.refetch();
             void refetchAssetReadiness();
@@ -1944,7 +1945,7 @@ export default function ConfigPackages() {
     return (
       <>
         <PageShell
-          title="配置包中心"
+          title="配置包与发布"
           description="等待首个配置包草案"
           state="empty"
           stateProps={{
@@ -1999,7 +2000,7 @@ export default function ConfigPackages() {
 
   return (
     <PageShell
-      title="配置包中心"
+      title="配置包与发布"
       description="按 7 步流发布、同步、留证和回滚"
       primary={
         <Button
@@ -2405,7 +2406,7 @@ export default function ConfigPackages() {
                       <Option value="PATHWAY">临床路径 (PATHWAY)</Option>
                       <Option value="CONDITION_FRAGMENT">条件片段 (CONDITION_FRAGMENT)</Option>
                       <Option value="EVALUATION">质控评估指标 (EVALUATION)</Option>
-                      <Option value="TERMINOLOGY">术语字典映射 (TERMINOLOGY)</Option>
+                      <Option value="TERMINOLOGY">术语与字典</Option>
                     </Select>
                   </Form.Item>
                   <Form.Item
@@ -2683,7 +2684,7 @@ export default function ConfigPackages() {
               className={styles.formAlert}
               message="暂无可用同步适配器"
               description="请先完成适配器配置与健康检查。"
-              action={<Button href="/adapter/hub">前往适配器中心</Button>}
+              action={<Button href="/adapter/hub">前往系统接入</Button>}
             />
           )}
           <Form.Item

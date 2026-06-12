@@ -51,7 +51,7 @@ function profile(roleCode = "implementation-operator"): SecurityProfile {
     roles: [
       {
         code: roleCode,
-        displayName: "实施工程师",
+        displayName: "实施运维员",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
         scopeCode: "h-1",

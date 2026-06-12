@@ -83,7 +83,7 @@ vi.mock("@/shared/api/hooks", () => ({
       roles: [
         {
           code: "implementation-operator",
-          displayName: "实施工程师",
+          displayName: "实施运维员",
           source: "tenant",
           scopeLevel: "HOSPITAL",
           scopeCode: "hospital-1",
@@ -481,7 +481,7 @@ describe("ConfigPackages offline package export", () => {
     "lets platform administrators manage restricted package entitlements",
     async () => {
       apiMocks.tenantId = "t-1";
-      apiMocks.permissions = [{ code: "platform.publish" }];
+      apiMocks.permissions = [{ code: "platform.publish" }, { code: "tenant.read" }];
       apiMocks.packagesData = {
         items: [
           {
@@ -647,7 +647,7 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByText("正在加载配置包中心")).toBeInTheDocument();
+    expect(screen.getByText("正在加载配置包与发布")).toBeInTheDocument();
 
     apiMocks.packagesLoading = false;
     apiMocks.packagesError = true;
@@ -659,7 +659,7 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByText("配置包中心读取失败")).toBeInTheDocument();
+    expect(screen.getByText("配置包与发布读取失败")).toBeInTheDocument();
 
     apiMocks.packagesError = false;
     apiMocks.packagesData = {
@@ -936,7 +936,7 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "导入离线包" }));
-      expect(screen.queryByLabelText("离线包 JSON")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("离线包文件")).not.toBeInTheDocument();
       const offlineJson = JSON.stringify({
         format: "MEDKERNEL_PACKAGE_OFFLINE_V2",
         manifest: {
@@ -1030,7 +1030,7 @@ describe("ConfigPackages offline package export", () => {
       await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
 
       expect(screen.getByText("暂无可用同步适配器")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "前往适配器中心" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "前往系统接入" })).toHaveAttribute(
         "href",
         "/adapter/hub",
       );
@@ -1217,7 +1217,7 @@ describe("ConfigPackages offline package export", () => {
       const drawer = screen.getByRole("dialog", { name: "办理包内资产细项" });
 
       openSelectByLabel("资产类型", drawer);
-      await chooseVisibleSelectOption("术语字典映射 (TERMINOLOGY)");
+      await chooseVisibleSelectOption("术语与字典");
 
       openSelectByLabel("选择已发布的临床资产", drawer);
       await chooseVisibleSelectOption(/检验术语映射包/);

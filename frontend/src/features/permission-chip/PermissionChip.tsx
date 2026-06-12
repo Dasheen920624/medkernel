@@ -95,7 +95,7 @@ function PermissionDetails({ profile }: { profile: SecurityProfile }) {
         可用环境：{formatEnvironmentKeys(environmentKeys)}
       </Text>
       <Text type="secondary" className="mk-text-xs">
-        数据范围：{formatDataScope(profile.dataScope)}；权限由合规运维统一配置。
+        数据范围：{formatDataScope(profile.dataScope)}；权限由人员与访问治理统一配置。
       </Text>
     </>
   );

@@ -2,28 +2,35 @@ import { expect, type APIResponse, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
 
 export const apiBase = requireEnv("E2E_API_BASE_URL");
+export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:5173").replace(
+  /\/+$/,
+  "",
+);
+const frontendApiBase = `${appBase}/medkernel/api/v1`;
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
 
 export const roleAccounts = [
-  "platform-admin",
-  "group-admin",
-  "hospital-admin",
-  "it-ops",
-  "medical-affairs",
-  "qa-manager",
-  "insurance-manager",
-  "dept-head",
-  "specialist",
-  "doctor",
-  "nurse",
-  "audit-compliance",
-  "implementation-engineer",
+  "platform-governance-admin",
+  "platform-knowledge-governor",
+  "organization-admin",
+  "identity-access-admin",
+  "knowledge-governor",
+  "clinical-governor",
+  "clinical-decision-user",
+  "nursing-collaborator",
+  "medication-safety-user",
+  "diagnostic-service-user",
+  "quality-governor",
+  "compliance-auditor",
+  "integration-operator",
+  "implementation-operator",
 ] as const;
 
 export type RoleAccount = (typeof roleAccounts)[number];
 
 export async function ensureReadySession(page: Page, role: RoleAccount) {
+  await page.context().clearCookies();
   const password = stablePassword(role);
   let currentPassword = password;
   let login = await loginWith(page, role, password);
@@ -64,16 +71,28 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
     const relogin = await loginWith(page, role, password);
     await expectOk(relogin, `${role} MFA 后重新登录`);
   }
+  await loginWithFrontend(page, role, password);
+  const frontendProfile = await page.request.get(`${frontendApiBase}/security/me`, {
+    headers: { "X-Trace-Id": `e2e-front-profile-${role}-${Date.now()}` },
+  });
+  await expectOk(frontendProfile, `${role} 前台会话画像`);
+  const profile = (await frontendProfile.json()).data as {
+    roles: Array<{ code: string }>;
+    menuKeys: string[];
+  };
+  expect(profile.roles.map((item) => item.code)).toContain(role);
+  expect(profile.menuKeys).toContain("workbench");
 }
 
 export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await page.context().clearCookies();
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
+  await expectLoginPageReady(page);
 
-  const platformTenantSwitch = page.getByRole("button", { name: "主平台户" });
+  const platformTenantSwitch = page.getByRole("button", { name: "平台治理" });
   if (await platformTenantSwitch.isVisible()) {
     await platformTenantSwitch.click();
+    await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
   }
 
   await page.getByLabel("工号 / 账号").fill(role);
@@ -82,8 +101,26 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
+export async function expectLoginPageReady(page: Page) {
+  await expect(page.getByRole("main", { name: "登录 MedKernel 工作台" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ }),
+  ).toBeVisible();
+}
+
 export async function loginWith(page: Page, username: string, password: string) {
   return postApi(page, "/auth/login", { username, password, tenantId });
+}
+
+async function loginWithFrontend(page: Page, role: RoleAccount, password: string) {
+  const response = await page.request.post(`${frontendApiBase}/auth/login`, {
+    data: { username: role, password, tenantId },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Trace-Id": `e2e-front-login-${role}-${Date.now()}`,
+    },
+  });
+  await expectOk(response, `${role} 前台代理登录`);
 }
 
 export async function postApi(page: Page, path: string, data: unknown) {
@@ -99,7 +136,9 @@ async function writeApi(page: Page, method: "post" | "patch", path: string, data
     "Content-Type": "application/json",
     "X-Trace-Id": `e2e-${Date.now()}`,
   };
-  const xsrf = (await page.context().cookies()).find((cookie) => cookie.name === "XSRF-TOKEN");
+  const xsrf = (await page.context().cookies(apiBase)).find(
+    (cookie) => cookie.name === "XSRF-TOKEN",
+  );
   if (xsrf) {
     headers["X-XSRF-TOKEN"] = xsrf.value;
   }

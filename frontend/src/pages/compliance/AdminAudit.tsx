@@ -300,7 +300,7 @@ export default function AdminAudit() {
     ...(expertMode
       ? [
           {
-            title: "Trace ID",
+            title: "追踪号",
             dataIndex: "traceId",
             width: 180,
             render: (value: string | null) => value ?? "-",
@@ -440,7 +440,7 @@ export default function AdminAudit() {
           >
             打开诊断链
           </Button>
-          {!eventTraceId && <Text type="secondary">该事件未返回 Trace ID</Text>}
+          {!eventTraceId && <Text type="secondary">该事件未返回 追踪号</Text>}
         </Space>
         {diagnosisEnabled && traceDiagnosis.isLoading && <PageState state="loading" />}
         {diagnosisEnabled && traceDiagnosis.isError && (
@@ -449,7 +449,7 @@ export default function AdminAudit() {
         {diagnosisEnabled && traceDiagnosis.data && (
           <>
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Trace ID">
+              <Descriptions.Item label="追踪号">
                 <Text code copyable>
                   {traceDiagnosis.data.traceId}
                 </Text>
@@ -721,8 +721,8 @@ export default function AdminAudit() {
                   />
                   <Space wrap size="small">
                     <Input.Search
-                      aria-label="Trace ID 搜索"
-                      placeholder="输入 Trace ID"
+                      aria-label="追踪号 搜索"
+                      placeholder="输入 追踪号"
                       value={filterValue(filters, "traceId") ?? ""}
                       allowClear
                       enterButton={<SearchOutlined />}
@@ -818,7 +818,7 @@ export default function AdminAudit() {
               <Descriptions.Item label="错误码">
                 {selectedAuditEvent.errorCode ?? "无"}
               </Descriptions.Item>
-              <Descriptions.Item label="Trace ID">
+              <Descriptions.Item label="追踪号">
                 <Text code copyable>
                   {selectedAuditEvent.traceId ?? "未返回"}
                 </Text>

@@ -123,7 +123,7 @@ export default function QcDashboard() {
   if (dashboardQuery.isLoading) {
     return (
       <PageShell
-        title="院级质控驾驶舱"
+        title="质量与运营概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
@@ -137,7 +137,7 @@ export default function QcDashboard() {
   if (dashboardQuery.isError) {
     return (
       <PageShell
-        title="院级质控驾驶舱"
+        title="质量与运营概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
@@ -160,14 +160,14 @@ export default function QcDashboard() {
   if (!dashboard || isEmpty) {
     return (
       <PageShell
-        title="院级质控驾驶舱"
+        title="质量与运营概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
         state="empty"
         stateProps={{
           title: "当前筛选下暂无真实质控数据",
-          description: "未从质控汇总接口读取到问题、预警或价值指标。",
+          description: "未从质控汇总接口读取到问题、预警或质量成效。",
         }}
       >
         <></>
@@ -177,7 +177,7 @@ export default function QcDashboard() {
 
   return (
     <PageShell
-      title="院级质控驾驶舱"
+      title="质量与运营概览"
       description="真实指标、风险热力与闭环价值"
       primary={primaryAction}
       extras={extraActions}
@@ -241,7 +241,7 @@ export default function QcDashboard() {
           <Alert
             type="warning"
             showIcon
-            message="部分价值指标暂不可用"
+            message="部分质量成效暂不可用"
             description={unavailableMetrics.map((metric) => metric.explanation).join("；")}
           />
         )}
@@ -266,7 +266,7 @@ export default function QcDashboard() {
           />
           <MetricCard
             icon={<SearchOutlined className={styles.iconLarge} />}
-            label="当前打开预警"
+            label="当前待处置问题"
             value={formatCount(dashboard.summary.activeAlerts)}
             danger={dashboard.summary.activeAlerts > 0}
           />
@@ -276,12 +276,12 @@ export default function QcDashboard() {
           <Card title="风险热力">
             <HeatmapList cells={dashboard.heatmap} departmentNames={departmentNames} />
           </Card>
-          <Card title="价值指标">
+          <Card title="质量成效">
             <ValueMetricList metrics={dashboard.valueMetrics.metrics} />
           </Card>
         </div>
 
-        <Card title="打开预警">
+        <Card title="待处置问题">
           <AlertList alerts={dashboard.activeAlerts} departmentNames={departmentNames} />
         </Card>
 
@@ -375,7 +375,7 @@ function HeatmapList({
 
 function ValueMetricList({ metrics }: { metrics: QualityValueMetric[] }) {
   if (metrics.length === 0) {
-    return <Empty description="暂无真实价值指标" />;
+    return <Empty description="暂无真实质量成效" />;
   }
   return (
     <List
@@ -412,7 +412,7 @@ function AlertList({
   departmentNames: Map<string, string>;
 }) {
   if (alerts.length === 0) {
-    return <Empty description="暂无打开预警" />;
+    return <Empty description="暂无待处置问题" />;
   }
   return (
     <List
@@ -435,7 +435,7 @@ function AlertList({
                   : "全院"}
               </Tag>
               <Tag>{customerEnumLabel(alert.sourceType)}</Tag>
-              {alert.traceId && <Text type="secondary">traceId: {alert.traceId}</Text>}
+              {alert.traceId && <Text type="secondary">追踪号：{alert.traceId}</Text>}
             </Space>
           </Space>
         </List.Item>

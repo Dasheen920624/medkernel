@@ -105,7 +105,7 @@
 | `/qc/eval/sets` | 评价指标 | quality-operations | qc-eval-sets | primary | RENAME | 质量与运营 | 评价指标 | 维护评价指标、影响分析和发布状态 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fresults decision=MERGE -->
 <!-- route:/qc/eval/results -->
-| `/qc/eval/results` | 评估结果 | quality-operations | — | hidden | MERGE | 质量与运营 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
+| `/qc/eval/results` | 质量问题来源 | quality-operations | — | hidden | MERGE | 质量与运营 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
 | `/knowledge/governance` | 知识审核与发布 | knowledge-configuration | knowledge-governance | primary | MOVE | 知识配置 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |

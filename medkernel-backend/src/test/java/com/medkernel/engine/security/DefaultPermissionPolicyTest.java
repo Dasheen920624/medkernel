@@ -1,6 +1,8 @@
 package com.medkernel.engine.security;
 
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -8,12 +10,174 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DefaultPermissionPolicyTest {
 
+    private static final Map<RoleCode, List<String>> CUSTOMER_MENU_SNAPSHOTS = Map.ofEntries(
+        Map.entry(RoleCode.PLATFORM_GOVERNANCE_ADMIN, List.of(
+            "workbench",
+            "tenant-onboarding",
+            "admin-users",
+            "identity-bindings",
+            "implementation-guide",
+            "knowledge-governance",
+            "config-packages",
+            "qc-dashboard",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "ai-workflows",
+            "domestic-check")),
+        Map.entry(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR, List.of(
+            "workbench",
+            "knowledge-governance",
+            "config-packages",
+            "terminology-mapping",
+            "rule-definitions",
+            "pathway-templates",
+            "admin-audit",
+            "provenance",
+            "graph-explore",
+            "ai-workflows")),
+        Map.entry(RoleCode.ORGANIZATION_ADMIN, List.of(
+            "workbench",
+            "tenant-onboarding",
+            "admin-users",
+            "identity-bindings",
+            "implementation-guide",
+            "knowledge-governance",
+            "config-packages",
+            "qc-dashboard",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "domestic-check")),
+        Map.entry(RoleCode.IDENTITY_ACCESS_ADMIN, List.of(
+            "workbench",
+            "admin-users",
+            "identity-bindings",
+            "admin-audit",
+            "security-baseline")),
+        Map.entry(RoleCode.KNOWLEDGE_GOVERNOR, List.of(
+            "workbench",
+            "knowledge-governance",
+            "config-packages",
+            "terminology-mapping",
+            "rule-definitions",
+            "pathway-templates",
+            "admin-audit",
+            "provenance",
+            "graph-explore",
+            "ai-workflows")),
+        Map.entry(RoleCode.CLINICAL_GOVERNOR, List.of(
+            "workbench",
+            "knowledge-governance",
+            "rule-definitions",
+            "pathway-templates",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "workflow-todos",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "notifications",
+            "provenance")),
+        Map.entry(RoleCode.CLINICAL_DECISION_USER, List.of(
+            "workbench",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "workflow-todos",
+            "clinical-followup",
+            "notifications")),
+        Map.entry(RoleCode.NURSING_COLLABORATOR, List.of(
+            "workbench",
+            "mpi",
+            "patient-pathways",
+            "workflow-todos",
+            "clinical-followup",
+            "notifications")),
+        Map.entry(RoleCode.MEDICATION_SAFETY_USER, List.of(
+            "workbench",
+            "knowledge-governance",
+            "rule-definitions",
+            "patient-pathways",
+            "cdss-fatigue",
+            "workflow-todos",
+            "notifications",
+            "provenance")),
+        Map.entry(RoleCode.DIAGNOSTIC_SERVICE_USER, List.of(
+            "workbench",
+            "terminology-mapping",
+            "mpi",
+            "workflow-todos",
+            "notifications")),
+        Map.entry(RoleCode.QUALITY_GOVERNOR, List.of(
+            "workbench",
+            "knowledge-governance",
+            "qc-dashboard",
+            "qc-alerts",
+            "insurance-audit",
+            "qc-eval-sets",
+            "admin-audit",
+            "provenance")),
+        Map.entry(RoleCode.COMPLIANCE_AUDITOR, List.of(
+            "workbench",
+            "admin-audit",
+            "provenance")),
+        Map.entry(RoleCode.INTEGRATION_OPERATOR, List.of(
+            "workbench",
+            "identity-bindings",
+            "adapter-hub",
+            "terminology-mapping",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "graph-explore",
+            "ai-workflows",
+            "domestic-check",
+            "dev-console")),
+        Map.entry(RoleCode.IMPLEMENTATION_OPERATOR, List.of(
+            "workbench",
+            "tenant-onboarding",
+            "admin-users",
+            "identity-bindings",
+            "implementation-guide",
+            "adapter-hub",
+            "knowledge-governance",
+            "config-packages",
+            "terminology-mapping",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "graph-explore",
+            "ai-workflows",
+            "domestic-check",
+            "dev-console"))
+    );
+
     @Test
-    void platformGovernanceAdminHasEveryNonEmergencyPermission() {
+    void customerRoleMenusMatchExactProductSnapshots() {
+        assertThat(CUSTOMER_MENU_SNAPSHOTS).hasSize(14);
+        CUSTOMER_MENU_SNAPSHOTS.forEach((role, expectedMenuKeys) ->
+            assertThat(MenuPermissionCatalog.menuKeysFor(DefaultPermissionPolicy.permissionsOf(role)))
+                .as("%s 默认菜单快照", role.code())
+                .containsExactlyElementsOf(expectedMenuKeys));
+    }
+
+    @Test
+    void platformGovernanceAdminHasEveryNonEmergencyNonMenuPermission() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
+            .filteredOn(permission -> permission.dimension() != PermissionDimension.MENU)
             .containsExactlyInAnyOrderElementsOf(expected);
     }
 

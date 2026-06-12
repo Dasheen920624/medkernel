@@ -29,6 +29,11 @@ import {
 } from "@/shared/api/hooks";
 import { parseApiError } from "@/shared/api/errors";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  findProductRoleJourney,
+  type ProductRoleAction,
+  type ProductRoleKind,
+} from "@/shared/config/productRoleJourneys";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -44,9 +49,10 @@ type SourceQuery<T> = {
 type RoleView = {
   title: string;
   description: string;
-  kind: "operations" | "knowledge" | "access" | "clinical" | "governance" | "tenant" | "audit";
+  kind: ProductRoleKind;
   showLifecycle: boolean;
   primaryAction: DomainEntryAction;
+  highFrequencyActions: DomainEntryAction[];
 };
 
 type SourceAccess = {
@@ -61,10 +67,7 @@ type DrilldownTarget = {
   path: string;
 };
 
-type DomainEntryAction = {
-  label: string;
-  path: string;
-};
+type DomainEntryAction = ProductRoleAction;
 
 const STATUS_LABEL: Record<string, string> = {
   UP: "正常",
@@ -88,7 +91,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const STAGE_LABEL: Record<string, string> = {
   PREPARATION: "准备",
-  PILOT: "临床试点",
+  PILOT: "试运行",
   ACCEPTANCE: "验收",
   PROMOTION: "推广",
   RUNNING: "正式运行",
@@ -197,6 +200,9 @@ export function WorkbenchPanel() {
           timeFilter={timeFilter}
           onTimeFilterChange={setTimeFilter}
         />
+        {view.highFrequencyActions.length > 0 ? (
+          <RoleTaskCard actions={view.highFrequencyActions} onNavigate={navigate} />
+        ) : null}
         {canQuerySuccessPlan ? <TenantLifecyclePanel /> : null}
         {canQuerySuccessPlan ? (
           <GovernanceSlices successPlan={successPlan} runtime={runtime} />
@@ -263,12 +269,12 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="clinical"
-            title="临床运行入口"
-            description="从已上线页面进入患者路径、智能建议、随访与通知；工作台不伪造跨页聚合数量。"
+            title="临床协同入口"
+            description="进入患者路径、提醒与推荐、随访协同与消息通知；工作台不伪造跨页聚合数量。"
             actions={[
               { label: "患者路径", path: "/pathway/patients" },
-              { label: "智能建议", path: "/cdss/fatigue" },
-              { label: "通知中心", path: "/notifications" },
+              { label: "提醒与推荐", path: "/cdss/fatigue" },
+              { label: "消息通知", path: "/notifications" },
             ]}
             onNavigate={onNavigate}
           />
@@ -283,12 +289,12 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="knowledge-governance"
-            title="知识治理"
+            title="知识审核与发布"
             marker="平台主源与机构派生"
             description="治理平台主源、机构派生、版本差异、审核发布和恢复平台标准，全程保留不可变血缘。"
             actions={[
-              { label: "知识资产治理", path: "/knowledge/governance" },
-              { label: "配置包中心", path: "/config/packages" },
+              { label: "知识审核与发布", path: "/knowledge/governance" },
+              { label: "配置包与发布", path: "/config/packages" },
             ]}
             onNavigate={onNavigate}
           />
@@ -299,9 +305,9 @@ function WorkbenchCards({
             title="来源、差异与发布"
             description="追溯知识来源和派生关系，复核术语映射与发布影响，不在工作台伪造汇总数据。"
             actions={[
-              { label: "来源追溯", path: "/advanced/provenance" },
-              { label: "字典映射", path: "/terminology/mapping" },
-              { label: "知识关系查询", path: "/advanced/graph" },
+              { label: "来源与血缘", path: "/advanced/provenance" },
+              { label: "术语与字典", path: "/terminology/mapping" },
+              { label: "知识关系", path: "/advanced/graph" },
             ]}
             onNavigate={onNavigate}
           />
@@ -345,18 +351,95 @@ function WorkbenchCards({
     );
   }
 
-  if (view.kind === "governance") {
+  if (view.kind === "clinical-governance") {
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="clinical-governance"
+            title="临床知识治理"
+            description="审阅规则、路径和高风险提醒，确保来源、人工确认与发布证据完整。"
+            actions={[
+              { label: "提醒与推荐", path: "/cdss/fatigue" },
+              { label: "规则配置", path: "/rule/definitions" },
+              { label: "路径配置", path: "/pathway/templates" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="clinical-quality"
+            title="临床协同与质量"
+            description="处理临床协同任务并复核质量问题，不在工作台伪造跨域统计。"
+            actions={[
+              { label: "协同任务", path: "/workflow/todos" },
+              { label: "质量问题与整改", path: "/qc/alerts" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+        {sourceAccess.audit ? (
+          <Col xs={24} lg={12}>
+            <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
+      </Row>
+    );
+  }
+
+  if (view.kind === "medication") {
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="medication-safety"
+            title="药事安全复核"
+            description="复核药事高风险规则、提醒依据、人工处置和知识来源。"
+            actions={[
+              { label: "提醒与推荐", path: "/cdss/fatigue" },
+              { label: "规则配置", path: "/rule/definitions" },
+              { label: "知识审核与发布", path: "/knowledge/governance" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+      </Row>
+    );
+  }
+
+  if (view.kind === "diagnostic") {
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <DomainEntryCard
+            id="diagnostic-service"
+            title="医技协同"
+            description="维护术语映射，核查患者索引并处理当前职责范围内的协同任务。"
+            actions={[
+              { label: "术语与字典", path: "/terminology/mapping" },
+              { label: "患者索引", path: "/mpi" },
+              { label: "协同任务", path: "/workflow/todos" },
+            ]}
+            onNavigate={onNavigate}
+          />
+        </Col>
+      </Row>
+    );
+  }
+
+  if (view.kind === "quality") {
     return (
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="value"
-            title="价值指标"
-            marker="价值指标入口"
-            description="进入院级质控驾驶舱查看真实指标、风险热力与价值指标；工作台不伪造趋势。"
+            title="质量与运营概览"
+            marker="质量与运营入口"
+            description="查看真实质量指标、风险热力与运营趋势；工作台不伪造统计。"
             actions={[
-              { label: "院级质控驾驶舱", path: "/qc/dashboard" },
-              { label: "评估指标库", path: "/qc/eval/sets" },
+              { label: "质量与运营概览", path: "/qc/dashboard" },
+              { label: "评价指标", path: "/qc/eval/sets" },
             ]}
             onNavigate={onNavigate}
           />
@@ -364,12 +447,11 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="quality"
-            title="质控整改"
-            marker="质控整改入口"
-            description="进入评估结果、质控预警和医保审核，查看真实整改对象、责任范围与证据。"
+            title="质量问题与整改"
+            marker="质量整改入口"
+            description="查看质量问题、整改责任、医保审核和复核证据。"
             actions={[
-              { label: "院级质控驾驶舱", path: "/qc/dashboard" },
-              { label: "评估结果", path: "/qc/eval/results" },
+              { label: "质量问题与整改", path: "/qc/alerts" },
               { label: "医保审核", path: "/qc/insurance" },
             ]}
             onNavigate={onNavigate}
@@ -406,11 +488,10 @@ function WorkbenchCards({
           <DomainEntryCard
             id="quality"
             title="合规证据入口"
-            description="进入审计、质控和导出审批相关页面复核真实证据；未连接外部系统时保持诚实降级。"
+            description="进入审计与质量整改页面复核真实证据；未连接外部系统时保持诚实降级。"
             actions={[
-              { label: "审计日志", path: "/admin/audit" },
-              { label: "质控预警", path: "/qc/alerts" },
-              { label: "评估结果", path: "/qc/eval/results" },
+              { label: "审计与证据", path: "/admin/audit" },
+              { label: "质量问题与整改", path: "/qc/alerts" },
             ]}
             onNavigate={onNavigate}
           />
@@ -434,12 +515,12 @@ function WorkbenchCards({
       <Col xs={24} lg={12}>
         <DomainEntryCard
           id="quality"
-          title="质控整改"
-          marker="质控整改入口"
-          description="进入质控驾驶舱和评估结果查看真实整改对象；工作台不伪造汇总趋势。"
+          title="质量问题与整改"
+          marker="质量整改入口"
+          description="进入质量与运营概览和整改页面查看真实责任对象；工作台不伪造汇总趋势。"
           actions={[
-            { label: "院级质控驾驶舱", path: "/qc/dashboard" },
-            { label: "评估结果", path: "/qc/eval/results" },
+            { label: "质量与运营概览", path: "/qc/dashboard" },
+            { label: "质量问题与整改", path: "/qc/alerts" },
           ]}
           onNavigate={onNavigate}
         />
@@ -447,11 +528,11 @@ function WorkbenchCards({
       <Col xs={24} lg={12}>
         <DomainEntryCard
           id="value"
-          title="价值指标"
-          marker="价值指标入口"
-          description="进入质控驾驶舱查看真实价值指标；暂无工作台独立聚合时只提供入口。"
+          title="质量与运营"
+          marker="质量与运营入口"
+          description="进入质量与运营概览查看真实指标；暂无工作台独立聚合时只提供入口。"
           actions={[
-            { label: "院级质控驾驶舱", path: "/qc/dashboard" },
+            { label: "质量与运营概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },
           ]}
           onNavigate={onNavigate}
@@ -508,6 +589,30 @@ function WorkbenchFilters({
   );
 }
 
+function RoleTaskCard({
+  actions,
+  onNavigate,
+}: {
+  actions: DomainEntryAction[];
+  onNavigate: (path: string) => void;
+}) {
+  return (
+    <Card title="当前职责高频任务">
+      <Space wrap>
+        {actions.map((action) => (
+          <Button
+            key={action.path}
+            icon={<ArrowRightOutlined />}
+            onClick={() => onNavigate(action.path)}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </Space>
+    </Card>
+  );
+}
+
 function SystemHealthCard({
   runtime,
   onNavigate,
@@ -520,7 +625,7 @@ function SystemHealthCard({
       id="system"
       title="系统健康"
       query={runtime}
-      drilldown={{ label: "查看系统健康", path: "/system/providers" }}
+      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
@@ -546,7 +651,7 @@ function SimpleRuntimeCard({
       id="runtime-simple"
       title="整体运行"
       query={runtime}
-      drilldown={{ label: "查看运行状态", path: "/system/providers" }}
+      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
@@ -1056,94 +1161,22 @@ function resolveWeeklyActions(
     return actions;
   }
 
-  if (view.kind === "knowledge") {
-    actions.push(
-      {
-        key: "knowledge-governance",
-        title: "治理知识资产",
-        description: "复核平台主源、机构派生、待审核版本和发布影响。",
-        path: "/knowledge/governance",
-      },
-      {
-        key: "knowledge-provenance",
-        title: "复核来源与差异",
-        description: "追溯知识来源、派生血缘和机构差异。",
-        path: "/advanced/provenance",
-      },
-      {
-        key: "terminology",
-        title: "维护字典映射",
-        description: "核对机构编码与平台标准术语的映射。",
-        path: "/terminology/mapping",
-      },
-    );
-    return actions;
-  }
-
-  if (view.kind === "access") {
-    actions.push(
-      {
-        key: "personnel",
-        title: "维护人员与账号",
-        description: "批量导入人员并维护任职、账号、责任角色和组织范围。",
-        path: "/admin/users",
-      },
-      {
-        key: "identity",
-        title: "管理身份来源",
-        description: "处理未绑定身份、重复身份和统一认证接入。",
-        path: "/security/identity-binding",
-      },
-    );
-    if (sourceAccess.audit) {
-      actions.push({
-        key: "audit",
-        title: "复核访问变更",
-        description: "查看人员、账号和身份来源的最近变更。",
-        path: "/admin/audit",
-      });
-    }
-    return actions;
-  }
-
-  if (view.kind === "clinical") {
-    actions.push(
-      {
-        key: "todos",
-        title: "继续处理待办",
-        description: "进入真实待办中心查看当前职责范围内的任务。",
-        path: "/workflow/todos",
-      },
-      {
-        key: "pathways",
-        title: "查看临床路径",
-        description: "进入临床路径页查看真实路径状态。",
-        path: "/pathway/patients",
-      },
-      {
-        key: "notifications",
-        title: "查看通知",
-        description: "确认当前角色范围内的通知是否需要跟进。",
-        path: "/notifications",
-      },
-    );
-    return actions;
-  }
-
-  if (sourceAccess.audit) {
+  view.highFrequencyActions.forEach((action, index) => {
+    actions.push({
+      key: `role-task-${index + 1}`,
+      title: action.label,
+      description: `进入${action.label}，继续当前职责范围内的真实任务。`,
+      path: action.path,
+    });
+  });
+  if (actions.length === 0 && sourceAccess.audit) {
     actions.push({
       key: "audit",
-      title: "查看最近变化",
-      description: "按真实审计来源复核近期动作。",
+      title: "查看审计与证据",
+      description: "按真实审计来源复核近期动作与证据。",
       path: "/admin/audit",
     });
   }
-  actions.push({
-    key: "quality",
-    title: "复核整改入口",
-    description: "进入质控改进域查看已上线的真实整改对象。",
-    path: "/qc/eval/results",
-  });
   return actions;
 }
 
@@ -1162,86 +1195,25 @@ function hasPermission(profile: SecurityProfile | undefined, code: string): bool
 
 function resolveRoleView(profile?: SecurityProfile): RoleView {
   const roles = profile?.roles ?? [];
-  const codes = new Set(roles.map((role) => role.code));
-  const displayName = roles[0]?.displayName;
-
-  if (codes.has("integration-operator")) {
+  const journey = findProductRoleJourney(roles[0]?.code);
+  if (journey) {
     return {
-      title: "信息科工作台",
-      description: "优先查看系统健康、连通状态和最近变化。",
-      kind: "operations",
-      showLifecycle: false,
-      primaryAction: { label: "查看运行状态", path: "/system/providers" },
-    };
-  }
-
-  if (["platform-knowledge-governor", "knowledge-governor"].some((code) => codes.has(code))) {
-    return {
-      title: `${displayName}工作台`,
-      description: "优先治理平台主源、机构派生、版本差异和审核发布。",
-      kind: "knowledge",
-      showLifecycle: false,
-      primaryAction: { label: "治理知识资产", path: "/knowledge/governance" },
-    };
-  }
-
-  if (codes.has("identity-access-admin")) {
-    return {
-      title: "人员与访问工作台",
-      description: "统一维护人员、任职、账号、身份来源、责任角色和组织范围。",
-      kind: "access",
-      showLifecycle: false,
-      primaryAction: { label: "管理人员与账号", path: "/admin/users" },
-    };
-  }
-
-  if (
-    [
-      "clinical-decision-user",
-      "nursing-collaborator",
-      "diagnostic-service-user",
-      "medication-safety-user",
-    ].some((code) => codes.has(code))
-  ) {
-    return {
-      title: `${displayName}工作台`,
-      description: "优先查看我的待办、临床提醒和最近变化。",
-      kind: "clinical",
-      showLifecycle: false,
-      primaryAction: { label: "继续处理待办", path: "/workflow/todos" },
-    };
-  }
-
-  if (["clinical-governor", "quality-governor"].some((code) => codes.has(code))) {
-    return {
-      title: `${displayName}工作台`,
-      description: "优先查看价值、整改和最近变化。",
-      kind: "governance",
-      showLifecycle: false,
-      primaryAction: { label: "查看治理事项", path: "/qc/dashboard" },
-    };
-  }
-
-  if (codes.has("compliance-auditor")) {
-    return {
-      title: "合规审计工作台",
-      description: "优先查看审计变化、运行状态和证据风险。",
-      kind: "audit",
-      showLifecycle: false,
-      primaryAction: { label: "查看审计证据", path: "/admin/audit" },
+      title: journey.title,
+      description: journey.summary,
+      kind: journey.kind,
+      showLifecycle: journey.showLifecycle,
+      primaryAction: journey.primaryAction,
+      highFrequencyActions: journey.highFrequencyActions,
     };
   }
 
   return {
-    title: displayName ? `${displayName}工作台` : "工作台",
+    title: roles[0]?.displayName ? `${roles[0].displayName}工作台` : "工作台",
     description: "查看服务机构阶段、运行状态和需要跟进的事项。",
     kind: "tenant",
-    showLifecycle: [
-      "platform-governance-admin",
-      "organization-admin",
-      "implementation-operator",
-    ].some((code) => codes.has(code)),
+    showLifecycle: false,
     primaryAction: { label: "管理服务机构", path: "/tenant/onboarding" },
+    highFrequencyActions: [],
   };
 }
 

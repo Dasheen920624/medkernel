@@ -162,8 +162,8 @@ function renderPage(page: React.ReactElement) {
 describe("page smoke coverage", () => {
   it("renders the tenant config-packages console", () => {
     renderPage(<ConfigPackages />);
-    expect(screen.getByRole("heading", { name: "配置包中心" })).toBeInTheDocument();
-    expect(screen.getByText("正在加载配置包中心")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "配置包与发布" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载配置包与发布")).toBeInTheDocument();
   });
 
   it("renders the unified authoring asset library", () => {
@@ -201,7 +201,7 @@ describe("page smoke coverage", () => {
   it("renders the clinical notifications console with the real empty state", async () => {
     mockWorkflowCollaboration();
     renderPage(<Notifications />);
-    expect(screen.getByRole("heading", { name: "通知中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "消息通知" })).toBeInTheDocument();
     expect(await screen.findByText("当前暂无通知")).toBeInTheDocument();
     expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
   });
@@ -215,8 +215,8 @@ describe("page smoke coverage", () => {
 
   it("renders the quality qc-alerts page with the real empty state", () => {
     renderPage(<QcAlerts />);
-    expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实质控预警")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实质量问题")).toBeInTheDocument();
   });
 
   it("renders the quality insurance-audit page with the real empty state", () => {
@@ -324,8 +324,8 @@ describe("page smoke coverage", () => {
 
   it("renders the quality qc-eval-results console", () => {
     renderPage(<QcEvalResults />);
-    expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实评估结果")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实评价结果")).toBeInTheDocument();
   });
 
   it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {
@@ -341,7 +341,7 @@ describe("page smoke coverage", () => {
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
     renderPage(<KnowledgeGovernance />);
-    expect(screen.getByRole("heading", { name: "知识治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
     expect(screen.getByText("正在加载知识候选审核")).toBeInTheDocument();
   });
 

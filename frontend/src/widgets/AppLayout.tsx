@@ -110,7 +110,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
-  const isDesktop = screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
+  const isDesktop = screens.lg ?? (typeof window === "undefined" ? true : window.innerWidth >= 992);
   const currentRoute = findRouteByPath(location.pathname);
   const breadcrumb = getRouteBreadcrumb(location.pathname);
   const securityProfile = useSecurityProfile();

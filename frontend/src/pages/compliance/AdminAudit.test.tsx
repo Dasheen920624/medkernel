@@ -326,7 +326,7 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    await user.type(screen.getByLabelText("Trace ID 搜索"), " trace-7 ");
+    await user.type(screen.getByLabelText("追踪号 搜索"), " trace-7 ");
 
     await waitFor(() =>
       expect(useLargeAuditEvents).toHaveBeenLastCalledWith(

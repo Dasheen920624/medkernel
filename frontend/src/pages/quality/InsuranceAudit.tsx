@@ -238,7 +238,7 @@ export default function InsuranceAudit() {
       stateProps={{
         title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无真实医保问题",
         description: issuesQuery.isError
-          ? "请稍后重试，或带 traceId 联系信息科核查。"
+          ? "请稍后重试，或凭追踪号联系信息科核查。"
           : "后端当前没有返回符合筛选条件的医保病案问题。",
         traceId: parsedError?.traceId,
         onRetry: () => issuesQuery.refetch(),
@@ -341,7 +341,7 @@ export default function InsuranceAudit() {
                   <Descriptions.Item label="质量状态">
                     {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                   </Descriptions.Item>
-                  <Descriptions.Item label="traceId">
+                  <Descriptions.Item label="追踪号">
                     {snapshotDetailQuery.data.traceId || "未返回"}
                   </Descriptions.Item>
                 </Descriptions>
@@ -532,7 +532,7 @@ export default function InsuranceAudit() {
                   <Descriptions.Item label="命中 / 整改">
                     {auditResult.findingCount} 个命中 / 整改任务 {auditResult.taskCount} 个
                   </Descriptions.Item>
-                  <Descriptions.Item label="traceId">{auditResult.traceId}</Descriptions.Item>
+                  <Descriptions.Item label="追踪号">{auditResult.traceId}</Descriptions.Item>
                 </Descriptions>
               )}
             </Space>
@@ -578,7 +578,7 @@ export default function InsuranceAudit() {
                         <Text>
                           {formatAmount(issue.claimAmount)} / {formatAmount(issue.thresholdAmount)}
                         </Text>
-                        <Text type="secondary">traceId</Text>
+                        <Text type="secondary">追踪号</Text>
                         <Text>{issue.traceId ?? "未生成追踪标识"}</Text>
                       </Space>
                     </Space>
@@ -617,7 +617,7 @@ export default function InsuranceAudit() {
             <Descriptions.Item label="评估运行">
               {selectedIssue.evaluationRunId ?? "未生成评估运行"}
             </Descriptions.Item>
-            <Descriptions.Item label="traceId">
+            <Descriptions.Item label="追踪号">
               {selectedIssue.traceId ?? "未生成追踪标识"}
             </Descriptions.Item>
           </Descriptions>

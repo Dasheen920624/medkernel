@@ -144,7 +144,7 @@ describe("QcDashboard", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "院级质控驾驶舱" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量与运营概览" })).toBeInTheDocument();
     expect(screen.getByText("真实质控问题总数")).toBeInTheDocument();
     expect(screen.getByText("12 项")).toBeInTheDocument();
     expect(screen.getByText("心内科")).toBeInTheDocument();

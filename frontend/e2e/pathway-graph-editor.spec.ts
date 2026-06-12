@@ -4,12 +4,11 @@ import { ensureReadySession } from "./support/auth";
 
 test.describe("线2路径图编辑器真实验收", () => {
   test("桌面端完成连线、删除、拖拽与布局持久化", async ({ page }) => {
-    await ensureReadySession(page, "platform-admin");
+    await ensureReadySession(page, "platform-knowledge-governor");
     await page.goto("/pathway/templates");
 
-    await page.getByRole("button", { name: "新建路径模板" }).click();
-    const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
-    await dialog.getByRole("tab", { name: "L2 节点画布" }).click();
+    const dialog = await openCreatePathwayDialog(page);
+    await openNodeCanvas(dialog);
     await dialog.getByRole("button", { name: "添加节点" }).click();
     await dialog.getByRole("button", { name: "添加节点" }).click();
 
@@ -58,6 +57,7 @@ test.describe("线2路径图编辑器真实验收", () => {
     await firstNode.press("Escape");
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "同步到 DSL" }).click();
+    await enableExpertMode(dialog);
     await dialog.getByRole("tab", { name: "L3 DSL" }).click();
     const dslValue = await dialog.getByLabel("路径 DSL JSON").inputValue();
     const dsl = JSON.parse(dslValue) as {
@@ -73,12 +73,11 @@ test.describe("线2路径图编辑器真实验收", () => {
 
   test("390px 窄屏仍可阅读画布且页面不横向溢出", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "platform-admin");
+    await ensureReadySession(page, "platform-knowledge-governor");
     await page.goto("/pathway/templates");
 
-    await page.getByRole("button", { name: "新建路径模板" }).click();
-    const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
-    await dialog.getByRole("tab", { name: "L2 节点画布" }).click();
+    const dialog = await openCreatePathwayDialog(page);
+    await openNodeCanvas(dialog);
     await dialog.getByRole("button", { name: "添加节点" }).click();
 
     await expect(dialog.getByLabel("路径图编辑器")).toBeVisible();
@@ -93,12 +92,11 @@ test.describe("线2路径图编辑器真实验收", () => {
   });
 
   test("关键时钟节点显示并填写临床时钟 SLA 字段", async ({ page }) => {
-    await ensureReadySession(page, "platform-admin");
+    await ensureReadySession(page, "platform-knowledge-governor");
     await page.goto("/pathway/templates");
 
-    await page.getByRole("button", { name: "新建路径模板" }).click();
-    const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
-    await dialog.getByRole("tab", { name: "L2 节点画布" }).click();
+    const dialog = await openCreatePathwayDialog(page);
+    await openNodeCanvas(dialog);
     await dialog.getByRole("button", { name: "添加节点" }).click();
 
     await dialog.getByLabel("节点编码").fill("CLOCK");
@@ -121,6 +119,26 @@ test.describe("线2路径图编辑器真实验收", () => {
     await expectNoRootOverflow(page);
   });
 });
+
+async function openCreatePathwayDialog(page: Page) {
+  await page.getByRole("button", { name: "新建路径模板" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
+  await dialog.getByRole("tab", { name: "节点画布" }).click();
+  await expect(dialog.getByText("结构化节点画布", { exact: true })).toBeVisible();
+}
+
+async function enableExpertMode(dialog: ReturnType<Page["getByRole"]>) {
+  const expertSwitch = dialog.getByRole("switch", { name: "专家模式" });
+  if ((await expertSwitch.getAttribute("aria-checked")) !== "true") {
+    await expertSwitch.click();
+  }
+  await expect(dialog.getByRole("tab", { name: "L3 DSL" })).toBeVisible();
+}
 
 async function expectNoRootOverflow(page: Page) {
   const dimensions = await page.evaluate(() => ({

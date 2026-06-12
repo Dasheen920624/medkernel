@@ -830,11 +830,11 @@ export default function KnowledgeGovernance() {
   return (
     <>
       <PageShell
-        title="知识治理"
+        title="知识审核与发布"
         description="统一审核知识候选并维护结构化诊断知识"
         extras={
           <Button
-            aria-label="刷新知识治理"
+            aria-label="刷新知识审核与发布"
             icon={<ReloadOutlined />}
             onClick={() => {
               void identitiesQuery.refetch();

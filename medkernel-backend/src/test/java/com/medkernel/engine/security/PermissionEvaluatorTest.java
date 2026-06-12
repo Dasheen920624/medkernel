@@ -1,6 +1,8 @@
 package com.medkernel.engine.security;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,17 +58,44 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void platformAdminHasEveryNonEmergencyPermission() {
+    void platformGovernanceAdminHasAllNonMenuPermissionsAndOnlyGovernanceMenus() {
         authenticate(RoleCode.PLATFORM_GOVERNANCE_ADMIN);
+        Set<PermissionCode> governanceMenus = EnumSet.of(
+            PermissionCode.MENU_WORKBENCH,
+            PermissionCode.MENU_TENANT_ONBOARDING,
+            PermissionCode.MENU_ADMIN_USERS,
+            PermissionCode.MENU_IDENTITY_BINDINGS,
+            PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+            PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+            PermissionCode.MENU_CONFIG_PACKAGES,
+            PermissionCode.MENU_QC_DASHBOARD,
+            PermissionCode.MENU_ADMIN_AUDIT,
+            PermissionCode.MENU_SECURITY_BASELINE,
+            PermissionCode.MENU_SYSTEM_PROVIDERS,
+            PermissionCode.MENU_NOTIFICATION_SETTINGS,
+            PermissionCode.MENU_PROVENANCE,
+            PermissionCode.MENU_AI_WORKFLOWS,
+            PermissionCode.MENU_DOMESTIC_CHECK);
+
         for (PermissionCode perm : PermissionCode.values()) {
             if (perm == PermissionCode.ENV_EMERGENCY) {
+                assertThat(evaluator.has(perm.code()))
+                    .as("平台治理管理员不应拥有应急环境权限 %s", perm.code())
+                    .isFalse();
                 continue;
             }
+
+            if (perm.dimension() == PermissionDimension.MENU) {
+                assertThat(evaluator.has(perm.code()))
+                    .as("平台治理管理员菜单 %s 应按产品信息架构快照授予", perm.code())
+                    .isEqualTo(governanceMenus.contains(perm));
+                continue;
+            }
+
             assertThat(evaluator.has(perm.code()))
-                .as("PLATFORM_ADMIN 应拥有 %s", perm.code())
+                .as("平台治理管理员应拥有非菜单治理权限 %s", perm.code())
                 .isTrue();
         }
-        assertThat(evaluator.has(PermissionCode.ENV_EMERGENCY.code())).isFalse();
     }
 
     @Test

@@ -71,13 +71,33 @@ class PermissionDimensionModelTest {
     }
 
     @Test
-    void platformAdminReceivesEveryNonEmergencyPermissionThroughPolicy() {
+    void platformGovernanceAdminReceivesAllNonMenuGovernancePermissionsThroughPolicy() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
-            .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+            .filteredOn(permission -> permission.dimension() != PermissionDimension.MENU)
+            .containsExactlyInAnyOrderElementsOf(expected);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
+            .filteredOn(permission -> permission.dimension() == PermissionDimension.MENU)
+            .containsExactlyInAnyOrder(
+                PermissionCode.MENU_WORKBENCH,
+                PermissionCode.MENU_TENANT_ONBOARDING,
+                PermissionCode.MENU_ADMIN_USERS,
+                PermissionCode.MENU_IDENTITY_BINDINGS,
+                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+                PermissionCode.MENU_CONFIG_PACKAGES,
+                PermissionCode.MENU_QC_DASHBOARD,
+                PermissionCode.MENU_ADMIN_AUDIT,
+                PermissionCode.MENU_SECURITY_BASELINE,
+                PermissionCode.MENU_SYSTEM_PROVIDERS,
+                PermissionCode.MENU_NOTIFICATION_SETTINGS,
+                PermissionCode.MENU_PROVENANCE,
+                PermissionCode.MENU_AI_WORKFLOWS,
+                PermissionCode.MENU_DOMESTIC_CHECK);
     }
 
     @Test
@@ -86,9 +106,31 @@ class PermissionDimensionModelTest {
         expected.remove(PermissionCode.ENV_EMERGENCY);
         expected.remove(PermissionCode.PLATFORM_PUBLISH);
         expected.remove(PermissionCode.SYSTEM_MANAGE);
+        expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
-            .containsAll(expected)
+            .filteredOn(permission -> permission.dimension() != PermissionDimension.MENU)
+            .containsExactlyInAnyOrderElementsOf(expected);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
+            .filteredOn(permission -> permission.dimension() == PermissionDimension.MENU)
+            .containsExactlyInAnyOrder(
+                PermissionCode.MENU_WORKBENCH,
+                PermissionCode.MENU_TENANT_ONBOARDING,
+                PermissionCode.MENU_ADMIN_USERS,
+                PermissionCode.MENU_IDENTITY_BINDINGS,
+                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
+                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+                PermissionCode.MENU_CONFIG_PACKAGES,
+                PermissionCode.MENU_QC_DASHBOARD,
+                PermissionCode.MENU_ADMIN_AUDIT,
+                PermissionCode.MENU_SECURITY_BASELINE,
+                PermissionCode.MENU_SYSTEM_PROVIDERS,
+                PermissionCode.MENU_NOTIFICATION_SETTINGS,
+                PermissionCode.MENU_PROVENANCE,
+                PermissionCode.MENU_DOMESTIC_CHECK);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .contains(PermissionCode.TENANT_OVERRIDE)
             .doesNotContain(
                 PermissionCode.ENV_EMERGENCY,

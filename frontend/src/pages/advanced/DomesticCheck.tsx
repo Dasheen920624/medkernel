@@ -68,7 +68,7 @@ export default function DomesticCheck() {
     return (
       <PageShell
         title="国产化自检"
-        description="正在读取 OS / JDK / DB / 中间件 / 国密 Provider 自检快照"
+        description="正在读取操作系统、Java 运行环境、数据库、中间件和国密能力自检快照"
       >
         <PageState state="loading" />
       </PageShell>

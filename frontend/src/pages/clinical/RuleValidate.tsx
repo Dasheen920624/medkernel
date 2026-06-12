@@ -593,7 +593,7 @@ export default function RuleValidate() {
               <Descriptions.Item label="求值 Execution ID">
                 <span className={styles.codeText}>{explainData.executionId}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="链路 Trace ID">
+              <Descriptions.Item label="链路 追踪号">
                 <span className={styles.codeText}>{explainData.traceId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="触发点">

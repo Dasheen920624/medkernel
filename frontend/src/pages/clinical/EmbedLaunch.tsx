@@ -319,7 +319,7 @@ export default function EmbedLaunch() {
 
       <div className={styles.auditBar}>
         <span className={styles.auditLabel}>
-          <AuditOutlined /> 嵌入式交互合规审计凭证 traceId
+          <AuditOutlined /> 嵌入式交互合规审计追踪号
         </span>
         <span className={styles.auditTrace}>{launchContext?.traceId || "暂无追踪链路"}</span>
       </div>

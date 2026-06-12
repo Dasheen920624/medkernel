@@ -172,13 +172,13 @@ export default function NotificationSettings() {
         await personalQuery.refetch();
       }
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "通知设置保存失败"));
+      message.error(getApiErrorMessage(error, "通知偏好保存失败"));
     }
   };
 
   return (
     <PageShell
-      title="通知设置"
+      title="通知偏好"
       description={
         mode === "SYSTEM"
           ? "配置当前服务机构的通知默认策略；已有个人偏好继续优先生效。"
@@ -187,7 +187,7 @@ export default function NotificationSettings() {
       primary={
         <Button
           type="primary"
-          aria-label="保存通知设置"
+          aria-label="保存通知偏好"
           icon={<SaveOutlined />}
           loading={isSaving}
           disabled={mode === "SYSTEM" && !canManageSystem}
@@ -200,7 +200,7 @@ export default function NotificationSettings() {
         <Space wrap>
           {canViewSystem && (
             <Segmented<SettingsMode>
-              aria-label="通知设置范围"
+              aria-label="通知偏好范围"
               value={mode}
               options={[
                 { label: "个人偏好", value: "PERSONAL" },
@@ -224,8 +224,8 @@ export default function NotificationSettings() {
           type="error"
           showIcon
           className="mk-card-gap-bottom"
-          message="通知设置读取失败"
-          description="请检查登录状态、服务空间或后端通知设置接口。"
+          message="通知偏好读取失败"
+          description="请检查登录状态、服务空间或后端通知偏好接口。"
         />
       )}
 

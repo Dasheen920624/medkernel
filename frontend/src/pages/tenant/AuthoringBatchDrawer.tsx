@@ -273,7 +273,7 @@ export default function AuthoringBatchDrawer({
 
   const importPackages = async () => {
     if (!importFiles.length) {
-      message.error("请先选择离线包 JSON 文件");
+      message.error("请先选择离线包文件");
       return;
     }
     await run(
@@ -579,7 +579,7 @@ export default function AuthoringBatchDrawer({
             <p className="ant-upload-drag-icon">
               <CloudUploadOutlined />
             </p>
-            <p>选择或拖入一个或多个离线包 JSON</p>
+            <p>选择或拖入一个或多个离线包文件</p>
           </Upload.Dragger>
           <Button
             type="primary"

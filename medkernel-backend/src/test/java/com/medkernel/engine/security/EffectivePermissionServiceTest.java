@@ -129,7 +129,7 @@ class EffectivePermissionServiceTest {
     }
 
     @Test
-    void evaluationExecutionPermissionExposesQualityImprovementNavigation() {
+    void integrationExecutionPermissionDoesNotExposeUnrelatedQualityNavigation() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
             .thenReturn(List.of());
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
@@ -138,7 +138,9 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.INTEGRATION_OPERATOR), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).contains(PermissionCode.EVALUATION_EXECUTE.code());
-        assertThat(profile.menuKeys()).contains("qc-dashboard", "system-providers");
+        assertThat(profile.menuKeys())
+            .contains("adapter-hub", "system-providers")
+            .doesNotContain("qc-dashboard");
     }
 
     @Test

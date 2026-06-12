@@ -116,6 +116,13 @@ const securityProfile: SecurityProfile = {
       scopeLevel: "TENANT",
       scopeCode: "t-hospital",
     },
+    {
+      code: "identity-access-admin",
+      displayName: "身份访问管理员",
+      source: "PLATFORM_SEED",
+      scopeLevel: "TENANT",
+      scopeCode: "t-hospital",
+    },
   ],
   permissions: [
     {
@@ -124,6 +131,13 @@ const securityProfile: SecurityProfile = {
       target: "admin-users",
       displayName: "用户写入",
       risk: "HIGH",
+    },
+    {
+      code: "org.read",
+      dimension: "ACTION",
+      target: "org",
+      displayName: "人员读取",
+      risk: "LOW",
     },
     {
       code: "org.write",
@@ -577,7 +591,7 @@ describe("operational control pages", () => {
     expect(screen.getByText("字段契约")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Trace 诊断" }));
-    expect(screen.getByPlaceholderText("输入 Trace ID")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入 追踪号")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "插件管理" }));
     expect(screen.getByText("病区只读看板")).toBeInTheDocument();
@@ -610,7 +624,7 @@ describe("operational control pages", () => {
     try {
       renderPage(<DevConsole />);
       fireEvent.click(screen.getByRole("tab", { name: "Trace 诊断" }));
-      const traceInput = screen.getByPlaceholderText("输入 Trace ID");
+      const traceInput = screen.getByPlaceholderText("输入 追踪号");
       fireEvent.change(traceInput, { target: { value: "trace-console" } });
       fireEvent.keyDown(traceInput, { key: "Enter", code: "Enter" });
       expect(await screen.findByText("PENDING → SUCCEEDED")).toBeInTheDocument();
