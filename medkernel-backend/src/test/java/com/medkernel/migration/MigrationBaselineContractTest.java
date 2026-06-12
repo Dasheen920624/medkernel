@@ -154,7 +154,8 @@ class MigrationBaselineContractTest {
         "V112__package_physical_convergence.sql",
         "V113__batch_inheritance_resolution_indexes.sql",
         "V114__terminology_global_potassium_sodium_rule.sql",
-        "V115__knowledge_customization_personnel_master.sql"
+        "V115__knowledge_customization_personnel_master.sql",
+        "V116__platform_seed_config_source.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
