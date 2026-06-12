@@ -105,6 +105,9 @@ jobs:
       - name: Test onprem deployment script contract
         run: bash deploy/onprem/tests/validate-medkernel-deploy.sh
 
+      - name: Test onprem publish package contract
+        run: bash deploy/onprem/tests/validate-mk-publish-package.sh
+
       - name: Set up Node 20 for authenticity guard
         uses: actions/setup-node@v4
         with:
