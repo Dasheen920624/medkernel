@@ -193,11 +193,17 @@ test.describe("14 个客户职责角色任务旅程", () => {
     test(`${viewport.name} 下全部角色工作台可完成主任务起步`, async ({ page }, testInfo) => {
       test.setTimeout(600_000);
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const browserErrors = collectBrowserErrors(page);
+      const serverErrors = collectServerErrors(page);
+      const networkFailures = collectNetworkFailures(page);
 
       for (const role of roleAccounts) {
         const journey = PRODUCT_ROLE_JOURNEYS.find((item) => item.roleCode === role);
         expect(journey, `${role} 必须有产品旅程`).toBeDefined();
         await ensureReadySession(page, role);
+        browserErrors.length = 0;
+        serverErrors.length = 0;
+        networkFailures.length = 0;
         await page.goto("/dashboard", { waitUntil: "networkidle" });
 
         await expect(page.getByRole("heading", { name: journey?.title })).toBeVisible();
@@ -206,6 +212,12 @@ test.describe("14 个客户职责角色任务旅程", () => {
         await expect(primaryButtons).toContainText(journey?.primaryAction.label ?? "");
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
         await expectNoRootOverflow(page, `${role} · ${viewport.name}`);
+        expect(serverErrors, `${role} · ${viewport.name} 工作台不应产生 HTTP 错误`).toEqual([]);
+        expect(networkFailures, `${role} · ${viewport.name} 工作台不应产生网络失败`).toEqual([]);
+        expect(browserErrors, `${role} · ${viewport.name} 工作台不应产生浏览器错误`).toEqual([]);
+        browserErrors.length = 0;
+        serverErrors.length = 0;
+        networkFailures.length = 0;
 
         await primaryButtons.click();
         await expect
@@ -217,6 +229,9 @@ test.describe("14 个客户职责角色任务旅程", () => {
         await expect(page.locator("main")).toBeVisible();
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
         await expectNoRootOverflow(page, `${role} 主动作 · ${viewport.name}`);
+        expect(serverErrors, `${role} 主动作 · ${viewport.name} 不应产生 HTTP 错误`).toEqual([]);
+        expect(networkFailures, `${role} 主动作 · ${viewport.name} 不应产生网络失败`).toEqual([]);
+        expect(browserErrors, `${role} 主动作 · ${viewport.name} 不应产生浏览器错误`).toEqual([]);
       }
 
       const screenshotPath = testInfo.outputPath(`role-primary-action-${viewport.name}.png`);
@@ -235,6 +250,42 @@ async function loadProfile(page: Page, role: RoleAccount) {
   });
   await expectOk(response, `读取 ${role} 权限画像`);
   return (await response.json()).data as { menuKeys: string[] };
+}
+
+function collectBrowserErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      errors.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
+
+function collectServerErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("response", (response) => {
+    if (response.status() >= 400 && response.url().includes("/medkernel/")) {
+      errors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+    }
+  });
+  return errors;
+}
+
+function collectNetworkFailures(page: Page) {
+  const errors: string[] = [];
+  page.on("requestfailed", (request) => {
+    const failure = request.failure();
+    const url = request.url();
+    if (failure?.errorText === "net::ERR_ABORTED") {
+      return;
+    }
+    if (!url.startsWith("data:")) {
+      errors.push(`${request.method()} ${url} ${failure?.errorText ?? "requestfailed"}`);
+    }
+  });
+  return errors;
 }
 
 async function expectNoRootOverflow(page: Page, label: string) {

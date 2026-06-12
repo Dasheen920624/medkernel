@@ -1,0 +1,62 @@
+{
+  "status": "PASSED",
+  "scope": "PRE_PR_LOCAL_FRONTEND_AGAINST_134",
+  "baseRuntime": {
+    "remoteEnvironment": "134",
+    "remoteCommit": "2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71",
+    "localBranch": "codex/p5-mobile-deploy-evidence",
+    "localFrontend": "https://127.0.0.1:5443",
+    "remoteApiBase": "https://193.112.107.134/medkernel/api/v1"
+  },
+  "credentialBoundary": {
+    "source": "/tmp/p5-14-role-drill-credentials-20260612.json",
+    "repositoryContainsSecrets": false,
+    "traceOrVideoCaptured": false
+  },
+  "checks": [
+    {
+      "name": "14-role primary journeys",
+      "command": "npx playwright test product-role-journeys.spec.ts --config=/tmp/medkernel-pw-local-sweep.config.cjs",
+      "result": "5 passed",
+      "coverage": "14 roles, permission/menu snapshot, 4 viewport primary actions, target path, forbidden text, HTTP error, browser error, network failure and root overflow"
+    },
+    {
+      "name": "all authorized route smoke",
+      "command": "npx playwright test all-done-route-smoke.spec.ts --config=/tmp/medkernel-pw-local-sweep.config.cjs",
+      "result": "1 passed",
+      "coverage": "all protected routes reachable by real 14-role profiles; heading, forbidden text, HTTP error, browser error and root overflow"
+    },
+    {
+      "name": "P5 core readiness read-only probe",
+      "command": "node scripts/drill/p5-core-readiness-probe.mjs",
+      "result": "PASSED, 21 probes",
+      "coverage": "knowledge, rule, pathway, clinical workflow, notification, CDSS, quality, audit, model capability, operations, identity and personnel representative APIs"
+    },
+    {
+      "name": "frontend verify",
+      "command": "npm run verify",
+      "result": "89 files, 656 tests passed",
+      "coverage": "lint, stylelint, lint-rule tests, format, typecheck and full Vitest suite"
+    },
+    {
+      "name": "frontend production build",
+      "command": "npm run build",
+      "result": "passed",
+      "coverage": "TypeScript build and Vite production bundle"
+    },
+    {
+      "name": "script guard tests",
+      "command": "node --test scripts/*guard.test.mjs scripts/git-scan-files.test.mjs",
+      "result": "40 tests passed",
+      "coverage": "authenticity, config boundary, migration convention and git scan guard tests"
+    }
+  ],
+  "localFixesValidated": [
+    "协同待办移动端表格不再撑开根节点。",
+    "E2E 支持 P5 真实受控凭据文件，不再固定 t-1 开发租户。",
+    "本地 Vite 代理支持显式自签证书开关，默认仍校验证书。",
+    "E2E 角色切换显式登出、清 Cookie 并刷新前端文档，防止 React Query 跨账号缓存污染。",
+    "14 角色旅程新增浏览器错误、HTTP 错误和非取消型网络失败门禁。"
+  ],
+  "boundary": "本证据为 PR 前本地最新前端连接 134 真实后端的验证；134 现场仍运行 2b8b324，待 PR 合并后需精确重建、备份、部署并现场复验。"
+}

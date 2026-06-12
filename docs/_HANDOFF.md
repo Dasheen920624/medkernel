@@ -1,20 +1,20 @@
 # 会话接力
 
-## 2026-06-12 P5 第二轮全新演练进行中，移动端主动作溢出本地修复待 PR/部署
+## 2026-06-12 P5 第二轮全新演练进行中，协同待办移动端溢出本地修复待 PR/部署
 
-- 当前执行线：P5 134 第二轮全新演练与第一阶段正式验收；当前工作分支 `codex/p5-v118-deploy`，基于精确 `origin/main=d4d9ae66b8d7e4ef5d63961deeef9db1f0ad17aa`。
-- PR #571 已全绿并 squash 合并；134 已部署精确提交 `d4d9ae66b8d7e4ef5d63961deeef9db1f0ad17aa`，Flyway `118|118`，所有字符型 `trace_id` 列均不短于 128。
-- V118 发布前有效备份：`/zoesoft/medkernel/backups/p5-v118-predeploy-20260612-205857`；隔离恢复 `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、临时恢复库清理 0。
-- 已用原 65 字符追踪标识重试创建 `platform-knowledge-governor`，原值完整持久化；两个平台职责角色均完成首次改密、MFA 绑定和独立重登录。14 个职责角色的受控凭据仅在 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`。
-- 14/14 角色、134/134 默认菜单路由已通过：标题、菜单快照、唯一主动作、页面级权限、4xx 请求、控制台错误和桌面根节点溢出均无异常。证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-d4d9ae66/`。
-- 四档视口主动作旅程中，桌面 1440、桌面 1366、平板共 42/42 通过；移动端机构管理员点击“管理服务机构”进入 `/tenant/onboarding` 后，390px 视口出现 635px 根宽、横向溢出 245px。
-- 根因已通过 TDD 收敛：移动单列 Grid 的自动最小尺寸被组织表格固有宽度撑开。本地补丁为 Grid/面板增加可收缩边界，并把 E2E 从“主按钮可见”扩展为“点击目标页并复查根节点溢出”；19 项聚焦测试、前端 89 个文件 652 项测试、生产构建和 Playwright 规格编译已通过，但尚未合并、部署，不得写成现场修复。
-- 134 当前服务 `medkernel|nginx|postgresql=active|active|active`，HTTP/HTTPS readiness 200，178 张表，知识 `0|0|0|0|0|0`，文献资料库根地址长度 0。
-- 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`；失败证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-d4d9ae66/mobile-primary-action-overflow-failure.json`。
+- 当前执行线：P5 134 第二轮全新演练与第一阶段正式验收；当前工作分支 `codex/p5-mobile-deploy-evidence`，基于精确 `origin/main=2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`。
+- PR #572 已全绿并 squash 合并；134 已部署精确提交 `2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`。发布前有效备份：`/zoesoft/medkernel/backups/p5-mobile-fix-predeploy-20260612-214532`；隔离恢复 `118|118`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、P5 账号/组织统计 `6|15|17|14`、临时恢复库清理 0。
+- 134 当前服务 `medkernel|nginx|postgresql=active|active|active`，HTTPS readiness 200，Flyway `118|118`，178 张表，知识 `0|0|0|0|0|0`，文献资料库根地址长度 0，所有字符型 `trace_id` 列均不短于 128。部署后证据：`/zoesoft/medkernel/backups/p5-mobile-fix-predeploy-20260612-214532/evidence/post-deploy-2b8b324.properties`。
+- 14 个职责角色的受控凭据仅在 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`；平台职责角色凭据元数据已与稳定密码对齐，无凭据入仓库。
+- 2b8b324 部署后，14/14 角色菜单快照通过，桌面 1440、桌面 1366、平板三档主动作共 42/42 通过；移动端继续发现新缺陷：`clinical-decision-user` 点击主动作进入 `/workflow/todos` 后，390px 视口根节点宽度 417px，横向溢出 27px。失败证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-2b8b324/mobile-workflow-todos-overflow-failure.json`。
+- 根因已通过 TDD 收敛：协同待办中心 Ant Design Table 所在 Card 未建立可收缩边界，表格也未声明固定布局和横向滚动宽度，移动端空状态表头固有宽度撑开根节点。本地补丁为表格卡片增加 `tablePanel` 可收缩边界，并设置 `tableLayout="fixed"`、`scroll={{ x: 760 }}`。
+- 同批本地补丁把 PR 前验收门禁加严：E2E 支持通过 `E2E_ROLE_CREDENTIALS_FILE` 指向服务器受控凭据副本，避免 P5 真实租户账号继续使用开发默认 `t-1`；本地 Vite 代理新增显式自签证书开关，默认仍校验证书；角色切换前显式登出、清 Cookie 并刷新前端文档，防止 React Query 跨账号缓存污染；14 角色旅程新增 HTTP 错误、浏览器错误和非取消型网络失败门禁。
+- PR 前本地最新前端连接 134 真实后端验证已通过：14 角色四档主动作 `5/5`、全部授权页面 `1/1`、P5 核心只读探针 `21/21`、前端全量 `89` 个文件 `656` 项测试、生产构建、守卫测试 40/40。证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-2b8b324/pre-pr-local-frontend-sweep.json` 与 `docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json`。补丁尚未合并、部署，不得写成现场已修复。
+- 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`。
 
 ## 当前下一步
 
-1. 完成前端全量验证、构建与 T-GATE，提交移动端溢出修复和 P5 现场证据，创建 PR，等待 CI 全绿并 squash 合并。
+1. 提交协同待办移动端表格溢出修复、E2E 受控凭据覆盖、角色切换隔离、代理自签开关、P5 核心只读探针和现场失败/本地通过证据，创建 PR，等待 CI 全绿并 squash 合并。
 2. 从精确合并后的 `origin/main` 重建前端制品；发布前重新备份并隔离恢复，部署到 134。
 3. 部署后重跑 14 角色四档视口共 56 条主动作旅程，确认目标路径、页面级权限、4xx、控制台错误和根节点溢出全部通过。
 4. 继续跨角色审批、第一阶段端到端旅程、恢复、医疗安全、最小化、五方言与 GA 门禁。

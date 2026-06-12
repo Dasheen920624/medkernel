@@ -1,0 +1,314 @@
+{
+  "status": "PASSED",
+  "startedAt": "2026-06-12T14:27:35.074Z",
+  "finishedAt": "2026-06-12T14:27:36.879Z",
+  "baseUrl": "https://193.112.107.134/medkernel/api/v1",
+  "credentialBoundary": {
+    "source": "P5_ROLE_CREDENTIALS_FILE",
+    "repositoryContainsSecrets": "[REDACTED]"
+  },
+  "probes": [
+    {
+      "role": "platform-knowledge-governor",
+      "label": "平台知识身份列表",
+      "method": "GET",
+      "path": "/engine/knowledge/identities?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "platform-knowledge-governor",
+      "label": "平台知识候选队列",
+      "method": "GET",
+      "path": "/engine/knowledge/review-queue?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "knowledge-governor",
+      "label": "机构知识身份列表",
+      "method": "GET",
+      "path": "/engine/knowledge/identities?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "knowledge-governor",
+      "label": "规则定义列表",
+      "method": "GET",
+      "path": "/engine/rule/rules?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "knowledge-governor",
+      "label": "路径模板列表",
+      "method": "GET",
+      "path": "/engine/pathway/pathway-templates?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "clinical-decision-user",
+      "label": "患者路径列表",
+      "method": "GET",
+      "path": "/engine/pathway/patient-pathways?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "clinical-decision-user",
+      "label": "协同待办列表",
+      "method": "GET",
+      "path": "/engine/workflow/todos?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "clinical-decision-user",
+      "label": "通知列表",
+      "method": "GET",
+      "path": "/engine/notifications?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "clinical-decision-user",
+      "label": "CDSS 风险矩阵",
+      "method": "GET",
+      "path": "/engine/cdss/risk-matrix",
+      "status": 200,
+      "dataShape": {
+        "kind": "object",
+        "keys": ["rules", "traceId"]
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "quality-governor",
+      "label": "质量驾驶舱",
+      "method": "GET",
+      "path": "/engine/quality/dashboard",
+      "status": 200,
+      "dataShape": {
+        "kind": "object",
+        "keys": [
+          "activeAlerts",
+          "generatedAt",
+          "heatmap",
+          "summary",
+          "valueMetrics"
+        ]
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "quality-governor",
+      "label": "质量预警",
+      "method": "GET",
+      "path": "/engine/quality/alerts?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "quality-governor",
+      "label": "医保审核",
+      "method": "GET",
+      "path": "/engine/quality/insurance-issues?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 0,
+        "total": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "compliance-auditor",
+      "label": "审计事件",
+      "method": "GET",
+      "path": "/compliance/audit/events?size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 5,
+        "total": null
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "compliance-auditor",
+      "label": "导出审批",
+      "method": "GET",
+      "path": "/compliance/exports?resourceType=AUDIT_EVENT",
+      "status": 200,
+      "dataShape": {
+        "kind": "array",
+        "size": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "compliance-auditor",
+      "label": "脱敏规则",
+      "method": "GET",
+      "path": "/compliance/masking-rules?resourceType=PATIENT&fieldName=patientName",
+      "status": 200,
+      "dataShape": {
+        "kind": "array",
+        "size": 0
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "integration-operator",
+      "label": "模型能力状态",
+      "method": "GET",
+      "path": "/model-capabilities/status",
+      "status": 200,
+      "dataShape": {
+        "kind": "array",
+        "size": 8
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "integration-operator",
+      "label": "运维操作",
+      "method": "GET",
+      "path": "/system/operations",
+      "status": 200,
+      "dataShape": {
+        "kind": "object",
+        "keys": [
+          "activeProfiles",
+          "backup",
+          "databaseDialect",
+          "dependencies",
+          "deploymentMode",
+          "domesticCompatibility",
+          "domesticProfile",
+          "environment",
+          "featureFlags",
+          "generatedAt",
+          "healthStatus",
+          "jvm",
+          "migrationLocation",
+          "os",
+          "serviceName"
+        ]
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "integration-operator",
+      "label": "国产化报告",
+      "method": "GET",
+      "path": "/system/operations/domestic-report",
+      "status": 200,
+      "dataShape": {
+        "kind": "undefined"
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "implementation-operator",
+      "label": "系统供应商",
+      "method": "GET",
+      "path": "/system/operations",
+      "status": 200,
+      "dataShape": {
+        "kind": "object",
+        "keys": [
+          "activeProfiles",
+          "backup",
+          "databaseDialect",
+          "dependencies",
+          "deploymentMode",
+          "domesticCompatibility",
+          "domesticProfile",
+          "environment",
+          "featureFlags",
+          "generatedAt",
+          "healthStatus",
+          "jvm",
+          "migrationLocation",
+          "os",
+          "serviceName"
+        ]
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "implementation-operator",
+      "label": "身份来源",
+      "method": "GET",
+      "path": "/compliance/identity-bindings?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "array",
+        "size": 11
+      },
+      "fakeTextFound": false
+    },
+    {
+      "role": "implementation-operator",
+      "label": "人员账号",
+      "method": "GET",
+      "path": "/engine/org/org-units/users?page=1&size=5",
+      "status": 200,
+      "dataShape": {
+        "kind": "page",
+        "size": 5,
+        "total": 12
+      },
+      "fakeTextFound": false
+    }
+  ],
+  "failures": []
+}

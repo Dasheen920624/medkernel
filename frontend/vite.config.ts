@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { loadEnv } from "vite";
-import { resolveApiProxyTarget } from "./src/shared/config/devProxy";
+import { resolveApiProxyConfig } from "./src/shared/config/devProxy";
 
 function vendorChunkName(id: string) {
   if (!id.includes("/node_modules/")) {
@@ -24,8 +24,8 @@ function vendorChunkName(id: string) {
  */
 export default defineConfig(({ command, mode }) => {
   const env = { ...process.env, ...loadEnv(mode, process.cwd(), "") };
-  const apiProxyTarget =
-    command === "serve" && mode !== "test" ? resolveApiProxyTarget(env) : undefined;
+  const apiProxyConfig =
+    command === "serve" && mode !== "test" ? resolveApiProxyConfig(env) : undefined;
 
   return {
     plugins: [react()],
@@ -37,11 +37,12 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 5173,
       host: "0.0.0.0",
-      proxy: apiProxyTarget
+      proxy: apiProxyConfig
         ? {
             "/medkernel": {
-              target: apiProxyTarget,
+              target: apiProxyConfig.target,
               changeOrigin: false,
+              secure: apiProxyConfig.secure,
             },
           }
         : undefined,

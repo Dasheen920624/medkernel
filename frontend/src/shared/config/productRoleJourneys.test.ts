@@ -68,4 +68,28 @@ describe("product role journeys", () => {
       );
     });
   });
+
+  it("keeps the role journey E2E gate strict about browser and server errors", () => {
+    const e2eSource = readFileSync(
+      resolve(process.cwd(), "e2e/product-role-journeys.spec.ts"),
+      "utf8",
+    );
+
+    expect(e2eSource).toContain("collectBrowserErrors(page)");
+    expect(e2eSource).toContain("collectServerErrors(page)");
+    expect(e2eSource).toContain("collectNetworkFailures(page)");
+    expect(e2eSource).toContain("不应产生浏览器错误");
+    expect(e2eSource).toContain("不应产生 HTTP 错误");
+    expect(e2eSource).toContain("不应产生网络失败");
+    expect(e2eSource).toContain('failure?.errorText === "net::ERR_ABORTED"');
+  });
+
+  it("refreshes the frontend document between E2E role switches", () => {
+    const authSource = readFileSync(resolve(process.cwd(), "e2e/support/auth.ts"), "utf8");
+
+    expect(authSource).toContain("resetRoleSession(page)");
+    expect(authSource).toContain("/auth/logout");
+    expect(authSource).toContain("reloadFrontendSession(page, role)");
+    expect(authSource).toContain("e2e-session-refresh");
+  });
 });

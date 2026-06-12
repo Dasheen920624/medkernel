@@ -392,12 +392,14 @@ export default function WorkflowTodos() {
         />
       )}
 
-      <Card>
+      <Card className={styles.tablePanel}>
         <Table
           rowKey="todoId"
           columns={columns}
           dataSource={visibleTodos}
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 760 }}
           pagination={{
             pageSize: 10,
             total: data?.total ?? 0,

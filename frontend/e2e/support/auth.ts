@@ -1,5 +1,6 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 export const apiBase = requireEnv("E2E_API_BASE_URL");
 export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:5173").replace(
@@ -9,6 +10,7 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
 const frontendApiBase = `${appBase}/medkernel/api/v1`;
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
+const credentialOverrides = loadCredentialOverrides();
 
 export const roleAccounts = [
   "platform-governance-admin",
@@ -30,7 +32,7 @@ export const roleAccounts = [
 export type RoleAccount = (typeof roleAccounts)[number];
 
 export async function ensureReadySession(page: Page, role: RoleAccount) {
-  await page.context().clearCookies();
+  await resetRoleSession(page);
   const password = stablePassword(role);
   let currentPassword = password;
   let login = await loginWith(page, role, password);
@@ -82,6 +84,7 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
   };
   expect(profile.roles.map((item) => item.code)).toContain(role);
   expect(profile.menuKeys).toContain("workbench");
+  await reloadFrontendSession(page, role);
 }
 
 export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
@@ -103,24 +106,41 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
 
 export async function expectLoginPageReady(page: Page) {
   await expect(page.getByRole("main", { name: "登录 MedKernel 工作台" })).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ })).toBeVisible();
 }
 
 export async function loginWith(page: Page, username: string, password: string) {
-  return postApi(page, "/auth/login", { username, password, tenantId });
+  return postApi(page, "/auth/login", { username, password, tenantId: tenantIdFor(username) });
 }
 
 async function loginWithFrontend(page: Page, role: RoleAccount, password: string) {
   const response = await page.request.post(`${frontendApiBase}/auth/login`, {
-    data: { username: role, password, tenantId },
+    data: { username: role, password, tenantId: tenantIdFor(role) },
     headers: {
       "Content-Type": "application/json",
       "X-Trace-Id": `e2e-front-login-${role}-${Date.now()}`,
     },
   });
   await expectOk(response, `${role} 前台代理登录`);
+}
+
+async function resetRoleSession(page: Page) {
+  await Promise.allSettled([
+    page.request.post(`${frontendApiBase}/auth/logout`, {
+      headers: { "X-Trace-Id": `e2e-front-logout-${Date.now()}` },
+    }),
+    page.request.post(`${apiBase}/auth/logout`, {
+      headers: { "X-Trace-Id": `e2e-api-logout-${Date.now()}` },
+    }),
+  ]);
+  await page.context().clearCookies();
+  await page.goto(`/login?e2e-session-reset=${Date.now()}`, { waitUntil: "domcontentloaded" });
+}
+
+async function reloadFrontendSession(page: Page, role: RoleAccount) {
+  await page.goto(`/dashboard?e2e-session-refresh=${role}-${Date.now()}`, {
+    waitUntil: "networkidle",
+  });
 }
 
 export async function postApi(page: Page, path: string, data: unknown) {
@@ -153,7 +173,39 @@ export async function expectOk(response: APIResponse, label: string) {
 }
 
 export function stablePassword(role: RoleAccount) {
-  return `Mk@2026${role.replace(/-/g, "")}`;
+  return credentialOverrides[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
+}
+
+function tenantIdFor(username: string) {
+  return credentialOverrides[username]?.tenantId ?? tenantId;
+}
+
+function loadCredentialOverrides() {
+  const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
+  if (!file) return {} as Record<string, { password?: string; tenantId?: string }>;
+  const source = JSON.parse(readFileSync(file, "utf8")) as {
+    customerTenant?: {
+      adminUsername?: string;
+      password?: string;
+      tenantId?: string;
+    };
+    roleAccounts?: Record<string, { password?: string; tenantId?: string }>;
+    platformRoleAccounts?: Record<string, { password?: string; tenantId?: string }>;
+  };
+  const customerTenant =
+    source.customerTenant?.adminUsername && source.customerTenant.password
+      ? {
+          [source.customerTenant.adminUsername]: {
+            password: source.customerTenant.password,
+            tenantId: source.customerTenant.tenantId,
+          },
+        }
+      : {};
+  return {
+    ...customerTenant,
+    ...(source.roleAccounts ?? {}),
+    ...(source.platformRoleAccounts ?? {}),
+  };
 }
 
 function requireEnv(name: string) {
