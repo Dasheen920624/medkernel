@@ -212,6 +212,15 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(onboardingSource).toContain("levelRank");
   });
 
+  it("keeps tenant onboarding grid shrinkable at the mobile breakpoint", () => {
+    const tenantStyles = readSource("src/pages/tenant/Tenant.module.css");
+
+    expect(tenantStyles).toMatch(/\.onboardingPanel\s*\{[^}]*min-width:\s*0;[^}]*\}/s);
+    expect(tenantStyles).toMatch(
+      /@media\s*\(max-width:\s*48em\)\s*\{[\s\S]*?\.onboardingGrid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);[^}]*\}/,
+    );
+  });
+
   it("keeps config package center free of legacy decorative layout and wired to StepFlow", () => {
     const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
 

@@ -10,6 +10,8 @@
 ## 服务器证据
 
 - 清库前备份：`/zoesoft/medkernel/backups/p5-pre-clear-20260612-190951`。
+- V118 发布前备份：`/zoesoft/medkernel/backups/p5-v118-predeploy-20260612-205857`，隔离恢复通过。
+- V118 精确部署：`d4d9ae66b8d7e4ef5d63961deeef9db1f0ad17aa`，Flyway `118|118`。
 - 首发凭据：`/zoesoft/medkernel/conf/p5-first-admin-credentials-20260612.json`。
 - 14 角色凭据：`/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`。
 - 凭据文件权限：`600|medkernel|medkernel`。

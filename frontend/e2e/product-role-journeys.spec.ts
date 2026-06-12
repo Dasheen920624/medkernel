@@ -206,11 +206,22 @@ test.describe("14 个客户职责角色任务旅程", () => {
         await expect(primaryButtons).toContainText(journey?.primaryAction.label ?? "");
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
         await expectNoRootOverflow(page, `${role} · ${viewport.name}`);
+
+        await primaryButtons.click();
+        await expect
+          .poll(() => new URL(page.url()).pathname, {
+            message: `${role} 主动作应进入真实目标页`,
+          })
+          .toBe(journey?.primaryAction.path);
+        await page.waitForLoadState("networkidle");
+        await expect(page.locator("main")).toBeVisible();
+        await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+        await expectNoRootOverflow(page, `${role} 主动作 · ${viewport.name}`);
       }
 
-      const screenshotPath = testInfo.outputPath(`role-workbench-${viewport.name}.png`);
+      const screenshotPath = testInfo.outputPath(`role-primary-action-${viewport.name}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: true });
-      await testInfo.attach(`role-workbench-${viewport.name}`, {
+      await testInfo.attach(`role-primary-action-${viewport.name}`, {
         path: screenshotPath,
         contentType: "image/png",
       });
