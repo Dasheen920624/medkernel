@@ -1,24 +1,22 @@
 # 会话接力
 
-## 2026-06-12 P5 第二轮全新演练进行中，协同待办移动端溢出本地修复待 PR/部署
+## 2026-06-12 P5 第二轮全新演练进行中，协同待办移动端缺陷已部署复验
 
-- 当前执行线：P5 134 第二轮全新演练与第一阶段正式验收；当前工作分支 `codex/p5-mobile-deploy-evidence`，基于精确 `origin/main=2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`。
-- PR #572 已全绿并 squash 合并；134 已部署精确提交 `2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`。发布前有效备份：`/zoesoft/medkernel/backups/p5-mobile-fix-predeploy-20260612-214532`；隔离恢复 `118|118`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、P5 账号/组织统计 `6|15|17|14`、临时恢复库清理 0。
-- 134 当前服务 `medkernel|nginx|postgresql=active|active|active`，HTTPS readiness 200，Flyway `118|118`，178 张表，知识 `0|0|0|0|0|0`，文献资料库根地址长度 0，所有字符型 `trace_id` 列均不短于 128。部署后证据：`/zoesoft/medkernel/backups/p5-mobile-fix-predeploy-20260612-214532/evidence/post-deploy-2b8b324.properties`。
-- 14 个职责角色的受控凭据仅在 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`；平台职责角色凭据元数据已与稳定密码对齐，无凭据入仓库。
-- 2b8b324 部署后，14/14 角色菜单快照通过，桌面 1440、桌面 1366、平板三档主动作共 42/42 通过；移动端继续发现新缺陷：`clinical-decision-user` 点击主动作进入 `/workflow/todos` 后，390px 视口根节点宽度 417px，横向溢出 27px。失败证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-2b8b324/mobile-workflow-todos-overflow-failure.json`。
-- 根因已通过 TDD 收敛：协同待办中心 Ant Design Table 所在 Card 未建立可收缩边界，表格也未声明固定布局和横向滚动宽度，移动端空状态表头固有宽度撑开根节点。本地补丁为表格卡片增加 `tablePanel` 可收缩边界，并设置 `tableLayout="fixed"`、`scroll={{ x: 760 }}`。
-- 同批本地补丁把 PR 前验收门禁加严：E2E 支持通过 `E2E_ROLE_CREDENTIALS_FILE` 指向服务器受控凭据副本，避免 P5 真实租户账号继续使用开发默认 `t-1`；本地 Vite 代理新增显式自签证书开关，默认仍校验证书；角色切换前显式登出、清 Cookie 并刷新前端文档，防止 React Query 跨账号缓存污染；14 角色旅程新增 HTTP 错误、浏览器错误和非取消型网络失败门禁。
-- PR 前本地最新前端连接 134 真实后端验证已通过：14 角色四档主动作 `5/5`、全部授权页面 `1/1`、P5 核心只读探针 `21/21`、前端全量 `89` 个文件 `656` 项测试、生产构建、守卫测试 40/40。证据：`docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-2b8b324/pre-pr-local-frontend-sweep.json` 与 `docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json`。补丁尚未合并、部署，不得写成现场已修复。
-- 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`。
+- 当前执行线：P5 134 第二轮全新演练与第一阶段正式验收；当前工作分支 `codex/p5-ab213-deploy`，基于精确 `origin/main=ab2132891a208e72a1573c82e6a79d665918310b`。
+- PR #573 已全绿并 squash 合并；134 已部署精确提交 `ab2132891a208e72a1573c82e6a79d665918310b`。发布前有效备份：`/zoesoft/medkernel/backups/p5-ab213-predeploy-20260612-224748`；隔离恢复 `118|118|118`（成功迁移条数、最大 installed_rank、最大数值版本）、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0、P5 账号/角色统计 `2|17|15|15`、目标平台管理员/超管角色 `1|1`、临时恢复库清理 0。
+- 134 当前服务 `medkernel|nginx|postgresql=active|active|active`，HTTP/HTTPS readiness 200，Flyway `118|118|118`，178 张表，知识 `0|0|0|0|0|0`，文献资料库根地址长度 0。部署后证据：`/zoesoft/medkernel/backups/p5-ab213-predeploy-20260612-224748/evidence/post-deploy-ab213.properties` 与仓库 `docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-ab213/00-postdeploy-ab213-summary.json`。
+- 首次 ab213 程序发布成功但前端包仍含 macOS `LIBARCHIVE.xattr` 扩展头噪声；已按 `COPYFILE_DISABLE=1 tar --no-xattrs` 重打 clean 包并重发前端，最终 clean 包 SHA-256 `4300536db0b63a8bf5e637e266721950e47d707898532e945e2ce98256b54df6`、xattr 噪声计数 0。保留首次噪声计数 514 作为过程证据，不作为最终闭环。
+- 14 个职责角色的受控凭据仅在 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`，权限 `600|medkernel|medkernel`；本地验证使用 `/tmp` 受控副本，无凭据入仓库。
+- 2b8b324 部署后真实复现 `clinical-decision-user` 390px 进入 `/workflow/todos` 横向溢出 27px；PR #573 已通过 TDD 修复协同待办中心表格卡片可收缩边界、固定表格布局与内部横向滚动。
+- ab213 部署后复验通过：14 角色菜单快照与四档视口主动作 `5/5` 通过；全部受保护授权页面聚合冒烟 `1/1` 通过；P5 核心只读探针 `21/21` 通过；目标缺陷单点复验 `390px documentWidth=390`，无权限态、HTTP 错误、浏览器错误和网络失败均为 0。证据在 `docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-ab213/` 与 `docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json`。
+- 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`。P5 仍在进行，尚未形成第一阶段正式验收；正式知识生产继续阻断，未配置文献资料库根地址，不得进入 P6。
 
 ## 当前下一步
 
-1. 提交协同待办移动端表格溢出修复、E2E 受控凭据覆盖、角色切换隔离、代理自签开关、P5 核心只读探针和现场失败/本地通过证据，创建 PR，等待 CI 全绿并 squash 合并。
-2. 从精确合并后的 `origin/main` 重建前端制品；发布前重新备份并隔离恢复，部署到 134。
-3. 部署后重跑 14 角色四档视口共 56 条主动作旅程，确认目标路径、页面级权限、4xx、控制台错误和根节点溢出全部通过。
-4. 继续跨角色审批、第一阶段端到端旅程、恢复、医疗安全、最小化、五方言与 GA 门禁。
-5. P5 全部通过后形成第一阶段正式验收并冻结结构；在此之前不得配置正式资料库或生成正式知识，不得进入 P6。
+1. 提交 ab213 发布与 post-deploy 证据，创建 PR，等待 CI 全绿并 squash 合并。
+2. 继续跨角色审批、第一阶段端到端旅程、恢复、医疗安全、最小化、五方言与 GA 门禁。
+3. 继续保持正式知识生产阻断；文献资料库根地址仍为空，不得配置正式资料库或生成正式知识，不得进入 P6。
+4. P5 全部通过后形成第一阶段正式验收并冻结结构。
 
 ## 2026-06-12 P4 fd843 精确部署完成，14 角色菜单路由冒烟通过
 
