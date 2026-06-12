@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
@@ -115,6 +118,20 @@ describe("WorkflowTodos", () => {
       isError: false,
       isLoading: false,
     });
+  });
+
+  it("keeps the workflow todo table contained on mobile viewports", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/clinical/WorkflowTodos.tsx"), {
+      encoding: "utf8",
+    });
+    const styles = readFileSync(resolve(process.cwd(), "src/pages/clinical/Clinical.module.css"), {
+      encoding: "utf8",
+    });
+
+    expect(source).toContain("className={styles.tablePanel}");
+    expect(source).toContain('tableLayout="fixed"');
+    expect(source).toContain("scroll={{ x: 760 }}");
+    expect(styles).toMatch(/\.tablePanel\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
   });
 
   it("renders real workflow todos from the unified API instead of the old placeholder", () => {

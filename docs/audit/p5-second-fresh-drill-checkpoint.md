@@ -6,25 +6,25 @@
 
 ## 1. 当前裁决
 
-P5 已完成清库前备份与隔离恢复、全新清库、首发接管、客户租户与组织树建立、14 个职责角色激活。追踪标识持久化宽度缺陷已由 V118 闭环并精确部署到 134，14 个角色的 134 条默认菜单路由已全部通过。四档视口主动作旅程继续发现移动端服务机构页横向溢出，当前已本地完成 TDD 修复但尚未合并、部署。
+P5 已完成清库前备份与隔离恢复、全新清库、首发接管、客户租户与组织树建立、14 个职责角色激活。追踪标识持久化宽度缺陷已由 V118 闭环并精确部署到 134，服务机构页移动端溢出修复已由 PR #572 合并并精确部署为 `2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`。部署后 14 个角色菜单快照、桌面 1440、桌面 1366、平板三档主动作通过；移动端继续发现 `clinical-decision-user` 进入协同待办中心 `/workflow/todos` 后横向溢出，当前已本地完成 TDD 修复但尚未合并、部署。
 
 因此当前裁决为：
 
 - P5 继续进行，不得写成已验收。
-- 134 当前为 V118；移动端溢出修复必须先经过 PR、CI 和精确部署，再重跑 56 条主动作旅程。
+- 134 当前为 `2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`；协同待办移动端溢出修复必须先经过 PR、CI 和精确部署，再重跑 56 条主动作旅程。
 - 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
 
 ## 2. 备份、恢复与干净基线
 
-| 检查项 | 结果 |
-|---|---|
-| 清库前有效备份 | `/zoesoft/medkernel/backups/p5-pre-clear-20260612-190951` |
-| 数据库备份 | `db/medkernel.dump`，SHA-256 `79a5451d6c211608497c55923da3a70938b25b837937683e03bf14e7a6429689` |
-| 隔离恢复 | Flyway `117|117`，178 张 public 基表，知识 `0|0|0|0|0|0` |
-| 文献资料库根地址 | 长度 0，元数据 `SYSTEM|PLATFORM_SEED|Y|Y|1` |
-| 临时恢复库清理 | 0 个残留 |
-| 清库与从零迁移 | 数据库重建后从 0 张表迁移到 V117、178 张表，HTTP/HTTPS readiness 200 |
-| 首发状态 | 清库后 `initialized=false`，随后由真实前台完成首发管理员接管 |
+| 检查项           | 结果                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------- | --------------------------------- | --- | --- | --- | --- | --- |
+| 清库前有效备份   | `/zoesoft/medkernel/backups/p5-pre-clear-20260612-190951`                                       |
+| 数据库备份       | `db/medkernel.dump`，SHA-256 `79a5451d6c211608497c55923da3a70938b25b837937683e03bf14e7a6429689` |
+| 隔离恢复         | Flyway `117                                                                                     | 117`，178 张 public 基表，知识 `0 | 0   | 0   | 0   | 0   | 0`  |
+| 文献资料库根地址 | 长度 0，元数据 `SYSTEM                                                                          | PLATFORM_SEED                     | Y   | Y   | 1`  |
+| 临时恢复库清理   | 0 个残留                                                                                        |
+| 清库与从零迁移   | 数据库重建后从 0 张表迁移到 V117、178 张表，HTTP/HTTPS readiness 200                            |
+| 首发状态         | 清库后 `initialized=false`，随后由真实前台完成首发管理员接管                                    |
 
 服务器原始证据位于：
 
@@ -34,16 +34,16 @@ P5 已完成清库前备份与隔离恢复、全新清库、首发接管、客�
 
 ## 3. 真实前台进度
 
-| 旅程 | 结果 | 仓库证据 |
-|---|---|---|
-| 首发管理员接管 | 创建、首次改密、MFA 绑定、独立重登录通过 | `docs/release/evidence/p5-second-fresh-drill-20260612/幕0-部署接管与首次登录/` |
-| 客户租户开通 | `p5-hospital` / `P5第二轮全新演练医院` 创建成功 | `14-role-journeys/03-tenant-provision-summary.json` |
-| 机构管理员初始化 | 首次改密、MFA 绑定、受控密钥轮换、独立重登录通过 | `14-role-journeys/08-organization-admin-bootstrap-summary.json` |
-| 组织树 | `P5-GROUP`、`P5-HOSP`、`P5-CAMPUS`、`P5-CARDIO`、`P5-CARDIO-W1` | `14-role-journeys/10-org-tree-summary.json` |
-| 11 个客户职责角色 | 批量导入、账号激活完成；7 个高风险角色完成 MFA，4 个临床执行角色按策略无需 MFA | `14-role-journeys/14-customer-role-import-summary.json`、`15-customer-role-activation-summary.json` |
-| 两个平台职责角色 | V118 部署后创建、首次改密、MFA 绑定和独立重登录全部通过 | 服务器 `platform-role-retry.properties`、`platform-role-activation.properties` |
-| 14 角色默认菜单 | 14/14 角色、134/134 路由通过 | `14-role-journeys/postdeploy-d4d9ae66/full-14-role-menu-smoke-d4d9ae66.json` |
-| 四档视口主动作 | 桌面 1440、桌面 1366、平板 42/42 通过；移动端机构管理员目标页横向溢出 | `14-role-journeys/postdeploy-d4d9ae66/mobile-primary-action-overflow-failure.json` |
+| 旅程              | 结果                                                                                                                   | 仓库证据                                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 首发管理员接管    | 创建、首次改密、MFA 绑定、独立重登录通过                                                                               | `docs/release/evidence/p5-second-fresh-drill-20260612/幕0-部署接管与首次登录/`                                                                                  |
+| 客户租户开通      | `p5-hospital` / `P5第二轮全新演练医院` 创建成功                                                                        | `14-role-journeys/03-tenant-provision-summary.json`                                                                                                             |
+| 机构管理员初始化  | 首次改密、MFA 绑定、受控密钥轮换、独立重登录通过                                                                       | `14-role-journeys/08-organization-admin-bootstrap-summary.json`                                                                                                 |
+| 组织树            | `P5-GROUP`、`P5-HOSP`、`P5-CAMPUS`、`P5-CARDIO`、`P5-CARDIO-W1`                                                        | `14-role-journeys/10-org-tree-summary.json`                                                                                                                     |
+| 11 个客户职责角色 | 批量导入、账号激活完成；7 个高风险角色完成 MFA，4 个临床执行角色按策略无需 MFA                                         | `14-role-journeys/14-customer-role-import-summary.json`、`15-customer-role-activation-summary.json`                                                             |
+| 两个平台职责角色  | V118 部署后创建、首次改密、MFA 绑定和独立重登录全部通过                                                                | 服务器 `platform-role-retry.properties`、`platform-role-activation.properties`                                                                                  |
+| 14 角色默认菜单   | 14/14 角色、134/134 路由通过；2b8b324 主动作 E2E 前置菜单快照也通过                                                    | `14-role-journeys/postdeploy-d4d9ae66/full-14-role-menu-smoke-d4d9ae66.json`、`14-role-journeys/postdeploy-2b8b324/mobile-workflow-todos-overflow-failure.json` |
+| 四档视口主动作    | 2b8b324 部署后桌面 1440、桌面 1366、平板 42/42 通过；移动端 `clinical-decision-user` 目标页 `/workflow/todos` 横向溢出 | `14-role-journeys/postdeploy-2b8b324/mobile-workflow-todos-overflow-failure.json`                                                                               |
 
 凭据只保存在服务器受控文件，仓库证据不含密码、MFA 密钥、恢复码、Cookie 或 Token：
 
@@ -101,23 +101,37 @@ P5 已完成清库前备份与隔离恢复、全新清库、首发接管、客�
 - 新增响应式合同测试，修复前因 `.onboardingPanel` 缺少 `min-width: 0` 明确失败。
 - `.onboardingGrid` 与 `.onboardingPanel` 增加可收缩边界，移动断点单列轨道改为 `minmax(0, 1fr)`。
 - 14 角色 E2E 主动作从只检查按钮可见，扩展为点击真实目标页并复查目标路径、页面级权限和根节点溢出。
-- 聚焦测试 19/19、前端全量 89 个文件 652 项测试、生产构建和 Playwright 规格编译已通过；尚未部署，现场复验仍待完成。
+- PR #572 已合并并部署为 `2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71`；部署后桌面 1440、桌面 1366、平板三档主动作已通过该页面链路，移动端已越过该缺陷并继续暴露协同待办中心表格溢出。
+
+### 5.2 移动端协同待办中心表格溢出
+
+真实浏览器在 390×844 视口复现：`clinical-decision-user` 从工作台点击主动作进入 `/workflow/todos` 后，根节点宽度为 417px，横向溢出 27px。页面级无权限为 0；桌面 1440、桌面 1366、平板三档主动作和 14 角色菜单快照均已先通过。
+
+红灯与本地绿灯：
+
+- 新增 `WorkflowTodos` 响应式合同测试，修复前因缺少表格卡片可收缩边界、固定表格布局与横向滚动宽度失败。
+- `WorkflowTodos` 表格外层 `Card` 增加 `tablePanel`，CSS 设置 `min-width: 0` 与 `overflow: hidden`。
+- Ant Design `Table` 增加 `tableLayout="fixed"` 和 `scroll={{ x: 760 }}`，让表格在移动端由内部滚动承载固有宽度，而不是撑开根节点。
+- E2E 登录支持 `E2E_ROLE_CREDENTIALS_FILE`，可读取服务器受控凭据副本中的真实 P5 租户、客户角色和平台角色元数据；凭据文件不入仓库。
+- E2E 角色切换前显式登出、清 Cookie 并刷新前端文档，避免 React Query 缓存跨账号污染；14 角色旅程新增 HTTP 错误、浏览器错误和非取消型网络失败门禁。
+- 本地最新前端连接 134 真实后端已通过：14 角色四档主动作 5/5、全部授权页面 1/1、P5 核心只读探针 21/21。核心探针覆盖知识、规则、路径、临床待办、通知、CDSS、质量、审计、模型能力、运维、身份与人员代表 API，且未发现演示或固定医学文本。
+- 聚焦测试 2 个文件 25 项通过，前端全量 89 个文件 656 项测试通过，生产构建、Playwright 规格编译和 T-GATE 已通过；尚未合并、部署，现场复验仍待完成。
 
 ## 6. 当前 134 状态
 
-| 检查项 | 结果 |
-|---|---|
-| manifest | `source/commit=d4d9ae66b8d7e4ef5d63961deeef9db1f0ad17aa` |
-| 服务 | `medkernel|nginx|postgresql=active|active|active` |
-| HTTP / HTTPS readiness | `200|200` |
-| Flyway / 表数 | `118|118` / 178 |
-| 知识数据 | `0|0|0|0|0|0` |
-| 文献资料库根地址 | 长度 0 |
-| 追踪标识合同 | 所有字符型 `trace_id` 列均不短于 128 |
+| 检查项                 | 结果                                                     |
+| ---------------------- | -------------------------------------------------------- | ---------- | ----------------- | ------ | ------- | --- |
+| manifest               | `source/commit=2b8b324cc0859c5bc8ef1aa6fe950b4a9691cd71` |
+| 服务                   | `medkernel                                               | nginx      | postgresql=active | active | active` |
+| HTTP / HTTPS readiness | `301                                                     | 200`       |
+| Flyway / 表数          | `118                                                     | 118` / 178 |
+| 知识数据               | `0                                                       | 0          | 0                 | 0      | 0       | 0`  |
+| 文献资料库根地址       | 长度 0                                                   |
+| 追踪标识合同           | 所有字符型 `trace_id` 列均不短于 128                     |
 
 ## 7. 下一门禁
 
-1. 提交移动端溢出修复和现场证据，创建 PR，等待 CI 全绿并 squash 合并。
+1. 提交协同待办移动端表格溢出修复、E2E 受控凭据覆盖、角色切换隔离、代理自签开关、P5 核心只读探针和现场证据，创建 PR，等待 CI 全绿并 squash 合并。
 2. 从精确合并提交重建前端制品；发布前再次备份并隔离恢复。
 3. 部署后重跑 14 角色四档视口共 56 条主动作旅程。
 4. 继续跨角色审批与第一阶段端到端旅程。
