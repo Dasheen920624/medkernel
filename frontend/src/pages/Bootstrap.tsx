@@ -149,6 +149,7 @@ export default function Bootstrap() {
   const bindMfa = useBindBootstrapMfa();
   const bootstrapStatus = useBootstrapStatus(!accountSecuritySetup);
   const { token } = theme.useToken();
+  const shouldGateByBootstrapStatus = !accountSecuritySetup && phase === "init-token";
 
   const pageStyle = {
     "--mk-bootstrap-text": token.colorText,
@@ -321,7 +322,7 @@ export default function Bootstrap() {
     }
   }
 
-  if (!accountSecuritySetup && bootstrapStatus.isLoading) {
+  if (shouldGateByBootstrapStatus && bootstrapStatus.isLoading) {
     return (
       <main className={styles.page} style={pageStyle}>
         <div className={styles.themeSwitcher}>
@@ -338,7 +339,7 @@ export default function Bootstrap() {
     );
   }
 
-  if (!accountSecuritySetup && (bootstrapStatus.isError || !bootstrapStatus.data)) {
+  if (shouldGateByBootstrapStatus && (bootstrapStatus.isError || !bootstrapStatus.data)) {
     return (
       <main className={styles.page} style={pageStyle}>
         <div className={styles.themeSwitcher}>
@@ -368,7 +369,7 @@ export default function Bootstrap() {
     );
   }
 
-  if (!accountSecuritySetup && bootstrapStatus.data?.initialized) {
+  if (shouldGateByBootstrapStatus && bootstrapStatus.data?.initialized) {
     return (
       <main className={styles.page} style={pageStyle}>
         <div className={styles.themeSwitcher}>

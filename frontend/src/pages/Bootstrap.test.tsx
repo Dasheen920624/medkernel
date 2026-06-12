@@ -168,6 +168,37 @@ describe("Bootstrap", () => {
     });
   });
 
+  it("创建首发管理员成功后即使状态刷新为已初始化，也保留返回登录提示", async () => {
+    apiMocks.checkInitToken.mockResolvedValue({
+      valid: true,
+      expiresAt: "2026-06-01T09:00:00Z",
+    });
+    apiMocks.createAdmin.mockImplementation(async () => {
+      apiMocks.bootstrapStatus.data = { initialized: true };
+      return {
+        userId: "platform-owner",
+        tenantId: "t-1",
+        username: "platform-owner",
+        roles: ["system-superadmin"],
+        mustChangePwd: true,
+      };
+    });
+    renderBootstrap();
+
+    fireEvent.change(screen.getByLabelText("部署接管码"), { target: { value: "raw-init-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "继续接管" }));
+    expect(await screen.findByRole("heading", { name: "设置首发管理员" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("账号"), { target: { value: "platform-owner" } });
+    fireEvent.change(screen.getByLabelText("初始密码"), { target: { value: "Init@2026pw" } });
+    fireEvent.change(screen.getByLabelText("确认初始密码"), {
+      target: { value: "Init@2026pw" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "创建首发管理员" }));
+
+    expect(await screen.findByText(/请使用首发账号登录并完成首次改密/)).toBeInTheDocument();
+    expect(screen.queryByText("系统已完成首次部署")).not.toBeInTheDocument();
+  });
+
   it("客户租户首次登录只展示账号安全设置，不混入平台接管语义", () => {
     const { container } = renderBootstrap({
       phase: "change-password",
