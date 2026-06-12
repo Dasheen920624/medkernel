@@ -150,13 +150,11 @@ public final class DefaultPermissionPolicy {
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
             MENU_CDSS_FATIGUE,
-            MENU_RULE_VALIDATE,
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP,
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
-            MENU_QC_EVAL_RESULTS,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE);
     }
@@ -182,7 +180,6 @@ public final class DefaultPermissionPolicy {
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
             MENU_CDSS_FATIGUE,
-            MENU_RULE_VALIDATE,
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP);
@@ -228,7 +225,6 @@ public final class DefaultPermissionPolicy {
             NOTIFICATION_READ, NOTIFICATION_WRITE),
             MENU_WORKBENCH,
             MENU_RULE_DEFINITIONS,
-            MENU_RULE_VALIDATE,
             MENU_CDSS_FATIGUE,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE,
@@ -284,7 +280,6 @@ public final class DefaultPermissionPolicy {
             MENU_QC_ALERTS,
             MENU_INSURANCE_AUDIT,
             MENU_QC_EVAL_SETS,
-            MENU_QC_EVAL_RESULTS,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE);
@@ -344,7 +339,6 @@ public final class DefaultPermissionPolicy {
             MENU_TERMINOLOGY_MAPPING,
             MENU_ADAPTER_HUB,
             MENU_QC_DASHBOARD,
-            MENU_QC_EVAL_RESULTS,
             MENU_IDENTITY_BINDINGS,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,

@@ -7,11 +7,12 @@ import { ROLE_OPTIONS } from "./roleCatalog";
 
 export type RouteSectionKey =
   | "workbench"
-  | "pilot-setup"
-  | "clinical-run"
-  | "quality-improve"
-  | "compliance-ops"
-  | "advanced-tools";
+  | "institution-governance"
+  | "knowledge-configuration"
+  | "clinical-collaboration"
+  | "quality-operations";
+
+export type RoutePlacement = "primary" | "header" | "profile" | "expert" | "hidden" | "embedded";
 
 export type PageType =
   | "auth"
@@ -31,6 +32,8 @@ export interface RouteMeta {
   sectionKey?: RouteSectionKey;
   menuKey?: string;
   menuLabel?: string;
+  placement: RoutePlacement;
+  navigationOrder: number;
   requiredRoles: string[];
   requiredPermissions: string[];
   hidden?: boolean;
@@ -43,12 +46,22 @@ export interface RouteMeta {
 
 type RouteMetaInput = Omit<
   RouteMeta,
-  "requiredRoles" | "requiredPermissions" | "requiresSixStates" | "requiresStepFlow"
+  | "requiredRoles"
+  | "requiredPermissions"
+  | "placement"
+  | "navigationOrder"
+  | "requiresSixStates"
+  | "requiresStepFlow"
 > &
   Partial<
     Pick<
       RouteMeta,
-      "requiredRoles" | "requiredPermissions" | "requiresSixStates" | "requiresStepFlow"
+      | "requiredRoles"
+      | "requiredPermissions"
+      | "placement"
+      | "navigationOrder"
+      | "requiresSixStates"
+      | "requiresStepFlow"
     >
   >;
 
@@ -61,16 +74,14 @@ export interface RoutePermissionProfile {
 export interface RouteSectionMeta {
   key: RouteSectionKey;
   label: string;
-  hidden?: boolean;
 }
 
 export const routeSections: RouteSectionMeta[] = [
   { key: "workbench", label: "工作台" },
-  { key: "pilot-setup", label: "试点准备" },
-  { key: "clinical-run", label: "临床运行" },
-  { key: "quality-improve", label: "质控改进" },
-  { key: "compliance-ops", label: "合规运维" },
-  { key: "advanced-tools", label: "高级工具", hidden: true },
+  { key: "institution-governance", label: "机构治理" },
+  { key: "knowledge-configuration", label: "知识配置" },
+  { key: "clinical-collaboration", label: "临床协同" },
+  { key: "quality-operations", label: "质量与运营" },
 ];
 
 const CUSTOMER_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
@@ -282,6 +293,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "workbench",
     menuKey: "workbench",
     menuLabel: "工作台",
+    placement: "primary",
+    navigationOrder: 1,
     requiredRoles: WORKBENCH_LANDING_ROLE_CODES,
     experience: readonlyExperience(
       "医院管理者",
@@ -296,8 +309,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     breadcrumb: ["工作台", "验收自检"],
     requireAuth: true,
     sectionKey: "workbench",
-    menuKey: "readiness-validation",
-    menuLabel: "验收自检",
+    placement: "hidden",
     requiredPermissions: ["menu.workbench", "workbench:readiness:view"],
     requiredRoles: [
       "implementation-operator",
@@ -348,26 +360,30 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/onboarding/guide",
-    title: "客户实施向导",
-    breadcrumb: ["试点准备", "客户实施向导"],
+    title: "实施与验收",
+    breadcrumb: ["机构治理", "实施与验收"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "institution-governance",
     menuKey: "implementation-guide",
-    menuLabel: "客户实施向导",
+    menuLabel: "实施与验收",
+    placement: "primary",
+    navigationOrder: 4,
     requiredPermissions: ["menu.implementation-guide", "tenant.read"],
     requiredRoles: ["implementation-operator", "platform-governance-admin", "organization-admin"],
-    experience: readonlyExperience("实施工程师", "按步骤完成试点准备核查", "待完成步骤"),
+    experience: readonlyExperience("实施运维员", "按步骤完成机构开通、联调和验收", "待完成步骤"),
     pageType: "configuration",
     stateMachine: "config",
   },
   {
     path: "/tenant/onboarding",
-    title: "服务机构管理",
-    breadcrumb: ["试点准备", "服务机构管理"],
+    title: "服务机构",
+    breadcrumb: ["机构治理", "服务机构"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "institution-governance",
     menuKey: "tenant-onboarding",
-    menuLabel: "服务机构管理",
+    menuLabel: "服务机构",
+    placement: "primary",
+    navigationOrder: 1,
     requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
     requiredRoles: ["implementation-operator", "platform-governance-admin", "organization-admin"],
     experience: readonlyExperience("实施工程师", "开通服务空间或配置当前服务机构", "待配置组织"),
@@ -376,12 +392,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/config/packages",
-    title: "配置包中心",
-    breadcrumb: ["试点准备", "配置包中心"],
+    title: "配置包与发布",
+    breadcrumb: ["知识配置", "配置包与发布"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
     menuKey: "config-packages",
-    menuLabel: "配置包中心",
+    menuLabel: "配置包与发布",
+    placement: "primary",
+    navigationOrder: 2,
     requiredPermissions: ["menu.config-packages", "package.read", "package.publish"],
     requiredRoles: [
       "implementation-operator",
@@ -402,9 +420,10 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/config/releases",
     title: "发布治理",
-    breadcrumb: ["试点准备", "配置包中心", "发布治理"],
+    breadcrumb: ["知识配置", "配置包与发布", "发布治理"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
+    placement: "hidden",
     hidden: true,
     requiredPermissions: ["menu.config-packages", "package.read", "package.publish"],
     requiredRoles: [
@@ -425,10 +444,11 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/authoring/assets",
-    title: "统一资产库",
-    breadcrumb: ["试点准备", "统一资产库"],
+    title: "知识资产",
+    breadcrumb: ["知识配置", "知识资产"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
+    placement: "hidden",
     hidden: true,
     requiredPermissions: ["rule.read", "pathway.read"],
     requiredRoles: [
@@ -453,11 +473,13 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/pathway/templates",
     title: "路径配置",
-    breadcrumb: ["试点准备", "路径配置"],
+    breadcrumb: ["知识配置", "路径配置"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
     menuKey: "pathway-templates",
     menuLabel: "路径配置",
+    placement: "primary",
+    navigationOrder: 5,
     requiredPermissions: ["menu.pathway-templates", "pathway.read"],
     experience: readonlyExperience("专科专家", "核查路径模板准备状态", "待处理路径", "large"),
     pageType: "configuration",
@@ -465,12 +487,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/rule/definitions",
-    title: "规则库",
-    breadcrumb: ["试点准备", "规则库"],
+    title: "规则配置",
+    breadcrumb: ["知识配置", "规则配置"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
     menuKey: "rule-definitions",
-    menuLabel: "规则库",
+    menuLabel: "规则配置",
+    placement: "primary",
+    navigationOrder: 4,
     requiredPermissions: ["menu.rule-definitions", "rule.read"],
     experience: readonlyExperience("医务处", "核查规则资产准备状态", "待处理规则", "large"),
     pageType: "configuration",
@@ -478,12 +502,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/terminology/mapping",
-    title: "字典映射",
-    breadcrumb: ["试点准备", "字典映射"],
+    title: "术语与字典",
+    breadcrumb: ["知识配置", "术语与字典"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "knowledge-configuration",
     menuKey: "terminology-mapping",
-    menuLabel: "字典映射",
+    menuLabel: "术语与字典",
+    placement: "primary",
+    navigationOrder: 3,
     requiredPermissions: ["menu.terminology-mapping", "term.read"],
     requiredRoles: [
       "integration-operator",
@@ -497,12 +523,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/adapter/hub",
-    title: "适配器中心",
-    breadcrumb: ["试点准备", "适配器中心"],
+    title: "系统接入",
+    breadcrumb: ["机构治理", "系统接入"],
     requireAuth: true,
-    sectionKey: "pilot-setup",
+    sectionKey: "institution-governance",
     menuKey: "adapter-hub",
-    menuLabel: "适配器中心",
+    menuLabel: "系统接入",
+    placement: "primary",
+    navigationOrder: 5,
     requiredPermissions: [
       "menu.adapter-hub",
       "integration.read",
@@ -516,12 +544,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/mpi",
-    title: "患者主索引",
-    breadcrumb: ["临床运行", "患者主索引"],
+    title: "患者索引",
+    breadcrumb: ["临床协同", "患者索引"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "clinical-collaboration",
     menuKey: "mpi",
-    menuLabel: "患者主索引",
+    menuLabel: "患者索引",
+    placement: "primary",
+    navigationOrder: 1,
     experience: readonlyExperience(
       "临床医生",
       "查阅授权范围内的患者索引状态",
@@ -533,74 +563,85 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/pathway/patients",
     title: "患者路径",
-    breadcrumb: ["临床运行", "患者路径"],
+    breadcrumb: ["临床协同", "患者路径"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "clinical-collaboration",
     menuKey: "patient-pathways",
     menuLabel: "患者路径",
+    placement: "primary",
+    navigationOrder: 2,
     experience: readonlyExperience("临床医生", "查看患者路径运行事项", "待处理节点", "large"),
     pageType: "list",
     stateMachine: "todo",
   },
   {
     path: "/cdss/fatigue",
-    title: "临床提醒治理",
-    breadcrumb: ["临床运行", "临床提醒治理"],
+    title: "提醒与推荐",
+    breadcrumb: ["临床协同", "提醒与推荐"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "clinical-collaboration",
     menuKey: "cdss-fatigue",
-    menuLabel: "临床提醒治理",
+    menuLabel: "提醒与推荐",
+    placement: "primary",
+    navigationOrder: 3,
     experience: readonlyExperience("医务处", "查看临床提醒负担和治理线索", "需关注提醒", "large"),
     pageType: "list",
     stateMachine: "alert",
   },
   {
     path: "/rule/validate",
-    title: "规则校验",
-    breadcrumb: ["临床运行", "规则校验"],
+    title: "规则试运行",
+    breadcrumb: ["知识配置", "规则配置", "试运行"],
     requireAuth: true,
-    sectionKey: "clinical-run",
-    menuKey: "rule-validate",
-    menuLabel: "规则校验",
+    sectionKey: "knowledge-configuration",
+    placement: "hidden",
+    hidden: true,
+    requiredPermissions: ["menu.rule-definitions", "rule.read"],
     experience: readonlyExperience("临床医生", "核查规则提示的依据和状态", "最近提示", "large"),
     pageType: "configuration",
     stateMachine: "config",
   },
   {
     path: "/workflow/todos",
-    title: "待办中心",
-    breadcrumb: ["临床运行", "待办中心"],
+    title: "协同任务",
+    breadcrumb: ["临床协同", "协同任务"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "clinical-collaboration",
     menuKey: "workflow-todos",
-    menuLabel: "待办中心",
+    menuLabel: "协同任务",
+    placement: "primary",
+    navigationOrder: 4,
     experience: readonlyExperience("临床医生", "处理当前岗位待办事项", "待我处理", "large"),
     pageType: "list",
     stateMachine: "todo",
   },
   {
     path: "/notifications",
-    title: "通知中心",
-    breadcrumb: ["临床运行", "通知中心"],
+    title: "消息通知",
+    breadcrumb: ["工作台", "消息通知"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "workbench",
     menuKey: "notifications",
-    menuLabel: "通知中心",
+    menuLabel: "消息通知",
+    placement: "header",
+    navigationOrder: 1,
     experience: readonlyExperience("临床医生", "查看需要关注的通知", "未读通知", "large"),
     pageType: "list",
     stateMachine: "todo",
   },
   {
     path: "/clinical/followup",
-    title: "智能随访",
-    breadcrumb: ["临床运行", "智能随访"],
+    title: "随访协同",
+    breadcrumb: ["临床协同", "随访协同"],
     requireAuth: true,
-    sectionKey: "clinical-run",
+    sectionKey: "clinical-collaboration",
     menuKey: "clinical-followup",
-    menuLabel: "智能随访",
+    menuLabel: "随访协同",
+    placement: "primary",
+    navigationOrder: 5,
     experience: readonlyExperience(
       "随访专员 / 临床医生",
-      "智能生成专病随访计划并跟进分期随访任务与异常回院事件",
+      "生成专病随访计划并跟进分期任务与异常回院事件",
       "计划台账列表",
       "large",
     ),
@@ -609,24 +650,28 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/qc/dashboard",
-    title: "院级质控驾驶舱",
-    breadcrumb: ["质控改进", "院级质控驾驶舱"],
+    title: "质量与运营概览",
+    breadcrumb: ["质量与运营", "质量与运营概览"],
     requireAuth: true,
-    sectionKey: "quality-improve",
+    sectionKey: "quality-operations",
     menuKey: "qc-dashboard",
-    menuLabel: "院级质控驾驶舱",
+    menuLabel: "质量与运营概览",
+    placement: "primary",
+    navigationOrder: 1,
     requiredPermissions: ["menu.qc-dashboard", "evaluation.read"],
     experience: readonlyExperience("质控办", "查看质控风险与改进进展", "本期风险概览"),
     pageType: "dashboard",
   },
   {
     path: "/qc/alerts",
-    title: "质控预警",
-    breadcrumb: ["质控改进", "质控预警"],
+    title: "质量问题与整改",
+    breadcrumb: ["质量与运营", "质量问题与整改"],
     requireAuth: true,
-    sectionKey: "quality-improve",
+    sectionKey: "quality-operations",
     menuKey: "qc-alerts",
-    menuLabel: "质控预警",
+    menuLabel: "质量问题与整改",
+    placement: "primary",
+    navigationOrder: 2,
     requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
     experience: readonlyExperience("质控办", "处理质控预警事项", "高风险待处理", "large"),
     pageType: "list",
@@ -634,12 +679,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/qc/insurance",
-    title: "医保智能审核",
-    breadcrumb: ["质控改进", "医保智能审核"],
+    title: "医保审核",
+    breadcrumb: ["质量与运营", "医保审核"],
     requireAuth: true,
-    sectionKey: "quality-improve",
+    sectionKey: "quality-operations",
     menuKey: "insurance-audit",
-    menuLabel: "医保智能审核",
+    menuLabel: "医保审核",
+    placement: "primary",
+    navigationOrder: 3,
     requiredPermissions: ["menu.insurance-audit", "evaluation.read"],
     experience: readonlyExperience("医保办", "核查医保审核问题与依据", "待审核问题", "large"),
     pageType: "review",
@@ -647,12 +694,14 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/qc/eval/sets",
-    title: "评估指标库",
-    breadcrumb: ["质控改进", "评估指标库"],
+    title: "评价指标",
+    breadcrumb: ["质量与运营", "评价指标"],
     requireAuth: true,
-    sectionKey: "quality-improve",
+    sectionKey: "quality-operations",
     menuKey: "qc-eval-sets",
-    menuLabel: "评估指标库",
+    menuLabel: "评价指标",
+    placement: "primary",
+    navigationOrder: 4,
     requiredPermissions: ["menu.qc-eval-sets", "evaluation.read"],
     experience: readonlyExperience("质控办", "核查评估指标配置状态", "待维护指标", "large"),
     pageType: "configuration",
@@ -661,23 +710,25 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/qc/eval/results",
     title: "评估结果",
-    breadcrumb: ["质控改进", "评估结果"],
+    breadcrumb: ["质量与运营", "质量问题与整改", "发现来源"],
     requireAuth: true,
-    sectionKey: "quality-improve",
-    menuKey: "qc-eval-results",
-    menuLabel: "评估结果",
-    requiredPermissions: ["menu.qc-eval-results", "evaluation.read"],
+    sectionKey: "quality-operations",
+    placement: "hidden",
+    hidden: true,
+    requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
     experience: readonlyExperience("质控办", "查看评估结果和待改进事项", "近期结果", "large"),
     pageType: "list",
   },
   {
     path: "/knowledge/governance",
-    title: "知识治理",
-    breadcrumb: ["质控改进", "知识治理"],
+    title: "知识审核与发布",
+    breadcrumb: ["知识配置", "知识审核与发布"],
     requireAuth: true,
-    sectionKey: "quality-improve",
+    sectionKey: "knowledge-configuration",
     menuKey: "knowledge-governance",
-    menuLabel: "知识治理",
+    menuLabel: "知识审核与发布",
+    placement: "primary",
+    navigationOrder: 1,
     requiredPermissions: ["menu.knowledge-governance", "knowledge.read"],
     requiredRoles: [
       "platform-governance-admin",
@@ -699,11 +750,13 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/admin/users",
     title: "人员与账号",
-    breadcrumb: ["合规运维", "人员与账号"],
+    breadcrumb: ["机构治理", "人员与账号"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "institution-governance",
     menuKey: "admin-users",
     menuLabel: "人员与账号",
+    placement: "primary",
+    navigationOrder: 2,
     requiredPermissions: ["menu.admin-users", "org.read"],
     requiredRoles: [
       "system-superadmin",
@@ -722,11 +775,13 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/security/identity-binding",
     title: "身份来源",
-    breadcrumb: ["合规运维", "身份来源"],
+    breadcrumb: ["机构治理", "身份来源"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "institution-governance",
     menuKey: "identity-bindings",
     menuLabel: "身份来源",
+    placement: "primary",
+    navigationOrder: 3,
     requiredPermissions: ["menu.identity-bindings", "org.read"],
     requiredRoles: [
       "identity-access-admin",
@@ -740,36 +795,42 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/admin/audit",
-    title: "审计日志",
-    breadcrumb: ["合规运维", "审计日志"],
+    title: "审计与证据",
+    breadcrumb: ["质量与运营", "审计与证据"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "quality-operations",
     menuKey: "admin-audit",
-    menuLabel: "审计日志",
+    menuLabel: "审计与证据",
+    placement: "primary",
+    navigationOrder: 5,
     requiredPermissions: ["menu.admin-audit", "audit.read"],
     experience: auditExperience,
     pageType: "list",
   },
   {
     path: "/security/baseline",
-    title: "安全基线与系统配置",
-    breadcrumb: ["合规运维", "安全基线与系统配置"],
+    title: "安全与配置",
+    breadcrumb: ["质量与运营", "安全与配置"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "quality-operations",
     menuKey: "security-baseline",
     menuLabel: "安全与配置",
+    placement: "primary",
+    navigationOrder: 6,
     requiredPermissions: ["menu.security-baseline", "system.read"],
     experience: securityBaselineExperience,
     pageType: "system",
   },
   {
     path: "/system/providers",
-    title: "运行状态",
-    breadcrumb: ["合规运维", "运行状态"],
+    title: "运行保障",
+    breadcrumb: ["质量与运营", "运行保障"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "quality-operations",
     menuKey: "system-providers",
-    menuLabel: "运行状态",
+    menuLabel: "运行保障",
+    placement: "primary",
+    navigationOrder: 7,
     requiredPermissions: ["menu.system-providers", "system.read"],
     requiredRoles: [
       "implementation-operator",
@@ -786,37 +847,42 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/notifications/settings",
-    title: "通知设置",
-    breadcrumb: ["合规运维", "通知设置"],
+    title: "通知偏好",
+    breadcrumb: ["工作台", "通知偏好"],
     requireAuth: true,
-    sectionKey: "compliance-ops",
+    sectionKey: "workbench",
     menuKey: "notification-settings",
-    menuLabel: "通知设置",
+    menuLabel: "通知偏好",
+    placement: "profile",
+    navigationOrder: 1,
     experience: readonlyExperience("当前用户", "配置个人通知偏好与服务机构默认策略", "当前配置"),
     pageType: "configuration",
     stateMachine: "config",
   },
   {
     path: "/advanced/provenance",
-    title: "来源追溯",
-    breadcrumb: ["高级工具", "来源追溯"],
+    title: "来源与血缘",
+    breadcrumb: ["知识配置", "专家模式", "来源与血缘"],
     requireAuth: true,
-    sectionKey: "advanced-tools",
+    sectionKey: "knowledge-configuration",
     menuKey: "provenance",
-    menuLabel: "来源追溯",
+    menuLabel: "来源与血缘",
+    placement: "expert",
+    navigationOrder: 1,
     requiredPermissions: ["menu.provenance", "knowledge.read"],
     experience: readonlyExperience("高级实施人员", "追溯来源与运行证据", "最近来源", "large"),
-    hidden: false,
     pageType: "advanced",
   },
   {
     path: "/advanced/graph",
-    title: "图谱查询",
-    breadcrumb: ["高级工具", "图谱查询"],
+    title: "知识关系",
+    breadcrumb: ["知识配置", "专家模式", "知识关系"],
     requireAuth: true,
-    sectionKey: "advanced-tools",
+    sectionKey: "knowledge-configuration",
     menuKey: "graph-explore",
-    menuLabel: "图谱查询",
+    menuLabel: "知识关系",
+    placement: "expert",
+    navigationOrder: 2,
     requiredPermissions: ["menu.graph-explore", "projection.read"],
     requiredRoles: [
       "implementation-operator",
@@ -827,17 +893,18 @@ const routeMetaInputs: RouteMetaInput[] = [
       "organization-admin",
     ],
     experience: readonlyExperience("高级实施人员", "核查知识关系查询结果", "最近查询", "large"),
-    hidden: false,
     pageType: "advanced",
   },
   {
     path: "/advanced/ai-workflows",
-    title: "AI 工作流",
-    breadcrumb: ["高级工具", "AI 工作流"],
+    title: "智能工作流",
+    breadcrumb: ["知识配置", "专家模式", "智能工作流"],
     requireAuth: true,
-    sectionKey: "advanced-tools",
+    sectionKey: "knowledge-configuration",
     menuKey: "ai-workflows",
-    menuLabel: "AI 工作流",
+    menuLabel: "智能工作流",
+    placement: "expert",
+    navigationOrder: 3,
     requiredPermissions: ["menu.ai-workflows", "llm.read"],
     requiredRoles: [
       "implementation-operator",
@@ -854,29 +921,32 @@ const routeMetaInputs: RouteMetaInput[] = [
       "能力状态",
       "large",
     ),
-    hidden: false,
     pageType: "advanced",
   },
   {
     path: "/advanced/domestic",
-    title: "国产化自检",
-    breadcrumb: ["高级工具", "国产化自检"],
+    title: "国产化核验",
+    breadcrumb: ["质量与运营", "运行保障", "国产化核验"],
     requireAuth: true,
-    sectionKey: "advanced-tools",
+    sectionKey: "quality-operations",
     menuKey: "domestic-check",
-    menuLabel: "国产化自检",
+    menuLabel: "国产化核验",
+    placement: "expert",
+    navigationOrder: 1,
     experience: readonlyExperience("运维人员", "核查国产化适配准备状态", "待检查项"),
     hidden: true,
     pageType: "advanced",
   },
   {
     path: "/advanced/dev-console",
-    title: "开发者控制台",
-    breadcrumb: ["高级工具", "开发者控制台"],
+    title: "诊断工具",
+    breadcrumb: ["质量与运营", "运行保障", "诊断工具"],
     requireAuth: true,
-    sectionKey: "advanced-tools",
+    sectionKey: "quality-operations",
     menuKey: "dev-console",
-    menuLabel: "开发者控制台",
+    menuLabel: "诊断工具",
+    placement: "expert",
+    navigationOrder: 2,
     experience: readonlyExperience("开发人员", "核查受控调试信息", "最近诊断", "large"),
     hidden: true,
     pageType: "advanced",
@@ -884,8 +954,10 @@ const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/embed/launch",
     title: "临床嵌入式终端",
-    breadcrumb: ["临床运行", "临床嵌入式终端"],
+    breadcrumb: ["临床协同", "临床嵌入式终端"],
     requireAuth: false,
+    sectionKey: "clinical-collaboration",
+    placement: "embedded",
     hidden: true,
     pageType: "system",
   },
@@ -904,6 +976,7 @@ export function menuPermissionCode(menuKey: string): string {
 }
 
 function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
+  const placement = route.placement ?? (route.menuKey ? "primary" : "hidden");
   const requiredPermissions =
     route.requiredPermissions ??
     (route.requireAuth
@@ -912,6 +985,9 @@ function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
 
   return {
     ...route,
+    placement,
+    navigationOrder: route.navigationOrder ?? Number.MAX_SAFE_INTEGER,
+    hidden: route.hidden ?? placement !== "primary",
     requiredPermissions,
     requiredRoles: route.requiredRoles ?? [],
     requiresSixStates: route.requiresSixStates ?? route.requireAuth,
@@ -922,7 +998,11 @@ function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
 export const routeMetas: RouteMeta[] = routeMetaInputs.map(normalizeRouteMeta);
 
 export const customerRouteMetas = routeMetas.filter(
-  (route) => route.requireAuth && !route.hidden && route.sectionKey !== "advanced-tools",
+  (route) =>
+    route.requireAuth &&
+    (route.placement === "primary" ||
+      route.placement === "header" ||
+      route.placement === "profile"),
 );
 
 export function findRouteByPath(path: string): RouteMeta | undefined {

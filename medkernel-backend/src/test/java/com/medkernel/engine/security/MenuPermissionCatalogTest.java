@@ -21,7 +21,6 @@ class MenuPermissionCatalogTest {
         "mpi",
         "patient-pathways",
         "cdss-fatigue",
-        "rule-validate",
         "workflow-todos",
         "notifications",
         "clinical-followup",
@@ -29,7 +28,6 @@ class MenuPermissionCatalogTest {
         "qc-alerts",
         "insurance-audit",
         "qc-eval-sets",
-        "qc-eval-results",
         "knowledge-governance",
         "admin-users",
         "identity-bindings",
@@ -44,7 +42,7 @@ class MenuPermissionCatalogTest {
         "dev-console");
 
     @Test
-    void catalogContainsExactlyLockedSecondLevelAndAdvancedMenus() {
+    void catalogContainsExactlyLockedNavigationEntries() {
         assertThat(MenuPermissionCatalog.allMenuKeys())
             .containsExactlyInAnyOrderElementsOf(EXPECTED_MENU_KEYS);
     }
@@ -52,7 +50,7 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(32)
+            .hasSize(30)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -61,12 +59,30 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
-    void menuKeysForReturnsOnlySecondLevelKeysFromMenuPermissions() {
+    void catalogLocksPrimaryHeaderProfileAndExpertPlacements() {
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
+            .hasSize(23);
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
+            .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
+            .containsExactly("notifications");
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PROFILE)
+            .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
+            .containsExactly("notification-settings");
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.EXPERT)
+            .hasSize(5);
+    }
+
+    @Test
+    void menuKeysForReturnsOnlyCatalogNavigationPermissions() {
         assertThat(MenuPermissionCatalog.menuKeysFor(EnumSet.of(
             PermissionCode.MENU_WORKBENCH,
-            PermissionCode.MENU_RULE_VALIDATE,
-            PermissionCode.MENU_QC_EVAL_RESULTS)))
-            .containsExactly("workbench", "rule-validate", "qc-eval-results");
+            PermissionCode.MENU_NOTIFICATIONS,
+            PermissionCode.MENU_PROVENANCE)))
+            .containsExactly("workbench", "notifications", "provenance");
     }
 
     @Test
@@ -76,7 +92,9 @@ class MenuPermissionCatalogTest {
             "menu.clinical-run",
             "menu.quality-improve",
             "menu.compliance-ops",
-            "menu.advanced-tools"
+            "menu.advanced-tools",
+            "menu.rule-validate",
+            "menu.qc-eval-results"
         )).allSatisfy(code -> assertThat(PermissionCode.fromCode(code)).isEmpty());
     }
 }

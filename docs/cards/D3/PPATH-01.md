@@ -39,7 +39,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 本卡为页面，不新增后端；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) 路径实例 API（路径模型归 [PATH-01](../D2/PATH-01.md)）。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `patient-pathway` / menuLabel `患者路径` / path `/pathway/patients` / requiredPermissions 路径运行 / requiredRoles 主管医生·专科专家。
+- 路由元数据：sectionKey `clinical-collaboration` / menuKey `patient-pathways` / menuLabel `患者路径` / path `/pathway/patients` / requiredPermissions 路径运行 / requiredRoles 临床决策使用者、护理协同人员、临床治理负责人。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 路径泳道/节点时间轴（StepFlow [INFRA-09](../D1/INFRA-09.md) 组件）+ 关键时钟标识 + 六态。
 - 主按钮 ≤1（推进节点）/ 默认筛选 ≤3 / 默认角色视图（主管医生）。
 - 五维 RBAC：菜单 / 动作（推进/变异）/ 数据（org）/ 资产（路径版本）/ 环境。

@@ -49,7 +49,7 @@ class EffectivePermissionServiceTest {
         assertThat(profile.permissionCodes())
             .contains(PermissionCode.RECOMMENDATION_READ.code(), PermissionCode.AUDIT_READ.code())
             .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code());
-        assertThat(profile.menuKeys()).contains("rule-validate", "admin-audit");
+        assertThat(profile.menuKeys()).contains("cdss-fatigue", "admin-audit");
     }
 
     @Test
@@ -124,7 +124,7 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.menuKeys())
-            .contains("workbench", "mpi", "patient-pathways", "rule-validate")
+            .contains("workbench", "mpi", "patient-pathways", "cdss-fatigue")
             .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
     }
 

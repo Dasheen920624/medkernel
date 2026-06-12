@@ -16,7 +16,7 @@
 把字典映射页**真实化**：院内↔标准字典映射工作台 + 候选 + **高危近似红标 + 禁批量确认** + 冲突待裁 + 映射包 7 步流发布。**接 [TERM-01](TERM-01.md)/[API-04](API-04.md) 真实候选与高危判别，高危逐条人工二次确认**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化**：`pages/tenant/TerminologyMapping`（路由 `/terminology/mapping` 已注册 sectionKey `pilot-setup`，`routes.ts` 有 `terminologyMappingExperience` 占位：实施/信息科/医务处核查映射）。本卡＝接 [API-04](API-04.md) 真实候选/高危/发布 + 六态/RBAC。
+页面**已存在待真实化**：`pages/tenant/TerminologyMapping`（路由 `/terminology/mapping` 已归入 `knowledge-configuration`，客户名称为“术语与字典”）。本卡＝接 [API-04](API-04.md) 真实候选/高危/发布 + 六态/RBAC。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 字典浏览**：标准（ICD-10/ICD-9-CM-3/药品本位码/LOINC）+ 院内字典分页（[API-13](../D0/API-13.md)）。
@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 页面卡，消费 [API-04](API-04.md) `/engine/terminology/**` 现有候选/确认/发布 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `pilot-setup` / menuKey `terminology-mapping` / menuLabel `字典映射` / path `/terminology/mapping` / requiredPermissions 字典映射 / requiredRoles 信息科·专科专家·医务处。
+- 路由元数据：sectionKey `knowledge-configuration` / menuKey `terminology-mapping` / menuLabel `术语与字典` / path `/terminology/mapping` / requiredPermissions `menu.terminology-mapping` + `term.read` / requiredRoles 集成运维员、平台/机构知识治理员、医技协同人员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 字典/映射列表 + 候选面板（高危红标）+ 逐条确认弹层 + 映射包 7 步流 + 六态。
 - 主按钮 ≤1（确认/发布）/ 默认筛选 ≤3（标准系统/状态/风险）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（确认/发布权）/ 数据（org）/ 资产（映射包）/ 环境。

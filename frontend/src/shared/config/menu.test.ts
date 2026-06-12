@@ -3,26 +3,20 @@ import { menuSections } from "./menu";
 import { routeMetas } from "./routes";
 
 describe("menu config", () => {
-  it("has exactly 6 sections (5 visible + 1 hidden advanced)", () => {
-    expect(menuSections).toHaveLength(6);
-    const visible = menuSections.filter((s) => !s.hidden);
-    expect(visible).toHaveLength(5);
-  });
-
-  it("matches CONSTITUTION §2.1 ordering", () => {
-    expect(menuSections.map((section) => section.key)).toEqual([
-      "workbench",
-      "pilot-setup",
-      "clinical-run",
-      "quality-improve",
-      "compliance-ops",
-      "advanced-tools",
+  it("matches the five-domain CONSTITUTION ordering", () => {
+    expect(menuSections).toHaveLength(5);
+    expect(menuSections.map((section) => [section.key, section.label])).toEqual([
+      ["workbench", "工作台"],
+      ["institution-governance", "机构治理"],
+      ["knowledge-configuration", "知识配置"],
+      ["clinical-collaboration", "临床协同"],
+      ["quality-operations", "质量与运营"],
     ]);
   });
 
-  it("advanced tools section is hidden", () => {
-    const advanced = menuSections.find((s) => s.key === "advanced-tools");
-    expect(advanced?.hidden).toBe(true);
+  it("does not create a standalone advanced section", () => {
+    expect(menuSections.map((section) => section.key)).not.toContain("advanced-tools");
+    expect(menuSections.map((section) => section.label)).not.toContain("高级工具");
   });
 
   it("all items have a valid path starting with /", () => {
@@ -33,8 +27,10 @@ describe("menu config", () => {
     });
   });
 
-  it("derives every menu item from route metadata", () => {
-    const routePaths = new Set(routeMetas.map((route) => route.path));
+  it("derives every menu item from primary route metadata", () => {
+    const routePaths = new Set(
+      routeMetas.filter((route) => route.placement === "primary").map((route) => route.path),
+    );
 
     menuSections.forEach((section) => {
       section.items.forEach((item) => {
@@ -43,75 +39,68 @@ describe("menu config", () => {
     });
   });
 
-  it("keeps the readiness validation page inside the workbench tab instead of adding a second menu item", () => {
-    const workbench = menuSections.find((section) => section.key === "workbench");
+  it("keeps merged, header, profile and expert capabilities out of the sidebar", () => {
+    const sidebarKeys = menuSections.flatMap((section) => section.items.map((item) => item.key));
 
-    expect(routeMetas.map((route) => route.path)).toContain("/workbench/readiness-validation");
-    expect(workbench?.items).toEqual([{ key: "workbench", label: "工作台", path: "/dashboard" }]);
+    expect(sidebarKeys).not.toEqual(
+      expect.arrayContaining([
+        "rule-validate",
+        "qc-eval-results",
+        "notifications",
+        "notification-settings",
+        "provenance",
+        "graph-explore",
+        "ai-workflows",
+        "domestic-check",
+        "dev-console",
+      ]),
+    );
   });
 
-  it("locks the exact 27 customer-facing items + 5 advanced tools from CONSTITUTION §2.2", () => {
-    const visible = menuSections.filter((s) => !s.hidden);
-    const visibleTotal = visible.reduce((sum, s) => sum + s.items.length, 0);
-    const advanced = menuSections.find((s) => s.key === "advanced-tools");
+  it("locks the exact 23 customer primary entries", () => {
+    const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
 
-    expect(visibleTotal).toBe(27);
-    expect(advanced?.items).toHaveLength(5);
-    expect(visible.map((s) => [s.key, s.items.map((item) => item.key)])).toEqual([
+    expect(visibleTotal).toBe(23);
+    expect(
+      menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
+    ).toEqual([
       ["workbench", ["workbench"]],
       [
-        "pilot-setup",
+        "institution-governance",
         [
-          "implementation-guide",
           "tenant-onboarding",
-          "config-packages",
-          "pathway-templates",
-          "rule-definitions",
-          "terminology-mapping",
+          "admin-users",
+          "identity-bindings",
+          "implementation-guide",
           "adapter-hub",
         ],
       ],
       [
-        "clinical-run",
+        "knowledge-configuration",
         [
-          "mpi",
-          "patient-pathways",
-          "cdss-fatigue",
-          "rule-validate",
-          "workflow-todos",
-          "notifications",
-          "clinical-followup",
+          "knowledge-governance",
+          "config-packages",
+          "terminology-mapping",
+          "rule-definitions",
+          "pathway-templates",
         ],
       ],
       [
-        "quality-improve",
+        "clinical-collaboration",
+        ["mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup"],
+      ],
+      [
+        "quality-operations",
         [
           "qc-dashboard",
           "qc-alerts",
           "insurance-audit",
           "qc-eval-sets",
-          "qc-eval-results",
-          "knowledge-governance",
-        ],
-      ],
-      [
-        "compliance-ops",
-        [
-          "admin-users",
-          "identity-bindings",
           "admin-audit",
           "security-baseline",
           "system-providers",
-          "notification-settings",
         ],
       ],
-    ]);
-    expect(advanced?.items.map((item) => item.key)).toEqual([
-      "provenance",
-      "graph-explore",
-      "ai-workflows",
-      "domestic-check",
-      "dev-console",
     ]);
   });
 });

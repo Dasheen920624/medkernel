@@ -30,7 +30,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 菜单权限目录与租户级覆盖接口。
  *
- * <p>INFRA-05 将菜单维度锁定为 27 个二级菜单 + 5 个高级工具，本控制器只暴露该细粒度目录。
+ * <p>INFRA-05 将入口维度锁定为五大主域及页头、个人、专家承载，本控制器只暴露该细粒度目录。
  */
 @RestController
 @RequestMapping("/api/v1/security/menu-permissions")
@@ -68,7 +68,11 @@ public class MenuPermissionController {
             authentication,
             RequestContext.currentOrgScope(),
             RequestContext.currentUserId().orElse(authentication == null ? null : authentication.getName()));
-        return ApiResult.ok(new VisibleMenuTreeResponse(visibleSections(profile.menuKeys())));
+        return ApiResult.ok(new VisibleMenuTreeResponse(
+            visibleSections(profile.menuKeys()),
+            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.HEADER),
+            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.PROFILE),
+            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.EXPERT)));
     }
 
     @PatchMapping("/overrides")
@@ -127,14 +131,16 @@ public class MenuPermissionController {
                 menu.sectionKey(),
                 menu.menuKey(),
                 menu.displayName(),
-                menu.permission().code()))
+                menu.permission().code(),
+                menu.placement()))
             .toList();
     }
 
     private List<VisibleMenuSection> visibleSections(List<String> menuKeys) {
         Map<String, List<MenuPermissionCatalog.MenuPermission>> sections = new LinkedHashMap<>();
         for (MenuPermissionCatalog.MenuPermission menu : MenuPermissionCatalog.allMenus()) {
-            if (menuKeys.contains(menu.menuKey())) {
+            if (menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY
+                    && menuKeys.contains(menu.menuKey())) {
                 sections.computeIfAbsent(menu.sectionKey(), ignored -> new ArrayList<>()).add(menu);
             }
         }
@@ -142,6 +148,16 @@ public class MenuPermissionController {
             .stream()
             .map(entry -> new VisibleMenuSection(entry.getKey(), menuViews(entry.getValue())))
             .toList();
+    }
+
+    private List<MenuView> visibleItems(
+            List<String> menuKeys,
+            MenuPermissionCatalog.MenuPlacement placement) {
+        return menuViews(MenuPermissionCatalog.allMenus()
+            .stream()
+            .filter(menu -> menu.placement() == placement)
+            .filter(menu -> menuKeys.contains(menu.menuKey()))
+            .toList());
     }
 
     private MenuOverrideAuditSnapshot auditSnapshot(RolePermissionOverride override, String menuKey) {
@@ -162,7 +178,10 @@ public class MenuPermissionController {
     ) {}
 
     public record VisibleMenuTreeResponse(
-        List<VisibleMenuSection> sections
+        List<VisibleMenuSection> sections,
+        List<MenuView> headerItems,
+        List<MenuView> profileItems,
+        List<MenuView> expertItems
     ) {}
 
     public record VisibleMenuSection(
@@ -174,7 +193,8 @@ public class MenuPermissionController {
         String sectionKey,
         String menuKey,
         String displayName,
-        String permissionCode
+        String permissionCode,
+        MenuPermissionCatalog.MenuPlacement placement
     ) {}
 
     public record MenuOverrideRequest(

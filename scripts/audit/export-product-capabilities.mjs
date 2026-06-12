@@ -342,6 +342,9 @@ function extractRoutes() {
       return {
         ...route,
         hidden: route.hidden === true,
+        placement:
+          route.placement ??
+          (route.menuKey ? "primary" : route.hidden === true ? "hidden" : "hidden"),
         ...decision,
       };
     });
@@ -351,13 +354,14 @@ function extractMenus() {
   const source = readFileSync(menuCatalogPath, "utf8");
   return Array.from(
     source.matchAll(
-      /menu\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*([A-Z0-9_]+)\)/g,
+      /menu\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*([A-Z0-9_]+),\s*MenuPlacement\.([A-Z]+)\)/g,
     ),
     (match) => ({
       sectionKey: match[1],
       menuKey: match[2],
       displayName: match[3],
       permission: match[4],
+      placement: match[5].toLowerCase(),
     }),
   );
 }
@@ -561,14 +565,14 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
   const routeRows = routes
     .map(
       (route) =>
-        `${capabilityMarker("route", route.path, route.decision)}\n<!-- route:${route.path} -->\n| \`${escapeCell(route.path)}\` | ${escapeCell(route.title)} | ${escapeCell(route.sectionKey)} | ${escapeCell(route.menuKey)} | ${route.hidden ? "是" : "否"} | ${route.decision} | ${escapeCell(route.targetDomain)} | ${escapeCell(route.targetEntry)} | ${escapeCell(route.task)} |`,
+        `${capabilityMarker("route", route.path, route.decision)}\n<!-- route:${route.path} -->\n| \`${escapeCell(route.path)}\` | ${escapeCell(route.title)} | ${escapeCell(route.sectionKey)} | ${escapeCell(route.menuKey)} | ${escapeCell(route.placement)} | ${route.decision} | ${escapeCell(route.targetDomain)} | ${escapeCell(route.targetEntry)} | ${escapeCell(route.task)} |`,
     )
     .join("\n");
 
   const menuTable = menuRows
     .map(
       (menu) =>
-        `${capabilityMarker("menu", menu.menuKey, menu.decision)}\n<!-- menu:${menu.menuKey} -->\n| \`${escapeCell(menu.menuKey)}\` | ${escapeCell(menu.displayName)} | \`${escapeCell(menu.sectionKey)}\` | \`${escapeCell(menu.permission)}\` | ${menu.decision} | ${escapeCell(menu.targetDomain)} | ${escapeCell(menu.targetEntry)} |`,
+        `${capabilityMarker("menu", menu.menuKey, menu.decision)}\n<!-- menu:${menu.menuKey} -->\n| \`${escapeCell(menu.menuKey)}\` | ${escapeCell(menu.displayName)} | \`${escapeCell(menu.sectionKey)}\` | ${escapeCell(menu.placement)} | \`${escapeCell(menu.permission)}\` | ${menu.decision} | ${escapeCell(menu.targetDomain)} | ${escapeCell(menu.targetEntry)} |`,
     )
     .join("\n");
 
@@ -615,14 +619,14 @@ ${decisionSummary}
 
 ## 2. 前端路由与客户任务裁决
 
-| 当前路径 | 当前名称 | 当前分组 | 当前菜单键 | 隐藏 | 裁决 | 目标域 | 目标入口 | 唯一客户任务 |
+| 当前路径 | 当前名称 | 当前分组 | 当前菜单键 | 承载方式 | 裁决 | 目标域 | 目标入口 | 唯一客户任务 |
 |---|---|---|---|---|---|---|---|---|
 ${routeRows}
 
 ## 3. 后端菜单目录裁决
 
-| 菜单键 | 当前名称 | 当前分组 | 权限 | 裁决 | 目标域 | 目标入口 |
-|---|---|---|---|---|---|---|
+| 菜单键 | 当前名称 | 当前分组 | 承载方式 | 权限 | 裁决 | 目标域 | 目标入口 |
+|---|---|---|---|---|---|---|---|
 ${menuTable}
 
 ## 4. 页面与页内组件归属

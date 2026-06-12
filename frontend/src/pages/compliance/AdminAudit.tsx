@@ -65,7 +65,7 @@ const VIEW_KEY = "compliance.audit";
 const route = findRouteByPath("/admin/audit");
 
 if (!route?.experience) {
-  throw new Error("审计日志页面缺少体验声明");
+  throw new Error("审计与证据页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -661,7 +661,7 @@ export default function AdminAudit() {
             aria-label="申请导出"
             icon={<ExportOutlined />}
             onClick={() => {
-              requestForm.setFieldsValue({ reason: "导出当前审计日志筛选结果" });
+              requestForm.setFieldsValue({ reason: "导出当前审计与证据筛选结果" });
               setRequestOpen(true);
             }}
           >

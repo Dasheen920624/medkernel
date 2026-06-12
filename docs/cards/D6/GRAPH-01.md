@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 消费`/api/v1/projections/{target}/status|consistency|facts|rebuild`；列表使用服务端分页与关键词过滤。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `advanced-tools` / menuKey `graph-explore` / path `/advanced/graph` / requiredPermissions `menu.graph-explore` + `projection.read`。
+- 路由元数据：sectionKey `knowledge-configuration` / placement `expert` / menuKey `graph-explore` / menuLabel `知识关系` / path `/advanced/graph` / requiredPermissions `menu.graph-explore` + `projection.read`。
 - 可见角色：平台/集团/医院管理员、实施工程师、信息运维、专科专家；仅具`projection.rebuild`者可重建。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 图谱画布（节点/边）+ 查询面板 + "投影非权威"标识 + 六态。
 - 主按钮 ≤1（查询）/ 默认筛选 ≤3 / 默认角色视图（专科专家只读）。

@@ -174,8 +174,8 @@ describe("page smoke coverage", () => {
 
   it("renders the tenant adapter-hub console", () => {
     renderPage(<AdapterHub />);
-    expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
-    expect(screen.getByText("正在加载适配器中心")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载系统接入")).toBeInTheDocument();
   });
 
   it("renders the clinical embed-launch console in fallback isolation state", () => {
@@ -377,13 +377,13 @@ describe("page smoke coverage", () => {
 
   it("renders the compliance admin-audit console", () => {
     renderPage(<AdminAudit />);
-    expect(screen.getByRole("heading", { name: "审计日志" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "审计与证据" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "审计事件" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "申请导出" })).not.toBeInTheDocument();
   });
 
   it("renders the tenant terminology-mapping console", () => {
     renderPage(<TerminologyMapping />);
-    expect(screen.getByRole("heading", { name: "字典映射" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "术语与字典" })).toBeInTheDocument();
   });
 });

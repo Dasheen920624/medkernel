@@ -16,7 +16,7 @@
 把配置包中心页**真实化**：配置包列表 + 组包 + **7 步流发布**（选模板/导入→校验→看影响→审核→灰度→全量→留证据/回滚）+ 同步状态 + 失败站点。**接 [PKG-01](PKG-01.md)/[API-10](API-10.md) 真实发布同步，清除演示路由**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化 + 有演示路由需清**：`pages/tenant/ConfigPackages`（路由 `/config/packages` 已注册 sectionKey `pilot-setup`）；**存在 `/config/packages/demo`「7 步流演示」路由 → 按 [INFRA-09](../D1/INFRA-09.md) no-page-mock 门禁从生产移除**（StepFlow 组件保留复用）。本卡＝接 [API-10](API-10.md) 真实发布/同步 + 7 步流真实化 + 六态/RBAC。
+页面**已存在待真实化**：`pages/tenant/ConfigPackages`（路由 `/config/packages` 已归入 `knowledge-configuration`，客户名称为“配置包与发布”）；原 `/config/packages/demo` 演示路由已按 [INFRA-09](../D1/INFRA-09.md) no-page-mock 门禁移除，StepFlow 组件保留复用。本卡＝接 [API-10](API-10.md) 真实发布/同步 + 7 步流真实化 + 六态/RBAC。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 包列表**：配置包列表（大列表 [API-13](../D0/API-13.md) 分页/筛选），状态真实。
@@ -30,7 +30,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 页面卡，消费 [API-10](API-10.md) `/engine/pkg/**` 现有发布/同步 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `pilot-setup` / menuKey `config-packages` / menuLabel `配置包中心` / path `/config/packages` / requiredPermissions 配置包发布 / requiredRoles 实施工程师·医务处。
+- 路由元数据：sectionKey `knowledge-configuration` / menuKey `config-packages` / menuLabel `配置包与发布` / path `/config/packages` / requiredPermissions 配置包读取与发布 / requiredRoles 实施运维员、平台/机构知识治理员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 包列表 + 组包 + 7 步流（StepFlow [INFRA-09](../D1/INFRA-09.md)）+ 同步/失败站点面板 + 六态。
 - 主按钮 ≤1（发布）/ 默认筛选 ≤3（状态/类型/院区）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（发布/全量权）/ 数据（org）/ 资产（配置包）/ 环境。

@@ -34,7 +34,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / [API-07](API-07.md) 提醒与疲劳 API；PR1 使用 `/engine/recommendations/clinical-cards`、`/engine/recommendations/stats`、`/engine/recommendations/cards/{cardId}`、`/engine/recommendations/fatigue-signals`。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `cdss-fatigue` / menuLabel `临床提醒治理` / path `/cdss/fatigue` / requiredPermissions 提醒治理 / requiredRoles 临床医生·科主任。
+- 路由元数据：sectionKey `clinical-collaboration` / menuKey `cdss-fatigue` / menuLabel `提醒与推荐` / path `/cdss/fatigue` / requiredPermissions 提醒治理 / requiredRoles 临床决策使用者、临床治理负责人、药事安全人员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 提醒卡列表（解释可展开）+ 疲劳阈值面板 + 采纳率图 + 六态。
 - 主按钮 ≤1（保存阈值）/ 默认筛选 ≤3 / 默认角色视图（临床医生）。
 - 五维 RBAC：菜单 / 动作（治理阈值）/ 数据（org）/ 资产 / 环境。

@@ -447,7 +447,7 @@ describe("AdapterHub", () => {
   it("renders the unified adapter workspace without the old launch-token console", async () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "新增适配器" })).toHaveLength(1);
     expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("缺少检查报告时间映射")).toBeInTheDocument();
@@ -502,7 +502,7 @@ describe("AdapterHub", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
     expect(screen.getByText("必接系统清单")).toBeInTheDocument();
     expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
     expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
@@ -737,7 +737,7 @@ describe("AdapterHub", () => {
   it("renders guarded page states from real query status while keeping zero-record setup actionable", () => {
     vi.mocked(useIntegrationAdapters).mockReturnValue(query([], { isLoading: true }) as never);
     const { rerender } = renderPage();
-    expect(screen.getByText("正在加载适配器中心")).toBeInTheDocument();
+    expect(screen.getByText("正在加载系统接入")).toBeInTheDocument();
 
     vi.mocked(useIntegrationAdapters).mockReturnValue(query([]) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(query({ ...status, totalAdapters: 0 }) as never);
@@ -760,7 +760,7 @@ describe("AdapterHub", () => {
         <AdapterHub />
       </ConfigProvider>,
     );
-    expect(screen.getByText("适配器中心暂时不可用")).toBeInTheDocument();
+    expect(screen.getByText("系统接入暂时不可用")).toBeInTheDocument();
 
     vi.mocked(useIntegrationAdapters).mockReturnValue(query([hisAdapter]) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(

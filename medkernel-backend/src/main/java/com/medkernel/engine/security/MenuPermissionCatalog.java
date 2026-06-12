@@ -25,10 +25,8 @@ import static com.medkernel.engine.security.PermissionCode.MENU_PATHWAY_TEMPLATE
 import static com.medkernel.engine.security.PermissionCode.MENU_PROVENANCE;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_ALERTS;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_DASHBOARD;
-import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_RESULTS;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_SETS;
 import static com.medkernel.engine.security.PermissionCode.MENU_RULE_DEFINITIONS;
-import static com.medkernel.engine.security.PermissionCode.MENU_RULE_VALIDATE;
 import static com.medkernel.engine.security.PermissionCode.MENU_SECURITY_BASELINE;
 import static com.medkernel.engine.security.PermissionCode.MENU_SYSTEM_PROVIDERS;
 import static com.medkernel.engine.security.PermissionCode.MENU_TENANT_ONBOARDING;
@@ -39,43 +37,68 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>菜单维权限只承认 27 个二级菜单 + 5 个高级工具的细粒度 key。
+ * <p>入口权限只承认 23 个主导航、1 个页头、1 个个人入口和 5 个专家入口。
  */
 public final class MenuPermissionCatalog {
 
     private static final List<MenuPermission> ALL_MENUS = List.of(
-        menu("workbench", "workbench", "工作台", MENU_WORKBENCH),
-        menu("pilot-setup", "implementation-guide", "客户实施向导", MENU_IMPLEMENTATION_GUIDE),
-        menu("pilot-setup", "tenant-onboarding", "租户开通", MENU_TENANT_ONBOARDING),
-        menu("pilot-setup", "config-packages", "配置包中心", MENU_CONFIG_PACKAGES),
-        menu("pilot-setup", "pathway-templates", "路径配置", MENU_PATHWAY_TEMPLATES),
-        menu("pilot-setup", "rule-definitions", "规则库", MENU_RULE_DEFINITIONS),
-        menu("pilot-setup", "terminology-mapping", "字典映射", MENU_TERMINOLOGY_MAPPING),
-        menu("pilot-setup", "adapter-hub", "适配器中心", MENU_ADAPTER_HUB),
-        menu("clinical-run", "mpi", "患者主索引", MENU_MPI),
-        menu("clinical-run", "patient-pathways", "患者路径", MENU_PATIENT_PATHWAYS),
-        menu("clinical-run", "cdss-fatigue", "临床提醒治理", MENU_CDSS_FATIGUE),
-        menu("clinical-run", "rule-validate", "规则校验", MENU_RULE_VALIDATE),
-        menu("clinical-run", "workflow-todos", "待办中心", MENU_WORKFLOW_TODOS),
-        menu("clinical-run", "notifications", "通知中心", MENU_NOTIFICATIONS),
-        menu("clinical-run", "clinical-followup", "智能随访", MENU_CLINICAL_FOLLOWUP),
-        menu("quality-improve", "qc-dashboard", "院级质控驾驶舱", MENU_QC_DASHBOARD),
-        menu("quality-improve", "qc-alerts", "质控预警", MENU_QC_ALERTS),
-        menu("quality-improve", "insurance-audit", "医保智能审核", MENU_INSURANCE_AUDIT),
-        menu("quality-improve", "qc-eval-sets", "评估指标库", MENU_QC_EVAL_SETS),
-        menu("quality-improve", "qc-eval-results", "评估结果", MENU_QC_EVAL_RESULTS),
-        menu("quality-improve", "knowledge-governance", "知识治理", MENU_KNOWLEDGE_GOVERNANCE),
-        menu("compliance-ops", "admin-users", "用户管理", MENU_ADMIN_USERS),
-        menu("compliance-ops", "identity-bindings", "身份绑定", MENU_IDENTITY_BINDINGS),
-        menu("compliance-ops", "admin-audit", "审计日志", MENU_ADMIN_AUDIT),
-        menu("compliance-ops", "security-baseline", "安全基线与系统配置", MENU_SECURITY_BASELINE),
-        menu("compliance-ops", "system-providers", "Provider 状态", MENU_SYSTEM_PROVIDERS),
-        menu("compliance-ops", "notification-settings", "通知设置", MENU_NOTIFICATION_SETTINGS),
-        menu("advanced-tools", "provenance", "来源追溯", MENU_PROVENANCE),
-        menu("advanced-tools", "graph-explore", "图谱查询", MENU_GRAPH_EXPLORE),
-        menu("advanced-tools", "ai-workflows", "AI 工作流", MENU_AI_WORKFLOWS),
-        menu("advanced-tools", "domestic-check", "国产化自检", MENU_DOMESTIC_CHECK),
-        menu("advanced-tools", "dev-console", "开发者控制台", MENU_DEV_CONSOLE));
+        menu("workbench", "workbench", "工作台", MENU_WORKBENCH, MenuPlacement.PRIMARY),
+        menu("institution-governance", "tenant-onboarding", "服务机构",
+            MENU_TENANT_ONBOARDING, MenuPlacement.PRIMARY),
+        menu("institution-governance", "admin-users", "人员与账号",
+            MENU_ADMIN_USERS, MenuPlacement.PRIMARY),
+        menu("institution-governance", "identity-bindings", "身份来源",
+            MENU_IDENTITY_BINDINGS, MenuPlacement.PRIMARY),
+        menu("institution-governance", "implementation-guide", "实施与验收",
+            MENU_IMPLEMENTATION_GUIDE, MenuPlacement.PRIMARY),
+        menu("institution-governance", "adapter-hub", "系统接入",
+            MENU_ADAPTER_HUB, MenuPlacement.PRIMARY),
+        menu("knowledge-configuration", "knowledge-governance", "知识审核与发布",
+            MENU_KNOWLEDGE_GOVERNANCE, MenuPlacement.PRIMARY),
+        menu("knowledge-configuration", "config-packages", "配置包与发布",
+            MENU_CONFIG_PACKAGES, MenuPlacement.PRIMARY),
+        menu("knowledge-configuration", "terminology-mapping", "术语与字典",
+            MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),
+        menu("knowledge-configuration", "rule-definitions", "规则配置",
+            MENU_RULE_DEFINITIONS, MenuPlacement.PRIMARY),
+        menu("knowledge-configuration", "pathway-templates", "路径配置",
+            MENU_PATHWAY_TEMPLATES, MenuPlacement.PRIMARY),
+        menu("clinical-collaboration", "mpi", "患者索引", MENU_MPI, MenuPlacement.PRIMARY),
+        menu("clinical-collaboration", "patient-pathways", "患者路径",
+            MENU_PATIENT_PATHWAYS, MenuPlacement.PRIMARY),
+        menu("clinical-collaboration", "cdss-fatigue", "提醒与推荐",
+            MENU_CDSS_FATIGUE, MenuPlacement.PRIMARY),
+        menu("clinical-collaboration", "workflow-todos", "协同任务",
+            MENU_WORKFLOW_TODOS, MenuPlacement.PRIMARY),
+        menu("clinical-collaboration", "clinical-followup", "随访协同",
+            MENU_CLINICAL_FOLLOWUP, MenuPlacement.PRIMARY),
+        menu("quality-operations", "qc-dashboard", "质量与运营概览",
+            MENU_QC_DASHBOARD, MenuPlacement.PRIMARY),
+        menu("quality-operations", "qc-alerts", "质量问题与整改",
+            MENU_QC_ALERTS, MenuPlacement.PRIMARY),
+        menu("quality-operations", "insurance-audit", "医保审核",
+            MENU_INSURANCE_AUDIT, MenuPlacement.PRIMARY),
+        menu("quality-operations", "qc-eval-sets", "评价指标",
+            MENU_QC_EVAL_SETS, MenuPlacement.PRIMARY),
+        menu("quality-operations", "admin-audit", "审计与证据",
+            MENU_ADMIN_AUDIT, MenuPlacement.PRIMARY),
+        menu("quality-operations", "security-baseline", "安全与配置",
+            MENU_SECURITY_BASELINE, MenuPlacement.PRIMARY),
+        menu("quality-operations", "system-providers", "运行保障",
+            MENU_SYSTEM_PROVIDERS, MenuPlacement.PRIMARY),
+        menu("workbench", "notifications", "消息通知", MENU_NOTIFICATIONS, MenuPlacement.HEADER),
+        menu("workbench", "notification-settings", "通知偏好",
+            MENU_NOTIFICATION_SETTINGS, MenuPlacement.PROFILE),
+        menu("knowledge-configuration", "provenance", "来源与血缘",
+            MENU_PROVENANCE, MenuPlacement.EXPERT),
+        menu("knowledge-configuration", "graph-explore", "知识关系",
+            MENU_GRAPH_EXPLORE, MenuPlacement.EXPERT),
+        menu("knowledge-configuration", "ai-workflows", "智能工作流",
+            MENU_AI_WORKFLOWS, MenuPlacement.EXPERT),
+        menu("quality-operations", "domestic-check", "国产化核验",
+            MENU_DOMESTIC_CHECK, MenuPlacement.EXPERT),
+        menu("quality-operations", "dev-console", "诊断工具",
+            MENU_DEV_CONSOLE, MenuPlacement.EXPERT));
 
     private MenuPermissionCatalog() {
     }
@@ -114,14 +137,23 @@ public final class MenuPermissionCatalog {
             String sectionKey,
             String menuKey,
             String displayName,
-            PermissionCode permission) {
-        return new MenuPermission(sectionKey, menuKey, displayName, permission);
+            PermissionCode permission,
+            MenuPlacement placement) {
+        return new MenuPermission(sectionKey, menuKey, displayName, permission, placement);
+    }
+
+    public enum MenuPlacement {
+        PRIMARY,
+        HEADER,
+        PROFILE,
+        EXPERT
     }
 
     public record MenuPermission(
         String sectionKey,
         String menuKey,
         String displayName,
-        PermissionCode permission
+        PermissionCode permission,
+        MenuPlacement placement
     ) {}
 }

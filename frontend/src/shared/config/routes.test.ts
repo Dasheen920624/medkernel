@@ -4,6 +4,7 @@ import {
   findRouteByPath,
   getRouteBreadcrumb,
   routeMetas,
+  routeSections,
   customerRouteMetas,
 } from "./routes";
 import { ROLE_OPTIONS } from "./roleCatalog";
@@ -11,8 +12,73 @@ import { ROLE_OPTIONS } from "./roleCatalog";
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
     expect(routeMetas.length).toBeGreaterThanOrEqual(34);
-    expect(findRouteByPath("/terminology/mapping")?.title).toBe("字典映射");
-    expect(findRouteByPath("/advanced/graph")?.hidden).toBe(false);
+    expect(findRouteByPath("/terminology/mapping")?.title).toBe("术语与字典");
+    expect(findRouteByPath("/advanced/graph")?.placement).toBe("expert");
+  });
+
+  it("locks five stable customer domains and explicit entry placements", () => {
+    expect(routeSections.map((section) => [section.key, section.label])).toEqual([
+      ["workbench", "工作台"],
+      ["institution-governance", "机构治理"],
+      ["knowledge-configuration", "知识配置"],
+      ["clinical-collaboration", "临床协同"],
+      ["quality-operations", "质量与运营"],
+    ]);
+
+    const placementCounts = routeMetas
+      .filter((route) => route.requireAuth && route.menuKey)
+      .reduce<Record<string, number>>((counts, route) => {
+        counts[route.placement] = (counts[route.placement] ?? 0) + 1;
+        return counts;
+      }, {});
+
+    expect(placementCounts).toEqual({
+      primary: 23,
+      header: 1,
+      profile: 1,
+      expert: 5,
+    });
+  });
+
+  it("removes duplicate menu permissions from merged pages", () => {
+    expect(findRouteByPath("/rule/validate")).toMatchObject({
+      sectionKey: "knowledge-configuration",
+      placement: "hidden",
+      hidden: true,
+      requiredPermissions: ["menu.rule-definitions", "rule.read"],
+    });
+    expect(findRouteByPath("/rule/validate")?.menuKey).toBeUndefined();
+
+    expect(findRouteByPath("/qc/eval/results")).toMatchObject({
+      sectionKey: "quality-operations",
+      placement: "hidden",
+      hidden: true,
+      requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
+    });
+    expect(findRouteByPath("/qc/eval/results")?.menuKey).toBeUndefined();
+  });
+
+  it("places cross-domain and expert entries outside the primary sidebar", () => {
+    expect(findRouteByPath("/notifications")).toMatchObject({
+      sectionKey: "workbench",
+      placement: "header",
+      menuLabel: "消息通知",
+    });
+    expect(findRouteByPath("/notifications/settings")).toMatchObject({
+      sectionKey: "workbench",
+      placement: "profile",
+      menuLabel: "通知偏好",
+    });
+    expect(findRouteByPath("/advanced/provenance")).toMatchObject({
+      sectionKey: "knowledge-configuration",
+      placement: "expert",
+      menuLabel: "来源与血缘",
+    });
+    expect(findRouteByPath("/advanced/domestic")).toMatchObject({
+      sectionKey: "quality-operations",
+      placement: "expert",
+      menuLabel: "国产化核验",
+    });
   });
 
   it("keeps paths unique", () => {
@@ -48,11 +114,12 @@ describe("route metadata", () => {
     expect(route).toMatchObject({
       title: "验收自检",
       sectionKey: "workbench",
-      menuKey: "readiness-validation",
-      menuLabel: "验收自检",
       hidden: true,
+      placement: "hidden",
       pageType: "workbench",
     });
+    expect(route?.menuKey).toBeUndefined();
+    expect(route?.menuLabel).toBeUndefined();
     expect(route?.requiredPermissions).toEqual(["menu.workbench", "workbench:readiness:view"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -81,13 +148,12 @@ describe("route metadata", () => {
     });
   });
 
-  it("requires evaluation read permission for every quality read workspace", () => {
+  it("requires evaluation read permission for every primary quality workspace", () => {
     const routes = [
       ["/qc/dashboard", "qc-dashboard"],
       ["/qc/alerts", "qc-alerts"],
       ["/qc/insurance", "insurance-audit"],
       ["/qc/eval/sets", "qc-eval-sets"],
-      ["/qc/eval/results", "qc-eval-results"],
     ] as const;
 
     routes.forEach(([path, menuKey]) => {
@@ -172,7 +238,7 @@ describe("route metadata", () => {
   it("limits tenant onboarding to tenant readers in implementation and administrator roles", () => {
     const route = findRouteByPath("/tenant/onboarding");
 
-    expect(route?.title).toBe("服务机构管理");
+    expect(route?.title).toBe("服务机构");
     expect(route?.requiredPermissions).toEqual(["menu.tenant-onboarding", "tenant.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -271,10 +337,11 @@ describe("route metadata", () => {
     ]);
   });
 
-  it("keeps unified authoring assets as a governed pilot setup route without adding a second-level menu", () => {
+  it("keeps unified authoring assets as a governed knowledge route without adding a second-level menu", () => {
     const route = findRouteByPath("/authoring/assets");
 
-    expect(route?.sectionKey).toBe("pilot-setup");
+    expect(route?.sectionKey).toBe("knowledge-configuration");
+    expect(route?.placement).toBe("hidden");
     expect(route?.hidden).toBe(true);
     expect(route?.menuKey).toBeUndefined();
     expect(route?.menuLabel).toBeUndefined();
@@ -438,7 +505,10 @@ describe("route metadata", () => {
 
   it("binds menu routes to the INFRA-05 second-level menu permission code", () => {
     routeMetas
-      .filter((route) => route.requireAuth && route.sectionKey && route.menuKey && !route.hidden)
+      .filter(
+        (route) =>
+          route.requireAuth && route.sectionKey && route.menuKey && route.placement !== "hidden",
+      )
       .forEach((route) => {
         expect(route.requiredPermissions).toContain(`menu.${route.menuKey}`);
         if (route.menuKey !== route.sectionKey) {
@@ -452,7 +522,7 @@ describe("route metadata", () => {
       canAccessRoute(findRouteByPath("/qc/eval/results"), {
         roles: [{ code: "quality-governor" }],
         permissions: [{ code: "evaluation.read" }],
-        menuKeys: ["qc-eval-results"],
+        menuKeys: ["qc-alerts"],
       }),
     ).toBe(true);
     expect(
@@ -529,7 +599,7 @@ describe("route metadata", () => {
   it("limits graph exploration to projection readers in advanced technical roles", () => {
     const route = findRouteByPath("/advanced/graph");
 
-    expect(route?.hidden).toBe(false);
+    expect(route?.placement).toBe("expert");
     expect(route?.requiredPermissions).toEqual(["menu.graph-explore", "projection.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -558,7 +628,7 @@ describe("route metadata", () => {
   it("limits AI workflow status to real governance roles with read permission", () => {
     const route = findRouteByPath("/advanced/ai-workflows");
 
-    expect(route?.hidden).toBe(false);
+    expect(route?.placement).toBe("expert");
     expect(route?.requiredPermissions).toEqual(["menu.ai-workflows", "llm.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -663,7 +733,7 @@ describe("route metadata", () => {
 
     expect(route).toEqual(
       expect.objectContaining({
-        title: "安全基线与系统配置",
+        title: "安全与配置",
         pageType: "system",
         requiresStepFlow: false,
         requiredPermissions: ["menu.security-baseline", "system.read"],
@@ -694,14 +764,16 @@ describe("route metadata", () => {
     expect(route?.experience?.riskLevel).toBe("high");
   });
 
-  it("returns customer routes without hidden advanced tools", () => {
-    expect(customerRouteMetas.some((route) => route.hidden)).toBe(false);
+  it("returns customer routes without hidden or expert tools", () => {
+    expect(customerRouteMetas.some((route) => route.placement === "hidden")).toBe(false);
+    expect(customerRouteMetas.some((route) => route.placement === "expert")).toBe(false);
     expect(customerRouteMetas.map((route) => route.path)).toContain("/dashboard");
+    expect(customerRouteMetas.map((route) => route.path)).toContain("/notifications");
     expect(customerRouteMetas.map((route) => route.path)).not.toContain("/advanced/dev-console");
   });
 
   it("builds breadcrumbs from route metadata", () => {
-    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质控改进", "院级质控驾驶舱"]);
+    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量与运营", "质量与运营概览"]);
     expect(getRouteBreadcrumb("/missing")).toEqual(["未找到页面"]);
   });
 });

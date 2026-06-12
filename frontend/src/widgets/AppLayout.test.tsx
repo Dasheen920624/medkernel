@@ -202,6 +202,7 @@ function superAdminProfile() {
     roles: [{ code: "system-superadmin", displayName: "内置超级管理员" }],
     permissions: [
       ...allMenuKeys.map(menuPermission),
+      actionPermission("knowledge.read"),
       {
         code: "workbench:readiness:view",
         dimension: "ACTION",
@@ -226,7 +227,6 @@ const allMenuKeys = [
   "mpi",
   "patient-pathways",
   "cdss-fatigue",
-  "rule-validate",
   "workflow-todos",
   "notifications",
   "clinical-followup",
@@ -234,7 +234,6 @@ const allMenuKeys = [
   "qc-alerts",
   "insurance-audit",
   "qc-eval-sets",
-  "qc-eval-results",
   "knowledge-governance",
   "admin-users",
   "identity-bindings",
@@ -290,8 +289,8 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.getAllByText("字典映射").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("试点准备").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("术语与字典").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识配置").length).toBeGreaterThan(0);
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
   });
 
@@ -302,8 +301,8 @@ describe("AppLayout", () => {
     const header = container.querySelector(".mk-app-header");
 
     expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("试点准备")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getAllByText("字典映射")).toHaveLength(1);
+    expect(within(header as HTMLElement).getByText("知识配置")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getAllByText("术语与字典")).toHaveLength(1);
     expect(header?.querySelector(".mk-route-title")).toBeNull();
   });
 
@@ -319,7 +318,7 @@ describe("AppLayout", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getAllByText("试点准备").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识配置").length).toBeGreaterThan(0);
   });
 
   it("filters primary menus by granted menu permission codes", async () => {
@@ -329,8 +328,8 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout("/qc/dashboard");
 
-    expect(screen.queryByText("试点准备")).toBeNull();
-    expect(screen.getAllByText("质控改进").length).toBeGreaterThan(0);
+    expect(screen.queryByText("知识配置")).toBeNull();
+    expect(screen.getAllByText("质量与运营").length).toBeGreaterThan(0);
     expect(screen.getByText("质控驾驶舱内容")).toBeInTheDocument();
   });
 
@@ -348,7 +347,7 @@ describe("AppLayout", () => {
 
     const navigation = document.querySelector(".ant-menu");
     expect(navigation).not.toBeNull();
-    expect(within(navigation as HTMLElement).queryByText("试点准备")).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText("知识配置")).toBeNull();
     expect(within(navigation as HTMLElement).queryByText("工作台")).toBeNull();
   });
 
@@ -357,7 +356,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     const { rerenderLayout } = await renderLayout("/dashboard");
 
-    expect(screen.queryByText("字典映射")).toBeNull();
+    expect(screen.queryByText("术语与字典")).toBeNull();
 
     securityProfileState.value = {
       data: permissionProfile(["workbench", "terminology-mapping"]),
@@ -367,9 +366,9 @@ describe("AppLayout", () => {
     const navigation = document.querySelector(".ant-layout-sider .ant-menu");
     expect(navigation).not.toBeNull();
     await waitFor(() =>
-      expect(within(navigation as HTMLElement).getByText("试点准备")).toBeInTheDocument(),
+      expect(within(navigation as HTMLElement).getByText("知识配置")).toBeInTheDocument(),
     );
-    expect(within(navigation as HTMLElement).getByText("字典映射")).toBeInTheDocument();
+    expect(within(navigation as HTMLElement).getByText("术语与字典")).toBeInTheDocument();
   });
 
   it("does not render the workbench before an effective permission profile is available", async () => {
@@ -440,6 +439,36 @@ describe("AppLayout", () => {
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
+  });
+
+  it("keeps expert capabilities out of the sidebar while exposing them in the command palette", async () => {
+    securityProfileState.value = { data: superAdminProfile() };
+    mockViewport(1280);
+    await renderLayout();
+
+    const navigation = document.querySelector(".ant-layout-sider");
+    expect(navigation).not.toBeNull();
+    expect(within(navigation as HTMLElement).queryByText("高级工具")).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText("来源与血缘")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.change(screen.getByPlaceholderText("搜索菜单"), {
+      target: { value: "来源" },
+    });
+
+    expect(await screen.findByText("来源与血缘")).toBeInTheDocument();
+    expect(screen.queryByText("高级工具")).toBeNull();
+  });
+
+  it("places message notifications in the header and notification preferences in the user menu", async () => {
+    mockViewport(1280);
+    await renderLayout();
+
+    expect(screen.getByRole("button", { name: "消息通知" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
+
+    expect(await screen.findByRole("menuitem", { name: /通知偏好/ })).toBeInTheDocument();
   });
 
   it("shows the authenticated user, role and organization in a header menu", async () => {

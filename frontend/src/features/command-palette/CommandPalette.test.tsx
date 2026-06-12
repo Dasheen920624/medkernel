@@ -16,9 +16,9 @@ vi.mock("react-router-dom", async () => {
 
 const allowedSections: MenuSection[] = [
   {
-    key: "pilot-setup",
-    label: "试点准备",
-    items: [{ key: "terminology-mapping", label: "字典映射", path: "/terminology/mapping" }],
+    key: "knowledge-configuration",
+    label: "知识配置",
+    items: [{ key: "terminology-mapping", label: "术语与字典", path: "/terminology/mapping" }],
   },
 ];
 
@@ -30,8 +30,8 @@ describe("CommandPalette", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("字典映射")).toBeInTheDocument();
-    expect(screen.queryByText("开发者控制台")).toBeNull();
+    expect(screen.getByText("术语与字典")).toBeInTheDocument();
+    expect(screen.queryByText("诊断工具")).toBeNull();
     expect(screen.queryByText("/terminology/mapping")).toBeNull();
   });
 
@@ -43,7 +43,7 @@ describe("CommandPalette", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByText("字典映射"));
+    fireEvent.click(screen.getByText("术语与字典"));
 
     expect(navigate).toHaveBeenCalledWith("/terminology/mapping");
     expect(onClose).toHaveBeenCalled();

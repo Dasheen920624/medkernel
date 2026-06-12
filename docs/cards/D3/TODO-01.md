@@ -99,7 +99,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 待办 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `workflow-todos` / menuLabel `待办中心` / path `/workflow/todos` / requiredPermissions 待办处理 / requiredRoles 临床医生·护理·科主任。
+- 路由元数据：sectionKey `clinical-collaboration` / menuKey `workflow-todos` / menuLabel `协同任务` / path `/workflow/todos` / requiredPermissions 待办处理 / requiredRoles 临床、护理、药事和医技协同人员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 待办列表（优先级排序、安全置顶）+ 处理抽屉 + 六态。
 - 主按钮 ≤1（完成待办）/ 默认筛选 ≤3（我的/今日/高优先）/ 默认角色视图（本人）。
 - 五维 RBAC：菜单 / 动作（完成/转交）/ 数据（org/本人）/ 资产 / 环境。

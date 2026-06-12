@@ -54,21 +54,20 @@ class MenuPermissionControllerTest {
     }
 
     @Test
-    void catalogReturnsThirtyTwoMenusAndDefaultRoleMatrix() throws Exception {
+    void catalogReturnsThirtyNavigationEntriesWithPlacementAndDefaultRoleMatrix() throws Exception {
         mvc.perform(get("/api/v1/security/menu-permissions/catalog")
                 .with(jwt().jwt(token -> token
                     .subject("admin-1")
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.menus", hasSize(32)))
+            .andExpect(jsonPath("$.data.menus", hasSize(30)))
             .andExpect(jsonPath("$.data.menus[*].menuKey", hasItem("terminology-mapping")))
-            .andExpect(jsonPath("$.data.menus[*].permissionCode", hasItem("menu.rule-validate")))
-            .andExpect(jsonPath(
-                "$.data.defaultRoleMenuKeys.clinical-decision-user",
-                hasItem("rule-validate")))
+            .andExpect(jsonPath("$.data.menus[*].placement", hasItem("PRIMARY")))
+            .andExpect(jsonPath("$.data.menus[*].permissionCode")
+                .value(org.hamcrest.Matchers.not(hasItem("menu.rule-validate"))))
             .andExpect(jsonPath("$.data.defaultRoleMenuKeys.clinical-decision-user")
-                .value(org.hamcrest.Matchers.not(hasItem("clinical-run"))));
+                .value(org.hamcrest.Matchers.not(hasItem("rule-validate"))));
     }
 
     @Test
@@ -79,9 +78,12 @@ class MenuPermissionControllerTest {
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.sections[*].sectionKey", hasItem("clinical-run")))
-            .andExpect(jsonPath("$.data.sections[*].items[*].menuKey", hasItem("rule-validate")))
-            .andExpect(jsonPath("$.data.sections[*].items[*].menuKey").value(org.hamcrest.Matchers.not(hasItem("pilot-setup"))));
+            .andExpect(jsonPath("$.data.sections[*].sectionKey", hasItem("clinical-collaboration")))
+            .andExpect(jsonPath("$.data.sections[*].items[*].menuKey", hasItem("patient-pathways")))
+            .andExpect(jsonPath("$.data.sections[*].items[*].menuKey")
+                .value(org.hamcrest.Matchers.not(hasItem("rule-validate"))))
+            .andExpect(jsonPath("$.data.headerItems[*].menuKey", hasItem("notifications")))
+            .andExpect(jsonPath("$.data.expertItems").isArray());
     }
 
     @Test

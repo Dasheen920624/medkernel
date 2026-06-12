@@ -30,7 +30,7 @@
 - `GET /api/v1/model-capabilities/status`：返回当前租户能力目录、路由策略、脱敏策略、结构约束、配置状态和B0降级原因。
 - 编排、执行和策略写入接口不属于本卡页面契约。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `advanced-tools` / menuKey `ai-workflows` / path `/advanced/ai-workflows` / requiredPermissions `menu.ai-workflows` + `llm.read`。
+- 路由元数据：sectionKey `knowledge-configuration` / placement `expert` / menuKey `ai-workflows` / menuLabel `智能工作流` / path `/advanced/ai-workflows` / requiredPermissions `menu.ai-workflows` + `llm.read`。
 - 可见角色：实施工程师、信息运维、医务处、平台/集团/医院管理员；其他角色直接访问显示无权限。
 - 结构：PageShell + 状态摘要 + 能力表格 + 行内详情 + 六态。
 - 只读页无主按钮，仅保留刷新图标；无筛选、无编辑入口。

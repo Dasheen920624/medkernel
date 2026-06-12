@@ -79,7 +79,7 @@ const AUTHORING_CONTEXT_VERSION = "AUTHORING";
 const route = findRouteByPath("/terminology/mapping");
 
 if (!route?.experience) {
-  throw new Error("字典映射页面缺少体验声明");
+  throw new Error("术语与字典页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {

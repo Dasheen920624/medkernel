@@ -73,7 +73,7 @@ class PermissionEvaluatorTest {
     void canEvaluatesDimensionAndTargetWithoutImplicitMenuShortcut() {
         authenticate(RoleCode.CLINICAL_DECISION_USER);
 
-        assertThat(evaluator.can(PermissionDimension.MENU, "rule-validate")).isTrue();
+        assertThat(evaluator.can(PermissionDimension.MENU, "cdss-fatigue")).isTrue();
         assertThat(evaluator.can(PermissionDimension.MENU, "clinical-run")).isFalse();
         assertThat(evaluator.can(PermissionDimension.DATA, "department")).isTrue();
         assertThat(evaluator.can(PermissionDimension.DATA, "hospital")).isFalse();

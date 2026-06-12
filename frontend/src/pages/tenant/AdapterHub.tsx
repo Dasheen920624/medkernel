@@ -84,7 +84,7 @@ const { Option } = Select;
 const route = findRouteByPath("/adapter/hub");
 
 if (!route?.experience) {
-  throw new Error("适配器中心页面缺少体验声明");
+  throw new Error("系统接入页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -199,9 +199,9 @@ function getErrorTrace(error: unknown) {
 }
 
 function pageStateTitle(state: PageStateKind) {
-  if (state === "loading") return "正在加载适配器中心";
+  if (state === "loading") return "正在加载系统接入";
   if (state === "empty") return "暂无适配器接入记录";
-  if (state === "error") return "适配器中心暂时不可用";
+  if (state === "error") return "系统接入暂时不可用";
   if (state === "partial") return "部分接入需要处理";
   return undefined;
 }

@@ -7,7 +7,7 @@
 ## 1. 库存结论
 
 - 前端路由：40 项。
-- 后端菜单：32 项。
+- 后端菜单：30 项。
 - 页面与页内组件：44 项。
 - 后端控制器：75 项。
 - 批量、导入、导出和异步任务承载类：13 项。
@@ -19,236 +19,230 @@
 | API_ONLY | 6 |
 | EXPERT | 31 |
 | KEEP | 54 |
-| MERGE | 43 |
+| MERGE | 41 |
 | MOVE | 45 |
 | REMOVE | 1 |
 | RENAME | 24 |
 
 ## 2. 前端路由与客户任务裁决
 
-| 当前路径 | 当前名称 | 当前分组 | 当前菜单键 | 隐藏 | 裁决 | 目标域 | 目标入口 | 唯一客户任务 |
+| 当前路径 | 当前名称 | 当前分组 | 当前菜单键 | 承载方式 | 裁决 | 目标域 | 目标入口 | 唯一客户任务 |
 |---|---|---|---|---|---|---|---|---|
 <!-- capability:route:route@%2Flogin decision=KEEP -->
 <!-- route:/login -->
-| `/login` | 登录 | — | — | 是 | KEEP | 认证入口 | 登录 | 按平台治理或医疗机构身份进入职责工作台 |
+| `/login` | 登录 | — | — | hidden | KEEP | 认证入口 | 登录 | 按平台治理或医疗机构身份进入职责工作台 |
 <!-- capability:route:route@%2Fbootstrap decision=EXPERT -->
 <!-- route:/bootstrap -->
-| `/bootstrap` | 首次部署接管 | — | — | 是 | EXPERT | 部署接管 | 首次部署接管 | 仅在首次部署时创建内置超级管理员并完成安全接管 |
+| `/bootstrap` | 首次部署接管 | — | — | hidden | EXPERT | 部署接管 | 首次部署接管 | 仅在首次部署时创建内置超级管理员并完成安全接管 |
 <!-- capability:route:route@%2F decision=REMOVE -->
 <!-- route:/ -->
-| `/` | 工作台 | — | — | 是 | REMOVE | 认证入口 | 登录 | 删除无业务意义的根路径能力，仅保留路由重定向 |
+| `/` | 工作台 | — | — | hidden | REMOVE | 认证入口 | 登录 | 删除无业务意义的根路径能力，仅保留路由重定向 |
 <!-- capability:route:route@%2Fdashboard decision=KEEP -->
 <!-- route:/dashboard -->
-| `/dashboard` | 工作台 | workbench | workbench | 否 | KEEP | 工作台 | 工作台 | 查看当前职责风险、待办和高频任务入口 |
+| `/dashboard` | 工作台 | workbench | workbench | primary | KEEP | 工作台 | 工作台 | 查看当前职责风险、待办和高频任务入口 |
 <!-- capability:route:route@%2Fworkbench%2Freadiness-validation decision=MERGE -->
 <!-- route:/workbench/readiness-validation -->
-| `/workbench/readiness-validation` | 验收自检 | workbench | readiness-validation | 是 | MERGE | 工作台 | 验收自检（工作台页内） | 由实施和管理角色核查阻塞项与验收状态 |
+| `/workbench/readiness-validation` | 验收自检 | workbench | — | hidden | MERGE | 工作台 | 验收自检（工作台页内） | 由实施和管理角色核查阻塞项与验收状态 |
 <!-- capability:route:route@%2Fonboarding%2Fguide decision=MOVE -->
 <!-- route:/onboarding/guide -->
-| `/onboarding/guide` | 客户实施向导 | pilot-setup | implementation-guide | 否 | MOVE | 机构治理 | 实施与验收 | 完成机构开通、初始化、联调和交付验收 |
+| `/onboarding/guide` | 实施与验收 | institution-governance | implementation-guide | primary | MOVE | 机构治理 | 实施与验收 | 完成机构开通、初始化、联调和交付验收 |
 <!-- capability:route:route@%2Ftenant%2Fonboarding decision=MOVE -->
 <!-- route:/tenant/onboarding -->
-| `/tenant/onboarding` | 服务机构管理 | pilot-setup | tenant-onboarding | 否 | MOVE | 机构治理 | 服务机构 | 维护服务机构、稳定组织层级和机构类型 |
+| `/tenant/onboarding` | 服务机构 | institution-governance | tenant-onboarding | primary | MOVE | 机构治理 | 服务机构 | 维护服务机构、稳定组织层级和机构类型 |
 <!-- capability:route:route@%2Fconfig%2Fpackages decision=MOVE -->
 <!-- route:/config/packages -->
-| `/config/packages` | 配置包中心 | pilot-setup | config-packages | 否 | MOVE | 知识配置 | 配置包与发布 | 组装、审核、灰度、全量、同步和回滚配置包 |
+| `/config/packages` | 配置包与发布 | knowledge-configuration | config-packages | primary | MOVE | 知识配置 | 配置包与发布 | 组装、审核、灰度、全量、同步和回滚配置包 |
 <!-- capability:route:route@%2Fconfig%2Freleases decision=MERGE -->
 <!-- route:/config/releases -->
-| `/config/releases` | 发布治理 | pilot-setup | — | 是 | MERGE | 知识配置 | 配置包与发布 | 作为配置包详情中的影响、发布和回滚步骤 |
+| `/config/releases` | 发布治理 | knowledge-configuration | — | hidden | MERGE | 知识配置 | 配置包与发布 | 作为配置包详情中的影响、发布和回滚步骤 |
 <!-- capability:route:route@%2Fauthoring%2Fassets decision=MERGE -->
 <!-- route:/authoring/assets -->
-| `/authoring/assets` | 统一资产库 | pilot-setup | — | 是 | MERGE | 知识配置 | 知识资产 | 在统一知识资产页内编目、复用和批量处理资产 |
+| `/authoring/assets` | 知识资产 | knowledge-configuration | — | hidden | MERGE | 知识配置 | 知识资产 | 在统一知识资产页内编目、复用和批量处理资产 |
 <!-- capability:route:route@%2Fpathway%2Ftemplates decision=MOVE -->
 <!-- route:/pathway/templates -->
-| `/pathway/templates` | 路径配置 | pilot-setup | pathway-templates | 否 | MOVE | 知识配置 | 路径配置 | 配置、审核、发布和回滚临床路径模板 |
+| `/pathway/templates` | 路径配置 | knowledge-configuration | pathway-templates | primary | MOVE | 知识配置 | 路径配置 | 配置、审核、发布和回滚临床路径模板 |
 <!-- capability:route:route@%2Frule%2Fdefinitions decision=MOVE -->
 <!-- route:/rule/definitions -->
-| `/rule/definitions` | 规则库 | pilot-setup | rule-definitions | 否 | MOVE | 知识配置 | 规则配置 | 配置、试运行、审核和发布临床规则 |
+| `/rule/definitions` | 规则配置 | knowledge-configuration | rule-definitions | primary | MOVE | 知识配置 | 规则配置 | 配置、试运行、审核和发布临床规则 |
 <!-- capability:route:route@%2Fterminology%2Fmapping decision=MOVE -->
 <!-- route:/terminology/mapping -->
-| `/terminology/mapping` | 字典映射 | pilot-setup | terminology-mapping | 否 | MOVE | 知识配置 | 术语与字典 | 维护院内术语映射、冲突和高风险确认 |
+| `/terminology/mapping` | 术语与字典 | knowledge-configuration | terminology-mapping | primary | MOVE | 知识配置 | 术语与字典 | 维护院内术语映射、冲突和高风险确认 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=EXPERT -->
 <!-- route:/adapter/hub -->
-| `/adapter/hub` | 适配器中心 | pilot-setup | adapter-hub | 否 | EXPERT | 机构治理 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
+| `/adapter/hub` | 系统接入 | institution-governance | adapter-hub | primary | EXPERT | 机构治理 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
 <!-- capability:route:route@%2Fmpi decision=MOVE -->
 <!-- route:/mpi -->
-| `/mpi` | 患者主索引 | clinical-run | mpi | 否 | MOVE | 临床协同 | 患者索引 | 在授权范围内核查患者主索引和合并拆分问题 |
+| `/mpi` | 患者索引 | clinical-collaboration | mpi | primary | MOVE | 临床协同 | 患者索引 | 在授权范围内核查患者主索引和合并拆分问题 |
 <!-- capability:route:route@%2Fpathway%2Fpatients decision=MOVE -->
 <!-- route:/pathway/patients -->
-| `/pathway/patients` | 患者路径 | clinical-run | patient-pathways | 否 | MOVE | 临床协同 | 患者路径 | 查看并处理患者路径节点、时钟和变异 |
+| `/pathway/patients` | 患者路径 | clinical-collaboration | patient-pathways | primary | MOVE | 临床协同 | 患者路径 | 查看并处理患者路径节点、时钟和变异 |
 <!-- capability:route:route@%2Fcdss%2Ffatigue decision=RENAME -->
 <!-- route:/cdss/fatigue -->
-| `/cdss/fatigue` | 临床提醒治理 | clinical-run | cdss-fatigue | 否 | RENAME | 临床协同 | 提醒与推荐 | 查看推荐、来源、处置状态和反馈闭环 |
+| `/cdss/fatigue` | 提醒与推荐 | clinical-collaboration | cdss-fatigue | primary | RENAME | 临床协同 | 提醒与推荐 | 查看推荐、来源、处置状态和反馈闭环 |
 <!-- capability:route:route@%2Frule%2Fvalidate decision=MERGE -->
 <!-- route:/rule/validate -->
-| `/rule/validate` | 规则校验 | clinical-run | rule-validate | 否 | MERGE | 知识配置 | 规则配置 / 试运行 | 并入规则试运行与提醒详情，不保留客户独立菜单 |
+| `/rule/validate` | 规则试运行 | knowledge-configuration | — | hidden | MERGE | 知识配置 | 规则配置 / 试运行 | 并入规则试运行与提醒详情，不保留客户独立菜单 |
 <!-- capability:route:route@%2Fworkflow%2Ftodos decision=RENAME -->
 <!-- route:/workflow/todos -->
-| `/workflow/todos` | 待办中心 | clinical-run | workflow-todos | 否 | RENAME | 临床协同 | 协同任务 | 处理、转派、升级和完成职责范围内任务 |
+| `/workflow/todos` | 协同任务 | clinical-collaboration | workflow-todos | primary | RENAME | 临床协同 | 协同任务 | 处理、转派、升级和完成职责范围内任务 |
 <!-- capability:route:route@%2Fnotifications decision=MOVE -->
 <!-- route:/notifications -->
-| `/notifications` | 通知中心 | clinical-run | notifications | 否 | MOVE | 工作台 | 消息通知（页头入口） | 查看未读消息并跳转到对应业务任务 |
+| `/notifications` | 消息通知 | workbench | notifications | header | MOVE | 工作台 | 消息通知（页头入口） | 查看未读消息并跳转到对应业务任务 |
 <!-- capability:route:route@%2Fclinical%2Ffollowup decision=RENAME -->
 <!-- route:/clinical/followup -->
-| `/clinical/followup` | 智能随访 | clinical-run | clinical-followup | 否 | RENAME | 临床协同 | 随访协同 | 生成随访计划、处理任务和异常回院事件 |
+| `/clinical/followup` | 随访协同 | clinical-collaboration | clinical-followup | primary | RENAME | 临床协同 | 随访协同 | 生成随访计划、处理任务和异常回院事件 |
 <!-- capability:route:route@%2Fqc%2Fdashboard decision=RENAME -->
 <!-- route:/qc/dashboard -->
-| `/qc/dashboard` | 院级质控驾驶舱 | quality-improve | qc-dashboard | 否 | RENAME | 质量与运营 | 质量与运营概览 | 查看质量风险、运营趋势并下钻到责任问题 |
+| `/qc/dashboard` | 质量与运营概览 | quality-operations | qc-dashboard | primary | RENAME | 质量与运营 | 质量与运营概览 | 查看质量风险、运营趋势并下钻到责任问题 |
 <!-- capability:route:route@%2Fqc%2Falerts decision=RENAME -->
 <!-- route:/qc/alerts -->
-| `/qc/alerts` | 质控预警 | quality-improve | qc-alerts | 否 | RENAME | 质量与运营 | 质量问题与整改 | 确认问题、派发整改、复核并闭环 |
+| `/qc/alerts` | 质量问题与整改 | quality-operations | qc-alerts | primary | RENAME | 质量与运营 | 质量问题与整改 | 确认问题、派发整改、复核并闭环 |
 <!-- capability:route:route@%2Fqc%2Finsurance decision=RENAME -->
 <!-- route:/qc/insurance -->
-| `/qc/insurance` | 医保智能审核 | quality-improve | insurance-audit | 否 | RENAME | 质量与运营 | 医保审核 | 核查医保问题、依据和处置结果 |
+| `/qc/insurance` | 医保审核 | quality-operations | insurance-audit | primary | RENAME | 质量与运营 | 医保审核 | 核查医保问题、依据和处置结果 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fsets decision=RENAME -->
 <!-- route:/qc/eval/sets -->
-| `/qc/eval/sets` | 评估指标库 | quality-improve | qc-eval-sets | 否 | RENAME | 质量与运营 | 评价指标 | 维护评价指标、影响分析和发布状态 |
+| `/qc/eval/sets` | 评价指标 | quality-operations | qc-eval-sets | primary | RENAME | 质量与运营 | 评价指标 | 维护评价指标、影响分析和发布状态 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fresults decision=MERGE -->
 <!-- route:/qc/eval/results -->
-| `/qc/eval/results` | 评估结果 | quality-improve | qc-eval-results | 否 | MERGE | 质量与运营 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
+| `/qc/eval/results` | 评估结果 | quality-operations | — | hidden | MERGE | 质量与运营 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
-| `/knowledge/governance` | 知识治理 | quality-improve | knowledge-governance | 否 | MOVE | 知识配置 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
+| `/knowledge/governance` | 知识审核与发布 | knowledge-configuration | knowledge-governance | primary | MOVE | 知识配置 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
-| `/admin/users` | 人员与账号 | compliance-ops | admin-users | 否 | MOVE | 机构治理 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
+| `/admin/users` | 人员与账号 | institution-governance | admin-users | primary | MOVE | 机构治理 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
 <!-- capability:route:route@%2Fsecurity%2Fidentity-binding decision=MOVE -->
 <!-- route:/security/identity-binding -->
-| `/security/identity-binding` | 身份来源 | compliance-ops | identity-bindings | 否 | MOVE | 机构治理 | 身份来源 | 维护统一身份、员工号和证书的单个或批量绑定 |
+| `/security/identity-binding` | 身份来源 | institution-governance | identity-bindings | primary | MOVE | 机构治理 | 身份来源 | 维护统一身份、员工号和证书的单个或批量绑定 |
 <!-- capability:route:route@%2Fadmin%2Faudit decision=MOVE -->
 <!-- route:/admin/audit -->
-| `/admin/audit` | 审计日志 | compliance-ops | admin-audit | 否 | MOVE | 质量与运营 | 审计与证据 | 按人员、对象、动作和时间追溯并受控导出证据 |
+| `/admin/audit` | 审计与证据 | quality-operations | admin-audit | primary | MOVE | 质量与运营 | 审计与证据 | 按人员、对象、动作和时间追溯并受控导出证据 |
 <!-- capability:route:route@%2Fsecurity%2Fbaseline decision=MOVE -->
 <!-- route:/security/baseline -->
-| `/security/baseline` | 安全基线与系统配置 | compliance-ops | security-baseline | 否 | MOVE | 质量与运营 | 安全与配置 | 维护安全基线、系统配置、数据权限和脱敏策略 |
+| `/security/baseline` | 安全与配置 | quality-operations | security-baseline | primary | MOVE | 质量与运营 | 安全与配置 | 维护安全基线、系统配置、数据权限和脱敏策略 |
 <!-- capability:route:route@%2Fsystem%2Fproviders decision=RENAME -->
 <!-- route:/system/providers -->
-| `/system/providers` | 运行状态 | compliance-ops | system-providers | 否 | RENAME | 质量与运营 | 运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
+| `/system/providers` | 运行保障 | quality-operations | system-providers | primary | RENAME | 质量与运营 | 运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
 <!-- capability:route:route@%2Fnotifications%2Fsettings decision=MOVE -->
 <!-- route:/notifications/settings -->
-| `/notifications/settings` | 通知设置 | compliance-ops | notification-settings | 否 | MOVE | 工作台 | 通知偏好（个人菜单） | 维护个人通知偏好和有权限的机构默认策略 |
+| `/notifications/settings` | 通知偏好 | workbench | notification-settings | profile | MOVE | 工作台 | 通知偏好（个人菜单） | 维护个人通知偏好和有权限的机构默认策略 |
 <!-- capability:route:route@%2Fadvanced%2Fprovenance decision=EXPERT -->
 <!-- route:/advanced/provenance -->
-| `/advanced/provenance` | 来源追溯 | advanced-tools | provenance | 否 | EXPERT | 知识配置 | 来源与血缘（专家模式） | 按来源、版本和引用锚点追溯知识证据 |
+| `/advanced/provenance` | 来源与血缘 | knowledge-configuration | provenance | expert | EXPERT | 知识配置 | 来源与血缘（专家模式） | 按来源、版本和引用锚点追溯知识证据 |
 <!-- capability:route:route@%2Fadvanced%2Fgraph decision=EXPERT -->
 <!-- route:/advanced/graph -->
-| `/advanced/graph` | 图谱查询 | advanced-tools | graph-explore | 否 | EXPERT | 知识配置 | 知识关系（专家模式） | 查询可重建的知识关系投影 |
+| `/advanced/graph` | 知识关系 | knowledge-configuration | graph-explore | expert | EXPERT | 知识配置 | 知识关系（专家模式） | 查询可重建的知识关系投影 |
 <!-- capability:route:route@%2Fadvanced%2Fai-workflows decision=EXPERT -->
 <!-- route:/advanced/ai-workflows -->
-| `/advanced/ai-workflows` | AI 工作流 | advanced-tools | ai-workflows | 否 | EXPERT | 知识配置 | 智能工作流（专家模式） | 查看模型能力、任务和诚实降级状态 |
+| `/advanced/ai-workflows` | 智能工作流 | knowledge-configuration | ai-workflows | expert | EXPERT | 知识配置 | 智能工作流（专家模式） | 查看模型能力、任务和诚实降级状态 |
 <!-- capability:route:route@%2Fadvanced%2Fdomestic decision=EXPERT -->
 <!-- route:/advanced/domestic -->
-| `/advanced/domestic` | 国产化自检 | advanced-tools | domestic-check | 是 | EXPERT | 质量与运营 | 运行保障 / 国产化核验 | 核查国产化适配与部署证据 |
+| `/advanced/domestic` | 国产化核验 | quality-operations | domestic-check | expert | EXPERT | 质量与运营 | 运行保障 / 国产化核验 | 核查国产化适配与部署证据 |
 <!-- capability:route:route@%2Fadvanced%2Fdev-console decision=EXPERT -->
 <!-- route:/advanced/dev-console -->
-| `/advanced/dev-console` | 开发者控制台 | advanced-tools | dev-console | 是 | EXPERT | 质量与运营 | 运行保障 / 诊断工具 | 由开发和实施角色执行受控诊断 |
+| `/advanced/dev-console` | 诊断工具 | quality-operations | dev-console | expert | EXPERT | 质量与运营 | 运行保障 / 诊断工具 | 由开发和实施角色执行受控诊断 |
 <!-- capability:route:route@%2Fembed%2Flaunch decision=EXPERT -->
 <!-- route:/embed/launch -->
-| `/embed/launch` | 临床嵌入式终端 | — | — | 是 | EXPERT | 临床协同 | 院内系统嵌入终端 | 在受信来源内承载临床嵌入并回传人工反馈 |
+| `/embed/launch` | 临床嵌入式终端 | clinical-collaboration | — | embedded | EXPERT | 临床协同 | 院内系统嵌入终端 | 在受信来源内承载临床嵌入并回传人工反馈 |
 <!-- capability:route:route@* decision=KEEP -->
 <!-- route:* -->
-| `*` | 未找到页面 | — | — | 是 | KEEP | 系统反馈 | 未找到页面 | 为无效路径提供可恢复的中文错误状态 |
+| `*` | 未找到页面 | — | — | hidden | KEEP | 系统反馈 | 未找到页面 | 为无效路径提供可恢复的中文错误状态 |
 
 ## 3. 后端菜单目录裁决
 
-| 菜单键 | 当前名称 | 当前分组 | 权限 | 裁决 | 目标域 | 目标入口 |
-|---|---|---|---|---|---|---|
+| 菜单键 | 当前名称 | 当前分组 | 承载方式 | 权限 | 裁决 | 目标域 | 目标入口 |
+|---|---|---|---|---|---|---|---|
 <!-- capability:menu:menu@workbench decision=KEEP -->
 <!-- menu:workbench -->
-| `workbench` | 工作台 | `workbench` | `MENU_WORKBENCH` | KEEP | 工作台 | 工作台 |
-<!-- capability:menu:menu@implementation-guide decision=MOVE -->
-<!-- menu:implementation-guide -->
-| `implementation-guide` | 客户实施向导 | `pilot-setup` | `MENU_IMPLEMENTATION_GUIDE` | MOVE | 机构治理 | 实施与验收 |
+| `workbench` | 工作台 | `workbench` | primary | `MENU_WORKBENCH` | KEEP | 工作台 | 工作台 |
 <!-- capability:menu:menu@tenant-onboarding decision=MOVE -->
 <!-- menu:tenant-onboarding -->
-| `tenant-onboarding` | 租户开通 | `pilot-setup` | `MENU_TENANT_ONBOARDING` | MOVE | 机构治理 | 服务机构 |
-<!-- capability:menu:menu@config-packages decision=MOVE -->
-<!-- menu:config-packages -->
-| `config-packages` | 配置包中心 | `pilot-setup` | `MENU_CONFIG_PACKAGES` | MOVE | 知识配置 | 配置包与发布 |
-<!-- capability:menu:menu@pathway-templates decision=MOVE -->
-<!-- menu:pathway-templates -->
-| `pathway-templates` | 路径配置 | `pilot-setup` | `MENU_PATHWAY_TEMPLATES` | MOVE | 知识配置 | 路径配置 |
-<!-- capability:menu:menu@rule-definitions decision=MOVE -->
-<!-- menu:rule-definitions -->
-| `rule-definitions` | 规则库 | `pilot-setup` | `MENU_RULE_DEFINITIONS` | MOVE | 知识配置 | 规则配置 |
-<!-- capability:menu:menu@terminology-mapping decision=MOVE -->
-<!-- menu:terminology-mapping -->
-| `terminology-mapping` | 字典映射 | `pilot-setup` | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识配置 | 术语与字典 |
-<!-- capability:menu:menu@adapter-hub decision=EXPERT -->
-<!-- menu:adapter-hub -->
-| `adapter-hub` | 适配器中心 | `pilot-setup` | `MENU_ADAPTER_HUB` | EXPERT | 机构治理 | 系统接入 |
-<!-- capability:menu:menu@mpi decision=MOVE -->
-<!-- menu:mpi -->
-| `mpi` | 患者主索引 | `clinical-run` | `MENU_MPI` | MOVE | 临床协同 | 患者索引 |
-<!-- capability:menu:menu@patient-pathways decision=MOVE -->
-<!-- menu:patient-pathways -->
-| `patient-pathways` | 患者路径 | `clinical-run` | `MENU_PATIENT_PATHWAYS` | MOVE | 临床协同 | 患者路径 |
-<!-- capability:menu:menu@cdss-fatigue decision=RENAME -->
-<!-- menu:cdss-fatigue -->
-| `cdss-fatigue` | 临床提醒治理 | `clinical-run` | `MENU_CDSS_FATIGUE` | RENAME | 临床协同 | 提醒与推荐 |
-<!-- capability:menu:menu@rule-validate decision=MERGE -->
-<!-- menu:rule-validate -->
-| `rule-validate` | 规则校验 | `clinical-run` | `MENU_RULE_VALIDATE` | MERGE | 知识配置 | 规则配置 / 试运行 |
-<!-- capability:menu:menu@workflow-todos decision=RENAME -->
-<!-- menu:workflow-todos -->
-| `workflow-todos` | 待办中心 | `clinical-run` | `MENU_WORKFLOW_TODOS` | RENAME | 临床协同 | 协同任务 |
-<!-- capability:menu:menu@notifications decision=MOVE -->
-<!-- menu:notifications -->
-| `notifications` | 通知中心 | `clinical-run` | `MENU_NOTIFICATIONS` | MOVE | 工作台 | 消息通知（页头入口） |
-<!-- capability:menu:menu@clinical-followup decision=RENAME -->
-<!-- menu:clinical-followup -->
-| `clinical-followup` | 智能随访 | `clinical-run` | `MENU_CLINICAL_FOLLOWUP` | RENAME | 临床协同 | 随访协同 |
-<!-- capability:menu:menu@qc-dashboard decision=RENAME -->
-<!-- menu:qc-dashboard -->
-| `qc-dashboard` | 院级质控驾驶舱 | `quality-improve` | `MENU_QC_DASHBOARD` | RENAME | 质量与运营 | 质量与运营概览 |
-<!-- capability:menu:menu@qc-alerts decision=RENAME -->
-<!-- menu:qc-alerts -->
-| `qc-alerts` | 质控预警 | `quality-improve` | `MENU_QC_ALERTS` | RENAME | 质量与运营 | 质量问题与整改 |
-<!-- capability:menu:menu@insurance-audit decision=RENAME -->
-<!-- menu:insurance-audit -->
-| `insurance-audit` | 医保智能审核 | `quality-improve` | `MENU_INSURANCE_AUDIT` | RENAME | 质量与运营 | 医保审核 |
-<!-- capability:menu:menu@qc-eval-sets decision=RENAME -->
-<!-- menu:qc-eval-sets -->
-| `qc-eval-sets` | 评估指标库 | `quality-improve` | `MENU_QC_EVAL_SETS` | RENAME | 质量与运营 | 评价指标 |
-<!-- capability:menu:menu@qc-eval-results decision=MERGE -->
-<!-- menu:qc-eval-results -->
-| `qc-eval-results` | 评估结果 | `quality-improve` | `MENU_QC_EVAL_RESULTS` | MERGE | 质量与运营 | 质量问题与整改 |
-<!-- capability:menu:menu@knowledge-governance decision=MOVE -->
-<!-- menu:knowledge-governance -->
-| `knowledge-governance` | 知识治理 | `quality-improve` | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识配置 | 知识审核与发布 |
+| `tenant-onboarding` | 服务机构 | `institution-governance` | primary | `MENU_TENANT_ONBOARDING` | MOVE | 机构治理 | 服务机构 |
 <!-- capability:menu:menu@admin-users decision=MOVE -->
 <!-- menu:admin-users -->
-| `admin-users` | 用户管理 | `compliance-ops` | `MENU_ADMIN_USERS` | MOVE | 机构治理 | 人员与账号 |
+| `admin-users` | 人员与账号 | `institution-governance` | primary | `MENU_ADMIN_USERS` | MOVE | 机构治理 | 人员与账号 |
 <!-- capability:menu:menu@identity-bindings decision=MOVE -->
 <!-- menu:identity-bindings -->
-| `identity-bindings` | 身份绑定 | `compliance-ops` | `MENU_IDENTITY_BINDINGS` | MOVE | 机构治理 | 身份来源 |
+| `identity-bindings` | 身份来源 | `institution-governance` | primary | `MENU_IDENTITY_BINDINGS` | MOVE | 机构治理 | 身份来源 |
+<!-- capability:menu:menu@implementation-guide decision=MOVE -->
+<!-- menu:implementation-guide -->
+| `implementation-guide` | 实施与验收 | `institution-governance` | primary | `MENU_IMPLEMENTATION_GUIDE` | MOVE | 机构治理 | 实施与验收 |
+<!-- capability:menu:menu@adapter-hub decision=EXPERT -->
+<!-- menu:adapter-hub -->
+| `adapter-hub` | 系统接入 | `institution-governance` | primary | `MENU_ADAPTER_HUB` | EXPERT | 机构治理 | 系统接入 |
+<!-- capability:menu:menu@knowledge-governance decision=MOVE -->
+<!-- menu:knowledge-governance -->
+| `knowledge-governance` | 知识审核与发布 | `knowledge-configuration` | primary | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识配置 | 知识审核与发布 |
+<!-- capability:menu:menu@config-packages decision=MOVE -->
+<!-- menu:config-packages -->
+| `config-packages` | 配置包与发布 | `knowledge-configuration` | primary | `MENU_CONFIG_PACKAGES` | MOVE | 知识配置 | 配置包与发布 |
+<!-- capability:menu:menu@terminology-mapping decision=MOVE -->
+<!-- menu:terminology-mapping -->
+| `terminology-mapping` | 术语与字典 | `knowledge-configuration` | primary | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识配置 | 术语与字典 |
+<!-- capability:menu:menu@rule-definitions decision=MOVE -->
+<!-- menu:rule-definitions -->
+| `rule-definitions` | 规则配置 | `knowledge-configuration` | primary | `MENU_RULE_DEFINITIONS` | MOVE | 知识配置 | 规则配置 |
+<!-- capability:menu:menu@pathway-templates decision=MOVE -->
+<!-- menu:pathway-templates -->
+| `pathway-templates` | 路径配置 | `knowledge-configuration` | primary | `MENU_PATHWAY_TEMPLATES` | MOVE | 知识配置 | 路径配置 |
+<!-- capability:menu:menu@mpi decision=MOVE -->
+<!-- menu:mpi -->
+| `mpi` | 患者索引 | `clinical-collaboration` | primary | `MENU_MPI` | MOVE | 临床协同 | 患者索引 |
+<!-- capability:menu:menu@patient-pathways decision=MOVE -->
+<!-- menu:patient-pathways -->
+| `patient-pathways` | 患者路径 | `clinical-collaboration` | primary | `MENU_PATIENT_PATHWAYS` | MOVE | 临床协同 | 患者路径 |
+<!-- capability:menu:menu@cdss-fatigue decision=RENAME -->
+<!-- menu:cdss-fatigue -->
+| `cdss-fatigue` | 提醒与推荐 | `clinical-collaboration` | primary | `MENU_CDSS_FATIGUE` | RENAME | 临床协同 | 提醒与推荐 |
+<!-- capability:menu:menu@workflow-todos decision=RENAME -->
+<!-- menu:workflow-todos -->
+| `workflow-todos` | 协同任务 | `clinical-collaboration` | primary | `MENU_WORKFLOW_TODOS` | RENAME | 临床协同 | 协同任务 |
+<!-- capability:menu:menu@clinical-followup decision=RENAME -->
+<!-- menu:clinical-followup -->
+| `clinical-followup` | 随访协同 | `clinical-collaboration` | primary | `MENU_CLINICAL_FOLLOWUP` | RENAME | 临床协同 | 随访协同 |
+<!-- capability:menu:menu@qc-dashboard decision=RENAME -->
+<!-- menu:qc-dashboard -->
+| `qc-dashboard` | 质量与运营概览 | `quality-operations` | primary | `MENU_QC_DASHBOARD` | RENAME | 质量与运营 | 质量与运营概览 |
+<!-- capability:menu:menu@qc-alerts decision=RENAME -->
+<!-- menu:qc-alerts -->
+| `qc-alerts` | 质量问题与整改 | `quality-operations` | primary | `MENU_QC_ALERTS` | RENAME | 质量与运营 | 质量问题与整改 |
+<!-- capability:menu:menu@insurance-audit decision=RENAME -->
+<!-- menu:insurance-audit -->
+| `insurance-audit` | 医保审核 | `quality-operations` | primary | `MENU_INSURANCE_AUDIT` | RENAME | 质量与运营 | 医保审核 |
+<!-- capability:menu:menu@qc-eval-sets decision=RENAME -->
+<!-- menu:qc-eval-sets -->
+| `qc-eval-sets` | 评价指标 | `quality-operations` | primary | `MENU_QC_EVAL_SETS` | RENAME | 质量与运营 | 评价指标 |
 <!-- capability:menu:menu@admin-audit decision=MOVE -->
 <!-- menu:admin-audit -->
-| `admin-audit` | 审计日志 | `compliance-ops` | `MENU_ADMIN_AUDIT` | MOVE | 质量与运营 | 审计与证据 |
+| `admin-audit` | 审计与证据 | `quality-operations` | primary | `MENU_ADMIN_AUDIT` | MOVE | 质量与运营 | 审计与证据 |
 <!-- capability:menu:menu@security-baseline decision=MOVE -->
 <!-- menu:security-baseline -->
-| `security-baseline` | 安全基线与系统配置 | `compliance-ops` | `MENU_SECURITY_BASELINE` | MOVE | 质量与运营 | 安全与配置 |
+| `security-baseline` | 安全与配置 | `quality-operations` | primary | `MENU_SECURITY_BASELINE` | MOVE | 质量与运营 | 安全与配置 |
 <!-- capability:menu:menu@system-providers decision=RENAME -->
 <!-- menu:system-providers -->
-| `system-providers` | Provider 状态 | `compliance-ops` | `MENU_SYSTEM_PROVIDERS` | RENAME | 质量与运营 | 运行保障 |
+| `system-providers` | 运行保障 | `quality-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 质量与运营 | 运行保障 |
+<!-- capability:menu:menu@notifications decision=MOVE -->
+<!-- menu:notifications -->
+| `notifications` | 消息通知 | `workbench` | header | `MENU_NOTIFICATIONS` | MOVE | 工作台 | 消息通知（页头入口） |
 <!-- capability:menu:menu@notification-settings decision=MOVE -->
 <!-- menu:notification-settings -->
-| `notification-settings` | 通知设置 | `compliance-ops` | `MENU_NOTIFICATION_SETTINGS` | MOVE | 工作台 | 通知偏好（个人菜单） |
+| `notification-settings` | 通知偏好 | `workbench` | profile | `MENU_NOTIFICATION_SETTINGS` | MOVE | 工作台 | 通知偏好（个人菜单） |
 <!-- capability:menu:menu@provenance decision=EXPERT -->
 <!-- menu:provenance -->
-| `provenance` | 来源追溯 | `advanced-tools` | `MENU_PROVENANCE` | EXPERT | 知识配置 | 来源与血缘（专家模式） |
+| `provenance` | 来源与血缘 | `knowledge-configuration` | expert | `MENU_PROVENANCE` | EXPERT | 知识配置 | 来源与血缘（专家模式） |
 <!-- capability:menu:menu@graph-explore decision=EXPERT -->
 <!-- menu:graph-explore -->
-| `graph-explore` | 图谱查询 | `advanced-tools` | `MENU_GRAPH_EXPLORE` | EXPERT | 知识配置 | 知识关系（专家模式） |
+| `graph-explore` | 知识关系 | `knowledge-configuration` | expert | `MENU_GRAPH_EXPLORE` | EXPERT | 知识配置 | 知识关系（专家模式） |
 <!-- capability:menu:menu@ai-workflows decision=EXPERT -->
 <!-- menu:ai-workflows -->
-| `ai-workflows` | AI 工作流 | `advanced-tools` | `MENU_AI_WORKFLOWS` | EXPERT | 知识配置 | 智能工作流（专家模式） |
+| `ai-workflows` | 智能工作流 | `knowledge-configuration` | expert | `MENU_AI_WORKFLOWS` | EXPERT | 知识配置 | 智能工作流（专家模式） |
 <!-- capability:menu:menu@domestic-check decision=EXPERT -->
 <!-- menu:domestic-check -->
-| `domestic-check` | 国产化自检 | `advanced-tools` | `MENU_DOMESTIC_CHECK` | EXPERT | 质量与运营 | 运行保障 / 国产化核验 |
+| `domestic-check` | 国产化核验 | `quality-operations` | expert | `MENU_DOMESTIC_CHECK` | EXPERT | 质量与运营 | 运行保障 / 国产化核验 |
 <!-- capability:menu:menu@dev-console decision=EXPERT -->
 <!-- menu:dev-console -->
-| `dev-console` | 开发者控制台 | `advanced-tools` | `MENU_DEV_CONSOLE` | EXPERT | 质量与运营 | 运行保障 / 诊断工具 |
+| `dev-console` | 诊断工具 | `quality-operations` | expert | `MENU_DEV_CONSOLE` | EXPERT | 质量与运营 | 运行保障 / 诊断工具 |
 
 ## 4. 页面与页内组件归属
 
