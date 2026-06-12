@@ -1,7 +1,7 @@
 {
   "status": "PASSED",
-  "startedAt": "2026-06-12T14:27:35.074Z",
-  "finishedAt": "2026-06-12T14:27:36.879Z",
+  "startedAt": "2026-06-12T14:58:53.053Z",
+  "finishedAt": "2026-06-12T14:58:54.830Z",
   "baseUrl": "https://193.112.107.134/medkernel/api/v1",
   "credentialBoundary": {
     "source": "P5_ROLE_CREDENTIALS_FILE",
@@ -120,7 +120,10 @@
       "status": 200,
       "dataShape": {
         "kind": "object",
-        "keys": ["rules", "traceId"]
+        "keys": [
+          "rules",
+          "traceId"
+        ]
       },
       "fakeTextFound": false
     },

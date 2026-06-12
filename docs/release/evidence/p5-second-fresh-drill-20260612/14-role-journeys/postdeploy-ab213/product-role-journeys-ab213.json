@@ -1,0 +1,282 @@
+{
+  "config": {
+    "configFile": "/tmp/medkernel-pw-remote-ab213.config.cjs",
+    "rootDir": "/Users/zhikunzheng/.config/superpowers/worktrees/codex/codex-p5-mobile-deploy/frontend/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/tmp/medkernel-pw-remote-ab213/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/zhikunzheng/.config/superpowers/worktrees/codex/codex-p5-mobile-deploy/frontend/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "line",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "/tmp/medkernel-pw-remote-ab213/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "product-role-journeys.spec.ts",
+      "file": "product-role-journeys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "14 个客户职责角色任务旅程",
+          "file": "product-role-journeys.spec.ts",
+          "line": 182,
+          "column": 6,
+          "specs": [
+            {
+              "title": "后端权限画像与产品菜单快照完全一致",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 22203,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T14:53:23.678Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "39ab732cbe1aab62c567-4ef195f5b2771894cf7c",
+              "file": "product-role-journeys.spec.ts",
+              "line": 183,
+              "column": 3
+            },
+            {
+              "title": "desktop-1440 下全部角色工作台可完成主任务起步",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 600000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 33359,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T14:53:46.104Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "role-primary-action-desktop-1440",
+                          "contentType": "image/png",
+                          "path": "/tmp/medkernel-pw-remote-ab213/test-results/product-role-journeys-14-个-9b5cf-sktop-1440-下全部角色工作台可完成主任务起步-chromium/attachments/role-primary-action-desktop-1440-3fb3ad592e84740550c878543b6edcc2854e430c.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "39ab732cbe1aab62c567-fde8bfb8df2e40cf86f7",
+              "file": "product-role-journeys.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "desktop-1366 下全部角色工作台可完成主任务起步",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 600000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 33098,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T14:54:19.471Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "role-primary-action-desktop-1366",
+                          "contentType": "image/png",
+                          "path": "/tmp/medkernel-pw-remote-ab213/test-results/product-role-journeys-14-个-8ea91-sktop-1366-下全部角色工作台可完成主任务起步-chromium/attachments/role-primary-action-desktop-1366-c97816ab8fd6df6a048826d9fded0462d688dfca.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "39ab732cbe1aab62c567-a8599d4fa0eb9e1c4def",
+              "file": "product-role-journeys.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "tablet 下全部角色工作台可完成主任务起步",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 600000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 32430,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T14:54:52.579Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "role-primary-action-tablet",
+                          "contentType": "image/png",
+                          "path": "/tmp/medkernel-pw-remote-ab213/test-results/product-role-journeys-14-个客户职责角色任务旅程-tablet-下全部角色工作台可完成主任务起步-chromium/attachments/role-primary-action-tablet-1067d84396ebc0a73f15eb8d17386c632b45dd9f.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "39ab732cbe1aab62c567-b44031fa34dc8da042a7",
+              "file": "product-role-journeys.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "mobile 下全部角色工作台可完成主任务起步",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 600000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 32705,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-12T14:55:25.013Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "role-primary-action-mobile",
+                          "contentType": "image/png",
+                          "path": "/tmp/medkernel-pw-remote-ab213/test-results/product-role-journeys-14-个客户职责角色任务旅程-mobile-下全部角色工作台可完成主任务起步-chromium/attachments/role-primary-action-mobile-2e1f8cfc719c5b470b07ce97355f656c0be2855a.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "39ab732cbe1aab62c567-1c0473271d77232382c2",
+              "file": "product-role-journeys.spec.ts",
+              "line": 193,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-12T14:53:23.456Z",
+    "duration": 154289.662,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

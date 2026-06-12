@@ -1,0 +1,55 @@
+{
+  "status": "PASSED",
+  "commit": "ab2132891a208e72a1573c82e6a79d665918310b",
+  "deployment": {
+    "predeployBackupDir": "/zoesoft/medkernel/backups/p5-ab213-predeploy-20260612-224748",
+    "programDeployBackup": "/zoesoft/medkernel/backups/deploy-20260612-224918",
+    "cleanFrontendRedeployBackup": "/zoesoft/medkernel/backups/deploy-20260612-225100",
+    "manifestCommit": "ab2132891a208e72a1573c82e6a79d665918310b",
+    "jarSha256": "01d5fab5b498b5bedc9a7a4f2b99f79355ad4bf7cbcb68f807bb26eed32c7ebf",
+    "frontendCleanTarSha256": "4300536db0b63a8bf5e637e266721950e47d707898532e945e2ce98256b54df6",
+    "cleanFrontendTarXattrNoiseCount": 0,
+    "tarXattrNoiseFinal": "NO",
+    "serviceStatus": "active|active|active",
+    "readinessHttpStatus": 200,
+    "readinessHttpsStatus": 200,
+    "dbInvariants": "public_base_tables|178;flyway|118|118|118;knowledge_counts|0|0|0|0|0|0;material_root|0|PLATFORM_SEED|Y|Y|1;p5_counts|2|17|15|15;platform_target_counts|1|1",
+    "knowledgeGenerationReleased": false,
+    "materialRootConfigured": false
+  },
+  "verification": {
+    "productRoleJourneys": {
+      "expected": 5,
+      "unexpected": 0,
+      "flaky": 0,
+      "skipped": 0,
+      "durationMs": 154289.662
+    },
+    "allDoneRouteSmoke": {
+      "expected": 1,
+      "unexpected": 0,
+      "flaky": 0,
+      "skipped": 0,
+      "durationMs": 148398.118
+    },
+    "mobileWorkflowTodos": {
+      "status": "PASSED",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "dimensions": {
+        "viewportWidth": 390,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "mainWidth": 390
+      },
+      "forbiddenCount": 0,
+      "browserErrors": 0,
+      "serverErrors": 0,
+      "networkFailures": 0,
+      "screenshot": "docs/release/evidence/p5-second-fresh-drill-20260612/14-role-journeys/postdeploy-ab213/mobile-clinical-decision-user-workflow-todos-after.png"
+    },
+    "coreReadinessProbe": "docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json"
+  }
+}
