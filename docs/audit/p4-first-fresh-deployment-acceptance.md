@@ -2,7 +2,7 @@
 
 > 日期：2026-06-12
 > 阶段：P4 134 首轮演练，第 1 个检查点
-> 结论：V116 清库发布仅作为历史检查点；V117 已从精确主线 `1876aec72f459b4980f8aa769f4caf7ce5afc7b1` 重建、备份、隔离恢复、部署并完成真实 UI 首发接管。进入 14 角色 P4 全流程前，需先合并并重发本轮演练暴露的两个小修复。
+> 结论：V116 清库发布仅作为历史检查点；V117 已完成真实 UI 首发接管。本轮演练暴露的首发成功页、接管码交付文件和前端发布包扩展属性噪声问题已通过 PR #563/#564/#565 合并并从精确主线 `090e4155d90b74bc90259200483e8f4d7ecf6cbf` 重建、备份、隔离恢复、干净重发。`090e4155` 是当前 P4 首轮演练有效运行基线。
 > 产品口径：正式生产知识前环境一律按全新处理，不保留旧包、旧库、旧角色、旧菜单、旧演练数据或迁移兼容负担；每次清库仍须先备份、验证恢复并留痕。
 
 ## 1. 清库前门禁
@@ -61,10 +61,10 @@
 
 因此当前没有正式知识资产，也没有绑定任何服务器 IP、存储厂商、本地目录或非加密 HTTP。正式知识生产仍被门禁阻断；P6 前必须在系统配置页维护经批准的 COS/S3/OSS/OBS/MinIO/HTTPS 网关受管 URI。
 
-## 5. 已知非阻断项
+## 5. 已知项处理状态
 
-- 前端 tar 在 GNU tar 解包时提示 macOS `LIBARCHIVE.xattr.com.apple.provenance` 扩展头未知；511 个文件完成解包，发布与健康检查通过。后续应在制品打包脚本中排除该扩展属性，减少部署噪声。
-- 当前运行提交尚未合并 `origin/main`；本分支需完成门禁、PR、CI 和合并。若合并前主线出现运行时实质变更，必须重新构建并评估重发。
+- 前端 tar 在 GNU tar 解包时提示 macOS `LIBARCHIVE.xattr.com.apple.provenance` 扩展头未知的问题已在 PR #565 修复：`mk-publish.sh` 使用 `COPYFILE_DISABLE=1 tar --no-xattrs -czf`，并由 `deploy/onprem/tests/validate-mk-publish-package.sh` 纳入 CI guard。`090e4155` 真实重发日志验证 `tar_xattr_noise=NO`。
+- 当前运行提交已合并 `origin/main=090e4155d90b74bc90259200483e8f4d7ecf6cbf`；本报告记录本轮证据状态。
 
 ## 6. 发布前复核追加
 
@@ -137,4 +137,42 @@
 - `git diff --check`：通过。
 - `.github/workflows/ci.yml` 的 `guard-rules` 已纳入 `deploy/onprem/tests/validate-medkernel-deploy.sh`，后续 PR 会自动覆盖该发布脚本契约。
 
-上述修复尚未提交、PR、CI、合并和重发；14 角色 P4 全流程前必须先完成这一小批次闭环。
+上述修复已通过 PR #563 合并并在后续 `090e4155` 重发中生效；14 角色 P4 全流程前不再以这两项为阻断。
+
+## 11. PR #563/#564/#565 收敛与发布噪声根因
+
+| 项 | 结果 |
+|---|---|
+| PR #563 | `a85da9533a67ad569585966500aa68b87eca4f67`，CI 8/8 通过，修复首发成功页抢占和接管码交付文件同步 |
+| PR #564 | `e5f301e030606d5fb8bcb22935511030820899d4`，CI 8/8 通过，将发布包契约纳入 CI，但真实重发仍复现 xattr 噪声 |
+| PR #565 | `090e4155d90b74bc90259200483e8f4d7ecf6cbf`，CI 8/8 通过，加入 `--no-xattrs` 并收紧发布包契约 |
+| #563/#564 有效备份 | `/zoesoft/medkernel/backups/p4-e5f301e-predeploy-20260612-160836`，隔离恢复 `117|117`、178 张表、知识 `0|0|0|0|0|0` |
+| #563/#564 发布 | `/zoesoft/medkernel/backups/deploy-20260612-160953`，服务健康但 `tar_xattr_noise=YES` |
+| #565 根因探针 | `COPYFILE_DISABLE=1` 默认包在 Linux GNU tar 上复现 `LIBARCHIVE.xattr.com.apple.provenance`；`COPYFILE_DISABLE=1 tar --no-xattrs -czf` 包在 Linux GNU tar 上 stderr 为空，257 个条目 |
+| 失败留痕 | `/zoesoft/medkernel/backups/p4-e5f301e-predeploy-20260612-160749/evidence/predeploy-backup.properties`，备份目录权限导致 `pg_dump` 写入失败，`destructive_action_performed=false` |
+
+根因：macOS 构建产物带 `com.apple.provenance` xattr；BSD tar 在未显式 `--no-xattrs` 时会写入 `LIBARCHIVE.xattr.*` PAX 扩展头。`COPYFILE_DISABLE=1` 只避免 AppleDouble 文件，不足以阻止 xattr PAX 头进入发布包。
+
+## 12. 090e4155 干净重发与独立验收
+
+| 检查项 | 结果 |
+|---|---|
+| 精确主线 | `origin/main=090e4155d90b74bc90259200483e8f4d7ecf6cbf` |
+| 后端制品 SHA-256 | `6ec6f7845051e66215cbc7a6979e1e473fc18cb3f21ad01d68d8f829f5067982` |
+| 前端上传包 SHA-256 | `0d3815060ca9d634ba97473bc60534e9bdf3cd6816f54989a7f191a0d6b5c7ce` |
+| 预发布备份 | `/zoesoft/medkernel/backups/p4-090e4155-predeploy-20260612-162338` |
+| 隔离恢复 | `restore_flyway=117|117`、`restore_public_base_tables=178`、`restore_knowledge_counts=0|0|0|0|0|0` |
+| 程序发布自动备份 | `/zoesoft/medkernel/backups/deploy-20260612-162418` |
+| 发布证据 | `/zoesoft/medkernel/backups/p4-090e4155-predeploy-20260612-162338/evidence/deploy-090e4155.properties` 与 `deploy-090e4155.log` |
+| Post-deploy 证据 | `/zoesoft/medkernel/backups/p4-090e4155-predeploy-20260612-162338/evidence/post-deploy-090e4155.properties` |
+| manifest | `source/commit=090e4155d90b74bc90259200483e8f4d7ecf6cbf` |
+| 制品匹配 | `jar_matches_expected=YES`、`frontend_upload_matches_expected=YES` |
+| 服务健康 | `medkernel|nginx|postgresql = active|active|active`，HTTP readiness 200，HTTPS readiness 200 |
+| Flyway / 表数 | `117|117`，public 基表 178 |
+| 首发身份 | `platform_admin_credential=1|platform-admin:N:ACTIVE:MFA_SET`，`system_superadmin_assignment=1` |
+| 接管令牌 | `active_bootstrap_tokens=0`，`token_file_matches_env=YES`，`token_file_mode_owner=600|medkernel|medkernel`，`deploy_log_has_secret=NO` |
+| 发布噪声 | `tar_xattr_noise=NO` |
+| 文献资料库根地址 | 长度 0，元数据 `SYSTEM|PLATFORM_SEED|Y|Y|1`，仍未正式配置 |
+| 知识数据 | `0|0|0|0|0|0` |
+
+裁决：`090e4155` 是当前 P4 首轮演练的有效运行基线。正式知识生产继续阻断；下一步是从真实前台执行 14 角色 P4 全流程。
