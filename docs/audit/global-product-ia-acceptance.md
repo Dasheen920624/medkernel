@@ -4,7 +4,7 @@
 > 阶段：P2 全系统产品门禁  
 > 结论：通过，可在提交后进入 P3 演练前发布准备；本报告生成时尚未对 `193.112.107.134` 执行外向操作。
 > P3 追加：`2026-06-12` 已完成 134 首轮现场核验、前置备份和隔离恢复验证，最新状态见 [P3 演练前发布准备验收报告](p3-release-prep-acceptance.md)。
-> P4 追加：`2026-06-12` 已在最终备份恢复通过后完成清库、V1-V116 从零迁移与全新候选部署，最新状态见 [P4 首次全新部署验收报告](p4-first-fresh-deployment-acceptance.md)。
+> P4 追加：`2026-06-12` 已在最终备份恢复通过后完成清库、V1-V116 从零迁移与全新候选部署；发布前复核又新增 V117 修正 Oracle 空字符串语义，134 必须重发 V117 精确主线制品后才可初始化。最新状态见 [P4 首次全新部署验收报告](p4-first-fresh-deployment-acceptance.md)。
 > 新增硬约束：`193.112.107.134` 是后续主平台知识管理服务器；任何平台知识生成必须等全功能完美验收、结构冻结和第一阶段正式验收通过后才能开始，避免生成知识后反复改结构。
 > 追加存储门禁：正式文献资料不得落本地 `tmp`。系统配置页可查看维护“平台知识文献资料库根地址”；初始状态必须为“未配置”，管理员可维护 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，但产品不得预设厂商地址。
 
@@ -29,7 +29,7 @@
 | 全页面可打开性 E2E | 通过 | `frontend/e2e/all-done-route-smoke.spec.ts` 遍历真实角色全部授权页面 |
 | 全中文与技术对象清理 | 通过 | `customerLanguageGate.test.ts`、`npm run verify`、真实性门禁全仓扫描 |
 | 六态与桌面/移动端 | 通过 | 页面测试、E2E 移动端用例、Browser 登录页冒烟 |
-| 平台知识文献资料库根地址 | 通过 | 配置中心键 `medkernel.knowledge.literature.material-root-uri` 初始为空并显示“未配置”；V116 五方言迁移允许 `PLATFORM_SEED`；只能由系统配置页维护；兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI；禁止厂商默认值、`tmp`、`file://`、本机临时目录和非加密 HTTP |
+| 平台知识文献资料库根地址 | 通过 | 配置中心键 `medkernel.knowledge.literature.material-root-uri` 初始为空并显示“未配置”；V116 允许 `PLATFORM_SEED`，V117 统一五方言未配置空值语义；只能由系统配置页维护；兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI；禁止厂商默认值、`tmp`、`file://`、本机临时目录和非加密 HTTP |
 | P0/P1 与阻断主任务 P2 | 清零 | 当前仅保留非阻断环境类延期项，见 `DEFER-023` |
 
 ## 3. 八视角复核
@@ -50,18 +50,18 @@
 | 类别 | 命令 | 结果 |
 |---|---|---|
 | 后端全量 | `mvn -q test` | Surefire 340 份报告，2214 tests，0 failures，0 errors，0 skipped；退出码 0，末尾有测试 JVM 关闭期调度线程连接噪声 |
-| 五方言静态合同 | `MigrationBaselineContractTest` | 102 tests，0 failures，0 errors，覆盖 h2/postgres/oracle/dm/kingbase 迁移静态合同 |
-| 容器迁移烟测 | `mvn -q -Dtest=FlywayMultiDialectSmokeTest test` | 通过；Docker Desktop 可用，Testcontainers 真实 PostgreSQL、Oracle、H2 均从空库迁移到 V116，并验证重复迁移幂等 |
+| 五方言静态合同 | `MigrationBaselineContractTest` | 103 tests，0 failures，0 errors，覆盖 h2/postgres/oracle/dm/kingbase 迁移静态合同 |
+| 容器迁移烟测 | `mvn -q -Dtest=FlywayMultiDialectSmokeTest test` | 通过；Docker Desktop 可用，Testcontainers 真实 PostgreSQL、Oracle、H2 均从空库迁移到 V117，验证当前值与历史回滚值可持久化未配置状态及重复迁移幂等 |
 | 前端完整验证 | `npm run verify` | lint、stylelint、规则测试、format、typecheck、Vitest 89 files / 649 tests 全通过 |
 | 前端构建 | `npm run build` | TypeScript + Vite production build 通过，3408 modules transformed |
 | 全量 E2E | `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 E2E_BASE_URL=http://127.0.0.1:5173 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npx playwright test --project=chromium` | 31 passed，覆盖 14 角色、全授权路由、桌面/平板/移动旅程 |
 | T-GATE 自测 | `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/git-scan-files.test.mjs scripts/migration-convention-guard.test.mjs` | 40 tests passed |
 | 真实性门禁 | `node scripts/authenticity-guard.mjs --mode=all` | 扫描 1582 个文件，0 阻断 |
 | 配置边界门禁 | `node scripts/config-boundary-guard.mjs --mode=all` | 扫描 1492 个文件，0 阻断 |
-| 迁移规约门禁 | `node scripts/migration-convention-guard.mjs --mode=all` | 扫描 580 个文件，0 阻断 |
+| 迁移规约门禁 | `node scripts/migration-convention-guard.mjs --mode=all` | 扫描 585 个文件，0 阻断 |
 | 中文注释门禁 | `scripts/check-comment-zh.sh` | 0 fail，0 warn |
 | 产品目录门禁 | `node scripts/audit/export-product-capabilities.mjs --check` | 退出码 0，目录与裁决一致 |
-| 知识文献资料配置后端 | `mvn -q -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration test` | 通过；H2 空库迁移到 V116，配置中心平台种子初始为空，`tmp/file/http` 类非法地址被拒绝，S3 等受管 URI 可高风险维护 |
+| 知识文献资料配置后端 | `mvn -q -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest test` | 通过；H2 空库迁移到 V117，配置中心平台种子初始为空，数据库 `NULL` 读取为空字符串，正式 URI 可设置后审计回滚到未配置，`tmp/file/http` 类非法地址被拒绝 |
 | 知识文献资料配置前端 | `npm test -- src/pages/compliance/SecurityBaseline.test.tsx` | 7 tests passed；系统配置页显示“平台知识文献资料”，并可编辑“平台知识文献资料库根地址” |
 | 空白检查 | `git diff --check` | 退出码 0 |
 | 本地浏览器冒烟 | Browser 打开 `http://127.0.0.1:5173/login` | 标题为“集团医疗智能中枢 · MedKernel”，登录页显示机构用户、平台治理、所在机构、统一身份入口和中文安全提示 |

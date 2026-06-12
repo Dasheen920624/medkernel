@@ -233,7 +233,7 @@ public class SystemConfigService {
             .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
         SystemConfigHistoryEntry latest = repository.findLatestHistory(SYSTEM_TENANT, normalizedKey)
             .orElseThrow(() -> ApiException.conflict("配置项没有可回滚的历史版本"));
-        String targetValue = normalizeValue(latest.beforeValue());
+        String targetValue = normalizeRollbackValue(normalizedKey, latest.beforeValue());
         validateValue(before, targetValue);
         auditSafetyGuard.assertChangeAllowed(
             new AuditConfigChangeCommand(normalizedKey, before.value(), targetValue, reason));
@@ -576,6 +576,9 @@ public class SystemConfigService {
     }
 
     private static void validateKnowledgeLiteratureMaterialRootUri(String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         boolean hasUriScheme = normalized.matches("[a-z][a-z0-9+.-]*://.+");
         String scheme = hasUriScheme ? normalized.substring(0, normalized.indexOf("://")) : "";
@@ -655,6 +658,14 @@ public class SystemConfigService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "配置值不能为空");
         }
         return value.trim();
+    }
+
+    private static String normalizeRollbackValue(String key, String value) {
+        if (KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY.equals(key)
+            && (value == null || value.isBlank())) {
+            return DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI;
+        }
+        return normalizeValue(value);
     }
 
     private static String normalizeReason(String reason) {

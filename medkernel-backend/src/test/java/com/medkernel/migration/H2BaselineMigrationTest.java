@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 116;
+    private static final int LATEST_MIGRATION_VERSION = 117;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -94,6 +94,46 @@ class H2BaselineMigrationTest {
             "SELECT COUNT(*) FROM model_capability_definition WHERE enabled_flag = 'Y'",
             Integer.class);
         assertThat(modelCapabilityCount).as("模型能力关系库目录种子").isEqualTo(8);
+
+        int nullableConfigInserted = jdbc.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, source, protected_flag, active_flag, version,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "cfg-null-h2",
+            "SYSTEM",
+            "medkernel.test.null-config.h2",
+            null,
+            "STRING",
+            "空配置跨库测试",
+            "LOW",
+            "测试",
+            "DB",
+            "N",
+            "Y",
+            1,
+            "test",
+            "test");
+        assertThat(nullableConfigInserted).as("H2 允许未配置值持久化为 NULL").isEqualTo(1);
+
+        int nullableHistoryInserted = jdbc.update("""
+            INSERT INTO mk_config_history (
+                history_id, tenant_id, config_key, before_value, after_value, change_type,
+                reason, version, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "cfg-hist-null-h2",
+            "SYSTEM",
+            "medkernel.test.null-config.h2",
+            "configured",
+            null,
+            "ROLLBACK",
+            "回滚到未配置状态",
+            2,
+            "test");
+        assertThat(nullableHistoryInserted).as("H2 允许回滚历史记录未配置值").isEqualTo(1);
     }
 
     @Test

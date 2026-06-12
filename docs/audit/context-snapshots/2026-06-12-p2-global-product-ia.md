@@ -8,7 +8,7 @@
 - 分支：`codex/global-product-ia-refactor`
 - 阶段：P2 全系统产品门禁已通过；“平台知识文献资料库根地址”配置中心追加补丁已完成本地验证，待提交推送。
 - 下一阶段：P3 演练前发布准备。进入 134 前必须先备份、留痕、确认恢复路径；不得跳过。
-- 后续更正：P3 已完成，P4 已完成首次清库、V1-V116 从零迁移和全新部署检查点；当前状态以 `docs/_HANDOFF.md` 与 `docs/audit/p4-first-fresh-deployment-acceptance.md` 为准。
+- 后续更正：P3 已完成，P4 已完成首次清库、V1-V116 从零迁移和全新部署历史检查点；发布前复核新增 V117 修正 Oracle 空字符串语义，134 重发 V117 精确主线前不得初始化。当前状态以 `docs/_HANDOFF.md` 与 `docs/audit/p4-first-fresh-deployment-acceptance.md` 为准。
 
 ## 已完成
 
@@ -28,7 +28,7 @@
 - T-GATE：40 项门禁自测通过；真实性、配置边界、迁移规约 all-mode 均 0 阻断；中文注释 0 fail / 0 warn；`git diff --check` 通过。
 - Browser 冒烟：`http://127.0.0.1:5173/login` 可打开，显示中文登录、平台治理切换、所在机构和统一身份入口。
 - 追加聚焦：`mvn -q -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration test` 通过；`npm --prefix frontend test -- src/pages/compliance/SecurityBaseline.test.tsx` 7 tests 通过。
-- Docker 容器烟测：本机 Docker Desktop 已恢复；旧 `medkernel-dev-*`、`medkernel-dify-*` 和过期 Oracle 容器已清理；`mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 通过，真实 PostgreSQL、Oracle、H2 均迁移到 V116。
+- Docker 容器烟测：本机 Docker Desktop 已恢复；旧 `medkernel-dev-*`、`medkernel-dify-*` 和过期 Oracle 容器已清理；`mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 通过，真实 PostgreSQL、Oracle、H2 均迁移到 V117，并验证当前值、历史回滚值可持久化未配置状态和重复迁移幂等。
 
 ## 风险与未冒领
 

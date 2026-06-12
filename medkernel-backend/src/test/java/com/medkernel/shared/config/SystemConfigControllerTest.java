@@ -330,6 +330,39 @@ class SystemConfigControllerTest {
 
         assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
             .isEqualTo(yearlyManagedStorageUri);
+
+        mvc.perform(post("/api/v1/system/configs/{key}/rollback",
+                KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "演练回滚到未配置状态",
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value(""))
+            .andExpect(jsonPath("$.data.version").value(3));
+
+        assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    void nullableUnconfiguredValueIsReturnedAsEmptyString() throws Exception {
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = NULL
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
+
+        mvc.perform(get("/api/v1/system/configs")
+                .queryParam("prefix", "medkernel.knowledge.literature."))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].key")
+                .value(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+            .andExpect(jsonPath("$.data[0].value").value(""));
     }
 
     @Test

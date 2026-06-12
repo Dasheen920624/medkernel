@@ -155,8 +155,24 @@ class MigrationBaselineContractTest {
         "V113__batch_inheritance_resolution_indexes.sql",
         "V114__terminology_global_potassium_sodium_rule.sql",
         "V115__knowledge_customization_personnel_master.sql",
-        "V116__platform_seed_config_source.sql"
+        "V116__platform_seed_config_source.sql",
+        "V117__nullable_unconfigured_system_config.sql"
     );
+
+    @Test
+    void unconfiguredSystemConfigValueIsNullableAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(
+                dialect, "V117__nullable_unconfigured_system_config.sql");
+            assertThat(ddl)
+                .as("%s 配置中心必须允许未配置值", dialect)
+                .containsIgnoringCase("mk_config_item")
+                .containsIgnoringCase("config_value")
+                .containsIgnoringCase("mk_config_history")
+                .containsIgnoringCase("after_value")
+                .containsIgnoringCase("null");
+        }
+    }
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
         "audit_event", "source_document", "source_version",

@@ -166,7 +166,7 @@ public class SystemConfigRepository {
         return new SystemConfigItem(
             rs.getString("tenant_id"),
             rs.getString("config_key"),
-            rs.getString("config_value"),
+            emptyIfNull(rs.getString("config_value")),
             rs.getString("value_type"),
             rs.getString("display_name"),
             rs.getString("risk_level"),
@@ -184,12 +184,16 @@ public class SystemConfigRepository {
         return new SystemConfigHistoryEntry(
             rs.getString("tenant_id"),
             rs.getString("config_key"),
-            rs.getString("before_value"),
-            rs.getString("after_value"),
+            emptyIfNull(rs.getString("before_value")),
+            emptyIfNull(rs.getString("after_value")),
             rs.getString("change_type"),
             rs.getLong("version"),
             createdAt == null ? null : createdAt.toInstant(),
             rs.getString("created_by"));
+    }
+
+    private static String emptyIfNull(String value) {
+        return value == null ? "" : value;
     }
 
     private static String flag(boolean value) {

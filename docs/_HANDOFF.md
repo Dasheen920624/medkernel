@@ -2,10 +2,11 @@
 
 ## 2026-06-12 P4 首轮全新部署与真实前台演练
 
-- 当前分支：`codex/p3-release-134`，`HEAD=ec9901bf20976e0c4846713237510679ca698c35`，基于 `origin/main=28d900cd6cce0d729b5260a0762198142a74bcb7`。
+- 当前分支：`codex/p3-release-134`，基于 `origin/main=28d900cd6cce0d729b5260a0762198142a74bcb7`。
 - P3 演练前发布准备已完成，权威报告：[P3 演练前发布准备验收报告](audit/p3-release-prep-acceptance.md)。
-- P4 已完成 134 清库前最终备份、隔离恢复、空库重建、V1-V116 从零迁移和 `ec9901bf` 候选部署；权威报告：[P4 首次全新部署验收报告](audit/p4-first-fresh-deployment-acceptance.md)。
-- 当前 134 是未初始化的全新平台：`GET /api/v1/bootstrap/status` 返回 `initialized=false`。下一步从 `/bootstrap` 开始真实前台演练，不复用旧账号、旧租户、旧业务数据或旧知识资产。
+- P4 已完成 134 清库前最终备份、隔离恢复、空库重建、V1-V116 从零迁移和 `ec9901bf` 候选部署；该现场仅作为历史检查点，权威报告：[P4 首次全新部署验收报告](audit/p4-first-fresh-deployment-acceptance.md)。
+- 发布前复核发现 Oracle 将空字符串持久化为 `NULL`，而 V31 的配置当前值和历史变更后值原为 `NOT NULL`。当前分支已新增 V117，在五方言放宽“未配置”值为空，并在读取层统一归一为空字符串；真实 PostgreSQL、Oracle、H2 从空库迁移、设置后回滚到未配置和重复迁移均通过。
+- 当前 134 仍运行 V116，虽保持未初始化且 `GET /api/v1/bootstrap/status` 返回 `initialized=false`，但首次初始化门禁已暂停。必须先完成 V117 提交、PR、CI、合并，从精确 `origin/main` 重建并备份后重发，才可从 `/bootstrap` 开始真实前台演练。
 - 正式知识生产仍未放行：`medkernel.knowledge.literature.material-root-uri` 当前为空，来源 `PLATFORM_SEED`、受保护、版本 1；必须在系统配置页维护正式受管 URI 后，且 P4/P5、第一阶段正式验收和结构冻结全部通过，才能进入 P6。
 - 长目标持续绑定当前 Codex 会话；上下文过长时只在本会话内压缩整理，不创建、切换或引导用户进入新线程。
 
@@ -36,6 +37,7 @@
 - 本地聚焦后端：`SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration` 通过。
 - 本地聚焦前端：`SecurityBaseline.test.tsx` 7/7 通过。
 - 本地扩展后端：`SystemConfigControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest` 通过。
+- 本地五方言迁移：V117 静态合同、H2 基线、Testcontainers 真实 PostgreSQL/Oracle/H2 从空库迁移与重复迁移通过；三种真实数据库均验证当前值和历史回滚值可持久化未配置状态。
 - 本地生产构建：后端 `mvn -f medkernel-backend/pom.xml -DskipTests clean package` 和前端 `npm --prefix frontend run build` 通过。
 - 远端空库预检：临时 PostgreSQL 数据库从 V1 迁移至 V116，116 条迁移、178 张表、15 个角色、2 条平台职责、30 个菜单权限，候选进程 health 200，文献根地址为空；临时库和 18089 进程已清理。
 - 正式清库后独立复核：manifest、jar SHA、systemd、内外 health、Flyway V116、178 张表、基线治理数据、空文献根地址和 0 知识资产均通过。
@@ -44,14 +46,16 @@
 
 - 旧库 V6/V25/V43 与当前迁移文件校验和不一致；这是历史迁移被原地修改的结果。项目尚未上线且用户明确要求全新处理，因此未执行 Flyway repair、未新增历史兼容迁移，也不保留旧演练数据。
 - `ec9901bf` 当前仍是工作分支候选，尚未合并 `origin/main`；完成文档门禁后必须推送、PR、CI、合并。若主线发生实质漂移，应重新构建并评估是否需要重发。
+- 134 当前 V116 不再具备首次初始化放行资格；V117 精确主线制品部署并验证前，不得创建首位管理员。
 - 前端 tar 解包出现 macOS `LIBARCHIVE.xattr.com.apple.provenance` 扩展头警告，不影响 511 个文件解包和健康检查；后续制品脚本应考虑排除该扩展属性。
 - 134 尚未完成首次管理员初始化、14 角色真实前台全流程、首轮问题登记、第二轮重演、第一阶段正式验收、结构冻结、正式存储配置或知识生成。
 
 ## 下一步
 
-1. 完成本分支文档门禁、提交、推送、PR、CI 和合并。
-2. 在 134 `/bootstrap` 走首次部署引导，凭证只保存在既有受控凭证位置，不写仓库、不打印到日志。
-3. 从真实前台按角色完成 P4 首轮全流程；API 只用于模拟外部系统或铺设无关前置。
-4. 发现不合理功能时登记、复现、定根因、写失败测试并重构，不为旧演练数据或旧包保留兼容负担。
-5. P4 完整问题清单关闭后，重新清库并执行 P5 第二轮完整重演；不得复用首轮业务结果冒充通过。
-6. P5 与第一阶段正式验收通过、结构冻结后，才可在系统配置页维护正式文献资料库受管 URI并进入 P6。
+1. 完成 V117 与文档门禁、提交、推送、PR、CI 和合并。
+2. 从合并后的精确 `origin/main` 重建制品；对 134 再做即时备份和隔离恢复后受控重发，验证 Flyway V117、`config_value` 可空、配置读取为空字符串以及内外健康。
+3. 在 134 `/bootstrap` 走首次部署引导，凭证只保存在既有受控凭证位置，不写仓库、不打印到日志。
+4. 从真实前台按角色完成 P4 首轮全流程；API 只用于模拟外部系统或铺设无关前置。
+5. 发现不合理功能时登记、复现、定根因、写失败测试并重构，不为旧演练数据或旧包保留兼容负担。
+6. P4 完整问题清单关闭后，重新清库并执行 P5 第二轮完整重演；不得复用首轮业务结果冒充通过。
+7. P5 与第一阶段正式验收通过、结构冻结后，才可在系统配置页维护正式文献资料库受管 URI并进入 P6。
