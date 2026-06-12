@@ -223,6 +223,28 @@ public class TerminologyService {
     }
 
     /**
+     * 驳回待确认候选；不创建映射、不改动院内术语状态，只留驳回理由与审计责任人。
+     *
+     * <p>这是高危错配候选（如钾/钠互斥近似）的安全处置出口；驳回理由必填。
+     */
+    @Transactional
+    public MappingCandidate rejectCandidate(Long candidateId, TerminologyCandidateRejectRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
+        String userId = currentUserId();
+        Instant now = Instant.now();
+        MappingCandidate candidate = candidateRepository.findByTenantIdAndId(tenantId, candidateId)
+            .orElseThrow(() -> ApiException.notFound("映射候选 id=" + candidateId));
+        if (candidate.status() != MappingCandidateStatus.PENDING) {
+            throw ApiException.conflict("映射候选 id=" + candidateId + " 不是待确认状态");
+        }
+        String reviewNote = request.reviewNote() == null ? "" : request.reviewNote().trim();
+        if (reviewNote.isEmpty()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "驳回理由不能为空");
+        }
+        return candidateRepository.save(candidate.rejected(reviewNote, userId, now));
+    }
+
+    /**
      * 批量确认普通候选；如果包含高危候选，整批拒绝且不落任何映射。
      */
     @Transactional

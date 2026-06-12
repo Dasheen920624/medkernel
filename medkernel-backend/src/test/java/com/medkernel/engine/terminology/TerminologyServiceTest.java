@@ -411,6 +411,43 @@ class TerminologyServiceTest {
     }
 
     @Test
+    void rejectCandidateMarksCandidateRejectedWithoutCreatingMapping() {
+        MappingCandidate candidate = candidate(10L, MappingCandidateStatus.PENDING, TermRiskLevel.HIGH);
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MappingCandidate rejected = service.rejectCandidate(10L, rejectRequest("钾/钠互斥高危错配，标准侧为血清钠，驳回"));
+
+        assertThat(rejected.status()).isEqualTo(MappingCandidateStatus.REJECTED);
+        assertThat(rejected.reviewNote()).isEqualTo("钾/钠互斥高危错配，标准侧为血清钠，驳回");
+        assertThat(rejected.reviewedBy()).isEqualTo("u-99");
+        assertThat(rejected.reviewedAt()).isNotNull();
+        verify(mappingRepository, Mockito.never()).save(any(TermMapping.class));
+        verify(localTermRepository, Mockito.never()).save(any(LocalTerm.class));
+    }
+
+    @Test
+    void rejectCandidateRequiresReviewNote() {
+        MappingCandidate candidate = candidate(10L, MappingCandidateStatus.PENDING, TermRiskLevel.HIGH);
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+
+        assertThatThrownBy(() -> service.rejectCandidate(10L, rejectRequest("  ")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("驳回理由");
+        verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
+    }
+
+    @Test
+    void rejectCandidateRejectsNonPendingCandidate() {
+        MappingCandidate candidate = candidate(10L, MappingCandidateStatus.CONFIRMED, TermRiskLevel.LOW);
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+
+        assertThatThrownBy(() -> service.rejectCandidate(10L, rejectRequest("重复驳回")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("不是待确认状态");
+    }
+
+    @Test
     void writeRequestRejectsTenantMismatch() {
         assertThatThrownBy(() -> service.generateCandidates(candidateGenerationRequest("t-2")))
             .isInstanceOf(ApiException.class)
@@ -957,6 +994,14 @@ class TerminologyServiceTest {
             "req-api04-confirm", "trace-api04-confirm", "t-1", "g-1", "h-1", "c-1", "s-1",
             "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
             "专家逐条确认", null, acknowledged, reason
+        );
+    }
+
+    private TerminologyCandidateRejectRequest rejectRequest(String reviewNote) {
+        return new TerminologyCandidateRejectRequest(
+            "req-api04-reject", "trace-api04-reject", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("diagnostic-service-user"), "pkg-2026.06",
+            reviewNote
         );
     }
 

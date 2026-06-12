@@ -232,6 +232,38 @@ record TerminologyCandidateConfirmRequest(
 }
 
 /**
+ * 驳回候选映射请求体。
+ *
+ * <p>驳回是高危错配候选的安全处置出口，必须填写可追溯的驳回理由。
+ */
+record TerminologyCandidateRejectRequest(
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
+    @NotBlank @Size(max = 500) String reviewNote
+) implements TerminologyContextRequest {
+    TerminologyCandidateRejectRequest {
+        roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+    }
+
+    public TerminologyApiContext context() {
+        return TerminologyApiContext.from(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion
+        );
+    }
+}
+
+/**
  * 批量确认候选请求体；服务层会拒绝任何高风险候选。
  */
 record TerminologyCandidateBatchConfirmRequest(

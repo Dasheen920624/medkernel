@@ -42,6 +42,14 @@ public record MappingCandidate(
         );
     }
 
+    MappingCandidate rejected(String note, String userId, Instant now) {
+        return new MappingCandidate(
+            id, tenantId, localTermId, standardTermId, confidence, candidateSource,
+            riskLevel, evidenceText, conflictFlag, MappingCandidateStatus.REJECTED,
+            note, userId, now, createdAt, createdBy, now, userId
+        );
+    }
+
     MappingCandidate withConflictFlag(boolean nextConflictFlag, String userId, Instant now) {
         return new MappingCandidate(
             id, tenantId, localTermId, standardTermId, confidence, candidateSource,

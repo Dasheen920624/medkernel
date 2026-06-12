@@ -1836,6 +1836,28 @@ export function useConfirmTerminologyCandidate() {
   });
 }
 
+export function useRejectTerminologyCandidate() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      candidateId: number;
+      request: { packageVersion: string; reviewNote: string };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: TermMappingCandidate }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/${payload.candidateId}/reject`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "conflicts"] });
+    },
+  });
+}
+
 export function useBatchConfirmTerminologyCandidates() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();

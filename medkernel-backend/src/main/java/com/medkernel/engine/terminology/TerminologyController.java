@@ -190,6 +190,17 @@ public class TerminologyController {
     }
 
     /**
+     * 驳回指定待确认候选；高危错配候选的安全处置出口，驳回理由必填。
+     */
+    @PostMapping("/mappings/{id}/reject")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<TerminologyCandidateResponse> rejectCandidate(@PathVariable Long id,
+            @Valid @RequestBody TerminologyCandidateRejectRequest request) {
+        validateContext(request);
+        return ApiResult.ok(TerminologyCandidateResponse.from(service.rejectCandidate(id, request)));
+    }
+
+    /**
      * 批量确认普通候选；任何高危候选都会被服务层拒绝。
      */
     @PostMapping("/mappings/batch-confirm")

@@ -1,0 +1,191 @@
+{
+  "act": "P5幕2-术语与字典（跨角色）",
+  "generatedAt": "2026-06-12T15:48:15.193Z",
+  "environment": "https://193.112.107.134",
+  "credentialSource": "/tmp/p5-14-role-drill-credentials-20260612.json",
+  "failures": [],
+  "seed": {
+    "standardResults": [
+      {
+        "termCode": "2823-3",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "termCode": "2951-2",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "termCode": "J15.9",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "termCode": "B01AA03",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "termCode": "B01AC06",
+        "status": 200,
+        "ok": true
+      }
+    ],
+    "localResults": [
+      {
+        "localCode": "K001",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "localCode": "Y2035",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "localCode": "Y1011",
+        "status": 200,
+        "ok": true
+      },
+      {
+        "localCode": "ZD0456",
+        "status": 200,
+        "ok": true
+      }
+    ],
+    "generationResults": [
+      {
+        "sourceSystem": "P5-LIS",
+        "status": 200,
+        "ok": true,
+        "generatedCount": 2
+      },
+      {
+        "sourceSystem": "P5-HIS",
+        "status": 200,
+        "ok": true,
+        "generatedCount": 3
+      }
+    ],
+    "pendingCandidates": [
+      {
+        "id": 5,
+        "riskLevel": "LOW",
+        "highRiskFlag": false,
+        "semanticMatchScore": 0.96,
+        "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `肺炎`，院内词=社区获得性肺炎，标准词=细菌性肺炎"
+      },
+      {
+        "id": 4,
+        "riskLevel": "LOW",
+        "highRiskFlag": false,
+        "semanticMatchScore": 0.96,
+        "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `阿司匹林`，院内词=阿司匹林肠溶片100mg，标准词=阿司匹林"
+      },
+      {
+        "id": 3,
+        "riskLevel": "LOW",
+        "highRiskFlag": false,
+        "semanticMatchScore": 0.96,
+        "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `华法林钠`，院内词=华法林钠片2.5mg，标准词=华法林"
+      },
+      {
+        "id": 2,
+        "riskLevel": "LOW",
+        "highRiskFlag": false,
+        "semanticMatchScore": 0.96,
+        "evidenceText": "确定性语义匹配：同义词/缩写别名命中 `血钾`，院内词=血钾，标准词=血清钾"
+      },
+      {
+        "id": 1,
+        "riskLevel": "HIGH",
+        "highRiskFlag": true,
+        "semanticMatchScore": 0.5,
+        "evidenceText": "高危近似判别：钾/钠高危近似，候选仅供人工复核，禁止批量确认，必须逐条二次确认"
+      }
+    ],
+    "openConflicts": [
+      {
+        "id": 1,
+        "conflictType": "ONE_TO_MANY",
+        "riskLevel": "HIGH",
+        "description": "院内术语 id=1 命中 2 个标准候选 [2, 1]，待人工裁决"
+      }
+    ]
+  },
+  "diagnosticServiceUser": {
+    "observations": {
+      "highRiskAlertVisible": false,
+      "batchDeniedHintVisible": false,
+      "conflictPanelVisible": false,
+      "confirmPrimaryEnabled": true,
+      "confirmModalTitle": "确认高危候选",
+      "confirmModalEvidence": "确认高危候选\n高危近似判别：钾/钠高危近似，候选仅供人工复核，禁止批量确认，必须逐条二次确认\n已逐条核对高危近似风险\n高危确认理由\n取 消\n提交确认",
+      "queueHeadIsWrongPair": true,
+      "candidateRejectEntryCount": 0,
+      "batchConfirmEnabled": false
+    },
+    "steps": [
+      {
+        "label": "医技协同人员打开术语与字典页",
+        "screenshot": "01-ui-terminology-overview-diagnostic.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      },
+      {
+        "label": "确认候选弹窗（核对当前队首候选与证据）",
+        "screenshot": "02-ui-terminology-confirm-modal-highrisk.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      },
+      {
+        "label": "候选批量确认按钮状态与冲突待裁面板",
+        "screenshot": "03-ui-terminology-batch-and-conflicts.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      }
+    ]
+  },
+  "knowledgeGovernor": {
+    "observations": {
+      "buildPackageEnabled": false,
+      "publishPackageEnabled": false
+    },
+    "steps": [
+      {
+        "label": "机构知识治理员视角：映射包构建/发布入口",
+        "screenshot": "04-ui-terminology-package-actions-governor.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      }
+    ]
+  },
+  "organizationAdmin": {
+    "observations": {
+      "terminologyForbidden": true,
+      "configPackagesAccessible": true,
+      "fullReleaseHintVisible": false
+    },
+    "steps": [
+      {
+        "label": "机构管理员访问术语与字典页的路由边界",
+        "screenshot": "05-ui-terminology-orgadmin-boundary.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      },
+      {
+        "label": "机构管理员打开配置包与发布页（全量发布承载页）",
+        "screenshot": "06-ui-config-packages-orgadmin.png",
+        "url": "https://193.112.107.134/tenant/packages"
+      }
+    ]
+  },
+  "integrationOperator": {
+    "observations": {
+      "createAdapterEnabled": true
+    },
+    "steps": [
+      {
+        "label": "集成运维员打开系统接入页（发布同步通道前置）",
+        "screenshot": "07-ui-adapter-hub-integration.png",
+        "url": "https://193.112.107.134/adapter/hub"
+      }
+    ]
+  }
+}
