@@ -523,6 +523,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     requiredPermissions: ["menu.terminology-mapping", "term.read"],
     requiredRoles: [
       "integration-operator",
+      "implementation-operator",
       "platform-knowledge-governor",
       "knowledge-governor",
       "diagnostic-service-user",
@@ -784,6 +785,7 @@ const routeMetaInputs: RouteMetaInput[] = [
       "platform-governance-admin",
       "platform-knowledge-governor",
       "knowledge-governor",
+      "implementation-operator",
       "clinical-governor",
       "quality-governor",
       "medication-safety-user",
@@ -837,6 +839,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     requiredRoles: [
       "identity-access-admin",
       "integration-operator",
+      "implementation-operator",
       "platform-governance-admin",
       "organization-admin",
     ],

@@ -245,3 +245,37 @@ d432 复验结论：后端守卫与 CSV BOM 修复已部署，但 implementation
 - `bash scripts/check-comment-zh.sh`、authenticity/config/migration guards、`git diff --check`：通过。
 
 待闭环：前端路由补丁需提交 PR、CI、合并、重新备份部署并复验 implementation-operator `/admin/users`。
+
+## 15. b685 部署与菜单守卫聚合修复
+
+| 检查项 | 结果 |
+|---|---|
+| PR / 主线 | PR #568 squash merge，`b68502e78e5697c68122355ae19ac1fd62260a6b`，CI 8/8 通过 |
+| 发布前有效备份 | `/zoesoft/medkernel/backups/p4-b685-predeploy-20260612-181139` |
+| 有效备份隔离恢复 | `117|117`、178 张 public 基表、知识 `0|0|0|0|0|0`、文献资料库根地址长度 0 |
+| 程序发布自动备份 | `/zoesoft/medkernel/backups/deploy-20260612-181202` |
+| Post-deploy 证据 | `/zoesoft/medkernel/backups/p4-b685-predeploy-20260612-181139/evidence/post-deploy-b685.properties` |
+| manifest | `source/commit=b68502e78e5697c68122355ae19ac1fd62260a6b` |
+| 服务健康 | `medkernel|nginx|postgresql = active|active|active`，HTTP/HTTPS readiness 200 |
+| Flyway / 表数 | `117|117`，public 基表 178 |
+| 知识与文献资料 | 知识仍为 `0|0|0|0|0|0`；文献资料库根地址仍为空 |
+
+b685 定向复验结论：implementation-operator 已可进入 `/admin/users`。通过证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/implementation-operator-admin-users-b685.json` 与同目录截图。
+
+b685 完整 14 角色菜单路由冒烟结论：仍失败，失败点为 implementation-operator 访问 `/security/identity-binding` 显示“当前权限不足”。失败证据：`docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/full-14-role-menu-smoke-b685.json` 与失败截图。
+
+聚合根因：后端 `DefaultPermissionPolicyTest` 的 14 角色默认菜单快照已授予 implementation-operator `identity-bindings`、`knowledge-governance`、`terminology-mapping`，但前端 `frontend/src/shared/config/routes.ts` 对 `/security/identity-binding`、`/knowledge/governance`、`/terminology/mapping` 的 `requiredRoles` 未同步，导致菜单可见但路由守卫拒绝。
+
+本地补丁与验证：
+
+- 红灯：`npm test -- src/shared/config/routes.test.ts` 先复现 implementation-operator 访问 `/security/identity-binding` 被拦截；新增后端默认菜单快照一致性测试后，又一次性发现 `knowledge-governance`、`terminology-mapping` 两处同类错配。
+- 修复：三条路由 `requiredRoles` 追加 `implementation-operator`；`routes.test.ts` 增加“后端默认菜单快照不得被前端路由守卫拦截”回归；`IDBIND-01`、`DICTMAP-01` 页面卡同步角色描述。
+- 绿灯：`npm test -- src/shared/config/routes.test.ts`，39/39 通过。
+- 绿灯：`mvn -f medkernel-backend/pom.xml -Dtest='DefaultPermissionPolicyTest' test`，16/16 通过。
+- 绿灯：`npm run build` 通过。
+- `bash scripts/check-comment-zh.sh`：0 fail，0 warn。
+- `node scripts/authenticity-guard.mjs --mode=all`：扫描 1582 个文件，0 阻断。
+- `node scripts/config-boundary-guard.mjs --mode=inventory`：扫描 1492 个文件，0 阻断。
+- `git diff --check`：通过。
+
+待闭环：本聚合补丁需提交 PR、CI、合并、重新备份部署；部署后重新运行完整 14 角色菜单路由冒烟，确认不再存在菜单可见但路由拒绝的产品缺陷。

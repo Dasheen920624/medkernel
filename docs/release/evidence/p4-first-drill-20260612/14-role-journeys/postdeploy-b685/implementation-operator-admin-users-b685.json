@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-06-12T10:13:09.268Z",
+  "commit": "b68502e78e5697c68122355ae19ac1fd62260a6b",
+  "role": "implementation-operator",
+  "route": "/admin/users",
+  "status": "PASSED",
+  "consoleErrors": [],
+  "failedRequests": [],
+  "heading": "人员与账号",
+  "url": "https://193.112.107.134/admin/users",
+  "deniedCount": 0,
+  "bodyPreview": "集团医疗智能中枢\n工作台\n机构治理\n服务机构\n人员与账号\n实施与验收\n系统接入\n知识配置\n配置包与发布\n质量与运营\n审计与证据\n安全与配置\n运行保障\n机构治理\n/\n人员与账号\n搜索\n审计快照\n默认\nimplementation-operator\n实施运维员\n人员与账号\n统一维护人员、任职、登录账号和院内身份来源\n新增人员\n刷新\n批量导入人员\n人员\t主要任职\t人员类型\t账号\t身份来源\t操作\n\n \n\t\n \n\t\n \n\t\n \n\t\n \n\t\n \n\n\nP4演练·临床决策医师\n人员编号：P4-EMP-005\n\t\nP4全新演练医院本部\n心血管内科 · 心内一病区 · 主治医师\n\t本机构员工\t\n账号正常\nclinical-decision-user\n\t已绑定 1 个\t\n查看\n\n\nP4演练·临床治理负责人\n人员编号：P4-EMP-004\n\t\nP4全新演练医院本部\n心血管内科 · 心内一病区 · 临床治理负责人\n\t本机构员工\t\n账号正常\nclinical-governor\n\t已绑定 1 个\t\n查看\n\n\nP4演练·人员访问管理员\n人员编号：P4-EMP-002\n\t\nP4全新演练医院本部\n心血管内科 · 心内一病区 · 访问治理专员\n\t本机构员工\t\n账号正常\nidentity-access-admin\n\t已绑定 1 个\t\n查看\n\n\nP4演练·医技协同人员\n人员编号：P4-EMP-008\n\t\nP4全新演练医院本",
+  "screenshot": "/Users/zhikunzheng/.codex/worktrees/c41d/codex/docs/release/evidence/p4-first-drill-20260612/14-role-journeys/postdeploy-b685/implementation-operator-admin-users-b685.png"
+}

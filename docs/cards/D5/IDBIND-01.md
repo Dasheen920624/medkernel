@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [SVC-COMPLIANCE-01](SVC-COMPLIANCE-01.md) 身份绑定 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `institution-governance` / menuKey `identity-bindings` / menuLabel `身份来源` / path `/security/identity-binding` / requiredPermissions `menu.identity-bindings + org.read` / requiredRoles 人员与访问管理员、集成运维员、平台治理管理员、机构管理员；绑定/解绑另需 `org.write`。
+- 路由元数据：sectionKey `institution-governance` / menuKey `identity-bindings` / menuLabel `身份来源` / path `/security/identity-binding` / requiredPermissions `menu.identity-bindings + org.read` / requiredRoles 人员与访问管理员、集成运维员、实施运维员、平台治理管理员、机构管理员；绑定/解绑另需 `org.write`。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 绑定列表 + 绑定/解绑表单 + 冲突提示 + 六态。
 - 主按钮 ≤1（新增绑定）/ 默认筛选 ≤3 / 默认角色视图（管理员）。
 - 五维 RBAC：菜单 / 动作（绑定/解绑）/ 数据（org）/ 资产 / 环境。
