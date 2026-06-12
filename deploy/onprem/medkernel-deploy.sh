@@ -6,7 +6,7 @@
 # ============================================================================
 set -uo pipefail
 
-APP_HOME=/zoesoft/medkernel
+APP_HOME="${MEDKERNEL_APP_HOME:-/zoesoft/medkernel}"
 LIB="$APP_HOME/lib/medkernel.jar"
 FE_DIR="$APP_HOME/frontend"
 ENV_FILE="$APP_HOME/conf/medkernel.env"
@@ -14,7 +14,8 @@ INCOMING_DEFAULT="$APP_HOME/incoming"
 BACKUP_ROOT="$APP_HOME/backups"
 LOG="$APP_HOME/logs/deploy.log"
 SVC=medkernel
-APP_USER=medkernel
+APP_USER="${MEDKERNEL_DEPLOY_APP_USER:-medkernel}"
+APP_GROUP="${MEDKERNEL_DEPLOY_APP_GROUP:-$APP_USER}"
 HEALTH_TIMEOUT=120
 
 PORT="$(grep -E '^SERVER_PORT=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '\r')"
@@ -47,6 +48,7 @@ MedKernel 快捷发布脚本
 
 回滚： --rollback [备份目录]   省略则回滚到最新 deploy-* 备份
 状态： --status               打印部署/服务/健康/备份概况
+运维： --sync-bootstrap-token  将 medkernel.env 内接管码同步到服务器交付文件（不输出明文）
 帮助： -h | --help
 
 约定：把新包传到 $INCOMING_DEFAULT/ （后端 *.jar 任意命名；前端打成 dist.tar.gz 内含 dist/），再执行  sudo medkernel-deploy
@@ -88,7 +90,7 @@ do_backup(){
 
 swap_jar(){
   log "替换后端 jar <- $1"
-  install -o "$APP_USER" -g "$APP_USER" -m 644 "$1" "$LIB" || return 1
+  install -o "$APP_USER" -g "$APP_GROUP" -m 644 "$1" "$LIB" || return 1
   ok "jar 已更新（sha256 $(sha256sum "$LIB" | awk '{print $1}')）"
 }
 
@@ -98,7 +100,7 @@ swap_frontend(){
   rm -rf "$stage"; mkdir -p "$stage"
   tar -xzf "$src" -C "$stage" || { rm -rf "$stage"; return 1; }
   [ -f "$stage/dist/index.html" ] || { err "包内未找到 dist/index.html"; rm -rf "$stage"; return 1; }
-  rm -rf "$FE_DIR/dist"; mv "$stage/dist" "$FE_DIR/dist"; chown -R "$APP_USER:$APP_USER" "$FE_DIR/dist"; rm -rf "$stage"
+  rm -rf "$FE_DIR/dist"; mv "$stage/dist" "$FE_DIR/dist"; chown -R "$APP_USER:$APP_GROUP" "$FE_DIR/dist"; rm -rf "$stage"
   ok "前端 dist 已更新（$(find "$FE_DIR/dist" -type f | wc -l) 文件）"
 }
 
@@ -110,7 +112,38 @@ commit=${1:-unknown}
 deployedAt=$(date -Iseconds)
 jarSha256=$sha
 MF
-  chown "$APP_USER:$APP_USER" "$APP_HOME/manifest.properties"
+  chown "$APP_USER:$APP_GROUP" "$APP_HOME/manifest.properties"
+}
+
+install_for_app_user(){
+  local src="$1" dst="$2" mode="$3"
+  if [ "$(id -u)" -eq 0 ] && id -u "$APP_USER" >/dev/null 2>&1; then
+    install -o "$APP_USER" -g "$APP_GROUP" -m "$mode" "$src" "$dst"
+  else
+    install -m "$mode" "$src" "$dst"
+  fi
+}
+
+sync_bootstrap_delivery_token(){
+  mkdir -p "$(dirname "$LOG")"
+  [ -f "$ENV_FILE" ] || { warn "未找到环境文件，跳过接管码交付文件同步：$ENV_FILE"; return 0; }
+  local token tmp target
+  token="$(
+    set -a
+    # shellcheck source=/dev/null
+    . "$ENV_FILE"
+    set +a
+    printf '%s' "${MEDKERNEL_BOOTSTRAP_INIT_TOKEN:-}"
+  )"
+  [ -n "$token" ] || { warn "环境文件未配置 MEDKERNEL_BOOTSTRAP_INIT_TOKEN，跳过交付文件同步"; return 0; }
+  target="$APP_HOME/conf/bootstrap-init-token.txt"
+  mkdir -p "$APP_HOME/conf"
+  tmp="$(mktemp "$APP_HOME/conf/.bootstrap-init-token.XXXXXX")"
+  chmod 600 "$tmp"
+  printf '%s\n' "$token" > "$tmp"
+  install_for_app_user "$tmp" "$target" 600 || { rm -f "$tmp"; return 1; }
+  rm -f "$tmp"
+  ok "bootstrap 接管码交付文件已同步（未输出明文）"
 }
 
 restart_service(){
@@ -138,13 +171,13 @@ do_rollback(){
   [ -z "$dir" ] && dir=$(ls -dt "$BACKUP_ROOT"/deploy-* 2>/dev/null | head -1)
   { [ -n "$dir" ] && [ -d "$dir" ]; } || die "找不到可回滚的备份目录"
   log "回滚 <- $dir"
-  [ -f "$dir/lib/medkernel.jar" ] && install -o "$APP_USER" -g "$APP_USER" -m 644 "$dir/lib/medkernel.jar" "$LIB" && ok "已恢复 jar"
+  [ -f "$dir/lib/medkernel.jar" ] && install -o "$APP_USER" -g "$APP_GROUP" -m 644 "$dir/lib/medkernel.jar" "$LIB" && ok "已恢复 jar"
   if [ -f "$dir/dist.tar.gz" ]; then
     rm -rf "$stage"; mkdir -p "$stage"
-    tar -xzf "$dir/dist.tar.gz" -C "$stage" && rm -rf "$FE_DIR/dist" && mv "$stage/dist" "$FE_DIR/dist" && chown -R "$APP_USER:$APP_USER" "$FE_DIR/dist" && ok "已恢复前端 dist"
+    tar -xzf "$dir/dist.tar.gz" -C "$stage" && rm -rf "$FE_DIR/dist" && mv "$stage/dist" "$FE_DIR/dist" && chown -R "$APP_USER:$APP_GROUP" "$FE_DIR/dist" && ok "已恢复前端 dist"
     rm -rf "$stage"
   fi
-  [ -f "$dir/manifest.properties" ] && install -o "$APP_USER" -g "$APP_USER" -m 644 "$dir/manifest.properties" "$APP_HOME/manifest.properties" && ok "已恢复 manifest"
+  [ -f "$dir/manifest.properties" ] && install -o "$APP_USER" -g "$APP_GROUP" -m 644 "$dir/manifest.properties" "$APP_HOME/manifest.properties" && ok "已恢复 manifest"
   restart_service
 }
 
@@ -163,12 +196,14 @@ while [ $# -gt 0 ]; do
     --health-timeout) HEALTH_TIMEOUT="${2:-120}"; shift 2;;
     --rollback) ACTION=rollback; if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then ROLLBACK_DIR="$2"; shift; fi; shift;;
     --status) ACTION=status; shift;;
+    --sync-bootstrap-token) ACTION=sync-bootstrap-token; shift;;
     -h|--help) usage; exit 0;;
     *) die "未知参数：$1（--help 查看用法）";;
   esac
 done
 
 [ "$ACTION" = status ] && { print_status; exit 0; }
+[ "$ACTION" = sync-bootstrap-token ] && { sync_bootstrap_delivery_token; exit 0; }
 [ "$(id -u)" -eq 0 ] || die "需要 root 权限（请用 sudo）"
 mkdir -p "$INCOMING_DEFAULT" "$BACKUP_ROOT" "$(dirname "$LOG")"
 
@@ -200,6 +235,7 @@ if [ -n "$JAR_SRC" ]; then
 fi
 
 do_backup
+sync_bootstrap_delivery_token || die "同步 bootstrap 接管码交付文件失败"
 NEW_JAR=0
 [ -n "$JAR_SRC" ] && { swap_jar "$JAR_SRC" || die "替换 jar 失败"; NEW_JAR=1; }
 [ -n "$FE_SRC" ] && { swap_frontend "$FE_SRC" || die "替换前端失败"; }

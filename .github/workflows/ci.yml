@@ -102,6 +102,9 @@ jobs:
           fi
           echo "✓ 代码区无旧任务命名残留"
 
+      - name: Test onprem deployment script contract
+        run: bash deploy/onprem/tests/validate-medkernel-deploy.sh
+
       - name: Set up Node 20 for authenticity guard
         uses: actions/setup-node@v4
         with:

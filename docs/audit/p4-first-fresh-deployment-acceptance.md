@@ -2,7 +2,7 @@
 
 > 日期：2026-06-12
 > 阶段：P4 134 首轮演练，第 1 个检查点
-> 结论：已通过“清库、从零迁移和 V116 候选发布”历史检查点；发布前跨方言复核随后发现 Oracle 空字符串语义缺口，因此初始化前放行已暂停。必须部署并验证 V117 精确主线制品后，才可恢复 P4 真实客户前台全流程。
+> 结论：V116 清库发布仅作为历史检查点；V117 已从精确主线 `1876aec72f459b4980f8aa769f4caf7ce5afc7b1` 重建、备份、隔离恢复、部署并完成真实 UI 首发接管。进入 14 角色 P4 全流程前，需先合并并重发本轮演练暴露的两个小修复。
 > 产品口径：正式生产知识前环境一律按全新处理，不保留旧包、旧库、旧角色、旧菜单、旧演练数据或迁移兼容负担；每次清库仍须先备份、验证恢复并留痕。
 
 ## 1. 清库前门禁
@@ -72,13 +72,69 @@
 - TDD 红灯：先将最新迁移版本提升到 117，并要求 H2、PostgreSQL、Oracle 接受当前值和历史变更后值为 `NULL`；V117 尚不存在时静态合同失败，H2 插入因非空约束失败，设置后回滚接口返回 400。
 - 修复：五方言新增 `V117__nullable_unconfigured_system_config.sql`，放宽当前值和历史变更后值非空约束；仓储读取层把数据库 `NULL` 统一返回空字符串，服务层只允许该配置通过审计回滚恢复为“未配置”。
 - 绿灯：`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`SystemConfigControllerTest` 共 122 项通过；`FlywayMultiDialectSmokeTest` 使用真实 PostgreSQL、Oracle、H2 从空库迁移到 V117、验证当前值与历史回滚值写入并重复迁移 0 条，退出码 0。
-- 裁决：V117 是全新产品的跨方言语义修正，不用于兼容旧演练库。134 当前 V116 保持未初始化，V117 精确主线部署前不得执行 `/bootstrap`。
+- 裁决：V117 是全新产品的跨方言语义修正，不用于兼容旧演练库。V116 检查点已停在未初始化状态，后续已按本报告第 8-9 节完成 V117 精确主线部署和真实 UI 首发接管。
 
 ## 7. 下一检查点
 
-1. 完成 V117 PR、CI 与合并，从精确 `origin/main` 重建无扩展属性噪声的制品。
-2. 对 134 做即时备份和隔离恢复后重发，独立验证 V117、可空列、空配置读取和服务健康。
-3. 完成首次管理员初始化，凭证和恢复码只写入受控凭证位置。
+1. 对本轮演练暴露的 UI 成功页抢占和部署令牌交付文件不同步问题完成 PR、CI、合并。
+2. 从精确 `origin/main` 重建无扩展属性噪声的制品；对 134 做即时备份和隔离恢复后重发。
+3. 重发后独立验证 manifest、jar SHA、服务健康、bootstrap initialized、首发管理员 MFA、令牌交付文件同步能力和知识数据仍为 0。
 4. 从真实前台按 14 角色执行首轮客户全流程，记录功能、体验、医疗安全、权限、审计和数据最小化问题。
 5. 对不合理功能执行复现、根因、失败测试和重构，直到达到全新产品标准。
 6. P4 问题关闭后重新备份并清库，进入 P5 第二轮完整重演，不复用本轮业务数据。
+
+## 8. V117 精确主线部署追加
+
+| 检查项 | 结果 |
+|---|---|
+| PR / 主线 | PR #562 squash merge，`origin/main=1876aec72f459b4980f8aa769f4caf7ce5afc7b1` |
+| CI | 8/8 通过 |
+| 后端制品 SHA-256 | `bc9ae052f0887eb659cd6990ed52ddbe1ba0e67b0bebd782b8abc5397c0d162f` |
+| 前端制品 SHA-256 | `241b5511b59ee0fede5829ff36b2a563bec29bfb8916c7e3dfaa340f0af9220d` |
+| V117 发布前有效备份 | `/zoesoft/medkernel/backups/p4-v117-predeploy-20260612-143821` |
+| 程序发布自动备份 | `/zoesoft/medkernel/backups/deploy-20260612-143920` |
+| 发布证据 | `/zoesoft/medkernel/backups/p4-v117-release-20260612-143920/evidence/post-deploy.properties` |
+| Flyway | `117|117` |
+| 服务健康 | 内部/Nginx HTTPS readiness 均为 200 |
+| 文献资料库根地址 | 空值，仍为 `PLATFORM_SEED` 受保护配置，未正式配置 |
+| 知识数据 | `knowledge_identity=0`、`knowledge_asset_version=0`、`knowledge_package=0`、`mk_knowledge_customization=0` |
+
+失败留痕：`/zoesoft/medkernel/backups/p4-v117-predeploy-20260612-143741` 因备份路径权限导致隔离恢复失败，证据记录 `destructive_action_performed=false`，未执行服务、数据库或配置变更。
+
+## 9. 令牌治理与真实 UI 首发接管
+
+| 检查项 | 结果 |
+|---|---|
+| 令牌裁剪 | `/zoesoft/medkernel/backups/p4-v117-pre-token-prune-20260612-144112/evidence/token-prune.properties`，`active_tokens_after=1|1` |
+| 令牌交付文件同步 | `/zoesoft/medkernel/backups/p4-v117-pre-token-file-sync-20260612-144644/evidence/token-file-sync.properties`，状态 `PASSED` |
+| 首发 UI 证据 | `/zoesoft/medkernel/backups/p4-v117-release-20260612-143920/evidence/ui-bootstrap.properties` |
+| 截图归档 | `/zoesoft/medkernel/backups/p4-v117-release-20260612-143920/evidence/medkernel-p4-ui-evidence-20260612-1534.tar.gz` |
+| 接管状态 | `platform-admin` 已创建，`system-superadmin` 有效分配 1 条 |
+| 凭据状态 | `platform-admin:N:ACTIVE:MFA_SET` |
+| 接管令牌 | `USED:platform-admin`，无有效 ACTIVE 令牌 |
+| 浏览器前台 | console errors 0，failed requests 0 |
+| 受控凭据文件 | `/zoesoft/medkernel/conf/p4-first-admin-credentials-20260612.json`，`600|medkernel|medkernel` |
+| 知识主链路 | `0|0|0|0|0|0` |
+
+首发 UI 真实流程已走通：部署接管码、创建首发管理员、登录、首次改密、MFA secret 生成、TOTP 校验、恢复码保存、进入工作台。MFA secret 与恢复码只写入服务器受控凭据文件；截图中敏感值已遮盖。
+
+## 10. 演练暴露缺陷与本地修复
+
+| 缺陷 | 根因 | 修复状态 |
+|---|---|---|
+| 首发管理员创建成功后页面未出现“首发管理员已创建”提示 | `createBootstrapAdmin` 成功后刷新 bootstrap status，`initialized=true` 的全局分支抢占本地 `login-required` 阶段 | 已在 `frontend/src/pages/Bootstrap.tsx` 收窄初始化状态门禁至 `init-token` 阶段 |
+| 服务器交付文件 `/zoesoft/medkernel/conf/bootstrap-init-token.txt` 与环境令牌不同步 | 发布时轮换了 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN`，但部署脚本只更新环境文件，未同步现场可读取的接管码交付文件 | 已在 `deploy/onprem/medkernel-deploy.sh` 增加 `--sync-bootstrap-token`，并在发布备份后、重启前自动同步，不输出明文 |
+
+本地红绿验证：
+
+- `npm test -- Bootstrap.test.tsx`：10/10 通过。
+- `npm test -- Bootstrap.test.tsx Login.test.tsx`：31/31 通过。
+- `npm run lint`、`npm run typecheck`：通过。
+- `bash -n deploy/onprem/medkernel-deploy.sh deploy/onprem/tests/validate-medkernel-deploy.sh`：通过。
+- `bash deploy/onprem/tests/validate-medkernel-deploy.sh`：通过，日志未泄露接管码明文。
+- `node --test scripts/authenticity-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/config-boundary-guard.test.mjs`：38/38 通过。
+- `authenticity-guard --mode=changed`、`migration-convention-guard --mode=changed`、`config-boundary-guard --mode=changed`：通过。
+- `git diff --check`：通过。
+- `.github/workflows/ci.yml` 的 `guard-rules` 已纳入 `deploy/onprem/tests/validate-medkernel-deploy.sh`，后续 PR 会自动覆盖该发布脚本契约。
+
+上述修复尚未提交、PR、CI、合并和重发；14 角色 P4 全流程前必须先完成这一小批次闭环。
