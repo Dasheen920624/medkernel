@@ -6,6 +6,7 @@
 - P3 已完成 `193.112.107.134` 首轮现场核验、前置备份和隔离恢复验证；权威报告：[P3 演练前发布准备验收报告](audit/p3-release-prep-acceptance.md)。
 - 本次只做核验与备份恢复验证；未执行清库、发布、生产库恢复、知识生成或系统配置变更。
 - P2 权威报告仍为：[全系统产品信息架构门禁验收报告](audit/global-product-ia-acceptance.md)。P2 精简入口：[P2 精简上下文快照](audit/context-snapshots/2026-06-12-p2-global-product-ia.md)。
+- 长目标持续绑定当前 Codex 会话；上下文过长时只在本会话内压缩整理，不创建、切换或引导用户进入新线程。
 
 ## 已完成
 
