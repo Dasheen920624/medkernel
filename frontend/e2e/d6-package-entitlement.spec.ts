@@ -11,7 +11,7 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 受限平台包租户授权真实验收", () => {
-  test("平台管理员从登录页完成受限包创建、授权和撤销", async ({ page }, testInfo) => {
+  test("平台治理管理员从登录页完成受限包创建、授权和撤销", async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const browserErrors = collectBrowserErrors(page);
     const targetTenantId = "e2e-entitlement";
@@ -19,12 +19,12 @@ test.describe("D6 受限平台包租户授权真实验收", () => {
     const suffix = Date.now();
     const packageCode = `E2E.ENTITLEMENT.${suffix}`;
 
-    await ensureReadySession(page, "platform-admin");
+    await ensureReadySession(page, "platform-governance-admin");
     await ensureTargetTenant(page, targetTenantId, targetTenantName);
-    await loginFromPlatformPage(page, "platform-admin");
+    await loginFromPlatformPage(page, "platform-governance-admin");
 
     await page.goto("/config/packages");
-    await expect(page.getByRole("heading", { name: "配置包中心" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "配置包与发布" })).toBeVisible();
     await page.getByRole("button", { name: "新建配置包草案" }).click();
 
     const createDialog = page.getByRole("dialog", { name: "新建配置包草案" });
@@ -33,18 +33,18 @@ test.describe("D6 受限平台包租户授权真实验收", () => {
     await createDialog.getByLabel("配置包名称").fill("受限包授权真实验收");
     await createDialog.getByLabel("发布范围说明").fill("验证平台受限包按客户租户授权");
     await selectField(createDialog, "访问策略");
-    await chooseVisibleOption(page, "按租户授权");
+    await chooseVisibleOption(page, "按服务空间授权");
     await createDialog.getByRole("button", { name: "提交创建草案" }).click();
 
     const packageRow = page.getByRole("row").filter({ hasText: packageCode });
     await expect(packageRow).toBeVisible();
-    await expect(packageRow.getByText("按租户授权", { exact: true })).toBeVisible();
+    await expect(packageRow.getByText("按服务空间授权", { exact: true })).toBeVisible();
     await packageRow.getByRole("button", { name: "授权管理" }).click();
 
     const entitlementDialog = page.getByRole("dialog", {
-      name: `租户授权 · ${packageCode}`,
+      name: `服务空间授权 · ${packageCode}`,
     });
-    await selectField(entitlementDialog, "目标租户");
+    await selectField(entitlementDialog, "目标服务空间");
     await chooseVisibleOption(page, `${targetTenantName} · ${targetTenantId}`);
     await entitlementDialog.getByLabel("授权到期时间").fill("2027-12-31T23:59");
     await entitlementDialog.getByLabel("授权原因").fill("真实验收授权审批通过");
@@ -54,7 +54,7 @@ test.describe("D6 受限平台包租户授权真实验收", () => {
     await expect(entitlementRow.getByText(targetTenantName, { exact: true })).toBeVisible();
     await expect(entitlementRow.getByText("有效", { exact: true })).toBeVisible();
     await entitlementRow.getByRole("button", { name: "撤销" }).click();
-    const revokeDialog = page.getByRole("dialog", { name: "撤销租户授权" });
+    const revokeDialog = page.getByRole("dialog", { name: "撤销服务空间授权" });
     await revokeDialog.getByLabel("撤销原因").fill("真实验收授权终止审批通过");
     await revokeDialog.getByRole("button", { name: "确认撤销授权" }).click();
     await expect(entitlementRow.getByText("已撤销", { exact: true })).toBeVisible();
@@ -70,7 +70,7 @@ test.describe("D6 受限平台包租户授权真实验收", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expectNoRootOverflow(page);
     await expect(entitlementDialog).toBeVisible();
-    await expect(entitlementDialog.getByLabel("目标租户")).toBeVisible();
+    await expect(entitlementDialog.getByLabel("目标服务空间")).toBeVisible();
     await expectNoRootOverflow(page);
 
     const mobileScreenshot = testInfo.outputPath("package-entitlement-mobile.png");

@@ -6,7 +6,7 @@ import type { RouteExperience } from "./experienceTypes";
 import { PageExperienceShell } from "./PageExperienceShell";
 
 const experience: RouteExperience = {
-  primaryRole: "实施工程师",
+  primaryRole: "实施运维员",
   goal: "核查映射风险",
   defaultView: "最近更新",
   defaultFilters: [],
@@ -45,7 +45,7 @@ describe("PageExperienceShell", () => {
     );
 
     expect(screen.getByText("核查映射风险")).toBeInTheDocument();
-    expect(screen.queryByText("主要角色：实施工程师")).not.toBeInTheDocument();
+    expect(screen.queryByText("主要角色：实施运维员")).not.toBeInTheDocument();
     expect(screen.queryByText("默认视图：最近更新")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "专家模式" })).toBeInTheDocument();
 

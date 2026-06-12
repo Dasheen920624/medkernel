@@ -106,7 +106,7 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
                     当前节点：{pathway.currentNodeCode ?? "暂无"}；状态：
                     {customerEnumLabel(pathway.status)}
                   </Text>
-                  {pathway.traceId && <Text type="secondary">traceId: {pathway.traceId}</Text>}
+                  {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
                 </Space>
               }
             />
@@ -114,7 +114,7 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
         )}
       />
 
-      <Text type="secondary">traceId: {detail.traceId}</Text>
+      <Text type="secondary">追踪号：{detail.traceId}</Text>
     </Space>
   );
 }
@@ -447,7 +447,7 @@ export default function Mpi() {
     detailDrawerContent = (
       <Alert
         message="患者 360 详情暂时不可用"
-        description={getApiErrorMessage(detailError, "请稍后重试，或带 traceId 联系信息科。")}
+        description={getApiErrorMessage(detailError, "请稍后重试，或凭追踪号联系信息科。")}
         type="error"
         showIcon
         action={

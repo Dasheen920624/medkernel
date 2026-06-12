@@ -119,7 +119,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 通知 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `notifications` / menuLabel `通知中心` / path `/notifications`（设置 `/notifications/settings`）/ requiredPermissions 通知查看 / requiredRoles 全临床角色（本人范围）。
+- 路由元数据：sectionKey `workbench` / placement `header` / menuKey `notifications` / menuLabel `消息通知` / path `/notifications`；个人菜单中的 `/notifications/settings` 使用 placement `profile` 与 menuKey `notification-settings`。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 通知列表（级别色阶）+ 筛选 + 已读操作 + 六态。
 - 主按钮 ≤1（全部已读；设置页为保存设置）/ 默认筛选 ≤3（未读/今日/高优先）/ 默认角色视图（本人）。
 - 五维 RBAC：菜单 / 动作（已读/设置）/ 数据（本人/org）/ 资产 / 环境。

@@ -53,6 +53,10 @@ class SystemConfigControllerTest {
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
     private static final String AUTH_PASSWORD_MIN_LENGTH_KEY = "medkernel.auth.password.min-length";
+    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
+        "medkernel.knowledge.literature.material-root-uri";
+    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT =
+        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
@@ -137,6 +141,12 @@ class SystemConfigControllerTest {
                SET config_value = '12', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, AUTH_PASSWORD_MIN_LENGTH_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?, source = 'PLATFORM_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
+        jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key = ?", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -267,6 +277,57 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.code").value("ENG-API-002"));
 
         assertThat(configValue(AUTH_PASSWORD_MIN_LENGTH_KEY)).isEqualTo("12");
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    void knowledgeLiteratureMaterialRootUriUsesManagedStorageSeedAndRejectsTmp() throws Exception {
+        mvc.perform(get("/api/v1/system/configs")
+                .queryParam("prefix", "medkernel.knowledge.literature."))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.key=='%s')].value".formatted(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+                .value(hasItem(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT)))
+            .andExpect(jsonPath("$.data[?(@.key=='%s')].displayName".formatted(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+                .value(hasItem("平台知识文献资料库根地址")))
+            .andExpect(jsonPath("$.data[?(@.key=='%s')].source".formatted(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+                .value(hasItem("PLATFORM_SEED")))
+            .andExpect(jsonPath("$.data[?(@.key=='%s')].protectedConfig".formatted(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+                .value(hasItem(true)));
+
+        mvc.perform(patch("/api/v1/system/configs/{key}", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "file:///tmp/medkernel-knowledge",
+                      "reason": "验证知识文献资料目录禁止指向 tmp",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+
+        assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+            .isEqualTo(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT);
+
+        String yearlyManagedStorageUri =
+            "s3://medkernel-platform-literature/medkernel/platform-knowledge/t-1/literature-materials/2026/";
+        mvc.perform(patch("/api/v1/system/configs/{key}", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "%s",
+                      "reason": "正式文献资料库按年度分层",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """.formatted(yearlyManagedStorageUri)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value(yearlyManagedStorageUri))
+            .andExpect(jsonPath("$.data.source").value("API"))
+            .andExpect(jsonPath("$.data.version").value(2));
     }
 
     @Test

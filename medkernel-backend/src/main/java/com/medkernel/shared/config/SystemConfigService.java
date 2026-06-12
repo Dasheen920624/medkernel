@@ -62,6 +62,12 @@ public class SystemConfigService {
     public static final String KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY =
         "medkernel.knowledge.retirement-interval-ms";
     public static final long DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS = 300_000L;
+    public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
+        "medkernel.knowledge.literature.material-root-uri";
+    public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI =
+        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/";
+    private static final Set<String> FORBIDDEN_KNOWLEDGE_LITERATURE_URI_SCHEMES =
+        Set.of("file", "tmp", "local", "classpath", "http");
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
@@ -427,6 +433,12 @@ public class SystemConfigService {
             DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS).value();
     }
 
+    public String runtimeKnowledgeLiteratureMaterialRootUri() {
+        return readRuntimeStringConfig(
+            KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY,
+            DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI).value();
+    }
+
     private static long durationMs(Duration configured, Duration fallback) {
         Duration duration = configured == null || configured.isZero() || configured.isNegative()
             ? fallback
@@ -539,6 +551,10 @@ public class SystemConfigService {
                 "认证模式仅允许 PLATFORM/DELEGATED/BOTH");
             return;
         }
+        if (KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY.equals(key)) {
+            validateKnowledgeLiteratureMaterialRootUri(value);
+            return;
+        }
         if (key != null && key.startsWith(LOGGING_LEVEL_PREFIX)) {
             RuntimeLogLevelManager.parseLogLevel(value);
             return;
@@ -557,6 +573,25 @@ public class SystemConfigService {
         }
         if (key != null && key.startsWith(AUTH_LOGIN_PREFIX)) {
             validatePositiveLong(value);
+        }
+    }
+
+    private static void validateKnowledgeLiteratureMaterialRootUri(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        boolean hasUriScheme = normalized.matches("[a-z][a-z0-9+.-]*://.+");
+        String scheme = hasUriScheme ? normalized.substring(0, normalized.indexOf("://")) : "";
+        boolean usesTmp = normalized.contains("/tmp/")
+            || normalized.endsWith("/tmp")
+            || normalized.contains("://tmp/")
+            || normalized.startsWith("tmp://");
+        if (!hasUriScheme
+            || FORBIDDEN_KNOWLEDGE_LITERATURE_URI_SCHEMES.contains(scheme)
+            || !normalized.endsWith("/")
+            || !normalized.contains("/platform-knowledge/t-1/literature-materials/")
+            || usesTmp) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "平台知识文献资料库根地址必须使用正式受管资料库 URI，保留 /platform-knowledge/t-1/literature-materials/ 结构，且不能指向 tmp、本机文件或非加密 HTTP");
         }
     }
 

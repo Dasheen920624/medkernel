@@ -76,7 +76,7 @@ describe("SecurityBaseline", () => {
         roles: [
           {
             code: "platform-governance-admin",
-            displayName: "平台管理员",
+            displayName: "平台治理管理员",
             source: "PLATFORM_SEED",
             scopeLevel: "TENANT",
             scopeCode: "t-1",
@@ -194,6 +194,20 @@ describe("SecurityBaseline", () => {
           owner: "安全组",
           description: "国密增强不可关闭",
           source: "CONFIG_CENTER",
+          protectedConfig: true,
+          version: 1,
+          updatedAt: "2026-06-06T00:00:00Z",
+        },
+        {
+          key: "medkernel.knowledge.literature.material-root-uri",
+          value:
+            "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/",
+          valueType: "STRING",
+          displayName: "平台知识文献资料库根地址",
+          risk: "HIGH",
+          owner: "平台知识治理组 / 信息科",
+          description: "主平台知识管理服务器使用的正式文献资料库根地址，禁止使用 tmp 临时目录。",
+          source: "PLATFORM_SEED",
           protectedConfig: true,
           version: 1,
           updatedAt: "2026-06-06T00:00:00Z",
@@ -373,6 +387,16 @@ describe("SecurityBaseline", () => {
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     expect(screen.getByText("口令最小长度")).toBeInTheDocument();
     expect(screen.getByText("国密增强")).toBeInTheDocument();
+    expect(screen.getByText("平台知识文献资料")).toBeInTheDocument();
+    expect(screen.getAllByText("平台知识文献资料库根地址").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/支持对象存储或受管资料库，配置中心维护，禁止 tmp 临时目录/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "编辑 国密增强" })).toBeDisabled();
 
     await user.click(screen.getByRole("tab", { name: "数据权限" }));
@@ -411,6 +435,37 @@ describe("SecurityBaseline", () => {
         payload: {
           value: "14",
           reason: "提升口令强度",
+          expectedVersion: 1,
+          confirmedHighRisk: true,
+        },
+      }),
+    );
+  });
+
+  it("maintains the platform knowledge literature repository root through system config", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "系统配置" }));
+    await user.click(screen.getByRole("button", { name: "编辑 平台知识文献资料库根地址" }));
+    const dialog = screen.getByRole("dialog", { name: "编辑系统配置" });
+    const yearlyManagedStorageUri =
+      "s3://medkernel-platform-literature/medkernel/platform-knowledge/t-1/literature-materials/2026/";
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "配置值" }), {
+      target: { value: yearlyManagedStorageUri },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "变更原因" }), {
+      target: { value: "正式文献资料库按年度分层" },
+    });
+    await user.click(within(dialog).getByRole("checkbox", { name: "确认高风险影响" }));
+    await user.click(within(dialog).getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() =>
+      expect(updateConfig).toHaveBeenCalledWith({
+        key: "medkernel.knowledge.literature.material-root-uri",
+        payload: {
+          value: yearlyManagedStorageUri,
+          reason: "正式文献资料库按年度分层",
           expectedVersion: 1,
           confirmedHighRisk: true,
         },
@@ -502,8 +557,8 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
     expect(screen.getByRole("heading", { name: "脱敏预览" })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "预览值 JSON" }), {
-      target: { value: '{"patientName":"张三","encounterId":"enc-1"}' },
+    fireEvent.change(screen.getByRole("textbox", { name: "预览样例值" }), {
+      target: { value: "张三" },
     });
     await user.click(screen.getByRole("button", { name: "执行脱敏预览" }));
 
@@ -514,7 +569,6 @@ describe("SecurityBaseline", () => {
         sensitiveFields: ["patientName"],
         values: {
           patientName: "张三",
-          encounterId: "enc-1",
         },
       }),
     );

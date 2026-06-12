@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { apiBase } from "./support/auth";
+import { apiBase, expectLoginPageReady } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
@@ -13,7 +13,7 @@ test.describe("D0 首次部署入口关闭真实验收", () => {
     expect((await statusResponse.json()).data).toEqual({ initialized: true });
 
     await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
+    await expectLoginPageReady(page);
     await expect(page.getByText("首次部署接管", { exact: true })).toHaveCount(0);
     await expectNoRootOverflow(page);
 

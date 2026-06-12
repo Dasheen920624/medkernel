@@ -39,7 +39,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 本卡为页面，不新增后端；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) 现有 MPI API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `patient-mpi` / menuLabel `患者主索引` / path `/mpi` / requiredPermissions 患者查询 / requiredRoles 临床医生·信息科。
+- 路由元数据：sectionKey `clinical-collaboration` / menuKey `mpi` / menuLabel `患者索引` / path `/mpi` / requiredPermissions 患者查询 / requiredRoles 临床决策使用者、临床治理负责人、集成运维员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 搜索筛选（默认 ≤3）+ 患者列表（[API-13](../D0/API-13.md)）+ 患者 360 抽屉 + 六态。
 - 主按钮 ≤1（新建/合并患者）/ 默认筛选 ≤3 / 默认角色视图（临床医生）。
 - 五维 RBAC：菜单 / 动作（合并）/ 数据（org）/ 资产 / 环境。

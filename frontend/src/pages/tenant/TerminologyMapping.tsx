@@ -79,7 +79,7 @@ const AUTHORING_CONTEXT_VERSION = "AUTHORING";
 const route = findRouteByPath("/terminology/mapping");
 
 if (!route?.experience) {
-  throw new Error("字典映射页面缺少体验声明");
+  throw new Error("术语与字典页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -681,7 +681,7 @@ export default function TerminologyMapping() {
       />
       <PageState
         state={pageState}
-        title={pageState === "empty" ? "暂无字典映射条目" : undefined}
+        title={pageState === "empty" ? "暂无术语映射条目" : undefined}
         description={pageState === "empty" ? "当前筛选范围内没有可核查的映射条目。" : undefined}
         traceId={query.data?.traceId}
         onRetry={query.refetch}
@@ -806,7 +806,7 @@ export default function TerminologyMapping() {
       </PageState>
       <EvidenceDetailDrawer
         open={!!selectedMapping}
-        title="字典映射详情"
+        title="术语映射详情"
         expertMode={expertMode}
         sections={detailSections(selectedMapping)}
         traceId={query.data?.traceId}

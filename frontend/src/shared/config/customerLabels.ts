@@ -351,5 +351,15 @@ export const customerEnumLabel = (value?: string | null) =>
   label(value, customerEnumLabels, "未识别状态");
 export const customerDisplayText = (value?: string | null) => {
   if (!value) return "未设置";
-  return /[\u3400-\u9fff]/.test(value) ? value : customerEnumLabel(value);
+  if (!/[\u3400-\u9fff]/.test(value)) return customerEnumLabel(value);
+
+  return Object.entries(customerEnumLabels)
+    .sort(([left], [right]) => right.length - left.length)
+    .reduce((text, [token, translated]) => {
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return text.replace(
+        new RegExp(`(^|[^A-Za-z0-9_])${escaped}(?=$|[^A-Za-z0-9_])`, "g"),
+        `$1${translated}`,
+      );
+    }, value);
 };

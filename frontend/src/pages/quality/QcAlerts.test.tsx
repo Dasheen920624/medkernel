@@ -111,8 +111,8 @@ describe("QcAlerts", () => {
     );
     expect(screen.getByRole("combobox", { name: "预警级别" })).toBeInTheDocument();
     expect(screen.queryByLabelText("科室范围")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
-    expect(screen.getByText("真实质控预警总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
+    expect(screen.getByText("真实质量问题总数")).toBeInTheDocument();
     expect(screen.getByText("1 条")).toBeInTheDocument();
     expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
     expect(screen.getByText("心内科 · CARDIO")).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe("QcAlerts", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实质控预警")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实质量问题")).toBeInTheDocument();
   });
 });

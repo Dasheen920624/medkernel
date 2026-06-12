@@ -171,7 +171,7 @@ describe("SystemProviders", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "运行状态" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "运行保障" })).toBeInTheDocument();
     expect(screen.getByText("核心服务")).toBeInTheDocument();
     expect(screen.queryByText("整体健康")).not.toBeInTheDocument();
     expect(screen.getByText("2 项依赖需关注")).toBeInTheDocument();

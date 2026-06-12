@@ -27,7 +27,7 @@ export function AuthoringReadablePreview({
   const previewQuery = useAuthoringPreview(payload, { enabled: enabled && Boolean(payload) });
 
   if (!payload) {
-    return <Alert type="warning" showIcon message="缺少包版本或 DSL，预览暂不可生成。" />;
+    return <Alert type="warning" showIcon message="缺少包版本或结构化定义，预览暂不可生成。" />;
   }
 
   if (previewQuery.isLoading && !previewQuery.data) {

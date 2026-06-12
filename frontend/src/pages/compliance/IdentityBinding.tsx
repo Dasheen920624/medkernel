@@ -60,8 +60,19 @@ type CreateBindingForm = {
 
 type UnbindForm = { reason: string };
 
+const PERSONNEL_GOVERNANCE_ROLES = new Set([
+  "system-superadmin",
+  "platform-governance-admin",
+  "organization-admin",
+  "identity-access-admin",
+]);
+
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
+function hasPersonnelGovernanceRole(profile: SecurityProfile | undefined) {
+  return profile?.roles.some((role) => PERSONNEL_GOVERNANCE_ROLES.has(role.code)) ?? false;
 }
 
 function formatTime(value: string) {
@@ -83,7 +94,13 @@ export default function IdentityBinding() {
   const delegated = useDelegatedAuthStatus();
   const bindings = useIdentityBindings();
   const [userSearch, setUserSearch] = useState("");
-  const personnel = usePersonnel({ page: 1, size: 100, keyword: userSearch || undefined });
+  const hasPersonnelRole = hasPersonnelGovernanceRole(security.data);
+  const canReadPersonnel = hasPersonnelRole && hasPermission(security.data, "org.read");
+  const canManage = hasPersonnelRole && hasPermission(security.data, "org.write");
+  const personnel = usePersonnel(
+    { page: 1, size: 100, keyword: userSearch || undefined },
+    { enabled: canReadPersonnel },
+  );
   const createMutation = useCreateIdentityBinding();
   const unbindMutation = useUnbindIdentityBinding();
   const previewMutation = usePreviewPersonnelImport();
@@ -96,7 +113,6 @@ export default function IdentityBinding() {
   const [createForm] = Form.useForm<CreateBindingForm>();
   const [unbindForm] = Form.useForm<UnbindForm>();
 
-  const canManage = hasPermission(security.data, "org.write");
   const peopleByUserId = useMemo(
     () =>
       new Map(
@@ -118,12 +134,15 @@ export default function IdentityBinding() {
   );
 
   const refresh = async () => {
-    await Promise.all([
+    const refreshTasks: Array<Promise<unknown>> = [
       bindings.refetch(),
       delegated.refetch(),
       security.refetch(),
-      personnel.refetch(),
-    ]);
+    ];
+    if (canReadPersonnel) {
+      refreshTasks.push(personnel.refetch());
+    }
+    await Promise.all(refreshTasks);
   };
 
   const submitCreate = async (values: CreateBindingForm) => {
@@ -260,7 +279,7 @@ export default function IdentityBinding() {
               type="info"
               showIcon
               message="当前为只读视图"
-              description="只有机构管理员或信息科管理员可以新增、批量匹配或解除身份来源。"
+              description="只有机构管理员或人员与访问管理员可以新增、批量匹配或解除身份来源。"
             />
           )}
           <Alert

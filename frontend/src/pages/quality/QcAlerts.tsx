@@ -77,7 +77,7 @@ export default function QcAlerts() {
   const alertItems = alertsQuery.data?.items ?? [];
   const errorStatus = getResponseStatus(alertsQuery.error);
   const parsedError = alertsQuery.isError
-    ? parseApiError(alertsQuery.error, "质控预警读取失败")
+    ? parseApiError(alertsQuery.error, "质量问题读取失败")
     : null;
   const departmentNames = useMemo(
     () =>
@@ -143,11 +143,11 @@ export default function QcAlerts() {
 
   return (
     <PageShell
-      title="质控预警"
+      title="质量问题"
       description="按真实预警处置整改"
       extras={
         <Button
-          aria-label="刷新质控预警"
+          aria-label="刷新质量问题"
           icon={<ReloadOutlined />}
           onClick={() => alertsQuery.refetch()}
         >
@@ -156,9 +156,9 @@ export default function QcAlerts() {
       }
       state={resolvePageState(alertsQuery.isLoading, alertsQuery.isError, errorStatus, alertItems)}
       stateProps={{
-        title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质控预警",
+        title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质量问题",
         description: alertsQuery.isError
-          ? "请稍后重试，或带 traceId 联系信息科核查。"
+          ? "请稍后重试，或凭追踪号联系信息科核查。"
           : "后端当前没有返回符合筛选条件的预警。",
         traceId: parsedError?.traceId,
         onRetry: () => alertsQuery.refetch(),
@@ -207,16 +207,16 @@ export default function QcAlerts() {
         </Card>
 
         <Space wrap size="middle" className="mk-full-width">
-          <MetricCard title="真实质控预警总数" value={`${alertsQuery.data?.total ?? 0} 条`} />
-          <MetricCard title="待处置预警" value={`${countByStatus(alertItems, "OPEN")} 个待处置`} />
-          <MetricCard title="安全级预警" value={`${countSafetyAlerts(alertItems)} 个安全级`} />
+          <MetricCard title="真实质量问题总数" value={`${alertsQuery.data?.total ?? 0} 条`} />
+          <MetricCard title="待处置问题" value={`${countByStatus(alertItems, "OPEN")} 个待处置`} />
+          <MetricCard title="医疗安全问题" value={`${countSafetyAlerts(alertItems)} 个安全级`} />
         </Space>
 
         <Card>
           <List
             dataSource={alertItems}
             locale={{
-              emptyText: <Empty description="当前筛选下暂无真实质控预警" />,
+              emptyText: <Empty description="当前筛选下暂无真实质量问题" />,
             }}
             renderItem={(alert) => (
               <List.Item
@@ -256,7 +256,7 @@ export default function QcAlerts() {
                       <Space wrap>
                         <Text type="secondary">来源</Text>
                         <Text>{customerEnumLabel(alert.sourceType)}</Text>
-                        <Text type="secondary">traceId</Text>
+                        <Text type="secondary">追踪号</Text>
                         <Text>{alert.traceId ?? "未生成追踪标识"}</Text>
                       </Space>
                     </Space>
@@ -288,7 +288,7 @@ export default function QcAlerts() {
                 type="warning"
                 showIcon
                 icon={<WarningOutlined />}
-                message="安全级预警保持显性处置"
+                message="医疗安全问题保持显性处置"
                 description="当前预警来自高风险质控事实，未闭环前不会在本页默认静默。"
               />
             )}
@@ -308,7 +308,7 @@ export default function QcAlerts() {
                   : "未指定"}
               </Descriptions.Item>
               <Descriptions.Item label="来源对象">{selectedAlert.sourceId}</Descriptions.Item>
-              <Descriptions.Item label="traceId">
+              <Descriptions.Item label="追踪号">
                 {selectedAlert.traceId ?? "未生成追踪标识"}
               </Descriptions.Item>
             </Descriptions>

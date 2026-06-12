@@ -19,7 +19,7 @@
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 
-页面**已存在待真实化**：`pages/tenant/AdapterHub`（路由 `/adapter/hub` 已注册 sectionKey `pilot-setup`，占位）。本卡＝接 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) 真实适配器/健康/数据质量 + 六态/RBAC。
+页面**已存在待真实化**：`pages/tenant/AdapterHub`（路由 `/adapter/hub` 已归入 `institution-governance`，客户名称为“系统接入”）。本卡＝接 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) 真实适配器/健康/数据质量 + 六态/RBAC。
 
 ## 功能要求（原子可测条目）
 
@@ -39,7 +39,7 @@ N·A —— 页面卡，消费 [INTEG-01](INTEG-01.md) / [SVC-PILOT-02](SVC-PILO
 
 ### 页面契约（页面卡）
 
-- 路由元数据：sectionKey `pilot-setup` / menuKey `adapter-hub` / menuLabel `适配器中心` / path `/adapter/hub` / requiredPermissions `menu.adapter-hub + integration.read/write/execute` / requiredRoles `it-ops`、`implementation`。
+- 路由元数据：sectionKey `institution-governance` / menuKey `adapter-hub` / menuLabel `系统接入` / path `/adapter/hub` / requiredPermissions `menu.adapter-hub + integration.read/write/execute` / requiredRoles 集成运维员、实施运维员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 适配器目录 + 健康面板 + 字段映射 + 死信队列 + 数据质量看板 + 六态。
 - 主按钮 ≤1（新增适配器）/ 默认筛选 ≤3（类型/状态/院区）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（启停/重放权）/ 数据（org）/ 资产（适配器）/ 环境。

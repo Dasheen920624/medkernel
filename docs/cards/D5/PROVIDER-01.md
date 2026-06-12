@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 `GET /api/v1/system/operations`。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `compliance-ops` / menuKey `system-providers` / menuLabel `运行状态` / path `/system/providers`。
+- 路由元数据：sectionKey `quality-operations` / menuKey `system-providers` / menuLabel `运行保障` / path `/system/providers`。
 - 结构：PageExperienceShell + 健康摘要 + 依赖列表 + 备份恢复就绪 + 国产化摘要 + 授权专家模式。
 - 主按钮 ≤1（重新探测）/ 默认筛选 ≤3（全部/异常/模型）/ 默认角色视图（信息科）。
 - 五维 RBAC：菜单 / 动作（探测）/ 数据（org）/ 资产 / 环境。

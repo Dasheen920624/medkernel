@@ -17,6 +17,7 @@ import {
   Tooltip,
 } from "antd";
 import {
+  BellOutlined,
   LockOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -28,7 +29,7 @@ import {
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { getMenuSectionsForProfile } from "@/shared/config/menu";
+import { getMenuItemsForProfile, getMenuSectionsForProfile } from "@/shared/config/menu";
 import { canAccessRoute, findRouteByPath, getRouteBreadcrumb } from "@/shared/config/routes";
 import {
   useChangePassword,
@@ -109,7 +110,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
-  const isDesktop = screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
+  const isDesktop = screens.lg ?? (typeof window === "undefined" ? true : window.innerWidth >= 992);
   const currentRoute = findRouteByPath(location.pathname);
   const breadcrumb = getRouteBreadcrumb(location.pathname);
   const securityProfile = useSecurityProfile();
@@ -132,10 +133,7 @@ export function AppLayout() {
       canAccessRoute(currentRoute, securityProfile.data));
 
   const visibleMenuSections = useMemo(
-    () =>
-      getMenuSectionsForProfile(securityProfile.data)
-        .filter((s) => !s.hidden)
-        .filter((s) => s.items.length > 0),
+    () => getMenuSectionsForProfile(securityProfile.data).filter((s) => s.items.length > 0),
     [securityProfile.data],
   );
   const defaultOpenMenuSectionKeys = useMemo(
@@ -166,24 +164,24 @@ export function AppLayout() {
     [visibleMenuSections],
   );
 
-  const advancedItems = useMemo(
-    () => getMenuSectionsForProfile(securityProfile.data).find((s) => s.hidden)?.items ?? [],
+  const expertMenuSections = useMemo(
+    () =>
+      getMenuSectionsForProfile(securityProfile.data, "expert")
+        .filter((section) => section.items.length > 0)
+        .map((section) => ({ ...section, label: `${section.label} · 专家模式` })),
+    [securityProfile.data],
+  );
+  const headerItems = useMemo(
+    () => getMenuItemsForProfile(securityProfile.data, "header"),
+    [securityProfile.data],
+  );
+  const profileItems = useMemo(
+    () => getMenuItemsForProfile(securityProfile.data, "profile"),
     [securityProfile.data],
   );
   const commandSections = useMemo(
-    () =>
-      advancedItems.length > 0
-        ? [
-            ...visibleMenuSections,
-            {
-              key: "advanced-tools" as const,
-              label: "高级工具",
-              hidden: true,
-              items: advancedItems,
-            },
-          ]
-        : visibleMenuSections,
-    [advancedItems, visibleMenuSections],
+    () => [...visibleMenuSections, ...expertMenuSections],
+    [expertMenuSections, visibleMenuSections],
   );
   const displayName = userDisplayName(securityProfile.data);
   const roleName = primaryRoleName(securityProfile.data);
@@ -204,6 +202,10 @@ export function AppLayout() {
               ),
             },
             { type: "divider" },
+            ...profileItems.map((item) => ({
+              key: item.path,
+              label: item.label,
+            })),
             {
               key: "change-password",
               icon: <LockOutlined />,
@@ -217,7 +219,7 @@ export function AppLayout() {
             },
           ]
         : [],
-    [displayName, orgText, roleName, securityProfile.data],
+    [displayName, orgText, profileItems, roleName, securityProfile.data],
   );
   let mainLayoutClassName = "mk-layout-main mk-layout-main-mobile";
   if (isDesktop) {
@@ -334,6 +336,10 @@ export function AppLayout() {
   };
 
   const handleUserMenuClick: MenuProps["onClick"] = ({ key }) => {
+    if (key.startsWith("/")) {
+      navigate(key);
+      return;
+    }
     if (key === "change-password") {
       setChangePasswordOpen(true);
     }
@@ -474,21 +480,6 @@ export function AppLayout() {
         onClick={handleMenuClick}
         className="mk-menu-borderless"
       />
-      {!isCollapsed && advancedItems.length > 0 && (
-        <div className="mk-advanced-menu-wrap">
-          <Typography.Text type="secondary" className="mk-text-xs">
-            高级工具 ⊕
-          </Typography.Text>
-          <Menu
-            mode="inline"
-            theme="light"
-            selectedKeys={[location.pathname]}
-            items={advancedItems.map((it) => ({ key: it.path, label: it.label }))}
-            onClick={handleMenuClick}
-            className="mk-advanced-menu"
-          />
-        </div>
-      )}
     </>
   );
 
@@ -529,6 +520,16 @@ export function AppLayout() {
             <Breadcrumb className="mk-route-breadcrumb" items={breadcrumbItems} />
           </Space>
           <Space size={isDesktop ? "small" : 4}>
+            {headerItems.map((item) => (
+              <Tooltip title={item.label} key={item.key}>
+                <Button
+                  type="text"
+                  aria-label={item.label}
+                  icon={<BellOutlined />}
+                  onClick={() => navigate(item.path)}
+                />
+              </Tooltip>
+            ))}
             <Tooltip title="命令面板 (Ctrl+K)">
               <Button type="text" icon={<SearchOutlined />} onClick={() => setPaletteOpen(true)}>
                 {isDesktop ? "搜索" : null}

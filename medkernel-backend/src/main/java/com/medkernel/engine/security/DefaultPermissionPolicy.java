@@ -21,7 +21,7 @@ public final class DefaultPermissionPolicy {
     static {
         EnumMap<RoleCode, Set<PermissionCode>> map = new EnumMap<>(RoleCode.class);
         map.put(RoleCode.SYSTEM_SUPERADMIN, allRuntimePermissions());
-        map.put(RoleCode.PLATFORM_GOVERNANCE_ADMIN, allNonEmergencyPermissions());
+        map.put(RoleCode.PLATFORM_GOVERNANCE_ADMIN, platformGovernancePermissions());
         map.put(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR, platformKnowledgePermissions());
         map.put(RoleCode.ORGANIZATION_ADMIN, organizationAdministrationPermissions());
         map.put(RoleCode.IDENTITY_ACCESS_ADMIN, identityAccessPermissions());
@@ -39,6 +39,25 @@ public final class DefaultPermissionPolicy {
     }
 
     private DefaultPermissionPolicy() {
+    }
+
+    private static EnumSet<PermissionCode> platformGovernancePermissions() {
+        return withOnlyMenus(allNonEmergencyPermissions(),
+            MENU_WORKBENCH,
+            MENU_TENANT_ONBOARDING,
+            MENU_ADMIN_USERS,
+            MENU_IDENTITY_BINDINGS,
+            MENU_IMPLEMENTATION_GUIDE,
+            MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_CONFIG_PACKAGES,
+            MENU_QC_DASHBOARD,
+            MENU_ADMIN_AUDIT,
+            MENU_SECURITY_BASELINE,
+            MENU_SYSTEM_PROVIDERS,
+            MENU_NOTIFICATION_SETTINGS,
+            MENU_PROVENANCE,
+            MENU_AI_WORKFLOWS,
+            MENU_DOMESTIC_CHECK);
     }
 
     private static EnumSet<PermissionCode> platformKnowledgePermissions() {
@@ -75,7 +94,21 @@ public final class DefaultPermissionPolicy {
         EnumSet<PermissionCode> permissions = allNonEmergencyPermissions();
         permissions.remove(PLATFORM_PUBLISH);
         permissions.remove(SYSTEM_MANAGE);
-        return permissions;
+        return withOnlyMenus(permissions,
+            MENU_WORKBENCH,
+            MENU_TENANT_ONBOARDING,
+            MENU_ADMIN_USERS,
+            MENU_IDENTITY_BINDINGS,
+            MENU_IMPLEMENTATION_GUIDE,
+            MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_CONFIG_PACKAGES,
+            MENU_QC_DASHBOARD,
+            MENU_ADMIN_AUDIT,
+            MENU_SECURITY_BASELINE,
+            MENU_SYSTEM_PROVIDERS,
+            MENU_NOTIFICATION_SETTINGS,
+            MENU_PROVENANCE,
+            MENU_DOMESTIC_CHECK);
     }
 
     private static EnumSet<PermissionCode> identityAccessPermissions() {
@@ -150,13 +183,11 @@ public final class DefaultPermissionPolicy {
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
             MENU_CDSS_FATIGUE,
-            MENU_RULE_VALIDATE,
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP,
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
-            MENU_QC_EVAL_RESULTS,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE);
     }
@@ -182,7 +213,6 @@ public final class DefaultPermissionPolicy {
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
             MENU_CDSS_FATIGUE,
-            MENU_RULE_VALIDATE,
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP);
@@ -228,7 +258,6 @@ public final class DefaultPermissionPolicy {
             NOTIFICATION_READ, NOTIFICATION_WRITE),
             MENU_WORKBENCH,
             MENU_RULE_DEFINITIONS,
-            MENU_RULE_VALIDATE,
             MENU_CDSS_FATIGUE,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE,
@@ -284,7 +313,6 @@ public final class DefaultPermissionPolicy {
             MENU_QC_ALERTS,
             MENU_INSURANCE_AUDIT,
             MENU_QC_EVAL_SETS,
-            MENU_QC_EVAL_RESULTS,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE);
@@ -340,17 +368,13 @@ public final class DefaultPermissionPolicy {
             WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
             MENU_WORKBENCH,
-            MENU_CONFIG_PACKAGES,
             MENU_TERMINOLOGY_MAPPING,
             MENU_ADAPTER_HUB,
-            MENU_QC_DASHBOARD,
-            MENU_QC_EVAL_RESULTS,
             MENU_IDENTITY_BINDINGS,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,
             MENU_SYSTEM_PROVIDERS,
             MENU_NOTIFICATION_SETTINGS,
-            MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
             MENU_AI_WORKFLOWS,
             MENU_DOMESTIC_CHECK,
@@ -382,11 +406,16 @@ public final class DefaultPermissionPolicy {
             WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
             MENU_WORKBENCH,
-            MENU_IMPLEMENTATION_GUIDE,
             MENU_TENANT_ONBOARDING,
-            MENU_CONFIG_PACKAGES,
+            MENU_ADMIN_USERS,
+            MENU_IDENTITY_BINDINGS,
+            MENU_IMPLEMENTATION_GUIDE,
             MENU_ADAPTER_HUB,
+            MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_CONFIG_PACKAGES,
+            MENU_TERMINOLOGY_MAPPING,
             MENU_ADMIN_AUDIT,
+            MENU_SECURITY_BASELINE,
             MENU_SYSTEM_PROVIDERS,
             MENU_NOTIFICATION_SETTINGS,
             MENU_PROVENANCE,
@@ -411,6 +440,13 @@ public final class DefaultPermissionPolicy {
             PermissionCode... menuPermissions) {
         permissions.addAll(List.of(menuPermissions));
         return permissions;
+    }
+
+    private static EnumSet<PermissionCode> withOnlyMenus(
+            EnumSet<PermissionCode> permissions,
+            PermissionCode... menuPermissions) {
+        permissions.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
+        return withMenus(permissions, menuPermissions);
     }
 
     public static Set<PermissionCode> permissionsOf(RoleCode role) {

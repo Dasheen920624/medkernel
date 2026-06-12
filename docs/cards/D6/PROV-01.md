@@ -30,7 +30,7 @@
 - `GET /api/v1/engine/knowledge/identities`：服务端分页检索知识身份。
 - `GET /api/v1/engine/knowledge/identities/{id}/provenance`：只读聚合身份、当前版本、版本沿革、替代记录、来源锚点与部分成功状态。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `advanced-tools` / menuKey `provenance` / path `/advanced/provenance` / requiredPermissions `menu.provenance` + `knowledge.read`。
+- 路由元数据：sectionKey `knowledge-configuration` / placement `expert` / menuKey `provenance` / menuLabel `来源与血缘` / path `/advanced/provenance` / requiredPermissions `menu.provenance` + `knowledge.read`。
 - 结构：PageShell + 身份列表 + 版本沿革 + 精确来源锚点 + 六态。
 - 只读页无主操作；默认筛选2项，避免重复承担审计导出职责。
 - 五维 RBAC：菜单 / 读取动作 / 数据（org）/ 资产（知识版本）/ 环境。

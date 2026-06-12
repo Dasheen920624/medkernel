@@ -49,7 +49,7 @@ class EffectivePermissionServiceTest {
         assertThat(profile.permissionCodes())
             .contains(PermissionCode.RECOMMENDATION_READ.code(), PermissionCode.AUDIT_READ.code())
             .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code());
-        assertThat(profile.menuKeys()).contains("rule-validate", "admin-audit");
+        assertThat(profile.menuKeys()).contains("cdss-fatigue", "admin-audit");
     }
 
     @Test
@@ -124,12 +124,12 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.menuKeys())
-            .contains("workbench", "mpi", "patient-pathways", "rule-validate")
+            .contains("workbench", "mpi", "patient-pathways", "cdss-fatigue")
             .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
     }
 
     @Test
-    void evaluationExecutionPermissionExposesQualityImprovementNavigation() {
+    void integrationExecutionPermissionDoesNotExposeUnrelatedQualityNavigation() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
             .thenReturn(List.of());
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
@@ -138,7 +138,9 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.INTEGRATION_OPERATOR), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).contains(PermissionCode.EVALUATION_EXECUTE.code());
-        assertThat(profile.menuKeys()).contains("qc-dashboard", "system-providers");
+        assertThat(profile.menuKeys())
+            .contains("adapter-hub", "system-providers")
+            .doesNotContain("qc-dashboard");
     }
 
     @Test

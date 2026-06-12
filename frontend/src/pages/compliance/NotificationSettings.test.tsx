@@ -97,7 +97,7 @@ describe("NotificationSettings", () => {
   it("renders persisted backend settings without the old static defaults", () => {
     renderSettings();
 
-    expect(screen.getByRole("heading", { name: "通知设置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "通知偏好" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "站内信偏好" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -138,7 +138,7 @@ describe("NotificationSettings", () => {
     await user.type(screen.getByLabelText("免打扰开始时间"), "21:30");
     await user.clear(screen.getByLabelText("免打扰结束时间"));
     await user.type(screen.getByLabelText("免打扰结束时间"), "06:30");
-    await user.click(screen.getByRole("button", { name: "保存通知设置" }));
+    await user.click(screen.getByRole("button", { name: "保存通知偏好" }));
 
     await waitFor(() => {
       expect(settingsHookMocks.saveSettings).toHaveBeenCalledWith({
@@ -163,7 +163,7 @@ describe("NotificationSettings", () => {
     renderSettings();
 
     await user.click(screen.getByRole("checkbox", { name: "协作待办" }));
-    await user.click(screen.getByRole("button", { name: "保存通知设置" }));
+    await user.click(screen.getByRole("button", { name: "保存通知偏好" }));
 
     await waitFor(() => {
       expect(settingsHookMocks.saveSettings).toHaveBeenCalledWith(
@@ -215,7 +215,7 @@ describe("NotificationSettings", () => {
 
     await user.click(screen.getByText("系统默认"));
     await user.type(screen.getByLabelText("系统通知策略变更原因"), "统一院内通知策略");
-    await user.click(screen.getByRole("button", { name: "保存通知设置" }));
+    await user.click(screen.getByRole("button", { name: "保存通知偏好" }));
 
     await waitFor(() => {
       expect(settingsHookMocks.saveSystemSettings).toHaveBeenCalledWith({

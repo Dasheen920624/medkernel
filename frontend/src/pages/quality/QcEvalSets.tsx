@@ -280,7 +280,7 @@ export default function QcEvalSets() {
       render: (value: EvaluationIndicatorStatus) => statusTag(value),
     },
     {
-      title: "traceId",
+      title: "追踪号",
       dataIndex: "traceId",
       key: "traceId",
       render: (value?: string) => <Text type="secondary">{value ?? "N/A"}</Text>,
@@ -448,7 +448,7 @@ export default function QcEvalSets() {
         <Text type="secondary">暂无生效版本。</Text>
       ),
       evidence_rollback: (
-        <Text type="secondary">{visibleIndicator?.traceId ?? "暂无审计 traceId"}</Text>
+        <Text type="secondary">{visibleIndicator?.traceId ?? "暂无审计追踪号"}</Text>
       ),
     }),
     [total, visibleIndicator],
@@ -494,7 +494,7 @@ export default function QcEvalSets() {
         stateProps={{
           title: parsedError?.message ?? "正在加载评估指标",
           description: parsedError
-            ? "请稍后重试，或带 traceId 联系信息科核查。"
+            ? "请稍后重试，或凭追踪号联系信息科核查。"
             : "正在读取 EVAL-01 指标版本台账。",
           traceId: parsedError?.traceId,
           onRetry: () => indicatorsQuery.refetch(),
@@ -751,7 +751,7 @@ export default function QcEvalSets() {
                 {selectedIndicator.responsibleDepartmentId}
               </Descriptions.Item>
               <Descriptions.Item label="来源依据">{selectedIndicator.sourceRef}</Descriptions.Item>
-              <Descriptions.Item label="traceId">
+              <Descriptions.Item label="追踪号">
                 {selectedIndicator.traceId ?? "N/A"}
               </Descriptions.Item>
             </Descriptions>
@@ -866,7 +866,7 @@ export default function QcEvalSets() {
               <Descriptions.Item label="结果数">{simulationResult.resultCount}</Descriptions.Item>
               <Descriptions.Item label="缺陷数">{simulationResult.findingCount}</Descriptions.Item>
               <Descriptions.Item label="整改任务">{simulationResult.taskCount}</Descriptions.Item>
-              <Descriptions.Item label="traceId">{simulationResult.traceId}</Descriptions.Item>
+              <Descriptions.Item label="追踪号">{simulationResult.traceId}</Descriptions.Item>
             </Descriptions>
           )}
         </Space>

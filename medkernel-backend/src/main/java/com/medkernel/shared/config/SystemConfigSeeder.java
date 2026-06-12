@@ -76,6 +76,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedAuthPolicy(seededAt);
         seedLoggingPolicy(seededAt);
         seedRuntimeBoundaryPolicy(seededAt);
+        seedKnowledgeLiteraturePolicy(seededAt);
         seedCdssPolicy(seededAt);
         service.applyRuntimeLogLevels();
     }
@@ -237,6 +238,20 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "控制知识身份宽限期到期后的退役扫描间隔，变更后下一轮调度生效。", false, seededAt);
     }
 
+    private void seedKnowledgeLiteraturePolicy(Instant seededAt) {
+        seedConfigValue(
+            SystemConfigService.KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY,
+            SystemConfigService.DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI,
+            "STRING",
+            "平台知识文献资料库根地址",
+            "HIGH",
+            "平台知识治理组 / 信息科",
+            "主平台知识管理服务器使用的正式文献资料库根地址，支持 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管存储，用于存放指南原文、标准文献、附件和知识生成输入文件；替代服务器本地 tmp 或磁盘临时存放，迁移主机或更换存储时在配置中心维护。",
+            true,
+            "PLATFORM_SEED",
+            seededAt);
+    }
+
     private void seedCdssPolicy(Instant seededAt) {
         seedConfigValue("medkernel.cdss.fatigue.policy",
             "{\"default\":{},\"scenarios\":{},\"departments\":{},\"departmentScenarios\":{}}",
@@ -254,6 +269,20 @@ public class SystemConfigSeeder implements ApplicationRunner {
                                  String description,
                                  boolean protectedConfig,
                                  Instant seededAt) {
+        seedConfigValue(key, value, valueType, displayName, risk, owner, description, protectedConfig, "YML_SEED",
+            seededAt);
+    }
+
+    private void seedConfigValue(String key,
+                                 String value,
+                                 String valueType,
+                                 String displayName,
+                                 String risk,
+                                 String owner,
+                                 String description,
+                                 boolean protectedConfig,
+                                 String source,
+                                 Instant seededAt) {
         service.seed(new SystemConfigSeed(
             SystemConfigService.SYSTEM_TENANT,
             key,
@@ -263,7 +292,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             risk,
             owner,
             description,
-            "YML_SEED",
+            source,
             protectedConfig,
             seededAt), "system");
     }

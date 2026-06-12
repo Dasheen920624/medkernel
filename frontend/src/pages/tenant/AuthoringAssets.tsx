@@ -280,7 +280,7 @@ export default function AuthoringAssets() {
         state="error"
         stateProps={{
           title: "统一资产库读取失败",
-          description: "请重试；若持续失败，请带 traceId 联系信息科排查创作资产服务。",
+          description: "请重试；若持续失败，请凭追踪号联系信息科排查创作资产服务。",
           onRetry: () => assetsQuery.refetch(),
         }}
       >

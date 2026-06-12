@@ -1,57 +1,45 @@
 # 会话接力
 
-## 2026-06-12 医疗知识与人员身份治理代码检查点
+## 2026-06-12 P2 全系统产品信息架构门禁
 
-- 当前分支：`codex/identity-knowledge-governance`；最新基线为合并提交 `ba8aaafa`，本批改动尚待提交。
-- 第一阶段代码检查点已完成：平台 `t-1` 是唯一平台治理空间和医疗知识主源；机构默认复用平台知识，按需派生本机构版本；人员体系拆分为自然人、任职、账号、身份来源、职责角色和组织范围。
-- 人员与账号已具备单个维护、CSV 批量预检/提交/冲突结果/一次性凭证；身份来源具备单个绑定和批量匹配。组织选择已改为服务端检索，可按服务机构、业务范围、层级和祖先节点查询，不再加载完整组织树。
-- 登录与首次安全设置已区分平台治理和医疗机构语义；平台角色范围显示“平台治理空间”。知识治理客户空态不再暴露 `KNOW-02` 等内部施工编号。
-- 五张人员表统一为 `mk_identity_person*` 命名，五方言迁移、实体、仓储、审计资源和租户前缀索引已同步。生产代码和测试中旧角色 authority 扫描为零。
-- 最终验证：前端 `npm run verify` 通过，86 个文件/634 项测试全绿；`npm run build` 通过，3407 个模块；后端 `mvn -q test` 通过，340 份报告/2211 项测试/0 失败/0 错误/5 跳过；真实性与配置边界 changed 门禁、迁移门禁、中文注释门禁、38 项门禁自测和 `git diff --check` 均通过。
-- 本地浏览器代表性走查已覆盖登录、安全设置、平台工作台、人员批量导入、身份来源批量匹配和平台知识治理。完整证据与未放行项见[阶段检查点报告](audit/knowledge-personnel-governance-checkpoint-20260612.md)。
-- **当前不允许进入 134 演练。** 下一步强制执行[全系统功能与产品信息架构重构实施计划](superpowers/plans/2026-06-11-global-product-ia-refactor-implementation.md)：先生成完整能力目录，再做唯一产品裁决、目标架构、菜单路由、页面任务化、全局中文和 14 角色旅程。
-- 菜单数量、`5+1`、专业能力或高级工具是否单列均不是既定结论。必须比较领域型、角色任务型、生命周期型和混合型架构，并依据任务频率、角色重叠、上下文连续性、风险、移动端、权限和交付成本裁决。
-- 上下文接力规则：本检查点提交后只保留本段、检查点报告和全局 IA 计划作为下一上下文入口；不要重读下方旧演练流水，除非核对历史证据。
+- 当前分支：`codex/global-product-ia-refactor`。P2 全系统产品门禁已完成；“平台知识文献资料库根地址”配置中心追加补丁已完成本地验证，待提交推送。
+- 第一阶段体系检查点已完成，权威报告：[第一阶段代码检查点](audit/knowledge-personnel-governance-checkpoint-20260612.md)。
+- 本阶段产品门禁已完成，权威报告：[全系统产品信息架构门禁验收报告](audit/global-product-ia-acceptance.md)。
+- 下一线程入口：[P2 精简上下文快照](audit/context-snapshots/2026-06-12-p2-global-product-ia.md)。除非核查历史证据，不要回读旧长流水。
 
-## 2026-06-11 全新平台体系重构线
+## 已完成
 
-- 当前在 `codex/identity-knowledge-governance` 隔离工作树实施“平台知识主源 + 机构按需派生”和“自然人 + 任职 + 账号 + 身份来源 + 职责角色 + 组织范围”全新体系；旧角色、旧设计、旧数据和兼容逻辑不保留。
-- 已在检查点 `1e6af5a2` 后合并最新 `origin/main@406311d9`，保留路径可读化、审计 traceId 诊断链、安全基线试算预览和指南证据；唯一代码冲突位于审计详情，已合并为“服务空间”术语 + 真实诊断链。
-- 合并回归证据：前端审计/患者路径 17 项、安全基线/路径模板 30 项、API hooks 96 项及类型检查通过；后端 `LargeListEngineServiceTest,AuditEventRepositoryTest` 通过，H2 从空库成功执行 115 个迁移。
-- 长目标新增强制阶段：第一阶段实现提交后、134 清库演练前，执行[全系统功能与产品信息架构重构](superpowers/specs/2026-06-11-global-product-ia-refactor-design.md)。必须先盘点完整能力与任务网络，再裁决功能、名称、需求内容、导航、角色入口和专业能力承载方式；未通过不得演练。
-- 用户提出的菜单数量、`5+1`、专业能力是否单列，以及第三方接入、嵌入、模拟、字典和病历等，均只作为问题线索和候选方案，不得直接写成产品结论。最终方案必须以医疗引擎中枢使命、现有能力证据、医疗全场景任务、风险和交付可用性推导，并同步修订现行宪法与体验契约中的旧锁定规则。
-- 当前聚焦新职责角色最小权限、工作台和路由同源；后端角色/迁移聚焦测试已绿，前端 14 角色工作台、路由和角色目录共 51 项测试已绿，前端类型检查已绿。
-- 上下文治理：每个阶段把状态、证据、问题和下一步写入本文件及验收报告，只在会话保留精简摘要；阶段结束切换干净线程并归档旧线程，避免界面累积上下文卡顿。
+- 全量盘点前端路由、页面、后端菜单、控制器、批量任务、第三方接口和专家能力，并生成唯一产品裁决：[全系统功能目录](audit/product-function-catalog.md)。
+- 锁定五大客户主域：工作台、机构治理、知识配置、临床协同、质量与运营；高级工具默认隐藏在所属主域专家模式；外部系统接口能力不进客户菜单。
+- 前后端菜单、路由、权限、面包屑、页面名称、客户可见术语和 14 个职责角色默认工作台已同源重构。
+- 14 个客户职责角色菜单快照、唯一主动作、高频任务和桌面/平板/移动旅程已锁定：[角色旅程报告](audit/product-role-journeys.md)。
+- 知识生成前置存储约束已产品化：新增配置中心键 `medkernel.knowledge.literature.material-root-uri`，客户可见名为“平台知识文献资料库根地址”，当前默认正式资料库根为 `cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/`；后端按受管 URI 校验，兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关等未来存储，不绑定当前服务器 IP，不写入 yml，迁移主机或更换存储只通过系统配置页维护；禁止使用 `tmp`、`file://`、本机临时目录或非加密 HTTP 承载正式文献资料。
 
-## 当前执行
+## 验证证据
 
-- **主线「全流程演练·使用指南·体验重构」：幕0–10 L1/L2、总验收报告、P1 第一项「提醒与推荐中枢 / 推荐链路一张图」、`OPT-VIS-01` 规则可读路径及其 134 复验证据、`OPT-VIS-02` 医生只读路径图 + `OPT-PATH-UI-01` 复制新版本及其 134 复验证据、`UI-ACT10-AUDIT-01` 审计 traceId 直搜与诊断链跳转及其 134 复验证据、`UI-ACT10-SECBASE-01` 安全基线页权限试算 + 脱敏预览面板、使用指南代理预验收证据均已合入 main；当前按用户要求在指南预验收任务完成后暂停，交后续 AI 团队继续独立真人验收与 134 收尾**（计划 #526；DOC-SYNC #528；幕0–8 = #529–#537；幕9 = #538 `3e4ba441`；实现路径纠偏 #539 `0b0d4cb2`；幕10 L1 = #540 `efbfd9ab`；幕8.5 第一批 = #541 `6aaba08b`；幕8.5 第二批 = #542 `859477f`；幕8.5 第三批 = #543 `516ad753`；幕10 L2 = #544 `dde82115`；总验收与培训材料 #545 `cd2268af`；推荐中枢 #546 `17f4cc4d`；推荐中枢 134 复验证据 #547 `21c16857`；规则可读路径 #548 `27d762c5`；规则可读路径 134 复验证据 #549 `4eca6178`；路径可读化实现 #550 `1f32dbfb`；路径可读化 134 复验证据 #551 `6165429f`；审计 traceId 实现 #552 `74353b56`；审计 traceId 134 复验证据 #553 `43a8cf8e`；安全基线试算预览实现 #554 `13a93a5b`；安全基线 134 复验证据 #555 `f87573d3`；指南预验收 #556 `47d69e33`）。总体计划见 [docs/superpowers/plans/2026-06-10-full-flow-drill-usability-program.md](superpowers/plans/2026-06-10-full-flow-drill-usability-program.md)。
-- **2026-06-11 实现路径纠偏（客户反馈触发，本线当前焦点）**：客户反馈「实现路径与原方案不一致、完全看不懂」。核查实锤：幕0–9 的后端运行链（L1）真实有效、成果保留，但演练逐幕漂移成「API 脚本跑链路」，**客户视角页面走查（L2）系统性缺位**——证据截图幕0=10 张逐幕递减至幕6/7/8/9=0 张；幕5「医生在图上口述路径」判据被 `/simulate` 接口替代；幕9「适配器健康状态页可读」判据无页面证据；四问审计只做了幕0/1，§6.5 登记表幕6后零新增；能力可见性矩阵未建；演练脚本 `/tmp` 即弃未入库（含 `/tmp/act9-third-party-cases.mjs`）；幕8 配置包业务 ID 混入随机批次码；计划「执行结果」段被 UUID 流水污染。
-- **纠偏已立法（PR #539）**：计划新增 **§2.5 执行契约**——核心口径=**产品是给客户看和用的，不是给技术人员的**：客户面动作（配置/维护/审批/处理提醒/查看）一律前台完成，API 只许扮演外部系统（HIS/LIS/第三方报文）或铺无关前置数据，**API 替代客户操作=该幕不通过**；触发流程验证=触发源可 API 注入，但接收→处理→闭环必须在前台页面完成留痕。另立每幕 8 条硬性 DoD + 计划文件卫生；新增 **幕8.5 前台重新演练**（用户裁定：前面的也要补回来重新演练——幕0–9 全量前台重演：前台操作/维护规则/触发流程三类验证，先于幕10 收口）；幕6–9「执行结果」段瘦身为一行+证据链接；§6.5 补登 OPT-PKG-01 与四问欠账行；新建 `scripts/drill/` 脚本归档区。**若有在途幕10 会话：幕10 必须按 §2.5 DoD 执行（审计页前台操作为本体），幕10 收口不豁免幕8.5。**
-- **用户授权仍有效**：演练、指南、体验重构全程由 AI 自主裁决，无需逐项咨询；质量准绳为最高质量和最佳体验。未上线产品按纯粹实现推进，不为旧低质实现加兼容层。所有外向/生产配置动作必须备份、留痕、可回滚或如实登记不能回滚原因。
-- 幕8 主链/发布/后端修复细节见 [幕8证据 README](release/evidence/v1.0-drill-20260611/幕8-配置包与发布治理/README.md) 与 #537；幕9 六案例（C1–C6 全 `PASSED`）与 2 个后端修复（临床事件嵌套事务隔离、嵌入令牌 SQL 参数绑定）细节见 [幕9证据 README](release/evidence/v1.0-drill-20260611/幕9-第三方对接能力案例集/README.md) 与 #538，不在此重复。
-- **幕9真实限制（保留登记）**：本地演练脚本访问 134 仍使用自签证书校验绕过，正式部署必须替换院方信任证书；C5 用 `203.0.113.10` TEST-NET-3 断连目标证明 `NOT_CONNECTED`/`DEAD_LETTER`，不是外部厂商真实接收成功；C3 FHIR 出站补偿目标为占位地址，主写入和查询通过，补偿失败状态如实保留。
-- **幕10 L1 已完成并合入 main（PR #540，merge `efbfd9ab`）**：runTag `act10-mq8ww9f8`，证据在 [幕10证据目录](release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/README.md)。A1–A7 全 `pass=true`：审计链、数据权限跨科室阻断、脱敏预览、敏感导出二人审批、模型 B0 诚实降级、国产化报告和 schema-only 备份恢复抽查。同步修复：登录 JWT 组织域改用 `org_unit.id`、新增数据权限 check 接口、新增脱敏 preview 接口、导出审批长 evidenceId 稳定压缩。远端发布备份 `/zoesoft/medkernel/backups/deploy-20260611-110134`，jar SHA `559c1ad8630df4dc34fe57c799b290e9c58a86fcc9b0efa8a7a1621aab02725a`，演练备份 `/zoesoft/medkernel/backups/act10-mq8ww9f8.schema.dump`。
-- **幕10真实限制（必须保留）**：L1 后端/运维链路已实证，L2 前台走查已补齐；仍不得把 API JSON 证据当作页面验收。`node scripts/drill/act10-audit-degrade.mjs` 仍因 134 自签证书设置 `NODE_TLS_REJECT_UNAUTHORIZED=0`，正式部署必须换院方信任证书。schema-only 恢复抽查只验证表结构与 Flyway 表存在，`migrationCount=0` 是 schema-only 预期。`UI-ACT10-AUDIT-01` 与 `UI-ACT10-SECBASE-01` 均已合入并完成 134 前台复验。
-- **幕8.5 第一批实证（已合入 #541）**：`node scripts/drill/act85-ui-replay-acts0-2.mjs` 已在 134 真实前台完成幕0–2 复演，截图落各幕 `ui-replay/`；幕0 4 步、幕1 7 步、幕2 5 步，全部带 URL 标头。幕2发现 `OPT-TERM-UI-01`：`/terminology/mapping` 能查看候选/冲突/构建包/发布入口，但不能前台新建映射、制造冲突、替换/回滚单条映射；禁用原因也不够直接。
-- **幕8.5 第二批实证（已合入 #542）**：`node scripts/drill/act85-ui-replay-acts3-5.mjs` 已在 134 真实前台完成幕3–5 复演，截图落幕3–5 `ui-replay/`；幕3 3 步、幕4 4 步 / 8 图、幕5 4 步 / 7 图，全部带 URL 标头。新增/细化缺口：`OPT-KNOW-UI-01`、`OPT-VIS-01`、`OPT-VIS-02`、`OPT-PATH-UI-01`。
-- **幕8.5 第三批实证（已合入 #543）**：`DRILL_START_ACT=9 node scripts/drill/act85-ui-replay-acts6-9.mjs` 已接续前序摘要并在 134 真实前台完成幕6–9 复演，截图落幕6–9 `ui-replay/`；幕6 15 图、幕7 11 图、幕8 4 图、幕9 6 图，全部带 URL 标头。新增/细化缺口：`OPT-WORKFLOW-01`、`OPT-FOLLOWUP-01`、`OPT-PKG-01`、`UI-ACT9-ADAPTER-01`。
-- **幕10 L2 实证（已合入 #544）**：`node scripts/drill/act10-l2-ui-replay.mjs` 已在 134 完成真实前台走查，runTag `act10-l2-mq93tngz-9425`，截图落 [幕10 ui-replay](release/evidence/v1.0-drill-20260611/幕10-合规审计与降级/ui-replay/)；共 16 张 1440x1100 带 URL 截图。审计员在 `/admin/audit` 前台筛选审计事件、打开详情、提交审计日志导出申请；医院管理员在 `/admin/audit` 前台审批；信息科在 `/security/baseline`、`/system/providers`、`/advanced/domestic` 查看安全配置、数据权限、脱敏、运行状态、国产化自检并导出报告。验证与 CI 已通过并合入 main。
-- **P1 体验实现进展（PR #546，merge `17f4cc4d`）**：`/cdss/fatigue` 已升级为「提醒与推荐中枢」，新增推荐链路总览、患者 / traceId / 来源对象本页检索、抽屉内「这条推荐是怎么来的」七段链路（触发事件→命中规则→知识来源→路径上下文→待办 / 通知→医生反馈→药师复核），并修正移动端筛选表单布局。本地验证、GitHub Actions、134 前端发布和医生账号桌面 / 390px 移动复验均已通过；134 发布备份 `/zoesoft/medkernel/backups/deploy-20260611-154250`，复验证据见 [推荐中枢 134 复验](release/evidence/v1.0-drill-20260611/P1-体验重构/推荐中枢-134复验/README.md)。`OPT-IA-01` / `OPT-TRACE-01` 第一批销项；待办/通知状态同步仍归 `OPT-WORKFLOW-01`。
-- **P1 `OPT-VIS-01` 规则可读路径（PR #548 + #549，main `4eca6178`，134 已发布复验）**：规则库详情 L2 面板已新增「规则可读路径」，把同一份 DSL 派生为业务句子和只读流程节点（触发时点、适用范围、命中条件、处置动作、治理与安全），红线风险按动作最高严重度呈现，医生确认 / 不自动开嘱安全约束前台可见。TDD 与本地验证、GitHub Actions 8 项 CI 均已通过；134 前端发布成功，发布备份 `/zoesoft/medkernel/backups/deploy-20260611-162406`，readiness `UP`，jar SHA 仍为 `559c1ad8630df4dc34fe57c799b290e9c58a86fcc9b0efa8a7a1621aab02725a`。134 复验证据已随 #549 合入，见 [规则可读路径 134 复验](release/evidence/v1.0-drill-20260611/P1-体验重构/规则可读路径-134复验/README.md)，医务处真实账号在 `/rule/definitions` 桌面 / 390px 移动视口均看到「规则可读路径」，页面级横向溢出为 0。
-- **P1 `OPT-VIS-02` + `OPT-PATH-UI-01`（#550 `1f32dbfb` + #551 `6165429f`，134 已发布复验）**：患者路径详情新增「医生只读路径图」，以已发布模板节点/边 + 患者运行态展示已完成/当前/待执行、当前节点高亮、节点责任角色/时窗/时钟证据、可读流转边，并明确「只读展示，不自动开立或修改医嘱」；路径配置详情对已全量生效模板新增「复制为新版本」，把同编码已发布模板复制成下一版本草稿，保留节点、边、里程碑、入出径条件、结局指标和时钟指标绑定；同时把相关 Drawer/Modal 与详情 Descriptions 做移动响应式，避免 390px 视口只露窄条或事实表竖排。134 前端发布成功，发布备份 `/zoesoft/medkernel/backups/deploy-20260611-173711`，readiness `UP`，jar SHA 仍为 `559c1ad8630df4dc34fe57c799b290e9c58a86fcc9b0efa8a7a1621aab02725a`。`node scripts/drill/pathway-readable-ui-proof.mjs` 已在 134 真实前台复验医生 `/pathway/patients` 桌面 + 390px 移动只读路径图、专科专家 `/pathway/templates` 桌面 + 390px 移动复制下一版草稿弹窗；脚本断言 6 个路径节点、1 个当前节点、0 个删除按钮、6 个复制节点、6 条复制边、页面级横向溢出 0，证据见 [路径可读化 134 复验](release/evidence/v1.0-drill-20260611/P1-体验重构/路径可读化-134复验/README.md)。
-- **P1 `UI-ACT10-AUDIT-01`（#552 `74353b56` + #553 `43a8cf8e` 已合入 main，134 已复验）**：后端 `/api/v1/large-lists/audit-events/list` 已把 `traceId` 纳入大列表过滤白名单、`AuditEventQuery`、真实 `audit_event.trace_id` SQL 过滤、总数估算和导出快照复用，避免前端假搜；前端 `/admin/audit` 默认可见 Trace ID 搜索，审计详情抽屉新增「打开诊断链」，复用 `/engine/diagnose/traces/{traceId}` 展示状态流转、错误和 Payload 摘要。已跑本地验证：`npm test -- AdminAudit.test.tsx hooks.test.ts`（104 passed）、`mvn -Dtest=LargeListEngineServiceTest,AuditEventRepositoryTest test`（30 passed）、`npm run lint`、`npm run build`、`mvn test`（2213 tests，0 failures，5 skipped）、Prettier check、`scripts/check-comment-zh.sh`、`authenticity-guard --mode=all`、`config-boundary-guard --mode=all`、`migration-convention-guard --mode=all`、`git diff --check`；GitHub Actions PR #552 / #553 均 8 项全绿后 squash 合入。134 双端发布成功，备份 `/zoesoft/medkernel/backups/deploy-20260611-183604`，jar SHA `51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e`，readiness `UP`。`node scripts/drill/audit-trace-diagnosis-ui-proof.mjs` 已在 134 审计员真实账号完成桌面 + 390px 复验：Trace ID `act6-8oh7bn024a-k-event` 直搜命中 7 条审计事件、诊断链返回 8 条状态流转、当前 Payload 摘要真实为空且页面显示「无 Payload 摘要」，页面级横向溢出 0；证据见 [审计 traceId 诊断链 134 复验](release/evidence/v1.0-drill-20260611/P1-体验重构/审计traceId诊断链-134复验/README.md)。
-- **P1 `UI-ACT10-SECBASE-01`（#554 `13a93a5b` + #555 `f87573d3` 已合入 main，134 已发布复验）**：前端 `/security/baseline` 已接入后端真实 `POST /api/v1/compliance/data-permissions:check` 与 `POST /api/v1/compliance/masking-rules:preview`；数据权限页新增「权限试算」工具区，默认继承首条策略资源 / 动作 / 字段，可按组织范围提交并展示行级结果、命中策略、允许字段和拒绝字段；脱敏规则页新增「脱敏预览」工具区，操作者显式输入 JSON 对象后调用后端脱敏引擎，展示原文许可、脱敏字段和字段级预览输出。TDD 红灯已确认：`npm test -- SecurityBaseline.test.tsx hooks.test.ts` 先因缺 hooks/面板失败；最终验证已绿：Prettier check、`npm run lint`、`npm run build`、`npm run stylelint`、`npm run test:lint-rules`、`npm test`（84 files / 626 tests）、`scripts/check-comment-zh.sh`、`authenticity-guard --mode=all`、`config-boundary-guard --mode=all`、`migration-convention-guard --mode=all`、`git diff --check`；GitHub Actions 8 项全绿后 squash 合入 #554/#555。134 前端发布成功，发布备份 `/zoesoft/medkernel/backups/deploy-20260611-193235`，readiness `UP`，后端 jar SHA 仍为 `51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e`。`node scripts/drill/security-baseline-trial-preview-ui-proof.mjs` 已在 134 医院管理员真实账号完成桌面 + 390px 前台复验：权限试算和脱敏预览 POST 均为 200，权限试算命中 `dperm-act10-patient-scope-read` 并返回 `patientName/idNo` 拒绝字段，脱敏预览返回 `张*国` 与 `**************8888`，页面级横向溢出 0；证据见 [安全基线试算预览 134 复验](release/evidence/v1.0-drill-20260611/P1-体验重构/安全基线试算预览-134复验/README.md)。
-- **指南预验收（#556 `47d69e33` 已合入 main）**：手册/培训材料已同步 P1 第一批最新事实：临床运行补提醒与推荐中枢、医生只读路径图和复制新版本；试点准备补规则可读路径；合规运维补 Trace ID 诊断链、权限试算和脱敏预览；三份角色培训均改为可操作入口与证据锚点。`node scripts/drill/guide-acceptance-proof.mjs` 已生成 [指南验收证据](release/evidence/v1.0-drill-20260611/指南验收/README.md)，检查必需文档 11、P1 证据 13、内容锚点 7、Markdown 链接 144，均通过。该结论只是代理预验收，不能替代独立客户代表或新上下文真人验收。
+- 后端：`mvn -q test`，Surefire 340 份报告，2214 tests，0 failures，0 errors，0 skipped；退出码 0，末尾有测试 JVM 关闭期调度线程连接噪声。
+- 五方言：`MigrationBaselineContractTest` 102 tests，0 failures，0 errors，覆盖 h2/postgres/oracle/dm/kingbase 静态迁移合同。
+- 前端：`npm run verify` 通过，lint、stylelint、规则测试、format、typecheck、Vitest 89 files / 649 tests 全绿。
+- 构建：`npm run build` 通过，Vite production build 3408 modules transformed。
+- E2E：`E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 E2E_BASE_URL=http://127.0.0.1:5173 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npx playwright test --project=chromium`，31 passed。
+- T-GATE：40 项门禁自测通过；`authenticity-guard --mode=all` 扫描 1582 文件 0 阻断；`config-boundary-guard --mode=all` 扫描 1492 文件 0 阻断；`migration-convention-guard --mode=all` 扫描 580 文件 0 阻断；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check` 通过。
+- 产品目录门禁：`node scripts/audit/export-product-capabilities.mjs --check` 退出码 0。
+- 本地浏览器：Browser 打开 `http://127.0.0.1:5173/login`，可见中文机构登录、平台治理切换、所在机构、统一身份入口和安全提示。
+- 追加聚焦验证：`mvn -q -Dtest=SystemConfigControllerTest#knowledgeLiteratureMaterialRootUriUsesManagedStorageSeedAndRejectsTmp test` 通过，H2 空库迁移到 V116，并验证平台种子、`tmp/file/http` 类非法地址拒绝、S3 等非 COS 受管 URI 可高风险维护；`npm test -- src/pages/compliance/SecurityBaseline.test.tsx` 7 tests 通过，系统配置页可查看维护“平台知识文献资料库根地址”。
+- Docker 迁移烟测：本机 Docker Desktop 已启动；旧 `medkernel-dev-*`、`medkernel-dify-*` 与过期 Oracle 容器已清理，释放约 1GB build cache；`mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 通过，真实 PostgreSQL、Oracle、H2 均从空库迁移到 V116 并验证重复迁移幂等。
 
-## 当前状态
+## 未冒领与延期
 
-- main：`47d69e33`（指南预验收与 P1 证据同步 #556 已合）；当前按用户要求暂停，不再领取下一项。
-- 134：演练数据在库**未清**，幕1 的 9 个角色账号可用（凭据在服务器 `/zoesoft/medkernel/conf/drill-act1-credentials-20260611.json`），正好支撑后续体验实现复验；前端已发布 #554，发布备份 `/zoesoft/medkernel/backups/deploy-20260611-193235`，readiness `UP`，后端 jar SHA `51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e`。
-- 指南现状：4 本手册 + 第三方对接案例集 + 3 本角色培训均有实质内容且章节结构合规；合规运维手册已补幕0、幕9、幕10 UI 复演图和审计/权限/脱敏/审批/降级章，并在当前分支同步 Trace ID 诊断链、权限试算、脱敏预览；试点准备手册已补幕1–4、幕8 UI 复演图和规则可读路径；临床运行手册已补幕5–7 UI 复演图、提醒与推荐中枢、医生只读路径图和复制新版本；质控改进手册已补幕7 UI 复演图。
+- `DEFER-023` 已解除：本机 Docker 可用并完成 Testcontainers PostgreSQL/Oracle/H2 迁移烟测。P3/P4 仍必须提交目标环境真实备份、恢复和从零迁移证据，不用本机烟测替代 134 现场证据。
+- 尚未对 `193.112.107.134` 执行任何外向操作；不得跳过 P3 直接清库或发布。
+- wave2 模型网关、AI 知识工厂、平台首发知识生成、15 领域门面和 GA 总验收未开始。
+- `193.112.107.134` 是当前指定的后续主平台知识管理服务器；所有平台知识生成必须在该服务器完成，且必须等全功能完美验收、结构冻结、清库双演练和第一阶段正式验收通过后开始，禁止边生成知识边改主结构。正式文献资料库根地址不得硬编码 134 或存储厂商，必须通过系统配置页维护。
 
 ## 下一步
 
-1. 后续 AI 团队先发起独立客户代表或全新上下文真人验收：只给手册/培训材料，不给后台脚本，走通字典、规则、推荐链。
-2. 真人验收通过后，按总体计划 §8 执行 134 备份、清库、重迁、health 校验和第二阶段准入总验收。
-3. P2 体验项继续排队：`OPT-WORKFLOW-01`、`OPT-FOLLOWUP-01`、`OPT-PKG-01`、`UI-ACT9-ADAPTER-01`。
+1. 提交并推送“平台知识文献资料库根地址”追加补丁，更新 PR。
+2. 切换干净线程并归档旧线程；新线程只读本文件和 P2 精简快照。
+3. 进入 P3 演练前发布准备：先核验 `193.112.107.134` 主机、部署目录、数据库、当前版本和回退路径。
+4. 对 134 做任何外向操作前，必须先生成数据库、配置、制品和关键证据备份，记录摘要、时间、操作者和恢复命令。
+5. P3 未通过前不得清库、发布、首轮演练或进入 wave2。
+6. P6 开始前必须证明 134 平台知识结构冻结；平台首发知识资产只能在 134 上生成和发布，正式文献资料写入配置项指向的受管资料库根地址。

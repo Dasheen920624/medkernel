@@ -92,6 +92,9 @@ type SystemConfigForm = {
 
 type SystemConfigScope = "system" | "tenant";
 
+const KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
+  "medkernel.knowledge.literature.material-root-uri";
+
 function isHardLockedConfig(item: SystemConfigItem) {
   return [
     "medkernel.runtime.feature-flags.audit-persistence.enabled",
@@ -127,6 +130,10 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
   const updateTenant = useUpdateTenantSystemConfig();
   const [selected, setSelected] = useState<SystemConfigItem | null>(null);
   const [form] = Form.useForm<SystemConfigForm>();
+  const configItems = configs.data ?? [];
+  const knowledgeLiteratureConfig = configItems.find(
+    (item) => item.key === KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY,
+  );
 
   function openEdit(item: SystemConfigItem) {
     setSelected(item);
@@ -196,6 +203,22 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         message="配置以数据库为唯一运行来源"
         description="高风险项必须确认影响；审计持久化与国密安全底座保持红线锁定，其余运行能力可按系统默认或服务机构覆盖灰度。"
       />
+      {scope === "system" && knowledgeLiteratureConfig && (
+        <Alert
+          type="success"
+          showIcon
+          message="平台知识文献资料"
+          description={
+            <Space direction="vertical" size={2} className="mk-full-width">
+              <Text code>{knowledgeLiteratureConfig.value}</Text>
+              <Text type="secondary">
+                主平台知识管理服务器使用的正式文献资料库，支持对象存储或受管资料库，配置中心维护，禁止
+                tmp 临时目录。
+              </Text>
+            </Space>
+          }
+        />
+      )}
       <Space wrap>
         <Segmented
           value={scope}
@@ -217,7 +240,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
       </Space>
       <Table<SystemConfigItem>
         rowKey="key"
-        dataSource={configs.data ?? []}
+        dataSource={configItems}
         pagination={{ pageSize: 20, hideOnSinglePage: true }}
         scroll={{ x: "max-content" }}
         columns={[
@@ -352,7 +375,7 @@ type MaskingPreviewForm = {
   resourceType?: string;
   scenarioCode?: string;
   sensitiveFields?: string[];
-  valuesJson?: string;
+  sampleValue?: string;
 };
 
 function normalizeOptional(value?: string | null) {
@@ -374,21 +397,8 @@ function renderTagList(values: string[] | undefined, emptyText = "无") {
 function displayPreviewValue(value: unknown) {
   if (value === null) return "null";
   if (value === undefined) return "未返回";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "object") return "结构化值已隐藏";
   return String(value);
-}
-
-function parseMaskingPreviewValues(value?: string): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value ?? "{}");
-  } catch {
-    throw new Error("预览值 JSON 格式不合法");
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("预览值 JSON 必须是对象格式");
-  }
-  return parsed as Record<string, unknown>;
 }
 
 const scopeLevels: Array<{
@@ -852,12 +862,12 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
         resourceType: defaultRule.resourceType,
         scenarioCode: defaultRule.scenarioCode ?? "DEFAULT",
         sensitiveFields: [defaultRule.fieldName],
-        valuesJson: JSON.stringify({ [defaultRule.fieldName]: "" }, null, 2),
+        sampleValue: "",
       }
     : {
         scenarioCode: "DEFAULT",
         sensitiveFields: [],
-        valuesJson: "{}",
+        sampleValue: "",
       };
 
   function openCreate() {
@@ -907,10 +917,13 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
 
   async function runPreview(values: MaskingPreviewForm) {
     try {
+      const sampleValues = Object.fromEntries(
+        (values.sensitiveFields ?? []).map((field) => [field, values.sampleValue ?? ""]),
+      );
       const result = await preview.mutateAsync({
         resourceType: values.resourceType?.trim() ?? "",
         scenarioCode: normalizeOptional(values.scenarioCode),
-        values: parseMaskingPreviewValues(values.valuesJson),
+        values: sampleValues,
         sensitiveFields: values.sensitiveFields ?? [],
       });
       setPreviewResult(result);
@@ -970,25 +983,11 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
             </Col>
           </Row>
           <Form.Item
-            name="valuesJson"
-            label="预览值 JSON"
-            rules={[
-              { required: true, whitespace: true },
-              {
-                validator: (_rule, value) => {
-                  try {
-                    parseMaskingPreviewValues(value);
-                    return Promise.resolve();
-                  } catch (error: unknown) {
-                    return Promise.reject(
-                      error instanceof Error ? error : new Error("预览值 JSON 格式不合法"),
-                    );
-                  }
-                },
-              },
-            ]}
+            name="sampleValue"
+            label="预览样例值"
+            rules={[{ required: true, whitespace: true }]}
           >
-            <Input.TextArea rows={5} />
+            <Input placeholder="输入一条用于验证脱敏效果的样例值" />
           </Form.Item>
           <Button
             type="primary"

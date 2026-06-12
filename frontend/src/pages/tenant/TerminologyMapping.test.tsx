@@ -736,7 +736,7 @@ describe("TerminologyMapping experience sample", () => {
         <TerminologyMapping />
       </ConfigProvider>,
     );
-    expect(screen.getByText("暂无字典映射条目")).toBeInTheDocument();
+    expect(screen.getByText("暂无术语映射条目")).toBeInTheDocument();
 
     configureQuery({ isError: true, data: undefined });
     view.rerender(

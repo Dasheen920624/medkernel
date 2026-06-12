@@ -60,7 +60,7 @@ class D0DomainAcceptanceTest {
                 .as("%s 必须具备菜单、动作、数据和环境权限；无资产职责的角色不得被迫扩权", role.code())
                 .contains("MENU", "ACTION", "DATA", "ENVIRONMENT");
             assertThat(textValues(data.path("menuKeys")))
-                .as("%s 菜单必须来自 27+5 二级/高级菜单目录", role.code())
+                .as("%s 入口必须来自 23+1+1+5 导航权限目录", role.code())
                 .isNotEmpty()
                 .contains("workbench")
                 .doesNotContain("pilot-setup", "clinical-run", "quality-improve", "compliance-ops",
@@ -74,14 +74,20 @@ class D0DomainAcceptanceTest {
     }
 
     @Test
-    void d0LockedMenuCatalogStillMatchesTwentySevenCustomerMenusAndFiveAdvancedTools() {
-        assertThat(MenuPermissionCatalog.allMenus()).hasSize(32);
+    void d0LockedMenuCatalogMatchesFiveDomainsAndExplicitPlacements() {
+        assertThat(MenuPermissionCatalog.allMenus()).hasSize(30);
         assertThat(MenuPermissionCatalog.allMenus())
-            .filteredOn(menu -> "advanced-tools".equals(menu.sectionKey()))
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.EXPERT)
             .hasSize(5);
         assertThat(MenuPermissionCatalog.allMenus())
-            .filteredOn(menu -> !"advanced-tools".equals(menu.sectionKey()))
-            .hasSize(27);
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
+            .hasSize(23);
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
+            .hasSize(1);
+        assertThat(MenuPermissionCatalog.allMenus())
+            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PROFILE)
+            .hasSize(1);
     }
 
     private JsonNode readData(String body) throws Exception {

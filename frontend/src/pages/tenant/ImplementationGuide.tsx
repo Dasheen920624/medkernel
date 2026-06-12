@@ -30,9 +30,9 @@ const { Text, Title } = Typography;
 
 const targetLabelByPath: Record<string, string> = {
   "/tenant/onboarding": "机构实施配置",
-  "/adapter/hub": "适配器中心",
-  "/config/packages": "配置包中心",
-  "/terminology/mapping": "字典映射",
+  "/adapter/hub": "系统接入",
+  "/config/packages": "配置包与发布",
+  "/terminology/mapping": "术语与字典",
 };
 
 function targetLabel(path: string) {
@@ -75,8 +75,8 @@ export default function ImplementationGuide() {
   if (isLoading) {
     return (
       <PageShell
-        title="客户实施向导"
-        description="读取试点准备真实步骤"
+        title="实施与验收"
+        description="读取交付准备真实步骤"
         state="loading"
         stateProps={{
           title: "正在加载实施步骤",
@@ -91,7 +91,7 @@ export default function ImplementationGuide() {
   if (isError) {
     return (
       <PageShell
-        title="客户实施向导"
+        title="实施与验收"
         description="请重试或联系信息科"
         state="error"
         stateProps={{
@@ -108,7 +108,7 @@ export default function ImplementationGuide() {
   if (steps.length === 0) {
     return (
       <PageShell
-        title="客户实施向导"
+        title="实施与验收"
         description="等待服务机构实施服务返回步骤"
         state="empty"
         stateProps={{
@@ -133,8 +133,8 @@ export default function ImplementationGuide() {
 
   return (
     <PageShell
-      title="客户实施向导"
-      description="按真实就绪状态推进试点准备"
+      title="实施与验收"
+      description="按真实就绪状态推进交付准备"
       primary={
         primaryTarget ? (
           <Link to={primaryTarget.targetPath}>
@@ -178,13 +178,13 @@ export default function ImplementationGuide() {
             type="warning"
             showIcon
             message="部分步骤未就绪"
-            description="阻塞项会保留在本页并指向对应配置页；未完成前不得把试点准备标记为完成。"
+            description="阻塞项会保留在本页并指向对应配置页；未完成前不得把交付准备标记为完成。"
           />
         ) : (
           <Alert
             type="success"
             showIcon
-            message="试点准备步骤均已就绪"
+            message="交付准备步骤均已就绪"
             description="可以进入灰度发布与验收留证，但仍需按 7 步流完成审核、灰度、全量和回滚证据。"
           />
         )}

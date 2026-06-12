@@ -516,7 +516,7 @@ describe("KnowledgeGovernance", () => {
     );
     expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42);
 
-    expect(screen.getByRole("heading", { name: "知识治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.getAllByText("冲突候选").length).toBeGreaterThan(0);
     expect(screen.getByText("高风险候选")).toBeInTheDocument();

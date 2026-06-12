@@ -204,7 +204,7 @@ describe("TenantOnboarding", () => {
   it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByRole("heading", { name: "机构实施配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "服务机构" })).toBeInTheDocument();
     expect(screen.getByText("实施就绪检查未通过")).toBeInTheDocument();
     expect(screen.getByText("组织树缺少服务机构根节点或医院节点")).toBeInTheDocument();
     expect(screen.getByText("尚未配置实施用户")).toBeInTheDocument();
@@ -287,12 +287,12 @@ describe("TenantOnboarding", () => {
 
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByRole("heading", { name: "服务空间开通" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "服务机构" })).toBeInTheDocument();
     expect(screen.queryByText("组织树")).not.toBeInTheDocument();
     expect(screen.getByText("人民医院")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /开通服务空间/ }));
-    await userEvent.type(screen.getByLabelText("服务空间标识"), "t-renmin");
+    await userEvent.click(screen.getByRole("button", { name: /开通机构空间/ }));
+    await userEvent.type(screen.getByLabelText("机构空间标识"), "t-renmin");
     await userEvent.type(screen.getByLabelText("服务机构名称"), "人民医院");
     await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
     await userEvent.click(screen.getByRole("button", { name: "确认开通" }));

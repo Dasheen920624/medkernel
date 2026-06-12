@@ -467,7 +467,7 @@ export default function PatientPathways() {
       });
 
       message.success(
-        `患者 ${selectedContextSnapshot.patientId} 入径成功，Trace ID: ${res?.traceId || ""}`,
+        `患者 ${selectedContextSnapshot.patientId} 入径成功，追踪号: ${res?.traceId || ""}`,
       );
       setEnterModalVisible(false);
       setEnterPatientFilter("");
@@ -727,7 +727,7 @@ export default function PatientPathways() {
             pageSize: size,
             total: patientPathwaysData?.total ?? 0,
             onChange: (p) => setPage(p),
-            showTotal: (t) => `共 ${t} 个临床运行中的患者实例`,
+            showTotal: (t) => `共 ${t} 个临床协同中的患者实例`,
           }}
           locale={{
             emptyText: "暂无患者路径实例。请先办理患者入径，或调整检索条件。",
@@ -1453,7 +1453,7 @@ export default function PatientPathways() {
                         )}
                         {variance.traceId && (
                           <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
-                            traceId: {variance.traceId}
+                            追踪号：{variance.traceId}
                           </div>
                         )}
                         <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>

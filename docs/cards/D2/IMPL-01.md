@@ -16,7 +16,7 @@
 把客户实施向导页**真实化**：按步骤呈现试点准备进度（组织→用户→权限→适配器→资产→灰度），每步真实就绪状态 + 跳转对应配置页，引导实施工程师把医院"配好开起来"。**不写死步骤、不前端假就绪**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化**：`pages/tenant/ImplementationGuide`（路由 `/onboarding/guide` 已注册 `router.tsx` + `routes.ts` sectionKey `pilot-setup`，`readonlyExperience` 占位）。本卡＝去占位/mock + 接 [SVC-PILOT-01](SVC-PILOT-01.md) 真实就绪 API + 六态/五维 RBAC 齐全。
+页面**已存在待真实化**：`pages/tenant/ImplementationGuide`（路由 `/onboarding/guide` 已归入 `institution-governance`，客户名称为“实施与验收”）。本卡＝去占位/mock + 接 [SVC-PILOT-01](SVC-PILOT-01.md) 真实就绪 API + 六态/五维 RBAC 齐全。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 步骤真实化**：各步状态取 [SVC-PILOT-01](SVC-PILOT-01.md) `implementation-steps` 真实就绪，不前端写死/假数据。
@@ -29,7 +29,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 本卡为页面，不新增后端；消费 [SVC-PILOT-01](SVC-PILOT-01.md) 现有就绪/步骤 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `pilot-setup` / menuKey `implementation-guide` / menuLabel `客户实施向导` / path `/onboarding/guide` / requiredPermissions `menu.implementation-guide` + `tenant.read` / requiredRoles 实施工程师·平台/医院管理员。
+- 路由元数据：sectionKey `institution-governance` / menuKey `implementation-guide` / menuLabel `实施与验收` / path `/onboarding/guide` / requiredPermissions `menu.implementation-guide` + `tenant.read` / requiredRoles 实施运维员、平台治理管理员、机构管理员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 步骤进度（StepFlow [INFRA-09](../D1/INFRA-09.md) 组件）+ 各步就绪卡 + 六态。
 - 主按钮 ≤1（继续下一步）/ 默认筛选 ≤3 / 默认角色视图（实施工程师）。
 - 五维 RBAC：菜单 / 动作 / 数据（org）/ 资产 / 环境。

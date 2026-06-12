@@ -1,6 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import { apiBase, ensureReadySession, expectOk, roleAccounts } from "./support/auth";
+import {
+  apiBase,
+  ensureReadySession,
+  expectLoginPageReady,
+  expectOk,
+  roleAccounts,
+} from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
@@ -21,20 +27,20 @@ test.describe("D0 登录域真实验收", () => {
     });
   }
 
-  test("临床医生只看到临床运行菜单，并可从用户菜单退出登录", async ({ page }) => {
-    await ensureReadySession(page, "doctor");
+  test("临床医生只看到临床协同菜单，并可从用户菜单退出登录", async ({ page }) => {
+    await ensureReadySession(page, "clinical-decision-user");
     await page.goto("/dashboard");
 
-    await expect(page.getByText("临床运行").first()).toBeVisible();
-    await expect(page.getByText("患者主索引").first()).toBeVisible();
-    await expect(page.getByText("试点准备").first()).toHaveCount(0);
+    await expect(page.getByText("临床协同").first()).toBeVisible();
+    await expect(page.getByText("患者索引").first()).toBeVisible();
+    await expect(page.getByText("交付准备").first()).toHaveCount(0);
 
     await page.getByRole("button", { name: "当前用户菜单" }).click();
     await page.getByRole("menuitem", { name: /退出登录/ }).click();
     await page.getByRole("button", { name: "确认退出" }).click();
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
+    await expectLoginPageReady(page);
   });
 });
 

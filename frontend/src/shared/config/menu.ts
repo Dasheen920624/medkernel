@@ -1,9 +1,8 @@
 import { canAccessRoute, routeMetas, routeSections } from "./routes";
-import type { RoutePermissionProfile, RouteSectionKey } from "./routes";
+import type { RoutePermissionProfile, RoutePlacement, RouteSectionKey } from "./routes";
 
 /**
- * 5 组菜单 + 27 项二级 + 5 项隐藏式高级工具。
- * 菜单从 routes.ts 派生，避免路由、面包屑、权限和菜单各写一套。
+ * 五大主域菜单从 routes.ts 派生，页头、个人入口和专家模式复用同一目录。
  */
 export interface MenuItem {
   key: string;
@@ -15,28 +14,11 @@ export interface MenuSection {
   key: RouteSectionKey;
   label: string;
   items: MenuItem[];
-  hidden?: boolean;
 }
 
-export const menuSections: MenuSection[] = routeSections.map((section) => ({
-  ...section,
-  items: routeMetas
-    .filter(
-      (route) =>
-        route.sectionKey === section.key &&
-        route.menuKey &&
-        route.menuLabel &&
-        (!route.hidden || section.hidden),
-    )
-    .map((route) => ({
-      key: route.menuKey as string,
-      label: route.menuLabel as string,
-      path: route.path,
-    })),
-}));
-
-export function getMenuSectionsForProfile(
-  profile: RoutePermissionProfile | undefined,
+function routeItemsForPlacement(
+  placement: RoutePlacement,
+  profile?: RoutePermissionProfile,
 ): MenuSection[] {
   return routeSections.map((section) => ({
     ...section,
@@ -44,15 +26,35 @@ export function getMenuSectionsForProfile(
       .filter(
         (route) =>
           route.sectionKey === section.key &&
+          route.placement === placement &&
           route.menuKey &&
-          route.menuLabel &&
-          (!route.hidden || section.hidden),
+          route.menuLabel,
       )
-      .filter((route) => canAccessRoute(route, profile))
+      .filter((route) => profile === undefined || canAccessRoute(route, profile))
+      .sort((left, right) => left.navigationOrder - right.navigationOrder)
       .map((route) => ({
         key: route.menuKey as string,
         label: route.menuLabel as string,
         path: route.path,
       })),
   }));
+}
+
+export const menuSections: MenuSection[] = routeItemsForPlacement("primary");
+
+export function getMenuSectionsForProfile(
+  profile: RoutePermissionProfile | undefined,
+  placement: RoutePlacement = "primary",
+): MenuSection[] {
+  if (!profile) {
+    return routeSections.map((section) => ({ ...section, items: [] }));
+  }
+  return routeItemsForPlacement(placement, profile);
+}
+
+export function getMenuItemsForProfile(
+  profile: RoutePermissionProfile | undefined,
+  placement: RoutePlacement,
+): MenuItem[] {
+  return getMenuSectionsForProfile(profile, placement).flatMap((section) => section.items);
 }

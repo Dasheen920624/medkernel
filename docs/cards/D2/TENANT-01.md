@@ -19,7 +19,7 @@
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 
-页面**已存在待真实化**：`pages/tenant/TenantOnboarding`（路由 `/tenant/onboarding` 已注册，sectionKey `pilot-setup`，`readonlyExperience` 占位）。本卡＝接 [SVC-PILOT-01](SVC-PILOT-01.md) 真实组织树/就绪 API + 六态/五维 RBAC。
+页面**已存在待真实化**：`pages/tenant/TenantOnboarding`（路由 `/tenant/onboarding` 已归入 `institution-governance`，客户名称为“服务机构”）。本卡＝接 [SVC-PILOT-01](SVC-PILOT-01.md) 真实组织树/就绪 API + 六态/五维 RBAC。
 
 ## 功能要求（原子可测条目）
 
@@ -36,7 +36,7 @@ N·A —— 页面卡，消费 [SVC-PILOT-01](SVC-PILOT-01.md) `org-units`/`onbo
 
 ### 页面契约（页面卡）
 
-- 路由元数据：sectionKey `pilot-setup` / menuKey `tenant-onboarding` / menuLabel `租户开通` / path `/tenant/onboarding` / requiredPermissions `menu.tenant-onboarding` + `tenant.read`；开通动作由后端 `tenant.write` 守门；requiredRoles 实施工程师·平台/医院管理员。
+- 路由元数据：sectionKey `institution-governance` / menuKey `tenant-onboarding` / menuLabel `服务机构` / path `/tenant/onboarding` / requiredPermissions `menu.tenant-onboarding` + `tenant.read`；开通动作由后端 `tenant.write` 守门；requiredRoles 实施运维员、平台治理管理员、机构管理员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 组织树（树控件）+ 就绪检查面板 + 六态。
 - 主按钮 ≤1（开通）/ 默认筛选 ≤3（层级/状态/院区）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（开通权）/ 数据（org）/ 资产 / 环境。

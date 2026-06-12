@@ -64,7 +64,7 @@ describe("ImplementationGuide", () => {
         key: "users",
         title: "用户与角色",
         status: "BLOCKED",
-        blockers: ["尚未创建院级管理员", "实施工程师未分配医院作用域"],
+        blockers: ["尚未创建院级管理员", "实施运维员未分配医院作用域"],
         targetPath: "/tenant/onboarding",
         evidence: null,
       },
@@ -95,16 +95,16 @@ describe("ImplementationGuide", () => {
   it("renders real backend implementation steps with blockers and configuration links", () => {
     renderGuide();
 
-    expect(screen.getByRole("heading", { name: "客户实施向导" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "实施与验收" })).toBeInTheDocument();
     const organizationStep = screen.getByTestId("implementation-step-organization");
     expect(within(organizationStep).getByText("组织树")).toBeInTheDocument();
     expect(within(organizationStep).getByText("已存在集团、医院和科室组织")).toBeInTheDocument();
     expect(screen.getByText("尚未创建院级管理员")).toBeInTheDocument();
-    expect(screen.getByText("实施工程师未分配医院作用域")).toBeInTheDocument();
+    expect(screen.getByText("实施运维员未分配医院作用域")).toBeInTheDocument();
     expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
 
     const adapterStep = screen.getByTestId("implementation-step-adapters");
-    const adapterLink = within(adapterStep).getByRole("link", { name: "前往适配器中心" });
+    const adapterLink = within(adapterStep).getByRole("link", { name: "前往系统接入" });
     expect(adapterLink).toHaveAttribute("href", "/adapter/hub");
   });
 

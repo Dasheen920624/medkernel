@@ -270,7 +270,7 @@ export default function SecurityBaseline() {
           type="info"
           showIcon
           message="当前为只读视图"
-          description="只有平台管理员或安全管理员可以修改配置；读取仍按当前服务空间和组织范围隔离。"
+          description="只有平台治理管理员或安全管理员可以修改配置；读取仍按当前服务空间和组织范围隔离。"
         />
       )}
       <Tabs

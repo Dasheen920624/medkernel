@@ -115,7 +115,6 @@ type BatchValues = {
   templateId?: string;
   sourceOrgUnitId?: string;
   targetOrgUnitIds: string[];
-  targetVersionIdsJson: string;
 };
 
 function rolloutPolicy(values: SimulationFormValues): RolloutPolicy {
@@ -334,20 +333,11 @@ export default function ReleaseGovernance() {
   }
 
   async function previewBatch(values: BatchValues) {
-    let targetVersionIds: Record<string, string> = {};
-    try {
-      targetVersionIds = values.targetVersionIdsJson.trim()
-        ? (JSON.parse(values.targetVersionIdsJson) as Record<string, string>)
-        : {};
-    } catch {
-      message.error("目标版本映射必须是合法 JSON 对象");
-      return;
-    }
     const request: OverrideBatchPreviewRequest = {
       templateId: values.mode === "TEMPLATE" ? values.templateId : undefined,
       sourceOrgUnitId: values.mode === "CLONE" ? values.sourceOrgUnitId : undefined,
       targetOrgUnitIds: values.targetOrgUnitIds,
-      targetVersionIds,
+      targetVersionIds: {},
     };
     try {
       const result = await previewMutation.mutateAsync(request);
@@ -665,7 +655,7 @@ export default function ReleaseGovernance() {
         <Form
           form={batchForm}
           layout="vertical"
-          initialValues={{ mode: "TEMPLATE", targetVersionIdsJson: "{}" }}
+          initialValues={{ mode: "TEMPLATE" }}
           onValuesChange={(changedValues) => {
             if (changedValues.mode) setBatchMode(changedValues.mode as BatchValues["mode"]);
           }}
@@ -689,9 +679,6 @@ export default function ReleaseGovernance() {
             )}
             <Form.Item name="targetOrgUnitIds" label="目标机构" rules={[{ required: true }]}>
               <Select mode="multiple" options={orgOptions} />
-            </Form.Item>
-            <Form.Item name="targetVersionIdsJson" label="目标版本映射" className={styles.wide}>
-              <TextArea rows={4} placeholder='{"org-a|RULE|RULE.VTE.RISK":"version-target"}' />
             </Form.Item>
           </div>
           <Button htmlType="submit" icon={<CopyOutlined />} loading={previewMutation.isPending}>

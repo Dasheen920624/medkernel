@@ -45,7 +45,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [API-09](API-09.md) / [FOLLOW-01](FOLLOW-01.md) 随访 API。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `followup` / menuLabel `智能随访` / path `/clinical/followup` / requiredPermissions 随访执行 / requiredRoles 随访团队·临床医生。
+- 路由元数据：sectionKey `clinical-collaboration` / menuKey `clinical-followup` / menuLabel `随访协同` / path `/clinical/followup` / requiredPermissions 随访执行 / requiredRoles 临床决策使用者、护理协同人员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 计划/任务列表 + 问卷执行抽屉 + 异常回院标识 + 进度看板 + 六态。
 - 主按钮 ≤1（执行任务）/ 默认筛选 ≤3（待执行/今日/异常）/ 默认角色视图（随访团队）。
 - 五维 RBAC：菜单 / 动作（执行/回收）/ 数据（org）/ 资产 / 环境。

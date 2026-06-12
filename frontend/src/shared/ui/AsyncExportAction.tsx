@@ -177,7 +177,7 @@ export function AsyncExportAction({
           description={
             <Space direction="vertical" size={0}>
               <Text>任务编号：{job.jobId}</Text>
-              {job.traceId && <Text>traceId：{job.traceId}</Text>}
+              {job.traceId && <Text>追踪号：{job.traceId}</Text>}
               {job.auditId && <Text>审计编号：{job.auditId}</Text>}
               {job.failureReason && <Text>{job.failureReason}</Text>}
               {job.downloadUrl && (

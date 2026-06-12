@@ -52,7 +52,7 @@ const RISK_COLOR: Record<string, string> = {
 const route = findRouteByPath("/system/providers");
 
 if (!route?.experience) {
-  throw new Error("运行状态页面缺少体验声明");
+  throw new Error("运行保障页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -97,7 +97,7 @@ export default function SystemProviders() {
 
   if (security.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在核对运行状态权限">
+      <PageShell title={PAGE_META.title} description="正在核对运行保障权限">
         <PageState state="loading" />
       </PageShell>
     );
@@ -113,7 +113,7 @@ export default function SystemProviders() {
 
   if (!routeAllowed) {
     return (
-      <PageShell title={PAGE_META.title} description="运行状态包含受控运维信息">
+      <PageShell title={PAGE_META.title} description="运行保障包含受控运维信息">
         <PageState state="forbidden" />
       </PageShell>
     );
@@ -121,7 +121,7 @@ export default function SystemProviders() {
 
   if (runtime.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在读取运行状态">
+      <PageShell title={PAGE_META.title} description="正在读取运行保障信息">
         <PageState state="loading" />
       </PageShell>
     );
@@ -129,10 +129,10 @@ export default function SystemProviders() {
 
   if (runtime.isError) {
     return (
-      <PageShell title={PAGE_META.title} description="运行状态读取失败">
+      <PageShell title={PAGE_META.title} description="运行保障信息读取失败">
         <PageState
           state="error"
-          title="暂时无法读取运行状态"
+          title="暂时无法读取运行保障信息"
           description="请稍后重试，或让信息科检查后端 /api/v1/system/operations 接口。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
@@ -147,7 +147,7 @@ export default function SystemProviders() {
   const data = runtime.data;
   if (!data) {
     return (
-      <PageShell title={PAGE_META.title} description="暂无运行状态">
+      <PageShell title={PAGE_META.title} description="暂无运行保障信息">
         <PageState state="empty" />
       </PageShell>
     );

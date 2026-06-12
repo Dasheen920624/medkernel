@@ -1,4 +1,4 @@
-# RULECHK-01 · 规则校验页
+# RULECHK-01 · 规则试运行能力
 
 > 读卡前置：[核心 CONSTITUTION](../../CONSTITUTION.md) + [D3 域简报](_brief.md) + [体验契约](../../EXPERIENCE_CONTRACT.md)。
 > 迁移来源（覆盖矩阵锚点）：详规 §3 S5 规则引擎配置（运行校验侧）· 详规 S8 临床嵌入运行 · 体验规范 §3。
@@ -21,7 +21,8 @@
 ## 页面收口增量（2026-06-05，本地目标红绿）
 - 已实现：规则校验结果对 `CRITICAL` 严重级别或红线动作码强突出，显示“安全红线不可忽略”，明确校验只提示 / 阻断、不自动改写医嘱；结果色阶使用页面 token，不写死校验命中。
 - 已实现：新增历史执行解释回放输入，按 `executionId` 调用既有 `/engine/rule/rules/executions/{executionId}/explain` 解释端点，与当前执行解释共用抽屉呈现版本、动作与 traceId。
-- RBAC 边界：前端路由具备 `menu.rule-validate` 登录菜单保护，规则执行 / 解释读取 / 组织数据范围以后端规则控制器权限、`RuleEngineControllerSecurityTest` 和 `OrgContext` 为准。
+- 产品信息架构收口（2026-06-12）：规则试运行并入“知识配置 > 规则配置”，不再保留独立客户菜单；`/rule/validate` 作为规则配置页内试运行子路由，复用 `menu.rule-definitions` 与 `rule.read` 权限。
+- RBAC 边界：规则执行 / 解释读取 / 组织数据范围以后端规则控制器权限、`RuleEngineControllerSecurityTest` 和 `OrgContext` 为准。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 校验执行：提交医嘱/病历 → 跑规则校验，命中结果真实来自 [RULE-01](../D2/RULE-01.md)。PR1 默认使用 CDS Hooks `order-sign`，调用真实 `/engine/rule/rules/evaluate`。
@@ -34,7 +35,7 @@
 ### 接口契约（引擎/API 卡）
 N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) 规则校验端点（`POST /api/v1/engine/rule/rules/evaluate`）与执行解释端点（`GET /api/v1/engine/rule/rules/executions/{executionId}/explain`）。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `clinical-run` / menuKey `rule-validate` / menuLabel `规则校验` / path `/rule/validate` / requiredPermissions 规则校验 / requiredRoles 临床医生·专科专家·质控。
+- 路由元数据：sectionKey `knowledge-configuration` / placement `hidden` / 无独立 menuKey / path `/rule/validate` / requiredPermissions `menu.rule-definitions` + `rule.read`。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 输入区（医嘱/病历）+ 校验结果列表（级别色阶 token）+ 解释抽屉 + 六态。
 - 主按钮 ≤1（执行校验）/ 默认筛选 ≤3 / 默认角色视图（临床医生）。
 - 五维 RBAC：菜单 / 动作（校验）/ 数据（org）/ 资产（规则版本）/ 环境。

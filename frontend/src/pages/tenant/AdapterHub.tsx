@@ -84,7 +84,7 @@ const { Option } = Select;
 const route = findRouteByPath("/adapter/hub");
 
 if (!route?.experience) {
-  throw new Error("适配器中心页面缺少体验声明");
+  throw new Error("系统接入页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -199,9 +199,9 @@ function getErrorTrace(error: unknown) {
 }
 
 function pageStateTitle(state: PageStateKind) {
-  if (state === "loading") return "正在加载适配器中心";
+  if (state === "loading") return "正在加载系统接入";
   if (state === "empty") return "暂无适配器接入记录";
-  if (state === "error") return "适配器中心暂时不可用";
+  if (state === "error") return "系统接入暂时不可用";
   if (state === "partial") return "部分接入需要处理";
   return undefined;
 }
@@ -1613,7 +1613,7 @@ function QualityReportCard({ report }: { report: DataQualityReport }) {
       </div>
       <Descriptions size="small" column={2}>
         <Descriptions.Item label="报告 ID">{report.reportId}</Descriptions.Item>
-        <Descriptions.Item label="traceId">{report.traceId ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="追踪号">{report.traceId ?? "暂无"}</Descriptions.Item>
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>

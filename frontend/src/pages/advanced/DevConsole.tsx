@@ -387,7 +387,7 @@ export default function DevConsole() {
     traceContent = (
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
-          <Descriptions.Item label="Trace ID">{trace.data.traceId}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{trace.data.traceId}</Descriptions.Item>
           <Descriptions.Item label="耗时">
             {trace.data.durationMs === null || trace.data.durationMs === undefined
               ? "-"
@@ -461,7 +461,7 @@ export default function DevConsole() {
     <Space direction="vertical" size="middle" className="mk-full-width">
       <Search
         enterButton={<SearchOutlined />}
-        placeholder="输入 Trace ID"
+        placeholder="输入 追踪号"
         value={traceId}
         onChange={(event) => setTraceId(event.target.value)}
         onSearch={(value) => setSubmittedTraceId(value.trim())}

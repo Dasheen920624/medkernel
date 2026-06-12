@@ -13,20 +13,22 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 图谱查询真实验收", () => {
-  test("实施工程师重建后，专科专家可从登录页探索真实投影且不能重建", async ({ page }, testInfo) => {
+  test("实施运维员重建后，平台知识治理员可从登录页探索真实投影且不能重建", async ({
+    page,
+  }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
 
     await enableGraphProjection(page);
     await seedActiveKnowledge(page);
-    await ensureReadySession(page, "implementation-engineer");
+    await ensureReadySession(page, "implementation-operator");
     const rebuild = await postApi(page, "/projections/knowledge-graph/rebuild", {});
     await expectOk(rebuild, "重建知识关系投影");
     const rebuilt = (await rebuild.json()).data;
     expect(rebuilt.sourceCount).toBeGreaterThan(0);
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
 
-    await ensureReadySession(page, "specialist");
-    await loginFromPlatformPage(page, "specialist");
+    await ensureReadySession(page, "platform-knowledge-governor");
+    await loginFromPlatformPage(page, "platform-knowledge-governor");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -52,10 +54,10 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(browserErrors).toEqual([]);
   });
 
-  test("专科专家在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
+  test("平台知识治理员在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "specialist");
+    await ensureReadySession(page, "platform-knowledge-governor");
     await page.goto("/advanced/graph");
 
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -76,7 +78,7 @@ test.describe("D6 图谱查询真实验收", () => {
 });
 
 async function enableGraphProjection(page: Page) {
-  await ensureReadySession(page, "it-ops");
+  await ensureReadySession(page, "integration-operator");
   const key = "medkernel.runtime.feature-flags.graph-projection.enabled";
   const response = await page.request.get(
     `${apiBase}/system/configs?prefix=${encodeURIComponent("medkernel.runtime.feature-flags")}`,
@@ -101,14 +103,14 @@ async function enableGraphProjection(page: Page) {
 }
 
 async function seedActiveKnowledge(page: Page) {
-  await ensureReadySession(page, "medical-affairs");
+  await ensureReadySession(page, "clinical-governor");
   const suffix = Date.now();
   const create = await postApi(page, "/engine/knowledge/diagnosis/assets", {
     request_id: `e2e-graph-${suffix}`,
     trace_id: `e2e-graph-${suffix}`,
     tenant_id: "t-1",
-    user_id: "medical-affairs",
-    role_codes: ["medical-affairs"],
+    user_id: "clinical-governor",
+    role_codes: ["clinical-governor"],
     package_version: "2026.06",
     identity: {
       identitySlug: `e2e-graph-${suffix}`,
@@ -174,7 +176,8 @@ async function seedActiveKnowledge(page: Page) {
   await expectOk(testCase, "新增知识发布回归病例");
 
   const publishReason = "真实图谱链路验收";
-  await ensureReadySession(page, "platform-admin");
+  await ensureReadySession(page, "platform-governance-admin");
+  const reviewerId = "platform-knowledge-governor-1";
   const publish = await postApi(
     page,
     `/engine/knowledge/diagnosis/identities/${identityId}/versions/${versionId}/publish`,
@@ -183,11 +186,11 @@ async function seedActiveKnowledge(page: Page) {
       publishEvidence: {
         electronicSignature: {
           signatureId: `sig-e2e-graph-${suffix}`,
-          signerId: "platform-admin-1",
-          signerName: "平台管理员验收账号",
+          signerId: reviewerId,
+          signerName: "平台知识治理员验收账号",
           signedAt: new Date().toISOString(),
           signatureHash: createHash("sha256")
-            .update(`${identityId}|${versionId}|${publishReason}`)
+            .update(`${identityId}|${versionId}|${publishReason}|${reviewerId}`)
             .digest("hex"),
         },
         qualityGate: {
