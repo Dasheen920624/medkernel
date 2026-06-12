@@ -2,99 +2,75 @@
 
 > 日期：2026-06-12  
 > 阶段：P3 演练前发布准备  
-> 结论：已完成 `193.112.107.134` 主机、部署目录、数据库、当前版本、回退路径、前置备份、隔离恢复验证和本地发布候选制品构建；本报告只放行进入“发布前最终复核与受控上传”的下一步准备，不放行清库、首轮演练、平台知识生成或 wave2。  
-> 关键差异：134 当前仍运行 `2026-06-11T18:36:05+08:00` 的旧包，Flyway 最新版本为 `114`；当前 main `f5db9dba` 的 P2/V116 尚未发布到 134，因此线上配置中心尚无 `medkernel.knowledge.literature.material-root-uri`。
+> 结论：通过。已完成 134 主机、部署目录、数据库、当前版本、回退路径、三次有效备份与隔离恢复、候选制品构建、旧库迁移校验和根因定位和空库预检；在 P4 清库前具备可恢复、可复核的发布条件。
+> 后续状态：用户明确要求“正式知识生产前全部按全新处理、不保留历史包袱”，因此 P4 已在最终备份恢复通过后清理旧演练库并从 V1 全新迁移。现场结果见 [P4 首次全新部署验收报告](p4-first-fresh-deployment-acceptance.md)。
 
 ## 1. 输入与边界
 
-- 权威输入：`docs/_HANDOFF.md`、`docs/audit/context-snapshots/2026-06-12-p2-global-product-ia.md`、`docs/audit/global-product-ia-acceptance.md`。
-- 本地起点：`f5db9dba (HEAD, origin/main, origin/HEAD, main) 完成全系统产品信息架构门禁`；P3 工作分支 `codex/p3-release-prep-134-verification`。
-- 执行边界：只读核验与备份恢复验证；未发布、未清库、未恢复生产库、未改系统配置、未生成知识。
-- 存储边界：正式文献资料库根地址必须通过系统配置页维护为受管 URI，兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关；不得写死服务器 IP 或存储厂商，不得使用 `tmp`、本机目录或非加密 HTTP。
+- 权威输入：`docs/_HANDOFF.md`、P2 精简快照和全系统产品 IA 验收报告。
+- 本地基线：`origin/main=28d900cd6cce0d729b5260a0762198142a74bcb7`；候选分支 `codex/p3-release-134`。
+- 候选提交：`c19aee87` 明确全新演练与配置边界；`ec9901bf` 移除文献资料库厂商默认地址。
+- 存储边界：配置键 `medkernel.knowledge.literature.material-root-uri` 初始必须为空，只能通过系统配置页维护正式受管 URI；兼容 COS/S3/OSS/OBS/MinIO/HTTPS 网关，不绑定当前服务器 IP 或厂商，不接受 `tmp`、本机路径、`file://` 或非加密 HTTP。
+- P3 未生成知识、未配置正式资料库地址、未接入 wave2 模型网关。
 
-## 2. 134 现场核验
+## 2. 主机与旧现场核验
 
 | 项 | 结果 |
 |---|---|
-| SSH 主机 | `root@193.112.107.134` 可连接 |
-| 主机名 | `VM-0-13-opencloudos` |
-| 内核 | `Linux 6.6.119-49.22.oc9.x86_64` |
-| 核验时间 | `2026-06-12T12:40:11+08:00` |
-| 部署根目录 | `/zoesoft/medkernel`，属主 `medkernel:medkernel` |
-| 后端 jar | `/zoesoft/medkernel/lib/medkernel.jar`，SHA-256 `51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e` |
-| 前端 dist | `/zoesoft/medkernel/frontend/dist`，499 个文件 |
-| 环境变量文件 | `/zoesoft/medkernel/conf/medkernel.env`，权限 `600` |
-| 发布脚本 | `/usr/local/bin/medkernel-deploy` |
-| systemd | `medkernel.service` active，`NRestarts=0`，MainPID `2290736` |
-| Nginx / PostgreSQL | 均 active |
-| 健康检查 | `http://127.0.0.1:18080/medkernel/actuator/health/readiness` 与 `https://127.0.0.1/medkernel/actuator/health/readiness` 均 `200 {"status":"UP"}` |
-| 当前 manifest | `source=codex-demo-drill-audit-trace-jump-74353b56`，`deployedAt=2026-06-11T18:36:05+08:00` |
-| 数据库 | PostgreSQL 15.18，库名 `medkernel`，Flyway 成功迁移 `114` 条，最新版本 `114`，public 基表 `172` 张 |
-| 文献资料根地址 | `ABSENT`，因为 V116 尚未发布到 134 |
+| SSH / 主机 | `root@193.112.107.134` / `VM-0-13-opencloudos` |
+| 部署根目录 | `/zoesoft/medkernel`，发布入口 `/usr/local/bin/medkernel-deploy` |
+| 服务 | `medkernel`、`nginx`、`postgresql` 均 active，HTTPS readiness 200 |
+| 旧 manifest | `source=codex-demo-drill-audit-trace-jump-74353b56`，`deployedAt=2026-06-11T18:36:05+08:00` |
+| 旧 jar SHA-256 | `51fdd05aabaad6b51f4016eeec9a4bcb0f4ff7934f5cb641c4117f651c90679e` |
+| 旧数据库 | PostgreSQL 15.18，Flyway V114，172 张 public 基表 |
+| 旧程序回退 | `/zoesoft/medkernel/backups/deploy-20260611-193235` |
 
-## 3. 回退路径
+## 3. 备份与隔离恢复
 
-| 类别 | 证据 |
-|---|---|
-| 最近程序备份 | `/zoesoft/medkernel/backups/deploy-20260611-193235` |
-| 程序回滚命令 | `medkernel-deploy --rollback /zoesoft/medkernel/backups/deploy-20260611-193235` |
-| 程序回滚范围 | 恢复 jar、前端 dist、manifest，并重启服务 |
-| 数据库回退边界 | `medkernel-deploy` 不会自动回退已经成功执行的 Flyway 前向迁移；数据库恢复必须使用 PostgreSQL dump，并在显式确认后执行 |
-| P3 数据库恢复命令留痕 | `systemctl stop medkernel && sudo -u postgres pg_restore --clean --if-exists --no-owner -d medkernel /zoesoft/medkernel/backups/p3-prep-20260612-124124/database/medkernel.dump && systemctl start medkernel` |
+| 备份 | 用途 | 恢复结果 |
+|---|---|---|
+| `p3-prep-20260612-124124` | 首轮现场核验前置备份 | V114、172 张表、配置表存在，临时库已删除 |
+| `p3-pre-release-20260612-133831` | 候选发布前备份 | dump `1697192` 字节，隔离恢复通过 |
+| `p4-pre-clear-20260612-135752` | 清库前最终即时备份 | dump `1697196` 字节；恢复库 `medkernel_p4_pre_clear_20260612135752_restore` 为 V114、172 张表，状态 `PASSED`，清理计数 0 |
 
-## 4. 前置备份
+- 最终备份包含数据库、服务器配置、现网 jar、前端 dist、摘要和恢复命令。
+- 最终证据：`/zoesoft/medkernel/backups/p4-pre-clear-20260612-135752/evidence/pre-clear.properties` 与 `SHA256SUMS`。
+- `p4-pre-clear-20260612-135641` 的首次尝试因目录权限使 `postgres` 无法遍历读取 dump；证据记录 `destructive_action_performed=false`，随后修正目录可读链路并重新完成有效备份，没有把失败目录冒充通过。
 
-| 备份项 | 路径 / 摘要 |
-|---|---|
-| 备份根目录 | `/zoesoft/medkernel/backups/p3-prep-20260612-124124/` |
-| 数据库 dump | `database/medkernel.dump`，`1697195` 字节 |
-| 配置包 | `config/server-config.tar.gz`，包含服务器侧配置、systemd、Nginx 和发布脚本；内容不打印到终端、不提交仓库 |
-| 后端制品 | `artifacts/medkernel.jar` |
-| 前端制品 | `artifacts/frontend-dist.tar.gz` |
-| 摘要文件 | `SHA256SUMS`，8 条文件摘要 |
-| 证据文件 | `evidence/p3-prep-evidence.properties` |
+## 4. 迁移校验和根因
 
-首次隔离恢复尝试因备份目录 `root:root 700` 导致 `postgres` 用户无法读取 dump 而失败；该失败已保留在 evidence 中。随后复制临时 postgres-owned dump 到 `/tmp`，完成隔离恢复验证并删除临时文件，未放宽备份目录权限。
+旧 V114 数据库对当前候选执行 Flyway validate 时发现：
 
-## 5. 隔离恢复验证
+| 迁移 | 旧库 checksum | 当前候选 checksum |
+|---|---:|---:|
+| V6 | `1297702750` | `-1229984444` |
+| V25 | `1891431755` | `427098790` |
+| V43 | `-1501011817` | `1370426850` |
 
-| 检查项 | 结果 |
-|---|---|
-| 临时恢复库 | `medkernel_p3_prep_20260612_124124_restore` |
-| 恢复后 Flyway 成功迁移数 | `114` |
-| 恢复后最新版本 | `114` |
-| 恢复后 public 基表数 | `172` |
-| 恢复后配置中心表 | `mk_config_item` 存在 |
-| 临时库清理 | 复查 `restore_dbs_after=NONE` |
-| 服务复查 | `medkernel`、`nginx`、`postgresql` 均 active |
-| HTTPS readiness 复查 | `200 {"status":"UP"}` |
+对旧部署 jar、数据库和 Git 历史交叉核验后，确认 V6/V25/V43 曾被后续提交原地修改。由于项目尚未上线且用户要求正式知识生产前全部作为全新环境处理，本阶段裁决为：
 
-## 6. 未冒领项
+- 不执行 `flyway repair` 掩盖历史差异。
+- 不新增迁移去兼容旧演练数据；后续 V117 仅修正全新基线的跨方言空值语义，与旧库 checksum 差异无关。
+- 不回填旧角色、菜单、租户或知识数据。
+- 以最终备份保留可审计回退能力，P4 从空 PostgreSQL 库执行当前 V1-V116。
 
-- 本报告不表示 P2/V116 已发布到 134；134 当前仍是 V114。
-- 本报告不表示线上“平台知识文献资料库根地址”已通过验收；该键当前为 `ABSENT`，必须在发布 V116 后通过系统配置页复核和维护。
-- 本报告不放行清库、P4 首轮演练、wave2、模型网关、平台知识生成或 GA 验收。
-- P3 备份已验证可读，但不能替代清库或发布前的当次备份；后续任何高风险动作仍需重新备份、摘要、恢复命令和留痕。
+## 5. 候选制品与空库预检
 
-## 7. 本地发布候选制品
+| 制品 | 大小 | SHA-256 |
+|---|---:|---|
+| `medkernel-backend-ec9901bf.jar` | `75191240` | `8363ffa4f01efdd5465d8ce847a7eb57c6bde2577d3ca4277028a3b381835d0c` |
+| `medkernel-frontend-ec9901bf-dist.tar.gz` | `3567397` | `00eeea5e623bb26f4303e787e20ffc89112f812ed284a69f43b9bc262104066b` |
 
-| 制品 | 证据 |
-|---|---|
-| 后端构建命令 | `mvn -f medkernel-backend/pom.xml -DskipTests clean package`，`BUILD SUCCESS`；本次仅打包，测试沿用 P2 全量绿基线 |
-| 后端 jar | `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` |
-| 后端 jar 大小 | `75191342` 字节 |
-| 后端 jar SHA-256 | `fc8834372796f4ddbfef10e69e87ff199cda73408087c3f61e22a5eac5572872` |
-| 前端构建命令 | `npm --prefix frontend run build`，Vite `3408 modules transformed` |
-| 前端 dist | `frontend/dist`，255 个文件 |
-| 前端候选包 | `/tmp/medkernel-frontend-f5db9dba-dist.tar.gz` |
-| 前端候选包大小 | `3563738` 字节 |
-| 前端候选包 SHA-256 | `e49f38033d8f7b247095ecec16a8986483939558cfafdf5ee9abd02e64d4e46d` |
+- 后端 `mvn -f medkernel-backend/pom.xml -DskipTests clean package` 通过。
+- 前端 `npm --prefix frontend run build` 通过，Vite 处理 3408 个模块。
+- 远端预检证据目录：`/zoesoft/medkernel/backups/p3-fresh-preflight-ec9901bf-20260612-135854`。
+- 临时 PostgreSQL 空库运行真实候选进程，迁移 116 条、最新 V116、178 张表、15 个有效 SYSTEM 角色、2 条平台职责分配、30 个菜单权限，health 200。
+- 文献资料库配置为 `SYSTEM|medkernel.knowledge.literature.material-root-uri|空值|PLATFORM_SEED|受保护|版本1`。
+- 临时数据库和 18089 端口进程已清理。
+- 一次预检脚本曾按字符串求 `max(version)` 得到 99 并超时；数据库实际已完成 116 条迁移且服务健康。后续改为数字版本判断并通过，失败证据保留。
 
-以上候选制品尚未上传、尚未发布。若发布前重新构建，必须刷新本节摘要，并以最新摘要为准。
+## 6. P3 放行结论
 
-## 8. 下一步
+P3 已满足“先核验、先备份、先证明可恢复、再允许 P4 清库”的串行门禁。P3 不代表 P4 全角色真实前台演练完成，也不放行正式知识生产。后续所有不合理功能必须在 P4/P5 中按全新产品标准修正，不为旧演练环境保留兼容负担。
 
-1. 对已构建候选制品做发布前最终复核；若重新构建，刷新 SHA-256。
-2. 使用 `/usr/local/bin/medkernel-deploy` 受控发布到 134，让脚本生成发布备份并执行健康检查；上传/发布前不得清库。
-3. 发布后验证 manifest、health、Flyway V116、系统配置页中的“平台知识文献资料库根地址”和数据库 `mk_config_item`。
-4. 发布验收通过后，才允许编排 P4 清库/首轮演练；P4 前必须重新执行当次备份和隔离恢复验证。
+发布前追加复核发现 Oracle 将空字符串视为 `NULL`，因此 V116 现场检查点未直接进入初始化。当前分支以 V117 放宽 `mk_config_item.config_value` 的未配置值语义，并由真实 PostgreSQL、Oracle、H2 空库迁移验证；待 PR 合并后必须从精确主线重建并重发 134。

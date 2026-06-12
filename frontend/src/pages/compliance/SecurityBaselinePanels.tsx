@@ -102,6 +102,10 @@ function isHardLockedConfig(item: SystemConfigItem) {
   ].includes(item.key);
 }
 
+function configValueLabel(value: string) {
+  return value.trim() || "未配置";
+}
+
 function configInput(item: SystemConfigItem | null) {
   if (item?.valueType === "BOOLEAN") {
     return (
@@ -205,15 +209,15 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
       />
       {scope === "system" && knowledgeLiteratureConfig && (
         <Alert
-          type="success"
+          type={knowledgeLiteratureConfig.value.trim() ? "success" : "warning"}
           showIcon
           message="平台知识文献资料"
           description={
             <Space direction="vertical" size={2} className="mk-full-width">
-              <Text code>{knowledgeLiteratureConfig.value}</Text>
+              <Text code>{configValueLabel(knowledgeLiteratureConfig.value)}</Text>
               <Text type="secondary">
-                主平台知识管理服务器使用的正式文献资料库，支持对象存储或受管资料库，配置中心维护，禁止
-                tmp 临时目录。
+                正式知识生产前必须通过配置中心维护对象存储或 HTTPS 网关等受管资料库，禁止 tmp
+                临时目录和代码内置厂商地址。
               </Text>
             </Space>
           }
@@ -263,7 +267,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
                   {value === "true" ? "启用" : "停用"}
                 </Tag>
               ) : (
-                <Text code>{value}</Text>
+                <Text code>{configValueLabel(value)}</Text>
               ),
           },
           {

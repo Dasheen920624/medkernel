@@ -246,7 +246,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "平台知识文献资料库根地址",
             "HIGH",
             "平台知识治理组 / 信息科",
-            "主平台知识管理服务器使用的正式文献资料库根地址，支持 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管存储，用于存放指南原文、标准文献、附件和知识生成输入文件；替代服务器本地 tmp 或磁盘临时存放，迁移主机或更换存储时在配置中心维护。",
+            "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退服务器本地 tmp 或磁盘目录。",
             true,
             "PLATFORM_SEED",
             seededAt);

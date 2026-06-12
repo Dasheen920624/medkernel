@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class FlywayMultiDialectSmokeTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 116;
+    private static final int LATEST_MIGRATION_VERSION = 117;
 
     @Test
     @Tag("docker")
@@ -42,12 +42,14 @@ class FlywayMultiDialectSmokeTest {
                 .withUsername("medkernel")
                 .withPassword("medkernel")) {
             postgres.start();
-            runFlyway(buildHikari(
+            DataSource ds = buildHikari(
                 postgres.getJdbcUrl(),
                 postgres.getUsername(),
                 postgres.getPassword(),
                 "org.postgresql.Driver"
-            ), "classpath:db/migration/postgres", "PostgreSQL");
+            );
+            runFlyway(ds, "classpath:db/migration/postgres", "PostgreSQL");
+            assertNullableConfigValue(ds, "PostgreSQL");
         }
     }
 
@@ -68,6 +70,7 @@ class FlywayMultiDialectSmokeTest {
                 "oracle.jdbc.OracleDriver"
             );
             runFlyway(ds, "classpath:db/migration/oracle", "Oracle");
+            assertNullableConfigValue(ds, "Oracle");
 
             JdbcTemplate jdbc = new JdbcTemplate(ds);
             Integer lowercaseHistory = jdbc.queryForObject(
@@ -90,6 +93,7 @@ class FlywayMultiDialectSmokeTest {
                 "org.h2.Driver"
         );
         runFlyway(ds, "classpath:db/migration/h2", "H2");
+        assertNullableConfigValue(ds, "H2");
     }
 
     private void runFlyway(DataSource ds, String location, String vendorName) {
@@ -115,6 +119,50 @@ class FlywayMultiDialectSmokeTest {
         var repeated = flyway.migrate();
         assertThat(repeated.success).as("%s 重复执行 migrate 成功", vendorName).isTrue();
         assertThat(repeated.migrationsExecuted).as("%s 重复执行不产生新迁移", vendorName).isZero();
+    }
+
+    private void assertNullableConfigValue(DataSource ds, String vendorName) {
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        String suffix = vendorName.toLowerCase();
+        int inserted = jdbc.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, source, protected_flag, active_flag, version,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "cfg-null-" + suffix,
+            "SYSTEM",
+            "medkernel.test.null-config." + suffix,
+            null,
+            "STRING",
+            "空配置跨库测试",
+            "LOW",
+            "测试",
+            "DB",
+            "N",
+            "Y",
+            1,
+            "test",
+            "test");
+        assertThat(inserted).as("%s 允许未配置值持久化为 NULL", vendorName).isEqualTo(1);
+
+        int historyInserted = jdbc.update("""
+            INSERT INTO mk_config_history (
+                history_id, tenant_id, config_key, before_value, after_value, change_type,
+                reason, version, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "cfg-hist-null-" + suffix,
+            "SYSTEM",
+            "medkernel.test.null-config." + suffix,
+            "configured",
+            null,
+            "ROLLBACK",
+            "回滚到未配置状态",
+            2,
+            "test");
+        assertThat(historyInserted).as("%s 允许回滚历史记录未配置值", vendorName).isEqualTo(1);
     }
 
     private DataSource buildHikari(String jdbcUrl, String username, String password, String driver) {

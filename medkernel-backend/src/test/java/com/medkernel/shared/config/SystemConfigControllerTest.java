@@ -55,8 +55,7 @@ class SystemConfigControllerTest {
     private static final String AUTH_PASSWORD_MIN_LENGTH_KEY = "medkernel.auth.password.min-length";
     private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
-    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT =
-        "cos://medkernel-platform-knowledge/medkernel/platform-knowledge/t-1/literature-materials/";
+    private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT = "";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
@@ -281,7 +280,7 @@ class SystemConfigControllerTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
-    void knowledgeLiteratureMaterialRootUriUsesManagedStorageSeedAndRejectsTmp() throws Exception {
+    void knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.knowledge.literature."))
             .andExpect(status().isOk())
@@ -328,6 +327,42 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.data.value").value(yearlyManagedStorageUri))
             .andExpect(jsonPath("$.data.source").value("API"))
             .andExpect(jsonPath("$.data.version").value(2));
+
+        assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+            .isEqualTo(yearlyManagedStorageUri);
+
+        mvc.perform(post("/api/v1/system/configs/{key}/rollback",
+                KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "演练回滚到未配置状态",
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value(""))
+            .andExpect(jsonPath("$.data.version").value(3));
+
+        assertThat(configValue(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    void nullableUnconfiguredValueIsReturnedAsEmptyString() throws Exception {
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = NULL
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
+
+        mvc.perform(get("/api/v1/system/configs")
+                .queryParam("prefix", "medkernel.knowledge.literature."))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].key")
+                .value(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY))
+            .andExpect(jsonPath("$.data[0].value").value(""));
     }
 
     @Test
