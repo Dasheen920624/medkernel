@@ -692,6 +692,47 @@ describe("TerminologyMapping experience sample", () => {
     TERMINOLOGY_INTERACTION_TIMEOUT_MS,
   );
 
+  // P5-ACT2-05：服务空间（TENANT）级映射包是院内码无科室归属时唯一能构建的范围，
+  // 灰度发布必须按后端契约以 ALL 提交（服务端默认转目标机构 10% 灰度），不得在前端拦死。
+  it(
+    "publishes tenant-scope packages with the ALL grayscale contract instead of blocking",
+    async () => {
+      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "PUBLISHED" });
+      vi.mocked(useReleasePackage).mockReturnValue({
+        mutateAsync: publishPackage,
+      } as never);
+      vi.mocked(usePackages).mockReturnValue({
+        data: pageData([
+          {
+            ...mappingPackage,
+            primaryAssetId: "TERM.P5.MAPPING|TENANT|tenant-1",
+          },
+        ]),
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as never);
+
+      renderPage();
+
+      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
+      await userEvent.type(screen.getByLabelText("发布原因"), "服务空间级映射包灰度发布验证");
+      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
+
+      expect(screen.queryByText("知识包缺少有效组织作用域，无法灰度发布")).not.toBeInTheDocument();
+      expect(publishPackage).toHaveBeenCalledWith({
+        packageId: "term-pkg-30",
+        request: expect.objectContaining({
+          strategy: "GRAYSCALE",
+          scopeType: "ALL",
+          scopeValue: "",
+          targetOrgUnitId: "tenant-1",
+        }),
+      });
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
+
   it(
     "rolls back a published package only to a selectable historical release",
     async () => {

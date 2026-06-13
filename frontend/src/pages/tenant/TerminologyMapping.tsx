@@ -134,6 +134,9 @@ const PACKAGE_STATUS_LABEL: Record<string, string> = {
 
 function parseReleaseScopeType(value: string | undefined): ReleaseScopeType | undefined {
   switch (value?.trim().toUpperCase()) {
+    // 服务空间级包走 ALL 灰度契约：服务端会默认收敛为目标机构 10% 灰度。
+    case "TENANT":
+      return "ALL";
     case "REGION":
       return "REGION";
     case "FACILITY":
@@ -675,7 +678,7 @@ export default function TerminologyMapping() {
           strategy: values.releaseMode === "FULL" ? "FULL" : "GRAYSCALE",
           targetOrgUnitId: values.targetOrgUnitId,
           scopeType,
-          scopeValue: values.releaseMode === "FULL" ? "" : (scopeCode ?? values.targetOrgUnitId),
+          scopeValue: scopeType === "ALL" ? "" : (scopeCode ?? values.targetOrgUnitId),
           adapterIds: values.adapterIds,
           reason: values.reason,
         },

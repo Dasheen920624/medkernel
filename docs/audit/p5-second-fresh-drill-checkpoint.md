@@ -146,9 +146,17 @@ TDD 闭环（本地绿灯，待部署复验）：
 - 红灯：以已合并主线 `01d361b8` 旧版页面跑新增 6 个失败提示用例，6/6 失败并复现 unhandled rejection 静默吞错。
 - 修复：页面接入 `AntdApp.useApp()` message 上下文，六个治理动作统一 `getApiErrorMessage` 可见报错、失败时弹窗保持打开不误关；演练脚本构建成功判定改为服务端回查 `/engine/pkg/packages` 为准，禁止以 UI 状态自证。
 - 验证：页面套件 22/22；`npm run verify` 89 文件 666 用例与 `npm run build` 通过；中文注释 0 fail / 0 warn、真实性/配置边界/迁移门禁 0 阻断、`git diff --check` 通过。
-- 该缺陷不推翻 5.3 的 postdeploy 证据：那轮 `TERM.P5.MAPPING` 为首次构建、服务端真实成功；受影响的是复跑场景失败可见性与脚本判定口径。
+- ~~该缺陷不推翻 5.3 的 postdeploy 证据：那轮 `TERM.P5.MAPPING` 为首次构建、服务端真实成功。~~ **事后更正（13b930e4 部署日）**：服务端核查 `knowledge_package=0`，5.3 的「构建草稿成功」实为静默吞错下的脚本假阳性——构建弹窗默认最窄范围（当前科室）命中 409「当前范围没有已确认映射」（铺底院内码无科室归属），前台无提示、旧脚本以模态框关闭自证。修复部署后已按「窄范围构建 → 可见 409 报错（含 traceId）→ 改选服务空间范围 → 服务端回查 DRAFT 落库」真实前台复验关闭。
 
 幕9 前置准备：新增 `scripts/drill/mock-third-party-receiver.py`（演练用模拟院内第三方接收系统，真实监听端口、`GET /health` 探活、`POST /messages` 落盘 JSONL 留痕，契约与 `HttpIntegrationConnector` 对齐），待部署 134 后由集成运维员真实前台完成系统接入，再回收映射包「灰度（机构知识治理员）→ 全量（机构管理员）」跨角色发布链。
+
+### 5.5 服务空间级映射包灰度发布被前端拦死（P5-ACT2-05）
+
+13b930e4（含 P5-ACT2-04 修复）部署复验通过后起跑幕9 发布链演练：集成运维员真实前台完成系统接入（适配器 `p5-his-gateway` 指向 134 本机模拟第三方接收端，健康诊断 HEALTHY）；机构知识治理员构建映射包先按弹窗默认最窄范围提交、得到可见 409 报错（P5-ACT2-04 修复现场复验通过），改选服务空间范围后 `TERM.P5.MAPPING 2026.06.1` DRAFT 真实落库。
+
+随后灰度发布提交被前端预校验拦死：「知识包缺少有效组织作用域，无法灰度发布」。根因是 `parseReleaseScopeType` 不认 TENANT，而后端 `normalizeReleaseScope` 本就支持 `scopeType=ALL` 灰度并自动收敛为目标机构 10% 灰度——前端比后端契约更严。院内码未挂科室时 TENANT 是唯一能构建成功的范围，构建成功的包必然发不出去，发布入口成死胡同，定级阻断（P5-ACT2-05）。发现态证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入与发布链/defect-p5-act2-05-discovery/`。
+
+红灯与本地绿灯：新增 TENANT 级包灰度发布回归用例先失败（前端拦截、发布请求未发出）；修复 `parseReleaseScopeType` 增加 `TENANT → ALL` 映射、`scopeType=ALL` 时 `scopeValue` 置空，修复后页面套件 23/23、`npm run verify` 全量与 `npm run build` 通过。
 
 ## 6. 当前 134 状态
 

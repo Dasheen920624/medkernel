@@ -54,8 +54,8 @@ TDD 留痕：先红灯（后端 `TerminologyServiceTest` 缺 `rejectCandidate` �
   - 候选/冲突面板可见（P5-ACT2-02 关闭）：`01`–`03` 截图显示高危告警、批量禁用提示、冲突待裁。
   - 行级驳回入口 5 个；钾/钠错配高危候选驳回成功（P5-ACT2-01 关闭）：`08`、`09`。
   - 普通候选 4 条批量确认成功，待审清零、映射台账「已确认」4 条（P5-ACT2-03 关闭）：`10`。
-  - 机构知识治理员前台构建映射包 `TERM.P5.MAPPING` 草稿成功：`11`、`12`。
-- 汇总 JSON：`postdeploy-d8bf7f4f/00-act2-summary.json`（`wrongPairRejected=true`、`ordinaryBatchConfirmed=true`、`confirmedMappingsAfter=4`、`pendingCandidatesAfter=0`、`packageBuilt=true`）。
+  - ~~机构知识治理员前台构建映射包 `TERM.P5.MAPPING` 草稿成功：`11`、`12`。~~ **事后更正（2026-06-13）**：该结论为脚本假阳性。13b930e4 部署日服务端核查 `knowledge_package` 计数为 0，草稿从未落库；实际是构建弹窗默认最窄范围（当前科室）命中 409 `ENG-API-007`「当前范围没有已确认映射」，且因 P5-ACT2-04 静默吞错前台无提示，旧脚本把「模态框关闭」误判为成功。见第 7 节。
+- 汇总 JSON：`postdeploy-d8bf7f4f/00-act2-summary.json`（`wrongPairRejected=true`、`ordinaryBatchConfirmed=true`、`confirmedMappingsAfter=4`、`pendingCandidatesAfter=0`；其中 `packageBuilt=true` 按上行更正为无效断言）。
 
 ## 6. 遗留待办（后续幕回收）
 
@@ -70,4 +70,12 @@ TDD 留痕：先红灯（后端 `TerminologyServiceTest` 缺 `rejectCandidate` �
 
 TDD 留痕：先红灯——以已合并主线（`01d361b8`）旧版页面跑新增 6 个失败提示用例，6/6 失败且复现 unhandled rejection 静默吞错；修复后页面套件 22/22 通过，`npm run verify`（89 文件 666 用例）与 `npm run build` 通过，中文注释 0 fail / 0 warn、真实性/配置边界/迁移门禁 0 阻断、`git diff --check` 通过。
 
-说明：本缺陷不影响第 5 节已归档证据的真实性——那一轮 `TERM.P5.MAPPING` 为首次构建、服务端真实成功（截图 `12` 与包列表一致）；受影响的是后续复跑场景的失败可见性与脚本判定口径。部署后将以加严脚本重跑取得现场证据。
+**事实更正（2026-06-13，13b930e4 部署日）**：本缺陷修复前的影响比初判更重——第 5 节「构建映射包草稿成功」即为被吞掉的失败：服务端核查 `knowledge_package=0` 证明草稿从未落库，postdeploy 截图 `12` 只是关闭弹窗后的发布面板，无人核对包列表。静默吞错 + 脚本以 UI 状态自证，叠加造成已合并证据中的假阳性结论；修复部署后已以「窄范围构建 → 可见 409 报错（含 traceId）→ 改选服务空间范围 → 服务端回查 DRAFT 落库」在真实前台复验关闭（证据在幕9 目录）。
+
+## 8. 发布链回收时新发现缺陷：P5-ACT2-05 服务空间级映射包灰度发布被前端拦死
+
+| 编号 | 等级 | 缺陷 | 根因 | 修复 |
+|---|---|---|---|---|
+| P5-ACT2-05 | 功能（阻断） | 服务空间（TENANT）级映射包在术语页灰度发布时被前端预校验拦死（「知识包缺少有效组织作用域，无法灰度发布」）。院内码未挂科室时 TENANT 是唯一能构建成功的范围，于是构建成功的包必然无法发布，发布入口成死胡同 | `parseReleaseScopeType` 未映射 TENANT，而后端 `normalizeReleaseScope` 本就支持 `scopeType=ALL` 的灰度（自动收敛为目标机构 10% 灰度）；前端比后端契约更严 | `parseReleaseScopeType` 增加 `TENANT → ALL` 映射；`scopeType=ALL` 时 `scopeValue` 置空对齐契约；新增 TENANT 级包灰度发布回归用例 |
+
+发现路径：13b930e4 部署后幕9 发布链演练，机构知识治理员真实前台完成服务空间范围构建（DRAFT 真实落库）后提交灰度发布被拦，证据 `../幕9-系统接入与发布链/defect-p5-act2-05-discovery/`。TDD：红灯新用例先失败（前端拦截、未调用发布），修复后页面套件 23/23、`npm run verify` 与 `npm run build` 通过。

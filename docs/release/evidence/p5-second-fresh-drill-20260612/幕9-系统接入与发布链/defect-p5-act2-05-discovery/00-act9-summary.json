@@ -1,0 +1,95 @@
+{
+  "act": "P5幕9-系统接入与发布链（含P5-ACT2-04部署复验）",
+  "generatedAt": "2026-06-13T00:30:16.590Z",
+  "environment": "https://193.112.107.134",
+  "receiver": "http://127.0.0.1:9301",
+  "credentialSource": "/tmp/p5-14-role-drill-credentials-20260612.json",
+  "failures": [
+    {
+      "step": "灰度发布后包状态未变化（服务端回查仍为 DRAFT 或缺失）",
+      "detail": {
+        "packages": [
+          {
+            "id": 1,
+            "packageId": "72050f03-a187-4353-bd83-449ae1e72f24",
+            "tenantId": "p5-hospital",
+            "packageCode": "TERM.P5.MAPPING",
+            "packageVersion": "2026.06.1",
+            "name": "P5 检验与诊断字典映射包",
+            "description": "术语映射快照，范围 TENANT:p5-hospital",
+            "accessPolicy": "OPEN",
+            "status": "DRAFT",
+            "createdAt": "2026-06-13T00:27:02.047494Z",
+            "createdBy": "knowledge-governor",
+            "updatedAt": "2026-06-13T00:27:02.047494Z",
+            "updatedBy": "knowledge-governor",
+            "traceId": "d958cff0-ed8e-441d-b475-7917c837201c",
+            "assetTypes": [
+              "TERMINOLOGY"
+            ],
+            "primaryAssetId": "TERM.P5.MAPPING|TENANT|p5-hospital",
+            "primaryAssetVersion": "2026.06.1",
+            "itemCount": 1,
+            "organizationScope": "tenant:p5-hospital",
+            "applicableScope": "ALL",
+            "sourceRef": "knowledge-package:72050f03-a187-4353-bd83-449ae1e72f24"
+          }
+        ]
+      }
+    }
+  ],
+  "integrationOperator": {
+    "observations": {
+      "adapterAlreadyExists": true,
+      "adapterCreated": true,
+      "adapterStatus": "ACTIVE",
+      "healthStatus": "HEALTHY",
+      "adapterHealthy": true
+    },
+    "steps": [
+      {
+        "label": "系统接入页（接入前）",
+        "screenshot": "01-ui-adapter-hub-before.png",
+        "url": "https://193.112.107.134/adapter/hub"
+      },
+      {
+        "label": "适配器健康诊断结果",
+        "screenshot": "03-ui-adapter-health-check.png",
+        "url": "https://193.112.107.134/adapter/hub"
+      }
+    ]
+  },
+  "knowledgeGovernor": {
+    "observations": {
+      "packageVersionsBefore": [
+        {
+          "packageVersion": "2026.06.1",
+          "status": "DRAFT"
+        }
+      ],
+      "draftVersion": "2026.06.1",
+      "targetOrgUnitId": "01KTXW1FRK9R5FVTXWKT3YE505",
+      "publishEnabled": true,
+      "channelChosen": true,
+      "statusAfterGrayRelease": "DRAFT",
+      "grayReleased": false
+    },
+    "steps": [
+      {
+        "label": "术语页发布入口（适配器健康后）",
+        "screenshot": "04-ui-terminology-before-publish.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      },
+      {
+        "label": "灰度发布表单",
+        "screenshot": "05-ui-terminology-publish-form.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      },
+      {
+        "label": "灰度发布提交后的发布面板",
+        "screenshot": "06-ui-terminology-after-gray-release.png",
+        "url": "https://193.112.107.134/terminology/mapping"
+      }
+    ]
+  }
+}
