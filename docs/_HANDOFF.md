@@ -1,5 +1,13 @@
 # 会话接力
 
+## 2026-06-13 新工作线·MedKernel 全真体验沙盘（业务系统场景模拟器）：设计 spec 已写就（实现就绪），待评审/合并/实施
+
+- 缘起：嵌入式 CDSS（`/embed/launch`）只能被宿主拉起、本轮演练未端到端展示。用户要一个 `/sandbox` 页**模拟宿主业务系统(HIS/EMR/LIS)→真实数据录入→调真引擎→嵌入式终端真体验→完整路径可核查**，呈现**规则引擎全部能力（9 规则类型×6 触发点×5 动作×4 严重度）+ 十大引擎**，全真不造假、完美体验。
+- 用户裁定：**整体一份 spec**（不分解），框架先行+内容分波实施。spec = [`docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md`](docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md)（314 行，含接口契约/类型/编排时序/场景全表/seed 脚本/文件清单/测试验收/§23 实现者踩坑预警）。
+- 分支 `codex/sandbox-fulltruth-design-spec`，提交 `6b814691`（基于 main=`27924efa`）。**未推送**。
+- **下一步**：① 用户评审 spec（尤其 §7 场景临床内容、§3 全覆盖口径、§11 权限模型）；② 推送+建 PR+合并（逐 PR 授权）；③ 转 writing-plans 出实施计划（先阶段A 框架，用已有高钾场景端到端跑通）或交其它 AI 团队据 spec 实现。
+- 关键事实（spec 已固化）：嵌入卡来自已发布规则动作定义经 `RecommendationDeterministicMatcher` 产卡；数据三入口（临床事件经 `ClinicalEventEngineDispatcher` 自动扇出/快照/适配器inbound）；新增 `sandbox.run` 权限 + `menu.sandbox`；新规则经真治理 API seed 发布（`scripts/sandbox/seed-scenarios.mjs` 复用幕4 基建）。
+
 ## 2026-06-13 幕6 临床运行**已彻底闭环**：#590 已部署 134、真实医师角色端到端旅程服务端实锤、证据待二次 PR，**下一步=幕7 随访质控**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕6 临床运行（规则真实执行 + 医师确认）。**main = `36dabfebe880861b56b071122515fa464b253ae4`**（PR #590 squash 合并，幕6 两缺陷修复）。**134 已部署该精确提交**（jar SHA `971cd389…` = 本地从精确 commit 构建；manifest/服务 active|active|active/HTTPS 200/Flyway 118/178 表/前端 xattr 0）。
