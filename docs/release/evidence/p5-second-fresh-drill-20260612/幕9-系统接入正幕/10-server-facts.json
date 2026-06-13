@@ -1,0 +1,310 @@
+{
+  "runTag": "p5-act9-main-20260613-232500",
+  "generatedAt": "2026-06-13T15:20:57.645Z",
+  "adapters": [
+    {
+      "id": 7,
+      "adapterId": "p5-emr-main-260613232500",
+      "tenantId": "p5-hospital",
+      "name": "P5 EMR 断连诚实降级网关 260613232500",
+      "protocolType": "REST",
+      "status": "ACTIVE",
+      "configJson": "{\"baseUrl\":\"http://127.0.0.1:9399\",\"healthPath\":\"/health\",\"outboundPath\":\"/messages\",\"connectTimeoutMs\":800,\"requestTimeoutMs\":1600,\"fieldMappings\":[{\"sourcePath\":\"/patient/id\",\"targetPath\":\"/patient/id\"},{\"sourcePath\":\"/encounter/id\",\"targetPath\":\"/encounter/id\"}]}",
+      "healthStatus": "NOT_CONNECTED",
+      "rttMs": 3,
+      "lastHeartbeatAt": "2026-06-13T15:20:49.817725Z",
+      "createdAt": "2026-06-13T15:20:49.782493Z",
+      "createdBy": "system",
+      "updatedAt": "2026-06-13T15:20:49.821899Z",
+      "updatedBy": "system"
+    },
+    {
+      "id": 6,
+      "adapterId": "p5-his-main-260613232500",
+      "tenantId": "p5-hospital",
+      "name": "P5 HIS 正幕接入网关 260613232500",
+      "protocolType": "REST",
+      "status": "ACTIVE",
+      "configJson": "{\"baseUrl\":\"http://127.0.0.1:9301\",\"healthPath\":\"/health\",\"outboundPath\":\"/messages\",\"connectTimeoutMs\":2000,\"requestTimeoutMs\":5000,\"fieldMappings\":[{\"sourcePath\":\"/patient/id\",\"targetPath\":\"/patient/id\"}]}",
+      "healthStatus": "HEALTHY",
+      "rttMs": 3,
+      "lastHeartbeatAt": "2026-06-13T15:20:46.967360Z",
+      "createdAt": "2026-06-13T15:20:45.887070Z",
+      "createdBy": "system",
+      "updatedAt": "2026-06-13T15:20:46.970875Z",
+      "updatedBy": "system"
+    }
+  ],
+  "adapterHubStatus": {
+    "totalAdapters": 7,
+    "activeAdapters": 7,
+    "suspendedAdapters": 0,
+    "healthyAdapters": 4,
+    "notConnectedAdapters": 3,
+    "misconfiguredAdapters": 0,
+    "mappedAdapters": 7,
+    "generatedAt": "2026-06-13T15:20:57.525661675Z",
+    "sources": [
+      {
+        "adapterId": "p5-emr-main-260613232500",
+        "name": "P5 EMR 断连诚实降级网关 260613232500",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "NOT_CONNECTED",
+        "mappedFieldCount": 2,
+        "lastHeartbeatAt": "2026-06-13T15:20:49.817725Z",
+        "gaps": [
+          "未连接真实外部系统"
+        ]
+      },
+      {
+        "adapterId": "p5-his-main-260613231300",
+        "name": "P5 HIS 正幕接入网关 260613231300",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "HEALTHY",
+        "mappedFieldCount": 1,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "gaps": []
+      },
+      {
+        "adapterId": "p5-emr-main-260613231300",
+        "name": "P5 EMR 断连诚实降级网关 260613231300",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "NOT_CONNECTED",
+        "mappedFieldCount": 2,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "gaps": [
+          "未连接真实外部系统"
+        ]
+      },
+      {
+        "adapterId": "p5-his-main-260613232050",
+        "name": "P5 HIS 正幕接入网关 260613232050",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "HEALTHY",
+        "mappedFieldCount": 1,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "gaps": []
+      },
+      {
+        "adapterId": "p5-emr-main-260613232050",
+        "name": "P5 EMR 断连诚实降级网关 260613232050",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "NOT_CONNECTED",
+        "mappedFieldCount": 2,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "gaps": [
+          "未连接真实外部系统"
+        ]
+      },
+      {
+        "adapterId": "p5-his-gateway",
+        "name": "P5模拟院内HIS网关",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "HEALTHY",
+        "mappedFieldCount": 1,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "gaps": []
+      },
+      {
+        "adapterId": "p5-his-main-260613232500",
+        "name": "P5 HIS 正幕接入网关 260613232500",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "HEALTHY",
+        "mappedFieldCount": 1,
+        "lastHeartbeatAt": "2026-06-13T15:20:46.967360Z",
+        "gaps": []
+      }
+    ],
+    "requiredSources": [
+      {
+        "sourceSystem": "HIS",
+        "label": "HIS 医院信息系统",
+        "adapterId": "p5-his-main-260613231300",
+        "adapterName": "P5 HIS 正幕接入网关 260613231300",
+        "protocolType": "REST",
+        "status": "READY",
+        "healthStatus": "HEALTHY",
+        "mappedFieldCount": 1,
+        "lastHeartbeatAt": "2026-06-13T15:20:10.381575Z",
+        "ready": true,
+        "gaps": []
+      },
+      {
+        "sourceSystem": "EMR",
+        "label": "EMR 电子病历系统",
+        "adapterId": "p5-emr-main-260613232500",
+        "adapterName": "P5 EMR 断连诚实降级网关 260613232500",
+        "protocolType": "REST",
+        "status": "BOUND",
+        "healthStatus": "NOT_CONNECTED",
+        "mappedFieldCount": 2,
+        "lastHeartbeatAt": "2026-06-13T15:20:49.817725Z",
+        "ready": false,
+        "gaps": [
+          "未连接真实外部系统"
+        ]
+      },
+      {
+        "sourceSystem": "LIS",
+        "label": "LIS 检验信息系统",
+        "adapterId": null,
+        "adapterName": null,
+        "protocolType": null,
+        "status": "MISSING",
+        "healthStatus": "NOT_CONNECTED",
+        "mappedFieldCount": 0,
+        "lastHeartbeatAt": null,
+        "ready": false,
+        "gaps": [
+          "缺少 LIS 适配器"
+        ]
+      }
+    ]
+  },
+  "canonicalRequiredSourceBindings": [
+    {
+      "sourceSystem": "HIS",
+      "route": "ADAPTER",
+      "adapterId": "p5-his-main-260613232500",
+      "onboardingId": "p5-onb-his-260613232500",
+      "healthStatus": "HEALTHY",
+      "onboardingStatus": "ONLINE",
+      "ready": true
+    },
+    {
+      "sourceSystem": "EMR",
+      "route": "ADAPTER",
+      "adapterId": "p5-emr-main-260613232500",
+      "onboardingId": null,
+      "healthStatus": "NOT_CONNECTED",
+      "onboardingStatus": null,
+      "ready": false,
+      "gaps": [
+        "NOT_CONNECTED：未接入真实外部连接器"
+      ]
+    },
+    {
+      "sourceSystem": "LIS",
+      "route": "FHIR_R4",
+      "adapterId": null,
+      "onboardingId": "p5-onb-fhir-260613232500",
+      "healthStatus": "NOT_CONNECTED",
+      "onboardingStatus": "ONLINE",
+      "ready": false,
+      "gaps": [
+        "NOT_CONNECTED：未接入真实外部连接器，不阻断主流程"
+      ]
+    }
+  ],
+  "onboardings": [
+    {
+      "onboardingId": "p5-onb-his-260613232500",
+      "name": "P5 HIS 正幕接入申请 260613232500",
+      "status": "ONLINE",
+      "routeType": "ADAPTER",
+      "routeReference": "/api/v1/engine/integration/adapters/p5-his-main-260613232500",
+      "healthStatus": "HEALTHY",
+      "mappedFieldCount": 1,
+      "blockers": [],
+      "sourceSystem": "HIS",
+      "businessScenario": "急诊患者主数据与检验报告接入",
+      "orgPath": "/tenant:p5-hospital/P5-HOSP",
+      "callbackWebhookId": "p5-callback-260613232500",
+      "createdAt": "2026-06-13T15:20:50.034543Z",
+      "updatedAt": "2026-06-13T15:20:50.258018Z"
+    },
+    {
+      "onboardingId": "p5-onb-fhir-260613232500",
+      "name": "P5 FHIR 正幕接入申请 260613232500",
+      "status": "ONLINE",
+      "routeType": "FHIR",
+      "routeReference": "/api/v1/engine/integration/fhir/R4",
+      "healthStatus": "NOT_CONNECTED",
+      "mappedFieldCount": 0,
+      "blockers": [
+        "NOT_CONNECTED：未接入真实外部连接器，不阻断主流程"
+      ],
+      "sourceSystem": "LIS",
+      "businessScenario": "FHIR R4 检验报告门面接入",
+      "orgPath": "/tenant:p5-hospital/P5-HOSP",
+      "callbackWebhookId": "p5-callback-260613232500",
+      "createdAt": "2026-06-13T15:20:50.355Z",
+      "updatedAt": "2026-06-13T15:20:50.577860Z"
+    }
+  ],
+  "regionalSources": [
+    {
+      "sourceId": "p5-regional-lab-260613232500",
+      "regionalNetworkName": "P5 区域检验互认网络",
+      "sourceOrganizationId": "REG-LAB-001",
+      "sourceOrganizationName": "P5 区域检验中心",
+      "trustLevel": "MEDIUM",
+      "evidenceText": "P5 幕9正幕区域来源验收单与互认协议编号 ACT9-REG-001",
+      "adapterId": "p5-his-main-260613232500",
+      "onboardingId": "p5-onb-his-260613232500",
+      "orgPath": "/tenant:p5-hospital/P5-HOSP",
+      "status": "ACTIVE",
+      "createdAt": "2026-06-13T15:20:50.735983Z",
+      "updatedAt": "2026-06-13T15:20:50.735983Z"
+    }
+  ],
+  "logs": [
+    {
+      "id": 7,
+      "messageId": "replay-e66db8e801e944a4b1a5aa38aa125098",
+      "tenantId": "p5-hospital",
+      "traceId": "p5-act9-main-20260613-232500-dead-letter-payload-1781364050768",
+      "direction": "OUTBOUND",
+      "systemName": "P5 EMR 断连诚实降级网关 260613232500",
+      "protocolType": "REST",
+      "payloadSummary": "死信人工重放: 幕9正幕死信补偿演练",
+      "payload": "{\"adapterId\":\"p5-emr-main-260613232500\",\"targetSystem\":\"P5 EMR 断连演练系统\",\"protocolType\":\"REST\",\"payload\":{\"runTag\":\"p5-act9-main-20260613-232500\",\"patientId\":\"P5-ACT9-REGIONAL-001\",\"event\":\"regional.lab.report.ready\"},\"degradeReason\":\"消息已进入真实异步投递队列\"}",
+      "status": "NOT_CONNECTED",
+      "retryCount": 0,
+      "maxRetries": 1,
+      "errorMessage": "真实投递未完成，已保留补偿且不阻断主流程；根因: HTTP 连接失败",
+      "createdAt": "2026-06-13T15:20:50.973220Z",
+      "createdBy": "system",
+      "updatedAt": "2026-06-13T15:20:50.979729Z",
+      "updatedBy": "system"
+    },
+    {
+      "id": 6,
+      "messageId": "p5-act9-dead-260613232500",
+      "tenantId": "p5-hospital",
+      "traceId": "p5-act9-main-20260613-232500-dead-letter-payload-1781364050768",
+      "direction": "OUTBOUND",
+      "systemName": "P5 EMR 断连诚实降级网关 260613232500",
+      "protocolType": "REST",
+      "payloadSummary": "幕9正幕死信补偿演练",
+      "payload": "{\"adapterId\":\"p5-emr-main-260613232500\",\"targetSystem\":\"P5 EMR 断连演练系统\",\"protocolType\":\"REST\",\"payload\":{\"runTag\":\"p5-act9-main-20260613-232500\",\"patientId\":\"P5-ACT9-REGIONAL-001\",\"event\":\"regional.lab.report.ready\"},\"degradeReason\":\"消息已进入真实异步投递队列\"}",
+      "status": "DEAD_LETTER",
+      "retryCount": 1,
+      "maxRetries": 1,
+      "errorMessage": "投递重试超限，已进入死信等待人工重放；根因: HTTP 连接失败",
+      "createdAt": "2026-06-13T15:20:50.841318Z",
+      "createdBy": "system",
+      "updatedAt": "2026-06-13T15:20:50.924081Z",
+      "updatedBy": "system"
+    }
+  ],
+  "webhooks": [
+    {
+      "id": 3,
+      "webhookId": "p5-callback-260613232500",
+      "name": "P5 正幕回调通道 260613232500",
+      "callbackUrl": "http://127.0.0.1:9301/messages",
+      "eventsSubscribed": "clinical.event.accepted,package.release.completed",
+      "status": "ACTIVE",
+      "createdAt": "2026-06-13T15:20:49.924169Z",
+      "updatedAt": "2026-06-13T15:20:49.924169Z"
+    }
+  ]
+}
