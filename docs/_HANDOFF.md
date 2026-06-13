@@ -1,24 +1,23 @@
 # 会话接力
 
-## 2026-06-13 幕8 配置包与发布治理**真实演练已通过**：134 上配置包 v1/v2 发布、导出、重复导入保护、回滚闭环，证据待 PR，**下一步=收尾验证并创建 PR 后续幕9 正幕**
+## 2026-06-13 幕9 系统接入正幕**真实演练已通过**：134 上适配器接入、ADAPTER/FHIR 接入申请、回调通道、区域来源、数据质量和死信重放闭环，**下一步=收尾验证并创建 PR 后续幕10 审计导出审批**
 
-- 当前执行线：P5 第一阶段端到端旅程 · 幕8 配置包与发布治理。当前工作分支 `codex/p5-act8-config-package-governance`，本线包含两个代码修复提交：`9261346a`（配置包解析 EVALUATION 内部 ID -> indicatorCode）与 `f347924a`（质控指标统一资产组织域规范化 + 演练脚本续接）。
-- **134 部署状态**：已部署 `f347924a`，manifest=`f347924a`，jar SHA `33d78f2e5051fc8788636b362ceb6c587c4fea1fabc847d8fc520dbb12c5ce8e` 与本地构建一致；`medkernel/nginx/postgresql` 均 active，HTTP/HTTPS readiness 200，Flyway `118|118|max_rank=118`，178 张 public 表。
-- **发布前备份与隔离恢复**：
-  - `9261346a`：`/zoesoft/medkernel/backups/p5-act8-9261346a-predeploy-20260613-223706/evidence/predeploy-backup.properties`，隔离恢复 `restore_status=PASSED`，`destructive_action_performed=false`，`db_preserved=true`。
-  - `f347924a`：`/zoesoft/medkernel/backups/p5-act8-f347924a-predeploy-20260613-224847/evidence/predeploy-backup.properties`，隔离恢复 `restore_status=PASSED`，`destructive_action_performed=false`，`db_preserved=true`。
-- **幕8最终 PASS**：`DRILL_RUN_TAG=p5-act8-20260613-225241`，`00-act8-summary.json failures=[]`。Canonical 包 `P5.ACT8.CONFIG.260613225241`：v1 `2026.06.1-act8-260613225241-v1` 全量发布后 `ACTIVE`；v2 `2026.06.1-act8-260613225241-v2` 灰度计划 `c0f92a53-12d3-4263-9fee-429ccf7ef09a` 成功、全量计划 `0dbc7258-71bd-4963-9e44-d6cf87191f6b` 成功、差异导出 `diffAddedCount=3/diffChangeCount=3`、离线包导出 14503 bytes、重复导入返回 409、回滚后 v1 `ACTIVE` / v2 `OFFLINE`。
-- **质控指标补正事实**：幕7旧指标 v1 的统一资产组织域为展示名 `P5第二轮演练机构`，无法参与继承解析；`f347924a` 规范化后真实创建并激活 v2：`P5.ACT7.FOLLOWUP.QUALITY:2:ACTIVE:tenant:p5-hospital`，旧 v1 已 `OFFLINE`。最终 PASS run 复用 v2；事实记录在 `01-evaluation-asset-resolution.json` 与 `09-post-drill-db-state.properties`。
-- **诚实失败留痕**：收敛期保留三组失败包，未清库：`P5.ACT8.CONFIG.781361049473`（EVALUATION 身份映射缺陷）、`P5.ACT8.CONFIG.260613224122`（旧指标组织域缺陷）、`P5.ACT8.CONFIG.260613225142`（脚本把 `rule.packageVersion=2026.06.1` 当统一版本号，真实规则统一版本号为 `1`）。最终包 `P5.ACT8.CONFIG.260613225241` 为 canonical 通过链。
-- **证据目录**：`docs/release/evidence/p5-second-fresh-drill-20260612/幕8-配置包与发布治理/`（README、00/01/02/03/04/09 JSON/properties、diff/export/sync JSONL、截图、部署证据、trace-ids）。
-- **已跑验证**：`node --check scripts/drill/p5-act8-config-package-governance.mjs`；`node --check scripts/drill/p5-act7-followup-quality.mjs`；红灯 `mvn -Dtest=EvaluationEngineServiceTest#indicatorFlowsFromDraftToActiveAndReplacesOldActiveVersion test` 曾按组织域断言失败；修复后同测通过；收尾后端 `mvn -Dtest=PackageEngineServiceTest,EffectiveKnowledgePackageResolverTest,EvaluationEngineServiceTest test` 108/108 通过（含预期同步失败用例日志）；前端 `npm test -- src/pages/tenant/ConfigPackages.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx` 23/23 通过；真实性 `--mode=all`、配置边界 `--mode=inventory`、中文注释、`git diff --check` 均通过。提交前仍需 staged check。
+- 当前执行线：P5 第一阶段端到端旅程 · 幕9 系统接入正幕。当前工作分支 `codex/p5-act9-main-stage-drill`，base 为 `origin/main=a6e74673`（PR #594「P5幕8配置包发布治理真实演练闭环」已 squash 合并）。134 当前程序仍为幕8修复部署 `f347924a`，`origin/main` 的 `a6e74673` 已包含同等代码修复 + 幕8证据，幕9本线只新增演练脚本与证据文档，未部署新程序。
+- **幕8已收尾事实**：PR #594 已合并，CI 8/8 通过。幕8 canonical run `p5-act8-20260613-225241` 保持有效：配置包 `P5.ACT8.CONFIG.260613225241` v1 `ACTIVE`、v2 回滚 `OFFLINE`；三组失败包与旧质控指标 v1 均按纪律保留未清库；质控指标 v2 `P5.ACT7.FOLLOWUP.QUALITY:2:ACTIVE:tenant:p5-hospital`。
+- **幕9正幕最终 PASS**：`DRILL_RUN_TAG=p5-act9-main-20260613-232500`，`00-act9-main-summary.json failures=[]`。HIS 适配器 `p5-his-main-260613232500 ACTIVE/HEALTHY`；EMR 适配器 `p5-emr-main-260613232500 ACTIVE/NOT_CONNECTED`，证明断连诚实降级。
+- **接入生命周期**：ADAPTER 接入申请 `p5-onb-his-260613232500` 逐级 `REQUESTED→AUTH_CONFIGURED→MAPPING_CONFIGURED→ONLINE`，最终 `routeReference=/api/v1/engine/integration/adapters/p5-his-main-260613232500`、`blockers=[]`；FHIR R4 接入申请 `p5-onb-fhir-260613232500` 同样 ONLINE，但保留 `NOT_CONNECTED：未接入真实外部连接器，不阻断主流程` blocker。
+- **回调与区域来源**：回调通道 `p5-callback-260613232500 ACTIVE`，签名预览 `SIGNATURE_GENERATED/NOT_TESTED`，共享密钥仅生成一次且未写入仓库证据；未可信分级区域来源返回 `409 / REGIONAL_SOURCE_UNGRADED`，可信来源 `p5-regional-lab-260613232500 ACTIVE/MEDIUM` 并绑定 HIS 适配器与接入申请。
+- **质量与死信**：数据质量报告 `dqr-01KV0S4JTR1ZDFX7T1YC5HRR86` 真实暴露 `adapterTotal=7/mappingRate=100/notConnectedCount=3` 与“暂无 ACTIVE MPI 患者”缺口；出站消息 `p5-act9-dead-260613232500` 进入 `DEAD_LETTER/retryCount=1`，回调管理视角重放新建 `replay-e66db8e801e944a4b1a5aa38aa125098`，原死信保留，补偿消息真实投递仍 `NOT_CONNECTED` 且 `blocksMainFlow=false`。
+- **诚实收敛说明**：为补 fullPage 截图与本批必接源判定，134 上还真实跑过 `p5-act9-main-20260613-231300` 与 `p5-act9-main-20260613-232050` 两次 PASS 收敛批次，演练数据未清库；`10-server-facts.json` 同时保留 `canonicalRequiredSourceBindings`（本批 run-specific）与 `adapterHubStatus.requiredSources`（租户全局看板）。
+- **证据目录**：`docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入正幕/`（README、00/10 JSON、trace-ids、01-09 fullPage 截图）。敏感扫描仅命中 `sharedSecretGeneratedOnce` / `sharedSecretWrittenToEvidence=false`，未发现共享密钥值、密码、MFA、恢复码、Cookie 或 Token。
+- **已跑验证**：`node --check scripts/drill/p5-act9-main-stage.mjs` 通过；三次 134 实跑均 `failures=[]`，最终 canonical 如上。收尾前仍需补跑当前 diff 的前端/后端定向与 T-GATE（无后端/前端源码改动，可聚焦脚本语法、相关前端 AdapterHub 套件、真实性/配置边界/中文注释/whitespace）。
 - 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600，不入仓库）。用户本会话已明确“全部授权你进行处理”，可继续 134 演练/部署/PR/合并主线，仍须如实留痕、不得清库、不得伪造通过。
 
 ### 当前下一步（精确照做）
 
-1. stage 幕8证据 + README + `_HANDOFF` + 脚本尾修，跑 `git diff --cached --check` 后提交。
-2. 推送并创建 PR；CI 全绿后 squash 合并。
-3. 合并后从新 `origin/main` 继续幕9 正幕 → 幕10 审计导出审批；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+1. 补跑收尾验证：`node --check scripts/drill/p5-act9-main-stage.mjs`、AdapterHub 相关前端测试、真实性/配置边界/中文注释、`git diff --check`，staged 后再跑 `git diff --cached --check`。
+2. stage 幕9脚本 + 证据 + README/checkpoint/_HANDOFF，提交、推送并创建 PR；CI 全绿后 squash 合并。
+3. 合并后从新 `origin/main` 继续幕10 审计导出审批；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
 
 ---
 

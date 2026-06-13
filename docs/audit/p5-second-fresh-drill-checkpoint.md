@@ -212,9 +212,21 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 最终批次 `p5-act8-20260613-225241` 通过，`00-act8-summary.json failures=[]`。Canonical 包 `P5.ACT8.CONFIG.260613225241`：v1 `2026.06.1-act8-260613225241-v1` 全量发布 `ACTIVE`；v2 `2026.06.1-act8-260613225241-v2` 灰度计划 `c0f92a53-12d3-4263-9fee-429ccf7ef09a` 成功、全量计划 `0dbc7258-71bd-4963-9e44-d6cf87191f6b` 成功；差异导出 `diffAddedCount=3/diffChangeCount=3`；离线包导出 14503 bytes；重复导入返回 409；高危确认回滚后 v1 `ACTIVE`、v2 `OFFLINE`。质控指标最终为 `P5.ACT7.FOLLOWUP.QUALITY:2:ACTIVE:tenant:p5-hospital`，旧 v1 已 `OFFLINE`。
 
+### 5.12 幕9 系统接入正幕真实演练通过
+
+幕8 后起跑幕9 正幕，脚本 `scripts/drill/p5-act9-main-stage.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入正幕/`。本幕在 134 当前程序上真实执行，未部署新程序；最终 canonical 批次为 `p5-act9-main-20260613-232500`，`00-act9-main-summary.json failures=[]`。
+
+旅程覆盖完整系统接入链：集成运维员前台新增 HIS 适配器 `p5-his-main-260613232500` 并真实探活到 `ACTIVE/HEALTHY`；新增 EMR 断连适配器 `p5-emr-main-260613232500` 并真实返回 `ACTIVE/NOT_CONNECTED`，证明断连不伪装成功；创建回调通道 `p5-callback-260613232500`，共享密钥只生成一次且未写入仓库证据，签名预览返回 `SIGNATURE_GENERATED/NOT_TESTED`。
+
+接入生命周期按状态机推进：ADAPTER 接入申请 `p5-onb-his-260613232500` 逐级 `REQUESTED → AUTH_CONFIGURED → MAPPING_CONFIGURED → ONLINE`，最终 `routeReference=/api/v1/engine/integration/adapters/p5-his-main-260613232500`、`blockers=[]`；FHIR R4 接入申请 `p5-onb-fhir-260613232500` 同样逐级到 `ONLINE`，但仍如实保留 `NOT_CONNECTED：未接入真实外部连接器，不阻断主流程` blocker。
+
+区域来源红线与补偿链通过：未可信分级来源被 `409 / REGIONAL_SOURCE_UNGRADED` 拒绝；可信来源 `p5-regional-lab-260613232500` 登记为 `ACTIVE/MEDIUM` 并绑定 HIS 适配器与接入申请。数据质量报告 `dqr-01KV0S4JTR1ZDFX7T1YC5HRR86` 诚实暴露 `adapterTotal=7/mappingRate=100/notConnectedCount=3` 与“暂无 ACTIVE MPI 患者”缺口。断连出站消息 `p5-act9-dead-260613232500` 进入 `DEAD_LETTER/retryCount=1`；回调管理视角重放创建补偿消息 `replay-e66db8e801e944a4b1a5aa38aa125098`，原死信证据保留，补偿消息真实投递后仍 `NOT_CONNECTED` 且 `blocksMainFlow=false`。
+
+诚实说明：为补 fullPage 截图和 `canonicalRequiredSourceBindings`，134 上还真实跑过两次 PASS 收敛批次 `p5-act9-main-20260613-231300` 与 `p5-act9-main-20260613-232050`，演练数据未清库；`10-server-facts.json` 同时保留本批 run-specific 必接源判定与 AdapterHub 租户全局必接源看板，避免把全局选择顺序误读为本批标识。
+
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=f347924a`（幕8质控指标统一资产组织域修复部署）。
+- manifest：`source/commit=f347924a`（幕8质控指标统一资产组织域修复部署）；`origin/main` 已合并幕8为 `a6e74673`，134 尚未因幕9脚本/证据重新部署程序。
 - 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
 - HTTP / HTTPS readiness：`200|200`。
 - Flyway / 表数：`118|118|118` / 178 张 public 基表。
@@ -223,7 +235,7 @@ TDD 闭环（本地绿灯，待部署复验）：
 - 路径治理：`PATH.ED.DISPOSITION` 已发布并院级全量，患者入径真实触发于幕6。
 - 随访质控：幕7随访计划、异常回院、质控评估与整改闭环已通过；首次脚本失败留下 1 条 open 整改任务，最终 PASS 新任务已关闭。
 - 配置包治理：幕8 canonical 包 `P5.ACT8.CONFIG.260613225241` v1 `ACTIVE`、v2 `OFFLINE`；收敛期失败包保留未清库；质控指标 v2 `ACTIVE` 且组织域 `tenant:p5-hospital`。
-- 集成适配器：`p5-his-gateway REST ACTIVE/HEALTHY`（指向演练模拟接收端）。
+- 集成适配器：旧发布链适配器 `p5-his-gateway REST ACTIVE/HEALTHY`；幕9正幕 canonical HIS `p5-his-main-260613232500 ACTIVE/HEALTHY`、EMR `p5-emr-main-260613232500 ACTIVE/NOT_CONNECTED`；ADAPTER/FHIR 接入申请均已 ONLINE，区域来源、数据质量报告与死信重放证据已落库。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
 
@@ -234,5 +246,5 @@ TDD 闭环（本地绿灯，待部署复验）：
 3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程；提交 `P5-ACT2-04` 静默吞错修复与幕9 前置，回收映射包「灰度→全量」跨角色发布链。~~ 已完成（PR #577 → `13b930e4`、PR #578 → `7f69c946` 两轮部署；P5-ACT2-04/05 关闭；发布链全链走通，幕2 遗留第 1 项回收，见 5.4/5.5 与幕9 证据目录）。
 4. ~~幕3 知识治理诚实边界验证。~~ 已完成（5.6，无缺陷）。
 5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。
-6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控、幕8 配置包与发布治理。~~ 幕5/6 已修复、部署并归档；幕7/8 已在 134 真实演练通过，幕8 当前待提交证据 PR。继续幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
+6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控、幕8 配置包与发布治理、幕9 系统接入正幕。~~ 幕5/6 已修复、部署并归档；幕7/8/9 已在 134 真实演练通过，幕9 当前待提交证据 PR。继续幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
 7. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
