@@ -156,7 +156,7 @@ public class EvaluationEngineService {
             VersionedAssetType.EVALUATION,
             indicator.indicatorCode(),
             String.valueOf(indicator.versionNo()),
-            indicator.organizationScope(),
+            versionOrganizationScope(indicator),
             evaluationApplicableScope(indicator),
             indicatorContent(indicator),
             null,
@@ -1271,7 +1271,7 @@ public class EvaluationEngineService {
             VersionedAssetType.EVALUATION,
             indicator.indicatorCode(),
             assetVersion.versionId(),
-            indicator.organizationScope(),
+            versionOrganizationScope(indicator),
             evaluationApplicableScope(indicator),
             null,
             null,
@@ -1287,6 +1287,14 @@ public class EvaluationEngineService {
 
     private String evaluationApplicableScope(EvaluationIndicator indicator) {
         return indicator.subjectType().name() + ":" + indicator.timeWindow();
+    }
+
+    private String versionOrganizationScope(EvaluationIndicator indicator) {
+        String scope = indicator.organizationScope() == null ? "" : indicator.organizationScope().trim();
+        if (scope.startsWith("tenant:") || scope.startsWith("/") || "ALL".equals(scope)) {
+            return scope;
+        }
+        return "tenant:" + indicator.tenantId();
     }
 
     private String indicatorContent(EvaluationIndicator indicator) {

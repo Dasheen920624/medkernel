@@ -122,6 +122,7 @@ class EvaluationEngineServiceTest {
             command.assetType() == VersionedAssetType.EVALUATION
                 && command.assetIdentity().equals("IND.VTE.PROPHYLAXIS")
                 && command.versionNo().equals("2")
+                && command.organizationScope().equals("tenant:tenant-A")
         ));
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(

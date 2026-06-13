@@ -10,6 +10,8 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.evaluation.EvaluationIndicator;
+import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.rule.RuleDefinition;
@@ -41,6 +43,7 @@ public class EffectiveKnowledgePackageResolver {
     private final AssetVersionRepository assetVersionRepository;
     private final RuleDefinitionRepository ruleRepository;
     private final PathwayTemplateRepository pathwayRepository;
+    private final EvaluationIndicatorRepository evaluationRepository;
 
     public EffectiveKnowledgePackageResolver(
             KnowledgePackageRepository packageRepository,
@@ -49,7 +52,8 @@ public class EffectiveKnowledgePackageResolver {
             PackageEntitlementService entitlementService,
             AssetVersionRepository assetVersionRepository,
             RuleDefinitionRepository ruleRepository,
-            PathwayTemplateRepository pathwayRepository) {
+            PathwayTemplateRepository pathwayRepository,
+            EvaluationIndicatorRepository evaluationRepository) {
         this.packageRepository = packageRepository;
         this.itemRepository = itemRepository;
         this.inheritanceResolver = inheritanceResolver;
@@ -57,6 +61,7 @@ public class EffectiveKnowledgePackageResolver {
         this.assetVersionRepository = assetVersionRepository;
         this.ruleRepository = ruleRepository;
         this.pathwayRepository = pathwayRepository;
+        this.evaluationRepository = evaluationRepository;
     }
 
     public EffectiveKnowledgePackageResponse resolve(
@@ -278,6 +283,9 @@ public class EffectiveKnowledgePackageResolver {
                 .orElse(item.assetId());
             case PATHWAY -> pathwayRepository.findByTemplateIdAndTenantId(item.assetId(), sourceTenantId)
                 .map(PathwayTemplate::templateCode)
+                .orElse(item.assetId());
+            case EVALUATION -> evaluationRepository.findByIndicatorIdAndTenantId(item.assetId(), sourceTenantId)
+                .map(EvaluationIndicator::indicatorCode)
                 .orElse(item.assetId());
             default -> item.assetId();
         };
