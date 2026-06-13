@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-13 幕7 随访质控**真实演练已通过**：134 上随访计划→异常回院→结果回流→质控评估→整改复核闭环，证据待 PR，**下一步=归档幕7证据后续幕8 配置包**
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕7 随访质控。最新 `origin/main = b18ee4a3`（#592 `.gitignore` 补漏；幕6证据 #591 已并），当前工作分支 `codex/p5-act7-followup-quality`。
+- **134 部署状态**：仍为幕6修复部署的 `36dabfebe880861b56b071122515fa464b253ae4`，本幕未部署、不清库；本地新增 `scripts/drill/p5-act7-followup-quality.mjs` 驱动 134 真实前台/API 演练。
+- **幕7最终 PASS**：`DRILL_RUN_TAG=p5-act7-20260613-220214`，`00-act7-summary.json result=PASS failures=[]`。关键链路：ACTIVE 快照 `ctx-ce9c7ee3` → 随访计划 `fp-e5a2aaf5` → 问卷 `fq-b64f75dd` → 异常回院事件 `fe-283e3ce1` + 回院任务 `ft-cf53ac86` + 通知事件 `fe-d8174e66` → 结果回流快照幂等复用 `ctx-ce9c7ee3` → 质控指标 `ei-d718e273` ACTIVE → 评估运行 `er-82eadf74` → 质控问题 `qf-a88aef9d` → 整改任务 `rct-9052f523` → 临床治理负责人提交整改 → 质量治理员复核关闭。
+- **角色边界实锤**：护理协同人员可办理随访/问卷/异常/回流，但创建质控指标 403；临床治理负责人持 `evaluation.remediate` 作为责任侧提交整改；质量治理员持 `evaluation.write/publish/execute/review` 执行指标与复核；机构管理员执行质控指标院级全量激活。
+- **诚实数据说明**：首次脚本用护理角色提交整改，134 返回 403，质控复核随后 409；根因是脚本角色选择错误（护理无 `evaluation.remediate`，非产品缺陷），证据已归档 `attempt-01-script-actor-mismatch/`。首次失败真实留下 1 条 open 整改任务，未删除；最终服务端回查 `rectificationReport totalTasks=3/openTasks=1/closedTasks=2/closureRate=0.6667`，按纪律保留。第二次 PASS 后又修正异常事件字段映射并最终复跑，收敛证据 `attempt-02-pass-field-cleanup/`。
+- **证据目录**：`docs/release/evidence/p5-second-fresh-drill-20260612/幕7-随访质控/`（README、00/01/02/03 JSON、trace-ids、01-06 截图、attempt 归档）。
+- **本地验证已跑**：`node --check scripts/drill/p5-act7-followup-quality.mjs`；前端定向 `npm test -- src/pages/clinical/Followup.test.tsx src/pages/quality/QcEvalSets.test.tsx src/pages/quality/QcAlerts.test.tsx src/pages/quality/QcDashboard.test.tsx` 15/15；真实性 `--mode=all`、配置边界 `--mode=inventory`、中文注释、`git diff --check` 先前通过。最终收尾前需对当前 diff 重新跑 changed/all 门禁。
+- 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600）。用户本会话已明确“全部授权你进行处理”，可继续 134 演练/部署/PR 主线，仍须如实留痕、不得清库、不得伪造通过。
+
+### 当前下一步（精确照做）
+
+1. 补跑当前 diff 验证：`node --check`、前端定向测试、`authenticity-guard --mode=all`、`config-boundary-guard --mode=inventory`、`scripts/check-comment-zh.sh`、`git diff --check`；如需 staged 后再跑 changed-mode。
+2. 提交幕7脚本 + 证据 + README + 本接力更新，推送并创建 PR；CI 全绿后合并/归档。
+3. 继续幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；一对多冲突前台处置入口仍保持观察；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+
+---
+
 ## 2026-06-13 幕6 临床运行**已彻底闭环**：#590 已部署 134、真实医师角色端到端旅程服务端实锤、证据待二次 PR，**下一步=幕7 随访质控**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕6 临床运行（规则真实执行 + 医师确认）。**main = `36dabfebe880861b56b071122515fa464b253ae4`**（PR #590 squash 合并，幕6 两缺陷修复）。**134 已部署该精确提交**（jar SHA `971cd389…` = 本地从精确 commit 构建；manifest/服务 active|active|active/HTTPS 200/Flyway 118/178 表/前端 xattr 0）。
