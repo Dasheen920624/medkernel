@@ -15,10 +15,10 @@
 **provider 真实接入**：B1 本地 + B2 外部 + Dify 可选——把真实模型接进网关，缺位诚实降级 B0；这是把 [LLM-01](LLM-01.md) 的「无 provider B0」升级为「有 provider 真增强、无则 B0」的关键卡。
 
 ## 现状（搬迁时核查 2026-05-31）
-**待建**：[LLM-01](LLM-01.md) 注释明确 provider 由本卡（`GA-ENG-LLM-02`/本卡）落地，当前一律 B0。本卡＝实现 provider 适配（B1/B2/Dify）+ 健康检查 + 缺位降级；接入前过 [LLM-07](LLM-07.md) 评测、出域过 [LLM-03](LLM-03.md)。
+**待建**：[LLM-01](LLM-01.md) 注释明确 provider 由本卡（`GA-ENG-LLM-02`/本卡）落地，当前一律 B0。本卡＝实现 provider 适配（B1/B2/Dify）+ 健康检查 + 缺位降级；接入前过 [LLM-07](LLM-07.md) 评测、出域过 [LLM-03](LLM-03.md)。**2026-06-13 校正**：B2 外部明确含 **Claude API / OpenAI 兼容 API**，按双形态——生产侧（外网生产中心，公开资料）可用，运行侧（内网医院，患者数据）禁外部 provider、只 B1 本地/B0（见 [_brief](_brief.md) §第二阶段设计校正）。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 provider 适配：B1 本地 / B2 外部 / Dify 三类可插拔适配器（统一接口）。
+- [ ] FR-1 provider 适配：B1 本地（Ollama/国产化）/ B2 外部（**Claude API · OpenAI 兼容 API** 等）/ Dify 三类可插拔适配器（统一接口）；**生产侧外网可用、运行侧内网禁外部 provider**（双形态）。
 - [ ] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。
 - [ ] FR-3 缺位降级：无 provider/断连 → 诚实 B0（[LLM-02](LLM-02.md) 矩阵），不伪造产出。
 - [ ] FR-4 真实产出：接入后产出标真实 `model_version`/置信度/来源（不再恒 B0）。
