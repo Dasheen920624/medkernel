@@ -170,13 +170,28 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 结论：系统在零知识、无外部模型、未配置文献资料库的真实基线下诚实降级，非法配置被拒，无缺陷登记。
 
+### 5.7 幕4 规则治理旅程闭环到院级全量，暴露并 TDD 闭环三项阻断缺陷
+
+幕3 后起跑幕4 规则治理（治理侧完整旅程到院级全量），脚本 `scripts/drill/p5-act4-rule-governance.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕4-规则治理/`（`00-act4-summary.json` failures=[]）。
+
+铺底（集成运维员 API 模拟外部系统）：4 份 ACTIVE 标准上下文快照（血钾阳性 6.8 / 边界 5.5 / 阴性 4.2、血钠冲突 160），包版本 `2026.06.1`（由幕9 ACTIVE 映射包提供）。机构知识治理员真实前台用「危急值回报」模板创建红线规则 `P5.ACT4.CRITICAL.K`（`rule-95d0454a`，CRITICAL、检验项 2823-3、阈值 ≥5.5、动作 STRONG_REMINDER 强提醒 + 需医师确认、不自动开嘱）；医疗安全红线断言通过；四类发布门禁用例（POSITIVE/BOUNDARY/NEGATIVE/CONFLICT）全 PASS + 阳性快照试运行命中（强提醒 + 必须医师确认）。
+
+真实前台走查跨四个法定客户角色（作者=机构知识治理员、委员=临床/质量治理员双人独立会签、职责分离发布人=机构管理员），实锤三处「后端授权且产品要求、前端却进不去/采不到」的阻断缺陷，均 TDD 闭环并合并 `main`：
+
+- `P5-ACT4-01`（PR #582 → `3532f624`）：质量治理员（法定委员）缺 `menu.rule-definitions`，被前端路由守卫挡死，双人独立会签走不完。修 `DefaultPermissionPolicy.qualityGovernancePermissions()` 增补菜单。
+- `P5-ACT4-02`（PR #583 → `7978c9d6`）：机构管理员（唯一职责分离合规发布人）缺 `menu.rule-definitions`，影子/灰度/全量无人能发。修 `organizationAdministrationPermissions()` 增补菜单。
+- `P5-ACT4-03`（PR #584 → `f75f7edb`，前端）：红线规则院级全量缺独立电子签名捕获，`VersionReleaseService` 电子签名门拒 FULL。修 `RuleDefinitions.tsx` 高风险 FULL 弹独立电子签名弹窗（signatureId/signerId/signerName/signedAt/signatureHash），`handleGovernanceTransition` 回传 `publishEvidence`。回归 `DefaultPermissionPolicyTest`/`PermissionDimensionModelTest`/`RuleDefinitions.test.tsx` 全绿。
+
+闭环（2026-06-13）：PR #584 合并为 `f75f7edb` 并精确部署 134（发布前备份 `p5-act4-f75f7edb-predeploy-20260613-142013` 隔离恢复全过：Flyway `118|118|118`、178 表、`gov_state=CANARY`、委员 2、`knowledge_package=1`、ACTIVE 快照 4，`destructive_action_performed=false`、DB 保留；post-deploy manifest/jar 精确匹配 `2774c6b5…`、前端 `RuleDefinitions-Cqi6VM6m.js` 上线、readiness 200）。续跑 `DRILL_PHASE=govern` 真实推进 CANARY→FULL（机构管理员凭独立电子签名，复核人取临床治理员、独立于发布人），服务端回查 `rule_governance.state=FULL`；`mk_version_release_plan` 院级全量记录 `PUBLISHED(ALL)` 携 `electronic_signature_id/subject=clinical-governor|临床治理负责人/hash/signed_at`。再跑 `DRILL_PHASE=all` 幂等复跑 failures=[]、DB 无重复。规则真实执行与医师确认留幕6。
+
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=7f69c94617cc879304b6841edde95b3ba29a2778`（jar SHA-256 `e7884cbba3cbc313595c1f58a61142d9abd0c0bfa07a078705815f222da0cde4`）。
+- manifest：`source/commit=f75f7edbe57035c7b7409454f9c8ed8935be344d`（jar SHA-256 `2774c6b558039b916a1346863cb855796f60c705d49e25b8b824592296b6a5c9`）。
 - 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
 - HTTP / HTTPS readiness：`200|200`。
 - Flyway / 表数：`118|118|118` / 178 张 public 基表。
-- 知识数据：`0|0|1|0|0|0`（`knowledge_package=1` 为幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE`，非正式知识生产）。
+- 知识数据：`knowledge_package=1`（幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE`，非正式知识生产）。
+- 规则治理：红线规则 `P5.ACT4.CRITICAL.K`（`rule-95d0454a`）`rule_governance.state=FULL`、委员会会签 2/2、院级全量发布计划携独立电子签名；4 份标准上下文快照 ACTIVE。
 - 集成适配器：`p5-his-gateway REST ACTIVE/HEALTHY`（指向演练模拟接收端）。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
@@ -186,5 +201,6 @@ TDD 闭环（本地绿灯，待部署复验）：
 1. ~~提交 ab213 部署与现场复验证据，创建 PR，等待 CI 全绿并 squash 合并。~~ 已完成（PR #574）。
 2. ~~提交幕2 缺陷修复与首轮证据，CI 全绿后 squash 合并；从精确主线重建制品，备份、隔离恢复后部署 134。~~ 已完成（PR #575 → `d8bf7f4f` 部署，PR #576 证据归档）。
 3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程；提交 `P5-ACT2-04` 静默吞错修复与幕9 前置，回收映射包「灰度→全量」跨角色发布链。~~ 已完成（PR #577 → `13b930e4`、PR #578 → `7f69c946` 两轮部署；P5-ACT2-04/05 关闭；发布链全链走通，幕2 遗留第 1 项回收，见 5.4/5.5 与幕9 证据目录）。
-4. ~~幕3 知识治理诚实边界验证。~~ 已完成（5.6，无缺陷）。继续幕4 规则 → 幕5 路径 → 幕6 临床运行 → 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
-5. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
+4. ~~幕3 知识治理诚实边界验证。~~ 已完成（5.6，无缺陷）。
+5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。继续幕5 路径 → 幕6 临床运行（规则真实执行 + 医师确认，幕4 红线规则在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
+6. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
