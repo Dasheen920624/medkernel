@@ -106,6 +106,9 @@ public final class DefaultPermissionPolicy {
             // 客户租户内仅它既非作者亦非会签人且持 rule.publish），必须能进入规则配置页推进
             // 影子/灰度/院级全量。见 P5-ACT4-02。
             MENU_RULE_DEFINITIONS,
+            // 机构管理员是路径全量/回滚门 requireReleaseCoordinator 在客户租户放行的法定协调角色
+            // （持 pathway.publish），必须能进入路径模板配置页完成院级全量确认。见 P5-ACT5-01。
+            MENU_PATHWAY_TEMPLATES,
             MENU_QC_DASHBOARD,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,

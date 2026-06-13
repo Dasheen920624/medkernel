@@ -1,5 +1,37 @@
 # 会话接力
 
+## 2026-06-13 幕5 路径治理起跑：揭出并 TDD 闭环 2 个缺陷（P5-ACT5-01 菜单缺口 + P5-ACT5-02 DRAFT 详情 404 阻断），修复 PR 待合并+部署
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕5 路径治理（治理侧完整旅程到院级全量；患者入径留幕6）。工作分支 `codex/p5-act5-pathway-governance`（基于 `main=cc86f650`）。134 仍运行 `f75f7edb`，服务 active|active|active，路径基线零数据（建演练数据前 `pathway_template=0`、`patient_pathway=0`、`knowledge_package=1`=幕9 TERM.P5.MAPPING）。
+- 新建演练脚本 `scripts/drill/p5-act5-pathway-governance.mjs`（阶段闸门 seed|package|create|simulate|canary|probe|full，支持逗号多阶段；`DRILL_FULL_ROLE` 默认 organization-admin）。已实跑到：集成运维员铺底急诊 ACTIVE 快照 ✓、知识治理员前台建路径知识包 `PATH.P5.ED` ✓、用内置「急诊处置路径」原型建 DRAFT 模板 `PATH.ED.DISPOSITION` ✓（服务端回查 status=DRAFT）。**simulate 及之后被 P5-ACT5-02 阻断**（未验证 simulate/canary/full 选择器，须部署修复后对着 134 续调脚本，无需再部署）。
+- **缺陷 1 `P5-ACT5-01`（菜单缺口，预判命中）**：org-admin 持 `pathway.read/write/publish` 且是 `requireReleaseCoordinator` 客户租户放行的法定院级全量协调角色，但 `DefaultPermissionPolicy.organizationAdministrationPermissions()` 缺 `MENU_PATHWAY_TEMPLATES`，路由守卫挡死。修：加 `MENU_PATHWAY_TEMPLATES`。
+- **缺陷 2 `P5-ACT5-02`（DRAFT 详情 404，阻断）**：院级 DATA_HOSPITAL 治理员看自建 DRAFT 模板详情 → `GET /engine/pathway/pathway-templates/{id}` 返 404「未找到可继承的 PUBLISHED 资产版本」（ENG-API-005），抽屉空白、试运行/发布全堵。根因：`templateDetail→findEffectiveTemplate` 在 targetOrgUnitId 非空时调继承解析器，DRAFT 无 PUBLISHED 版本致 resolver 抛 NOT_FOUND，短路了本地草稿回退（service.java:3115）；impact 走本地直查故 200，不一致坐实。修：`resolveEffectiveTemplateForCurrentOrg` 捕获 resolver NOT_FOUND 返回 empty。单测仅用租户级 scope（targetOrgUnitId=null）漏网。
+- TDD 闭环（红灯先行已验证失败）：`DefaultPermissionPolicyTest` 19/19（含新 `pathwayFullRolloutCoordinatorCustomerRolesCanReachPathwayTemplatesPage` + org-admin 菜单快照加 `pathway-templates`）、`PathwayEngineServiceTest` 65/65（含新 `templateDetailReturnsLocalDraftWhenOrgUnitHasNoPublishedVersionYet`），前端 `routes.test.ts` 39/39 一致性。守卫全过（comment-zh/authenticity/config-boundary/git diff --check）。
+- 证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕5-路径治理/`（README + 01–05 旅程截图 + defect-p5-act5-01/02-discovery/）。凭据本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600，含 organization-admin 在 customerTenant 块、roleAccounts.{knowledge/clinical/quality}-governor 等）。
+- 权限：本会话已获 134 SSH+写入/部署全程授权（纪律=备份+隔离恢复+留痕+可回滚）；合并 main 仍逐 PR 授权。
+
+### 当前状态（PR 已建，CI 在飞）
+
+- 分支 `codex/p5-act5-pathway-governance`，提交 `139cd791`（2 主 Java 修复 + 2 测试 + 演练脚本 + 幕5 发现证据 + 本接力更新），已推送。
+- **修复 PR = [#588](https://github.com/Dasheen920624/medkernel/pull/588)**（base=main）。最后一次查 CI：`comment-language-check` pass、`guard-rules` pass；`backend-build-test`/`frontend-build-test`/`frontend-lint`/`jdk-matrix-smoke (corretto|temurin|zulu)` 仍 pending——**下一步先 `gh pr checks 588` 确认全绿**。
+- 134 仍 `f75f7edb`（未部署本修复）。**演练数据已在 134 库内并随部署保留**（DB 不清）：路径知识包 `PATH.P5.ED`、DRAFT 模板 `PATH.ED.DISPOSITION`(templateId `pt-69a3aabb-5157-4a7c-b293-ce027a5741c6`)、急诊 ACTIVE 上下文快照(patientId `P5-ACT5-ED-001`)。
+- 凭据本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`(600)：organization-admin 在 `customerTenant` 块（用户名 organization-admin、租户 p5-hospital）、`roleAccounts.{knowledge-governor,clinical-governor,quality-governor,integration-operator}` 等。
+- **下一会话碰 134 前须重新 AskUserQuestion 点名授权 134 SSH/写入**（本会话授权不跨会话）。
+
+### 当前下一步（精确照做）
+
+1. `gh pr checks 588` 确认全绿 → 请求用户授权合并 PR #588 到 main（逐 PR 授权）→ squash 合并。
+2. 从精确 merged main 重建后端 jar/前端包；134 发布前备份+隔离恢复+留痕（`destructive_action_performed=false`）后部署，post-deploy 复验 manifest/jar SHA/服务 active|active|active/Flyway/知识与路径数据保留、xattr 0。
+3. 部署后对 134 续跑脚本完成旅程（DRAFT 模板已在库，免重建；**注意 simulate/canary/full 选择器尚未实跑验证，遇问题就地调脚本，不必重新部署**）：
+   - `DRILL_PHASE=simulate node scripts/drill/p5-act5-pathway-governance.mjs` 知识治理员选 ACTIVE 快照试运行，轨迹命中 ASSESS→DISPOSITION（详情抽屉应不再 404，能渲染 tabs）。
+   - `DRILL_PHASE=canary ...` 灰度发布 DRAFT→PUBLISHED（门禁须实时 impactDigest + 审核说明 `#pathway-release-reason`，按钮「提交审核并进入灰度发布」）。
+   - `DRILL_PHASE=probe ...` 复核 org-admin 现可进 `/pathway/templates`（菜单/新建按钮可见）。
+   - `DRILL_FULL_ROLE=organization-admin DRILL_PHASE=full ...` 机构管理员院级确认全量激活（按钮「院级确认全量激活」），实证 P5-ACT5-01 修复价值。
+   - 成功一律服务端回查（SSH psql：`pathway_template.status=PUBLISHED`、全量后 detail.deploymentStatus=PUBLISHED / 版本发布 state=ALL）。归档 post-deploy 证据 + 二次 PR。
+   - 脚本关键选择器备忘：建包「管理路径知识包」抽屉表单 `#packageCode/#diseaseCode/#name/#packageVersion/#sourceRef/#description`+「创建草稿」；建模板「新建路径模板」→ modal 内 `.ant-radio-wrapper` hasText「急诊处置路径」原型 + L1 `packageId` Select →「确定」；详情行内「设计与试运行」开抽屉(须等 `getByRole('tab')` 可见再交互，否则点到加载态空白)；试运行 tab「真实快照试运行」→ `#pathway-snapshot-patient-id` 填 patientId →「读取真实快照」→ 按 snapshotId 选快照 →「使用该快照试运行」。
+4. 续幕6 临床运行（规则真实执行 + 医师确认，幕4 红线 `P5.ACT4.CRITICAL.K` + 幕5 路径在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+5. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
 ## 2026-06-13 幕4 规则治理**已彻底闭环并入 main**（院级全量 FULL，PR #586 已并），幕5 路径前置链已探明（蓝图就绪）
 
 - 当前执行线：P5 第一阶段端到端旅程。**幕4 规则治理（治理侧完整旅程到院级全量）已闭环、证据已合并**。**main = `46ebde05`**（PR #586 squash 合并；注意 PR #585 接力文档也已合并为 `4865466f`）。134 运行 `f75f7edb`（#584 部署），服务 active|active|active、readiness 200。

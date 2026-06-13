@@ -47,6 +47,7 @@ class DefaultPermissionPolicyTest {
             "knowledge-governance",
             "config-packages",
             "rule-definitions",
+            "pathway-templates",
             "qc-dashboard",
             "admin-audit",
             "security-baseline",
@@ -209,6 +210,27 @@ class DefaultPermissionPolicyTest {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .as("机构管理员作为红线规则发布人必须持 rule.publish")
             .contains(PermissionCode.RULE_PUBLISH);
+    }
+
+    @Test
+    void pathwayFullRolloutCoordinatorCustomerRolesCanReachPathwayTemplatesPage() {
+        // 路径全量/回滚门 requireReleaseCoordinator 在客户租户放行临床治理负责人或机构管理员；
+        // 路径模板治理页路由守卫要求 menu.pathway-templates + pathway.read。这些法定治理/全量
+        // 协调角色必须持 MENU_PATHWAY_TEMPLATES，否则机构管理员持 pathway.publish、是合法院级全量
+        // 协调角色，却进不去路径模板配置页、走不完院级全量。回归 P5-ACT5-01。
+        for (RoleCode coordinatorRole : List.of(
+                RoleCode.KNOWLEDGE_GOVERNOR,
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.ORGANIZATION_ADMIN)) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(coordinatorRole))
+                .as("%s 是路径治理/院级全量协调法定角色，必须能进入路径模板配置页", coordinatorRole.code())
+                .contains(PermissionCode.MENU_PATHWAY_TEMPLATES)
+                .contains(PermissionCode.PATHWAY_READ);
+        }
+        // 机构管理员作为路径院级全量协调角色必须持 pathway.publish（fullRolloutTemplate 依赖）。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
+            .as("机构管理员作为路径院级全量协调角色必须持 pathway.publish")
+            .contains(PermissionCode.PATHWAY_PUBLISH);
     }
 
     @Test

@@ -1,0 +1,25 @@
+{
+  "defect": "P5-ACT5-02",
+  "severity": "BLOCKING",
+  "title": "院级数据范围治理员查看自建 DRAFT 路径模板详情返回 404，详情抽屉空白，阻断试运行/灰度/全量全流程",
+  "discoveredBy": "scripts/drill/p5-act5-pathway-governance.mjs（simulate 阶段打开详情抽屉时抽屉内容长时间空白）",
+  "discoveredAt": "2026-06-13",
+  "environment": "https://193.112.107.134（部署版本 f75f7edb）",
+  "role": "knowledge-governor（DATA_HOSPITAL 院级数据范围）",
+  "reproduce": [
+    "知识治理员前台建路径知识包 PATH.P5.ED + 用「急诊处置路径」原型建 DRAFT 模板 PATH.ED.DISPOSITION（成功，pathway_template.status=DRAFT）",
+    "在列表点「设计与试运行」打开详情抽屉",
+    "抽屉标题『路径配置与真实快照试运行控制台』可见，但抽屉主体长时间空白、tabs 不渲染，无法进入试运行/发布"
+  ],
+  "serverFact": {
+    "endpoint": "GET /api/v1/engine/pathway/pathway-templates/{templateId}",
+    "httpStatus": 404,
+    "errorCode": "ENG-API-005",
+    "errorClass": "DATA",
+    "detail": "未找到可继承的 PUBLISHED 资产版本",
+    "contrast": "同一 DRAFT 模板 GET .../{id}/impact 返回 200（impact 走 findTemplate 本地直查，detail 走 findEffectiveTemplate 继承解析），行为不一致坐实缺陷"
+  },
+  "rootCause": "PathwayEngineService.templateDetail → findEffectiveTemplate（line 3102）：当 targetOrgUnitId 非空（院级 DATA_HOSPITAL）时调 resolveEffectiveTemplateForCurrentOrg → inheritanceResolver.resolve()，DRAFT 资产版本非 PUBLISHED/ACTIVE，解析器按契约抛 NOT_FOUND（InheritanceResolver.java:250），导致 findEffectiveTemplate 本应有的『回退本地草稿』分支（line 3115）被异常短路。单测仅用租户级 OrgScope（targetOrgUnitId=null）从未走到该解析分支，故漏网。",
+  "fix": "resolveEffectiveTemplateForCurrentOrg 捕获解析器 NOT_FOUND 并返回 Optional.empty()，激活 findEffectiveTemplate 的本地草稿回退；红灯回归 PathwayEngineServiceTest#templateDetailReturnsLocalDraftWhenOrgUnitHasNoPublishedVersionYet（院级 scope + 解析器抛 NOT_FOUND → 详情回退本地草稿）。",
+  "screenshot": "01-org-hospital-draft-detail-blocked.png"
+}

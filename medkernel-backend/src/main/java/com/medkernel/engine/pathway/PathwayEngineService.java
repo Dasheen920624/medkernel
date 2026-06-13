@@ -3160,13 +3160,24 @@ public class PathwayEngineService {
         if (targetOrgUnitId == null) {
             return Optional.empty();
         }
-        ResolvedAssetVersion resolved = inheritanceResolver.resolve(new InheritanceResolveQuery(
-            tenantId,
-            VersionedAssetType.PATHWAY,
-            candidate.templateCode(),
-            releaseApplicableScope(candidate),
-            targetOrgUnitId
-        ));
+        ResolvedAssetVersion resolved;
+        try {
+            resolved = inheritanceResolver.resolve(new InheritanceResolveQuery(
+                tenantId,
+                VersionedAssetType.PATHWAY,
+                candidate.templateCode(),
+                releaseApplicableScope(candidate),
+                targetOrgUnitId
+            ));
+        } catch (ApiException exception) {
+            // 草稿模板在当前组织闭包内尚无任何 PUBLISHED 有效版本时，继承解析器按契约抛 NOT_FOUND。
+            // 此处回退本地模板（含未发布草稿），由调用方按本地版本投影详情/影响/试运行预览，
+            // 而不是把 NOT_FOUND 透传给前台导致路径编排前台流被堵死。见 P5-ACT5-02。
+            if (exception.errorCode() == ErrorCode.NOT_FOUND) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
         if (resolved.disabled()) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_002, "路径模板已在当前组织停用");
         }
