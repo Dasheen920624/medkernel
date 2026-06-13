@@ -314,6 +314,9 @@ public final class DefaultPermissionPolicy {
             MENU_INSURANCE_AUDIT,
             MENU_QC_EVAL_SETS,
             MENU_KNOWLEDGE_GOVERNANCE,
+            // 质量治理员是红线规则法定第二名独立委员（作者被排除，客户租户内仅临床/质量治理员可双签），
+            // 必须能进入规则配置页完成会签，否则红线规则治理走不完院级全量。见 P5-ACT4-01。
+            MENU_RULE_DEFINITIONS,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE);
     }

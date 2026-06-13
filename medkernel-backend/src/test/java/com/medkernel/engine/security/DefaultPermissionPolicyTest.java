@@ -117,6 +117,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.QUALITY_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "rule-definitions",
             "qc-dashboard",
             "qc-alerts",
             "insurance-audit",
@@ -168,6 +169,22 @@ class DefaultPermissionPolicyTest {
             assertThat(MenuPermissionCatalog.menuKeysFor(DefaultPermissionPolicy.permissionsOf(role)))
                 .as("%s 默认菜单快照", role.code())
                 .containsExactlyElementsOf(expectedMenuKeys));
+    }
+
+    @Test
+    void ruleCommitteeCustomerRolesCanReachRuleGovernancePage() {
+        // 红线规则要求两名独立委员会成员会签，且作者不能审核自己的规则
+        // （RuleGovernanceService.COMMITTEE_ROLES + validateSignoff）。在客户租户里
+        // 作者=机构知识治理员被排除，唯一可承担双人独立会签的客户角色是
+        // 临床治理员与质量治理员。两者既然被后端授权会签（rule.write/evaluation.publish），
+        // 就必须拥有 menu.rule-definitions，否则前端路由守卫会把它们挡在规则页外，
+        // 红线规则治理永远走不完院级全量。回归 P5-ACT4-01。
+        for (RoleCode committeeRole : List.of(RoleCode.CLINICAL_GOVERNOR, RoleCode.QUALITY_GOVERNOR)) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(committeeRole))
+                .as("%s 是红线规则法定委员会会签角色，必须能进入规则配置页", committeeRole.code())
+                .contains(PermissionCode.MENU_RULE_DEFINITIONS)
+                .contains(PermissionCode.RULE_READ);
+        }
     }
 
     @Test
