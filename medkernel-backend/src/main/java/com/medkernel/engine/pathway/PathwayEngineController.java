@@ -167,10 +167,10 @@ public class PathwayEngineController {
     /**
      * 为患者创建路径实例并进入起始节点。
      *
-     * <p>权限：{@code pathway.write}；仅允许基于已发布模板入径，成功后创建首个关键时钟。
+     * <p>权限：{@code pathway.execute}；仅允许基于已发布模板入径，成功后创建首个关键时钟。
      */
     @PostMapping("/patient-pathways/enter")
-    @PreAuthorize("@perm.has('pathway.write')")
+    @PreAuthorize("@perm.has('pathway.execute')")
     public ResponseEntity<ApiResult<PatientPathwayDetailResponse>> enterPatientPathway(
             @RequestBody @Valid PatientPathwayEnterRequest request) {
         validateContext(request);
@@ -208,10 +208,10 @@ public class PathwayEngineController {
     /**
      * 推进患者路径节点，或登记变异、退出路径。
      *
-     * <p>权限：{@code pathway.write}；接口只记录流程事实，不自动诊断、不自动开立医嘱。
+     * <p>权限：{@code pathway.execute}；接口只记录流程事实，不自动诊断、不自动开立医嘱。
      */
     @PostMapping("/patient-pathways/{patientPathwayId}/advance")
-    @PreAuthorize("@perm.has('pathway.write')")
+    @PreAuthorize("@perm.has('pathway.execute')")
     public ApiResult<PathwayAdvanceResponse> advance(
             @PathVariable String patientPathwayId,
             @RequestBody @Valid PathwayAdvanceRequest request) {

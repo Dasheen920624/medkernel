@@ -341,19 +341,30 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
-    void clinicalDecisionUserCanAcceptRecommendationAndRecordManualOverrideOnly() {
+    void clinicalDecisionUserCanEnterPathwayAndRecordManualOverride() {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
             .contains(
                 PermissionCode.RECOMMENDATION_READ,
                 PermissionCode.RECOMMENDATION_ACCEPT,
                 PermissionCode.RULE_READ,
                 PermissionCode.RULE_OVERRIDE,
-                PermissionCode.PATHWAY_READ)
+                PermissionCode.PATHWAY_READ,
+                // 医师需要患者入径与节点推进权限（临床执行），但不得编辑路径模板（治理权限）。
+                PermissionCode.PATHWAY_EXECUTE)
             .doesNotContain(
+                PermissionCode.PATHWAY_WRITE,
                 PermissionCode.RULE_WRITE,
                 PermissionCode.RULE_PUBLISH,
                 PermissionCode.KNOWLEDGE_PUBLISH,
                 PermissionCode.SYSTEM_MANAGE);
+    }
+
+    @Test
+    void nursingCollaboratorCanEnterPathwayWithoutTemplateAuthoring() {
+        // 护理协作者在临床流程中需入径推进，但无权编辑模板（治理角色才有 pathway.write）。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSING_COLLABORATOR))
+            .contains(PermissionCode.PATHWAY_READ, PermissionCode.PATHWAY_EXECUTE)
+            .doesNotContain(PermissionCode.PATHWAY_WRITE, PermissionCode.PATHWAY_PUBLISH);
     }
 
     @Test

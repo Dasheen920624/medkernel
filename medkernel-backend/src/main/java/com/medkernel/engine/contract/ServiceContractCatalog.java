@@ -332,7 +332,7 @@ public final class ServiceContractCatalog {
             audits(audit(AuditAction.UPDATE, "org_unit", "创建和调整组织单元"))),
         contract("pathway", "路径引擎服务",
             "com.medkernel.engine.pathway.PathwayEngineController", "/api/v1/engine/pathway",
-            permissions("pathway.write", "pathway.read", "pathway.publish"),
+            permissions("pathway.write", "pathway.read", "pathway.execute", "pathway.publish"),
             audits(
                 audit(AuditAction.CREATE, "pathway_template", "创建路径包、模板和患者路径"),
                 audit(AuditAction.PUBLISH, "pathway_template", "发布路径模板"),

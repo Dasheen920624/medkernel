@@ -91,13 +91,19 @@ class PathwayEngineControllerSecurityTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
-    void specialistCanWritePathwayButDataScopeRejectsMissingTenant() throws Exception {
+    void specialistCanWriteTemplateButDataScopeRejectsMissingTenant() throws Exception {
+        // knowledge-governor 持 pathway.write 可创建模板，但缺租户上下文 → 400。
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates")
                 .contentType("application/json")
                 .content(TEMPLATE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
 
+    @Test
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    void clinicianCanExecutePatientPathwayButDataScopeRejectsMissingTenant() throws Exception {
+        // clinical-decision-user 持 pathway.execute（入径/推进），缺租户上下文 → 400。
         mvc.perform(post("/api/v1/engine/pathway/patient-pathways/enter")
                 .contentType("application/json")
                 .content(ENTER_BODY))

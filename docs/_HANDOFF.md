@@ -1,6 +1,6 @@
 # 会话接力
 
-## 2026-06-13 幕5 路径治理**已彻底闭环**：2 缺陷修复 PR#588 已并入 main、已部署 134、治理侧完整旅程到院级全量服务端实锤，仅剩二次证据 PR
+## 2026-06-13 幕5 路径治理**已彻底闭环**：2 缺陷修复 PR#588 已并入 main、已部署 134、治理侧完整旅程到院级全量服务端实锤，二次证据 PR #589 已并（main=`6ffda360`），**下一步=幕6 临床运行**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕5 路径治理（治理侧完整旅程；患者入径留幕6）。**main = `a73650d729a9bbc1ace490360dd155f9cdd11af6`**（PR #588 squash 合并）。134 已部署该精确提交。
 - **CI 漏网修复**：PR #588 首轮 CI `backend-build-test`+全部 `jdk-matrix-smoke` 失败——根因是 P5-ACT5-01 给 `organizationAdministrationPermissions()` 加 `MENU_PATHWAY_TEMPLATES` 后，`DefaultPermissionPolicyTest` 已同步但**第二处同型精确菜单全集断言 `PermissionDimensionModelTest.organizationAdminReceivesTenantGovernanceWithoutPlatformOrSystemOperations` 漏改**（本地只跑定向测试类未覆盖）。补该菜单 + 同型理据注释后全量 `mvn test` 2228 全绿，CI 8/8 通过合并。**教训：改 `DefaultPermissionPolicy` 角色菜单白名单须同步 `PermissionDimensionModelTest` 与 `DefaultPermissionPolicyTest` 两处断言，且发布前跑全量 `mvn test` 而非仅定向类。**
@@ -12,10 +12,27 @@
 
 ### 当前下一步（精确照做）
 
-1. 提交 `postdeploy-a73650d7/` 证据 + 本接力更新，创建二次 PR（base=main），CI 全绿后请求合并授权（逐 PR）。无需再部署 134（仅文档/证据）。
-2. **续幕6 临床运行**（规则真实执行 + 医师确认，幕4 红线 `P5.ACT4.CRITICAL.K` + 幕5 路径 `PATH.ED.DISPOSITION` 在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+1. ✅ **已完成**：postdeploy-a73650d7 证据 + 接力更新 = 二次 PR #589 已 squash 合并为 `6ffda360`（main）。134 仍 `a73650d7`，无需再部署。幕5 路径治理至此**全闭环**。
+2. **【下一步】续幕6 临床运行**（规则真实执行 + 医师确认，幕4 红线 `P5.ACT4.CRITICAL.K` + 幕5 路径 `PATH.ED.DISPOSITION` 在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。**前置链已探明，照下方《幕6 执行蓝图》直接做。**
 3. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
 4. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
+### 幕6 临床运行执行蓝图（2026-06-13 Sonnet 子代理探明前置链 + Opus 综合，下会话直接照做）
+
+- **目标**：让真实医师角色在前台工作台 ① 患者入径（幕5 路径 `PATH.ED.DISPOSITION`）→ ② 规则真实命中（幕4 血钾红线 `P5.ACT4.CRITICAL.K`，severity=CRITICAL、STRONG_REMINDER、requiresPhysicianConfirmation）→ ③ 医师确认（override 留痕）闭环。134 已部署 `a73650d7`：路径模板 PUBLISHED、规则 FULL、知识包 2，免重建数据。
+- **关键端点（全 `/api/v1/engine`）**：
+  - 入径 `POST /pathway/patient-pathways/enter`（`pathway.write`）body `{contextSnapshotId(ACTIVE快照), templateId, startNodeCode?}` → `patientPathwayId`、201；仅已发布模板，patientId/encounterId 服务端从快照解析（`PathwayEngineController.java:172`，`PatientPathwayEnterRequest.java:28`）。节点推进 `POST /pathway/patient-pathways/{id}/advance`（`pathway.write`，COMPLETE/VARIANCE/EXIT）。
+  - 规则评估 `POST /rule/rules/evaluate`（`rule.read`）body `{triggerPoint(如"order-sign"), contextSnapshotId(ACTIVE), eventId?, ruleIds?(空=全部已发布)}` → `{items[], highestSeverity, cards[](含 requiresPhysicianConfirmation), traceId}`；命中写 `rule_execution_log`(hit/severity=CRITICAL/actions_json/status)（`RuleEngineController.java:177`）。亦可临床事件写快照时经 `ClinicalEventRuleEngineAdapter` 自动评估。
+  - 医师确认=override（**无独立确认端点**）`POST /rule/rules/executions/{executionId}/override`（`rule.override`）body `{actionCode("STRONG_REMINDER"|"BLOCK"), reason(必填)}` → 写 `rule_override_log`(overrideId/executionId/overriddenBy/overriddenAt)+`OverrideCapturedEvent`；execution_log 仍 SUCCESS/hit，override 为独立审计（`RuleEngineController.java:258`，`RuleEngineService.java:1738`）。
+- **角色（头号设计判断）**：真实医师 = `clinical-decision-user`（CLINICAL_DECISION_USER）持 `PATHWAY_READ/RULE_READ/RULE_OVERRIDE`、菜单 `MENU_PATIENT_PATHWAYS`，**缺 `PATHWAY_WRITE` 与 `MENU_RULE_DEFINITIONS`**（`DefaultPermissionPolicy.java:202`）。对比 `clinical-governor` 持全套可跑通。**方法论照幕2/4/5**：用真实医师角色起跑、让缺陷现形、红灯先行 TDD 闭环，不用治理角色掩盖缺口。
+- **缺陷预判（红灯先写，现场实锤）**：
+  - **P5-ACT6-01 候选（同型 P5-ACT4-02 菜单/权限错配）**：clinical-decision-user 进得了 `/pathway/patients` 却无 `PATHWAY_WRITE`→「办理入径」403。**域判断（Opus 倾向）**：`pathway.write` 现在混合了「模板创作（治理）」与「患者入径/推进（临床执行）」两种关注点；纯设计应拆出 `pathway.execute`（入径/推进，授临床角色）与 `pathway.write`（模板创作，授治理角色）——给一线医师模板创作权是过权。倾向按拆分修（用户"纯设计无兼容"偏好），执行前红灯断言确认行为后定夺；若用户裁定 enroll 属协调角色则改 by-design 换角色入径。
+  - **P5-ACT6-02 候选（同型路由守卫多余拦截，几乎确定真缺陷）**：医师确认入口 `/rule/validate` 路由守卫要 `["menu.rule-definitions","rule.read"]`，clinical-decision-user 有 `rule.read`+`rule.override` 但无 `MENU_RULE_DEFINITIONS`→拦死，医师**找不到危急值确认入口**。修向：守卫改为只要 `rule.read`（或给执行侧新增 menu key），加 `routes.test.ts` 一致性回归（`routes.ts:613`）。
+  - **P5-ACT6-03 候选（数据范围窄致空包）**：clinical-decision-user 数据范围 `DATA_DEPARTMENT`(科室级)窄于治理员 `DATA_HOSPITAL`(院级)，`packagesData` 可能空→入径 packageVersion 解析失败（`PatientPathways.tsx:334`）。现场验证。
+- **前端承载**：`/pathway/patients`=`frontend/src/pages/clinical/PatientPathways.tsx`(入径/推进/路径图)；`/rule/validate`=`frontend/src/pages/clinical/RuleValidate.tsx`(评估+「记录人工继续」override 按钮 300-314、"必须医师确认"标签 263-266，hidden 页)；守卫 `routes.ts`(patient-pathways 579；rule/validate 613)。
+- **脚本复用**：抄 `scripts/drill/p5-act4-rule-governance.mjs` 的 `loadCredentials/requireAccount/login/csrfToken/apiGet/apiPost(双提交X-XSRF-TOKEN)/capture/renderWithUrlBar/gotoPath/chooseSelectOption/waitForQuiet/findActiveSnapshot`；新建 `scripts/drill/p5-act6-clinical-run.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕6-临床运行/`。凭据本机 `/tmp/p5-14-role-drill-credentials-20260612.json`(600)。
+- **执行步骤**：① integration-operator 铺底含血钾 6.8 危急值的 ACTIVE 上下文快照（复用幕4 payload，patientId 新）→ ② clinical-decision-user 前台 `/pathway/patients` 入径（撞 P5-ACT6-01?）→ ③ 触发规则评估命中血钾红线 → ④ 医师 `/rule/validate` 见"必须医师确认"→「记录人工继续」override 留痕（撞 P5-ACT6-02?）。遇缺陷红灯先行 TDD 闭环（**记取幕5 教训：改角色菜单白名单须同步 `PermissionDimensionModelTest`+`DefaultPermissionPolicyTest` 两处断言 + 发布前全量 `mvn test` 而非定向类**；前端加 `routes.test.ts` 一致性）→ 合并部署 134 → 续跑。成功一律服务端回查（`patient_pathway` 行、`rule_execution_log.hit=true severity=CRITICAL`、`rule_override_log` 留痕）。
+- **碰 134 须本会话 AskUserQuestion 点名授权**（探路阶段纯本地读码未碰）。
 
 ---
 

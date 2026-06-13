@@ -61,11 +61,13 @@ describe("route metadata", () => {
   });
 
   it("removes duplicate menu permissions from merged pages", () => {
+    // /rule/validate 是临床执行侧（医师确认危急值提醒），守卫只需 rule.read；
+    // 不应要求 menu.rule-definitions（治理侧菜单），否则 clinical-decision-user 被拦死无法完成医师确认。
     expect(findRouteByPath("/rule/validate")).toMatchObject({
       sectionKey: "knowledge-configuration",
       placement: "hidden",
       hidden: true,
-      requiredPermissions: ["menu.rule-definitions", "rule.read"],
+      requiredPermissions: ["rule.read"],
     });
     expect(findRouteByPath("/rule/validate")?.menuKey).toBeUndefined();
 
@@ -852,5 +854,25 @@ describe("route metadata", () => {
   it("builds breadcrumbs from route metadata", () => {
     expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量与运营", "质量与运营概览"]);
     expect(getRouteBreadcrumb("/missing")).toEqual(["未找到页面"]);
+  });
+
+  it("allows clinical-decision-user to reach /rule/validate for physician confirmation", () => {
+    const route = findRouteByPath("/rule/validate");
+    // 医师需要在此页完成危急值提醒的人工确认（override），守卫只需 rule.read。
+    expect(
+      canAccessRoute(route!, {
+        roles: [{ code: "clinical-decision-user" }],
+        permissions: [{ code: "rule.read" }, { code: "rule.override" }],
+        menuKeys: ["patient-pathways"],
+      }),
+    ).toBe(true);
+    // 无 rule.read 的角色仍被拦截。
+    expect(
+      canAccessRoute(route!, {
+        roles: [{ code: "nursing-collaborator" }],
+        permissions: [],
+        menuKeys: ["patient-pathways"],
+      }),
+    ).toBe(false);
   });
 });
