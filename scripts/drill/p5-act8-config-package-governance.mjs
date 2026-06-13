@@ -619,7 +619,165 @@ function pickByStatus(items, preferredCodes, codeKey) {
   return items.find((item) => allowed.has(item.status)) ?? items[0] ?? null;
 }
 
-async function discoverSourceAssets(contextEntries, adminContext) {
+function resolvableOrganizationScope(value, tenantId) {
+  const scope = String(value ?? "").trim();
+  return scope === "ALL" || scope === `tenant:${tenantId}` || scope.startsWith("/");
+}
+
+function preferredEvaluation(items, tenantId) {
+  const statuses = ["ACTIVE", "GRAY", "PUBLISHED", "PENDING_REVIEW", "DRAFT"];
+  for (const status of statuses) {
+    const matched = items.find(
+      (item) => item.status === status && resolvableOrganizationScope(item.organizationScope, tenantId),
+    );
+    if (matched) return matched;
+  }
+  return null;
+}
+
+function maxVersionNo(items) {
+  return items.reduce((max, item) => {
+    const value = Number(item.versionNo ?? 0);
+    return Number.isFinite(value) && value > max ? value : max;
+  }, 0);
+}
+
+async function promoteEvaluationLifecycle(qualityContext, adminContext, indicator) {
+  let current = indicator;
+  if (current.status === "DRAFT") {
+    const res = await apiPost(
+      qualityContext,
+      `/engine/evaluation/indicators/${encodeURIComponent(current.indicatorId)}/submit`,
+      {},
+      "act8-submit-evaluation",
+    );
+    if (!res.ok) throw new Error(`提交质控指标失败 ${res.status}: ${jsonShort(res.body)}`);
+    current = dataOf(res);
+  }
+  if (current.status === "PENDING_REVIEW") {
+    const res = await apiPost(
+      qualityContext,
+      `/engine/evaluation/indicators/${encodeURIComponent(current.indicatorId)}/publish`,
+      { reason: "P5幕8配置包治理演练：修复质控指标统一资产组织域后发布" },
+      "act8-publish-evaluation",
+    );
+    if (!res.ok) throw new Error(`发布质控指标失败 ${res.status}: ${jsonShort(res.body)}`);
+    current = dataOf(res);
+  }
+  if (current.status === "PUBLISHED") {
+    const res = await apiPost(
+      qualityContext,
+      `/engine/evaluation/indicators/${encodeURIComponent(current.indicatorId)}/gray`,
+      { reason: "P5幕8配置包治理演练：质控指标进入默认10%灰度验证" },
+      "act8-gray-evaluation",
+    );
+    if (!res.ok) throw new Error(`灰度质控指标失败 ${res.status}: ${jsonShort(res.body)}`);
+    current = dataOf(res);
+  }
+  if (current.status === "GRAY") {
+    const res = await apiPost(
+      adminContext,
+      `/engine/evaluation/indicators/${encodeURIComponent(current.indicatorId)}/activate`,
+      { reason: "P5幕8配置包治理演练：机构管理员确认质控指标全量激活" },
+      "act8-activate-evaluation",
+    );
+    if (!res.ok) throw new Error(`激活质控指标失败 ${res.status}: ${jsonShort(res.body)}`);
+    current = dataOf(res);
+  }
+  if (current.status !== "ACTIVE") {
+    throw new Error(`质控指标未达到 ACTIVE，当前 status=${current.status}`);
+  }
+  return current;
+}
+
+async function ensureResolvableEvaluation(contextEntries, qualityContext, adminContext, tenantId) {
+  if (!tenantId) {
+    throw new Error("缺少租户 ID，不能创建可继承质控指标版本");
+  }
+  const indicatorCode = "P5.ACT7.FOLLOWUP.QUALITY";
+  const evalQuery = encodedParams({ indicatorCode, page: 0, size: 100 });
+  const { label: evaluationReader, res: evaluationsRes } = await firstSuccessful(
+    contextEntries,
+    `/engine/evaluation/indicators?${evalQuery}`,
+    "find-source-evaluations",
+  );
+  const allItems = pageItems(evaluationsRes).filter((item) => item.indicatorCode === indicatorCode);
+  let evaluation = preferredEvaluation(allItems, tenantId);
+  const legacyActive = allItems.find((item) => item.status === "ACTIVE");
+  const created = !evaluation;
+  if (!evaluation) {
+    const base = legacyActive ?? allItems[0];
+    if (!base?.indicatorId) {
+      throw new Error(`缺少可入包的 ACTIVE/PUBLISHED 质控指标: ${jsonShort(dataOf(evaluationsRes))}`);
+    }
+    const createRes = await apiPost(
+      qualityContext,
+      "/engine/evaluation/indicators",
+      {
+        indicatorCode,
+        versionNo: maxVersionNo(allItems) + 1,
+        name: base.name ?? "幕7随访异常回院整改闭环率",
+        subjectType: base.subjectType ?? "PATIENT",
+        denominatorDefinition: base.denominatorDefinition,
+        numeratorDefinition: base.numeratorDefinition,
+        exclusionDefinition: base.exclusionDefinition ?? null,
+        scoringDefinition: base.scoringDefinition ?? "P1高风险；随访异常回院后必须形成整改复核闭环",
+        timeWindow: base.timeWindow ?? "FOLLOWUP+7D",
+        organizationScope: `tenant:${tenantId}`,
+        responsibleDepartmentId: base.responsibleDepartmentId,
+        sourceRef: "docs/release/evidence/p5-second-fresh-drill-20260612/幕8-配置包与发布治理",
+        packageVersion: base.packageVersion ?? "2026.06.1",
+      },
+      "act8-create-resolvable-evaluation",
+    );
+    if (!createRes.ok) {
+      throw new Error(`创建可继承质控指标版本失败 ${createRes.status}: ${jsonShort(createRes.body)}`);
+    }
+    evaluation = dataOf(createRes);
+  }
+  evaluation = await promoteEvaluationLifecycle(qualityContext, adminContext, evaluation);
+  if (!resolvableOrganizationScope(evaluation.organizationScope, tenantId)) {
+    throw new Error(`质控指标组织域仍不可继承: ${evaluation.organizationScope}`);
+  }
+  steps.push({
+    step: "ensure-resolvable-evaluation",
+    indicatorId: evaluation.indicatorId,
+    indicatorCode: evaluation.indicatorCode,
+    versionNo: evaluation.versionNo,
+    status: evaluation.status,
+    organizationScope: evaluation.organizationScope,
+    created,
+    legacyActive: legacyActive
+      ? {
+          indicatorId: legacyActive.indicatorId,
+          versionNo: legacyActive.versionNo,
+          status: legacyActive.status,
+          organizationScope: legacyActive.organizationScope,
+        }
+      : null,
+  });
+  await writeJson("01-evaluation-asset-resolution.json", {
+    selected: {
+      indicatorId: evaluation.indicatorId,
+      indicatorCode: evaluation.indicatorCode,
+      versionNo: evaluation.versionNo,
+      status: evaluation.status,
+      organizationScope: evaluation.organizationScope,
+    },
+    created,
+    legacyActive: legacyActive
+      ? {
+          indicatorId: legacyActive.indicatorId,
+          versionNo: legacyActive.versionNo,
+          status: legacyActive.status,
+          organizationScope: legacyActive.organizationScope,
+        }
+      : null,
+  });
+  return { evaluation, evaluationReader };
+}
+
+async function discoverSourceAssets(contextEntries, adminContext, qualityContext, tenantId) {
   const termPackages = (await findPackagesByCode(adminContext, "TERM.P5.MAPPING", "find-source-term-package"))
     .filter((item) => item.status === "ACTIVE" || item.status === "PUBLISHED");
   const termPackage = termPackages.find((item) => item.status === "ACTIVE") ?? termPackages[0];
@@ -652,16 +810,12 @@ async function discoverSourceAssets(contextEntries, adminContext) {
     throw new Error(`缺少可入包的 PUBLISHED 路径资产: ${jsonShort(dataOf(pathwaysRes))}`);
   }
 
-  const evalQuery = encodedParams({ indicatorCode: "P5.ACT7.FOLLOWUP.QUALITY", page: 0, size: 100 });
-  const { label: evaluationReader, res: evaluationsRes } = await firstSuccessful(
+  const { evaluation, evaluationReader } = await ensureResolvableEvaluation(
     contextEntries,
-    `/engine/evaluation/indicators?${evalQuery}`,
-    "find-source-evaluations",
+    qualityContext,
+    adminContext,
+    tenantId,
   );
-  const evaluation = pickByStatus(pageItems(evaluationsRes), ["P5.ACT7.FOLLOWUP.QUALITY"], "indicatorCode");
-  if (!evaluation?.indicatorId) {
-    throw new Error(`缺少可入包的 ACTIVE/PUBLISHED 质控指标: ${jsonShort(dataOf(evaluationsRes))}`);
-  }
 
   const sourceAssets = {
     terminology: {
@@ -693,6 +847,7 @@ async function discoverSourceAssets(contextEntries, adminContext) {
       assetVersion: String(evaluation.versionNo ?? 1),
       indicatorCode: evaluation.indicatorCode,
       status: evaluation.status,
+      organizationScope: evaluation.organizationScope,
       reader: evaluationReader,
     },
   };
@@ -867,6 +1022,8 @@ async function main() {
           ["clinical-governor", clinical.context],
         ],
         admin.context,
+        quality.context,
+        adminProfile.dataScope?.tenantId ?? credentials.customerTenant?.tenantId,
       );
     }
 
