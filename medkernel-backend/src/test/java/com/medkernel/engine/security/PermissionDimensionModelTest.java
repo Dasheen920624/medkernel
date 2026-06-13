@@ -124,6 +124,8 @@ class PermissionDimensionModelTest {
                 PermissionCode.MENU_CONFIG_PACKAGES,
                 // 机构管理员是红线规则唯一职责分离合规发布人，需进入规则配置页推进发布。见 P5-ACT4-02。
                 PermissionCode.MENU_RULE_DEFINITIONS,
+                // 机构管理员持 pathway.publish，是路径模板合法院级全量协调角色，需进入路径配置页。见 P5-ACT5-01。
+                PermissionCode.MENU_PATHWAY_TEMPLATES,
                 PermissionCode.MENU_QC_DASHBOARD,
                 PermissionCode.MENU_ADMIN_AUDIT,
                 PermissionCode.MENU_SECURITY_BASELINE,
