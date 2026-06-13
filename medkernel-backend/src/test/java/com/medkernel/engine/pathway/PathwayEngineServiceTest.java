@@ -286,6 +286,27 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void templateDetailReturnsLocalDraftWhenOrgUnitHasNoPublishedVersionYet() {
+        // 院级数据范围的治理员查看自己刚建的 DRAFT 路径模板：组织闭包内尚无任何 PUBLISHED 版本，
+        // 继承解析器按契约抛 NOT_FOUND。详情接口必须回退本地草稿投影（供试运行/发布前预览），
+        // 而不是把 NOT_FOUND 抛给前台导致详情抽屉空白、整个路径编排前台流被堵死。回归 P5-ACT5-02。
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-pathway",
+            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null, null),
+            "tester"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(inheritanceResolver.resolve(any()))
+            .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 PUBLISHED 资产版本"));
+
+        PathwayTemplateDetailResponse response = service.templateDetail("pt-1");
+
+        assertThat(response.template().templateId()).isEqualTo("pt-1");
+        assertThat(response.template().status()).isEqualTo(PathwayTemplateStatus.DRAFT);
+        assertThat(response.deploymentStatus()).isEqualTo(AssetVersionStatus.DRAFT);
+    }
+
+    @Test
     void templateDetailProjectsUnifiedDeploymentStatus() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));

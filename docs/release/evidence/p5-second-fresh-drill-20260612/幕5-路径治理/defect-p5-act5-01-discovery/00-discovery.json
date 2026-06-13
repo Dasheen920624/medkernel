@@ -1,0 +1,22 @@
+{
+  "defect": "P5-ACT5-01",
+  "role": "organization-admin",
+  "title": "机构管理员持 pathway.publish 且为合法全量协调角色，却缺 MENU_PATHWAY_TEMPLATES，进不去路径模板治理页",
+  "generatedAt": "2026-06-13T08:05:38.192Z",
+  "environment": "https://193.112.107.134",
+  "backendFacts": {
+    "requireReleaseCoordinator": "客户租户全量/回滚门放行 CLINICAL_GOVERNOR 或 ORGANIZATION_ADMIN（PathwayEngineService.requireReleaseCoordinator）",
+    "permissionPolicy": "organizationAdministrationPermissions() 菜单白名单含 MENU_RULE_DEFINITIONS（P5-ACT4-02 修复）但缺 MENU_PATHWAY_TEMPLATES（DefaultPermissionPolicy.java）",
+    "routeGuard": "/pathway/templates 路由守卫 every(menu.pathway-templates, pathway.read)（routes.ts），菜单缺失即路由拦截"
+  },
+  "observations": {
+    "hasPathwayRead": true,
+    "hasPathwayWrite": true,
+    "hasPathwayPublish": true,
+    "hasPathwayTemplatesMenu": false,
+    "hasRuleDefinitionsMenu": true,
+    "newTemplateButtonVisible": false,
+    "pageText": "集团医疗智能中枢\n工作台\n机构治理\n服务机构\n人员与账号\n身份来源\n实施与验收\n知识配置\n知识审核与发布\n配置包与发布\n规则配置\n质量与运营\n质量与运营概览\n审计与证据\n安全与配置\n运行保障\n知识配置\n/\n路径配置\n搜索\n审计快照\n默认\norganization-admin\n机构管理员\n当前权限不足\n该页面包含受控数据，请联系信息科主任调整角色或数据范围。"
+  },
+  "screenshot": "01-org-admin-pathway-blocked.png"
+}
