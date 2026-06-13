@@ -1,5 +1,27 @@
 # 会话接力
 
+## 2026-06-13 幕8 配置包与发布治理**真实演练已通过**：134 上配置包 v1/v2 发布、导出、重复导入保护、回滚闭环，证据待 PR，**下一步=收尾验证并创建 PR 后续幕9 正幕**
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕8 配置包与发布治理。当前工作分支 `codex/p5-act8-config-package-governance`，本线包含两个代码修复提交：`9261346a`（配置包解析 EVALUATION 内部 ID -> indicatorCode）与 `f347924a`（质控指标统一资产组织域规范化 + 演练脚本续接）。
+- **134 部署状态**：已部署 `f347924a`，manifest=`f347924a`，jar SHA `33d78f2e5051fc8788636b362ceb6c587c4fea1fabc847d8fc520dbb12c5ce8e` 与本地构建一致；`medkernel/nginx/postgresql` 均 active，HTTP/HTTPS readiness 200，Flyway `118|118|max_rank=118`，178 张 public 表。
+- **发布前备份与隔离恢复**：
+  - `9261346a`：`/zoesoft/medkernel/backups/p5-act8-9261346a-predeploy-20260613-223706/evidence/predeploy-backup.properties`，隔离恢复 `restore_status=PASSED`，`destructive_action_performed=false`，`db_preserved=true`。
+  - `f347924a`：`/zoesoft/medkernel/backups/p5-act8-f347924a-predeploy-20260613-224847/evidence/predeploy-backup.properties`，隔离恢复 `restore_status=PASSED`，`destructive_action_performed=false`，`db_preserved=true`。
+- **幕8最终 PASS**：`DRILL_RUN_TAG=p5-act8-20260613-225241`，`00-act8-summary.json failures=[]`。Canonical 包 `P5.ACT8.CONFIG.260613225241`：v1 `2026.06.1-act8-260613225241-v1` 全量发布后 `ACTIVE`；v2 `2026.06.1-act8-260613225241-v2` 灰度计划 `c0f92a53-12d3-4263-9fee-429ccf7ef09a` 成功、全量计划 `0dbc7258-71bd-4963-9e44-d6cf87191f6b` 成功、差异导出 `diffAddedCount=3/diffChangeCount=3`、离线包导出 14503 bytes、重复导入返回 409、回滚后 v1 `ACTIVE` / v2 `OFFLINE`。
+- **质控指标补正事实**：幕7旧指标 v1 的统一资产组织域为展示名 `P5第二轮演练机构`，无法参与继承解析；`f347924a` 规范化后真实创建并激活 v2：`P5.ACT7.FOLLOWUP.QUALITY:2:ACTIVE:tenant:p5-hospital`，旧 v1 已 `OFFLINE`。最终 PASS run 复用 v2；事实记录在 `01-evaluation-asset-resolution.json` 与 `09-post-drill-db-state.properties`。
+- **诚实失败留痕**：收敛期保留三组失败包，未清库：`P5.ACT8.CONFIG.781361049473`（EVALUATION 身份映射缺陷）、`P5.ACT8.CONFIG.260613224122`（旧指标组织域缺陷）、`P5.ACT8.CONFIG.260613225142`（脚本把 `rule.packageVersion=2026.06.1` 当统一版本号，真实规则统一版本号为 `1`）。最终包 `P5.ACT8.CONFIG.260613225241` 为 canonical 通过链。
+- **证据目录**：`docs/release/evidence/p5-second-fresh-drill-20260612/幕8-配置包与发布治理/`（README、00/01/02/03/04/09 JSON/properties、diff/export/sync JSONL、截图、部署证据、trace-ids）。
+- **已跑验证**：`node --check scripts/drill/p5-act8-config-package-governance.mjs`；`node --check scripts/drill/p5-act7-followup-quality.mjs`；红灯 `mvn -Dtest=EvaluationEngineServiceTest#indicatorFlowsFromDraftToActiveAndReplacesOldActiveVersion test` 曾按组织域断言失败；修复后同测通过；收尾后端 `mvn -Dtest=PackageEngineServiceTest,EffectiveKnowledgePackageResolverTest,EvaluationEngineServiceTest test` 108/108 通过（含预期同步失败用例日志）；前端 `npm test -- src/pages/tenant/ConfigPackages.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx` 23/23 通过；真实性 `--mode=all`、配置边界 `--mode=inventory`、中文注释、`git diff --check` 均通过。提交前仍需 staged check。
+- 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600，不入仓库）。用户本会话已明确“全部授权你进行处理”，可继续 134 演练/部署/PR/合并主线，仍须如实留痕、不得清库、不得伪造通过。
+
+### 当前下一步（精确照做）
+
+1. stage 幕8证据 + README + `_HANDOFF` + 脚本尾修，跑 `git diff --cached --check` 后提交。
+2. 推送并创建 PR；CI 全绿后 squash 合并。
+3. 合并后从新 `origin/main` 继续幕9 正幕 → 幕10 审计导出审批；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+
+---
+
 ## 2026-06-13 幕7 随访质控**真实演练已通过**：134 上随访计划→异常回院→结果回流→质控评估→整改复核闭环，证据待 PR，**下一步=归档幕7证据后续幕8 配置包**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕7 随访质控。最新 `origin/main = b18ee4a3`（#592 `.gitignore` 补漏；幕6证据 #591 已并），当前工作分支 `codex/p5-act7-followup-quality`。

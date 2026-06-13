@@ -204,9 +204,17 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 诚实说明：首次脚本误用护理角色提交整改，134 返回 403；根因是脚本角色选择错误（护理无 `evaluation.remediate`，临床治理负责人有），不是产品缺陷。该失败真实留下 1 条 open 整改任务，未删除，已归档 `attempt-01-script-actor-mismatch/`；最终 PASS 证据保留该历史事实。
 
+### 5.11 幕8 配置包与发布治理真实演练通过
+
+幕7 后起跑幕8 配置包与发布治理，脚本 `scripts/drill/p5-act8-config-package-governance.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕8-配置包与发布治理/`。本幕在 134 上部署两轮后端修复并保留全部失败数据。
+
+缺陷与收敛：首次真实演练在 v2 灰度发布时暴露 `EVALUATION:ei-d718e273...@1` 未接入统一版本资产，根因是配置包解析未把质控指标内部 ID 映射到 `indicatorCode`，提交 `9261346a` 修复并部署；第二次演练暴露幕7旧质控指标统一资产组织域为展示名 `P5第二轮演练机构`，不在目标机构继承路径内，提交 `f347924a` 将质控指标统一资产登记/发布组织域规范为 `tenant:<tenantId>`；随后脚本修正规则条目版本号，把 `rule.packageVersion=2026.06.1` 与统一版本号 `1` 区分开。
+
+最终批次 `p5-act8-20260613-225241` 通过，`00-act8-summary.json failures=[]`。Canonical 包 `P5.ACT8.CONFIG.260613225241`：v1 `2026.06.1-act8-260613225241-v1` 全量发布 `ACTIVE`；v2 `2026.06.1-act8-260613225241-v2` 灰度计划 `c0f92a53-12d3-4263-9fee-429ccf7ef09a` 成功、全量计划 `0dbc7258-71bd-4963-9e44-d6cf87191f6b` 成功；差异导出 `diffAddedCount=3/diffChangeCount=3`；离线包导出 14503 bytes；重复导入返回 409；高危确认回滚后 v1 `ACTIVE`、v2 `OFFLINE`。质控指标最终为 `P5.ACT7.FOLLOWUP.QUALITY:2:ACTIVE:tenant:p5-hospital`，旧 v1 已 `OFFLINE`。
+
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=36dabfebe880861b56b071122515fa464b253ae4`（幕6修复部署；幕7仅本地脚本驱动，未部署）。
+- manifest：`source/commit=f347924a`（幕8质控指标统一资产组织域修复部署）。
 - 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
 - HTTP / HTTPS readiness：`200|200`。
 - Flyway / 表数：`118|118|118` / 178 张 public 基表。
@@ -214,6 +222,7 @@ TDD 闭环（本地绿灯，待部署复验）：
 - 规则治理：红线规则 `P5.ACT4.CRITICAL.K`（`rule-95d0454a`）`rule_governance.state=FULL`、委员会会签 2/2、院级全量发布计划携独立电子签名；4 份标准上下文快照 ACTIVE。
 - 路径治理：`PATH.ED.DISPOSITION` 已发布并院级全量，患者入径真实触发于幕6。
 - 随访质控：幕7随访计划、异常回院、质控评估与整改闭环已通过；首次脚本失败留下 1 条 open 整改任务，最终 PASS 新任务已关闭。
+- 配置包治理：幕8 canonical 包 `P5.ACT8.CONFIG.260613225241` v1 `ACTIVE`、v2 `OFFLINE`；收敛期失败包保留未清库；质控指标 v2 `ACTIVE` 且组织域 `tenant:p5-hospital`。
 - 集成适配器：`p5-his-gateway REST ACTIVE/HEALTHY`（指向演练模拟接收端）。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
@@ -225,5 +234,5 @@ TDD 闭环（本地绿灯，待部署复验）：
 3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程；提交 `P5-ACT2-04` 静默吞错修复与幕9 前置，回收映射包「灰度→全量」跨角色发布链。~~ 已完成（PR #577 → `13b930e4`、PR #578 → `7f69c946` 两轮部署；P5-ACT2-04/05 关闭；发布链全链走通，幕2 遗留第 1 项回收，见 5.4/5.5 与幕9 证据目录）。
 4. ~~幕3 知识治理诚实边界验证。~~ 已完成（5.6，无缺陷）。
 5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。
-6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控。~~ 幕5/6 已修复、部署并归档；幕7已在 134 真实演练通过，当前待提交证据 PR。继续幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
+6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控、幕8 配置包与发布治理。~~ 幕5/6 已修复、部署并归档；幕7/8 已在 134 真实演练通过，幕8 当前待提交证据 PR。继续幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
 7. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。

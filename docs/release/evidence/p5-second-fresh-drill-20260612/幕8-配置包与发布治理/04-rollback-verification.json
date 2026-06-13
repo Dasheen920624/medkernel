@@ -1,0 +1,95 @@
+{
+  "runTag": "p5-act8-20260613-225241",
+  "generatedAt": "2026-06-13T14:52:57.120Z",
+  "rollbackBundle": {
+    "rollback": {
+      "packageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersion": "2026.06.1-act8-260613225241-v1",
+      "name": "P5幕8配置包治理演练基线版",
+      "description": "幕8真实演练：术语基线包，用于后续历史版本回滚目标。",
+      "accessPolicy": "OPEN",
+      "status": "ACTIVE"
+    },
+    "targetAfter": {
+      "packageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersion": "2026.06.1-act8-260613225241-v1",
+      "name": "P5幕8配置包治理演练基线版",
+      "description": "幕8真实演练：术语基线包，用于后续历史版本回滚目标。",
+      "accessPolicy": "OPEN",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "itemId": "9abf02ce-ec96-4837-aa08-7fbd0235fa92",
+          "packageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+          "assetType": "TERMINOLOGY",
+          "assetId": "TERM.P5.MAPPING|TENANT|p5-hospital",
+          "assetVersion": "2026.06.1"
+        }
+      ]
+    },
+    "currentAfter": {
+      "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersion": "2026.06.1-act8-260613225241-v2",
+      "name": "P5幕8配置包治理演练候选版",
+      "description": "幕8真实演练：术语、规则、路径、质控指标聚合候选包。",
+      "accessPolicy": "OPEN",
+      "status": "OFFLINE",
+      "items": [
+        {
+          "itemId": "166508bd-31d2-4190-b44e-df673c6cd29a",
+          "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+          "assetType": "EVALUATION",
+          "assetId": "ei-8f501a47-e9a5-452b-8460-029763a7262c",
+          "assetVersion": "2"
+        },
+        {
+          "itemId": "58350159-5b94-44af-81f1-a455ece1544a",
+          "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+          "assetType": "PATHWAY",
+          "assetId": "pt-69a3aabb-5157-4a7c-b293-ce027a5741c6",
+          "assetVersion": "1"
+        },
+        {
+          "itemId": "b212fb24-34ae-4093-b55c-6819542872d8",
+          "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+          "assetType": "RULE",
+          "assetId": "rule-95d0454a-fe4a-4e80-938a-45a3744bde98",
+          "assetVersion": "1"
+        },
+        {
+          "itemId": "162f1f7a-ab6c-4ce1-ad84-6ce84690f68b",
+          "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+          "assetType": "TERMINOLOGY",
+          "assetId": "TERM.P5.MAPPING|TENANT|p5-hospital",
+          "assetVersion": "2026.06.1"
+        }
+      ]
+    },
+    "targetLogs": [
+      {
+        "logId": "ab945af7-0d52-49a4-a98b-99896425a7f6",
+        "planId": "89153dc3-bd80-4396-9b2d-e8cf6abda541",
+        "adapterId": "p5-his-gateway",
+        "status": "SUCCESS",
+        "errorCode": null,
+        "errorMessage": null,
+        "retryCount": 0,
+        "syncEvidence": "{\"effectiveSnapshotSha256\":\"81256ba8cf014184b9d93896c2cbc6a938df011196d54a5f6d51107b9c550c9f\",\"effectiveItemCount\":1,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:89153dc3-bd80-4396-9b2d-e8cf6abda541:p5-his-gateway\\\",\\\"adapterId\\\":\\\"p5-his-gateway\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"81256ba8cf014184b9d93896c2cbc6a938df011196d54a5f6d51107b9c550c9f\\\",\\\"payloadSha256\\\":\\\"1e4e7fabedd4a4fba0556e70b73d801578602a0018122984336db64792055e99\\\",\\\"acceptedAt\\\":\\\"2026-06-13T14:52:55.285408282Z\\\"}\"}"
+      },
+      {
+        "logId": "27d53402-92ee-4182-aac1-53cee7c26f7f",
+        "planId": "dd0f4004-4751-4e50-a7fc-e92c20377a2c",
+        "adapterId": "p5-his-gateway",
+        "status": "SUCCESS",
+        "errorCode": null,
+        "errorMessage": null,
+        "retryCount": 0,
+        "syncEvidence": "{\"effectiveSnapshotSha256\":\"81256ba8cf014184b9d93896c2cbc6a938df011196d54a5f6d51107b9c550c9f\",\"effectiveItemCount\":1,\"excludedItemCount\":0,\"warnings\":[],\"adapterEvidence\":\"{\\\"messageId\\\":\\\"package-release:dd0f4004-4751-4e50-a7fc-e92c20377a2c:p5-his-gateway\\\",\\\"adapterId\\\":\\\"p5-his-gateway\\\",\\\"protocolType\\\":\\\"REST\\\",\\\"deliveryStatus\\\":\\\"ACCEPTED\\\",\\\"snapshotSha256\\\":\\\"81256ba8cf014184b9d93896c2cbc6a938df011196d54a5f6d51107b9c550c9f\\\",\\\"payloadSha256\\\":\\\"2754efe88e1b7d4785f6e4a0f53c7c1c36075047b39ea9a48ee64f314d06451b\\\",\\\"acceptedAt\\\":\\\"2026-06-13T14:52:52.067906911Z\\\"}\"}"
+      }
+    ]
+  },
+  "rollbackSyncEvidenceBytes": 3529
+}

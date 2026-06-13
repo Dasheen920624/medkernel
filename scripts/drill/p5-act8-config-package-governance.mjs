@@ -828,7 +828,7 @@ async function discoverSourceAssets(contextEntries, adminContext, qualityContext
     rule: {
       assetType: "RULE",
       assetId: rule.ruleId,
-      assetVersion: String(rule.versionNo ?? rule.packageVersion ?? 1),
+      assetVersion: String(rule.versionNo ?? 1),
       ruleCode: rule.ruleCode,
       status: rule.status,
       reader: ruleReader,
@@ -999,7 +999,12 @@ async function main() {
         ["quality-governor", quality.context],
         ["clinical-governor", clinical.context],
       ];
-      sourceAssets = await discoverSourceAssets(sourceContextEntries, admin.context);
+      sourceAssets = await discoverSourceAssets(
+        sourceContextEntries,
+        admin.context,
+        quality.context,
+        adminProfile.dataScope?.tenantId ?? credentials.customerTenant?.tenantId,
+      );
       await writeJson("01-source-assets.json", { sourceAssets });
       steps.push({
         step: "source-assets",

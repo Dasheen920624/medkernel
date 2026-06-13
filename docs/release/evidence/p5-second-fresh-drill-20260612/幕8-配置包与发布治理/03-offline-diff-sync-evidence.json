@@ -1,0 +1,57 @@
+{
+  "runTag": "p5-act8-20260613-225241",
+  "generatedAt": "2026-06-13T14:52:55.072Z",
+  "exportBundle": {
+    "diff": {
+      "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "baseVersion": "2026.06.1-act8-260613225241-v1",
+      "targetVersion": "2026.06.1-act8-260613225241-v2",
+      "addedCount": 3,
+      "updatedCount": 0,
+      "removedCount": 0,
+      "affectedDepartments": [
+        "01KTXW1GS4302D7H6SQJYWJPW2"
+      ],
+      "changes": [
+        {
+          "changeType": "ADDED",
+          "assetType": "EVALUATION",
+          "assetId": "ei-8f501a47-e9a5-452b-8460-029763a7262c",
+          "baseVersion": null,
+          "targetVersion": "2"
+        },
+        {
+          "changeType": "ADDED",
+          "assetType": "PATHWAY",
+          "assetId": "pt-69a3aabb-5157-4a7c-b293-ce027a5741c6",
+          "baseVersion": null,
+          "targetVersion": "1"
+        },
+        {
+          "changeType": "ADDED",
+          "assetType": "RULE",
+          "assetId": "rule-95d0454a-fe4a-4e80-938a-45a3744bde98",
+          "baseVersion": null,
+          "targetVersion": "1"
+        }
+      ]
+    },
+    "diffExportBytes": 1392,
+    "offlineExportBytes": 14503,
+    "syncExportBytes": 3511,
+    "duplicateImport": {
+      "status": 409,
+      "body": {
+        "type": "urn:medkernel:error:ENG-PACKAGE-004",
+        "title": "包发布门禁校验失败",
+        "status": 409,
+        "detail": "知识包版本在该租户内已存在: 2026.06.1-act8-260613225241-v2",
+        "instance": "/medkernel/api/v1/engine/pkg/packages/offline/import",
+        "code": "ENG-PACKAGE-004",
+        "errorClass": "DATA",
+        "retryable": false,
+        "traceId": "p5-act8-20260613-225241-import-v2-offline-duplicate-probe-1781362375003"
+      }
+    }
+  }
+}
