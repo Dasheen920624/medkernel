@@ -122,6 +122,8 @@ class PermissionDimensionModelTest {
                 PermissionCode.MENU_IMPLEMENTATION_GUIDE,
                 PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
                 PermissionCode.MENU_CONFIG_PACKAGES,
+                // 机构管理员是红线规则唯一职责分离合规发布人，需进入规则配置页推进发布。见 P5-ACT4-02。
+                PermissionCode.MENU_RULE_DEFINITIONS,
                 PermissionCode.MENU_QC_DASHBOARD,
                 PermissionCode.MENU_ADMIN_AUDIT,
                 PermissionCode.MENU_SECURITY_BASELINE,
