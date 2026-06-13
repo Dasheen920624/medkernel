@@ -1,5 +1,28 @@
 # 会话接力
 
+## 2026-06-13 幕4 规则治理旅程：前置链已完全探明（执行蓝图就绪，待新会话执行）
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕4 规则治理（用户已选「治理侧完整旅程」：创建含医师确认的最小规则 → 试运行 → 灰度/全量发布；执行+医师确认留幕6）。134 运行 `7f69c946`，幕3 已闭环（PR #580 合并为 `7b7bb8b2`）。
+- 本会话完成幕4**探索**：规则基线零数据（规则 0、执行 0、快照 0），页面能力与前置链已全部摸清。规则 DSL 创建+试运行+发布是 5-6 环深工程，前置链有多层约束，已探明、不必重新考古。
+- **执行蓝图（下会话直接照做）**：
+  1. **铺底标准上下文快照**（API 模拟集成同步，留 traceId）：`POST /engine/context/snapshots`，**必须用 `integration-operator`**（仅集成/系统角色有 `context.write`；临床角色 diagnostic/clinical-decision 只有 `context.read`，会 403）。orgUnitId 用 integration-operator 数据范围覆盖的组织（先查其 `/security/me` dataScope，用其 hospitalId/campusId）。`package_version` 用规则将使用的同一版本（如 `2026.06.1`）。已对齐的合法 payload 字段：`patient{mpi,name,birthDate,gender,specialPopulations:[],sourceSystem,sourceRecordId,mappedVersion,eventTime,receivedTime,qualityStatus:"VALID"}`；`encounters[]{encounterId,encounterType,admissionTime,dischargeTime,departmentId,attendingDoctorId,bedId,sourceSystem,sourceRecordId,mappedVersion,eventTime,receivedTime,qualityStatus}`；`observations[]{observationId,code:"2823-3",displayName:"血清钾",valueNumeric:6.8,unit:"mmol/L",referenceRange:"3.5-5.5",criticalFlag:"HIGH",sourceSystem,sourceRecordId,mappedVersion,eventTime,receivedTime,qualityStatus:"VALID"}`（血钾 6.8 危急值，触发 critical_value_report 命中）。注意 `@Valid` 在 `@PreAuthorize` 前触发，字段不全会先报 400 掩盖权限问题。
+  2. **治理员真实前台创建规则**（`knowledge-governor` 或 `clinical-governor`，`/rule/definitions`）：openCreateModal → `applyTemplate("critical_value_report")`（前端内置模板，自动填 CRITICAL 风险/result-review 触发/`observations[].valueNumeric gte` 条件/STRONG_REMINDER「需立即回报并人工确认」动作）→ 填 L1 必填：ruleCode、name、packageVersion(=快照同版本)、sourceRef、changeSummary、条件阈值 value=5.5 → 提交。载荷见 `handleCreateRule`（[RuleDefinitions.tsx:2470](frontend/src/pages/tenant/RuleDefinitions.tsx)）。
+  3. **医疗安全红线断言**（定义时验证）：页面 `requiresPhysicianConfirmation`→「需要医师确认」、`blocking`→「不自动开立或修改医嘱」（[RuleDefinitions.tsx:545](frontend/src/pages/tenant/RuleDefinitions.tsx)）；动作为 STRONG_REMINDER 提醒类，非自动开嘱。
+  4. **加测试用例 + 试运行**（治理员前台，用步骤1 的 ACTIVE 快照）：发布门禁要求 `REQUIRED_RELEASE_CASE_TYPES` 测试用例全 PASS；试运行 `POST /engine/rule/rules/{id}/simulate` 选快照，期望命中（血钾 6.8 ≥ 5.5）返回 STRONG_REMINDER。
+  5. **灰度→全量发布**（`clinical-governor` 灰度 `进入灰度验证` CANARY → `organization-admin` 全量；类似幕9 发布链，复用 act9 脚本的下拉选择 helper）。
+- **复用**：脚本基础设施抄 `scripts/drill/p5-act9-integration-release-chain.mjs`（login/capture/renderWithUrlBar/chooseSelectOption/networkidle gotoPath）；新脚本 `scripts/drill/p5-act4-rule-governance.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕4-规则治理/`。
+- **端点清单**：规则列表/创建 `/engine/rule/rules`；试运行 `/engine/rule/rules/{id}/simulate`；测试用例 `/engine/rule/rules/{id}/test-cases`；执行记录 `/engine/rule/rules/executions`；快照 `/engine/context/snapshots`（POST 需 context.write）；字段目录 `/engine/context/field-catalog`（有真实字段如 patient.birthDate）。
+- 凭据：134 服务器受控文件不变；本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），不入仓库。
+- 权限说明：本会话已获 134 SSH/写入授权；合并 main 仍逐 PR 授权。
+- 风险提示：DSL 创建+试运行+发布是密集 UI 自动化（类比幕9 下拉竞态），建议新会话专注执行，遇 DSL 表单缺陷按 TDD 闭环。
+
+## 当前下一步
+
+1. 新会话执行幕4 执行蓝图（上述 5 步），跑通后归档证据、创建 PR、请求合并授权。
+2. 继续幕5 路径 → 幕6 临床运行（届时规则真实执行+医师确认）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+3. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
+4. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
 ## 2026-06-13 幕3 知识治理诚实边界验证全部通过（无缺陷），待提交证据 PR
 
 - 当前执行线：P5 第一阶段端到端旅程。134 运行 `7f69c946`（幕2 全闭环 + 幕9 发布链已闭环）。幕3 在该部署上跑通，脚本 `scripts/drill/p5-act3-knowledge-honest-boundary.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕3-知识治理诚实边界/`（failures=[]）。
