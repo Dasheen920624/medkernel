@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-13 幕5 路径治理**已彻底闭环**：2 缺陷修复 PR#588 已并入 main、已部署 134、治理侧完整旅程到院级全量服务端实锤，仅剩二次证据 PR
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕5 路径治理（治理侧完整旅程；患者入径留幕6）。**main = `a73650d729a9bbc1ace490360dd155f9cdd11af6`**（PR #588 squash 合并）。134 已部署该精确提交。
+- **CI 漏网修复**：PR #588 首轮 CI `backend-build-test`+全部 `jdk-matrix-smoke` 失败——根因是 P5-ACT5-01 给 `organizationAdministrationPermissions()` 加 `MENU_PATHWAY_TEMPLATES` 后，`DefaultPermissionPolicyTest` 已同步但**第二处同型精确菜单全集断言 `PermissionDimensionModelTest.organizationAdminReceivesTenantGovernanceWithoutPlatformOrSystemOperations` 漏改**（本地只跑定向测试类未覆盖）。补该菜单 + 同型理据注释后全量 `mvn test` 2228 全绿，CI 8/8 通过合并。**教训：改 `DefaultPermissionPolicy` 角色菜单白名单须同步 `PermissionDimensionModelTest` 与 `DefaultPermissionPolicyTest` 两处断言，且发布前跑全量 `mvn test` 而非仅定向类。**
+- **部署 134（精确 a73650d7）**：发布前备份 `/zoesoft/medkernel/backups/p5-act5-a73650d7-predeploy-20260613-170752` 隔离恢复全过（dump 1429787B/toc 3174、flyway `118|118`、表 178、知识包 2、路径模板 1=`PATH.ED.DISPOSITION:DRAFT`、`destructive_action_performed=false`、`db_preserved=true`）；`mk-publish.sh --skip-build --source <全哈希>` 发布；post-deploy 全绿：manifest `a73650d7`、jar `3a3b33d7`=本地构建、服务 `active|active|active`、readiness `200|200`、Flyway `118|118|118`、178 表、知识包 2、路径模板 1、患者路径 0、xattr 0、文献根 len 0（P6 阻断）。**演练数据随部署完整保留，未清库。**
+- **旅程四阶段对 134 续跑全 `failures=[]`**（脚本 `scripts/drill/p5-act5-pathway-governance.mjs`，DRILL_PHASE 逐阶段）：simulate（knowledge-governor，**DRAFT 详情抽屉不再 404=P5-ACT5-02 实证关闭**，轨迹 ASSESS→DISPOSITION）→ canary（knowledge-governor，DRAFT→PUBLISHED 灰度 10%）→ probe（**org-admin 现持 pathway-templates 菜单进页+新建按钮可见=P5-ACT5-01 实证关闭**）→ full（DRILL_FULL_ROLE=organization-admin，院级全量 GRAY→PUBLISHED scope=ALL，deploymentStatus=PUBLISHED）。
+- **服务端发布链实锤**（`mk_version_release_plan` PATHWAY/PATH.ED.DISPOSITION/p5-hospital，impact_digest `sha256:04a4f266…`）：IN_REVIEW(ALL)→APPROVED(ALL)→GRAY(FACILITY 10%)→**PUBLISHED(ALL) created_by=organization-admin**（rows 9-12）；`pathway_template.status=PUBLISHED`。pathway 全量门 `requireReleaseCoordinator` 放行 org-admin 且无强制电子签名（与规则不同）。
+- 证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕5-路径治理/postdeploy-a73650d7/`（README + 00-postdeploy-summary.json + 06–10 旅程截图 + probe 修复后确认）；**发现态证据 `defect-p5-act5-01/02-discovery/` 已从 git 恢复未被覆盖**（probe 脚本会写回发现目录，已隔离保护）。
+- 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600）。**新会话碰 134 前须重新 AskUserQuestion 点名授权**（本会话授权不跨会话）。
+
+### 当前下一步（精确照做）
+
+1. 提交 `postdeploy-a73650d7/` 证据 + 本接力更新，创建二次 PR（base=main），CI 全绿后请求合并授权（逐 PR）。无需再部署 134（仅文档/证据）。
+2. **续幕6 临床运行**（规则真实执行 + 医师确认，幕4 红线 `P5.ACT4.CRITICAL.K` + 幕5 路径 `PATH.ED.DISPOSITION` 在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+3. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
+4. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
+---
+
 ## 2026-06-13 幕5 路径治理起跑：揭出并 TDD 闭环 2 个缺陷（P5-ACT5-01 菜单缺口 + P5-ACT5-02 DRAFT 详情 404 阻断），修复 PR 待合并+部署
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕5 路径治理（治理侧完整旅程到院级全量；患者入径留幕6）。工作分支 `codex/p5-act5-pathway-governance`（基于 `main=cc86f650`）。134 仍运行 `f75f7edb`，服务 active|active|active，路径基线零数据（建演练数据前 `pathway_template=0`、`patient_pathway=0`、`knowledge_package=1`=幕9 TERM.P5.MAPPING）。

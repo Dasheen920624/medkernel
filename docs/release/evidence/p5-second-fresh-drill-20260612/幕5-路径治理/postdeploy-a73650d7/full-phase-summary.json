@@ -1,0 +1,48 @@
+{
+  "act": "P5幕5-路径治理（治理侧完整旅程到院级全量）",
+  "generatedAt": "2026-06-13T09:13:11.948Z",
+  "environment": "https://193.112.107.134",
+  "credentialSource": "/tmp/p5-14-role-drill-credentials-20260612.json",
+  "phase": "full",
+  "fullRolloutRole": "organization-admin",
+  "package": {
+    "code": "PATH.P5.ED",
+    "name": "急诊处置路径知识包",
+    "diseaseCode": "ED",
+    "version": "2026.06.1",
+    "sourceRef": "院内已审核急诊处置制度2026版",
+    "description": "P5 幕5 演练专用：急诊评估到处置安排标准临床路径知识包。"
+  },
+  "template": {
+    "code": "PATH.ED.DISPOSITION",
+    "name": "急诊处置路径",
+    "diseaseCode": "ED",
+    "startNode": "ASSESS",
+    "terminalNode": "DISPOSITION",
+    "prototypeTitle": "急诊处置路径"
+  },
+  "failures": [],
+  "full": {
+    "observations": {
+      "role": "organization-admin",
+      "before": "PUBLISHED",
+      "beforeDeployment": "APPROVED",
+      "fullButtonVisible": true,
+      "fullButtonEnabled": true,
+      "after": "PUBLISHED",
+      "afterDeployment": "PUBLISHED"
+    },
+    "steps": [
+      {
+        "label": "organization-admin 院级全量前影响摘要",
+        "screenshot": "09-ui-pathway-fullrollout-impact.png",
+        "url": "https://193.112.107.134/pathway/templates"
+      },
+      {
+        "label": "organization-admin 院级全量激活完成",
+        "screenshot": "10-ui-pathway-fullrollout-done.png",
+        "url": "https://193.112.107.134/pathway/templates"
+      }
+    ]
+  }
+}
