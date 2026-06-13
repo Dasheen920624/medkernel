@@ -1,5 +1,28 @@
 # 会话接力
 
+## 2026-06-13 幕4 规则治理：旅程已跑到 CANARY，3 处阻断缺陷全部 TDD 修复并合并，仅剩「部署#584前端 + 续跑 FULL」
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕4 规则治理（治理侧完整旅程到院级全量）。演练脚本 `scripts/drill/p5-act4-rule-governance.mjs`（阶段闸门 seed|create|cases|simulate|govern|discover|all，幂等可续跑；服务端回查为准），证据目录 `docs/release/evidence/p5-second-fresh-drill-20260612/幕4-规则治理/`。
+- **已完成（服务端事实）**：①集成运维员 API 铺底 4 份 ACTIVE 标准上下文快照（血钾 2823-3：阳性6.8/边界5.5/阴性4.2、血钠2951-2冲突；package_version=2026.06.1，由幕9 ACTIVE 映射包提供）；②知识治理员真实前台用「危急值回报」模板创建红线规则 `P5.ACT4.CRITICAL.K`（rule-95d0454a…，CRITICAL/DRAFT，检验项编码=2823-3、阈值≥5.5、动作 STRONG_REMINDER+需医师确认、无自动开嘱）；③医疗安全红线断言通过；④四类发布门禁用例全绿 + 阳性快照试运行命中（强提醒+必须医师确认）；⑤治理链已推进 DRAFT→同行评审(临床)→委员会双人独立会签(临床+质量,2/2)→影子→**灰度 CANARY**（影子/灰度由机构管理员作为职责分离发布人推进）。
+- **仅剩最后一步**：CANARY→FULL 院级全量激活（机构管理员凭**独立电子签名**，复核人须≠发布人）。
+- **3 处阻断缺陷已全部 TDD 修复并合并 main**（红线规则治理客户租户法定角色：作者=知识治理员、双人独立委员=临床+质量治理员、职责分离发布人=机构管理员；后端 `RuleGovernanceService.COMMITTEE_ROLES`/`validateSignoff`/`validateTransition` + `VersionReleaseService` 电子签名门）：
+  - `P5-ACT4-01`（PR #582→`3532f624`）质量治理员缺 `menu.rule-definitions`→双人会签走不完；修 `qualityGovernancePermissions` 加菜单。
+  - `P5-ACT4-02`（PR #583→`7978c9d6`）机构管理员（唯一职责分离合规发布人）缺 `menu.rule-definitions`→影子/灰度/全量无人能发；修 `organizationAdministrationPermissions` 加菜单。
+  - `P5-ACT4-03`（PR #584→`f75f7edb`，**前端**）红线规则院级全量缺独立电子签名捕获→FULL 被后端门禁拒；修 `RuleDefinitions.tsx` 高风险 FULL 弹独立电子签名弹窗（signatureId/signerId/signerName/signedAt/signatureHash），`handleGovernanceTransition` 回传 `publishEvidence`。回归 `DefaultPermissionPolicyTest`/`PermissionDimensionModelTest`/`RuleDefinitions.test.tsx` 全绿。
+- **134 现状**：仍运行 `7978c9d6`（P5-ACT4-02 部署），**P5-ACT4-03 前端修复尚未部署**。规则 `rule-95d0454a` 状态 = `CANARY`、委员会签 2/2；4 份快照 ACTIVE；knowledge_package=1；Flyway 118；178 表。发布前备份 `p5-act4-7978c9d6-predeploy-20260613-131046`（已验证可恢复，TOC 3189）。
+- **main = `f75f7edbe57035c7b7409454f9c8ed8935be344d`**（#584 已并）。
+- 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600，不入仓库）；含 integration-operator/knowledge-governor/clinical-governor/quality-governor/organization-admin。
+- 权限/纪律：**新会话需重新 AskUserQuestion 点名授权 134 SSH/写入一次**；合并 main 逐 PR 授权。CSRF：API POST 须带 `X-XSRF-TOKEN`（脚本已处理）。
+- 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
+## 当前下一步（精确照做）
+
+1. **部署 #584 到 134（含前端）**：从精确 main `f75f7edb` 重建前后端（`mvn -f medkernel-backend/pom.xml -DskipTests package` + `cd frontend && npm run build`），`bash deploy/onprem/mk-publish.sh --skip-build --source f75f7edbe57035c7b7409454f9c8ed8935be344d --key-file ~/.ssh/id_ed25519`（默认前后端都发）。**发布前必须先备份**（建备份目录→`chown postgres`→`pg_dump -Fc`→`pg_restore --list` 验证可恢复→留痕 predeploy.properties），**DB 必须保留**（规则在 CANARY，清库即毁续跑点）。post-deploy 复验：manifest commit=`f75f7edb`、jar SHA 本地/134 一致、服务 active、readiness 200、Flyway 118、178 表、knowledge_package 1、ctx_snapshots_act4 4、规则状态仍 CANARY/委员 2。
+2. **续跑 FULL**：`DRILL_PHASE=govern node scripts/drill/p5-act4-rule-governance.mjs`（幂等从 CANARY 续：机构管理员点院级全量激活→脚本自动填独立电子签名 signerId=临床治理员、hash=sha256→FULL）。服务端回查 `rule_governance.state=FULL`。可再跑 `DRILL_PHASE=all` 生成完整证据（seed/create/cases 幂等跳过、simulate 复跑、govern 确认 FULL）→ `00-act4-summary.json` failures=[] + 截图 01–14。
+3. **归档证据 + 文档**：写幕4 README（旅程闭环 + 3 缺陷 + 服务端事实）、更新 `docs/audit/p5-second-fresh-drill-checkpoint.md`、更新本接力段；证据 PR、CI 全绿、请求合并授权。
+4. 继续幕5 路径 → 幕6 临床运行（规则真实执行 + 医师确认，幕4 红线规则在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+5. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
+
 ## 2026-06-13 幕4 规则治理旅程：前置链已完全探明（执行蓝图就绪，待新会话执行）
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕4 规则治理（用户已选「治理侧完整旅程」：创建含医师确认的最小规则 → 试运行 → 灰度/全量发布；执行+医师确认留幕6）。134 运行 `7f69c946`，幕3 已闭环（PR #580 合并为 `7b7bb8b2`）。
