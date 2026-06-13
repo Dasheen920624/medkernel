@@ -46,6 +46,7 @@ class DefaultPermissionPolicyTest {
             "implementation-guide",
             "knowledge-governance",
             "config-packages",
+            "rule-definitions",
             "qc-dashboard",
             "admin-audit",
             "security-baseline",
@@ -185,6 +186,29 @@ class DefaultPermissionPolicyTest {
                 .contains(PermissionCode.MENU_RULE_DEFINITIONS)
                 .contains(PermissionCode.RULE_READ);
         }
+    }
+
+    @Test
+    void redLineRuleReleaseLifecycleCustomerRolesCanReachRuleGovernancePage() {
+        // 红线规则要走完「创建→同行评审→双人委员会会签→影子→灰度→院级全量」全生命周期，
+        // 且 validateTransition 要求作者≠会签人≠发布人。客户租户里：
+        //   作者=机构知识治理员；两名独立委员=临床治理员+质量治理员；
+        //   唯一既非作者亦非会签人且持 rule.publish 的发布人=机构管理员。
+        // 这四个客户角色都必须拥有 menu.rule-definitions，否则前端路由守卫会让红线规则
+        // 在某个环节卡死、无法经真实前台完成院级全量。回归 P5-ACT4-01 与 P5-ACT4-02。
+        for (RoleCode lifecycleRole : List.of(
+                RoleCode.KNOWLEDGE_GOVERNOR,
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.QUALITY_GOVERNOR,
+                RoleCode.ORGANIZATION_ADMIN)) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(lifecycleRole))
+                .as("%s 是红线规则全生命周期法定角色，必须能进入规则配置页", lifecycleRole.code())
+                .contains(PermissionCode.MENU_RULE_DEFINITIONS);
+        }
+        // 发布人机构管理员必须持 rule.publish（canActivateFull 院级全量激活依赖）。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
+            .as("机构管理员作为红线规则发布人必须持 rule.publish")
+            .contains(PermissionCode.RULE_PUBLISH);
     }
 
     @Test
