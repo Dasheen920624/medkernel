@@ -83,6 +83,7 @@ import type {
   AuthoringPreviewRunResponse,
   ConditionFragmentStatus,
   ConditionFragmentResponse,
+  VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
@@ -763,6 +764,8 @@ export default function RuleDefinitions() {
   const [fragmentForm] = Form.useForm<ConditionFragmentFormValue>();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
+  const [fullSignatureModalOpen, setFullSignatureModalOpen] = useState(false);
+  const [signatureForm] = Form.useForm();
   const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
   const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
   const [createPreviewRunResult, setCreatePreviewRunResult] =
@@ -2755,20 +2758,21 @@ export default function RuleDefinitions() {
   const handleGovernanceTransition = async (
     targetState: RuleGovernanceState,
     successMessage: string,
-  ) => {
-    if (!selectedRuleId) return;
+    publishEvidence?: VersionPublishEvidence,
+  ): Promise<boolean> => {
+    if (!selectedRuleId) return false;
     const impactDigest = impactQuery.data?.impactDigest;
     const reason = releaseReason.trim();
     const impactRequired = ["PEER_REVIEW", "SHADOW", "CANARY", "FULL"].includes(targetState);
     if (impactRequired && !impactDigest) {
       setActiveDetailLayer("release");
       message.error("请先读取当前影响摘要，再推进治理状态。");
-      return;
+      return false;
     }
     if (!reason) {
       setActiveDetailLayer("release");
       message.error("请填写本次治理说明。");
-      return;
+      return false;
     }
     try {
       await governanceTransitionMutation.mutateAsync({
@@ -2777,14 +2781,72 @@ export default function RuleDefinitions() {
         targetState,
         impactDigest,
         reason,
+        ...(publishEvidence ? { publishEvidence } : {}),
       });
       message.success(successMessage);
       refreshGovernance();
+      return true;
     } catch (error: unknown) {
       modal.error({
         title: "规则治理推进被拒绝",
         content: getApiErrorMessage(error, "当前阶段门禁未满足，请核查页面中的真实证据。"),
       });
+      return false;
+    }
+  };
+
+  // 高风险（红线/高危）规则院级全量激活前必须采集独立电子签名：后端 VersionReleaseService
+  // 对 SAFETY_REDLINE 等高风险发布强制电子签名，且复核人须与发布人相互独立。
+  const fullActivationNeedsSignature = ["HIGH", "CRITICAL"].includes(
+    detailData?.definition.riskLevel ?? "",
+  );
+
+  const startFullActivation = () => {
+    if (!fullActivationNeedsSignature) {
+      void handleGovernanceTransition("FULL", "规则已完成院级全量激活");
+      return;
+    }
+    // 先校验治理说明与影响摘要，避免填完电子签名才报门禁错误。
+    if (!impactQuery.data?.impactDigest) {
+      setActiveDetailLayer("release");
+      message.error("请先读取当前影响摘要，再推进治理状态。");
+      return;
+    }
+    if (!releaseReason.trim()) {
+      setActiveDetailLayer("release");
+      message.error("请填写本次治理说明。");
+      return;
+    }
+    signatureForm.resetFields();
+    signatureForm.setFieldValue("signedAt", new Date().toISOString());
+    setFullSignatureModalOpen(true);
+  };
+
+  const handleFullActivationSignoff = async () => {
+    let values: {
+      signatureId: string;
+      signerId: string;
+      signerName: string;
+      signedAt: string;
+      signatureHash: string;
+    };
+    try {
+      values = await signatureForm.validateFields();
+    } catch {
+      return;
+    }
+    const publishEvidence: VersionPublishEvidence = {
+      electronicSignature: {
+        signatureId: values.signatureId.trim(),
+        signerId: values.signerId.trim(),
+        signerName: values.signerName.trim(),
+        signedAt: new Date(values.signedAt).toISOString(),
+        signatureHash: values.signatureHash.trim(),
+      },
+    };
+    const ok = await handleGovernanceTransition("FULL", "规则已完成院级全量激活", publishEvidence);
+    if (ok) {
+      setFullSignatureModalOpen(false);
     }
   };
 
@@ -3355,7 +3417,7 @@ export default function RuleDefinitions() {
           <Button
             type="primary"
             icon={<CheckCircleOutlined />}
-            onClick={() => handleGovernanceTransition("FULL", "规则已完成院级全量激活")}
+            onClick={startFullActivation}
             loading={transitionPending}
             disabled={!impactQuery.data?.impactDigest}
           >
@@ -5385,6 +5447,78 @@ export default function RuleDefinitions() {
               </Col>
             </Row>
           )}
+        </Form>
+      </Modal>
+
+      <Modal
+        title="院级全量激活 · 独立电子签名"
+        zIndex={1100}
+        open={fullSignatureModalOpen}
+        onOk={handleFullActivationSignoff}
+        onCancel={() => setFullSignatureModalOpen(false)}
+        okText="电子签名并全量激活"
+        cancelText="取消"
+        confirmLoading={governanceTransitionMutation.isPending}
+        width={680}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          className={styles.marginBottomMd}
+          message="高风险规则院级全量激活须留存独立电子签名"
+          description="复核人必须与发布人为不同人员；电子签名摘要须为 64 位小写 SHA-256。签名证据随发布版本归档供审计追溯。"
+        />
+        <Form form={signatureForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="signatureId"
+                label="电子签名 ID"
+                rules={[{ required: true, message: "请输入电子签名 ID" }]}
+              >
+                <Input placeholder="输入电子签名凭证编号" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="signedAt"
+                label="签名时间"
+                rules={[{ required: true, message: "请输入签名时间" }]}
+              >
+                <Input placeholder="ISO 时间，如 2026-06-13T12:00:00Z" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="signerId"
+                label="复核人 ID"
+                rules={[{ required: true, message: "请输入复核人 ID" }]}
+              >
+                <Input placeholder="独立复核人账号（须不同于发布人）" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="signerName"
+                label="复核人姓名"
+                rules={[{ required: true, message: "请输入复核人姓名" }]}
+              >
+                <Input placeholder="独立复核人姓名" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="signatureHash"
+            label="电子签名摘要（SHA-256）"
+            rules={[
+              { required: true, message: "请输入电子签名摘要" },
+              { pattern: /^[0-9a-f]{64}$/, message: "须为 64 位小写 SHA-256" },
+            ]}
+          >
+            <Input placeholder="64 位小写十六进制摘要" />
+          </Form.Item>
         </Form>
       </Modal>
 
