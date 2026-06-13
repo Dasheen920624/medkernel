@@ -2,6 +2,12 @@
 target/
 **/target/
 
+# Node dependencies and Vite cache (any level; frontend/.gitignore also covers its own)
+node_modules/
+**/node_modules/
+.vite/
+**/.vite/
+
 # Maven local cache generated for this workspace
 **/m2repo/
 

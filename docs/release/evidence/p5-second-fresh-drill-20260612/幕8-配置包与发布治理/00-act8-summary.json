@@ -1,0 +1,522 @@
+{
+  "runTag": "p5-act8-20260613-225241",
+  "generatedAt": "2026-06-13T14:52:57.135Z",
+  "packageCode": "P5.ACT8.CONFIG.260613225241",
+  "packageVersionV1": "2026.06.1-act8-260613225241-v1",
+  "packageVersionV2": "2026.06.1-act8-260613225241-v2",
+  "adapterId": "p5-his-gateway",
+  "targetOrgCode": "P5-HOSP",
+  "steps": [
+    {
+      "step": "readiness",
+      "adapterId": "p5-his-gateway",
+      "adapterHealth": "HEALTHY",
+      "targetOrgUnitId": "01KTXW1ER1K0N7CS4YSJZV2XH6"
+    },
+    {
+      "step": "screenshot",
+      "label": "机构管理员配置包中心入口",
+      "screenshot": "01-config-packages-before.png",
+      "url": "https://193.112.107.134/config/packages"
+    },
+    {
+      "step": "screenshot",
+      "label": "发布治理影响模拟入口",
+      "screenshot": "02-release-governance-entry.png",
+      "url": "https://193.112.107.134/config/releases"
+    },
+    {
+      "step": "ensure-resolvable-evaluation",
+      "indicatorId": "ei-8f501a47-e9a5-452b-8460-029763a7262c",
+      "indicatorCode": "P5.ACT7.FOLLOWUP.QUALITY",
+      "versionNo": 2,
+      "status": "ACTIVE",
+      "organizationScope": "tenant:p5-hospital",
+      "created": false,
+      "legacyActive": {
+        "indicatorId": "ei-8f501a47-e9a5-452b-8460-029763a7262c",
+        "versionNo": 2,
+        "status": "ACTIVE",
+        "organizationScope": "tenant:p5-hospital"
+      }
+    },
+    {
+      "step": "source-assets",
+      "assets": {
+        "terminology": "TERMINOLOGY:TERM.P5.MAPPING|TENANT|p5-hospital",
+        "rule": "RULE:rule-95d0454a-fe4a-4e80-938a-45a3744bde98",
+        "pathway": "PATHWAY:pt-69a3aabb-5157-4a7c-b293-ce027a5741c6",
+        "evaluation": "EVALUATION:ei-8f501a47-e9a5-452b-8460-029763a7262c"
+      }
+    },
+    {
+      "step": "ensure-package",
+      "label": "v1-baseline",
+      "packageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersion": "2026.06.1-act8-260613225241-v1",
+      "status": "DRAFT",
+      "itemCount": 1,
+      "reused": false
+    },
+    {
+      "step": "release-package",
+      "stage": "release-v1-full",
+      "strategy": "FULL",
+      "packageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+      "packageVersion": "2026.06.1-act8-260613225241-v1",
+      "planId": "dd0f4004-4751-4e50-a7fc-e92c20377a2c",
+      "status": "SUCCESS",
+      "packageStatus": "ACTIVE",
+      "logStatuses": [
+        {
+          "adapterId": "p5-his-gateway",
+          "status": "SUCCESS"
+        }
+      ]
+    },
+    {
+      "step": "ensure-package",
+      "label": "v2-candidate",
+      "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersion": "2026.06.1-act8-260613225241-v2",
+      "status": "DRAFT",
+      "itemCount": 4,
+      "reused": false
+    },
+    {
+      "step": "release-package",
+      "stage": "release-v2-gray",
+      "strategy": "GRAYSCALE",
+      "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "packageVersion": "2026.06.1-act8-260613225241-v2",
+      "planId": "c0f92a53-12d3-4263-9fee-429ccf7ef09a",
+      "status": "SUCCESS",
+      "packageStatus": "PUBLISHED",
+      "logStatuses": [
+        {
+          "adapterId": "p5-his-gateway",
+          "status": "SUCCESS"
+        }
+      ]
+    },
+    {
+      "step": "release-package",
+      "stage": "release-v2-full",
+      "strategy": "FULL",
+      "packageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "packageVersion": "2026.06.1-act8-260613225241-v2",
+      "planId": "0dbc7258-71bd-4963-9e44-d6cf87191f6b",
+      "status": "SUCCESS",
+      "packageStatus": "ACTIVE",
+      "logStatuses": [
+        {
+          "adapterId": "p5-his-gateway",
+          "status": "SUCCESS"
+        }
+      ]
+    },
+    {
+      "step": "screenshot",
+      "label": "v2全量发布后配置包中心状态",
+      "screenshot": "06-config-packages-after-full.png",
+      "url": "https://193.112.107.134/config/packages"
+    },
+    {
+      "step": "export-and-import-boundary",
+      "diffAddedCount": 3,
+      "diffChangeCount": 3,
+      "diffExportBytes": 1392,
+      "offlineExportBytes": 14503,
+      "syncExportBytes": 3511,
+      "duplicateImportStatus": 409
+    },
+    {
+      "step": "rollback-package",
+      "currentPackageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+      "targetPackageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+      "targetStatus": "ACTIVE",
+      "currentStatus": "OFFLINE",
+      "successLogCount": 2
+    },
+    {
+      "step": "screenshot",
+      "label": "回滚后配置包中心状态",
+      "screenshot": "08-config-packages-after-rollback.png",
+      "url": "https://193.112.107.134/config/packages"
+    }
+  ],
+  "failures": [],
+  "keyResults": {
+    "readiness": {
+      "packageCode": "P5.ACT8.CONFIG.260613225241",
+      "packageVersionV1": "2026.06.1-act8-260613225241-v1",
+      "packageVersionV2": "2026.06.1-act8-260613225241-v2",
+      "targetOrg": {
+        "id": "01KTXW1ER1K0N7CS4YSJZV2XH6",
+        "parentId": "01KTXW1DA9R9CBGVYQ0DSJTRTP",
+        "tenantId": "p5-hospital",
+        "orgPath": "/p5-hospital/P5-GROUP/P5-HOSP",
+        "level": "FACILITY",
+        "code": "P5-HOSP",
+        "name": "P5第二轮全新演练医院本部",
+        "namePinyin": null,
+        "facilityType": "HOSPITAL",
+        "specialtyId": null,
+        "status": "ACTIVE",
+        "createdAt": "2026-06-12T12:13:50.721380Z",
+        "createdBy": "organization-admin",
+        "updatedAt": "2026-06-12T12:13:50.721380Z",
+        "updatedBy": "organization-admin",
+        "active": true,
+        "root": false
+      },
+      "selectedAdapter": {
+        "adapterId": "p5-his-gateway",
+        "adapterName": "P5模拟院内HIS网关",
+        "protocolType": "REST",
+        "status": "ACTIVE",
+        "healthStatus": "HEALTHY",
+        "rttMs": 8,
+        "lastHeartbeatAt": "2026-06-13T14:48:29.417030Z",
+        "connectorAvailable": true
+      },
+      "adapters": [
+        {
+          "adapterId": "p5-his-gateway",
+          "adapterName": "P5模拟院内HIS网关",
+          "protocolType": "REST",
+          "status": "ACTIVE",
+          "healthStatus": "HEALTHY",
+          "rttMs": 8,
+          "lastHeartbeatAt": "2026-06-13T14:48:29.417030Z",
+          "connectorAvailable": true
+        }
+      ],
+      "profiles": {
+        "organization-admin": {
+          "username": "organization-admin",
+          "userId": "organization-admin",
+          "roleCodes": [
+            "organization-admin"
+          ],
+          "permissions": [
+            "asset.config-package",
+            "asset.dictionary",
+            "asset.knowledge-package",
+            "asset.pathway",
+            "asset.rule",
+            "audit.export",
+            "audit.read",
+            "context.read",
+            "context.write",
+            "data.department",
+            "data.desensitized",
+            "data.group",
+            "data.hospital",
+            "embed.read",
+            "embed.write",
+            "env.production",
+            "env.test",
+            "env.trial",
+            "evaluation.execute",
+            "evaluation.publish",
+            "evaluation.read",
+            "evaluation.remediate",
+            "evaluation.review",
+            "evaluation.write",
+            "event.read",
+            "event.write",
+            "followup.read",
+            "followup.write",
+            "integration.execute",
+            "integration.read",
+            "integration.write",
+            "knowledge.export",
+            "knowledge.publish",
+            "knowledge.read",
+            "knowledge.review",
+            "knowledge.withdraw",
+            "knowledge.write",
+            "list.export",
+            "llm.execute",
+            "llm.manage",
+            "llm.read",
+            "menu.admin-audit",
+            "menu.admin-users",
+            "menu.config-packages",
+            "menu.domestic-check",
+            "menu.identity-bindings",
+            "menu.implementation-guide",
+            "menu.knowledge-governance",
+            "menu.notification-settings",
+            "menu.pathway-templates",
+            "menu.provenance",
+            "menu.qc-dashboard",
+            "menu.rule-definitions",
+            "menu.security-baseline",
+            "menu.system-providers",
+            "menu.tenant-onboarding",
+            "menu.workbench",
+            "mpi.read",
+            "mpi.write",
+            "notification.read",
+            "notification.write",
+            "org.publish",
+            "org.read",
+            "org.write",
+            "package.publish",
+            "package.read",
+            "package.rollback",
+            "pathway.execute",
+            "pathway.publish",
+            "pathway.read",
+            "pathway.write",
+            "projection.read",
+            "projection.rebuild",
+            "recommendation.accept",
+            "recommendation.read",
+            "recommendation.write",
+            "rule.override",
+            "rule.publish",
+            "rule.read",
+            "rule.write",
+            "system.read",
+            "tenant.override",
+            "tenant.read",
+            "tenant.write",
+            "term.publish",
+            "term.read",
+            "term.write",
+            "workbench:readiness:view",
+            "workflow.read",
+            "workflow.write"
+          ],
+          "menuKeys": [
+            "workbench",
+            "tenant-onboarding",
+            "admin-users",
+            "identity-bindings",
+            "implementation-guide",
+            "knowledge-governance",
+            "config-packages",
+            "rule-definitions",
+            "pathway-templates",
+            "qc-dashboard",
+            "admin-audit",
+            "security-baseline",
+            "system-providers",
+            "notification-settings",
+            "provenance",
+            "domestic-check"
+          ],
+          "dataScope": {
+            "tenantId": "p5-hospital",
+            "groupId": null,
+            "hospitalId": null,
+            "campusId": null,
+            "siteId": null,
+            "departmentId": null,
+            "wardId": null,
+            "specialtyId": null
+          }
+        },
+        "quality-governor": {
+          "username": "quality-governor",
+          "userId": "quality-governor",
+          "roleCodes": [
+            "quality-governor"
+          ],
+          "permissions": [
+            "asset.knowledge-package",
+            "asset.pathway",
+            "asset.rule",
+            "audit.export",
+            "audit.read",
+            "context.read",
+            "data.desensitized",
+            "data.hospital",
+            "env.production",
+            "env.trial",
+            "evaluation.execute",
+            "evaluation.publish",
+            "evaluation.read",
+            "evaluation.remediate",
+            "evaluation.review",
+            "evaluation.write",
+            "event.read",
+            "followup.read",
+            "knowledge.export",
+            "knowledge.read",
+            "list.export",
+            "llm.read",
+            "menu.admin-audit",
+            "menu.insurance-audit",
+            "menu.knowledge-governance",
+            "menu.provenance",
+            "menu.qc-alerts",
+            "menu.qc-dashboard",
+            "menu.qc-eval-sets",
+            "menu.rule-definitions",
+            "menu.workbench",
+            "mpi.read",
+            "notification.read",
+            "org.read",
+            "pathway.read",
+            "projection.read",
+            "recommendation.read",
+            "rule.read",
+            "rule.write",
+            "tenant.override",
+            "workflow.read"
+          ],
+          "menuKeys": [
+            "workbench",
+            "knowledge-governance",
+            "rule-definitions",
+            "qc-dashboard",
+            "qc-alerts",
+            "insurance-audit",
+            "qc-eval-sets",
+            "admin-audit",
+            "provenance"
+          ],
+          "dataScope": {
+            "tenantId": "p5-hospital",
+            "groupId": "01KTXW1DA9R9CBGVYQ0DSJTRTP",
+            "hospitalId": "01KTXW1ER1K0N7CS4YSJZV2XH6",
+            "campusId": "01KTXW1FRK9R5FVTXWKT3YE505",
+            "siteId": null,
+            "departmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+            "wardId": "01KTXW1HQWV7SZ3G77TX0PETA7",
+            "specialtyId": null
+          }
+        },
+        "clinical-governor": {
+          "username": "clinical-governor",
+          "userId": "clinical-governor",
+          "roleCodes": [
+            "clinical-governor"
+          ],
+          "permissions": [
+            "asset.knowledge-package",
+            "asset.pathway",
+            "asset.rule",
+            "audit.read",
+            "context.read",
+            "data.hospital",
+            "env.production",
+            "env.trial",
+            "evaluation.read",
+            "evaluation.remediate",
+            "event.read",
+            "followup.read",
+            "followup.write",
+            "knowledge.read",
+            "knowledge.review",
+            "knowledge.write",
+            "llm.execute",
+            "llm.read",
+            "menu.cdss-fatigue",
+            "menu.clinical-followup",
+            "menu.knowledge-governance",
+            "menu.mpi",
+            "menu.notifications",
+            "menu.pathway-templates",
+            "menu.patient-pathways",
+            "menu.provenance",
+            "menu.qc-alerts",
+            "menu.qc-dashboard",
+            "menu.rule-definitions",
+            "menu.workbench",
+            "menu.workflow-todos",
+            "mpi.read",
+            "mpi.write",
+            "notification.read",
+            "notification.write",
+            "org.read",
+            "pathway.publish",
+            "pathway.read",
+            "pathway.write",
+            "recommendation.read",
+            "recommendation.write",
+            "rule.override",
+            "rule.publish",
+            "rule.read",
+            "rule.write",
+            "tenant.override",
+            "workflow.read",
+            "workflow.write"
+          ],
+          "menuKeys": [
+            "workbench",
+            "knowledge-governance",
+            "rule-definitions",
+            "pathway-templates",
+            "mpi",
+            "patient-pathways",
+            "cdss-fatigue",
+            "workflow-todos",
+            "clinical-followup",
+            "qc-dashboard",
+            "qc-alerts",
+            "notifications",
+            "provenance"
+          ],
+          "dataScope": {
+            "tenantId": "p5-hospital",
+            "groupId": "01KTXW1DA9R9CBGVYQ0DSJTRTP",
+            "hospitalId": "01KTXW1ER1K0N7CS4YSJZV2XH6",
+            "campusId": "01KTXW1FRK9R5FVTXWKT3YE505",
+            "siteId": null,
+            "departmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+            "wardId": "01KTXW1HQWV7SZ3G77TX0PETA7",
+            "specialtyId": null
+          }
+        }
+      }
+    },
+    "sourceAssets": {
+      "terminology": {
+        "assetType": "TERMINOLOGY",
+        "assetId": "TERM.P5.MAPPING|TENANT|p5-hospital",
+        "assetVersion": "2026.06.1",
+        "sourcePackageId": "72050f03-a187-4353-bd83-449ae1e72f24",
+        "sourcePackageStatus": "ACTIVE"
+      },
+      "rule": {
+        "assetType": "RULE",
+        "assetId": "rule-95d0454a-fe4a-4e80-938a-45a3744bde98",
+        "assetVersion": "1",
+        "ruleCode": "P5.ACT4.CRITICAL.K",
+        "status": "PUBLISHED",
+        "reader": "organization-admin"
+      },
+      "pathway": {
+        "assetType": "PATHWAY",
+        "assetId": "pt-69a3aabb-5157-4a7c-b293-ce027a5741c6",
+        "assetVersion": "1",
+        "templateCode": "PATH.ED.DISPOSITION",
+        "status": "PUBLISHED",
+        "reader": "organization-admin"
+      },
+      "evaluation": {
+        "assetType": "EVALUATION",
+        "assetId": "ei-8f501a47-e9a5-452b-8460-029763a7262c",
+        "assetVersion": "2",
+        "indicatorCode": "P5.ACT7.FOLLOWUP.QUALITY",
+        "status": "ACTIVE",
+        "organizationScope": "tenant:p5-hospital",
+        "reader": "organization-admin"
+      }
+    },
+    "baselinePackageId": "5c51acc6-a591-416e-ba30-153f9d3bd9f7",
+    "candidatePackageId": "d4278683-a2cf-4411-8c1e-a3e3e9fcc6c1",
+    "candidateGrayPlanId": "c0f92a53-12d3-4263-9fee-429ccf7ef09a",
+    "candidateFullPlanId": "0dbc7258-71bd-4963-9e44-d6cf87191f6b",
+    "duplicateImportStatus": 409,
+    "rollbackTargetStatus": "ACTIVE",
+    "rollbackCurrentStatus": "OFFLINE"
+  }
+}

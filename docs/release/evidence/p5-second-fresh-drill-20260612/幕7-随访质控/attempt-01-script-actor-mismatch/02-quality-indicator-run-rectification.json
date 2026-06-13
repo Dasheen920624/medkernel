@@ -1,0 +1,226 @@
+{
+  "runTag": "p5-act7-20260613-215858",
+  "generatedAt": "2026-06-13T13:59:38.082Z",
+  "patientId": "P5-ACT7-FOLLOWUP-001",
+  "responsibleDepartmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+  "indicatorId": "ei-d718e273-fbd6-42fe-b244-7448de878bf8",
+  "runId": "er-64e46ffe-e304-439b-953e-0ac7e2c34899",
+  "findingId": "qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+  "rectificationTaskId": "rct-b9dadecd-070e-4e64-9471-1e77fcadff26",
+  "dashboard": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "summary": {
+        "totalFindings": 1,
+        "openFindings": 1,
+        "closedFindings": 0,
+        "waivedFindings": 0,
+        "overdueRectificationTasks": 0,
+        "activeAlerts": 1
+      },
+      "heatmap": [
+        {
+          "departmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+          "totalFindings": 1,
+          "openFindings": 1,
+          "highRiskFindings": 1,
+          "hitRate": 1,
+          "maxSeverity": "P1",
+          "heatToken": "QUALITY_HEAT_HIGH"
+        }
+      ],
+      "valueMetrics": {
+        "metrics": [
+          {
+            "id": "ADOPTION_RATE",
+            "metricCode": "ADOPTION_RATE",
+            "displayName": "采纳率",
+            "formula": "已采纳推荐卡 / 已闭环推荐卡",
+            "formulaVersion": "OPT-08.v1",
+            "status": "NOT_AVAILABLE",
+            "numerator": null,
+            "denominator": null,
+            "value": null,
+            "unit": "RATE",
+            "dataSources": [
+              {
+                "sourceCode": "recommendation_card",
+                "sourceName": "推荐卡闭环事实",
+                "status": "NOT_AVAILABLE",
+                "evidence": "推荐卡当前无责任科室字段，无法按科室复算采纳率"
+              }
+            ],
+            "explanation": "推荐卡当前无责任科室字段，科室过滤下不填 0",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          },
+          {
+            "id": "FALSE_POSITIVE_RATE",
+            "metricCode": "FALSE_POSITIVE_RATE",
+            "displayName": "误报率",
+            "formula": "已豁免质控问题 / 已复核质控问题",
+            "formulaVersion": "OPT-08.v1",
+            "status": "NOT_AVAILABLE",
+            "numerator": null,
+            "denominator": null,
+            "value": null,
+            "unit": "RATE",
+            "dataSources": [
+              {
+                "sourceCode": "quality_finding",
+                "sourceName": "质控问题闭环事实",
+                "status": "NOT_AVAILABLE",
+                "evidence": "统计 CLOSED / WAIVED 质控问题，WAIVED 视为误报豁免；当前无可计算样本"
+              }
+            ],
+            "explanation": "误报率来自质控问题复核闭环结果；当前无可计算样本",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          },
+          {
+            "id": "MISSED_CASE_RETROSPECTIVE",
+            "metricCode": "MISSED_CASE_RETROSPECTIVE",
+            "displayName": "漏报回溯",
+            "formula": "漏报回溯问题数",
+            "formulaVersion": "OPT-08.v1",
+            "status": "AVAILABLE",
+            "numerator": 0,
+            "denominator": 0,
+            "value": 0,
+            "unit": "CASE_COUNT",
+            "dataSources": [
+              {
+                "sourceCode": "quality_finding",
+                "sourceName": "漏报回溯质控问题",
+                "status": "AVAILABLE",
+                "evidence": "finding_code 以 MISSED. 开头的质控问题"
+              }
+            ],
+            "explanation": "漏报回溯以质控问题事实编码 MISSED.* 为可追溯来源",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          },
+          {
+            "id": "PATHWAY_COMPLETION_RATE",
+            "metricCode": "PATHWAY_COMPLETION_RATE",
+            "displayName": "路径完成率",
+            "formula": "已完成患者路径 / 已入径患者路径",
+            "formulaVersion": "OPT-08.v1",
+            "status": "NOT_AVAILABLE",
+            "numerator": null,
+            "denominator": null,
+            "value": null,
+            "unit": "RATE",
+            "dataSources": [
+              {
+                "sourceCode": "patient_pathway",
+                "sourceName": "患者路径运行事实",
+                "status": "NOT_AVAILABLE",
+                "evidence": "患者路径当前无责任科室字段，无法按科室复算路径完成率"
+              }
+            ],
+            "explanation": "患者路径当前无责任科室字段，科室过滤下不填 0",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          },
+          {
+            "id": "RECTIFICATION_CLOSURE_RATE",
+            "metricCode": "RECTIFICATION_CLOSURE_RATE",
+            "displayName": "整改闭环率",
+            "formula": "已关闭或豁免整改任务 / 全部整改任务",
+            "formulaVersion": "OPT-08.v1",
+            "status": "AVAILABLE",
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "unit": "RATE",
+            "dataSources": [
+              {
+                "sourceCode": "rectification_task",
+                "sourceName": "整改任务闭环事实",
+                "status": "AVAILABLE",
+                "evidence": "统计 CLOSED / WAIVED 整改任务占全部整改任务比例"
+              }
+            ],
+            "explanation": "整改闭环率来自整改任务状态机",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          },
+          {
+            "id": "INSURANCE_VIOLATION_REDUCTION",
+            "metricCode": "INSURANCE_VIOLATION_REDUCTION",
+            "displayName": "医保违规减少",
+            "formula": "医保违规减少量 / 基线违规量",
+            "formulaVersion": "OPT-08.v1",
+            "status": "NOT_AVAILABLE",
+            "numerator": null,
+            "denominator": null,
+            "value": null,
+            "unit": "RATE",
+            "dataSources": [
+              {
+                "sourceCode": "mk_quality_insurance_issue",
+                "sourceName": "医保违规问题事实",
+                "status": "NOT_AVAILABLE",
+                "evidence": "需要明确查询起止时间，才能构造等长前置基线期"
+              }
+            ],
+            "explanation": "医保违规减少率需要完整时间窗，不能用累计问题总量冒充改善",
+            "calculatedAt": "2026-06-13T13:59:30.070573689Z"
+          }
+        ]
+      },
+      "activeAlerts": [
+        {
+          "alertId": "HIGH_RISK_FINDING:quality_finding:qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+          "alertType": "HIGH_RISK_FINDING",
+          "status": "OPEN",
+          "departmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+          "sourceType": "quality_finding",
+          "sourceId": "qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+          "severity": "P1",
+          "thresholdCode": "OPEN_P0_P1_FINDING",
+          "thresholdValue": 0,
+          "actualValue": 1,
+          "title": "高风险质控问题待闭环：随访异常回院后复评未闭环",
+          "evidenceSummary": "followup_plan=fp-e5a2aaf5-2c97-4e0a-84e4-86588d979cc9; abnormal_event=undefined; backflow_snapshot=ctx-ce9c7ee3-2fec-44bd-a558-41f0eedf3d42",
+          "createdAt": "2026-06-13T13:59:29.786908Z",
+          "updatedAt": "2026-06-13T13:59:30.061707Z",
+          "traceId": "p5-act7-20260613-215858-quality-run-evaluation-1781359169690"
+        }
+      ],
+      "generatedAt": "2026-06-13T13:59:30.061707397Z"
+    },
+    "traceId": "p5-act7-20260613-215858-quality-dashboard-after-review-1781359170003",
+    "timestamp": "2026-06-13T13:59:30.074694536Z"
+  },
+  "alerts": {
+    "success": true,
+    "code": "OK",
+    "message": "操作成功",
+    "data": {
+      "items": [
+        {
+          "alertId": "HIGH_RISK_FINDING:quality_finding:qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+          "alertType": "HIGH_RISK_FINDING",
+          "status": "OPEN",
+          "departmentId": "01KTXW1GS4302D7H6SQJYWJPW2",
+          "sourceType": "quality_finding",
+          "sourceId": "qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+          "severity": "P1",
+          "thresholdCode": "OPEN_P0_P1_FINDING",
+          "thresholdValue": 0,
+          "actualValue": 1,
+          "title": "高风险质控问题待闭环：随访异常回院后复评未闭环",
+          "evidenceSummary": "followup_plan=fp-e5a2aaf5-2c97-4e0a-84e4-86588d979cc9; abnormal_event=undefined; backflow_snapshot=ctx-ce9c7ee3-2fec-44bd-a558-41f0eedf3d42",
+          "createdAt": "2026-06-13T13:59:29.786908Z",
+          "updatedAt": "2026-06-13T13:59:30.110726Z",
+          "traceId": "p5-act7-20260613-215858-quality-run-evaluation-1781359169690"
+        }
+      ],
+      "offset": 0,
+      "limit": 20,
+      "total": 1,
+      "hasNext": false
+    },
+    "traceId": "p5-act7-20260613-215858-quality-alerts-after-review-1781359170051",
+    "timestamp": "2026-06-13T13:59:30.115067898Z"
+  }
+}

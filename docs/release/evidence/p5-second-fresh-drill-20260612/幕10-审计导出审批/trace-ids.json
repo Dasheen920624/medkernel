@@ -1,0 +1,202 @@
+{
+  "runTag": "p5-act10-audit-20260613-234800",
+  "generatedAt": "2026-06-13T15:45:57.286Z",
+  "traceEntries": [
+    {
+      "label": "login-compliance-auditor",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-login-compliance-auditor-1781365533035"
+    },
+    {
+      "label": "login-organization-admin",
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-login-organization-admin-1781365534247"
+    },
+    {
+      "label": "compliance-auditor-security-me",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-compliance-auditor-security-me-1781365534351",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-compliance-auditor-security-me-1781365534351"
+    },
+    {
+      "label": "organization-admin-security-me",
+      "method": "GET",
+      "path": "/security/me",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-organization-admin-security-me-1781365534381",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-organization-admin-security-me-1781365534381"
+    },
+    {
+      "label": "audit-snapshot",
+      "method": "POST",
+      "path": "/compliance/audit/snapshot?reason=P5%E5%B9%9510%E5%AE%A1%E8%AE%A1%E5%AF%BC%E5%87%BA%E5%AE%A1%E6%89%B9%E5%BF%AB%E7%85%A7%20p5-act10-audit-20260613-234800",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-audit-snapshot-1781365542462",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-audit-snapshot-1781365542462"
+    },
+    {
+      "label": "audit-events-after-snapshot",
+      "method": "GET",
+      "path": "/compliance/audit/events?size=10",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-audit-events-after-snapshot-1781365542496",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-audit-events-after-snapshot-1781365542496"
+    },
+    {
+      "label": "request-export-approval",
+      "method": "POST",
+      "path": "/compliance/exports:request",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-request-export-approval-1781365542531",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-request-export-approval-1781365542531"
+    },
+    {
+      "label": "self-approve-negative",
+      "method": "POST",
+      "path": "/compliance/exports/exp-audit-event-p5-act10-60613-234800:approve",
+      "status": 403,
+      "ok": false,
+      "requestTraceId": "p5-act10-audit-20260613-234800-self-approve-negative-1781365542563",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-self-approve-negative-1781365542563"
+    },
+    {
+      "label": "admin-approve-export",
+      "method": "POST",
+      "path": "/compliance/exports/exp-audit-event-p5-act10-60613-234800:approve",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-admin-approve-export-1781365550233",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-admin-approve-export-1781365550233"
+    },
+    {
+      "label": "submit-large-list-export",
+      "method": "POST",
+      "path": "/large-lists/exports",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-submit-large-list-export-1781365552585",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-submit-large-list-export-1781365552585"
+    },
+    {
+      "label": "export-job-poll-0",
+      "method": "GET",
+      "path": "/large-lists/exports/6777d2b2-f0e6-4668-b1bc-df9b8fb1673d",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-export-job-poll-0-1781365552621",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-export-job-poll-0-1781365552621"
+    },
+    {
+      "label": "complete-export-approval",
+      "method": "POST",
+      "path": "/compliance/exports/exp-audit-event-p5-act10-60613-234800:complete-from-job",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-complete-export-approval-1781365552648",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-complete-export-approval-1781365552648"
+    },
+    {
+      "label": "download-approved-csv",
+      "method": "GET",
+      "path": "/medkernel/api/v1/large-lists/exports/6777d2b2-f0e6-4668-b1bc-df9b8fb1673d/download",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-download-approved-csv-1781365552689",
+      "contentLength": 75838
+    },
+    {
+      "label": "verify-approval",
+      "method": "POST",
+      "path": "/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-approval/verify",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-verify-approval-1781365555051",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-verify-approval-1781365555051"
+    },
+    {
+      "label": "evidence-detail-approval",
+      "method": "GET",
+      "path": "/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-approval",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-evidence-detail-approval-1781365555083",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-evidence-detail-approval-1781365555083"
+    },
+    {
+      "label": "download-evidence-approval",
+      "method": "GET",
+      "path": "/api/v1/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-approval/file",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-download-evidence-approval-1781365555112",
+      "contentLength": 371
+    },
+    {
+      "label": "verify-export",
+      "method": "POST",
+      "path": "/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-export/verify",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-verify-export-1781365555141",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-verify-export-1781365555141"
+    },
+    {
+      "label": "evidence-detail-export",
+      "method": "GET",
+      "path": "/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-export",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-evidence-detail-export-1781365555199",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-evidence-detail-export-1781365555199"
+    },
+    {
+      "label": "download-evidence-export",
+      "method": "GET",
+      "path": "/api/v1/compliance/evidence/snapshots/evd-exp-audit-event-p5-act10-60613-234800-export/file",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-download-evidence-export-1781365555234",
+      "contentLength": 542
+    },
+    {
+      "label": "export-evidence-package",
+      "method": "POST",
+      "path": "/compliance/evidence/snapshots/export?evidenceType=COMPLIANCE_EXPORT",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-export-evidence-package-1781365555264",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-export-evidence-package-1781365555264"
+    },
+    {
+      "label": "download-evidence-package",
+      "method": "GET",
+      "path": "/api/v1/compliance/evidence/snapshots/export/a2be67e6e512bc2abfa0cba7f8508b1435edec48ed2b535c2d22b7074608126a/download",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-download-evidence-package-1781365555314",
+      "contentLength": 1950
+    },
+    {
+      "label": "runtime-operations",
+      "method": "GET",
+      "path": "/system/operations",
+      "status": 200,
+      "ok": true,
+      "requestTraceId": "p5-act10-audit-20260613-234800-runtime-operations-1781365555346",
+      "bodyTraceId": "p5-act10-audit-20260613-234800-runtime-operations-1781365555346"
+    }
+  ]
+}
