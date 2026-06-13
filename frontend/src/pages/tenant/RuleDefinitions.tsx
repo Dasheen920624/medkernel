@@ -2844,11 +2844,7 @@ export default function RuleDefinitions() {
         signatureHash: values.signatureHash.trim(),
       },
     };
-    const ok = await handleGovernanceTransition(
-      "FULL",
-      "规则已完成院级全量激活",
-      publishEvidence,
-    );
+    const ok = await handleGovernanceTransition("FULL", "规则已完成院级全量激活", publishEvidence);
     if (ok) {
       setFullSignatureModalOpen(false);
     }
