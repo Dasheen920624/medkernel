@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development 或 executing-plans。Steps 用 `- [ ]`。
 
-**Goal:** 经真治理 API 幂等发布覆盖 9 类规则类型 × 触发点 × 动作/严重度的真规则（spec §7 #2–#10），让沙盘场景库全真填满规则引擎能力矩阵。
+**Goal:** 经真治理 API 幂等发布覆盖 9 类规则类型 × 触发点 × 动作/严重度的真规则**（含 #1 沙盘自有 `SBX.LAB.CRITICAL.K`，共 10 条）**，让沙盘场景库全真填满规则引擎能力矩阵。**完整有效数据案例（载荷+DSL+测试用例+期望卡）见 spec §24。**
+
+> **【清库前提】**134 数据均演练数据、后续会清库——seed **覆盖全部 #1–#10（不复用任何其它幕的规则/患者）**，连同沙盘铺底患者一并幂等发布；清库后重跑即全量恢复。
 
 **Architecture:** 新增幂等 seed 脚本 `scripts/sandbox/seed-scenarios.mjs`（复用幕4 `p5-act4-rule-governance.mjs` 基建），对每条规则走"创建 DSL → 测试用例 → test → simulate → 会签 → 灰度→全量发布"真链路；同步扩展后端 `SandboxScenarioCatalog`（A1）与前端 `sandboxScenarios.ts`（A2）登记 9 场景。
 
@@ -18,7 +20,7 @@
 | 文件 | 职责 |
 |---|---|
 | Create `scripts/sandbox/seed-scenarios.mjs` | 幂等治理发布脚本（9 条规则） |
-| Create `scripts/sandbox/scenario-rules.json` | 9 条规则的定稿参数（ruleCode/ruleType/triggerPoint/riskLevel/dsl/动作卡文案/来源）——**临床定稿后填** |
+| Create `scripts/sandbox/scenario-rules.json` | **10 条规则**定稿参数（含 #1 `SBX.LAB.CRITICAL.K`；ruleCode/ruleType/triggerPoint/riskLevel/dsl/动作卡文案/来源）——#1 用 spec §24.1 金样可直接落；#2–#10 临床值 §24 已给示例，**定稿后填** |
 | Modify `…/engine/sandbox/SandboxScenarioCatalog.java` | 登记 #2–#10 场景 |
 | Modify `frontend/src/features/sandbox/sandboxScenarios.ts` | 前端登记 #2–#10（status 发布后由 `ready` 标记） |
 | Test | `SandboxScenarioCatalogTest` 扩展（10 场景可解析）；seed 脚本 `node --check` + 幂等复跑 |

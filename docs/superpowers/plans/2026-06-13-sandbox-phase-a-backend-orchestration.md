@@ -8,7 +8,7 @@
 
 **Tech Stack:** Spring Boot / Java 21 / JUnit 5 + Mockito / Maven；权限经 `@perm.has` + `DefaultPermissionPolicy`；DTO 用 Java record；引擎契约见 spec `docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md` §16–18、§23。
 
-**前置依赖：** 阶段A 单测/契约测试不依赖真实规则；端到端验收需目标库已发布 `P5.ACT4.CRITICAL.K`（134 已有；本地需先经治理 seed）。**先读 spec §23 实现者踩坑预警。**
+**前置依赖：** 阶段A 单测/契约测试不依赖真实规则。**【清库前提】134 数据均为演练数据、后续会清库——沙盘不依赖任何既有数据**：端到端验收所需规则为沙盘自有 `SBX.LAB.CRITICAL.K`（**不复用幕4 的 `P5.ACT4.CRITICAL.K`**），由阶段B `seed-scenarios.mjs` 从干净库幂等发布；铺底患者亦沙盘自带（spec §24.1）。**先读 spec §23 实现者踩坑预警 + §24 数据案例。**
 
 ---
 
@@ -172,7 +172,7 @@ class SandboxScenarioCatalogTest {
     void resolvesCriticalPotassiumScenario() {
         SandboxScenario s = catalog.require("sbx-lab-critical-k");
         assertThat(s.triggerPoint()).isEqualTo("result-review");
-        assertThat(s.expectedRuleCode()).isEqualTo("P5.ACT4.CRITICAL.K");
+        assertThat(s.expectedRuleCode()).isEqualTo("SBX.LAB.CRITICAL.K");
         assertThat(s.patientId()).isNotBlank();
     }
 
@@ -229,7 +229,7 @@ public class SandboxScenarioCatalog {
             "sbx-lab-critical-k", "clinical-run", "rule", "result-review", "LAB",
             "血钾危急值红线",
             "SBX-LAB-K-001", "SBX-LAB-K-ENC-001",
-            "P5.ACT4.CRITICAL.K", "STRONG_REMINDER", "CRITICAL", "2026.06.1"));
+            "SBX.LAB.CRITICAL.K", "STRONG_REMINDER", "CRITICAL", "2026.06.1"));
     }
 
     private void register(SandboxScenario s) { byId.put(s.id(), s); }
@@ -612,7 +612,7 @@ git commit -m "feat(sandbox): 登记 sandbox 编排端点服务契约"
 
 - [ ] **Step 2: 守卫**　Run 本仓库既有 `check-comment-zh`、`authenticity-guard --mode=all`、`config-boundary-guard --mode=inventory`、`git diff --check`。
 
-- [ ] **Step 3: 端到端冒烟（需已发布 `P5.ACT4.CRITICAL.K` 的环境，如 134）**　以具 `sandbox.run` 的账号 `POST /engine/sandbox/scenarios/sbx-lab-critical-k/run`，断言响应 `result=PASS`、3 步 OK、`cardCount>=1`、`embedToken` 非空；服务端回查 `rule_execution_log.hit`/`recommendation_card`/`embed_launch_token` 有真行。冒烟脚本置 `scripts/sandbox/sandbox-phase-a-smoke.mjs`（复用幕6 登录/CSRF/apiPost 基建）。
+- [ ] **Step 3: 端到端冒烟（先 seed `SBX.LAB.CRITICAL.K`，见阶段B；干净库亦可）**　以具 `sandbox.run` 的账号 `POST /engine/sandbox/scenarios/sbx-lab-critical-k/run`，断言响应 `result=PASS`、3 步 OK、`cardCount>=1`、`embedToken` 非空；服务端回查 `rule_execution_log.hit`/`recommendation_card`/`embed_launch_token` 有真行。冒烟脚本置 `scripts/sandbox/sandbox-phase-a-smoke.mjs`（复用幕6 登录/CSRF/apiPost 基建）。**注：沙盘不依赖幕4 规则；若库已清，先跑 §24.1 的 seed 发布 `SBX.LAB.CRITICAL.K` 再冒烟。**
 
 - [ ] **Step 4: 提交冒烟脚本**
 
