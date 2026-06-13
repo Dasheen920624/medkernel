@@ -1,0 +1,90 @@
+{
+  "act": "P5幕5-路径治理 · 修复部署后旅程复验（治理侧完整旅程到院级全量）",
+  "pr": "#588 已 squash 合并入 main",
+  "mergedMainCommit": "a73650d729a9bbc1ace490360dd155f9cdd11af6",
+  "generatedAt": "2026-06-13T17:14:00+08:00",
+  "environment": "https://193.112.107.134",
+  "deploy": {
+    "manifest_commit": "a73650d729a9bbc1ace490360dd155f9cdd11af6",
+    "jar_sha256": "3a3b33d73c8b8b6a151a4d057ac37472d7c2ee87e587b5436fd080e652aaa37a",
+    "jar_matches_local_build": "YES",
+    "services": "active|active|active",
+    "readiness_http_https": "200|200",
+    "flyway_three_way": "118|118|118",
+    "public_base_tables": 178,
+    "frontend_xattr_noise": 0,
+    "frontend_pathway_bundle": "PathwayTemplates-B7tJUR-y.js",
+    "literature_root_len": 0,
+    "p6_blocked": true
+  },
+  "predeployBackup": {
+    "dir": "/zoesoft/medkernel/backups/p5-act5-a73650d7-predeploy-20260613-170752",
+    "dump_size_bytes": 1429787,
+    "toc_entries": 3174,
+    "isolated_restore_flyway": "118|118",
+    "isolated_restore_public_tables": 178,
+    "isolated_restore_knowledge_package": 2,
+    "isolated_restore_pathway_template": 1,
+    "isolated_restore_draft_template": "PATH.ED.DISPOSITION:DRAFT",
+    "destructive_action_performed": false,
+    "db_preserved": true
+  },
+  "dbPreserved": {
+    "knowledge_package": "2 (PATH.P5.ED:DRAFT, TERM.P5.MAPPING:ACTIVE)",
+    "pathway_template_before": "PATH.ED.DISPOSITION:DRAFT",
+    "patient_pathway": 0,
+    "note": "演练数据随部署完整保留，未清库"
+  },
+  "drillPhases": {
+    "simulate": {
+      "result": "通过 failures=[]",
+      "role": "knowledge-governor",
+      "validates": "P5-ACT5-02：DRAFT 模板详情抽屉不再 404，tab 正常渲染；ACTIVE 快照(P5-ACT5-ED-001)试运行轨迹命中 ASSESS→DISPOSITION",
+      "screenshot": "06-ui-pathway-simulate-trajectory.png"
+    },
+    "canary": {
+      "result": "通过 failures=[]",
+      "role": "knowledge-governor",
+      "transition": "DRAFT→PUBLISHED（灰度 10% bed percent）",
+      "release_reason": "已核查影响摘要、灰度范围 10%、随访交接与回滚安排，按制度提交审核并进入灰度发布。",
+      "screenshots": ["07-ui-pathway-release-impact.png", "08-ui-pathway-canary-published.png"]
+    },
+    "probe": {
+      "result": "通过 failures=[]",
+      "role": "organization-admin",
+      "validates": "P5-ACT5-01：org-admin 现持 pathway-templates 菜单，可进 /pathway/templates，新建路径模板按钮可见",
+      "observations": {
+        "hasPathwayPublish": true,
+        "hasPathwayTemplatesMenu": true,
+        "newTemplateButtonVisible": true,
+        "isDefect": false
+      },
+      "screenshot": "probe-org-admin-pathway-accessible.png",
+      "detail": "probe-org-admin-postfix.json"
+    },
+    "full": {
+      "result": "通过 failures=[]",
+      "role": "organization-admin",
+      "transition": "GRAY→PUBLISHED（院级全量激活，scope=ALL）",
+      "release_reason": "灰度验证无异常，已复核影响摘要与回滚证据，院级确认全量激活急诊处置路径。",
+      "afterDeploymentStatus": "PUBLISHED",
+      "screenshots": ["09-ui-pathway-fullrollout-impact.png", "10-ui-pathway-fullrollout-done.png"]
+    }
+  },
+  "serverSideReleaseChain": {
+    "table": "mk_version_release_plan (asset_type=PATHWAY, asset_identity=PATH.ED.DISPOSITION, tenant=p5-hospital)",
+    "impact_digest": "sha256:04a4f266ecd5d479aa807cd59fd18ec430f941185c4aaf4ff2795b1512b70526",
+    "chain": [
+      {"plan": "vrl-01KV0423FSYE35GGKPJZ7KH3T0", "state": "IN_REVIEW", "scope": "ALL", "by": "knowledge-governor"},
+      {"plan": "vrl-01KV0423GW2BT3VCGDK5BT91D0", "state": "APPROVED", "scope": "ALL", "by": "knowledge-governor"},
+      {"plan": "vrl-01KV0423H3NEGQH0WRSJDWF46F", "state": "GRAY", "scope": "FACILITY(CANARY_BED_PERCENT 10%)", "by": "knowledge-governor"},
+      {"plan": "vrl-01KV043PBH1SFVCGX24ST2N6GV", "state": "PUBLISHED", "scope": "ALL", "by": "organization-admin"}
+    ],
+    "finalTemplateStatus": "PATH.ED.DISPOSITION:PUBLISHED"
+  },
+  "fixValidation": {
+    "P5-ACT5-01": "实证关闭：org-admin 经修复后菜单进入 /pathway/templates（probe），并独立完成院级全量激活（full，release_plan PUBLISHED scope=ALL created_by=organization-admin）",
+    "P5-ACT5-02": "实证关闭：DRAFT 模板详情抽屉不再 404，simulate 与 full 阶段 templateDetail 均正常渲染"
+  },
+  "failures": []
+}
