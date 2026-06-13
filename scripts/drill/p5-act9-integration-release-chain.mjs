@@ -165,9 +165,11 @@ async function chooseSelectOption(page, scope, controlId, optionText) {
   const formItem = scope.locator(`.ant-form-item:has(#${controlId})`);
   await formItem.locator(".ant-select-selector").click();
   await page.waitForTimeout(500);
+  // 选项定位收窄到当前可见下拉，避免命中此前已隐藏下拉里的同类节点。
+  const visibleDropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
   const option = optionText
-    ? page.locator(".ant-select-item-option-content", { hasText: optionText }).first()
-    : page.locator(".ant-select-item-option-content").first();
+    ? visibleDropdown.locator(".ant-select-item-option-content", { hasText: optionText }).first()
+    : visibleDropdown.locator(".ant-select-item-option-content").first();
   await option.click();
   await page.waitForTimeout(300);
   let selected = await formItem.locator(".ant-select-selection-item").count();
@@ -176,7 +178,11 @@ async function chooseSelectOption(page, scope, controlId, optionText) {
     await page.waitForTimeout(300);
     selected = await formItem.locator(".ant-select-selection-item").count();
   }
-  await page.keyboard.press("Escape");
+  // 单选下拉选中后自动收起，此时再按 Escape 会误关外层弹窗；仅在下拉仍可见时收起它。
+  const openDropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
+  if ((await openDropdown.count()) > 0 && (await openDropdown.first().isVisible())) {
+    await page.keyboard.press("Escape");
+  }
   await page.waitForTimeout(200);
   return selected > 0;
 }
@@ -287,6 +293,17 @@ async function walkKnowledgeGovernorGrayRelease(browser, credentials, summary) {
       packageVersion: item.packageVersion,
       status: item.status,
     }));
+    // 状态感知幂等：灰度（PUBLISHED）或全量（ACTIVE）已完成时不得重复构建/发布。
+    const alreadyReleased = before.packages.find(
+      (item) => item.status === "PUBLISHED" || item.status === "ACTIVE",
+    );
+    if (alreadyReleased) {
+      observations.draftVersion = alreadyReleased.packageVersion;
+      observations.statusAfterGrayRelease = alreadyReleased.status;
+      observations.grayReleased = true;
+      observations.grayAlreadyDoneBefore = true;
+      return;
+    }
     let draft = before.packages.find((item) => item.status === "DRAFT");
     if (!draft) {
       await gotoPath(page, "/terminology/mapping");
@@ -357,7 +374,15 @@ async function walkKnowledgeGovernorGrayRelease(browser, credentials, summary) {
 
     await gotoPath(page, "/terminology/mapping");
     const publishButton = page.getByRole("button", { name: "发布映射包" });
-    observations.publishEnabled = await publishButton.isEnabled().catch(() => false);
+    // 页面查询（包列表/发布适配器）异步加载完成前按钮短暂禁用，轮询等待而非瞬时判定。
+    observations.publishEnabled = false;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (await publishButton.isEnabled().catch(() => false)) {
+        observations.publishEnabled = true;
+        break;
+      }
+      await page.waitForTimeout(500);
+    }
     steps.push(
       await capture(browser, page, "04-ui-terminology-before-publish.png", "术语页发布入口（适配器健康后）"),
     );
@@ -413,6 +438,14 @@ async function walkOrganizationAdminFullRelease(browser, credentials, summary) {
   const observations = {};
   try {
     const before = await findPackages(context, "pkg-before-full");
+    const alreadyActive = before.packages.find((item) => item.status === "ACTIVE");
+    if (alreadyActive) {
+      observations.versionForFullRelease = alreadyActive.packageVersion;
+      observations.statusAfterFullRelease = "ACTIVE";
+      observations.fullReleased = true;
+      observations.fullAlreadyDoneBefore = true;
+      return;
+    }
     const releasable = before.packages.find(
       (item) => item.status === "PUBLISHED" || item.status === "DRAFT",
     );
@@ -523,6 +556,63 @@ async function verifySilentErrorFixed(browser, credentials, summary) {
   }
 }
 
+// 步骤五：P5-ACT2-04 部署复验补充——按弹窗默认最窄范围用全新版本号构建，
+// 服务端按 409「当前范围没有已确认映射」拒绝（铺底院内码无科室归属），
+// 前台必须出现可见报错且弹窗不误关；失败构建不得产生任何落库副作用。
+async function verifyNarrowScopeBuildErrorVisible(browser, credentials, summary) {
+  const { context, page } = await login(
+    browser,
+    requireAccount(credentials, "knowledge-governor"),
+    "knowledge-governor-narrow",
+  );
+  const steps = [];
+  const observations = {};
+  try {
+    const existing = await findPackages(context, "pkg-before-narrow");
+    await gotoPath(page, "/terminology/mapping");
+    await page.getByRole("button", { name: "构建映射包" }).click();
+    const modal = page.locator(".ant-modal-content", { hasText: "构建术语映射包" });
+    await modal.waitFor({ state: "visible", timeout: 10000 });
+    await modal.getByLabel("新版本").fill("2026.06.2");
+    await modal.getByRole("button", { name: "创建草稿" }).click();
+
+    const messageLocator = page.locator(".ant-message-error, .ant-message-notice-error");
+    await messageLocator.first().waitFor({ state: "visible", timeout: 10000 });
+    observations.visibleErrorShown = await messageLocator.first().isVisible();
+    observations.visibleErrorText = await page
+      .locator(".ant-message")
+      .innerText()
+      .catch(() => null);
+    observations.modalStillOpen = await modal.isVisible();
+    steps.push(
+      await capture(
+        browser,
+        page,
+        "11-ui-terminology-narrow-scope-error.png",
+        "默认最窄范围构建失败的可见错误（P5-ACT2-04 复验·窄范围路径）",
+      ),
+    );
+    if (!observations.visibleErrorShown || !observations.modalStillOpen) {
+      summary.failures.push({
+        step: "P5-ACT2-04 窄范围构建复验失败：错误不可见或弹窗被误关",
+        detail: observations,
+      });
+    }
+
+    const after = await findPackages(context, "pkg-after-narrow");
+    observations.packageCountUnchanged = after.packages.length === existing.packages.length;
+    if (!observations.packageCountUnchanged) {
+      summary.failures.push({
+        step: "窄范围失败构建产生了落库副作用",
+        detail: { before: existing.packages.length, after: after.packages.length },
+      });
+    }
+  } finally {
+    summary.narrowScopeBuildVerification = { observations, steps };
+    await context.close();
+  }
+}
+
 async function main() {
   await mkdir(evidenceDir, { recursive: true });
   const summary = {
@@ -541,6 +631,7 @@ async function main() {
       walkKnowledgeGovernorGrayRelease,
       walkOrganizationAdminFullRelease,
       verifySilentErrorFixed,
+      verifyNarrowScopeBuildErrorVisible,
     ];
     for (const walk of walks) {
       if (summary.failures.length > 0) break;
