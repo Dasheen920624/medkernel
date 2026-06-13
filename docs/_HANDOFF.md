@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-13 幕10 审计导出审批**真实演练已通过**：第一阶段幕0–幕10端到端演练已跑完，**下一步=本批验证/PR/CI/合并后形成第一阶段正式收口**
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕10 审计导出审批。当前工作分支 `codex/p5-act10-audit-export-approval`，base 为 `origin/main=f0179edc`（PR #595「P5幕9系统接入正幕真实演练闭环」已 squash 合并）。134 当前程序仍为幕8修复部署 `f347924a`，幕9/幕10只新增演练脚本与证据文档，未部署新程序。
+- **幕9已收尾事实**：PR #595 已合并，CI 8/8 通过。幕9 canonical run `p5-act9-main-20260613-232500` 保持有效：HIS `p5-his-main-260613232500 ACTIVE/HEALTHY`、EMR `p5-emr-main-260613232500 ACTIVE/NOT_CONNECTED`、ADAPTER/FHIR 接入申请 ONLINE、区域来源可信分级、数据质量报告、死信重放均已闭环。
+- **幕10 canonical PASS**：脚本 `scripts/drill/p5-act10-audit-export-approval.mjs`，`DRILL_RUN_TAG=p5-act10-audit-20260613-234800`，`00-act10-summary.json failures=[]`。证据目录 `docs/release/evidence/p5-second-fresh-drill-20260612/幕10-审计导出审批/`。
+- **审计与审批链路**：合规审计员 `compliance-auditor` 生成审计快照并申请 `AUDIT_EVENT` 导出 `exp-audit-event-p5-act10-60613-234800`；自审批负向探针返回 `403 / ENG-API-004`（申请人与审批人不能相同）；组织管理员 `organization-admin` 审批后生成审批证据 `evd-exp-audit-event-p5-act10-60613-234800-approval`。
+- **真实导出与证据链**：大列表导出任务 `6777d2b2-f0e6-4668-b1bc-df9b8fb1673d` 成功，导出审批登记为 `EXPORTED`；真实 CSV `audit-events-export.csv` 75838 bytes，摘要 `sm3:45da5bd18e13717d78aece32926e7c32f0c991f6a96bf47073c30b30ba0a188d`。审批证据与导出证据均 `SM3_WITH_SM2` 验签通过；证据包 `archiveHash=sm3:a2be67e6e512bc2abfa0cba7f8508b1435edec48ed2b535c2d22b7074608126a`，真实 NDJSON 1950 bytes / 3 行。
+- **运行态诚实降级**：`/system/operations` 返回 `healthStatus=UP`，依赖状态 `UP=2 / DEGRADED=1 / NOT_CONNECTED=3 / MODEL_DISABLED=2`；图谱、搜索、外部 Provider 不伪装连接；Dify 与模型 Provider 为 `MODEL_DISABLED`；备份恢复因无隔离恢复演练证据保持 `DEGRADED/NOT_AVAILABLE`。
+- **诚实收敛说明**：幕10 canonical 前真实跑过 `probe-act10-1781365216275` 和误写日期标签的 `p5-act10-audit-20260614-000500` 收敛批次，未清库；证据包 `itemCount=3` 是真实历史数据叠加，不是重复造证。正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+- **已更新文档**：幕10 README、P5 证据总 README、`docs/audit/p5-second-fresh-drill-checkpoint.md`、`docs/audit/p5-first-phase-closeout.md` 与本 `_HANDOFF`。当前还未提交/推送/PR。
+
+### 当前下一步（精确照做）
+
+1. 补跑收尾验证：`node --check scripts/drill/p5-act10-audit-export-approval.mjs`、`npm test -- src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SystemProviders.test.tsx src/shared/api/hooks.test.ts`、真实性/配置边界/中文注释、`git diff --check`，staged 后再跑 `git diff --cached --check`。
+2. stage 幕10脚本 + 证据 + README/checkpoint/_HANDOFF，提交、推送并创建 PR；CI 全绿后 squash 合并。
+3. 合并后从新 `origin/main` 形成第一阶段正式验收报告和结构冻结证明；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+
+---
+
 ## 2026-06-13 幕9 系统接入正幕**真实演练已通过**：134 上适配器接入、ADAPTER/FHIR 接入申请、回调通道、区域来源、数据质量和死信重放闭环，**下一步=收尾验证并创建 PR 后续幕10 审计导出审批**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕9 系统接入正幕。当前工作分支 `codex/p5-act9-main-stage-drill`，base 为 `origin/main=a6e74673`（PR #594「P5幕8配置包发布治理真实演练闭环」已 squash 合并）。134 当前程序仍为幕8修复部署 `f347924a`，`origin/main` 的 `a6e74673` 已包含同等代码修复 + 幕8证据，幕9本线只新增演练脚本与证据文档，未部署新程序。
