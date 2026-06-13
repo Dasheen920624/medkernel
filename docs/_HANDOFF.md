@@ -1,19 +1,20 @@
 # 会话接力
 
-## 2026-06-13 P5 幕2 第四缺陷 P5-ACT2-04 静默吞错修复本地闭环，幕9 前置就绪待部署
+## 2026-06-13 P5-ACT2-04 修复已部署复验，幕9 发布链揭出 P5-ACT2-05 并本地修复待 PR
 
-- 当前执行线：P5 第一阶段端到端旅程；幕2 证据 PR #576 已合并（`01d361b8`）。准备发布链时发现第四缺陷 `P5-ACT2-04`：术语页六个治理动作（构建/发布/回滚映射包、确认/驳回/批量确认候选）后端失败时前台静默无提示（unhandled rejection），演练脚本曾把重复构建 `TERM.P5.MAPPING` 的 409 `ENG-API-007` 误记为通过。
-- 本地 TDD 闭环：红灯以主线旧版页面跑新增 6 用例 6/6 失败复现；修复=页面接入 `AntdApp.useApp()` message + `getApiErrorMessage` 六动作统一可见报错、失败弹窗不误关；脚本构建判定改服务端回查 `/engine/pkg/packages`。页面套件 22/22、`npm run verify` 666 用例、`npm run build`、四项门禁、`git diff --check` 全过。
-- 幕9 前置：新增 `scripts/drill/mock-third-party-receiver.py`（模拟院内第三方接收系统：`/health` 探活 + `/messages` JSONL 落盘留痕，契约对齐 `HttpIntegrationConnector`），待部署到 134 后由集成运维员真实前台 `/adapter/hub` 完成系统接入。
-- 文档已同步：幕2 README 第 7 节、checkpoint 5.4 节登记 P5-ACT2-04；明确该缺陷不推翻 #576 已归档证据（那轮为首次构建真实成功）。
+- 当前执行线：P5 第一阶段端到端旅程 · 幕9 前置 + 幕2 遗留回收。PR #577（P5-ACT2-04 静默吞错修复 + 模拟接收端）已 squash 合并为 `13b930e4a18adab936d4b4ebbef7c2248983d35a` 并部署 134：manifest/jar 精确匹配（jar SHA `3784b770…a070f`），服务 `active|active|active`，readiness `200|200`，Flyway `118|118|118`，178 表，知识 `0|0|0|0|0|0`，文献根地址长度 0，xattr 噪声 0。发布前备份 `/zoesoft/medkernel/backups/p5-13b930e4-predeploy-20260613-081542` 隔离恢复全过（术语 `5|4|4|1`，临时库残留 0），post-deploy 证据同目录 `evidence/post-deploy-13b930e4.properties`。
+- 幕9 前置已落地：134 上 `medkernel-mock-third-party.service` 运行中（脚本哈希与仓库一致，`/health` 200）；集成运维员真实前台建适配器 `p5-his-gateway` 并健康诊断 HEALTHY；演练脚本 `scripts/drill/p5-act9-integration-release-chain.mjs`。
+- **重要事实更正**：#576 归档的「构建映射包草稿成功」是假阳性——部署日服务端核查 `knowledge_package=0`，草稿从未落库；真实情况是构建弹窗默认最窄范围命中 409「当前范围没有已确认映射」（铺底院内码无科室归属），被 P5-ACT2-04 静默吞错掩盖。修复部署后现场复验：窄范围构建可见 409 报错（含 traceId）→ 改选服务空间范围 → `TERM.P5.MAPPING 2026.06.1` DRAFT 真实落库。
+- 新缺陷 `P5-ACT2-05`（阻断，已本地修复待 PR）：服务空间（TENANT）级映射包灰度发布被术语页前端预校验拦死（「知识包缺少有效组织作用域」），而后端本就支持 `scopeType=ALL` 灰度自动收敛目标机构 10%。修复=`parseReleaseScopeType` 加 `TENANT→ALL`、ALL 时 `scopeValue` 置空；红灯新用例先失败、修复后页面套件 23/23、verify/build 全过。发现态证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入与发布链/defect-p5-act2-05-discovery/`。
+- 134 当前业务状态：适配器 `p5-his-gateway` ACTIVE/HEALTHY；`TERM.P5.MAPPING 2026.06.1` 仍为 DRAFT（灰度被 P5-ACT2-05 拦住）；待修复部署后续跑灰度→全量。
 - 凭据：134 服务器受控文件不变；本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），不入仓库。
-- 权限说明：合并 main 逐 PR 授权；134 SSH/写入需本会话 AskUserQuestion 点名授权。
+- 权限说明：本会话已获 134 SSH/写入授权与 #577 合并授权；合并 main 仍逐 PR 授权。
 
 ## 当前下一步
 
-1. 提交 P5-ACT2-04 修复 + 脚本加严 + 模拟接收端 + 文档，创建 PR，CI 全绿后请求合并授权。
-2. 合并后从精确主线重建制品，备份、隔离恢复留痕后部署 134；部署后复验 manifest/jar/服务/Flyway/知识 0/文献根地址空。
-3. 幕9 前置落地：134 部署模拟第三方接收端（systemd 留痕）→ 集成运维员前台系统接入 → 机构知识治理员灰度发布 `TERM.P5.MAPPING` → 机构管理员 `/tenant/packages` 全量发布 → 接收端 JSONL 留痕归档；同时以加严脚本验证失败提示可见性，回收幕2 遗留。
+1. 提交 P5-ACT2-05 修复 + 幕9 脚本 + 文档更正（幕2 README §5/§7/§8、checkpoint 5.4/5.5），创建 PR，CI 全绿后请求合并授权。
+2. 合并后重建制品、备份留痕、部署 134、post-deploy 复验。
+3. 重跑 `p5-act9-integration-release-chain.mjs` 完成「灰度（知识治理员）→ 全量（机构管理员 /config/packages）」发布链 + P5-ACT2-04 重复构建复验；核查模拟接收端 JSONL 收到 `MEDKERNEL_PACKAGE_RELEASE` 投递并归档证据；提交幕9 证据 PR。
 4. 继续幕3（知识治理诚实边界验证）→ 幕4 规则 → 幕5 路径 → 幕6 临床运行 → 幕7 随访质控 → 幕8 配置包 → 幕10 审计导出审批。
 5. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
 
