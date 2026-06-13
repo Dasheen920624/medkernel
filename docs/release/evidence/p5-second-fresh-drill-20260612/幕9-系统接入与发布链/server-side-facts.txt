@@ -1,0 +1,4 @@
+p5-his-gateway|P5模拟院内HIS网关|REST|ACTIVE|HEALTHY
+TERM.P5.MAPPING|2026.06.1|ACTIVE|knowledge-governor|knowledge-governor
+active
+a4a708088ad7e91721b25aff1c8425297a36da732ce6bb4349c72a8dc1a185cf  /zoesoft/medkernel/mock-third-party/mock-third-party-receiver.py

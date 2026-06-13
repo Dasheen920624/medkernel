@@ -1,5 +1,21 @@
 # 会话接力
 
+## 2026-06-13 幕9 发布链全链闭环：P5-ACT2-04/05 部署复验关闭，幕2 遗留回收完成
+
+- 当前执行线：P5 第一阶段端到端旅程。PR #578（P5-ACT2-05 修复 + 幕9 脚本 + #576 假阳性更正）已 squash 合并为 `7f69c94617cc879304b6841edde95b3ba29a2778` 并部署 134：manifest/jar 精确匹配（jar SHA `e7884cbb…0cde4`），服务 `active|active|active`，readiness `200|200`，Flyway `118|118|118`，178 表，xattr 0。发布前备份 `/zoesoft/medkernel/backups/p5-7f69c946-predeploy-20260613-091455` 隔离恢复全过（知识 `0|0|1|0|0|0` 含演练包、适配器 1、术语 `5|4|4|1`、临时库残留 0）。
+- 幕9 发布链全链真实前台通过（脚本 `p5-act9-integration-release-chain.mjs`，failures=[]）：集成运维员系统接入（适配器 `p5-his-gateway` ACTIVE/HEALTHY）→ 机构知识治理员灰度发布（`TERM.P5.MAPPING 2026.06.1` DRAFT→PUBLISHED）→ 机构管理员 `/config/packages` FULL 全量（PUBLISHED→ACTIVE）；模拟接收端收到灰度/全量两条 `MEDKERNEL_PACKAGE_RELEASE` 投递（JSONL 已归档）。P5-ACT2-04 双路径复验（重复版本/窄范围 409）可见报错含 traceId、弹窗不误关、零落库副作用。幕2 遗留第 1 项（发布链）回收完成；遗留第 2 项（一对多冲突无前台处置入口）仍为观察项。
+- 证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入与发布链/`（README + 11 截图 + 汇总 JSON + 接收端 JSONL + 服务端事实）；checkpoint 5.4/5.5 已闭环更新。
+- 134 业务状态注记：`knowledge_package=1` 为幕9 演练映射包（非正式知识生产）；演练辅助服务 `medkernel-mock-third-party` 常驻（仅 127.0.0.1:9301）。
+- 凭据：134 服务器受控文件不变；本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），不入仓库。
+- 权限说明：本会话已获 134 SSH/写入与 #577/#578 合并授权；合并 main 仍逐 PR 授权。
+
+## 当前下一步
+
+1. 提交幕9 证据 PR（证据目录 + 幕2/checkpoint/_HANDOFF 文档更新 + 演练脚本加固），CI 全绿后请求合并授权。
+2. 继续幕3（知识治理诚实边界验证）→ 幕4 规则 → 幕5 路径 → 幕6 临床运行 → 幕7 随访质控 → 幕8 配置包 → 幕9 正幕（完整系统接入旅程）→ 幕10 审计导出审批。
+3. 一对多冲突前台处置入口保持观察，后续幕无承载页面则登记缺陷。
+4. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
 ## 2026-06-13 P5-ACT2-04 修复已部署复验，幕9 发布链揭出 P5-ACT2-05 并本地修复待 PR
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕9 前置 + 幕2 遗留回收。PR #577（P5-ACT2-04 静默吞错修复 + 模拟接收端）已 squash 合并为 `13b930e4a18adab936d4b4ebbef7c2248983d35a` 并部署 134：manifest/jar 精确匹配（jar SHA `3784b770…a070f`），服务 `active|active|active`，readiness `200|200`，Flyway `118|118|118`，178 表，知识 `0|0|0|0|0|0`，文献根地址长度 0，xattr 噪声 0。发布前备份 `/zoesoft/medkernel/backups/p5-13b930e4-predeploy-20260613-081542` 隔离恢复全过（术语 `5|4|4|1`，临时库残留 0），post-deploy 证据同目录 `evidence/post-deploy-13b930e4.properties`。

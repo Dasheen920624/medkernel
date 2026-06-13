@@ -158,13 +158,16 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 红灯与本地绿灯：新增 TENANT 级包灰度发布回归用例先失败（前端拦截、发布请求未发出）；修复 `parseReleaseScopeType` 增加 `TENANT → ALL` 映射、`scopeType=ALL` 时 `scopeValue` 置空，修复后页面套件 23/23、`npm run verify` 全量与 `npm run build` 通过。
 
+闭环：PR #578 合并为 `7f69c946` 并部署（发布前备份 `p5-7f69c946-predeploy-20260613-091455` 隔离恢复全过、post-deploy 精确匹配、xattr 0）。重跑幕9 发布链全链通过：灰度 `DRAFT → PUBLISHED` → 机构管理员 `/config/packages` FULL 全量 `PUBLISHED → ACTIVE`；模拟第三方接收端收到灰度/全量两条 `MEDKERNEL_PACKAGE_RELEASE` 投递（不同 release plan、载荷 SHA 互异）；P5-ACT2-04 双路径复验（重复版本 409、窄范围 409）均可见报错含 traceId、弹窗不误关、零落库副作用。幕2 遗留第 1 项（发布链依赖健康适配器）回收完成。证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕9-系统接入与发布链/`。
+
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=d8bf7f4fb1e949d853d62579856692ba9d3e48d4`（jar SHA-256 `7445480b73dcfcc98f257efc7e151da05d73bde0f87c341a18cd40bf61a3d54d`）。
-- 服务：`medkernel|nginx|postgresql=active|active|active`。
+- manifest：`source/commit=7f69c94617cc879304b6841edde95b3ba29a2778`（jar SHA-256 `e7884cbba3cbc313595c1f58a61142d9abd0c0bfa07a078705815f222da0cde4`）。
+- 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
 - HTTP / HTTPS readiness：`200|200`。
 - Flyway / 表数：`118|118|118` / 178 张 public 基表。
-- 知识数据：`0|0|0|0|0|0`。
+- 知识数据：`0|0|1|0|0|0`（`knowledge_package=1` 为幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE`，非正式知识生产）。
+- 集成适配器：`p5-his-gateway REST ACTIVE/HEALTHY`（指向演练模拟接收端）。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
 
@@ -172,6 +175,6 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 1. ~~提交 ab213 部署与现场复验证据，创建 PR，等待 CI 全绿并 squash 合并。~~ 已完成（PR #574）。
 2. ~~提交幕2 缺陷修复与首轮证据，CI 全绿后 squash 合并；从精确主线重建制品，备份、隔离恢复后部署 134。~~ 已完成（PR #575 → `d8bf7f4f` 部署，PR #576 证据归档）。
-3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程：驳回钾/钠错配候选 → 批量确认普通候选 → 构建映射包。~~ 已完成（三缺陷现场关闭）。剩余：提交 `P5-ACT2-04` 静默吞错修复与幕9 前置（模拟第三方接收端），合并部署后由集成运维员完成系统接入，回收映射包「灰度→全量」跨角色发布链。
+3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程；提交 `P5-ACT2-04` 静默吞错修复与幕9 前置，回收映射包「灰度→全量」跨角色发布链。~~ 已完成（PR #577 → `13b930e4`、PR #578 → `7f69c946` 两轮部署；P5-ACT2-04/05 关闭；发布链全链走通，幕2 遗留第 1 项回收，见 5.4/5.5 与幕9 证据目录）。
 4. 继续幕3–幕10 跨角色审批与第一阶段端到端旅程；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
 5. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
