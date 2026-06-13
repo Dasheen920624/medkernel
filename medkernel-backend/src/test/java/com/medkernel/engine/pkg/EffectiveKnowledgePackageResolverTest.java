@@ -15,6 +15,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.engine.evaluation.EvaluationIndicator;
+import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
+import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
+import com.medkernel.engine.evaluation.EvaluationSubjectType;
 import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
@@ -51,6 +55,7 @@ class EffectiveKnowledgePackageResolverTest {
     private AssetVersionRepository assetVersionRepository;
     private RuleDefinitionRepository ruleRepository;
     private PathwayTemplateRepository pathwayRepository;
+    private EvaluationIndicatorRepository evaluationRepository;
     private EffectiveKnowledgePackageResolver resolver;
 
     @BeforeEach
@@ -62,9 +67,10 @@ class EffectiveKnowledgePackageResolverTest {
         assetVersionRepository = mock(AssetVersionRepository.class);
         ruleRepository = mock(RuleDefinitionRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
+        evaluationRepository = mock(EvaluationIndicatorRepository.class);
         resolver = new EffectiveKnowledgePackageResolver(
             packageRepository, itemRepository, inheritanceResolver, entitlementService,
-            assetVersionRepository, ruleRepository, pathwayRepository);
+            assetVersionRepository, ruleRepository, pathwayRepository, evaluationRepository);
     }
 
     @Test
@@ -174,16 +180,19 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
-    void resolvesRuleAndPathwayBusinessIdsThroughUnifiedVersionCodes() {
+    void resolvesRulePathwayAndEvaluationBusinessIdsThroughUnifiedVersionCodes() {
         KnowledgePackage pack = tenantPackage("pkg-local", KnowledgePackageStatus.DRAFT);
         PackageItem rule = tenantItem(VersionedAssetType.RULE, "rule-business-1", "1");
         PackageItem pathway = tenantItem(VersionedAssetType.PATHWAY, "pathway-template-1", "1");
+        PackageItem evaluation = tenantItem(VersionedAssetType.EVALUATION, "ei-cap-outcome", "1");
         VersionedAssetIdentity ruleIdentity =
             new VersionedAssetIdentity(VersionedAssetType.RULE, "RULE.CAP.ABX");
         VersionedAssetIdentity pathwayIdentity =
             new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "TPL.CAP.PATHWAY");
+        VersionedAssetIdentity evaluationIdentity =
+            new VersionedAssetIdentity(VersionedAssetType.EVALUATION, "EVAL.CAP.OUTCOME");
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-local"))
-            .thenReturn(List.of(rule, pathway));
+            .thenReturn(List.of(rule, pathway, evaluation));
         when(ruleRepository.findByRuleIdAndTenantId("rule-business-1", "tenant-A"))
             .thenReturn(Optional.of(ruleDefinition(
                 "rule-business-1",
@@ -195,6 +204,12 @@ class EffectiveKnowledgePackageResolverTest {
                 "pathway-template-1",
                 "tenant-A",
                 "TPL.CAP.PATHWAY"
+            )));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("ei-cap-outcome", "tenant-A"))
+            .thenReturn(Optional.of(evaluationIndicator(
+                "ei-cap-outcome",
+                "tenant-A",
+                "EVAL.CAP.OUTCOME"
             )));
         when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 "tenant-A", VersionedAssetType.RULE, "RULE.CAP.ABX", "1"))
@@ -214,10 +229,19 @@ class EffectiveKnowledgePackageResolverTest {
                 "1",
                 "tenant:tenant-A",
                 "disease:ZD0456")));
+        when(assetVersionRepository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                "tenant-A", VersionedAssetType.EVALUATION, "EVAL.CAP.OUTCOME", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-evaluation-declared",
+                VersionedAssetType.EVALUATION,
+                "EVAL.CAP.OUTCOME",
+                "1",
+                "tenant:tenant-A",
+                "quality:followup")));
         when(inheritanceResolver.resolveBatch(any())).thenAnswer(inv -> {
             InheritanceBatchResolveQuery query = inv.getArgument(0);
-            assertThat(query.declaredAssets()).containsExactly(ruleIdentity, pathwayIdentity);
-            assertThat(query.applicableScopes()).contains("pkg:act6", "disease:ZD0456", "2026.06", "ALL");
+            assertThat(query.declaredAssets()).containsExactly(ruleIdentity, pathwayIdentity, evaluationIdentity);
+            assertThat(query.applicableScopes()).contains("pkg:act6", "disease:ZD0456", "quality:followup", "2026.06", "ALL");
             return List.of(
                 new BatchResolvedAsset(
                     ruleIdentity,
@@ -240,6 +264,17 @@ class EffectiveKnowledgePackageResolverTest {
                         false,
                         null,
                         SourceTier.ORG),
+                    false),
+                new BatchResolvedAsset(
+                    evaluationIdentity,
+                    new ResolvedAssetVersion(
+                        assetVersion("av-evaluation-code", VersionedAssetType.EVALUATION, "EVAL.CAP.OUTCOME", "1"),
+                        "/TENANT-A/HOSP-A",
+                        false,
+                        false,
+                        false,
+                        null,
+                        SourceTier.ORG),
                     false));
         });
 
@@ -249,11 +284,11 @@ class EffectiveKnowledgePackageResolverTest {
             "dept-1"
         );
 
-        assertThat(response.items()).hasSize(2);
+        assertThat(response.items()).hasSize(3);
         assertThat(response.items()).extracting(EffectivePackageItem::assetId)
-            .containsExactly("rule-business-1", "pathway-template-1");
+            .containsExactly("rule-business-1", "pathway-template-1", "ei-cap-outcome");
         assertThat(response.items()).extracting(EffectivePackageItem::sourceVersionId)
-            .containsExactly("av-rule-code", "av-pathway-code");
+            .containsExactly("av-rule-code", "av-pathway-code", "av-evaluation-code");
     }
 
     @Test
@@ -647,6 +682,36 @@ class EffectiveKnowledgePackageResolverTest {
             now,
             "tenant-admin",
             "trace-pathway");
+    }
+
+    private EvaluationIndicator evaluationIndicator(String indicatorId, String tenantId, String indicatorCode) {
+        Instant now = Instant.parse("2026-06-06T04:00:00Z");
+        return new EvaluationIndicator(
+            1L,
+            indicatorId,
+            tenantId,
+            indicatorCode,
+            1,
+            "CAP 结局质控",
+            EvaluationSubjectType.PATIENT,
+            "{\"all\":[]}",
+            "{\"all\":[]}",
+            null,
+            "演练指标",
+            "P7D",
+            "tenant:tenant-A",
+            "dept-1",
+            "知识库:CAP",
+            "2026.06",
+            EvaluationIndicatorStatus.ACTIVE,
+            now,
+            "quality-governor",
+            now,
+            now,
+            "tenant-admin",
+            now,
+            "tenant-admin",
+            "trace-evaluation");
     }
 
     private AssetVersion assetVersion(
