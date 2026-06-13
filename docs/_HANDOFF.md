@@ -1,5 +1,24 @@
 # 会话接力
 
+## 2026-06-13 幕6 临床运行**已彻底闭环**：#590 已部署 134、真实医师角色端到端旅程服务端实锤、证据待二次 PR，**下一步=幕7 随访质控**
+
+- 当前执行线：P5 第一阶段端到端旅程 · 幕6 临床运行（规则真实执行 + 医师确认）。**main = `36dabfebe880861b56b071122515fa464b253ae4`**（PR #590 squash 合并，幕6 两缺陷修复）。**134 已部署该精确提交**（jar SHA `971cd389…` = 本地从精确 commit 构建；manifest/服务 active|active|active/HTTPS 200/Flyway 118/178 表/前端 xattr 0）。
+- **部署留痕**：发布前备份 `/zoesoft/medkernel/backups/p5-act6-36dabfeb-predeploy-20260613-193817`，隔离恢复计数全部与基线吻合（flyway 118、178 表、知识包 2、路径模板 1=PATH.ED.DISPOSITION:PUBLISHED、患者路径 0、快照 5、规则 1=P5.ACT4.CRITICAL.K、执行 2、override 0），`destructive_action_performed=false`、`db_preserved=true`；程序自动备份 `deploy-20260613-194033`。**演练数据随部署保留未清库。**
+- **旅程 PASS（脚本 `scripts/drill/p5-act6-clinical-run.mjs`，`failures=[]`）**：集成运维员铺底血钾 6.8 危急值 ACTIVE 快照 → clinical-decision-user `/pathway/patients` **入径 201**（撞 P5-ACT6-01 已修，`PATHWAY_EXECUTE` 拆分生效）→ 规则评估命中 `P5.ACT4.CRITICAL.K`（CRITICAL、STRONG_REMINDER、requiresPhysicianConfirmation=true，证据 K gte 5.5 实际 6.8）→ `/rule/validate` 可达（撞 P5-ACT6-02 已修，守卫只认 rule.read）→ 医师 override 留痕。
+- **服务端 canonical 链回查（psql 实锤）**：snapshot `ctx-8eb83b9d`(ACTIVE) → patient_pathway `pp-782f748d`(NODE_EXECUTING/ASSESS, template pt-69a3aabb) → execution `rex-da10c6b7`(hit=true CRITICAL SUCCESS trigger=result-review) → override `rov-2495f42a`(STRONG_REMINDER, by=clinical-decision-user, 理由含「不开立紧急医嘱」)。
+- **证据**：`docs/release/evidence/p5-second-fresh-drill-20260612/幕6-临床运行/`（README + 00-act6-summary.json + 01–06 截图 + predeploy/postdeploy properties）。**诚实数据说明**：seed/enter 幂等复用；evaluate/override 每跑产生真实新行，终态 execution_log=7（基线2+收敛期5）/override_log=5（canonical + 收敛期3真实 + 1条早期阶段穿透在幕4旧execution上误产的 rov-b8a87cfd，删除被分类器守卫按「保留演练数据」拦下，已如实记录），均真实动作、按纪律保留。
+- **脚本契约教训（幕6 踩坑，下幕复用脚本必读）**：① `/engine/context/snapshots` 载荷=顶层 `patientId/encounterId/orgUnitId/package_version` + 嵌套 `resources:{patient,encounters,observations}`；`encounterType` 只认闭集 `INPATIENT/OUTPATIENT/ED/FOLLOWUP`（急诊用 **ED** 不是 EMERGENCY，否则 `ClinicalSetting.requireCanonical` 抛 ENG-API-001 解析错）。② 路径 enter 与规则 evaluate 端点都要**统一入参信封** `request_id/trace_id/tenant_id/user_id/role_codes/package_version`（@Valid 先于 @PreAuthorize，缺字段先报 400 掩盖权限）——据真实登录 `/security/me` 的 dataScope.tenantId/userId/roles[].code 动态构建。③ enter 要业务标识 `templateId`(pt-…) 非数字主键 `id`；入径响应 patientPathwayId 嵌套在 `data.patientPathway` 下；规则执行无 GET-by-id（404），用列表 `?hit=true` 按 executionId 定位；override 端点不需信封。
+- 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600）。**新会话碰 134 前须重新 AskUserQuestion 点名授权**（本会话授权不跨会话）。
+
+### 当前下一步（精确照做）
+
+1. **【本会话进行中】** 提交幕6 演练脚本 + 证据 + 本接力更新为二次 PR（base=main=`36dabfeb`），CI 全绿后请求用户授权合并（逐 PR）。134 已部署 `36dabfeb`，**无需再部署**。
+2. **【下一步】续幕7 随访质控** → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+3. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
+4. 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
+---
+
 ## 2026-06-13 幕5 路径治理**已彻底闭环**：2 缺陷修复 PR#588 已并入 main、已部署 134、治理侧完整旅程到院级全量服务端实锤，二次证据 PR #589 已并（main=`6ffda360`），**下一步=幕6 临床运行**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕5 路径治理（治理侧完整旅程；患者入径留幕6）。**main = `a73650d729a9bbc1ace490360dd155f9cdd11af6`**（PR #588 squash 合并）。134 已部署该精确提交。
