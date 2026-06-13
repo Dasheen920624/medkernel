@@ -102,6 +102,10 @@ public final class DefaultPermissionPolicy {
             MENU_IMPLEMENTATION_GUIDE,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_CONFIG_PACKAGES,
+            // 机构管理员是红线规则唯一职责分离合规发布人（作者与委员会会签人都被排除，
+            // 客户租户内仅它既非作者亦非会签人且持 rule.publish），必须能进入规则配置页推进
+            // 影子/灰度/院级全量。见 P5-ACT4-02。
+            MENU_RULE_DEFINITIONS,
             MENU_QC_DASHBOARD,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,

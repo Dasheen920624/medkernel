@@ -721,57 +721,73 @@ async function simulateHit(browser, credentials, summary) {
   }
 }
 
-// ── 缺陷发现：质量治理员是红线规则法定第二名独立委员，却被前端路由守卫挡在规则页外 ──
-async function discoverQualityGovernorBlocked(browser, credentials, summary) {
-  const discoveryDir = path.join(evidenceDir, "defect-p5-act4-01-discovery");
-  await mkdir(discoveryDir, { recursive: true });
-  const { context, page } = await login(
-    browser,
-    requireAccount(credentials, "quality-governor"),
-    "quality-governor-discover",
-  );
-  const observations = {};
-  try {
-    const me = await apiGet(context, "/security/me", "quality-me");
-    const menuKeys = me.body?.data?.menuKeys ?? [];
-    const permCodes = (me.body?.data?.permissions ?? []).map((p) => p.code);
-    observations.hasRuleRead = permCodes.includes("rule.read");
-    observations.hasRuleWrite = permCodes.includes("rule.write");
-    observations.hasEvaluationPublish = permCodes.includes("evaluation.publish");
-    observations.hasRuleDefinitionsMenu = menuKeys.includes("rule-definitions");
+// ── 缺陷发现：红线规则法定治理角色被前端路由守卫挡在规则页外 ──
+// P5-ACT4-01 质量治理员（法定第二名独立委员）；P5-ACT4-02 机构管理员（唯一职责分离合规发布人）。
+// 复跑只针对仍开放的缺陷探测；P5-ACT4-01（质量治理员）已修复部署，其发现证据已归档，
+// 不再纳入复跑以免覆盖既有证据。
+const DISCOVERY_TARGETS = [
+  {
+    role: "organization-admin",
+    defect: "P5-ACT4-02",
+    dir: "defect-p5-act4-02-discovery",
+    title: "机构管理员缺 menu.rule-definitions，红线规则唯一职责分离合规发布人无法经真实前台推进影子/灰度/全量",
+    backendFacts:
+      "validateTransition 要求作者≠会签人≠发布人；客户租户委员会必为临床+质量（皆会签人）、作者=知识治理员，唯一合规发布人只能是机构管理员；其持 rule.publish 但 withOnlyMenus 未含 MENU_RULE_DEFINITIONS",
+  },
+];
 
-    await gotoPath(page, "/rule/definitions");
-    await page.waitForTimeout(1000);
-    observations.detailButtonVisible = await page
-      .getByRole("button", { name: "查看配置与试运行" })
-      .first()
-      .isVisible()
-      .catch(() => false);
-    observations.pageText = (await page.locator("body").innerText().catch(() => "")).slice(0, 400);
-
-    const finalPath = path.join(discoveryDir, "01-quality-governor-blocked.png");
-    const rawPath = path.join(discoveryDir, ".raw-blocked.png");
-    await page.screenshot({ path: rawPath, fullPage: false });
-    await renderWithUrlBar(browser, rawPath, finalPath, page.url());
-
-    const record = {
-      defect: "P5-ACT4-01",
-      title: "质量治理员缺 menu.rule-definitions，红线规则法定第二名独立会签无法经真实前台完成",
-      generatedAt: new Date().toISOString(),
-      environment: baseUrl,
-      backendFacts:
-        "COMMITTEE_ROLES 含 QUALITY_GOVERNOR；validateSignoff 禁止作者自审；signoff 端点 @perm.hasAny('rule.publish','rule.write','evaluation.publish') 接纳质量治理员",
-      observations,
-      screenshot: "01-quality-governor-blocked.png",
-    };
-    await writeFile(
-      path.join(discoveryDir, "00-discovery.json"),
-      `${JSON.stringify(record, null, 2)}\n`,
-      "utf8",
+async function discoverRoleRuleAccess(browser, credentials, summary) {
+  summary.defectDiscovery = [];
+  for (const target of DISCOVERY_TARGETS) {
+    const discoveryDir = path.join(evidenceDir, target.dir);
+    await mkdir(discoveryDir, { recursive: true });
+    const { context, page } = await login(
+      browser,
+      requireAccount(credentials, target.role),
+      `${target.role}-discover`,
     );
-    summary.defectDiscovery = record;
-  } finally {
-    await context.close();
+    const observations = {};
+    try {
+      const me = await apiGet(context, "/security/me", `${target.role}-me`);
+      const menuKeys = me.body?.data?.menuKeys ?? [];
+      const permCodes = (me.body?.data?.permissions ?? []).map((p) => p.code);
+      observations.hasRuleRead = permCodes.includes("rule.read");
+      observations.hasRulePublish = permCodes.includes("rule.publish");
+      observations.hasRuleDefinitionsMenu = menuKeys.includes("rule-definitions");
+
+      await gotoPath(page, "/rule/definitions");
+      await page.waitForTimeout(1000);
+      observations.detailButtonVisible = await page
+        .getByRole("button", { name: "查看配置与试运行" })
+        .first()
+        .isVisible()
+        .catch(() => false);
+      observations.pageText = (await page.locator("body").innerText().catch(() => "")).slice(0, 400);
+
+      const finalPath = path.join(discoveryDir, `01-${target.role}-rule-page.png`);
+      const rawPath = path.join(discoveryDir, ".raw-blocked.png");
+      await page.screenshot({ path: rawPath, fullPage: false });
+      await renderWithUrlBar(browser, rawPath, finalPath, page.url());
+
+      const record = {
+        defect: target.defect,
+        role: target.role,
+        title: target.title,
+        generatedAt: new Date().toISOString(),
+        environment: baseUrl,
+        backendFacts: target.backendFacts,
+        observations,
+        screenshot: `01-${target.role}-rule-page.png`,
+      };
+      await writeFile(
+        path.join(discoveryDir, "00-discovery.json"),
+        `${JSON.stringify(record, null, 2)}\n`,
+        "utf8",
+      );
+      summary.defectDiscovery.push(record);
+    } finally {
+      await context.close();
+    }
   }
 }
 
@@ -925,12 +941,14 @@ async function governanceWalk(browser, credentials, summary) {
       { fromStates: ["COMMITTEE"], toCommittee: 2, skipIf: (g) => g && (g.committeeApprovalCount ?? 0) >= 2 },
     );
 
-    // 5.5 临床治理员：COMMITTEE(2/2) → 进入影子运行。
+    // 5.5 机构管理员：COMMITTEE(2/2) → 进入影子运行。
+    // 发布人必须与作者、会签人相互分离（validateTransition）；客户租户里临床/质量治理员都是会签人，
+    // 知识治理员是作者，唯一职责分离合规且持 rule.publish 的发布人是机构管理员。
     await step(
-      "clinical-governor",
+      "organization-admin",
       {
         buttonName: "进入影子运行",
-        reason: "双人独立会签达成，进入影子运行采集真实命中样本。",
+        reason: "双人独立会签达成，机构管理员作为独立发布人进入影子运行采集真实命中样本。",
         captureName: "12-ui-gov-enter-shadow.png",
         label: "进入影子运行",
         needsEnable: true,
@@ -938,12 +956,12 @@ async function governanceWalk(browser, credentials, summary) {
       { fromStates: ["COMMITTEE"], toState: "SHADOW", skipIf: (g) => g && ["SHADOW", "CANARY", "FULL", "MONITOR"].includes(g.state) },
     );
 
-    // 5.6 临床治理员：SHADOW → 进入灰度验证(CANARY)。
+    // 5.6 机构管理员：SHADOW → 进入灰度验证(CANARY)。
     await step(
-      "clinical-governor",
+      "organization-admin",
       {
         buttonName: "进入灰度验证",
-        reason: "影子运行无异常，进入灰度验证按比例放量。",
+        reason: "影子运行无异常，机构管理员进入灰度验证按比例放量。",
         captureName: "13-ui-gov-enter-canary.png",
         label: "进入灰度验证",
         needsEnable: true,
@@ -997,7 +1015,7 @@ async function main() {
       await simulateHit(browser, credentials, summary);
     }
     if (phase === "discover") {
-      await discoverQualityGovernorBlocked(browser, credentials, summary);
+      await discoverRoleRuleAccess(browser, credentials, summary);
     }
     if ((runAll || phase === "govern") && summary.failures.length === 0) {
       await governanceWalk(browser, credentials, summary);
