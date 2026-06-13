@@ -114,8 +114,10 @@ postMessage 回宿主 →（可选 override 留痕）→ ⑥ 服务端回查留�
 ## 8. 推荐内容与资产授权（全真、不造假）
 
 - 推荐卡内容来自**已发布知识资产**：当前主要内嵌在规则动作定义（summary/detail/sources/severity，带 GRADE 证据强度），运行时 `RecommendationDeterministicMatcher` 评估已发布规则命中产卡。
-- 🆕 场景的规则经**幂等 seed 脚本走真治理 API 授权发布** `scripts/sandbox/seed-scenarios.mjs`：对每条规则真实"创建 DSL → 测试用例 → 灰度 → 全量发布"（复用幕4 脚本基建），跑完即真发布资产，任意环境（134/本地）可复现。
+- **全场景规则经幂等 seed 脚本走真治理 API 授权发布** `scripts/sandbox/seed-scenarios.mjs`：对每条规则真实"创建 DSL → 测试用例 → 灰度 → 全量发布"（复用幕4 脚本基建），跑完即真发布资产，任意环境（134/本地）可复现。
 - 备选 Flyway 直插被否（绕过治理门，违背全真）。
+- **【清库前提】目前 134 上所有数据均为演练数据、后续会整库清空**。因此沙盘内容**必须 100% 由 seed 从干净库复现，不得依赖任何既有演练数据**——包括 #1 高钾场景**不假设幕4 的 `P5.ACT4.CRITICAL.K` 持久存在**，沙盘自带并 seed 自有规则（见 §24 数据案例的 `SBX.LAB.CRITICAL.K`）。`seed-scenarios.mjs` 覆盖**全部场景（含 #1）**；上下文铺底数据亦由沙盘自带（§24），不复用其它幕的患者。
+- **完整、有效、可直接 seed 的数据案例见 §24（含上下文载荷 + 规则 DSL + 测试用例 + 期望卡，schema 已对齐契约）**，AI 团队据此即可从干净库复现全部场景。
 
 ## 9. 完整路径检查器
 
@@ -309,6 +311,84 @@ Resp SandboxRunResponse {
 5. **嵌入卡来源**：推荐卡内容来自已发布规则动作定义（summary/detail/sources/severity）；无规则=无卡，场景标 `pending-seed` 不伪装。
 6. **权限两处断言 + 全量测试**：改 `DefaultPermissionPolicy` 角色菜单/权限白名单须同步 `PermissionDimensionModelTest` 与 `DefaultPermissionPolicyTest` 两处，发布前跑全量 `mvn test`（非定向类），否则 CI `jdk-matrix-smoke` 全红。
 7. **医疗安全**：`BLOCK` 必须带强制 override + 不阻断宿主主流程（§12）；动作以提醒/确认为主，不自动开嘱。
-8. **生产纪律**（若部署 134）：发布前备份 + 隔离恢复 + 留痕（`destructive_action_performed=false`）；`mk-publish.sh --source <全哈希>` 内置 `COPYFILE_DISABLE=1 tar --no-xattrs`；post-deploy 核 jar SHA=本地构建/服务 active/Flyway/xattr 0/数据保留；演练数据保留不清库（生产库 DELETE 会被守卫拦，演练脚本须设计成幂等）。
+8. **生产纪律 + 清库前提**（若部署 134）：发布前备份 + 隔离恢复 + 留痕（`destructive_action_performed=false`）；`mk-publish.sh --source <全哈希>` 内置 `COPYFILE_DISABLE=1 tar --no-xattrs`；post-deploy 核 jar SHA=本地构建/服务 active/Flyway/xattr 0。**目前 134 数据均为演练数据、后续会整库清空**——沙盘**不依赖任何既有数据**，全部场景（含 #1 规则与铺底患者）由 `seed-scenarios.mjs` 幂等复现（见 §24 数据案例）；清库后重跑 seed 即可恢复全沙盘。勿在库内 ad-hoc DELETE（守卫会拦且无意义），脚本一律幂等。
 9. **CSRF**：API POST 须带 `X-XSRF-TOKEN`（双提交 cookie）。
 10. **诚实边界**：不接真实模型厂商（`MODEL_DISABLED` 降级）；不开放 P6 正式知识生产；沙盘资产属演练数据域。
+
+---
+
+## 24. 完整数据案例（供 AI 团队从干净库直接 seed）
+
+> **口径**：① 全部 schema 对齐 §16 契约与 canonical 资源 DTO（字段名/枚举/类型已核对源码）；② **#1 为已端到端验证的金样**（幕6 实跑通过）；③ #2–#10 临床数值为**合理示例，上线前须临床评审**（工程 schema 有效，可直接 seed 触发）；④ 时间戳 `<isoNow±N>` 由 seed 脚本运行时填真（ISO-8601 Instant）；⑤ **沙盘自带全部铺底患者与规则，不依赖任何其它幕数据**。
+>
+> **公共字段约定**（下列资源省略时按此填）：每个 canonical 资源含 `sourceSystem`（"SBX-HIS"/"SBX-LIS"）、`sourceRecordId`（唯一）、`mappedVersion`="2026.06.1"、`eventTime`/`receivedTime`=`<isoNow-30>`/`<isoNow-25>`、`qualityStatus`="VALID"。上下文快照外层信封见 §16.1（`patientId/encounterId/orgUnitId/package_version/request_id/trace_id/tenant_id/user_id/role_codes` 取自登录态）。规则 `RuleCreateRequest` 外层信封见 §23.2。`ContextSnapshotResources` 无 `orders` 字段——医嘱/用药用 `medications`，操作用 `procedures`，诊断用 `conditions`，报告用 `diagnosticReports`，随访用 `followUps`。DSL `fact` 路径须在 `GET /engine/context/field-catalog` 内（实现时核对）。
+
+### 24.1 `SBX.LAB.CRITICAL.K` · result-review · LAB / STRONG_REMINDER / CRITICAL 【金样·已验证】
+铺底：patientId=`SBX-LAB-K-001`、encounterId=`SBX-LAB-K-ENC-001`、encounterType=`ED`。
+`resources.observations[0]`：
+```json
+{"observationId":"SBX-OBS-K-001","code":"2823-3","displayName":"血清钾","valueNumeric":6.8,"unit":"mmol/L","referenceRange":"3.5-5.5","criticalFlag":"HIGH","sourceSystem":"SBX-LIS","sourceRecordId":"SBX-LIS-K-001","mappedVersion":"2026.06.1","eventTime":"<isoNow-30>","receivedTime":"<isoNow-25>","qualityStatus":"VALID"}
+```
+规则 DSL：
+```json
+{"trigger":"result-review","version":"cdshooks-1.0","conditions":{"all":[{"fact":"observations[].valueNumeric","operator":"gte","value":5.5}]},"actions":[{"actionCode":"STRONG_REMINDER","severity":"CRITICAL","summary":"检验结果达到危急值，需立即回报并人工确认","detail":"命中后须在 15 分钟内完成危急值回报、确认与记录，不自动开立或修改医嘱。","requiresPhysicianConfirmation":true,"sources":[{"label":"检验危急值管理制度"}]}]}
+```
+`RuleCreateRequest`：ruleType=`LAB`、riskLevel=`CRITICAL`、ruleCode=`SBX.LAB.CRITICAL.K`、name="血钾危急值红线"、sourceRef="检验危急值管理制度"、changeSummary="沙盘高钾红线"。
+测试用例：阳=K 6.8→命中；阴=K 4.5→不命中；边界=K 5.5→命中。
+期望卡：title=summary、severity=CRITICAL、requiresPhysicianConfirmation=true。
+
+### 24.2 `SBX.MED.WARFARIN.ASA` · medication-prescribe · ORDER / STRONG_REMINDER / HIGH
+铺底：patientId=`SBX-MED-WA-001`、encounterId=`SBX-MED-WA-ENC-001`、encounterType=`INPATIENT`。
+`resources.medications`（已在用华法林 + 拟开阿司匹林）：
+```json
+[
+ {"medicationId":"SBX-MED-WARF-001","code":"B01AA03","displayName":"华法林钠片","dose":3,"doseUnit":"mg","route":"口服","frequency":"qd","durationDays":"30","prescriptionStatus":"ACTIVE","sourceSystem":"SBX-HIS","sourceRecordId":"SBX-RX-WARF-001","mappedVersion":"2026.06.1","eventTime":"<isoNow-1440>","receivedTime":"<isoNow-1430>","qualityStatus":"VALID"},
+ {"medicationId":"SBX-MED-ASA-001","code":"N02BA01","displayName":"阿司匹林肠溶片","dose":100,"doseUnit":"mg","route":"口服","frequency":"qd","durationDays":"30","prescriptionStatus":"PROPOSED","sourceSystem":"SBX-HIS","sourceRecordId":"SBX-RX-ASA-001","mappedVersion":"2026.06.1","eventTime":"<isoNow-5>","receivedTime":"<isoNow-4>","qualityStatus":"VALID"}
+]
+```
+规则 DSL：
+```json
+{"trigger":"medication-prescribe","version":"cdshooks-1.0","conditions":{"all":[{"fact":"medications[].code","operator":"in","value":["B01AA03"]},{"fact":"medications[].code","operator":"in","value":["N02BA01"]}]},"actions":[{"actionCode":"STRONG_REMINDER","severity":"HIGH","summary":"华法林与阿司匹林联用出血风险升高，需医师确认","detail":"抗凝与抗血小板联用显著增加出血风险；如确需联用请评估获益风险并加强监测，本提醒不自动停改医嘱。","requiresPhysicianConfirmation":true,"sources":[{"label":"抗栓药物联用安全用药指引（示例·待临床评审）"}]}]}
+```
+ruleType=`ORDER`、riskLevel=`HIGH`、ruleCode=`SBX.MED.WARFARIN.ASA`。测试：阳=两药均在→命中；阴=仅华法林→不命中；边界=阿司匹林 status=PROPOSED 也计入。
+
+### 24.3 `SBX.ORDER.CONTRAST.CKD` · order-sign · ORDER / BLOCK / HIGH
+铺底：patientId=`SBX-CT-CKD-001`、encounterType=`OUTPATIENT`。`resources.observations`：eGFR `{"observationId":"SBX-OBS-EGFR-001","code":"62238-1","displayName":"eGFR","valueNumeric":24,"unit":"mL/min/1.73m2","referenceRange":">=90","criticalFlag":"LOW", …公共字段}`；`resources.medications`：拟开含碘造影剂 `{"medicationId":"SBX-MED-CONTRAST-001","code":"V08AB","displayName":"碘海醇注射液","prescriptionStatus":"PROPOSED", …}`。
+DSL：`conditions.all`=[`observations[].valueNumeric`(code 过滤 eGFR) `lt` 30，`medications[].code` `in` ["V08AB"]]；`actions`=[`{actionCode:"BLOCK",severity:"HIGH",summary:"肾功能不全（eGFR<30）拟用含碘造影剂，造影剂肾病高风险",detail:"强阻断提示；如临床必需，须医师 override 并记录获益风险评估与水化方案，**不阻断 HIS 主流程**。",requiresPhysicianConfirmation:true,sources:[{label:"对比剂使用安全管理（示例·待评审）"}]}`]。**BLOCK 须带 override 出口（§12/§23.7）**。
+
+### 24.4 `SBX.DX.ACS` · patient-view · DIAGNOSIS / REMIND / MEDIUM
+铺底：patientId=`SBX-ACS-001`、encounterType=`ED`。`resources.conditions`：`{"conditionId":"SBX-COND-CP-001","code":"R07.4","codeSystem":"ICD-10","displayName":"胸痛","severity":"MODERATE", …}`；`resources.observations`：肌钙蛋白 `{"code":"6598-7","displayName":"肌钙蛋白T","valueNumeric":0.9,"unit":"ng/mL","referenceRange":"<0.014","criticalFlag":"HIGH", …}`。
+DSL：`conditions.all`=[`conditions[].code` `in` ["R07.4"]，`observations[].valueNumeric`(肌钙蛋白) `gt` 0.014]；`actions`=[`{actionCode:"REMIND",severity:"MEDIUM",summary:"胸痛 + 肌钙蛋白升高，提示急性冠脉综合征可能，建议评估",detail:"建议完善心电图与心肌酶动态、按 ACS 路径评估；提醒性质，不自动开嘱。",requiresPhysicianConfirmation:false,sources:[{label:"ACS 诊疗提示（示例·待评审）"}]}`]。
+
+### 24.5 `SBX.REPORT.CRITICAL` · result-review · REPORT / STRONG_REMINDER / HIGH
+铺底：patientId=`SBX-RPT-001`、encounterType=`INPATIENT`。`resources.diagnosticReports`：`{"reportId":"SBX-RPT-LUNG-001","reportType":"CT","conclusion":"右肺占位，恶性不除外","keyFindings":["分叶征","毛刺征"],"signedBy":"SBX-DR-RAD-001","signedAt":"<isoNow-60>", …公共字段}`。
+DSL：`conditions.all`=[`diagnosticReports[].conclusion` `contains` "恶性"]；`actions`=[`{actionCode:"STRONG_REMINDER",severity:"HIGH",summary:"影像报告含危急/恶性征象，需及时回报与确认",detail:"按危急报告流程在规定时限内回报主管医师并记录，不自动开嘱。",requiresPhysicianConfirmation:true,sources:[{label:"危急值/危急报告管理制度（示例·待评审）"}]}`]。
+
+### 24.6 `SBX.DISCHARGE.CHECK` · discharge-sign · DISCHARGE / REMIND / MEDIUM
+铺底：patientId=`SBX-DC-001`、encounterType=`INPATIENT`。`resources.conditions`：房颤 `{"code":"I48","codeSystem":"ICD-10","displayName":"心房颤动", …}`；`resources.medications`：出院带药**未含抗凝**（仅示例一条非抗凝药）；`resources.followUps`：空（关键随访缺失）。
+DSL：`conditions.all`=[`conditions[].code` `in` ["I48"]，`medications[].code` `not`(`in` 抗凝类)] 或 `followUps` `exists`=false；`actions`=[`{actionCode:"REMIND",severity:"MEDIUM",summary:"房颤出院未见抗凝医嘱/关键随访未预约，请核对出院质量",detail:"出院核查提醒；请确认抗凝指征与随访计划，提醒性质不自动开嘱。",requiresPhysicianConfirmation:false,sources:[{label:"出院质控核查清单（示例·待评审）"}]}`]。
+
+### 24.7 `SBX.FOLLOWUP.INR` · followup-alert · FOLLOWUP / STRONG_REMINDER / HIGH
+铺底：patientId=`SBX-FU-001`、encounterType=`FOLLOWUP`。`resources.followUps`：`{"followUpId":"SBX-FU-INR-001","planType":"抗凝随访","plannedAt":"<isoNow-10>","questionnaireId":"SBX-Q-INR","abnormalFlag":"HIGH", …公共字段}`；`resources.observations`：INR `{"code":"6301-6","displayName":"INR","valueNumeric":4.5,"unit":"","referenceRange":"2.0-3.0","criticalFlag":"HIGH", …}`。
+DSL：`conditions.all`=[`observations[].valueNumeric`(INR) `gt` 3.0]；`actions`=[`{actionCode:"STRONG_REMINDER",severity:"HIGH",summary:"随访 INR 超治疗窗（>3.0）未处理，出血风险，需医师确认",detail:"建议复核华法林剂量并安排复查，必要时回院；不自动调整医嘱。",requiresPhysicianConfirmation:true,sources:[{label:"抗凝随访管理（示例·待评审）"}]}`]。
+
+### 24.8 `SBX.INSURANCE.DRG` · order-sign · INSURANCE / INFO / LOW
+铺底：patientId=`SBX-INS-001`、encounterType=`INPATIENT`。`resources.medications`/`procedures`：一项高价且与主诊断弱相关项（示例）。
+DSL：`conditions.all`=[`procedures[].code` `in` [示例高价码]]；`actions`=[`{actionCode:"INFO",severity:"LOW",summary:"该项目可能影响 DRG/DIP 入组与超支，供参考",detail:"信息性提示，不影响临床决策与开立；供医保合理性参考。",requiresPhysicianConfirmation:false,sources:[{label:"DRG/DIP 合理性提示（示例·待评审）"}]}`]。
+
+### 24.9 `SBX.QUALITY.RECORD` · patient-view · QUALITY / REMIND / MEDIUM
+铺底：patientId=`SBX-QC-001`、encounterType=`INPATIENT`。`resources.documents`：病历文档缺关键要素（示例：`documents[]` 缺主诉/现病史标记）。
+DSL：`conditions.all`=[`documents[].<缺要素标记>` `exists`=false]；`actions`=[`{actionCode:"REMIND",severity:"MEDIUM",summary:"病历内涵质控：检出关键要素缺失，请补全",detail:"病历质量提醒；请按内涵质控要求补全要素。",requiresPhysicianConfirmation:false,sources:[{label:"病历内涵质控标准（示例·待评审）"}]}`]。
+
+### 24.10 `SBX.RECORD.COMPLETENESS` · patient-view · RECORD / INFO / LOW
+铺底：patientId=`SBX-REC-001`、encounterType=`OUTPATIENT`。`resources.documents`：结构化字段不完整（示例）。
+DSL：`conditions.all`=[`documents[].<结构化完整度>` `lt` 阈值]；`actions`=[`{actionCode:"INFO",severity:"LOW",summary:"病历结构化完整性不足，建议完善",detail:"信息性提示，便于后续检索与质控。",requiresPhysicianConfirmation:false,sources:[{label:"病历结构化规范（示例·待评审）"}]}`]。
+
+### 24.11 外圈引擎场景数据（#11-15，阶段C）
+- **#11 路径**：复用 §24.1 的 K 危急值快照 + 已 seed 的 `PATH.ED.DISPOSITION`（沙盘 seed 自带发布，startNode=ASSESS）；入径 patientId=`SBX-LAB-K-001`。
+- **#12 推荐综合卡（SUGGEST_ORDER）**：trigger 带 `candidateCards`：`{"cardCode":"SBX-CARD-ORDERSET-001","title":"建议开立急查心肌酶+心电图组套","summary":"...","suggestedAction":"SUGGEST_ORDER","requiresPhysicianConfirmation":true,"aiGenerated":false,"sourceSummary":"ACS 评估组套（示例·待评审）","sources":[{"label":"..."}]}`。
+- **#13 随访**：§24.7 的 followUps 计划 + 异常回院事件（参照 main 幕7 端点）。
+- **#14 质控**：§24.9 的质控缺陷 → 评估指标命中→问题→整改→复核（参照 main 幕7）。
+- **#15 嵌入三模式**：同一 `/embed/launch` 兑换契约；SDK/API 为契约一致的接入演示（spec §7 #15）。
+
+> **seed 落地**：以上 #1–#10 规则与铺底快照由 `scripts/sandbox/seed-scenarios.mjs` + 沙盘铺底脚本幂等发布/铺底；清库后重跑即全量恢复。临床 `<示例·待评审>` 项须临床定稿后替换再上线。
