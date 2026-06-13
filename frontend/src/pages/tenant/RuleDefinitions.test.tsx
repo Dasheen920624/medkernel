@@ -1412,6 +1412,21 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.type(screen.getByLabelText("治理说明"), "院级管理员确认全量激活");
       await user.click(screen.getByRole("button", { name: /院级全量激活/ }));
 
+      // 高风险规则院级全量激活须先采集独立电子签名，不再直接推进。
+      const signatureHash = "a".repeat(64);
+      const signatureModalTitle = await screen.findByText("院级全量激活 · 独立电子签名");
+      expect(signatureModalTitle).toBeInTheDocument();
+      expect(apiMocks.transitionRuleGovernance).not.toHaveBeenCalled();
+
+      await user.type(screen.getByLabelText("电子签名 ID"), "esig-001");
+      const signedAtField = screen.getByLabelText("签名时间");
+      await user.clear(signedAtField);
+      await user.type(signedAtField, "2026-06-13T12:00:00Z");
+      await user.type(screen.getByLabelText("复核人 ID"), "clinical-governor");
+      await user.type(screen.getByLabelText("复核人姓名"), "临床治理负责人");
+      await user.type(screen.getByLabelText("电子签名摘要（SHA-256）"), signatureHash);
+      await user.click(screen.getByRole("button", { name: "电子签名并全量激活" }));
+
       await waitFor(() =>
         expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
@@ -1419,6 +1434,15 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           targetState: "FULL",
           impactDigest: "sha256:impact-full",
           reason: "院级管理员确认全量激活",
+          publishEvidence: {
+            electronicSignature: {
+              signatureId: "esig-001",
+              signerId: "clinical-governor",
+              signerName: "临床治理负责人",
+              signedAt: new Date("2026-06-13T12:00:00Z").toISOString(),
+              signatureHash,
+            },
+          },
         }),
       );
     },

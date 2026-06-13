@@ -14,6 +14,7 @@
 //   00-act4-summary.json 与 NN-ui-*.png（全部带 URL 栏）。
 // 凭据：默认读取本机受控副本 /tmp/p5-14-role-drill-credentials-20260612.json（权威文件在服务器
 //   /zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json，权限 600）；凭据不入仓库。
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -800,8 +801,8 @@ async function openReleaseTab(page) {
   return drawer;
 }
 
-// 通用治理动作：填治理说明 → （如需）轮询按钮可用 → 点击 → 截图。
-async function performGovernanceAction(browser, page, drawer, { buttonName, reason, captureName, label, needsEnable }) {
+// 通用治理动作：填治理说明 → （如需）轮询按钮可用 → 点击 → （如需）填独立电子签名 → 截图。
+async function performGovernanceAction(browser, page, drawer, { buttonName, reason, captureName, label, needsEnable, signature }) {
   await page.locator("#rule-release-reason").fill(reason);
   const button = drawer.getByRole("button", { name: buttonName }).first();
   if (needsEnable) {
@@ -812,9 +813,26 @@ async function performGovernanceAction(browser, page, drawer, { buttonName, reas
   }
   const enabled = await button.isEnabled().catch(() => false);
   await button.click();
+  await page.waitForTimeout(1500);
+  let signatureProvided = false;
+  if (signature) {
+    // 高风险规则院级全量激活弹出独立电子签名弹窗，复核人须不同于发布人。
+    const modal = page.locator(".ant-modal-content", { hasText: "独立电子签名" });
+    await modal.waitFor({ state: "visible", timeout: 10000 });
+    await modal.getByLabel("电子签名 ID").fill(signature.signatureId);
+    const signedAt = modal.getByLabel("签名时间");
+    await signedAt.fill("");
+    await signedAt.fill(signature.signedAt);
+    await modal.getByLabel("复核人 ID").fill(signature.signerId);
+    await modal.getByLabel("复核人姓名").fill(signature.signerName);
+    await modal.getByLabel("电子签名摘要（SHA-256）").fill(signature.signatureHash);
+    signatureProvided = true;
+    await modal.getByRole("button", { name: "电子签名并全量激活" }).click();
+    await modal.waitFor({ state: "hidden", timeout: 20000 }).catch(() => undefined);
+  }
   await page.waitForTimeout(2500);
   const step = await capture(browser, page, captureName, label);
-  return { enabled, step };
+  return { enabled, step, signatureProvided };
 }
 
 async function governanceWalk(browser, credentials, summary) {
@@ -970,14 +988,25 @@ async function governanceWalk(browser, credentials, summary) {
     );
 
     // 5.7 机构管理员：CANARY → 院级全量激活(FULL)。
+    // 红线规则全量发布须独立电子签名：复核人取临床治理员（独立于发布人机构管理员）。
+    const fullSignature = {
+      signatureId: `esig-p5-act4-${Date.now()}`,
+      signerId: roleAccounts["clinical-governor"].username,
+      signerName: "临床治理负责人",
+      signedAt: new Date().toISOString(),
+      signatureHash: createHash("sha256")
+        .update(`p5-act4-full-${RULE.code}-${Date.now()}`)
+        .digest("hex"),
+    };
     await step(
       "organization-admin",
       {
         buttonName: "院级全量激活",
-        reason: "灰度验证无异常，机构管理员批准院级全量激活。",
+        reason: "灰度验证无异常，机构管理员批准院级全量激活并留存独立电子签名。",
         captureName: "14-ui-gov-activate-full.png",
-        label: "院级全量激活",
+        label: "院级全量激活（含独立电子签名）",
         needsEnable: true,
+        signature: fullSignature,
       },
       { fromStates: ["CANARY"], toState: "FULL", skipIf: (g) => g && ["FULL", "MONITOR"].includes(g.state) },
     );
