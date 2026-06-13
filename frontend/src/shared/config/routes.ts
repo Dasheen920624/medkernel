@@ -617,7 +617,9 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "knowledge-configuration",
     placement: "hidden",
     hidden: true,
-    requiredPermissions: ["menu.rule-definitions", "rule.read"],
+    // 临床执行侧（医师人工确认危急值提醒），只需 rule.read；不要求 menu.rule-definitions（治理侧菜单），
+    // 否则 clinical-decision-user 无法完成医师确认闭环。见 P5-ACT6-02。
+    requiredPermissions: ["rule.read"],
     experience: readonlyExperience(
       "临床决策使用者",
       "核查规则提示的依据和状态",

@@ -68,8 +68,9 @@ class PathwayEngineApiContractTest {
 
     @Test
     void advanceUsesPatientPathwayResourceRouteAndRequiresUnifiedContext() throws Exception {
+        // advance 属临床执行（pathway.execute），不再是治理写权限（pathway.write）。
         mvc.perform(post("/api/v1/engine/pathway/patient-pathways/pp-1/advance")
-                .with(writeJwt())
+                .with(executeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -129,5 +130,13 @@ class PathwayEngineApiContractTest {
                 .claim("tenant_id", "t-1")
                 .claim("roles", List.of("knowledge-governor")))
             .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+    }
+
+    private static RequestPostProcessor executeJwt() {
+        return jwt().jwt(token -> token
+                .subject("api06-clinician")
+                .claim("tenant_id", "t-1")
+                .claim("roles", List.of("clinical-decision-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
     }
 }

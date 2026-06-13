@@ -50,6 +50,7 @@ public enum PermissionCode {
     // ─── 路径（GA-ENG-PATH-01）─────────────────────────────────
     PATHWAY_READ("pathway.read", Risk.LOW, "查看路径模板 / 患者路径"),
     PATHWAY_WRITE("pathway.write", Risk.MEDIUM, "编辑路径模板"),
+    PATHWAY_EXECUTE("pathway.execute", Risk.MEDIUM, "患者入径与路径节点推进"),
     PATHWAY_PUBLISH("pathway.publish", Risk.HIGH, "发布路径模板"),
 
     // ─── CDSS / 推荐（GA-ENG-CDSS-01）──────────────────────────
