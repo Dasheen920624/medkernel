@@ -1418,13 +1418,20 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(signatureModalTitle).toBeInTheDocument();
       expect(apiMocks.transitionRuleGovernance).not.toHaveBeenCalled();
 
-      await user.type(screen.getByLabelText("电子签名 ID"), "esig-001");
-      const signedAtField = screen.getByLabelText("签名时间");
-      await user.clear(signedAtField);
-      await user.type(signedAtField, "2026-06-13T12:00:00Z");
-      await user.type(screen.getByLabelText("复核人 ID"), "clinical-governor");
-      await user.type(screen.getByLabelText("复核人姓名"), "临床治理负责人");
-      await user.type(screen.getByLabelText("电子签名摘要（SHA-256）"), signatureHash);
+      // 用 fireEvent.change 即时填充（含 64 位摘要），避免逐字符输入在覆盖率插桩下超时。
+      fireEvent.change(screen.getByLabelText("电子签名 ID"), { target: { value: "esig-001" } });
+      fireEvent.change(screen.getByLabelText("签名时间"), {
+        target: { value: "2026-06-13T12:00:00Z" },
+      });
+      fireEvent.change(screen.getByLabelText("复核人 ID"), {
+        target: { value: "clinical-governor" },
+      });
+      fireEvent.change(screen.getByLabelText("复核人姓名"), {
+        target: { value: "临床治理负责人" },
+      });
+      fireEvent.change(screen.getByLabelText("电子签名摘要（SHA-256）"), {
+        target: { value: signatureHash },
+      });
       await user.click(screen.getByRole("button", { name: "电子签名并全量激活" }));
 
       await waitFor(() =>
