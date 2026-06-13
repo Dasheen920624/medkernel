@@ -1,5 +1,15 @@
 # 会话接力
 
+## 2026-06-13 新工作线·MedKernel 全真体验沙盘（业务系统场景模拟器）：设计 spec 实现就绪，PR #598 待合并，**下一步=合并后转 writing-plans 出阶段A 实施计划**
+
+- 与 P5 演练主线（幕0–幕10）并行的独立工作线。缘起：嵌入式 CDSS（`/embed/launch`）只能被宿主拉起、演练未端到端展示。用户要 `/sandbox` 页**模拟宿主业务系统(HIS/EMR/LIS)→真实数据录入→调真引擎→嵌入式终端真体验→完整路径可核查**，呈现**规则引擎全部能力（9 规则类型×6 触发点×5 动作×4 严重度）+ 十大引擎**，全真不造假、完美体验。
+- 用户裁定：**整体一份 spec**（不分解），框架先行+内容分波实施。spec = [`docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md`](docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md)（314 行，含接口契约/类型/编排时序/场景全表/seed 脚本/文件清单/测试验收/§23 实现者踩坑预警）。
+- 分支 `codex/sandbox-fulltruth-design-spec`，已推送、PR **#598**（base=main，已并入当时 main 的幕7-10）。用户已授权 squash 合并 + 出实施计划。
+- **下一步**：① #598 CI 绿 → squash 合并；② 转 writing-plans 出阶段A（框架）详细实施计划（先用已有高钾场景端到端跑通）；③ §7 场景临床内容待用户校准。
+- 关键事实（spec 已固化）：嵌入卡来自已发布规则动作定义经 `RecommendationDeterministicMatcher` 产卡；数据三入口（临床事件经 `ClinicalEventEngineDispatcher` 自动扇出/快照/适配器inbound）；新增 `sandbox.run` 权限 + `menu.sandbox`；新规则经真治理 API seed 发布（`scripts/sandbox/seed-scenarios.mjs` 复用幕4 基建）。
+
+---
+
 ## 2026-06-13 幕10 审计导出审批**真实演练已通过**：第一阶段幕0–幕10端到端演练已跑完，**下一步=本批验证/PR/CI/合并后形成第一阶段正式收口**
 
 - 当前执行线：P5 第一阶段端到端旅程 · 幕10 审计导出审批。当前工作分支 `codex/p5-act10-audit-export-approval`，base 为 `origin/main=f0179edc`（PR #595「P5幕9系统接入正幕真实演练闭环」已 squash 合并）。134 当前程序仍为幕8修复部署 `f347924a`，幕9/幕10只新增演练脚本与证据文档，未部署新程序。
