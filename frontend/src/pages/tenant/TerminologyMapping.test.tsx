@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -354,12 +354,19 @@ function configureQuery(
   } as never);
 }
 
-function renderPage() {
-  return render(
+// AntdApp 提供 message 上下文：突变失败的可见错误提示依赖它，与生产入口一致。
+function pageTree() {
+  return (
     <ConfigProvider>
-      <TerminologyMapping />
-    </ConfigProvider>,
+      <AntdApp>
+        <TerminologyMapping />
+      </AntdApp>
+    </ConfigProvider>
   );
+}
+
+function renderPage() {
+  return render(pageTree());
 }
 
 describe("TerminologyMapping experience sample", () => {
@@ -472,11 +479,7 @@ describe("TerminologyMapping experience sample", () => {
       ),
     };
     configureQuery({}, knowledgeGovernorProfile);
-    view.rerender(
-      <ConfigProvider>
-        <TerminologyMapping />
-      </ConfigProvider>,
-    );
+    view.rerender(pageTree());
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认候选" })).toBeDisabled();
@@ -735,6 +738,130 @@ describe("TerminologyMapping experience sample", () => {
     TERMINOLOGY_INTERACTION_TIMEOUT_MS,
   );
 
+  // P5-ACT2-04：六个治理动作失败时必须给出用户可见错误，不允许静默吞错。
+  function apiFailure(detail: string) {
+    return Object.assign(new Error(detail), { response: { data: { detail } } });
+  }
+
+  it("surfaces a visible error and keeps the modal open when package build fails", async () => {
+    const buildPackage = vi
+      .fn()
+      .mockRejectedValue(apiFailure("当前范围没有已确认映射，无法构建知识包"));
+    vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
+      mutateAsync: buildPackage,
+    } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "构建映射包" }));
+    await userEvent.clear(screen.getByLabelText("新版本"));
+    await userEvent.type(screen.getByLabelText("新版本"), "2026.06.2");
+    await userEvent.click(screen.getByRole("button", { name: "创建草稿" }));
+
+    expect(await screen.findByText("当前范围没有已确认映射，无法构建知识包")).toBeInTheDocument();
+    expect(screen.getByText("构建术语映射包")).toBeInTheDocument();
+  });
+
+  it(
+    "surfaces a visible error and keeps the modal open when package publish fails",
+    async () => {
+      const publishPackage = vi.fn().mockRejectedValue(apiFailure("同步适配器未启用: adapter-1"));
+      vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: publishPackage } as never);
+
+      renderPage();
+      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
+      await userEvent.type(screen.getByLabelText("发布原因"), "灰度验证映射包发布失败提示");
+      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
+
+      expect(await screen.findByText("同步适配器未启用: adapter-1")).toBeInTheDocument();
+      expect(screen.getByText("发布映射包流程")).toBeInTheDocument();
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "surfaces a visible error and keeps the modal open when package rollback fails",
+    async () => {
+      const rollbackPackage = vi.fn().mockRejectedValue(apiFailure("回滚目标版本快照校验失败"));
+      const current = { ...mappingPackage, status: "ACTIVE" as const };
+      const target = {
+        ...mappingPackage,
+        id: 29,
+        packageId: "term-pkg-29",
+        packageVersion: "2026.05",
+        status: "OFFLINE" as const,
+      };
+      vi.mocked(usePackages).mockReturnValue({
+        data: pageData([current, target]),
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as never);
+      vi.mocked(useRollbackPackage).mockReturnValue({ mutateAsync: rollbackPackage } as never);
+
+      renderPage();
+      await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
+      await userEvent.click(screen.getByLabelText("回滚目标"));
+      await userEvent.click(screen.getByText("2026.05 · 检验字典映射包"));
+      await userEvent.type(screen.getByLabelText("回滚原因"), "失败提示可见性验证");
+      await userEvent.click(screen.getByLabelText("已确认回滚会切换当前生效术语版本"));
+      await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
+
+      expect(await screen.findByText("回滚目标版本快照校验失败")).toBeInTheDocument();
+      expect(screen.getByText("回滚映射包流程")).toBeInTheDocument();
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it("surfaces a visible error and keeps the modal open when candidate confirm fails", async () => {
+    const confirmCandidate = vi.fn().mockRejectedValue(apiFailure("候选已被其他治理员处理"));
+    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
+      mutateAsync: confirmCandidate,
+    } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "确认候选" }));
+    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
+    await userEvent.type(screen.getByLabelText("高危确认理由"), "失败提示可见性验证理由");
+    await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
+
+    expect(await screen.findByText("候选已被其他治理员处理")).toBeInTheDocument();
+    expect(screen.getByText("确认高危候选")).toBeInTheDocument();
+  });
+
+  it("surfaces a visible error and keeps the modal open when candidate reject fails", async () => {
+    const rejectCandidate = vi.fn().mockRejectedValue(apiFailure("驳回失败：候选状态已变更"));
+    vi.mocked(useRejectTerminologyCandidate).mockReturnValue({
+      mutateAsync: rejectCandidate,
+    } as never);
+
+    renderPage();
+    const candidateRow = screen.getByRole("row", { name: /#901/ });
+    await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
+    await userEvent.type(screen.getByLabelText("驳回理由"), "失败提示可见性验证理由");
+    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
+
+    expect(await screen.findByText("驳回失败：候选状态已变更")).toBeInTheDocument();
+    expect(screen.getByText("驳回映射候选")).toBeInTheDocument();
+  });
+
+  it("surfaces a visible error when ordinary batch confirmation fails", async () => {
+    const batchConfirm = vi.fn().mockRejectedValue(apiFailure("批量确认失败：包含已处理候选"));
+    vi.mocked(useTerminologyCandidates).mockReturnValue({
+      data: pageData([ordinaryCandidate]),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+    vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
+      mutateAsync: batchConfirm,
+    } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "批量确认候选" }));
+
+    expect(await screen.findByText("批量确认失败：包含已处理候选")).toBeInTheDocument();
+  });
+
   it("loads the backend default view snapshot", async () => {
     vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
 
@@ -825,27 +952,15 @@ describe("TerminologyMapping experience sample", () => {
       isError: false,
       refetch: vi.fn(),
     } as never);
-    view.rerender(
-      <ConfigProvider>
-        <TerminologyMapping />
-      </ConfigProvider>,
-    );
+    view.rerender(pageTree());
     expect(screen.getByText("暂无术语映射条目")).toBeInTheDocument();
 
     configureQuery({ isError: true, data: undefined });
-    view.rerender(
-      <ConfigProvider>
-        <TerminologyMapping />
-      </ConfigProvider>,
-    );
+    view.rerender(pageTree());
     expect(screen.getByText("页面暂时不可用")).toBeInTheDocument();
 
     configureQuery({}, { ...profile, menuKeys: [] });
-    view.rerender(
-      <ConfigProvider>
-        <TerminologyMapping />
-      </ConfigProvider>,
-    );
+    view.rerender(pageTree());
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
 
     configureQuery({
@@ -858,11 +973,7 @@ describe("TerminologyMapping experience sample", () => {
         },
       },
     });
-    view.rerender(
-      <ConfigProvider>
-        <TerminologyMapping />
-      </ConfigProvider>,
-    );
+    view.rerender(pageTree());
     expect(screen.getByText(/8 项成功，1 项失败/)).toBeInTheDocument();
     expect(screen.getByText(/证据补充失败/)).toBeInTheDocument();
   });
