@@ -184,14 +184,36 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 闭环（2026-06-13）：PR #584 合并为 `f75f7edb` 并精确部署 134（发布前备份 `p5-act4-f75f7edb-predeploy-20260613-142013` 隔离恢复全过：Flyway `118|118|118`、178 表、`gov_state=CANARY`、委员 2、`knowledge_package=1`、ACTIVE 快照 4，`destructive_action_performed=false`、DB 保留；post-deploy manifest/jar 精确匹配 `2774c6b5…`、前端 `RuleDefinitions-Cqi6VM6m.js` 上线、readiness 200）。续跑 `DRILL_PHASE=govern` 真实推进 CANARY→FULL（机构管理员凭独立电子签名，复核人取临床治理员、独立于发布人），服务端回查 `rule_governance.state=FULL`；`mk_version_release_plan` 院级全量记录 `PUBLISHED(ALL)` 携 `electronic_signature_id/subject=clinical-governor|临床治理负责人/hash/signed_at`。再跑 `DRILL_PHASE=all` 幂等复跑 failures=[]、DB 无重复。规则真实执行与医师确认留幕6。
 
+### 5.8 幕5 路径治理闭环到院级全量
+
+幕4 后起跑幕5 路径治理，脚本 `scripts/drill/p5-act5-pathway-governance.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕5-路径治理/` 与 `postdeploy-a73650d7/`。本幕先后暴露两项阻断缺陷并 TDD 闭环：`P5-ACT5-01` 机构管理员缺 `MENU_PATHWAY_TEMPLATES`，导致院级路径全量协调角色进不去路径模板页；`P5-ACT5-02` 院级治理员查看本地 DRAFT 模板详情被继承解析器强制找 PUBLISHED 版本，详情 404 阻断试运行和发布。
+
+闭环：PR #588 合并为 `a73650d7` 并精确部署 134，发布前备份 `p5-act5-a73650d7-predeploy-20260613-170752` 隔离恢复全过、DB 保留、xattr 0。部署后四阶段旅程全部 `failures=[]`：知识治理员模拟路径轨迹 ASSESS→DISPOSITION、灰度发布 `PATH.ED.DISPOSITION`，机构管理员可进入 `/pathway/templates`，并执行院级全量 `PUBLISHED(ALL)`；服务端回查 `pathway_template.status=PUBLISHED` 与 `mk_version_release_plan PATHWAY/PATH.ED.DISPOSITION` 发布链完整。
+
+### 5.9 幕6 临床运行闭环：规则真实执行 + 医师确认
+
+幕5 后起跑幕6 临床运行，脚本 `scripts/drill/p5-act6-clinical-run.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕6-临床运行/`。本幕暴露并 TDD 闭环两项阻断缺陷：`P5-ACT6-01` 患者入径/推进需要与模板创作拆分，新增 `PATHWAY_EXECUTE` 并授权临床执行角色；`P5-ACT6-02` `/rule/validate` 路由守卫要求治理菜单，导致真实医师找不到危急值确认入口，修为执行侧按 `rule.read` 可达。
+
+闭环：PR #590 合并为 `36dabfeb` 并精确部署 134；发布前备份 `p5-act6-36dabfeb-predeploy-20260613-193817` 隔离恢复全过，post-deploy manifest/jar/readiness/Flyway/表数/xattr 均通过。真实医师角色端到端通过：ACTIVE 快照 `ctx-8eb83b9d` → 患者入径 `pp-782f748d` → 血钾红线规则 `P5.ACT4.CRITICAL.K` 命中 execution `rex-da10c6b7`（CRITICAL、STRONG_REMINDER、requiresPhysicianConfirmation）→ override `rov-2495f42a` 留痕，理由明确“不自动开立紧急医嘱”。二次证据 PR #591 已合并。
+
+### 5.10 幕7 随访质控真实演练通过
+
+幕6 后起跑幕7 随访质控，脚本 `scripts/drill/p5-act7-followup-quality.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕7-随访质控/`。本幕未部署新程序，仍在 134 当前 `36dabfeb` 上真实执行。
+
+最终批次 `p5-act7-20260613-220214` 通过，`00-act7-summary.json result=PASS failures=[]`：ACTIVE 快照 `ctx-ce9c7ee3` → 随访计划 `fp-e5a2aaf5` → 问卷 `fq-b64f75dd` → 异常回院事件 `fe-283e3ce1` + 回院任务 `ft-cf53ac86` + 通知事件 `fe-d8174e66` → 结果回流快照幂等复用 `ctx-ce9c7ee3` → 质控指标 `ei-d718e273` ACTIVE → 评估运行 `er-82eadf74` → 质控问题 `qf-a88aef9d` → 整改任务 `rct-9052f523` → 临床治理负责人提交整改 → 质量治理员复核关闭。服务端回查随访统计 `totalPlans=1/totalTasks=2/completedTasks=1/abnormalReturnTasks=1`，整改报告 `totalTasks=3/openTasks=1/closedTasks=2/closureRate=0.6667`。
+
+诚实说明：首次脚本误用护理角色提交整改，134 返回 403；根因是脚本角色选择错误（护理无 `evaluation.remediate`，临床治理负责人有），不是产品缺陷。该失败真实留下 1 条 open 整改任务，未删除，已归档 `attempt-01-script-actor-mismatch/`；最终 PASS 证据保留该历史事实。
+
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=f75f7edbe57035c7b7409454f9c8ed8935be344d`（jar SHA-256 `2774c6b558039b916a1346863cb855796f60c705d49e25b8b824592296b6a5c9`）。
+- manifest：`source/commit=36dabfebe880861b56b071122515fa464b253ae4`（幕6修复部署；幕7仅本地脚本驱动，未部署）。
 - 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
 - HTTP / HTTPS readiness：`200|200`。
 - Flyway / 表数：`118|118|118` / 178 张 public 基表。
-- 知识数据：`knowledge_package=1`（幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE`，非正式知识生产）。
+- 知识数据：幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE` 与幕5 路径知识包/模板保留，均为演练数据，非正式知识生产。
 - 规则治理：红线规则 `P5.ACT4.CRITICAL.K`（`rule-95d0454a`）`rule_governance.state=FULL`、委员会会签 2/2、院级全量发布计划携独立电子签名；4 份标准上下文快照 ACTIVE。
+- 路径治理：`PATH.ED.DISPOSITION` 已发布并院级全量，患者入径真实触发于幕6。
+- 随访质控：幕7随访计划、异常回院、质控评估与整改闭环已通过；首次脚本失败留下 1 条 open 整改任务，最终 PASS 新任务已关闭。
 - 集成适配器：`p5-his-gateway REST ACTIVE/HEALTHY`（指向演练模拟接收端）。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
@@ -202,5 +224,6 @@ TDD 闭环（本地绿灯，待部署复验）：
 2. ~~提交幕2 缺陷修复与首轮证据，CI 全绿后 squash 合并；从精确主线重建制品，备份、隔离恢复后部署 134。~~ 已完成（PR #575 → `d8bf7f4f` 部署，PR #576 证据归档）。
 3. ~~部署后重跑 `p5-act2-terminology-cross-role.mjs` 完成幕2 修复后旅程；提交 `P5-ACT2-04` 静默吞错修复与幕9 前置，回收映射包「灰度→全量」跨角色发布链。~~ 已完成（PR #577 → `13b930e4`、PR #578 → `7f69c946` 两轮部署；P5-ACT2-04/05 关闭；发布链全链走通，幕2 遗留第 1 项回收，见 5.4/5.5 与幕9 证据目录）。
 4. ~~幕3 知识治理诚实边界验证。~~ 已完成（5.6，无缺陷）。
-5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。继续幕5 路径 → 幕6 临床运行（规则真实执行 + 医师确认，幕4 红线规则在此真实触发）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
-6. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
+5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。
+6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控。~~ 幕5/6 已修复、部署并归档；幕7已在 134 真实演练通过，当前待提交证据 PR。继续幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批；随后恢复、医疗安全、最小化、五方言、部署与 GA 门禁。
+7. 所有缺陷关闭后，另行形成第一阶段正式验收报告和结构冻结证明。
