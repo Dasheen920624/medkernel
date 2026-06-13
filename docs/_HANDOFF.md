@@ -1,21 +1,29 @@
 # 会话接力
 
-## 2026-06-13 幕4 规则治理：#584 已部署 134，规则**已闭环到院级全量 FULL**（服务端实锤），待证据 PR + 进幕5
+## 2026-06-13 幕4 规则治理**已彻底闭环并入 main**（院级全量 FULL，PR #586 已并），幕5 路径前置链已探明（蓝图就绪）
 
-- 当前执行线：P5 第一阶段端到端旅程 · 幕4 规则治理（治理侧完整旅程到院级全量）**已闭环**。演练脚本 `scripts/drill/p5-act4-rule-governance.mjs`（阶段闸门 seed|create|cases|simulate|govern|discover|all，幂等可续跑；服务端回查为准），证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕4-规则治理/`（README + 04/06/07/14 截图 + 3 缺陷发现目录 + `00-act4-summary.json` failures=[]）。
-- **本会话已完成**：①从精确 main `f75f7edb` 重建前后端并部署 134（发布前备份 `p5-act4-f75f7edb-predeploy-20260613-142013` 隔离恢复全过、DB 保留、`destructive_action_performed=false`；post-deploy manifest/jar 精确匹配 `2774c6b5…`、前端 `RuleDefinitions-Cqi6VM6m.js` 上线、readiness 200、DB 未变 CANARY）；②续跑 `DRILL_PHASE=govern` 真实推进 **CANARY→FULL**（机构管理员凭独立电子签名，复核人=临床治理员独立于发布人）；③`DRILL_PHASE=all` 幂等复跑 failures=[]、DB 无重复；④归档幕4 README、更新 checkpoint 5.7/§6/§7。
-- **服务端权威事实（134 上 `f75f7edb`）**：`rule_governance(rg-01KTZHK9…).state=FULL`、委员会会签 2/2（clinical+quality 双人独立 APPROVED + clinical PEER_REVIEW）；`mk_version_release_plan` 院级全量记录 `RULE/P5.ACT4.CRITICAL.K PUBLISHED(ALL)` 携 `electronic_signature_id=esig-p5-act4-…`、`subject=clinical-governor|临床治理负责人`、hash(SHA-256)、`signed_at=2026-06-13 14:23:51`；rule_definition 1 条 CRITICAL/PUBLISHED；4 份快照 ACTIVE；Flyway 118|118|118；178 表；knowledge_package=1。
-- **3 处阻断缺陷已全部 TDD 修复并合并 + 精确部署**：`P5-ACT4-01`（#582→`3532f624`，qualityGovernancePermissions 加菜单）/`P5-ACT4-02`（#583→`7978c9d6`，organizationAdministrationPermissions 加菜单）/`P5-ACT4-03`（#584→`f75f7edb`，RuleDefinitions.tsx 高风险 FULL 独立电子签名弹窗 + handleGovernanceTransition 回传 publishEvidence）。法定角色：作者=知识治理员、双人独立委员=临床+质量治理员、职责分离发布人=机构管理员。回归 `DefaultPermissionPolicyTest`/`PermissionDimensionModelTest`/`RuleDefinitions.test.tsx` 全绿。
-- **134 现状**：运行 `f75f7edb`（#584 部署），服务 active|active|active、readiness 200。**main = `f75f7edb`**（#584 已并；本会话仅新增幕4 证据/文档，未改代码）。
+- 当前执行线：P5 第一阶段端到端旅程。**幕4 规则治理（治理侧完整旅程到院级全量）已闭环、证据已合并**。**main = `46ebde05`**（PR #586 squash 合并；注意 PR #585 接力文档也已合并为 `4865466f`）。134 运行 `f75f7edb`（#584 部署），服务 active|active|active、readiness 200。
+- **幕4 收尾（服务端实锤，134 上 `f75f7edb`）**：从精确 `f75f7edb` 重建前后端部署 134（发布前备份 `p5-act4-f75f7edb-predeploy-20260613-142013` 隔离恢复全过、DB 保留、`destructive_action_performed=false`；post-deploy manifest/jar 精确匹配 `2774c6b5…`、前端 `RuleDefinitions-Cqi6VM6m.js` 上线、DB 未变）；续跑 `DRILL_PHASE=govern` 真实推进 **CANARY→FULL**；服务端回查 `rule_governance(rg-01KTZHK9…).state=FULL`、委员会双人独立会签 2/2、`mk_version_release_plan RULE/P5.ACT4.CRITICAL.K PUBLISHED(ALL)` 携独立电子签名（subject=clinical-governor|临床治理负责人、SHA-256 hash、signed_at）；`DRILL_PHASE=all` 幂等复跑 failures=[]、DB 无重复。证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕4-规则治理/`（README + 04/06/07/14 截图 + 3 缺陷发现目录 + summary）。三缺陷 `P5-ACT4-01/02/03`（#582/#583/#584）已全部 TDD 闭环并部署。
 - 凭据：本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600，不入仓库）；含 integration-operator/knowledge-governor/clinical-governor/quality-governor/organization-admin。
 - 权限/纪律：**新会话需重新 AskUserQuestion 点名授权 134 SSH/写入一次**；合并 main 逐 PR 授权。CSRF：API POST 须带 `X-XSRF-TOKEN`（脚本已处理）。
+- 残留分支注记：远程 `codex/p5-act4-handoff`（#585 合并后被我误重建、含冗余提交）因分类器拦截未删——无开放 PR 指向、无害，下会话可在获授权后清理。
 - 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
+
+### 幕5 路径治理执行蓝图（本会话已探明前置链，下会话直接照做）
+
+- **结构对应幕4**：治理侧 `/pathway/templates`（路径配置，`menu.pathway-templates`+`pathway.read`，治理角色=机构知识治理员/临床治理负责人）；执行侧 `/pathway/patients`（患者路径）+ `POST /engine/pathway/patient-pathways/enter` 属**幕6**。134 路径基线**零数据**（`pathway_template=0`、`patient_pathway=0`；7 张路径表 template/milestone/node/edge/patient_pathway/variance/outcome_binding 已就绪）。
+- **后端 `PathwayEngineController`（`/api/v1/engine/pathway`）**：`POST /pathway-templates`(创建草稿,`pathway.write`)、`GET /pathway-templates[/{id}]`、`/{id}/inheritance-diff`、`/{id}/impact`(发布前影响摘要,`pathway.read`)、`POST /{id}/simulate`(试运行推进轨迹,`pathway.write`,不建实例)、`POST /{id}/publish`(灰度发布门禁,`pathway.publish`)、`POST /{id}/rollout/full`(院级全量确认,`pathway.publish`)、`POST /{id}/rollback`(`pathway.publish`)。生命周期 `PathwayTemplateStatus`=DRAFT→PUBLISHED→OFFLINE→ARCHIVED（含「7 步流」位置）。
+- **前置（头号约束）**：`createTemplate` 须 `packages.findByPackageIdAndTenantId(packageId, tenantId)`——**租户内必须存在知识包**（不校验包类型），否则 `ENG-PATHWAY-007`。可引用幕9 现存 `TERM.P5.MAPPING` 知识包（knowledge_package=1）或先建专用路径知识包（更干净，类比幕9 包构建流）。模板创建须一次性带节点/边/质控指标绑定（pathway_node/edge/outcome_binding），发布门禁校验：起始/终止节点、节点编码唯一、边端点存在、时间窗合法。
+- **法定角色与发布门**：`pathway.write`+`pathway.publish`+`MENU_PATHWAY_TEMPLATES` 归 knowledge-governor、clinical-governor（platform-knowledge-governor 平台域）。全量/回滚门 `requireReleaseCoordinator`：客户租户放行 **CLINICAL_GOVERNOR 或 ORGANIZATION_ADMIN**（无 author≠publisher 强制）。publish/rollout-full/rollback **都支持 `publishEvidence.electronicSignature`**（与规则同款电子签名门，高风险/平台发布须独立电子签名）。
+- **缺陷预判（先写红灯断言再现场实锤）**：`organizationAdministrationPermissions()` 菜单白名单（`DefaultPermissionPolicy.java:97-115`）**含 `MENU_RULE_DEFINITIONS`（P5-ACT4-02 修复加的）但缺 `MENU_PATHWAY_TEMPLATES`**——org-admin 持 `pathway.publish` 且是 `requireReleaseCoordinator` 合法全量协调角色，却进不去 `/pathway/templates`（路由守卫 `.every(["menu.pathway-templates","pathway.read"])` 挡死），是 **P5-ACT4-02 同型菜单-路由错配候选缺陷 `P5-ACT5-0X`**。注意：临床治理员持该菜单且是合法协调角色，可经它完成院级全量（即用临床治理员发布则不撞此缺口）——但 org-admin 缺口客观存在，应登记。
+- **执行步骤（治理侧完整旅程，类比幕4）**：① 前置知识包就位（引用幕9 包或新建路径包）；② 治理员真实前台 `/pathway/templates` 创建路径模板草稿（节点/边/指标绑定）→ ③ `simulate` 试运行推进轨迹命中 → ④ 读 `impact` 影响摘要 → ⑤ `publish` 灰度发布门禁通过(DRAFT→PUBLISHED) → ⑥ 临床治理员（或 org-admin，若撞缺口则 TDD 闭环后用之）`rollout/full` 院级全量确认（携影响摘要+审核说明，高风险则独立电子签名）。规则真实执行+医师确认（含幕4 红线 `P5.ACT4.CRITICAL.K`）留幕6。
+- **复用**：脚本基础设施抄 `scripts/drill/p5-act4-rule-governance.mjs`（login/capture/renderWithUrlBar/chooseSelectOption/networkidle gotoPath/csrf/apiPost）；新脚本 `scripts/drill/p5-act5-pathway-governance.mjs`，证据 `docs/release/evidence/p5-second-fresh-drill-20260612/幕5-路径治理/`。先查 `knowledge-governor /security/me` 数据范围拿 orgUnit。
 
 ## 当前下一步（精确照做）
 
-1. **提交幕4 证据 PR**：本分支 `codex/p5-act4-handoff` 新增幕4 README + checkpoint 5.7/§6/§7 + 本接力段（演练脚本已在 main）。`git add` 证据与文档 → commit → push → 创建 PR；CI 全绿后**请求合并授权**（逐 PR）。注意证据目录含 PNG，确认无凭据/Token 入仓库。
-2. **进入幕5 路径**：起跑幕5（临床路径/路径治理）演练；沿用脚本基础设施（login/capture/renderWithUrlBar/chooseSelectOption/gotoPath），证据目录 `docs/release/evidence/p5-second-fresh-drill-20260612/幕5-…/`，遇缺陷按 TDD 闭环。
-3. 继续幕6 临床运行（**规则真实执行 + 医师确认，幕4 红线规则 `P5.ACT4.CRITICAL.K` 在此真实触发**）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
+1. **新会话开工**：重新 AskUserQuestion 点名授权 134 SSH/写入（如需现场核查/部署）。读本蓝图，不重新考古。
+2. **起跑幕5 路径治理**：先看 `PathwayTemplates.tsx`/`PathwayGraphEditor.tsx` 创建流（是否有内置模板/向导），按上述 6 步执行；遇缺陷（尤其预判的 org-admin `MENU_PATHWAY_TEMPLATES` 缺口）先写红灯回归（`DefaultPermissionPolicyTest`/前端路由守卫一致性）再 TDD 闭环，合并部署后续跑。成功判定一律服务端回查（`pathway_template.status=PUBLISHED`、全量后状态）。
+3. 继续幕6 临床运行（**规则真实执行 + 医师确认，幕4 红线 `P5.ACT4.CRITICAL.K` + 幕5 路径在此真实触发**）→ 幕7 随访质控 → 幕8 配置包 → 幕9 正幕 → 幕10 审计导出审批。
 4. 一对多冲突前台处置入口保持观察（幕2 遗留第 2 项）。
 
 ## 2026-06-13 幕4 规则治理旅程：前置链已完全探明（执行蓝图就绪，待新会话执行）
