@@ -65,6 +65,11 @@ public class SystemConfigService {
     public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
     public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI = "";
+    // 部署形态：PRODUCTION_CENTER=外网知识生产中心（公开资料，可用 B2 外部 provider）；
+    // HOSPITAL_RUNTIME=内网医院运行侧（碰患者数据，禁外部 provider，仅 B1 本地/B0）。
+    // 默认取最严格的 HOSPITAL_RUNTIME（安全默认），生产中心须显式配置 PRODUCTION_CENTER。
+    public static final String DEPLOYMENT_FORM_KEY = "medkernel.deployment.form";
+    public static final String DEFAULT_DEPLOYMENT_FORM = "HOSPITAL_RUNTIME";
     private static final Set<String> FORBIDDEN_KNOWLEDGE_LITERATURE_URI_SCHEMES =
         Set.of("file", "tmp", "local", "classpath", "http");
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
@@ -436,6 +441,10 @@ public class SystemConfigService {
         return readRuntimeStringConfig(
             KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY,
             DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI).value();
+    }
+
+    public String runtimeDeploymentForm() {
+        return readRuntimeStringConfig(DEPLOYMENT_FORM_KEY, DEFAULT_DEPLOYMENT_FORM).value();
     }
 
     private static long durationMs(Duration configured, Duration fallback) {

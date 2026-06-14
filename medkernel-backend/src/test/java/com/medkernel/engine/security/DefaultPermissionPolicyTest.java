@@ -418,6 +418,23 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void llmGovernanceActionsRestWithTheirGoverningRoles() {
+        // LLM-03/07/08：provider 接入与出域治理归集成运维员，医学回归评测治理归质量与医保治理员（IA 矩阵 §9，ACTION 维度）。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.INTEGRATION_OPERATOR))
+            .contains(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE)
+            .doesNotContain(PermissionCode.LLM_EVAL_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
+            .contains(PermissionCode.LLM_EVAL_MANAGE)
+            .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE);
+        // 临床决策用户对任何模型治理动作零授权（最小权限红线）。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
+            .doesNotContain(
+                PermissionCode.LLM_PROVIDER_MANAGE,
+                PermissionCode.LLM_EGRESS_MANAGE,
+                PermissionCode.LLM_EVAL_MANAGE);
+    }
+
+    @Test
     void complianceAuditorActionsAreReadOrExportOnly() {
         var permissions = DefaultPermissionPolicy.permissionsOf(RoleCode.COMPLIANCE_AUDITOR);
         assertThat(permissions)

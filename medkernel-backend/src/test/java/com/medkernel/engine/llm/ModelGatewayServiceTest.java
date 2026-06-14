@@ -2,6 +2,7 @@ package com.medkernel.engine.llm;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -30,6 +31,8 @@ class ModelGatewayServiceTest {
     private ModelCapabilityDefinitionRepository definitionRepo;
     private AuditRecorder auditRecorder;
     private IsolatedAuditPublisher isolatedAudit;
+    private com.medkernel.engine.llm.provider.ModelProviderRegistry providerRegistry;
+    private com.medkernel.engine.llm.egress.ModelEgressGuard egressGuard;
     private ModelGatewayService service;
 
     @BeforeEach
@@ -39,8 +42,11 @@ class ModelGatewayServiceTest {
         definitionRepo = mock(ModelCapabilityDefinitionRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
+        providerRegistry = mock(com.medkernel.engine.llm.provider.ModelProviderRegistry.class);
+        egressGuard = mock(com.medkernel.engine.llm.egress.ModelEgressGuard.class);
         service = new ModelGatewayService(
-            taskRepo, policyRepo, definitionRepo, auditRecorder, isolatedAudit);
+            taskRepo, policyRepo, definitionRepo, auditRecorder, isolatedAudit,
+            providerRegistry, egressGuard);
 
         List<ModelCapabilityDefinition> definitions = List.of(
             definition("knowledge.discovery", "临床知识关联发现", 10, true),
@@ -375,6 +381,100 @@ class ModelGatewayServiceTest {
         ModelPolicyValidateResponse resp = service.validatePolicy(req);
         assertNotNull(resp);
         assertTrue(resp.valid());
+    }
+
+    // ── LLM-08 真实 provider 接入路径（registry 返回健康 provider 时产出真实结果）─────────────
+
+    private com.medkernel.engine.llm.provider.ModelProvider providerAdapter(
+            com.medkernel.engine.llm.provider.ProviderType type) {
+        com.medkernel.engine.llm.provider.ModelProvider adapter =
+            mock(com.medkernel.engine.llm.provider.ModelProvider.class);
+        when(adapter.type()).thenReturn(type);
+        return adapter;
+    }
+
+    private void resolveProvider(String strategy, com.medkernel.engine.llm.provider.ModelProvider adapter) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        com.medkernel.engine.llm.provider.ModelProviderConfig config =
+            new com.medkernel.engine.llm.provider.ModelProviderConfig(1L, "tenant-1", "p1",
+                adapter.type().name(), "http://x", null, "v1", "Y", "HEALTHY", now, "s", now, "s");
+        when(providerRegistry.resolve("tenant-1", strategy)).thenReturn(Optional.of(
+            new com.medkernel.engine.llm.provider.ModelProviderRegistry.ResolvedProvider(adapter, config)));
+    }
+
+    private void policy(String strategy) {
+        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", strategy, "DEFAULT", null,
+                Instant.now(), "system", Instant.now(), "system")));
+    }
+
+    @Test
+    void submitTask_withHealthyLocalProvider_producesRealB1Output() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("候选：高血压病史", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("SUCCEEDED", resp.status());
+        assertEquals("B1", resp.modelMode());
+        assertEquals("qwen2.5:7b", resp.modelVersion());
+        assertFalse(resp.fallbackUsed());
+        assertTrue(resp.outputContent().contains("候选：高血压病史"));
+    }
+
+    @Test
+    void submitTask_withHealthyExternalProvider_passesEgressThenProducesRealB2Output() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(egressGuard.prepareEgress(eq("tenant-1"), eq("knowledge.extract"), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-1"));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("外部候选", "claude-opus-4-8", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("SUCCEEDED", resp.status());
+        assertEquals("B2", resp.modelMode());
+        assertEquals("claude-opus-4-8", resp.modelVersion());
+        assertFalse(resp.fallbackUsed());
+        // B2 外调必先过出域闸
+        verify(egressGuard).prepareEgress(eq("tenant-1"), eq("knowledge.extract"), anyString(), anyString(), any());
+    }
+
+    @Test
+    void submitTask_externalEgressBlocked_degradesToB0WithoutCallingProvider() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenThrow(new ApiException(ErrorCode.ENG_LLM_006, "未配置白名单"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", resp.status());
+        assertEquals("B0", resp.modelMode());
+        assertTrue(resp.fallbackUsed());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_providerCallFails_degradesToB0() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(adapter.complete(any(), any())).thenThrow(new ApiException(ErrorCode.ENG_LLM_003, "断连"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", resp.status());
+        assertEquals("B0", resp.modelMode());
+        assertTrue(resp.fallbackUsed());
     }
 
     private static ModelCapabilityDefinition definition(

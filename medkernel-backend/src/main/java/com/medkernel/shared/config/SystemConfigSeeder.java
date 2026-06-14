@@ -77,6 +77,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedLoggingPolicy(seededAt);
         seedRuntimeBoundaryPolicy(seededAt);
         seedKnowledgeLiteraturePolicy(seededAt);
+        seedDeploymentFormPolicy(seededAt);
         seedCdssPolicy(seededAt);
         service.applyRuntimeLogLevels();
     }
@@ -247,6 +248,22 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "HIGH",
             "平台知识治理组 / 信息科",
             "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退服务器本地 tmp 或磁盘目录。",
+            true,
+            "PLATFORM_SEED",
+            seededAt);
+    }
+
+    private void seedDeploymentFormPolicy(Instant seededAt) {
+        seedConfigValue(
+            SystemConfigService.DEPLOYMENT_FORM_KEY,
+            SystemConfigService.DEFAULT_DEPLOYMENT_FORM,
+            "STRING",
+            "部署形态",
+            "HIGH",
+            "平台治理管理员 / 信息科",
+            "控制本实例部署形态：PRODUCTION_CENTER=外网知识生产中心（只吃公开资料，可用 B2 外部大模型 API）；"
+                + "HOSPITAL_RUNTIME=内网医院运行侧（碰患者数据，禁外部 provider，仅本地模型 B1/B0）。"
+                + "默认最严格的 HOSPITAL_RUNTIME，生产中心须在配置中心显式切换。",
             true,
             "PLATFORM_SEED",
             seededAt);

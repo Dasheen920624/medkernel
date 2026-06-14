@@ -1,0 +1,46 @@
+package com.medkernel.engine.llm.provider;
+
+import java.time.Duration;
+import java.util.Map;
+
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+/**
+ * 基于 Spring {@link RestClient} 的 provider HTTP 出站实现（LLM-08）。
+ *
+ * <p>带连接/读取超时；非 2xx 与传输错误抛 {@code RestClient} 运行时异常，由适配器转 NOT_CONNECTED 或上抛降级。
+ * 单测用 {@link ModelProviderHttpClient} 假实现，本类不在单测连真实外网。
+ */
+@Component
+public class RestClientModelProviderHttpClient implements ModelProviderHttpClient {
+
+    private final RestClient restClient;
+
+    public RestClientModelProviderHttpClient() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(60));
+        this.restClient = RestClient.builder().requestFactory(factory).build();
+    }
+
+    @Override
+    public String post(String url, Map<String, String> headers, String body) {
+        return restClient.post()
+            .uri(url)
+            .headers(h -> headers.forEach(h::set))
+            .body(body)
+            .retrieve()
+            .body(String.class);
+    }
+
+    @Override
+    public String get(String url, Map<String, String> headers) {
+        return restClient.get()
+            .uri(url)
+            .headers(h -> headers.forEach(h::set))
+            .retrieve()
+            .body(String.class);
+    }
+}
