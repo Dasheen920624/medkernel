@@ -1,14 +1,24 @@
 package com.medkernel.engine.embed;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.cdshook.CdsHookContract;
+import com.medkernel.engine.recommendation.RecommendationCardFilter;
+import com.medkernel.engine.recommendation.RecommendationCardStatus;
+import com.medkernel.engine.recommendation.RecommendationEngineService;
+import com.medkernel.engine.recommendation.RecommendationFeedbackRequest;
+import com.medkernel.engine.recommendation.RecommendationFeedbackType;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -30,22 +40,26 @@ public class EmbedEngineService {
     private static final String LAUNCH_ENDPOINT = "/api/v1/engine/embed/launch";
     private static final String CDS_HOOK_VERSION = "1.0";
     private static final String HOST_CALLBACK_NOT_CONFIGURED = "HOST_CALLBACK_NOT_CONFIGURED";
+    private static final int SESSION_MINUTES = 30;
 
     private final EmbedLaunchTokenRepository tokenRepo;
     private final EmbedOriginWhitelistRepository originRepo;
     private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final RecommendationEngineService recommendations;
 
     private record LaunchContract(String triggerPoint, String hook, String hookInstance) {}
 
     public EmbedEngineService(EmbedLaunchTokenRepository tokenRepo,
                               EmbedOriginWhitelistRepository originRepo,
                               AuditRecorder auditRecorder,
-                              IsolatedAuditPublisher isolatedAudit) {
+                              IsolatedAuditPublisher isolatedAudit,
+                              RecommendationEngineService recommendations) {
         this.tokenRepo = tokenRepo;
         this.originRepo = originRepo;
         this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
+        this.recommendations = recommendations;
     }
 
     /**
@@ -57,12 +71,14 @@ public class EmbedEngineService {
     @Transactional
     public EmbedLaunchTokenResponse generateToken(EmbedLaunchTokenRequest req) {
         String tenantId = requireCurrentTenant();
-        String createdBy = RequestContext.currentUserId().orElse("system");
+        String createdBy = requireCurrentUser();
+        String roleCode = requireAuthenticatedRole(req.roleCode());
         String traceId = RequestContext.currentTraceId();
 
         String triggerPoint = requireSupportedCdsHook(req.triggerPoint(), "签发嵌入令牌触发点");
         String hook = requireSupportedCdsHook(req.hook(), "签发嵌入令牌 CDS Hook");
         requireSameCdsHook(triggerPoint, hook, "签发嵌入令牌");
+        String parentOrigin = requireTokenOrigin(tenantId, req.integrationMode(), req.parentOrigin());
 
         String tokenValue = "tkn-" + UUID.randomUUID().toString().replace("-", "");
         int expireSec = req.expireSeconds() != null && req.expireSeconds() > 0 ? req.expireSeconds() : DEFAULT_EXPIRE_SECONDS;
@@ -76,8 +92,8 @@ public class EmbedEngineService {
             null,
             tokenValue,
             tenantId,
-            req.userId(),
-            req.roleCode(),
+            createdBy,
+            roleCode,
             req.patientId(),
             req.encounterId(),
             triggerPoint,
@@ -91,12 +107,12 @@ public class EmbedEngineService {
             req.integrationMode().name(),
             hook,
             hookInstance,
-            null
+            null,
+            parentOrigin
         );
         tokenRepo.save(entity);
 
-        // 拼接默认页面嵌入 URL，外部 HIS 可直接使用此 URL 嵌入
-        String embedUrl = String.format("/embed/launch?token=%s", tokenValue);
+        String embedUrl = "/embed/launch?token=" + tokenValue;
 
         auditRecorder.record(AuditAction.CREATE, "embed_launch_token", tokenValue,
             "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
@@ -108,12 +124,11 @@ public class EmbedEngineService {
     /**
      * 校验并原子性消费启动令牌，获取当前嵌入会话上下文。
      *
-     * @param token 启动令牌
-     * @param originHeader 请求头中的 Origin 域名，用于安全过滤
+     * @param request 启动令牌兑换请求
      * @return 会话及关联的临床上下文
      */
     @Transactional
-    public EmbedLaunchContextResponse validateAndExchange(EmbedLaunchRequest request, String originHeader) {
+    public EmbedLaunchContextResponse validateAndExchange(EmbedLaunchRequest request) {
         EmbedLaunchToken entity = tokenRepo.findByToken(request.token())
             .orElseThrow(() -> {
                 publishFailureAudit(ErrorCode.ENG_EMBED_004, "启动令牌不存在 token=" + request.token());
@@ -121,7 +136,7 @@ public class EmbedEngineService {
             });
 
         String tenantId = entity.tenantId();
-        String parentOrigin = requireAllowedOrigin(tenantId, originHeader, request.token());
+        String parentOrigin = requirePersistedOrigin(entity);
         LaunchContract contract = validateLaunchContract(request, entity);
 
         // 2. 令牌状态与时效性校验
@@ -137,7 +152,8 @@ public class EmbedEngineService {
                     entity.id(), entity.token(), entity.tenantId(), entity.userId(), entity.roleCode(),
                     entity.patientId(), entity.encounterId(), entity.triggerPoint(), EmbedLaunchTokenStatus.EXPIRED.name(),
                     entity.expiredAt(), entity.createdAt(), entity.createdBy(), now, actor(),
-                    entity.traceId(), entity.integrationMode(), entity.hook(), entity.hookInstance(), entity.consumedAt()
+                    entity.traceId(), entity.integrationMode(), entity.hook(), entity.hookInstance(), entity.consumedAt(),
+                    entity.parentOrigin()
                 );
                 tokenRepo.save(expired);
             }
@@ -151,7 +167,8 @@ public class EmbedEngineService {
         }
 
         // 3. 原子标记为已使用，实现一次性物理消费
-        int consumed = tokenRepo.consumeUnusedToken(request.token(), tenantId, now, now, actor());
+        int consumed = tokenRepo.consumeUnusedToken(
+            request.token(), tenantId, now, now.plus(SESSION_MINUTES, ChronoUnit.MINUTES), now, actor());
         if (consumed != 1) {
             throw classifyFailedAtomicConsume(request.token(), tenantId);
         }
@@ -179,6 +196,27 @@ public class EmbedEngineService {
     }
 
     /**
+     * 按令牌绑定的临床上下文读取可处置建议，不依赖浏览器登录 Cookie。
+     */
+    @Transactional(readOnly = true)
+    public EmbedRecommendationCardsResponse listCards(EmbedRecommendationCardsRequest req) {
+        EmbedLaunchToken entity = requireActiveSession(req.token());
+        return callInTokenContext(entity, () -> {
+            var page = recommendations.listClinicalCards(
+                new RecommendationCardFilter(
+                    null, null, null, entity.patientId(), entity.encounterId(), entity.triggerPoint()),
+                new PageRequest(1, PageRequest.MAX_SIZE, "createdAt,desc"));
+            List<EmbedRecommendationCardResponse> items = page.items().stream()
+                .filter(card -> card.status() == RecommendationCardStatus.PENDING
+                    || card.status() == RecommendationCardStatus.VIEWED
+                    || card.status() == RecommendationCardStatus.DEFERRED)
+                .map(EmbedRecommendationCardResponse::from)
+                .toList();
+            return new EmbedRecommendationCardsResponse(items, entity.traceId());
+        });
+    }
+
+    /**
      * 回传记录医师在工作站嵌入页面的交互采纳与拒绝反馈，强制采用隔离独立子事务记录审计。
      *
      * @param req 反馈请求参数
@@ -186,22 +224,33 @@ public class EmbedEngineService {
     @Transactional
     public EmbedFeedbackResponse feedback(EmbedFeedbackRequest req) {
         EmbedFeedbackActionType actionType = requireSupportedFeedbackAction(req.actionType());
-        EmbedLaunchToken entity = tokenRepo.findByToken(req.token())
-            .orElseThrow(() -> {
-                publishFailureAudit(ErrorCode.ENG_EMBED_004, "提交反馈失败，启动令牌不存在 token=" + req.token());
-                return new ApiException(ErrorCode.ENG_EMBED_004, "启动令牌不存在");
-            });
-        if (!EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_005, "提交反馈失败，令牌未完成一次性消费 token=" + req.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "令牌未完成一次性消费，拒绝反馈回调");
-        }
-
-        // 记录闭环反馈审计事件
-        auditRecorder.record(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
-            String.format("医生提交交互反馈 actionType=%s reason=%s patientId=%s",
-                actionType.name(), req.reason() != null ? req.reason() : "", entity.patientId()));
-        return new EmbedFeedbackResponse(req.token(), actionType.name(), EmbedConnectionStatus.NOT_CONNECTED,
-            false, HOST_CALLBACK_NOT_CONFIGURED, entity.traceId());
+        EmbedLaunchToken entity = requireActiveSession(req.token());
+        return callInTokenContext(entity, () -> {
+            var detail = recommendations.cardDetail(req.cardId());
+            if (detail.trigger() == null
+                    || !same(entity.patientId(), detail.trigger().patientId())
+                    || !same(entity.encounterId(), detail.trigger().encounterId())
+                    || !same(entity.triggerPoint(), detail.trigger().triggerType())) {
+                publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                    "嵌入反馈卡片超出令牌临床上下文 token=" + req.token() + " cardId=" + req.cardId());
+                throw new ApiException(ErrorCode.ENG_EMBED_005, "反馈卡片不属于当前嵌入会话");
+            }
+            var feedback = recommendations.feedback(
+                req.cardId(),
+                recommendationFeedback(req, entity, actionType));
+            auditRecorder.record(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
+                String.format("医生提交嵌入反馈 cardId=%s actionType=%s patientId=%s",
+                    req.cardId(), actionType.name(), entity.patientId()));
+            return new EmbedFeedbackResponse(
+                req.token(),
+                req.cardId(),
+                actionType.name(),
+                feedback.cardStatus().name(),
+                EmbedConnectionStatus.NOT_CONNECTED,
+                false,
+                HOST_CALLBACK_NOT_CONFIGURED,
+                feedback.traceId());
+        });
     }
 
     /**
@@ -260,6 +309,22 @@ public class EmbedEngineService {
         return RequestContext.currentUserId().orElse("system");
     }
 
+    private String requireCurrentUser() {
+        return RequestContext.currentUserId()
+            .filter(this::hasText)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EMBED_005, "签发嵌入令牌缺少认证用户"));
+    }
+
+    private String requireAuthenticatedRole(String value) {
+        RoleCode role = RoleCode.fromCode(value)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EMBED_005, "签发角色不是标准职责角色"));
+        if (!AuthenticatedRoleGuard.has(role)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "签发角色不属于当前认证用户 roleCode=" + value);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "签发角色不属于当前认证用户");
+        }
+        return role.code();
+    }
+
     private LaunchContract validateLaunchContract(EmbedLaunchRequest request, EmbedLaunchToken entity) {
         EmbedIntegrationMode tokenMode = parseIntegrationMode(entity.integrationMode());
         if (request.integrationMode() != tokenMode) {
@@ -292,18 +357,100 @@ public class EmbedEngineService {
         return new LaunchContract(tokenTriggerPoint, tokenHook, hookInstance);
     }
 
-    private String requireAllowedOrigin(String tenantId, String originHeader, String token) {
-        if (!hasText(originHeader)) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息 token=" + token);
-            throw new ApiException(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息");
+    private String requireTokenOrigin(String tenantId, EmbedIntegrationMode mode, String requestedOrigin) {
+        if (mode == EmbedIntegrationMode.API && !hasText(requestedOrigin)) {
+            return null;
         }
-        String origin = originHeader.trim();
+        if (!hasText(requestedOrigin)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "签发嵌入令牌缺少父系统 Origin");
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "父系统 Origin 不能为空");
+        }
+        String origin = requestedOrigin.trim();
         boolean allowed = originRepo.findByTenantIdAndOrigin(tenantId, origin).isPresent();
         if (!allowed) {
             publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + origin);
             throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + origin);
         }
         return origin;
+    }
+
+    private String requirePersistedOrigin(EmbedLaunchToken entity) {
+        EmbedIntegrationMode mode = parseIntegrationMode(entity.integrationMode());
+        if (mode == EmbedIntegrationMode.API) {
+            return entity.parentOrigin();
+        }
+        if (!hasText(entity.parentOrigin())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "启动令牌未绑定父系统 Origin token=" + entity.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "启动令牌未绑定父系统 Origin");
+        }
+        return entity.parentOrigin();
+    }
+
+    private EmbedLaunchToken requireActiveSession(String token) {
+        EmbedLaunchToken entity = tokenRepo.findByToken(token)
+            .orElseThrow(() -> {
+                publishFailureAudit(ErrorCode.ENG_EMBED_004, "嵌入会话令牌不存在 token=" + token);
+                return new ApiException(ErrorCode.ENG_EMBED_004, "嵌入会话令牌不存在");
+            });
+        if (!EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "嵌入会话令牌未完成消费 token=" + token);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入会话令牌未完成消费");
+        }
+        if (!Instant.now().isBefore(entity.expiredAt())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_001, "嵌入会话已过期 token=" + token);
+            throw new ApiException(ErrorCode.ENG_EMBED_001, "嵌入会话已过期");
+        }
+        requirePersistedOrigin(entity);
+        return entity;
+    }
+
+    private RecommendationFeedbackRequest recommendationFeedback(
+            EmbedFeedbackRequest req,
+            EmbedLaunchToken entity,
+            EmbedFeedbackActionType actionType) {
+        RecommendationFeedbackType type = switch (actionType) {
+            case ADOPT -> RecommendationFeedbackType.ACCEPT;
+            case REJECT -> RecommendationFeedbackType.REJECT;
+            case LATER -> RecommendationFeedbackType.DEFER;
+            case IGNORE, CLOSE -> RecommendationFeedbackType.DISMISS;
+        };
+        String reasonCode = switch (actionType) {
+            case ADOPT -> "EMBED_ADOPT";
+            case REJECT -> "EMBED_REJECT";
+            case LATER -> null;
+            case IGNORE -> "EMBED_IGNORE";
+            case CLOSE -> "EMBED_CLOSE";
+        };
+        String reasonText = hasText(req.reason()) ? req.reason().trim() : switch (actionType) {
+            case ADOPT -> "医师在嵌入工作站确认采纳";
+            case REJECT -> "医师在嵌入工作站确认不采纳";
+            case LATER -> null;
+            case IGNORE -> "医师在嵌入工作站忽略本次建议";
+            case CLOSE -> "医师在嵌入工作站关闭本次建议";
+        };
+        return new RecommendationFeedbackRequest(
+            type,
+            reasonCode,
+            reasonText,
+            entity.roleCode(),
+            "embed:" + entity.token() + ":" + req.cardId() + ":" + actionType.name());
+    }
+
+    private <T> T callInTokenContext(EmbedLaunchToken entity, Callable<T> action) {
+        try {
+            return RequestContext.callWith(
+                new RequestContext.Snapshot(
+                    entity.traceId(), OrgScope.tenant(entity.tenantId()), entity.userId()),
+                action);
+        } catch (ApiException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "嵌入会话执行失败", exception);
+        }
+    }
+
+    private boolean same(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private ApiException classifyFailedAtomicConsume(String token, String tenantId) {

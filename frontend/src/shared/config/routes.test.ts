@@ -33,16 +33,18 @@ describe("route metadata", () => {
   it("registers every current frontend page route", () => {
     expect(routeMetas.length).toBeGreaterThanOrEqual(34);
     expect(findRouteByPath("/terminology/mapping")?.title).toBe("术语与字典");
-    expect(findRouteByPath("/advanced/graph")?.placement).toBe("expert");
+    expect(findRouteByPath("/advanced/graph")?.placement).toBe("primary");
   });
 
-  it("locks five stable customer domains and explicit entry placements", () => {
+  it("locks seven stable customer domains and explicit entry placements", () => {
     expect(routeSections.map((section) => [section.key, section.label])).toEqual([
       ["workbench", "工作台"],
-      ["institution-governance", "机构治理"],
-      ["knowledge-configuration", "知识配置"],
+      ["organization-people", "机构与人员"],
+      ["knowledge-governance", "知识治理"],
       ["clinical-collaboration", "临床协同"],
-      ["quality-operations", "质量与运营"],
+      ["quality-management", "质量管理"],
+      ["compliance-security", "合规安全"],
+      ["system-operations", "系统运维"],
     ]);
 
     const placementCounts = routeMetas
@@ -53,10 +55,9 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 23,
+      primary: 29,
       header: 1,
       profile: 1,
-      expert: 5,
     });
   });
 
@@ -64,7 +65,7 @@ describe("route metadata", () => {
     // /rule/validate 是临床执行侧（医师确认危急值提醒），守卫只需 rule.read；
     // 不应要求 menu.rule-definitions（治理侧菜单），否则 clinical-decision-user 被拦死无法完成医师确认。
     expect(findRouteByPath("/rule/validate")).toMatchObject({
-      sectionKey: "knowledge-configuration",
+      sectionKey: "knowledge-governance",
       placement: "hidden",
       hidden: true,
       requiredPermissions: ["rule.read"],
@@ -72,7 +73,7 @@ describe("route metadata", () => {
     expect(findRouteByPath("/rule/validate")?.menuKey).toBeUndefined();
 
     expect(findRouteByPath("/qc/eval/results")).toMatchObject({
-      sectionKey: "quality-operations",
+      sectionKey: "quality-management",
       placement: "hidden",
       hidden: true,
       requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
@@ -80,7 +81,7 @@ describe("route metadata", () => {
     expect(findRouteByPath("/qc/eval/results")?.menuKey).toBeUndefined();
   });
 
-  it("places cross-domain and expert entries outside the primary sidebar", () => {
+  it("keeps cross-domain entries outside the sidebar and classifies advanced capabilities normally", () => {
     expect(findRouteByPath("/notifications")).toMatchObject({
       sectionKey: "workbench",
       placement: "header",
@@ -92,13 +93,13 @@ describe("route metadata", () => {
       menuLabel: "通知偏好",
     });
     expect(findRouteByPath("/advanced/provenance")).toMatchObject({
-      sectionKey: "knowledge-configuration",
-      placement: "expert",
+      sectionKey: "knowledge-governance",
+      placement: "primary",
       menuLabel: "来源与血缘",
     });
     expect(findRouteByPath("/advanced/domestic")).toMatchObject({
-      sectionKey: "quality-operations",
-      placement: "expert",
+      sectionKey: "system-operations",
+      placement: "primary",
       menuLabel: "国产化核验",
     });
   });
@@ -362,7 +363,7 @@ describe("route metadata", () => {
   it("keeps unified authoring assets as a governed knowledge route without adding a second-level menu", () => {
     const route = findRouteByPath("/authoring/assets");
 
-    expect(route?.sectionKey).toBe("knowledge-configuration");
+    expect(route?.sectionKey).toBe("knowledge-governance");
     expect(route?.placement).toBe("hidden");
     expect(route?.hidden).toBe(true);
     expect(route?.menuKey).toBeUndefined();
@@ -677,7 +678,7 @@ describe("route metadata", () => {
   it("limits graph exploration to projection readers in advanced technical roles", () => {
     const route = findRouteByPath("/advanced/graph");
 
-    expect(route?.placement).toBe("expert");
+    expect(route?.placement).toBe("primary");
     expect(route?.requiredPermissions).toEqual(["menu.graph-explore", "projection.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -706,7 +707,7 @@ describe("route metadata", () => {
   it("limits AI workflow status to real governance roles with read permission", () => {
     const route = findRouteByPath("/advanced/ai-workflows");
 
-    expect(route?.placement).toBe("expert");
+    expect(route?.placement).toBe("primary");
     expect(route?.requiredPermissions).toEqual(["menu.ai-workflows", "llm.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-operator",
@@ -843,24 +844,26 @@ describe("route metadata", () => {
     expect(route?.experience?.riskLevel).toBe("high");
   });
 
-  it("returns customer routes without hidden or expert tools", () => {
+  it("returns customer routes without hidden tools and includes normally classified advanced capabilities", () => {
     expect(customerRouteMetas.some((route) => route.placement === "hidden")).toBe(false);
-    expect(customerRouteMetas.some((route) => route.placement === "expert")).toBe(false);
     expect(customerRouteMetas.map((route) => route.path)).toContain("/dashboard");
     expect(customerRouteMetas.map((route) => route.path)).toContain("/notifications");
-    expect(customerRouteMetas.map((route) => route.path)).not.toContain("/advanced/dev-console");
+    expect(customerRouteMetas.map((route) => route.path)).toContain("/advanced/dev-console");
   });
 
   it("builds breadcrumbs from route metadata", () => {
-    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量与运营", "质量与运营概览"]);
+    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量管理", "质量管理概览"]);
     expect(getRouteBreadcrumb("/missing")).toEqual(["未找到页面"]);
   });
 
   it("allows clinical-decision-user to reach /rule/validate for physician confirmation", () => {
     const route = findRouteByPath("/rule/validate");
+    if (!route) {
+      throw new Error("缺少 /rule/validate 路由元数据");
+    }
     // 医师需要在此页完成危急值提醒的人工确认（override），守卫只需 rule.read。
     expect(
-      canAccessRoute(route!, {
+      canAccessRoute(route, {
         roles: [{ code: "clinical-decision-user" }],
         permissions: [{ code: "rule.read" }, { code: "rule.override" }],
         menuKeys: ["patient-pathways"],
@@ -868,10 +871,37 @@ describe("route metadata", () => {
     ).toBe(true);
     // 无 rule.read 的角色仍被拦截。
     expect(
-      canAccessRoute(route!, {
+      canAccessRoute(route, {
         roles: [{ code: "nursing-collaborator" }],
         permissions: [],
         menuKeys: ["patient-pathways"],
+      }),
+    ).toBe(false);
+  });
+
+  it("classifies the full-truth sandbox as an ordinary clinical workspace", () => {
+    const route = findRouteByPath("/sandbox");
+
+    expect(route).toMatchObject({
+      title: "全真体验沙盘",
+      sectionKey: "clinical-collaboration",
+      menuKey: "sandbox",
+      placement: "primary",
+      requiredRoles: ["clinical-decision-user", "implementation-operator"],
+      requiredPermissions: ["menu.sandbox", "sandbox.run"],
+    });
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "clinical-decision-user" }],
+        permissions: [{ code: "sandbox.run" }],
+        menuKeys: ["sandbox"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "nursing-collaborator" }],
+        permissions: [{ code: "sandbox.run" }],
+        menuKeys: ["sandbox"],
       }),
     ).toBe(false);
   });

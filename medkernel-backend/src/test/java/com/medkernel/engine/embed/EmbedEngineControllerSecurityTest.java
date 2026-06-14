@@ -41,7 +41,6 @@ class EmbedEngineControllerSecurityTest {
 
     private static final String LAUNCH_TOKEN_BODY = """
         {
-          "userId": "DOCTOR-001",
           "roleCode": "clinical-decision-user",
           "patientId": "P1001",
           "encounterId": "E2001",
@@ -49,7 +48,8 @@ class EmbedEngineControllerSecurityTest {
           "expireSeconds": 60,
           "integrationMode": "IFRAME",
           "hook": "order-sign",
-          "hookInstance": "hook-order-001"
+          "hookInstance": "hook-order-001",
+          "parentOrigin": "https://his.hospital.com"
         }
         """;
 
@@ -110,11 +110,11 @@ class EmbedEngineControllerSecurityTest {
     }
 
     @Test
-    void launchExchangeWithoutAuth_ShouldReturnUnauthorized() throws Exception {
+    void launchExchangeWithoutAuth_ShouldUseTokenAuthentication() throws Exception {
         mockMvc.perform(post("/api/v1/engine/embed/launch")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isOk());
     }
 
     @Test
@@ -125,23 +125,16 @@ class EmbedEngineControllerSecurityTest {
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
-                .header("Origin", TRUSTED_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
             .andExpect(status().isOk());
     }
 
     @Test
-    void launchExchangeWithReadRoleButMissingOrigin_ShouldReturnBadRequest() throws Exception {
+    void launchExchangeDoesNotDependOnBrowserOriginHeader() throws Exception {
         mockMvc.perform(post("/api/v1/engine/embed/launch")
-                .with(jwt().jwt(token -> token
-                    .subject("test-user")
-                    .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-API-001"));
+            .andExpect(status().isOk());
     }
 }

@@ -22,10 +22,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  webServer: [
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+      env: {
+        MEDKERNEL_API_PROXY_TARGET:
+          process.env.MEDKERNEL_API_PROXY_TARGET ||
+          process.env.VITE_API_PROXY_TARGET ||
+          'http://127.0.0.1:18081',
+      },
+    },
+    {
+      command: 'node e2e/support/embed-business-host-server.mjs',
+      url: 'http://127.0.0.1:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
+  ],
 });

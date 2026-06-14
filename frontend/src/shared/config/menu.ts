@@ -2,7 +2,7 @@ import { canAccessRoute, routeMetas, routeSections } from "./routes";
 import type { RoutePermissionProfile, RoutePlacement, RouteSectionKey } from "./routes";
 
 /**
- * 五大主域菜单从 routes.ts 派生，页头、个人入口和专家模式复用同一目录。
+ * 业务域菜单从 routes.ts 派生，页头和个人入口复用同一目录。
  */
 export interface MenuItem {
   key: string;

@@ -54,14 +54,14 @@ class MenuPermissionControllerTest {
     }
 
     @Test
-    void catalogReturnsThirtyNavigationEntriesWithPlacementAndDefaultRoleMatrix() throws Exception {
+    void catalogReturnsCompleteNavigationEntriesWithPlacementAndDefaultRoleMatrix() throws Exception {
         mvc.perform(get("/api/v1/security/menu-permissions/catalog")
                 .with(jwt().jwt(token -> token
                     .subject("admin-1")
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.menus", hasSize(30)))
+            .andExpect(jsonPath("$.data.menus", hasSize(31)))
             .andExpect(jsonPath("$.data.menus[*].menuKey", hasItem("terminology-mapping")))
             .andExpect(jsonPath("$.data.menus[*].placement", hasItem("PRIMARY")))
             .andExpect(jsonPath("$.data.menus[*].permissionCode")
@@ -83,7 +83,7 @@ class MenuPermissionControllerTest {
             .andExpect(jsonPath("$.data.sections[*].items[*].menuKey")
                 .value(org.hamcrest.Matchers.not(hasItem("rule-validate"))))
             .andExpect(jsonPath("$.data.headerItems[*].menuKey", hasItem("notifications")))
-            .andExpect(jsonPath("$.data.expertItems").isArray());
+            .andExpect(jsonPath("$.data.expertItems").doesNotExist());
     }
 
     @Test

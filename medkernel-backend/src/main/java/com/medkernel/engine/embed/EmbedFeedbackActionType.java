@@ -3,11 +3,14 @@ package com.medkernel.engine.embed;
 import java.util.Locale;
 
 /**
- * 嵌入反馈动作受控枚举，只表达医师对嵌入建议的采纳或拒绝，不承载宿主回调送达状态。
+ * 嵌入反馈动作受控枚举，覆盖采纳、不采纳、稍后处理、忽略和关闭。
  */
 public enum EmbedFeedbackActionType {
     ADOPT,
-    REJECT;
+    REJECT,
+    LATER,
+    IGNORE,
+    CLOSE;
 
     public static EmbedFeedbackActionType fromWireValue(String value) {
         if (value == null || value.isBlank()) {

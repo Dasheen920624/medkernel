@@ -30,27 +30,6 @@ public record EmbedLaunchToken(
     @Column("integration_mode") String integrationMode,
     String hook,
     @Column("hook_instance") String hookInstance,
-    @Column("consumed_at") Instant consumedAt
-) {
-    public EmbedLaunchToken(
-            Long id,
-            String token,
-            String tenantId,
-            String userId,
-            String roleCode,
-            String patientId,
-            String encounterId,
-            String triggerPoint,
-            String status,
-            Instant expiredAt,
-            Instant createdAt,
-            String createdBy,
-            Instant updatedAt,
-            String updatedBy,
-            String traceId) {
-        this(
-            id, token, tenantId, userId, roleCode, patientId, encounterId, triggerPoint, status,
-            expiredAt, createdAt, createdBy, updatedAt, updatedBy, traceId,
-            EmbedIntegrationMode.IFRAME.name(), null, null, null);
-    }
-}
+    @Column("consumed_at") Instant consumedAt,
+    @Column("parent_origin") String parentOrigin
+) {}

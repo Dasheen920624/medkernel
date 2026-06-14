@@ -33,7 +33,7 @@ import com.medkernel.shared.ids.Ulid;
  * 平台知识按需派生服务。
  *
  * <p>默认读取平台版本时不复制数据；只有客户明确发起定制时，才复制知识身份、
- * 当前平台版本及其完整证据链，并冻结平台基线血缘。
+ * 当前平台版本及其完整证据链，并固化平台基线血缘。
  */
 @Service
 public class KnowledgeCustomizationService {

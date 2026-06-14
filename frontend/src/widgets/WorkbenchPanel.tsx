@@ -434,11 +434,11 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="value"
-            title="质量与运营概览"
-            marker="质量与运营入口"
+            title="质量管理概览"
+            marker="质量管理入口"
             description="查看真实质量指标、风险热力与运营趋势；工作台不伪造统计。"
             actions={[
-              { label: "质量与运营概览", path: "/qc/dashboard" },
+              { label: "质量管理概览", path: "/qc/dashboard" },
               { label: "评价指标", path: "/qc/eval/sets" },
             ]}
             onNavigate={onNavigate}
@@ -517,9 +517,9 @@ function WorkbenchCards({
           id="quality"
           title="质量问题与整改"
           marker="质量整改入口"
-          description="进入质量与运营概览和整改页面查看真实责任对象；工作台不伪造汇总趋势。"
+          description="进入质量管理概览和整改页面查看真实责任对象；工作台不伪造汇总趋势。"
           actions={[
-            { label: "质量与运营概览", path: "/qc/dashboard" },
+            { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "质量问题与整改", path: "/qc/alerts" },
           ]}
           onNavigate={onNavigate}
@@ -528,11 +528,11 @@ function WorkbenchCards({
       <Col xs={24} lg={12}>
         <DomainEntryCard
           id="value"
-          title="质量与运营"
-          marker="质量与运营入口"
-          description="进入质量与运营概览查看真实指标；暂无工作台独立聚合时只提供入口。"
+          title="质量管理"
+          marker="质量管理入口"
+          description="进入质量管理概览查看真实指标；暂无工作台独立聚合时只提供入口。"
           actions={[
-            { label: "质量与运营概览", path: "/qc/dashboard" },
+            { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },
           ]}
           onNavigate={onNavigate}

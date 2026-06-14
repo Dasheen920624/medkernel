@@ -89,6 +89,7 @@ public enum PermissionCode {
     FOLLOWUP_WRITE("followup.write", Risk.MEDIUM, "智能生成随访计划、触发任务、提交问卷与回传异常事件"),
     EMBED_READ("embed.read", Risk.LOW, "验证和查看嵌入上下文"),
     EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动令牌和记录反馈"),
+    SANDBOX_RUN("sandbox.run", Risk.MEDIUM, "运行全真体验沙盘场景编排"),
     LLM_READ("llm.read", Risk.LOW, "查看模型能力状态和调用记录"),
     LLM_EXECUTE("llm.execute", Risk.MEDIUM, "提交和重试模型任务"),
     LLM_MANAGE("llm.manage", Risk.HIGH, "管理租户模型路由、脱敏和输出结构策略"),
@@ -128,7 +129,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：23 主导航 + 1 页头 + 1 个人入口 + 5 专家入口 ─────────
+    // ─── INFRA-05 入口维度：28 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
@@ -142,6 +143,7 @@ public enum PermissionCode {
     MENU_WORKFLOW_TODOS("menu.workflow-todos", PermissionDimension.MENU, Risk.LOW, "查看协同任务"),
     MENU_NOTIFICATIONS("menu.notifications", PermissionDimension.MENU, Risk.LOW, "查看消息通知"),
     MENU_CLINICAL_FOLLOWUP("menu.clinical-followup", PermissionDimension.MENU, Risk.LOW, "查看随访协同"),
+    MENU_SANDBOX("menu.sandbox", PermissionDimension.MENU, Risk.LOW, "查看全真体验沙盘"),
     MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看质量与运营概览"),
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),

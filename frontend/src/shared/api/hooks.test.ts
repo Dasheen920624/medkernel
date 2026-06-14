@@ -66,10 +66,15 @@ import {
   useGrantPlugin,
   useGrayEvaluationIndicator,
   useFollowupStats,
+  useFollowupTemplates,
+  useCreateFollowupTemplate,
+  usePublishFollowupTemplate,
   useIntegrationDataContract,
   useIntegrationOnboardings,
   useInsuranceIssues,
   useReplayDeadLetter,
+  useRunSandboxScenario,
+  useSandboxScenarios,
   useImplementationSteps,
   useApplyOverrideBatch,
   useApplyPilotTemplateReferences,
@@ -130,6 +135,7 @@ import {
   useCaptureRuleDriftSnapshot,
   useReviewRectification,
   useReviewKnowledgeCandidate,
+  useResolveTerminologyConflict,
   useRollbackPackage,
   useReleaseSimulation,
   useRevokeOverrideBatch,
@@ -145,6 +151,7 @@ import {
   useStartReleaseRollout,
   useTerminologyCandidates,
   useTerminologyConflicts,
+  useMasterDataReconciliation,
   useTestWebhookSignature,
   useTraceDiagnosis,
   useWebhooks,
@@ -863,6 +870,62 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data).toEqual(stats));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/followup/stats", {
       params: { patientId: "patient-real-1" },
+    });
+  });
+
+  it("loads and governs followup template assets through the canonical endpoints", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: { items: [], page: 1, size: 20, total: 0, hasNext: false } },
+    });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: { data: { templateId: "ftpl-1", assetStatus: "DRAFT" } },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { templateId: "ftpl-1", assetStatus: "PUBLISHED" } },
+      });
+
+    const listHook = renderApiHook(() => useFollowupTemplates({ page: 1, size: 20 }));
+    await waitFor(() => expect(listHook.result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/followup/templates", {
+      params: { page: 1, size: 20 },
+    });
+
+    const createHook = renderApiHook(() => useCreateFollowupTemplate());
+    await createHook.result.current.mutateAsync({
+      templateCode: "FUP.COPD",
+      versionNo: 1,
+      name: "慢阻肺出院随访",
+      organizationScope: "tenant:tenant-A",
+      applicableScope: "riskLevel=HIGH",
+      tasks: [
+        {
+          taskType: "QUESTIONNAIRE",
+          delayDays: 7,
+          questionnaireTemplateId: "QUESTIONNAIRE.COPD.01",
+        },
+      ],
+      questionnaireDefinition: '{"templateId":"QUESTIONNAIRE.COPD.01","fields":[]}',
+      abnormalActionDefinition: '{"action":"RETURN_VISIT"}',
+      sourceRef: "hospital://followup/copd",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/followup/templates",
+      expect.objectContaining({ templateCode: "FUP.COPD", versionNo: 1 }),
+    );
+
+    const publishHook = renderApiHook(() => usePublishFollowupTemplate());
+    await publishHook.result.current.mutateAsync({
+      templateId: "ftpl-1",
+      request: {
+        impactDigest: "impact-followup-1",
+        reason: "模板结构和异常处置已复核",
+      },
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/engine/followup/templates/ftpl-1/publish", {
+      impactDigest: "impact-followup-1",
+      reason: "模板结构和异常处置已复核",
     });
   });
 
@@ -2312,6 +2375,69 @@ describe("recommendation evaluation api hook", () => {
   });
 });
 
+describe("sandbox orchestration api hook", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("loads the backend-owned scenario catalog", async () => {
+    const response = [
+      {
+        id: "scenario-1",
+        servicePackage: "clinical-collaboration",
+        title: "受控场景",
+        input: { kind: "numeric", defaultValue: 1 },
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useSandboxScenarios());
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/scenarios");
+  });
+
+  it("runs the selected scenario through the backend orchestration endpoint", async () => {
+    const response = {
+      scenarioId: "sbx-lab-critical-k",
+      traceId: "trace-sandbox-1",
+      steps: [],
+      snapshotId: "snapshot-1",
+      triggerId: "trigger-1",
+      cardCount: 1,
+      embedToken: "token-1",
+      embedUrl: "/embed/launch?token=token-1",
+      patientPathwayId: "pp-1",
+      followupPlanId: "fp-1",
+      evaluationRunId: "er-1",
+      embedModes: ["IFRAME", "SDK", "API"],
+      result: "PASS" as const,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useRunSandboxScenario());
+    const actual = await result.current.mutateAsync({
+      scenarioId: "sbx-lab-critical-k",
+      body: {
+        entryMode: "SNAPSHOT",
+        parentOrigin: "https://his.hospital.com",
+        integrationMode: "SDK",
+      },
+    });
+
+    expect(actual).toBe(response);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/sandbox/scenarios/sbx-lab-critical-k/run",
+      {
+        entryMode: "SNAPSHOT",
+        parentOrigin: "https://his.hospital.com",
+        integrationMode: "SDK",
+      },
+    );
+  });
+});
+
 describe("patient pathway entry api hook", () => {
   beforeEach(() => {
     vi.mocked(apiClient.post).mockReset();
@@ -2723,6 +2849,66 @@ describe("terminology mapping api helpers", () => {
         reason: "灰度验证失败",
       }),
     );
+  });
+
+  it("resolves terminology conflicts through the governed arbitration endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { id: 19, status: "RESOLVED" } },
+    });
+    const resolveConflict = renderApiHook(() => useResolveTerminologyConflict());
+
+    await resolveConflict.result.current.mutateAsync({
+      conflictId: 19,
+      request: {
+        packageVersion: "CURRENT",
+        resolutionNote: "保留当前标准映射，拒绝重复目标",
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/terminology/mappings/conflicts/19/resolve",
+      expect.objectContaining({
+        resolutionNote: "保留当前标准映射，拒绝重复目标",
+        request_id: "00000000-0000-4000-8000-000000000004",
+        trace_id: "00000000-0000-4000-8000-000000000004",
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+        role_codes: ["integration-operator"],
+        package_version: "CURRENT",
+      }),
+    );
+  });
+});
+
+describe("master data reconciliation api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  it("normalizes the source system and loads reconciliation counts only when requested", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          sourceSystem: "HIS",
+          lastSuccessfulBatchId: "batch-1",
+          cursor: "cursor-1",
+          lastSyncedAt: "2026-06-14T00:00:00Z",
+          resources: [],
+        },
+      },
+    });
+
+    const disabled = renderApiHook(() => useMasterDataReconciliation(" his ", false));
+    await act(async () => undefined);
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    disabled.rerender();
+    const enabled = renderApiHook(() => useMasterDataReconciliation(" his ", true));
+    await waitFor(() => expect(enabled.result.current.isSuccess).toBe(true));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/master-data/reconciliation", {
+      params: { sourceSystem: "HIS" },
+    });
   });
 });
 

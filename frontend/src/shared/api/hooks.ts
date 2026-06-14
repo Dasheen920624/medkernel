@@ -1783,6 +1783,29 @@ export function useTerminologyConflicts(params: TerminologyConflictsParams = {})
   });
 }
 
+export function useResolveTerminologyConflict() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      conflictId: number;
+      request: { packageVersion: string; resolutionNote: string };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: MappingConflict }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/conflicts/${payload.conflictId}/resolve`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "conflicts"] });
+    },
+  });
+}
+
 export function useGenerateTerminologyCandidates() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
@@ -6020,6 +6043,8 @@ export interface FollowupPlanDetailResponse {
   diseaseCode: string;
   status: FollowupPlanStatus;
   tasks: FollowupTaskDetailResponse[];
+  templateId?: string | null;
+  templateVersion?: number | null;
 }
 
 export interface FollowupPlanGenerateRequest {
@@ -6027,6 +6052,53 @@ export interface FollowupPlanGenerateRequest {
   riskLevel?: string;
   taskTypes: string[];
   idempotencyKey?: string;
+  templateId?: string;
+}
+
+export type FollowupTemplateAssetStatus =
+  | "DRAFT"
+  | "IN_REVIEW"
+  | "APPROVED"
+  | "PUBLISHED"
+  | "DEPRECATED"
+  | "RETIRED";
+
+export interface FollowupTemplateTaskInput {
+  taskType: FollowupTaskType;
+  delayDays: number;
+  questionnaireTemplateId?: string;
+}
+
+export interface FollowupTemplateResponse {
+  templateId: string;
+  templateCode: string;
+  versionNo: number;
+  name: string;
+  description?: string | null;
+  organizationScope: string;
+  applicableScope: string;
+  tasks: FollowupTemplateTaskInput[];
+  questionnaireDefinition: string;
+  abnormalActionDefinition: string;
+  sourceRef: string;
+  assetVersionId: string;
+  assetStatus: FollowupTemplateAssetStatus;
+  contentHash: string;
+  updatedAt: string;
+  traceId: string;
+}
+
+export interface FollowupTemplateCreateRequest {
+  templateCode: string;
+  versionNo: number;
+  name: string;
+  description?: string;
+  organizationScope: string;
+  applicableScope: string;
+  tasks: FollowupTemplateTaskInput[];
+  questionnaireDefinition: string;
+  abnormalActionDefinition: string;
+  sourceRef: string;
 }
 
 export interface FollowupQuestionnaireRequest {
@@ -6108,6 +6180,56 @@ export function useFollowupStats(params?: FollowupStatsParams) {
         { params },
       );
       return data.data;
+    },
+  });
+}
+
+export function useFollowupTemplates(params: { page?: number; size?: number; sort?: string } = {}) {
+  return useQuery({
+    queryKey: ["followup", "templates", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<FollowupTemplateResponse> }>(
+        "/engine/followup/templates",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCreateFollowupTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: FollowupTemplateCreateRequest) => {
+      const { data } = await apiClient.post<{ data: FollowupTemplateResponse }>(
+        "/engine/followup/templates",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup", "templates"] });
+      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
+    },
+  });
+}
+
+export function usePublishFollowupTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      templateId: string;
+      request: { impactDigest: string; reason: string };
+    }) => {
+      const { data } = await apiClient.post<{ data: FollowupTemplateResponse }>(
+        `/engine/followup/templates/${payload.templateId}/publish`,
+        payload.request,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup", "templates"] });
+      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
     },
   });
 }
@@ -7448,7 +7570,6 @@ export function useRollbackPackage() {
 // ──────────────────────────────────────────
 
 export interface EmbedLaunchTokenRequest {
-  userId: string;
   roleCode: string;
   patientId: string;
   encounterId: string;
@@ -7457,6 +7578,7 @@ export interface EmbedLaunchTokenRequest {
   integrationMode?: "IFRAME" | "SDK" | "API";
   hook?: string;
   hookInstance?: string;
+  parentOrigin?: string;
 }
 
 export interface EmbedLaunchTokenResponse {
@@ -7486,15 +7608,39 @@ export interface EmbedLaunchContextResponse {
   parentOrigin: string;
 }
 
+export type EmbedFeedbackAction = "ADOPT" | "REJECT" | "LATER" | "IGNORE" | "CLOSE";
+
+export interface EmbedRecommendationCardResponse {
+  cardId: string;
+  title: string;
+  summary: string;
+  suggestedAction: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  interruptLevel: "SILENT" | "SOFT" | "HARD_STOP";
+  status: "PENDING" | "VIEWED" | "DEFERRED";
+  requiresPhysicianConfirmation: boolean;
+  aiGenerated: boolean;
+  sourceSummary: string;
+  traceId: string;
+}
+
+export interface EmbedRecommendationCardsResponse {
+  items: EmbedRecommendationCardResponse[];
+  traceId: string;
+}
+
 export interface EmbedFeedbackRequest {
   token: string;
-  actionType: "ADOPT" | "REJECT";
+  cardId: string;
+  actionType: EmbedFeedbackAction;
   reason?: string;
 }
 
 export interface EmbedFeedbackResponse {
   token: string;
-  actionType: "ADOPT" | "REJECT";
+  cardId: string;
+  actionType: EmbedFeedbackAction;
+  recommendationStatus: string;
   callbackStatus: "CONNECTED" | "NOT_CONNECTED";
   callbackDelivered: boolean;
   degradationReason: string | null;
@@ -7535,7 +7681,23 @@ export function useEmbedLaunch(token: string) {
   });
 }
 
-// 3. 回传记录医师的交互反馈审计
+// 3. 使用已兑换令牌读取当前就诊范围内的可处置建议
+export function useEmbedRecommendationCards(token: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["embed", "recommendations", token],
+    queryFn: async () => {
+      const { data } = await apiClient.post<{ data: EmbedRecommendationCardsResponse }>(
+        "/engine/embed/recommendations",
+        { token },
+      );
+      return data.data;
+    },
+    enabled: Boolean(token) && enabled,
+    retry: false,
+  });
+}
+
+// 4. 回传记录医师的交互反馈审计
 export function useSubmitEmbedFeedback() {
   return useMutation({
     mutationFn: async (payload: EmbedFeedbackRequest) => {
@@ -7548,7 +7710,7 @@ export function useSubmitEmbedFeedback() {
   });
 }
 
-// 4. 获取当前租户的安全 Origin 域名白名单列表
+// 5. 获取当前租户的安全 Origin 域名白名单列表
 export function useEmbedOrigins() {
   return useQuery({
     queryKey: ["embed", "origins"],
@@ -7559,11 +7721,107 @@ export function useEmbedOrigins() {
   });
 }
 
-// 5. 添加入侵安全防护跨域 Origin 域名白名单
+// 6. 添加跨域嵌入 Origin 安全白名单
 export function useAddEmbedOrigin() {
   return useMutation({
     mutationFn: async (payload: EmbedOriginRequest) => {
       await apiClient.post<void>("/engine/embed/origins", payload);
+    },
+  });
+}
+
+// ──────────────────────────────────────────
+// 全真体验沙盘
+// ──────────────────────────────────────────
+
+export interface SandboxStepTrace {
+  stage: "CONTEXT" | "RECOMMENDATION" | "TOKEN" | string;
+  endpoint: string;
+  request: unknown;
+  response: unknown;
+  serverFacts: Record<string, unknown>;
+  status: "OK" | "FAIL";
+  error?: string | null;
+}
+
+export interface SandboxRunRequest {
+  entryMode?: "SNAPSHOT";
+  contextOverride?: unknown;
+  occurredAt?: string;
+  parentOrigin?: string;
+  integrationMode?: "IFRAME" | "SDK" | "API";
+}
+
+export interface SandboxRunResponse {
+  scenarioId: string;
+  traceId: string;
+  steps: SandboxStepTrace[];
+  snapshotId?: string | null;
+  triggerId?: string | null;
+  cardCount: number;
+  embedToken?: string | null;
+  embedUrl?: string | null;
+  patientPathwayId?: string | null;
+  followupPlanId?: string | null;
+  evaluationRunId?: string | null;
+  embedModes: Array<"IFRAME" | "SDK" | "API">;
+  result: "PASS" | "FAIL";
+}
+
+export interface SandboxScenarioCatalogInput {
+  kind: "numeric" | "orchestration" | "unavailable" | string;
+  code?: string | null;
+  label?: string | null;
+  defaultValue?: number | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+  step?: number | null;
+  unit?: string | null;
+  referenceRange?: string | null;
+  upperReferenceValue?: number | null;
+  encounterType?: string | null;
+}
+
+export interface SandboxScenarioCatalogItem {
+  id: string;
+  servicePackage: string;
+  engine: string;
+  playbook: string;
+  triggerPoint: string;
+  title: string;
+  narrative: string;
+  hostSummary: string;
+  patientId: string;
+  encounterId: string;
+  expectedRuleCode: string | null;
+  expectedAction: string;
+  expectedSeverity: string;
+  expectedAssetCode?: string | null;
+  status: "ready" | "clinical-review-required" | string;
+  statusReason: string;
+  input: SandboxScenarioCatalogInput;
+}
+
+export function useSandboxScenarios() {
+  return useQuery({
+    queryKey: ["sandbox", "scenarios"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: SandboxScenarioCatalogItem[] }>(
+        "/engine/sandbox/scenarios",
+      );
+      return data.data ?? [];
+    },
+  });
+}
+
+export function useRunSandboxScenario() {
+  return useMutation({
+    mutationFn: async (variables: { scenarioId: string; body?: SandboxRunRequest }) => {
+      const { data } = await apiClient.post<{ data: SandboxRunResponse }>(
+        `/engine/sandbox/scenarios/${variables.scenarioId}/run`,
+        variables.body ?? {},
+      );
+      return data.data;
     },
   });
 }
@@ -7849,6 +8107,18 @@ export interface AdapterHubStatus {
   requiredSources: AdapterHubRequiredSourceStatus[];
 }
 
+export interface MasterDataReconciliation {
+  sourceSystem: string;
+  lastSuccessfulBatchId: string | null;
+  cursor: string | null;
+  lastSyncedAt: string | null;
+  resources: Array<{
+    resourceType: "ORG_UNIT" | "PERSON" | "LOCAL_TERM";
+    activeCount: number;
+    disabledCount: number;
+  }>;
+}
+
 export interface IntegrationDataContractFieldSchema {
   type: string;
   description?: string | null;
@@ -8125,6 +8395,21 @@ export function useAdapterHubStatus() {
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<AdapterHubStatus>>(
         "/engine/integration/adapter-hub/status",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useMasterDataReconciliation(sourceSystem: string, enabled = false) {
+  const normalizedSource = sourceSystem.trim().toUpperCase();
+  return useQuery({
+    queryKey: ["integration", "master-data", "reconciliation", normalizedSource],
+    enabled: enabled && normalizedSource.length > 0,
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<MasterDataReconciliation>>(
+        "/engine/integration/master-data/reconciliation",
+        { params: { sourceSystem: normalizedSource } },
       );
       return data.data;
     },

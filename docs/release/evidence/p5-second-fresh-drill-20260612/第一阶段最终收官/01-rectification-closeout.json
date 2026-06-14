@@ -1,0 +1,47 @@
+{
+  "runTag": "p5-final-rectification-1781393006419",
+  "generatedAt": "2026-06-13T23:23:27.975Z",
+  "baseUrl": "https://193.112.107.134",
+  "findingPrefix": "P5.ACT7.FOLLOWUP.ABNORMAL.",
+  "initialPendingCount": 1,
+  "actions": [
+    {
+      "findingId": "qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+      "findingCode": "P5.ACT7.FOLLOWUP.ABNORMAL.p5-act7-20260613-215858",
+      "taskId": "rct-b9dadecd-070e-4e64-9471-1e77fcadff26",
+      "action": "SUBMIT",
+      "result": {
+        "taskId": "rct-b9dadecd-070e-4e64-9471-1e77fcadff26",
+        "findingStatus": "REMEDIATING",
+        "taskStatus": "SUBMITTED",
+        "traceId": "p5-final-rectification-1781393006419-submit-rectification-1781393007496"
+      }
+    },
+    {
+      "findingId": "qf-b6756c72-106a-48e0-a500-f5a12ff5746a",
+      "findingCode": "P5.ACT7.FOLLOWUP.ABNORMAL.p5-act7-20260613-215858",
+      "taskId": "rct-b9dadecd-070e-4e64-9471-1e77fcadff26",
+      "action": "REVIEW",
+      "result": {
+        "reviewId": "rr-86039116-98dd-4a5d-8105-2729cc36d3f8",
+        "findingStatus": "CLOSED",
+        "taskStatus": "CLOSED",
+        "traceId": "p5-final-rectification-1781393006419-review-rectification-1781393007709"
+      }
+    }
+  ],
+  "remainingP5Issues": [],
+  "finalReport": {
+    "status": "AVAILABLE",
+    "totalTasks": 3,
+    "openTasks": 0,
+    "closedTasks": 3,
+    "waivedTasks": 0,
+    "overdueTasks": 0,
+    "highPriorityOpenTasks": 0,
+    "closureRate": 1,
+    "sourceTable": "rectification_task",
+    "traceId": "p5-final-rectification-1781393006419-verify-report-1781393007892"
+  },
+  "conclusion": "PASS"
+}

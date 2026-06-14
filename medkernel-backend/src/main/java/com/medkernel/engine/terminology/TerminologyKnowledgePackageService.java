@@ -32,7 +32,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 把已确认术语映射冻结为统一知识包，不维护独立术语包生命周期。
+ * 把已确认术语映射固化为统一知识包，不维护独立术语包生命周期。
  */
 @Service
 public class TerminologyKnowledgePackageService {

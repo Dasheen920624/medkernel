@@ -4,19 +4,37 @@ import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useEmbedLaunch, useRecommendationCards, useSubmitEmbedFeedback } from "@/shared/api/hooks";
+import {
+  useEmbedLaunch,
+  useEmbedRecommendationCards,
+  useSubmitEmbedFeedback,
+} from "@/shared/api/hooks";
 
 import EmbedLaunch from "./EmbedLaunch";
 
 vi.mock("@/shared/api/hooks", () => ({
   useEmbedLaunch: vi.fn(),
-  useRecommendationCards: vi.fn(),
+  useEmbedRecommendationCards: vi.fn(),
   useSubmitEmbedFeedback: vi.fn(),
 }));
 
 const mockUseEmbedLaunch = vi.mocked(useEmbedLaunch);
-const mockUseRecommendationCards = vi.mocked(useRecommendationCards);
+const mockUseEmbedRecommendationCards = vi.mocked(useEmbedRecommendationCards);
 const mockUseSubmitEmbedFeedback = vi.mocked(useSubmitEmbedFeedback);
+
+const recommendationCard = {
+  cardId: "card-1",
+  title: "临床建议",
+  summary: "需要医师确认的真实建议",
+  suggestedAction: "复核当前处置",
+  riskLevel: "HIGH" as const,
+  interruptLevel: "SOFT" as const,
+  status: "PENDING" as const,
+  requiresPhysicianConfirmation: true,
+  aiGenerated: false,
+  sourceSummary: "规则 R-1001 与患者当前就诊上下文",
+  traceId: "trace-card-1",
+};
 
 function renderEmbedLaunch() {
   return render(
@@ -48,9 +66,11 @@ describe("EmbedLaunch", () => {
       isLoading: false,
       isError: false,
     } as ReturnType<typeof useEmbedLaunch>);
-    mockUseRecommendationCards.mockReturnValue({
-      data: { items: [], page: 1, size: 20, total: 0, totalPages: 0 },
-    } as unknown as ReturnType<typeof useRecommendationCards>);
+    mockUseEmbedRecommendationCards.mockReturnValue({
+      data: { items: [], traceId: "trace-real-1" },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useEmbedRecommendationCards>);
     mockUseSubmitEmbedFeedback.mockReturnValue({
       mutateAsync: vi.fn(),
       isPending: false,
@@ -65,59 +85,125 @@ describe("EmbedLaunch", () => {
     expect(screen.queryByText("tr-local-embed-9122")).not.toBeInTheDocument();
   });
 
-  it("posts physician feedback only to the validated parent origin", async () => {
+  it("submits the selected card and posts physician feedback only to the validated parent origin", async () => {
     const submitFeedback = vi.fn().mockResolvedValue({
-      callbackStatus: "CONNECTED",
-      callbackDelivered: true,
-      degradationReason: null,
+      token: "launch-token",
+      cardId: "card-1",
+      actionType: "ADOPT",
+      recommendationStatus: "ACCEPTED",
+      callbackStatus: "NOT_CONNECTED",
+      callbackDelivered: false,
+      degradationReason: "HOST_CALLBACK_NOT_CONFIGURED",
       traceId: "trace-feedback",
     });
     mockUseSubmitEmbedFeedback.mockReturnValue({
       mutateAsync: submitFeedback,
       isPending: false,
     } as unknown as ReturnType<typeof useSubmitEmbedFeedback>);
-    mockUseRecommendationCards.mockReturnValue({
+    mockUseEmbedRecommendationCards.mockReturnValue({
       data: {
-        items: [
-          {
-            cardId: "card-1",
-            tenantId: "tenant-A",
-            triggerId: "trigger-1",
-            cardType: "CLINICAL_QUALITY",
-            title: "临床建议",
-            summary: "需要医师确认的真实建议",
-            riskLevel: "HIGH",
-            interruptLevel: "SOFT",
-            status: "PENDING",
-            severity: "HIGH",
-            recommendations: [
-              {
-                actionCode: "REVIEW",
-                actionType: "REVIEW",
-                description: "复核当前处置",
-              },
-            ],
-          },
-        ],
-        page: 1,
-        size: 20,
-        total: 1,
-        totalPages: 1,
+        items: [recommendationCard],
+        traceId: "trace-real-1",
       },
       isLoading: false,
       isError: false,
-    } as unknown as ReturnType<typeof useRecommendationCards>);
+    } as unknown as ReturnType<typeof useEmbedRecommendationCards>);
     const postMessage = vi.spyOn(window, "postMessage").mockImplementation(() => undefined);
 
     renderEmbedLaunch();
-    await userEvent.click(screen.getByRole("button", { name: /符合指征/ }));
+    await userEvent.click(screen.getByRole("button", { name: /采纳建议/ }));
 
     await waitFor(() => {
+      expect(submitFeedback).toHaveBeenCalledWith({
+        token: "launch-token",
+        cardId: "card-1",
+        actionType: "ADOPT",
+        reason: "医师确认符合临床指征并采纳建议",
+      });
       expect(postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ source: "MEDKERNEL_CDSS_EMBED", action: "ADOPT" }),
+        expect.objectContaining({
+          source: "MEDKERNEL_CDSS_EMBED",
+          action: "ADOPT",
+          cardId: "card-1",
+        }),
         "https://his.hospital.com",
       );
     });
     expect(postMessage).not.toHaveBeenCalledWith(expect.anything(), "*");
+  });
+
+  it.each([
+    ["稍后处理", "LATER"],
+    ["忽略本次", "IGNORE"],
+    ["关闭建议", "CLOSE"],
+  ] as const)("supports the host action %s with the selected card", async (label, actionType) => {
+    const submitFeedback = vi.fn().mockResolvedValue({
+      token: "launch-token",
+      cardId: "card-1",
+      actionType,
+      recommendationStatus: actionType === "LATER" ? "DEFERRED" : "DISMISSED",
+      callbackStatus: "NOT_CONNECTED",
+      callbackDelivered: false,
+      degradationReason: "HOST_CALLBACK_NOT_CONFIGURED",
+      traceId: "trace-feedback",
+    });
+    mockUseSubmitEmbedFeedback.mockReturnValue({
+      mutateAsync: submitFeedback,
+      isPending: false,
+    } as unknown as ReturnType<typeof useSubmitEmbedFeedback>);
+    mockUseEmbedRecommendationCards.mockReturnValue({
+      data: { items: [recommendationCard], traceId: "trace-real-1" },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useEmbedRecommendationCards>);
+
+    renderEmbedLaunch();
+    await userEvent.click(screen.getByRole("button", { name: /其他处理/ }));
+    await userEvent.click(await screen.findByText(label));
+
+    await waitFor(() => {
+      expect(submitFeedback).toHaveBeenCalledWith({
+        token: "launch-token",
+        cardId: "card-1",
+        actionType,
+        reason: expect.any(String),
+      });
+    });
+  });
+
+  it("requires a reason when rejecting and submits it against the selected card", async () => {
+    const submitFeedback = vi.fn().mockResolvedValue({
+      token: "launch-token",
+      cardId: "card-1",
+      actionType: "REJECT",
+      recommendationStatus: "REJECTED",
+      callbackStatus: "NOT_CONNECTED",
+      callbackDelivered: false,
+      degradationReason: "HOST_CALLBACK_NOT_CONFIGURED",
+      traceId: "trace-feedback",
+    });
+    mockUseSubmitEmbedFeedback.mockReturnValue({
+      mutateAsync: submitFeedback,
+      isPending: false,
+    } as unknown as ReturnType<typeof useSubmitEmbedFeedback>);
+    mockUseEmbedRecommendationCards.mockReturnValue({
+      data: { items: [recommendationCard], traceId: "trace-real-1" },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useEmbedRecommendationCards>);
+
+    renderEmbedLaunch();
+    await userEvent.click(screen.getByRole("button", { name: /不采纳/ }));
+    await userEvent.click(screen.getByText("患者临床表现及风险指征不符"));
+    await userEvent.click(screen.getByRole("button", { name: "提交备案" }));
+
+    await waitFor(() => {
+      expect(submitFeedback).toHaveBeenCalledWith({
+        token: "launch-token",
+        cardId: "card-1",
+        actionType: "REJECT",
+        reason: "CLINICAL_MISMATCH",
+      });
+    });
   });
 });

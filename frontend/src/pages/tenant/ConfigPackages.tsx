@@ -171,11 +171,12 @@ const inheritanceAssetTypeOptions: Array<{ value: EngineAssetType; label: string
   { value: "PATHWAY", label: "临床路径 (PATHWAY)" },
   { value: "CONDITION_FRAGMENT", label: "条件片段 (CONDITION_FRAGMENT)" },
   { value: "EVALUATION", label: "质控评估指标 (EVALUATION)" },
+  { value: "FOLLOWUP", label: "随访模板 (FOLLOWUP)" },
   { value: "TERMINOLOGY", label: "术语与字典" },
   { value: "KNOWLEDGE", label: "知识资产 (KNOWLEDGE)" },
 ];
 
-const authoringAssetTypes = ["RULE", "PATHWAY", "CONDITION_FRAGMENT"] as const;
+const authoringAssetTypes = ["RULE", "PATHWAY", "CONDITION_FRAGMENT", "FOLLOWUP"] as const;
 type AuthoringPackageAssetType = (typeof authoringAssetTypes)[number];
 
 function isAuthoringPackageAssetType(value: string): value is AuthoringPackageAssetType {
@@ -418,7 +419,9 @@ export default function ConfigPackages() {
     (tenantDirectoryQuery.data ?? []).map((tenant) => [tenant.tenantId, tenant.name]),
   );
   const canReadAuthoringAssets =
-    hasPermission(securityProfile, "rule.read") || hasPermission(securityProfile, "pathway.read");
+    hasPermission(securityProfile, "rule.read") ||
+    hasPermission(securityProfile, "pathway.read") ||
+    hasPermission(securityProfile, "followup.read");
   const canReadEvaluations = hasPermission(securityProfile, "evaluation.read");
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -2405,6 +2408,7 @@ export default function ConfigPackages() {
                       <Option value="RULE">规则引擎 (RULE)</Option>
                       <Option value="PATHWAY">临床路径 (PATHWAY)</Option>
                       <Option value="CONDITION_FRAGMENT">条件片段 (CONDITION_FRAGMENT)</Option>
+                      <Option value="FOLLOWUP">随访模板 (FOLLOWUP)</Option>
                       <Option value="EVALUATION">质控评估指标 (EVALUATION)</Option>
                       <Option value="TERMINOLOGY">术语与字典</Option>
                     </Select>

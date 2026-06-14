@@ -3,14 +3,16 @@ import { menuSections } from "./menu";
 import { routeMetas } from "./routes";
 
 describe("menu config", () => {
-  it("matches the five-domain CONSTITUTION ordering", () => {
-    expect(menuSections).toHaveLength(5);
+  it("matches the first-phase seven-domain information architecture", () => {
+    expect(menuSections).toHaveLength(7);
     expect(menuSections.map((section) => [section.key, section.label])).toEqual([
       ["workbench", "工作台"],
-      ["institution-governance", "机构治理"],
-      ["knowledge-configuration", "知识配置"],
+      ["organization-people", "机构与人员"],
+      ["knowledge-governance", "知识治理"],
       ["clinical-collaboration", "临床协同"],
-      ["quality-operations", "质量与运营"],
+      ["quality-management", "质量管理"],
+      ["compliance-security", "合规安全"],
+      ["system-operations", "系统运维"],
     ]);
   });
 
@@ -39,7 +41,7 @@ describe("menu config", () => {
     });
   });
 
-  it("keeps merged, header, profile and expert capabilities out of the sidebar", () => {
+  it("keeps merged, header and profile capabilities out of the sidebar", () => {
     const sidebarKeys = menuSections.flatMap((section) => section.items.map((item) => item.key));
 
     expect(sidebarKeys).not.toEqual(
@@ -48,6 +50,10 @@ describe("menu config", () => {
         "qc-eval-results",
         "notifications",
         "notification-settings",
+      ]),
+    );
+    expect(sidebarKeys).toEqual(
+      expect.arrayContaining([
         "provenance",
         "graph-explore",
         "ai-workflows",
@@ -57,48 +63,49 @@ describe("menu config", () => {
     );
   });
 
-  it("locks the exact 23 customer primary entries", () => {
+  it("locks the exact 29 customer primary entries", () => {
     const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
 
-    expect(visibleTotal).toBe(23);
+    expect(visibleTotal).toBe(29);
     expect(
       menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
     ).toEqual([
       ["workbench", ["workbench"]],
+      ["organization-people", ["tenant-onboarding", "admin-users", "identity-bindings"]],
       [
-        "institution-governance",
-        [
-          "tenant-onboarding",
-          "admin-users",
-          "identity-bindings",
-          "implementation-guide",
-          "adapter-hub",
-        ],
-      ],
-      [
-        "knowledge-configuration",
+        "knowledge-governance",
         [
           "knowledge-governance",
           "config-packages",
           "terminology-mapping",
           "rule-definitions",
           "pathway-templates",
+          "provenance",
+          "graph-explore",
+          "ai-workflows",
         ],
       ],
       [
         "clinical-collaboration",
-        ["mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup"],
-      ],
-      [
-        "quality-operations",
         [
-          "qc-dashboard",
-          "qc-alerts",
-          "insurance-audit",
-          "qc-eval-sets",
-          "admin-audit",
-          "security-baseline",
+          "mpi",
+          "patient-pathways",
+          "cdss-fatigue",
+          "workflow-todos",
+          "clinical-followup",
+          "sandbox",
+        ],
+      ],
+      ["quality-management", ["qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"]],
+      ["compliance-security", ["admin-audit", "security-baseline"]],
+      [
+        "system-operations",
+        [
+          "implementation-guide",
+          "adapter-hub",
           "system-providers",
+          "domestic-check",
+          "dev-console",
         ],
       ],
     ]);

@@ -11,7 +11,7 @@
 
 引擎不得直接消费院内系统原始字段。任何业务（规则、路径、推荐、评估、随访、嵌入、模型）的输入都必须先经过 **`POST /api/v1/engine/context/snapshots`** 将院内来源数据规范化为 **标准临床上下文（ContextSnapshot）**。本任务交付该接口的最小可用集，承担 E2 后续 API-02..07 的"数据入口"。
 
-- **唯一权威**：snapshot 一经创建即不可变（CarePlan/FollowUp 等动态对象由后续状态机管理，本接口仅冻结某时点的资源集合）
+- **唯一权威**：snapshot 一经创建即不可变（CarePlan/FollowUp 等动态对象由后续状态机管理，本接口仅固化某时点的资源集合）
 - **包版本快照**：每个 snapshot 关联当时生效的 `knowledge_package_version` / `rule_package_version` / `pathway_package_version`，保证后续可重放
 - **缺失字段与映射状态**：返回值显式给出 schema 必填项缺失列表与字典映射状态（联动 API-04），但不阻断创建——质量信号写入 `quality_status`
 - **范围**：12 个标准临床对象（Patient / Encounter / Condition / Symptom / Observation / DiagnosticReport / Medication / Procedure / Document / CarePlan / FollowUp / Claim）一次到位
@@ -24,7 +24,7 @@
 
 | 表 | 用途 | 关键字段 |
 |---|---|---|
-| `context_snapshot` | 一次"上下文冻结"的顶层聚合 | snapshot_id (PK, UUID), tenant_id, org_unit_id, patient_id, encounter_id, knowledge_pkg_version, rule_pkg_version, pathway_pkg_version, status (DRAFT/ACTIVE/SUPERSEDED/REJECTED), missing_fields (JSON), mapping_status (JSON), trace_id, created_at, created_by, signature (SM3) |
+| `context_snapshot` | 一次"上下文固化"的顶层聚合 | snapshot_id (PK, UUID), tenant_id, org_unit_id, patient_id, encounter_id, knowledge_pkg_version, rule_pkg_version, pathway_pkg_version, status (DRAFT/ACTIVE/SUPERSEDED/REJECTED), missing_fields (JSON), mapping_status (JSON), trace_id, created_at, created_by, signature (SM3) |
 | `canonical_resource` | snapshot 内的每个标准对象 | resource_id (PK), snapshot_id (FK), resource_type (枚举 12 类), resource_payload (JSON), source_system, source_record_id, mapped_version, event_time, received_time, quality_status (VALID/PARTIAL/INVALID), seq_no |
 | `clinical_event` | 触发 snapshot 创建的事件来源（与 API-02 共表） | event_id (PK), tenant_id, event_type (DIAG/ORDER/REPORT/DISCHARGE/FOLLOWUP), source_system, payload_digest, occurred_at, received_at, snapshot_id (nullable FK), processing_status |
 

@@ -1,0 +1,153 @@
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(calc(var(--mk-unit) * 220), calc(var(--mk-unit) * 280)) minmax(
+      0,
+      1fr
+    );
+  gap: calc(var(--mk-unit) * 16);
+  align-items: start;
+}
+
+.scenarioRail {
+  position: sticky;
+  top: calc(var(--mk-unit) * 16);
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 16);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+}
+
+.sectionHeading {
+  display: flex;
+  gap: calc(var(--mk-unit) * 8);
+  align-items: center;
+}
+
+.scenarioList {
+  display: grid;
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.scenarioGroup {
+  display: grid;
+  gap: calc(var(--mk-unit) * 8);
+  margin-top: calc(var(--mk-unit) * 14);
+}
+
+.groupLabel {
+  font-size: var(--ant-font-size-sm);
+}
+
+.scenarioButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: auto;
+  min-height: calc(var(--mk-unit) * 48);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
+  text-align: left;
+  white-space: normal;
+}
+
+.scenarioButton > span {
+  min-width: 0;
+}
+
+.scenarioButton :global(.ant-tag) {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
+}
+
+.scenarioNarrative {
+  margin: calc(var(--mk-unit) * 14) 0 0;
+}
+
+.mainArea {
+  display: grid;
+  min-width: 0;
+  gap: calc(var(--mk-unit) * 16);
+}
+
+.statusStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: calc(var(--mk-unit) * 12);
+  align-items: center;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 16);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+}
+
+.statusStrip > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+}
+
+.statusStrip > :global(.ant-tag) {
+  margin-inline-end: 0;
+}
+
+.runSummary {
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 16);
+  border-left: calc(var(--mk-line-width) * 3) solid var(--ant-color-success);
+  background: var(--ant-color-success-bg);
+}
+
+.hostGrid {
+  display: grid;
+  grid-template-columns: minmax(calc(var(--mk-unit) * 320), 0.85fr) minmax(
+      calc(var(--mk-unit) * 420),
+      1.15fr
+    );
+  gap: calc(var(--mk-unit) * 16);
+  align-items: stretch;
+}
+
+.hostGrid > * {
+  min-width: 0;
+}
+
+.orchestrationPanel {
+  display: grid;
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 16);
+  align-content: start;
+  gap: calc(var(--mk-unit) * 16);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+}
+
+.orchestrationPanel h5 {
+  margin: 0;
+}
+
+.orchestrationPanel :global(.ant-btn) {
+  justify-self: start;
+}
+
+@media (max-width: 78rem) {
+  .workspace,
+  .hostGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .scenarioRail {
+    position: static;
+  }
+
+  .statusStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 42rem) {
+  .statusStrip {
+    grid-template-columns: 1fr;
+  }
+}

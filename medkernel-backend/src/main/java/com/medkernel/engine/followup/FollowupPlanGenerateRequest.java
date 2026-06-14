@@ -11,7 +11,8 @@ public record FollowupPlanGenerateRequest(
     String riskLevel,
     List<String> taskTypes,
     String idempotencyKey,
-    Boolean modelEnabled
+    Boolean modelEnabled,
+    String templateId
 ) {
     public FollowupPlanGenerateRequest {
         taskTypes = taskTypes == null ? List.of() : List.copyOf(taskTypes);
@@ -21,6 +22,15 @@ public record FollowupPlanGenerateRequest(
             String contextSnapshotId,
             String riskLevel,
             List<String> taskTypes) {
-        this(contextSnapshotId, riskLevel, taskTypes, null, null);
+        this(contextSnapshotId, riskLevel, taskTypes, null, null, null);
+    }
+
+    public FollowupPlanGenerateRequest(
+            String contextSnapshotId,
+            String riskLevel,
+            List<String> taskTypes,
+            String idempotencyKey,
+            Boolean modelEnabled) {
+        this(contextSnapshotId, riskLevel, taskTypes, idempotencyKey, modelEnabled, null);
     }
 }

@@ -5,7 +5,7 @@ package com.medkernel.engine.terminology;
  *
  * @param mappingId 正式映射 ID
  * @param standardTermId 标准术语 ID
- * @param standardCode 构包时冻结的标准编码
+ * @param standardCode 构包时固化的标准编码
  */
 public record EffectiveTermMapping(
     Long mappingId,

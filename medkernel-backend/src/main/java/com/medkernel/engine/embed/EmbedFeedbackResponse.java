@@ -5,7 +5,9 @@ package com.medkernel.engine.embed;
  */
 public record EmbedFeedbackResponse(
     String token,
+    String cardId,
     String actionType,
+    String recommendationStatus,
     EmbedConnectionStatus callbackStatus,
     boolean callbackDelivered,
     String degradationReason,

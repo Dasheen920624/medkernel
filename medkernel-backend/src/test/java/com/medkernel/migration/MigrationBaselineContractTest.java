@@ -166,8 +166,37 @@ class MigrationBaselineContractTest {
         "V115__knowledge_customization_personnel_master.sql",
         "V116__platform_seed_config_source.sql",
         "V117__nullable_unconfigured_system_config.sql",
-        "V118__trace_id_contract_width.sql"
+        "V118__trace_id_contract_width.sql",
+        "V119__embed_external_host_contract.sql",
+        "V120__master_data_sync_contract.sql",
+        "V121__followup_template_asset.sql",
+        "V122__snapshot_comment_wording.sql",
+        "V123__sandbox_permission_catalog.sql"
     );
+
+    @Test
+    void sandboxPermissionsArePersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
+            assertThat(ddl)
+                .as("%s 沙盘菜单与运行权限必须进入系统权限目录", dialect)
+                .contains("'menu.sandbox'", "'MENU'", "'sandbox'", "'查看全真体验沙盘'")
+                .contains("'sandbox.run'", "'ACTION'", "'运行全真体验沙盘'")
+                .contains("migration-v123");
+        }
+    }
+
+    @Test
+    void snapshotCommentsUseCurrentProductWordingAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V122__snapshot_comment_wording.sql");
+            assertThat(ddl)
+                .as("%s 快照与派生注释使用当前产品表述", dialect)
+                .contains("构包时固化的院内术语 ID")
+                .contains("派生时记录的平台基线版本主键")
+                .doesNotContain("冻结");
+        }
+    }
 
     @Test
     void unconfiguredSystemConfigValueIsNullableAcrossAllDialects() {
@@ -263,12 +292,13 @@ class MigrationBaselineContractTest {
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "mk_version_rollout_observation", "mk_version_override_template",
         "mk_version_override_template_item", "mk_version_override_operation",
-        "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
+        "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
         "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot", "mk_compliance_data_permission", "mk_compliance_masking_rule",
         "mk_compliance_export_approval", "mk_compliance_interop_assessment_item",
@@ -404,6 +434,7 @@ class MigrationBaselineContractTest {
         "idx_pkg_tpref_tenant_status", "idx_pkg_tpref_package",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
         "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
+        "idx_mk_followup_template_tenant", "idx_followup_plan_template",
         "uk_followup_plan_idempotency",
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
         "uk_followup_task_idempotency", "idx_followup_task_status_due", "idx_followup_task_clock",
@@ -419,6 +450,7 @@ class MigrationBaselineContractTest {
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
+        "idx_mk_integration_master_data_sync_batch_latest", "idx_mk_integration_master_data_sync_record_status",
         "idx_integ_onb_tenant_status", "idx_integ_onb_adapter",
         "idx_integ_regional_tenant_trust", "idx_integ_regional_org",
         "idx_evd_tenant", "idx_evd_trace",
@@ -640,6 +672,12 @@ class MigrationBaselineContractTest {
         "uk_integration_adapter", "uk_integration_webhook", "uk_integration_message",
         "ck_integration_adapter_status", "ck_integration_adapter_health",
         "ck_integration_webhook_status", "ck_integration_message_dir", "ck_integration_message_status",
+        "uk_mk_integration_master_data_sync_batch", "ck_mk_integration_master_data_sync_batch_mode",
+        "ck_mk_integration_master_data_sync_batch_status", "uk_mk_integration_master_data_sync_record",
+        "ck_mk_integration_master_data_sync_record_type", "ck_mk_integration_master_data_sync_record_status",
+        "ck_mk_integration_master_data_sync_record_version",
+        "uk_mk_followup_template_id", "uk_mk_followup_template_code_version",
+        "uk_mk_followup_template_asset_version", "ck_mk_followup_template_version",
         "uk_integ_onboarding_tenant_id", "ck_integ_onboarding_mode",
         "ck_integ_onboarding_status", "ck_integ_onboarding_fhir",
         "uk_integ_regional_source_id", "ck_integ_regional_trust", "ck_integ_regional_status",
@@ -771,11 +809,12 @@ class MigrationBaselineContractTest {
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_log",
-        "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
+        "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
         "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
@@ -816,7 +855,7 @@ class MigrationBaselineContractTest {
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_log",
-        "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",

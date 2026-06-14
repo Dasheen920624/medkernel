@@ -19,7 +19,6 @@ const allowedDecisions = new Set([
   "MOVE",
   "MERGE",
   "SPLIT",
-  "EXPERT",
   "API_ONLY",
   "REMOVE",
 ]);
@@ -95,8 +94,8 @@ describe("product function catalog", () => {
         };
       });
 
-    expect(backendEntries).toHaveLength(30);
-    expect(frontendEntries).toHaveLength(30);
+    expect(backendEntries).toHaveLength(31);
+    expect(frontendEntries).toHaveLength(31);
     expect(backendEntries).toEqual(expect.arrayContaining(frontendEntries));
     expect(
       backendEntries.filter((entry) => entry.placement === "primary").map((entry) => entry.menuKey),
@@ -112,5 +111,15 @@ describe("product function catalog", () => {
     decisions.forEach(({ id, decision }) => {
       expect(allowedDecisions.has(decision), `${id} 的裁决 ${decision} 不受支持`).toBe(true);
     });
+  });
+
+  it("classifies the full-truth sandbox as an ordinary clinical collaboration capability", () => {
+    const catalog = readCatalog();
+
+    expect(catalog).toContain("<!-- capability:route:route@%2Fsandbox decision=KEEP -->");
+    expect(catalog).toContain(
+      "| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 |",
+    );
+    expect(catalog).toContain("<!-- capability:menu:menu@sandbox decision=KEEP -->");
   });
 });

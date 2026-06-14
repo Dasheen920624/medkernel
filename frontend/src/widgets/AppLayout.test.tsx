@@ -290,7 +290,7 @@ describe("AppLayout", () => {
     await renderLayout();
 
     expect(screen.getAllByText("术语与字典").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("知识配置").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识治理").length).toBeGreaterThan(0);
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
   });
 
@@ -301,7 +301,7 @@ describe("AppLayout", () => {
     const header = container.querySelector(".mk-app-header");
 
     expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("知识配置")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("知识治理")).toBeInTheDocument();
     expect(within(header as HTMLElement).getAllByText("术语与字典")).toHaveLength(1);
     expect(header?.querySelector(".mk-route-title")).toBeNull();
   });
@@ -318,7 +318,7 @@ describe("AppLayout", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getAllByText("知识配置").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识治理").length).toBeGreaterThan(0);
   });
 
   it("filters primary menus by granted menu permission codes", async () => {
@@ -328,8 +328,8 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout("/qc/dashboard");
 
-    expect(screen.queryByText("知识配置")).toBeNull();
-    expect(screen.getAllByText("质量与运营").length).toBeGreaterThan(0);
+    expect(screen.queryByText("知识治理")).toBeNull();
+    expect(screen.getAllByText("质量管理").length).toBeGreaterThan(0);
     expect(screen.getByText("质控驾驶舱内容")).toBeInTheDocument();
   });
 
@@ -347,7 +347,7 @@ describe("AppLayout", () => {
 
     const navigation = document.querySelector(".ant-menu");
     expect(navigation).not.toBeNull();
-    expect(within(navigation as HTMLElement).queryByText("知识配置")).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText("知识治理")).toBeNull();
     expect(within(navigation as HTMLElement).queryByText("工作台")).toBeNull();
   });
 
@@ -366,7 +366,7 @@ describe("AppLayout", () => {
     const navigation = document.querySelector(".ant-layout-sider .ant-menu");
     expect(navigation).not.toBeNull();
     await waitFor(() =>
-      expect(within(navigation as HTMLElement).getByText("知识配置")).toBeInTheDocument(),
+      expect(within(navigation as HTMLElement).getByText("知识治理")).toBeInTheDocument(),
     );
     expect(within(navigation as HTMLElement).getByText("术语与字典")).toBeInTheDocument();
   });
@@ -441,7 +441,7 @@ describe("AppLayout", () => {
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
   });
 
-  it("keeps expert capabilities out of the sidebar while exposing them in the command palette", async () => {
+  it("classifies advanced capabilities in the normal sidebar and command palette", async () => {
     securityProfileState.value = { data: superAdminProfile() };
     mockViewport(1280);
     await renderLayout();
@@ -449,14 +449,14 @@ describe("AppLayout", () => {
     const navigation = document.querySelector(".ant-layout-sider");
     expect(navigation).not.toBeNull();
     expect(within(navigation as HTMLElement).queryByText("高级工具")).toBeNull();
-    expect(within(navigation as HTMLElement).queryByText("来源与血缘")).toBeNull();
+    expect(within(navigation as HTMLElement).getByText("来源与血缘")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     fireEvent.change(screen.getByPlaceholderText("搜索菜单"), {
       target: { value: "来源" },
     });
 
-    expect(await screen.findByText("来源与血缘")).toBeInTheDocument();
+    expect((await screen.findAllByText("来源与血缘")).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("高级工具")).toBeNull();
   });
 

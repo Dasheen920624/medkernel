@@ -14,6 +14,7 @@ import {
   useConfirmTerminologyCandidate,
   useGenerateTerminologyCandidates,
   useRejectTerminologyCandidate,
+  useResolveTerminologyConflict,
   useLocalTerms,
   usePackages,
   usePackageReleaseAdapters,
@@ -46,6 +47,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useConfirmTerminologyCandidate: vi.fn(),
   useGenerateTerminologyCandidates: vi.fn(),
   useRejectTerminologyCandidate: vi.fn(),
+  useResolveTerminologyConflict: vi.fn(),
   useLocalTerms: vi.fn(),
   usePackages: vi.fn(),
   usePackageReleaseAdapters: vi.fn(),
@@ -293,6 +295,7 @@ function configureQuery(
   vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
   } as never);
@@ -527,6 +530,40 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByText("候选映射")).toBeInTheDocument();
     expect(screen.getByText("冲突待裁")).toBeInTheDocument();
     expect(screen.getByText(/钾 \/ 钠不可互换/)).toBeInTheDocument();
+  });
+
+  it("resolves a one-to-many conflict with a mandatory arbitration note", async () => {
+    const resolveConflict = vi.fn().mockResolvedValue({
+      ...openConflict,
+      status: "RESOLVED",
+      resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
+    });
+    vi.mocked(useResolveTerminologyConflict).mockReturnValue({
+      mutateAsync: resolveConflict,
+    } as never);
+
+    renderPage();
+
+    const conflictRow = screen.getByRole("row", { name: /一对多冲突/ });
+    await userEvent.click(within(conflictRow).getByRole("button", { name: /裁\s*决/ }));
+    expect(screen.getByText("处置映射冲突")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "提交裁决" }));
+    expect(resolveConflict).not.toHaveBeenCalled();
+
+    await userEvent.type(
+      screen.getByLabelText("裁决依据"),
+      "保留 LOINC 2951-2，其他候选退回重映射",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "提交裁决" }));
+
+    expect(resolveConflict).toHaveBeenCalledWith({
+      conflictId: 301,
+      request: {
+        packageVersion: "2026.06",
+        resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
+      },
+    });
   });
 
   it("rejects a high-risk mismatched candidate with a mandatory review note", async () => {

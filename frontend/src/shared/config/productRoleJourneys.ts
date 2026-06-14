@@ -164,7 +164,7 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     showLifecycle: false,
     primaryAction: { label: "处理质量问题与整改", path: "/qc/alerts" },
     highFrequencyActions: [
-      { label: "质量与运营概览", path: "/qc/dashboard" },
+      { label: "质量管理概览", path: "/qc/dashboard" },
       { label: "医保审核", path: "/qc/insurance" },
       { label: "评价指标", path: "/qc/eval/sets" },
     ],

@@ -62,13 +62,15 @@ class EmbedLaunchTokenRepositoryTest {
             EmbedIntegrationMode.IFRAME.name(),
             "patient-view",
             "hook-instance-001",
-            null
+            null,
+            "https://his.hospital.com"
         ));
 
         int rows = repository.consumeUnusedToken(
             "tkn-sql-bind",
             "tenant-A",
             consumedAt,
+            consumedAt.plusSeconds(1800),
             consumedAt,
             "doctor-1");
 
@@ -77,6 +79,7 @@ class EmbedLaunchTokenRepositoryTest {
             .hasValueSatisfying(token -> {
                 assertThat(token.status()).isEqualTo(EmbedLaunchTokenStatus.USED.name());
                 assertThat(token.consumedAt()).isEqualTo(consumedAt);
+                assertThat(token.expiredAt()).isEqualTo(consumedAt.plusSeconds(1800));
                 assertThat(token.updatedAt()).isEqualTo(consumedAt);
                 assertThat(token.updatedBy()).isEqualTo("doctor-1");
             });

@@ -1203,6 +1203,76 @@ describe("ConfigPackages offline package export", () => {
   );
 
   it(
+    "adds followup templates from the unified authoring asset library",
+    async () => {
+      apiMocks.permissions = [{ code: "followup.read" }];
+      apiMocks.useAuthoringAssets.mockReturnValue({
+        data: {
+          items: [
+            {
+              assetType: "FOLLOWUP",
+              assetId: "ftpl-1",
+              assetCode: "FUP.COPD",
+              name: "慢阻肺出院随访",
+              category: "随访模板",
+              tags: ["出院", "COPD"],
+              version: "1",
+              status: "PUBLISHED",
+              packageVersion: "3.0.0",
+              favorite: false,
+              cloneable: true,
+              updatedAt: "2026-06-14T00:00:00Z",
+            },
+          ],
+        },
+      });
+      apiMocks.addPackageItem.mockResolvedValue({
+        itemId: "item-followup",
+        packageId: "pkg-offline",
+        assetType: "FOLLOWUP",
+        assetId: "ftpl-1",
+        assetVersion: "1",
+      });
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+      const drawer = screen.getByRole("dialog", { name: "办理包内资产细项" });
+
+      openSelectByLabel("资产类型", drawer);
+      await chooseVisibleSelectOption("随访模板 (FOLLOWUP)");
+
+      openSelectByLabel("选择已发布的临床资产", drawer);
+      await chooseVisibleSelectOption(/慢阻肺出院随访/);
+      expect(screen.getByLabelText("资产快照版本")).toHaveValue("1");
+      await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
+
+      await waitFor(() => {
+        expect(apiMocks.useAuthoringAssets).toHaveBeenCalledWith(
+          { assetType: "FOLLOWUP", size: 100 },
+          { enabled: true },
+        );
+        expect(apiMocks.addPackageItem).toHaveBeenCalledWith({
+          packageId: "pkg-offline",
+          request: {
+            assetType: "FOLLOWUP",
+            assetId: "ftpl-1",
+            assetVersion: "1",
+            packageVersion: "3.0.0",
+          },
+        });
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "adds terminology package assets with the stable package scope key",
     async () => {
       render(

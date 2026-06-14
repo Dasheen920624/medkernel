@@ -45,7 +45,6 @@ class EmbedEngineControllerTest {
 
     private static final String LAUNCH_TOKEN_BODY = """
         {
-          "userId": "DOCTOR-001",
           "roleCode": "clinical-decision-user",
           "patientId": "P1001",
           "encounterId": "E2001",
@@ -53,7 +52,8 @@ class EmbedEngineControllerTest {
           "expireSeconds": 60,
           "integrationMode": "SDK",
           "hook": "order-sign",
-          "hookInstance": "hook-order-001"
+          "hookInstance": "hook-order-001",
+          "parentOrigin": "https://his.hospital.com"
         }
         """;
 
@@ -69,6 +69,7 @@ class EmbedEngineControllerTest {
     private static final String FEEDBACK_BODY = """
         {
           "token": "tkn-123456",
+          "cardId": "card-123",
           "actionType": "ADOPT",
           "reason": "已采纳抗凝建议"
         }
@@ -113,7 +114,7 @@ class EmbedEngineControllerTest {
             EmbedIntegrationMode.SDK, "order-sign", "hook-order-001", EmbedModelStatus.MODEL_DISABLED,
             EmbedConnectionStatus.CONNECTED, "1.0", "https://his.hospital.com"
         );
-        when(service.validateAndExchange(any(EmbedLaunchRequest.class), eq("https://his.hospital.com")))
+        when(service.validateAndExchange(any(EmbedLaunchRequest.class)))
             .thenReturn(mockResponse);
 
         mockMvc.perform(post("/api/v1/engine/embed/launch")
@@ -122,7 +123,6 @@ class EmbedEngineControllerTest {
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
-                .header("Origin", "https://his.hospital.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
             .andExpect(status().isOk())
@@ -137,14 +137,15 @@ class EmbedEngineControllerTest {
             .andExpect(jsonPath("$.data.cdsHookVersion").value("1.0"))
             .andExpect(jsonPath("$.data.parentOrigin").value("https://his.hospital.com"));
 
-        verify(service).validateAndExchange(any(EmbedLaunchRequest.class), eq("https://his.hospital.com"));
+        verify(service).validateAndExchange(any(EmbedLaunchRequest.class));
     }
 
     @Test
     void feedback_ReturnsOk() throws Exception {
         when(service.feedback(any(EmbedFeedbackRequest.class))).thenReturn(
-            new EmbedFeedbackResponse("tkn-123456", "ADOPT", EmbedConnectionStatus.NOT_CONNECTED,
-                false, "HOST_CALLBACK_NOT_CONFIGURED", "trace-123"));
+            new EmbedFeedbackResponse(
+                "tkn-123456", "card-123", "ADOPT", "ACCEPTED",
+                EmbedConnectionStatus.NOT_CONNECTED, false, "HOST_CALLBACK_NOT_CONFIGURED", "trace-123"));
 
         mockMvc.perform(post("/api/v1/engine/embed/feedback")
                 .with(jwt().jwt(token -> token
@@ -155,6 +156,8 @@ class EmbedEngineControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(FEEDBACK_BODY))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.cardId").value("card-123"))
+            .andExpect(jsonPath("$.data.recommendationStatus").value("ACCEPTED"))
             .andExpect(jsonPath("$.data.callbackStatus").value("NOT_CONNECTED"))
             .andExpect(jsonPath("$.data.callbackDelivered").value(false))
             .andExpect(jsonPath("$.data.degradationReason").value("HOST_CALLBACK_NOT_CONFIGURED"))

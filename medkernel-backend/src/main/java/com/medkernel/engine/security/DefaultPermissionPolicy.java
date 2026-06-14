@@ -215,6 +215,7 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
+            SANDBOX_RUN,
             LLM_READ, LLM_EXECUTE),
             MENU_WORKBENCH,
             MENU_MPI,
@@ -222,7 +223,8 @@ public final class DefaultPermissionPolicy {
             MENU_CDSS_FATIGUE,
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
-            MENU_CLINICAL_FOLLOWUP);
+            MENU_CLINICAL_FOLLOWUP,
+            MENU_SANDBOX);
     }
 
     private static EnumSet<PermissionCode> nursingCollaborationPermissions() {
@@ -413,6 +415,7 @@ public final class DefaultPermissionPolicy {
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
+            SANDBOX_RUN,
             WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
             MENU_WORKBENCH,
@@ -424,6 +427,7 @@ public final class DefaultPermissionPolicy {
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_CONFIG_PACKAGES,
             MENU_TERMINOLOGY_MAPPING,
+            MENU_SANDBOX,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,
             MENU_SYSTEM_PROVIDERS,

@@ -153,6 +153,105 @@ public class IdentityBindingService {
         return response;
     }
 
+    /**
+     * 精确同步当前受信业务系统负责的外部身份。
+     *
+     * <p>只替换或撤销当前 {@code integration:<来源>} 创建的绑定，院内人工绑定和其他
+     * 业务系统绑定保持不变。提供者与身份主体同时为空表示当前来源不再提供身份。
+     */
+    @Transactional
+    public IdentityBindingResponse syncExternalIdentity(
+            String tenantId,
+            String userId,
+            IdentityProviderType providerType,
+            String externalSubject) {
+        String safeTenant = requireTenant(tenantId);
+        String safeUserId = userId == null ? "" : userId.trim();
+        String actor = requireExternalSourceActor();
+        var user = users.findByTenantIdAndUserId(safeTenant, safeUserId)
+            .orElseThrow(() -> ApiException.notFound("租户成员 " + safeUserId));
+        String safeSubject = externalSubject == null ? null : externalSubject.trim();
+        boolean identityAbsent = providerType == null && (safeSubject == null || safeSubject.isBlank());
+        if (!identityAbsent && (providerType == null || safeSubject == null || safeSubject.isBlank())) {
+            throw new ApiException(
+                com.medkernel.shared.api.error.ErrorCode.BAD_REQUEST,
+                "身份来源类型与外部身份必须同时提供");
+        }
+        if (!identityAbsent && !user.active()) {
+            throw new ApiException(
+                com.medkernel.shared.api.error.ErrorCode.BAD_REQUEST,
+                "租户成员 " + safeUserId + " 未启用");
+        }
+
+        List<IdentityBinding> sourceOwned = repository
+            .findByTenantIdAndUserIdOrderByUpdatedAtDesc(safeTenant, safeUserId)
+            .stream()
+            .filter(item -> ACTIVE.equals(item.status()))
+            .filter(item -> actor.equals(item.createdBy()))
+            .toList();
+        if (identityAbsent) {
+            sourceOwned.forEach(this::unbindExternalSourceBinding);
+            return null;
+        }
+
+        String provider = providerType.name();
+        String digest = DIGEST_PREFIX + crypto.sm3Hex(safeSubject);
+        IdentityBinding desired = repository
+            .findByTenantIdAndProviderTypeAndExternalSubjectDigest(
+                safeTenant, provider, digest)
+            .orElse(null);
+        if (desired != null && !actor.equals(desired.createdBy())) {
+            throw ApiException.conflict("该外部身份已由人工或其他来源维护，不能被当前来源接管");
+        }
+        if (desired != null && ACTIVE.equals(desired.status())
+                && !safeUserId.equals(desired.userId())) {
+            throw ApiException.conflict("该外部身份已绑定其他用户");
+        }
+
+        sourceOwned.stream()
+            .filter(item -> desired == null || !item.bindingId().equals(desired.bindingId()))
+            .forEach(this::unbindExternalSourceBinding);
+        if (desired != null && ACTIVE.equals(desired.status())) {
+            return IdentityBindingResponse.from(desired);
+        }
+        return createDigest(
+            safeTenant,
+            safeUserId,
+            provider,
+            digest,
+            subjectHint(safeSubject),
+            "院内主数据同步身份来源");
+    }
+
+    private void unbindExternalSourceBinding(IdentityBinding current) {
+        String actor = requireExternalSourceActor();
+        Instant now = Instant.now();
+        IdentityBinding saved = repository.save(new IdentityBinding(
+            current.id(),
+            current.bindingId(),
+            current.tenantId(),
+            current.userId(),
+            current.providerType(),
+            current.externalSubjectDigest(),
+            current.subjectHint(),
+            UNBOUND,
+            current.version() + 1L,
+            "院内主数据同步撤销已失效身份",
+            current.createdAt(),
+            current.createdBy(),
+            now,
+            actor,
+            RequestContext.currentTraceId()));
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.PERMISSION_CHANGE,
+            "mk_compliance_identity_binding",
+            saved.bindingId(),
+            "院内主数据同步解绑外部身份：" + saved.providerType(),
+            IdentityBindingResponse.from(current),
+            IdentityBindingResponse.from(saved),
+            null));
+    }
+
     private IdentityBindingResponse rebind(IdentityBinding current, String userId, String reason) {
         String actor = RequestContext.currentUserId().orElse("system");
         Instant now = Instant.now();
@@ -256,5 +355,13 @@ public class IdentityBindingService {
             throw ApiException.tenantMissing();
         }
         return tenantId.trim();
+    }
+
+    private String requireExternalSourceActor() {
+        String actor = RequestContext.currentUserId().orElse("");
+        if (!actor.startsWith("integration:")) {
+            throw ApiException.forbidden("外部身份同步必须在受信集成来源上下文中执行");
+        }
+        return actor;
     }
 }

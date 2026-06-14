@@ -6,7 +6,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,11 +17,10 @@ import jakarta.validation.Valid;
  * 页面嵌入引擎接口控制器 (GA-ENG-API-11)。
  *
  * <p>提供外部工作站集成所需的令牌生成、单次交换校验、用户交互闭环反馈以及安全域名白名单管理的 REST API 服务。
- * 全线受 {@link DataScope} 拦截以保护多租户物理隔离。
+ * 签发与白名单管理受 {@link DataScope} 保护；外部宿主端点仅接受服务端校验的一次性令牌。
  */
 @RestController
 @RequestMapping("/api/v1/engine/embed")
-@DataScope(requireTenant = true)
 public class EmbedEngineController {
 
     private final EmbedEngineService service;
@@ -39,6 +37,7 @@ public class EmbedEngineController {
      */
     @PostMapping("/launch-tokens")
     @PreAuthorize("@perm.has('embed.write')")
+    @DataScope(requireTenant = true)
     public ApiResult<EmbedLaunchTokenResponse> generateToken(@Valid @RequestBody EmbedLaunchTokenRequest request) {
         return ApiResult.ok(service.generateToken(request));
     }
@@ -47,15 +46,21 @@ public class EmbedEngineController {
      * 使用启动令牌兑换获取嵌入会话临床上下文，并物理标记令牌为已使用。
      *
      * @param request 启动令牌兑换请求
-     * @param originHeader 请求头中的 Origin 属性，用以作白名单过滤，缺失时拒绝兑换
      * @return 会话及关联的临床上下文
      */
     @PostMapping("/launch")
-    @PreAuthorize("@perm.has('embed.read')")
     public ApiResult<EmbedLaunchContextResponse> validateAndExchange(
-            @Valid @RequestBody EmbedLaunchRequest request,
-            @RequestHeader("Origin") String originHeader) {
-        return ApiResult.ok(service.validateAndExchange(request, originHeader));
+            @Valid @RequestBody EmbedLaunchRequest request) {
+        return ApiResult.ok(service.validateAndExchange(request));
+    }
+
+    /**
+     * 使用已兑换令牌读取该患者、就诊和触发点范围内的临床建议。
+     */
+    @PostMapping("/recommendations")
+    public ApiResult<EmbedRecommendationCardsResponse> recommendations(
+            @Valid @RequestBody EmbedRecommendationCardsRequest request) {
+        return ApiResult.ok(service.listCards(request));
     }
 
     /**
@@ -65,7 +70,6 @@ public class EmbedEngineController {
      * @return 反馈受理响应
      */
     @PostMapping("/feedback")
-    @PreAuthorize("@perm.has('embed.write')")
     public ApiResult<EmbedFeedbackResponse> feedback(@Valid @RequestBody EmbedFeedbackRequest request) {
         return ApiResult.ok(service.feedback(request));
     }
@@ -78,6 +82,7 @@ public class EmbedEngineController {
      */
     @PostMapping("/origins")
     @PreAuthorize("@perm.has('embed.write')")
+    @DataScope(requireTenant = true)
     public ApiResult<Void> addOrigin(@Valid @RequestBody EmbedOriginRequest request) {
         service.addOrigin(request);
         return ApiResult.empty();
@@ -90,6 +95,7 @@ public class EmbedEngineController {
      */
     @GetMapping("/origins")
     @PreAuthorize("@perm.has('embed.read')")
+    @DataScope(requireTenant = true)
     public ApiResult<List<String>> getOrigins() {
         return ApiResult.ok(service.getOrigins());
     }

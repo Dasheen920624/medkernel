@@ -16,6 +16,7 @@ import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
+import com.medkernel.engine.followup.FollowupTemplateRepository;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
@@ -23,6 +24,7 @@ import com.medkernel.engine.rule.RuleDefinitionStatus;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.OrgScope;
@@ -37,10 +39,12 @@ class AuthoringAssetLibraryServiceTest {
     private final RuleDefinitionRepository rules = mock(RuleDefinitionRepository.class);
     private final PathwayTemplateRepository pathways = mock(PathwayTemplateRepository.class);
     private final ConditionFragmentRepository fragments = mock(ConditionFragmentRepository.class);
+    private final FollowupTemplateRepository followupTemplates = mock(FollowupTemplateRepository.class);
+    private final AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
     private final AuthoringAssetProfileRepository profiles = mock(AuthoringAssetProfileRepository.class);
     private final AuthoringAssetFavoriteRepository favorites = mock(AuthoringAssetFavoriteRepository.class);
     private final AuthoringAssetLibraryService service = new AuthoringAssetLibraryService(
-        new ObjectMapper(), rules, pathways, fragments, profiles, favorites);
+        new ObjectMapper(), rules, pathways, fragments, followupTemplates, assetVersions, profiles, favorites);
 
     @BeforeEach
     void setUp() {
@@ -61,6 +65,7 @@ class AuthoringAssetLibraryServiceTest {
             .thenReturn(List.of(pathway("pathway-1", "PATH.CKD", "CKD 临床路径")));
         when(fragments.pageByFilter("tenant-A", null, null, null, 0, 200))
             .thenReturn(List.of(fragment("frag-1", "FRAG_CKD", "CKD 条件片段")));
+        when(followupTemplates.findByTenantIdOrderByUpdatedAtDesc("tenant-A")).thenReturn(List.of());
         when(profiles.findByTenantIdAndAssetTypeAndAssetId(
             "tenant-A", VersionedAssetType.CONDITION_FRAGMENT, "frag-1"))
             .thenReturn(Optional.of(profile(VersionedAssetType.CONDITION_FRAGMENT, "frag-1", "[\"CKD\",\"复用\"]")));

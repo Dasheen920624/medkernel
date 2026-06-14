@@ -74,6 +74,8 @@ class FollowupEngineServiceTest {
     private ContextSnapshotRepository contextSnapshots;
     @Mock
     private ClinicalClockRepository clinicalClockRepository;
+    @Mock
+    private FollowupTemplateService templateService;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -113,6 +115,65 @@ class FollowupEngineServiceTest {
         assertEquals("PLAN01", response.planId());
         assertEquals(1, response.tasks().size());
         assertEquals(FollowupTaskType.QUESTIONNAIRE, response.tasks().get(0).taskType());
+    }
+
+    @Test
+    void generatePlanUsesPublishedTemplateTasksAndQuestionnaireBinding() {
+        stubActiveSnapshot("ctx-template-1", "PAT01", "ENC01", "D01");
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        FollowupTemplate template = new FollowupTemplate(
+            null,
+            "ftpl-1",
+            "tenant-1",
+            "FUP.COPD",
+            3,
+            "慢阻肺出院随访",
+            null,
+            "tenant:tenant-1",
+            "riskLevel=HIGH",
+            "[]",
+            "{}",
+            "{}",
+            "hospital://followup/copd",
+            "av-followup-3",
+            now,
+            "user-1",
+            now,
+            "user-1",
+            "trace-123"
+        );
+        when(templateService.requirePublished("ftpl-1")).thenReturn(template);
+        when(templateService.tasks(template)).thenReturn(List.of(
+            new FollowupTemplateTaskInput(
+                FollowupTaskType.QUESTIONNAIRE,
+                3,
+                "QUESTIONNAIRE.COPD.03"
+            ),
+            new FollowupTemplateTaskInput(FollowupTaskType.OUTPATIENT, 14, null)
+        ));
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FollowupPlanDetailResponse response = service.generatePlan(new FollowupPlanGenerateRequest(
+            "ctx-template-1",
+            "HIGH",
+            List.of(),
+            "template-plan-key-1",
+            false,
+            "ftpl-1"
+        ));
+
+        assertThat(response.templateId()).isEqualTo("ftpl-1");
+        assertThat(response.templateVersion()).isEqualTo(3);
+        assertThat(response.tasks()).extracting(FollowupTaskDetailResponse::taskType)
+            .containsExactly(FollowupTaskType.QUESTIONNAIRE, FollowupTaskType.OUTPATIENT);
+        assertThat(response.tasks().get(0).questionnaireTemplateId())
+            .isEqualTo("QUESTIONNAIRE.COPD.03");
+        assertThat(response.tasks().get(1).questionnaireTemplateId()).isNull();
+        ArgumentCaptor<FollowupTask> taskCaptor = ArgumentCaptor.forClass(FollowupTask.class);
+        verify(taskRepository, org.mockito.Mockito.times(2)).save(taskCaptor.capture());
+        assertThat(taskCaptor.getAllValues().get(0).dueDate())
+            .isBefore(taskCaptor.getAllValues().get(1).dueDate());
     }
 
     @Test

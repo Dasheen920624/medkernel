@@ -16,17 +16,17 @@ class DefaultPermissionPolicyTest {
             "tenant-onboarding",
             "admin-users",
             "identity-bindings",
-            "implementation-guide",
             "knowledge-governance",
             "config-packages",
+            "provenance",
+            "ai-workflows",
             "qc-dashboard",
             "admin-audit",
             "security-baseline",
+            "implementation-guide",
             "system-providers",
-            "notification-settings",
-            "provenance",
-            "ai-workflows",
-            "domestic-check")),
+            "domestic-check",
+            "notification-settings")),
         Map.entry(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
@@ -34,27 +34,27 @@ class DefaultPermissionPolicyTest {
             "terminology-mapping",
             "rule-definitions",
             "pathway-templates",
-            "admin-audit",
             "provenance",
             "graph-explore",
-            "ai-workflows")),
+            "ai-workflows",
+            "admin-audit")),
         Map.entry(RoleCode.ORGANIZATION_ADMIN, List.of(
             "workbench",
             "tenant-onboarding",
             "admin-users",
             "identity-bindings",
-            "implementation-guide",
             "knowledge-governance",
             "config-packages",
             "rule-definitions",
             "pathway-templates",
+            "provenance",
             "qc-dashboard",
             "admin-audit",
             "security-baseline",
+            "implementation-guide",
             "system-providers",
-            "notification-settings",
-            "provenance",
-            "domestic-check")),
+            "domestic-check",
+            "notification-settings")),
         Map.entry(RoleCode.IDENTITY_ACCESS_ADMIN, List.of(
             "workbench",
             "admin-users",
@@ -68,15 +68,16 @@ class DefaultPermissionPolicyTest {
             "terminology-mapping",
             "rule-definitions",
             "pathway-templates",
-            "admin-audit",
             "provenance",
             "graph-explore",
-            "ai-workflows")),
+            "ai-workflows",
+            "admin-audit")),
         Map.entry(RoleCode.CLINICAL_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
             "rule-definitions",
             "pathway-templates",
+            "provenance",
             "mpi",
             "patient-pathways",
             "cdss-fatigue",
@@ -84,8 +85,7 @@ class DefaultPermissionPolicyTest {
             "clinical-followup",
             "qc-dashboard",
             "qc-alerts",
-            "notifications",
-            "provenance")),
+            "notifications")),
         Map.entry(RoleCode.CLINICAL_DECISION_USER, List.of(
             "workbench",
             "mpi",
@@ -93,6 +93,7 @@ class DefaultPermissionPolicyTest {
             "cdss-fatigue",
             "workflow-todos",
             "clinical-followup",
+            "sandbox",
             "notifications")),
         Map.entry(RoleCode.NURSING_COLLABORATOR, List.of(
             "workbench",
@@ -105,11 +106,11 @@ class DefaultPermissionPolicyTest {
             "workbench",
             "knowledge-governance",
             "rule-definitions",
+            "provenance",
             "patient-pathways",
             "cdss-fatigue",
             "workflow-todos",
-            "notifications",
-            "provenance")),
+            "notifications")),
         Map.entry(RoleCode.DIAGNOSTIC_SERVICE_USER, List.of(
             "workbench",
             "terminology-mapping",
@@ -120,48 +121,49 @@ class DefaultPermissionPolicyTest {
             "workbench",
             "knowledge-governance",
             "rule-definitions",
+            "provenance",
             "qc-dashboard",
             "qc-alerts",
             "insurance-audit",
             "qc-eval-sets",
-            "admin-audit",
-            "provenance")),
+            "admin-audit")),
         Map.entry(RoleCode.COMPLIANCE_AUDITOR, List.of(
             "workbench",
-            "admin-audit",
-            "provenance")),
+            "provenance",
+            "admin-audit")),
         Map.entry(RoleCode.INTEGRATION_OPERATOR, List.of(
             "workbench",
             "identity-bindings",
-            "adapter-hub",
             "terminology-mapping",
-            "admin-audit",
-            "security-baseline",
-            "system-providers",
-            "notification-settings",
             "graph-explore",
             "ai-workflows",
+            "admin-audit",
+            "security-baseline",
+            "adapter-hub",
+            "system-providers",
             "domestic-check",
-            "dev-console")),
+            "dev-console",
+            "notification-settings")),
         Map.entry(RoleCode.IMPLEMENTATION_OPERATOR, List.of(
             "workbench",
             "tenant-onboarding",
             "admin-users",
             "identity-bindings",
-            "implementation-guide",
-            "adapter-hub",
             "knowledge-governance",
             "config-packages",
             "terminology-mapping",
-            "admin-audit",
-            "security-baseline",
-            "system-providers",
-            "notification-settings",
             "provenance",
             "graph-explore",
             "ai-workflows",
+            "sandbox",
+            "admin-audit",
+            "security-baseline",
+            "implementation-guide",
+            "adapter-hub",
+            "system-providers",
             "domestic-check",
-            "dev-console"))
+            "dev-console",
+            "notification-settings"))
     );
 
     @Test
@@ -231,6 +233,17 @@ class DefaultPermissionPolicyTest {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .as("机构管理员作为路径院级全量协调角色必须持 pathway.publish")
             .contains(PermissionCode.PATHWAY_PUBLISH);
+    }
+
+    @Test
+    void sandboxRolesCanRunAndReachTheOrdinaryClinicalEntry() {
+        for (RoleCode role : List.of(
+                RoleCode.CLINICAL_DECISION_USER,
+                RoleCode.IMPLEMENTATION_OPERATOR)) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                .as("%s 必须能运行并进入全真体验沙盘", role.code())
+                .contains(PermissionCode.SANDBOX_RUN, PermissionCode.MENU_SANDBOX);
+        }
     }
 
     @Test
@@ -461,6 +474,9 @@ class DefaultPermissionPolicyTest {
             }
             if (permissions.contains(PermissionCode.MENU_TERMINOLOGY_MAPPING)) {
                 assertThat(permissions).contains(PermissionCode.TERM_READ);
+            }
+            if (permissions.contains(PermissionCode.MENU_SANDBOX)) {
+                assertThat(permissions).contains(PermissionCode.SANDBOX_RUN);
             }
         }
     }

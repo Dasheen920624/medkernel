@@ -25,6 +25,8 @@ public record FollowupPlan(
     @Column("source_fact_id") String sourceFactId,
     @Column("generation_rule_code") String generationRuleCode,
     @Column("generation_explanation") String generationExplanation,
+    @Column("template_id") String templateId,
+    @Column("template_version") Integer templateVersion,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
@@ -47,7 +49,7 @@ public record FollowupPlan(
             String updatedBy,
             String traceId) {
         this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status, null,
-            null, null, null, null,
+            null, null, null, null, null, null,
             createdAt, createdBy, updatedAt, updatedBy, traceId);
     }
 
@@ -68,7 +70,34 @@ public record FollowupPlan(
             String updatedBy,
             String traceId) {
         this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status, idempotencyKey,
-            null, null, null, null,
+            null, null, null, null, null, null,
             createdAt, createdBy, updatedAt, updatedBy, traceId);
+    }
+
+    public FollowupPlan(
+            Long id,
+            String planId,
+            String tenantId,
+            String patientId,
+            String encounterId,
+            String pathwayId,
+            String diseaseCode,
+            String riskLevel,
+            FollowupPlanStatus status,
+            String idempotencyKey,
+            String sourceFactType,
+            String sourceFactId,
+            String generationRuleCode,
+            String generationExplanation,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(
+            id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status,
+            idempotencyKey, sourceFactType, sourceFactId, generationRuleCode, generationExplanation,
+            null, null, createdAt, createdBy, updatedAt, updatedBy, traceId
+        );
     }
 }

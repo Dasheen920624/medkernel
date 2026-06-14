@@ -61,6 +61,8 @@ import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.followup.FollowupTemplate;
+import com.medkernel.engine.followup.FollowupTemplateRepository;
 import com.medkernel.engine.pathway.PathwayEdge;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
 import com.medkernel.engine.pathway.PathwayEdgeType;
@@ -137,6 +139,7 @@ class PackageEngineServiceTest {
     private PathwayEdgeRepository pathwayEdgeRepository;
     private SpecialtyMetricBindingRepository pathwayMetricBindingRepository;
     private EvaluationIndicatorRepository evaluationRepository;
+    private FollowupTemplateRepository followupTemplateRepository;
     private KnowledgeIdentityRepository knowledgeIdentityRepository;
     private KnowledgeAssetVersionRepository knowledgeVersionRepository;
     private TermMappingSnapshotRepository terminologySnapshotRepository;
@@ -174,6 +177,7 @@ class PackageEngineServiceTest {
         pathwayEdgeRepository = mock(PathwayEdgeRepository.class);
         pathwayMetricBindingRepository = mock(SpecialtyMetricBindingRepository.class);
         evaluationRepository = mock(EvaluationIndicatorRepository.class);
+        followupTemplateRepository = mock(FollowupTemplateRepository.class);
         knowledgeIdentityRepository = mock(KnowledgeIdentityRepository.class);
         knowledgeVersionRepository = mock(KnowledgeAssetVersionRepository.class);
         terminologySnapshotRepository = mock(TermMappingSnapshotRepository.class);
@@ -213,7 +217,7 @@ class PackageEngineServiceTest {
             pathwayRepository,
             pathwayMilestoneRepository,
             pathwayNodeRepository, pathwayEdgeRepository, pathwayMetricBindingRepository,
-            evaluationRepository,
+            evaluationRepository, followupTemplateRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
             terminologySnapshotRepository, terminologyMappingRepository,
             pilotTemplateRepository, pilotTemplateItemRepository, packageReferenceRepository,
@@ -697,7 +701,7 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void validatePackageBlocksFollowupRuntimePlansUntilTemplateAssetExists() {
+    void validatePackageBlocksFollowupRuntimePlanThatIsNotATemplateAsset() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-followup", "tenant-A", "PKG.FOLLOWUP", "1.0.0", "随访配置包", null,
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -717,8 +721,36 @@ class PackageEngineServiceTest {
         assertThat(response.issues()).anySatisfy(issue -> {
             assertThat(issue.field()).isEqualTo("items[FOLLOWUP:plan-runtime-1]");
             assertThat(issue.severity()).isEqualTo("BLOCKING");
-            assertThat(issue.message()).contains("随访计划属于患者运行数据");
+            assertThat(issue.message()).contains("入包随访模板不存在");
         });
+    }
+
+    @Test
+    void validatePackageAcceptsPublishedFollowupTemplateAsset() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-followup", "tenant-A", "PKG.FOLLOWUP", "1.0.0", "随访配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem item = new PackageItem(
+            10L, "item-1", "tenant-A", "pkg-followup", VersionedAssetType.FOLLOWUP, "ftpl-1", "1",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-followup", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-followup"))
+            .thenReturn(List.of(item));
+        when(followupTemplateRepository.findByTemplateIdAndTenantId("ftpl-1", "tenant-A"))
+            .thenReturn(Optional.of(followupTemplate("ftpl-1", 1, "av-followup-1")));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.FOLLOWUP, "ftpl-1", "1"
+        )).thenReturn(Optional.of(declarativeAssetVersion(
+            VersionedAssetType.FOLLOWUP, "ftpl-1", "1", AssetVersionStatus.PUBLISHED
+        )));
+
+        PackageValidateResponse response = service.validatePackage("pkg-followup");
+
+        assertThat(response.valid()).isTrue();
+        assertThat(response.issues()).isEmpty();
     }
 
     @Test
@@ -1666,6 +1698,47 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void exportOfflinePackageIncludesFollowupTemplateWithoutPatientRuntimeData() throws Exception {
+        KnowledgePackage pack = packageVersion("pkg-followup", "3.4.0", KnowledgePackageStatus.PUBLISHED);
+        FollowupTemplate template = followupTemplate("ftpl-1", 1, "av-followup-1");
+        when(packageRepository.findByPackageIdAndTenantId("pkg-followup", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-followup"))
+            .thenReturn(List.of(
+                packageItem(1L, "pkg-followup", VersionedAssetType.FOLLOWUP, "ftpl-1", "1")
+            ));
+        when(followupTemplateRepository.findByTemplateIdAndTenantId("ftpl-1", "tenant-A"))
+            .thenReturn(Optional.of(template));
+        when(effectivePackageResolver.resolveOwnedLifecycleCandidate(
+                eq("tenant-A"),
+                argThat(candidate -> "pkg-followup".equals(candidate.packageId())),
+                eq("hospital-1")))
+            .thenReturn(effectiveResponse("pkg-followup", "PKG.TEST", "3.4.0", "hospital-1", List.of(
+                effectiveItem(
+                    VersionedAssetType.FOLLOWUP,
+                    "ftpl-1",
+                    "1",
+                    "followup-source-version-1",
+                    "f".repeat(64))
+            )));
+
+        JsonNode snapshot = TEST_MAPPER.readTree(
+            service.exportOfflinePackage("pkg-followup", "hospital-1"))
+            .path("payload").path("assetSnapshots").get(0);
+
+        assertThat(snapshot.path("assetType").asText()).isEqualTo("FOLLOWUP");
+        assertThat(snapshot.path("assetId").asText()).isEqualTo("ftpl-1");
+        assertThat(snapshot.path("content").path("template").path("templateCode").asText())
+            .isEqualTo("FUP.COPD");
+        assertThat(snapshot.path("content").path("template").path("taskDefinitionJson").asText())
+            .contains("QUESTIONNAIRE");
+        assertThat(snapshot.path("content").path("contentHash").asText()).isEqualTo("f".repeat(64));
+        assertThat(snapshot.path("content").toString())
+            .doesNotContain("patientId", "encounterId", "planId");
+        assertThat(snapshot.path("contentSha256").asText()).isEqualTo(sha256Node(snapshot.path("content")));
+    }
+
+    @Test
     void exportOfflinePackageIncludesCkdDeclarativeAssetSnapshots() throws Exception {
         KnowledgePackage pack = packageVersion("pkg-ckd", "2026.06", KnowledgePackageStatus.PUBLISHED);
         when(packageRepository.findByPackageIdAndTenantId("pkg-ckd", "tenant-A"))
@@ -1866,6 +1939,76 @@ class PackageEngineServiceTest {
                 VersionedAssetType.KNOWLEDGE,
                 VersionedAssetType.TERMINOLOGY
             );
+    }
+
+    @Test
+    void importOfflinePackagePersistsPublishedFollowupTemplateAsset() throws Exception {
+        String contentHash = contentHashFor("tenant-A", "FOLLOWUP", "ftpl-1", "1");
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "FOLLOWUP", "ftpl-1", "1"));
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot(
+            "tenant-A",
+            "FOLLOWUP",
+            "ftpl-1",
+            "1",
+            offlineFollowupContent("ftpl-1", 1, contentHash)));
+        String offlineJson = offlinePackageJson(
+            "PKG.FOLLOWUP.IMPORT", "2026.06.05", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.FOLLOWUP.IMPORT", "2026.06.05"))
+            .thenReturn(Optional.empty());
+        when(followupTemplateRepository.findByTemplateIdAndTenantId("ftpl-1", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(followupTemplate("ftpl-1", 1, "av-imported-followup")));
+        when(followupTemplateRepository.findByTenantIdAndTemplateCodeAndVersionNo(
+            "tenant-A", "FUP.COPD", 1))
+            .thenReturn(Optional.empty());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.FOLLOWUP, "ftpl-1", "1"))
+            .thenReturn(Optional.of(new AssetVersion(
+                null,
+                "av-imported-followup",
+                "tenant-A",
+                VersionedAssetType.FOLLOWUP,
+                "ftpl-1",
+                "1",
+                "tenant:tenant-A",
+                "riskLevel=HIGH",
+                contentHash,
+                AssetVersionSafetyPolicy.NORMAL,
+                AssetVersionOverridePolicy.FREE,
+                AssetVersionStatus.PUBLISHED,
+                "version:FOLLOWUP:ftpl-1:1",
+                "hospital://followup/copd",
+                Instant.now(),
+                null,
+                Instant.now(),
+                "tester",
+                Instant.now(),
+                "tester",
+                "trace"
+            )));
+
+        PackageOfflineImportResponse response = service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson));
+
+        assertThat(response.packageCode()).isEqualTo("PKG.FOLLOWUP.IMPORT");
+        assertThat(response.itemCount()).isEqualTo(1);
+        verify(followupTemplateRepository).save(argThat(template ->
+            template.templateId().equals("ftpl-1")
+                && template.templateCode().equals("FUP.COPD")
+                && template.versionNo() == 1
+                && template.taskDefinitionJson().contains("QUESTIONNAIRE")
+                && !template.taskDefinitionJson().contains("patientId")
+                && !template.questionnaireDefinitionJson().contains("encounterId")));
+        verify(assetVersions).save(argThat(version ->
+            version.assetType() == VersionedAssetType.FOLLOWUP
+                && version.assetIdentity().equals("ftpl-1")
+                && version.versionNo().equals("1")
+                && version.status() == AssetVersionStatus.PUBLISHED
+                && version.contentHash().equals(contentHash)));
     }
 
     @Test
@@ -3694,6 +3837,39 @@ class PackageEngineServiceTest {
         return content;
     }
 
+    private ObjectNode offlineFollowupContent(
+            String templateId,
+            int versionNo,
+            String contentHash) {
+        ObjectNode template = TEST_MAPPER.createObjectNode();
+        template.put("templateId", templateId);
+        template.put("templateCode", "FUP.COPD");
+        template.put("versionNo", versionNo);
+        template.put("name", "慢阻肺出院随访");
+        template.put("description", "按受控事实生成任务");
+        template.put("organizationScope", "tenant:tenant-A");
+        template.put("applicableScope", "riskLevel=HIGH");
+        template.put(
+            "taskDefinitionJson",
+            "[{\"taskType\":\"QUESTIONNAIRE\",\"delayDays\":7,"
+                + "\"questionnaireTemplateId\":\"QUESTIONNAIRE.COPD.01\"}]");
+        template.put(
+            "questionnaireDefinitionJson",
+            "{\"templateId\":\"QUESTIONNAIRE.COPD.01\","
+                + "\"fields\":[{\"code\":\"dyspnea\",\"type\":\"INTEGER\"}]}");
+        template.put(
+            "abnormalActionJson",
+            "{\"condition\":\"dyspnea >= 4\",\"action\":\"RETURN_VISIT\","
+                + "\"notify\":\"FOLLOWUP_TEAM\"}");
+        template.put("sourceRef", "hospital://followup/copd");
+
+        ObjectNode content = TEST_MAPPER.createObjectNode();
+        content.set("template", template);
+        content.put("contentHash", contentHash);
+        content.put("status", "PUBLISHED");
+        return content;
+    }
+
     private String sha256Node(JsonNode node) throws Exception {
         return HexFormat.of().formatHex(
             MessageDigest.getInstance("SHA-256")
@@ -3970,6 +4146,37 @@ class PackageEngineServiceTest {
             "DISEASE.TEST", 1, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "start", "source-ref", "路径说明", "{}", "{}",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private FollowupTemplate followupTemplate(String templateId, int versionNo, String assetVersionId) {
+        Instant now = Instant.now();
+        return new FollowupTemplate(
+            null,
+            templateId,
+            "tenant-A",
+            "FUP.COPD",
+            versionNo,
+            "慢阻肺出院随访",
+            "按受控事实生成任务",
+            "tenant:tenant-A",
+            "riskLevel=HIGH",
+            """
+                [{"taskType":"QUESTIONNAIRE","delayDays":7,"questionnaireTemplateId":"QUESTIONNAIRE.COPD.01"}]
+                """,
+            """
+                {"templateId":"QUESTIONNAIRE.COPD.01","fields":[{"code":"dyspnea","type":"INTEGER"}]}
+                """,
+            """
+                {"condition":"dyspnea >= 4","action":"RETURN_VISIT","notify":"FOLLOWUP_TEAM"}
+                """,
+            "hospital://followup/copd",
+            assetVersionId,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace"
         );
     }
 
