@@ -27,8 +27,9 @@ import com.medkernel.engine.evaluation.EvaluationRunStatus;
 import com.medkernel.engine.followup.FollowupEngineService;
 import com.medkernel.engine.followup.FollowupPlanDetailResponse;
 import com.medkernel.engine.followup.FollowupPlanStatus;
-import com.medkernel.engine.pathway.PathwayEngineService;
+import com.medkernel.engine.pathway.PathwayAdvanceRequest;
 import com.medkernel.engine.pathway.PathwayAdvanceResponse;
+import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEdgeType;
 import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
@@ -196,7 +197,13 @@ class SandboxOrchestrationServiceTest {
         assertThat(response.patientPathwayId()).isEqualTo("pp-sandbox-1");
         verify(pathways).listTemplates(any(), any());
         verify(pathways).enterPatientPathway(any());
-        verify(pathways).advance(any());
+        ArgumentCaptor<PathwayAdvanceRequest> advanceCaptor =
+            ArgumentCaptor.forClass(PathwayAdvanceRequest.class);
+        verify(pathways).advance(advanceCaptor.capture());
+        assertThat(advanceCaptor.getValue().eventId())
+            .startsWith("sandbox:sbx-pathway-ed:")
+            .endsWith(":advance")
+            .hasSizeLessThanOrEqualTo(64);
     }
 
     @Test

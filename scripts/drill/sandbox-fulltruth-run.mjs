@@ -52,7 +52,7 @@ const outerScenarios = [
   {
     id: "sbx-evaluation-closed-loop",
     kind: "EVALUATION",
-    patientId: "SBX-QC-001",
+    patientId: "P5-ACT7-FOLLOWUP-001",
     triggerPoint: "patient-view",
     actionCode: "EVALUATION",
     expectedFact: "evaluationRunId",

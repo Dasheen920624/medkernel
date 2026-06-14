@@ -273,7 +273,7 @@ public class SandboxOrchestrationService {
             null,
             null,
             null,
-            "sandbox:" + scenario.id() + ":" + snapshotId + ":advance",
+            pathwayAdvanceEventId(scenario, snapshotId),
             snapshotId);
         try {
             PathwayAdvanceResponse advanceResponse = pathways.advance(advanceRequest);
@@ -430,6 +430,15 @@ public class SandboxOrchestrationService {
     private static String currentTraceId() {
         String traceId = RequestContext.currentTraceId();
         return traceId == null || traceId.isBlank() ? RequestContext.snapshot().traceId() : traceId;
+    }
+
+    private static String pathwayAdvanceEventId(SandboxScenario scenario, String snapshotId) {
+        String source = snapshotId == null || snapshotId.isBlank() ? "snapshot" : snapshotId;
+        String normalized = source.replaceAll("[^A-Za-z0-9]", "");
+        String suffix = normalized.length() <= 12
+            ? normalized
+            : normalized.substring(normalized.length() - 12);
+        return "sandbox:" + scenario.id() + ":" + suffix + ":advance";
     }
 
     private static String messageOf(RuntimeException exception) {
