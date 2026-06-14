@@ -158,7 +158,7 @@ public class ControlledToolService {
 
     /**
      * 按数据级别给出后端脱敏策略标识（FR-2）：D0/D1 为已发布元数据无需脱敏，D2 为去标识聚合；
-     * D3 及以上须字段级加密，当前工具不暴露故默认最严策略占位（不以宽松策略伪装未实现的高敏处理）。
+     * D3 及以上须字段级加密，当前工具不暴露该层级，故默认返回最严策略标识（不以宽松策略伪装高敏处理）。
      */
     private static String policyFor(EngineDataLevel level) {
         return switch (level) {
