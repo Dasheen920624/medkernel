@@ -173,7 +173,8 @@ class MigrationBaselineContractTest {
         "V122__snapshot_comment_wording.sql",
         "V123__sandbox_permission_catalog.sql",
         "V124__model_egress_governance.sql",
-        "V125__model_provider.sql"
+        "V125__model_provider.sql",
+        "V126__medical_regression_eval.sql"
     );
 
     @Test
@@ -299,6 +300,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "model_egress_whitelist", "model_egress_approval", "model_egress_evidence", "model_provider",
+        "medical_regression_case", "model_eval_run",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -451,6 +453,7 @@ class MigrationBaselineContractTest {
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_model_egress_approval_lookup", "idx_model_egress_evidence_tenant", "idx_model_provider_tenant",
+        "idx_medical_regression_case_tenant", "idx_model_eval_run_lookup",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -672,6 +675,7 @@ class MigrationBaselineContractTest {
         "ck_model_capability_definition_enabled", "uk_model_task_id", "uk_model_policy_tenant",
         "uk_model_egress_whitelist", "ck_model_egress_whitelist_sensitivity", "ck_model_egress_approval_status",
         "uk_model_provider_tenant_code", "ck_model_provider_type", "ck_model_provider_enabled",
+        "ck_medical_regression_case_citation", "ck_medical_regression_case_enabled", "ck_model_eval_run_status",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
         "pk_export_task", "uk_export_task_idempotency", "ck_export_task_scope", "ck_export_task_status",
@@ -819,6 +823,7 @@ class MigrationBaselineContractTest {
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "model_egress_whitelist", "model_egress_approval", "model_egress_evidence", "model_provider",
+        "medical_regression_case", "model_eval_run",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -867,6 +872,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "model_egress_whitelist", "model_egress_approval", "model_egress_evidence", "model_provider",
+        "medical_regression_case", "model_eval_run",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",

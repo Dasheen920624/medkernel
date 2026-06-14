@@ -1,0 +1,32 @@
+package com.medkernel.engine.llm.eval;
+
+import java.time.Instant;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
+
+/**
+ * 模型 provider/版本医学回归评测运行结果（LLM-07 FR-5）。
+ *
+ * <p>{@code status}：{@code PASSED} 方可上线（接 {@code ENG-LLM-008} 门禁）；{@code PENDING_REVIEW}
+ * 为高风险换版需专家复核签字；{@code FAILED} 阻断上线。{@code fakeCitationDetected}/{@code redLineBreach} 任一为真即 FAILED。
+ */
+@Table("model_eval_run")
+public record ModelEvalRun(
+    @Id Long id,
+    @Column("tenant_id") String tenantId,
+    @Column("provider_code") String providerCode,
+    @Column("model_version") String modelVersion,
+    @Column("total_cases") int totalCases,
+    @Column("passed_cases") int passedCases,
+    @Column("failed_cases") int failedCases,
+    @Column("fake_citation_detected") String fakeCitationDetected,
+    @Column("red_line_breach") String redLineBreach,
+    @Column("status") String status,
+    @Column("reviewer") String reviewer,
+    @Column("signed_at") Instant signedAt,
+    @Column("created_at") Instant createdAt,
+    @Column("created_by") String createdBy,
+    @Column("updated_at") Instant updatedAt,
+    @Column("updated_by") String updatedBy
+) {}
