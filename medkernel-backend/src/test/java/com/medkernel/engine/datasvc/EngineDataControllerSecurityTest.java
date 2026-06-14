@@ -39,6 +39,9 @@ class EngineDataControllerSecurityTest {
     @MockBean
     private KnowledgeUsageStatsService knowledgeUsageStatsService;
 
+    @MockBean
+    private ClinicalSignalsService clinicalSignalsService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -85,6 +88,30 @@ class EngineDataControllerSecurityTest {
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));
 
         mockMvc.perform(get("/api/v1/engine-data/knowledge-usage")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotQueryClinicalSignals() throws Exception {
+        mockMvc.perform(get("/api/v1/engine-data/clinical-signals")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void qualityGovernorCanQueryClinicalSignals() throws Exception {
+        when(clinicalSignalsService.queryClinicalSignals(any(), any(), anyInt(), anyInt()))
+            .thenReturn(new ClinicalSignalsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        mockMvc.perform(get("/api/v1/engine-data/clinical-signals")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
