@@ -175,7 +175,8 @@ class MigrationBaselineContractTest {
         "V124__model_egress_governance.sql",
         "V125__model_provider.sql",
         "V126__medical_regression_eval.sql",
-        "V127__model_enhancement_matrix.sql"
+        "V127__model_enhancement_matrix.sql",
+        "V128__engine_data_export_job.sql"
     );
 
     @Test
@@ -265,6 +266,7 @@ class MigrationBaselineContractTest {
         "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
+        "mk_engine_data_export_job",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule",
         "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
@@ -455,6 +457,7 @@ class MigrationBaselineContractTest {
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
         "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup", "idx_mk_llm_enhancement_matrix_status",
+        "idx_mk_engine_data_export_job_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -550,6 +553,8 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_affected_task_type", "ck_mk_knowledge_affected_task_status",
         "ck_mk_knowledge_affected_target_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
+        "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
+        "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
@@ -796,7 +801,8 @@ class MigrationBaselineContractTest {
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
-        "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
+        "knowledge_export_job", "mk_engine_data_export_job",
+        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "mk_knowledge_customization",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
         "mapping_conflict", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
@@ -901,6 +907,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
         Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
         Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("mk_engine_data_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
         Map.entry("rule_applicability", Set.of(
@@ -935,6 +942,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),
+        Map.entry("mk_engine_data_export_job", Set.of("status")),
         Map.entry("standard_term", Set.of("version_no", "status")),
         Map.entry("mk_term_high_risk_rule", Set.of("rule_type", "status")),
         Map.entry("local_term", Set.of("status")),

@@ -320,7 +320,7 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ,
             NOTIFICATION_READ,
             LLM_READ, LLM_EVAL_MANAGE,
-            ENGINE_DATA_READ,
+            ENGINE_DATA_READ, ENGINE_DATA_EXPORT,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_QC_DASHBOARD,

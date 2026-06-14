@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { runCommand, CliUsageError } from '../src/commands.mjs';
 
 function fakeClient() {
-  const calls = { get: [], executeTool: [] };
+  const calls = { get: [], post: [], executeTool: [] };
   const client = {
     calls,
     get: async (path) => {
@@ -14,6 +14,10 @@ function fakeClient() {
         return [{ name: 'queryRuleUsage', dataLevel: 'D2' }];
       }
       return { dataLevel: 'D2', total: 0, rows: [] };
+    },
+    post: async (path, body) => {
+      calls.post.push({ path, body });
+      return { jobCode: 'job-1', status: 'PENDING' };
     },
     executeTool: async (name, body) => {
       calls.executeTool.push({ name, body });
@@ -63,15 +67,49 @@ test('clinical-signals list 经只读统计端点取数', async () => {
   assert.equal(client.calls.get[0], '/api/v1/engine-data/clinical-signals');
 });
 
-test('exports 诚实标后端未实现，不调后端、不伪造任务', async () => {
+test('exports submit 经审批闸控制的导出端点，带审批ID与幂等键', async () => {
   const client = fakeClient();
-  const result = await runCommand(client, 'exports', 'submit', [], { purpose: 'CLI 导出' });
-  // 不调后端、不伪造任务 id（铁律 #1）。
-  assert.equal(client.calls.get.length, 0);
-  assert.equal(client.calls.executeTool.length, 0);
-  assert.equal(result.implemented, false);
-  assert.match(result.message, /未实现|不绕过导出审批/);
-  assert.equal(result.taskId, undefined);
+  await runCommand(client, 'exports', 'submit', ['RULE_USAGE', 'exp-1', 'idem-1'], { windowDays: '90' });
+  assert.deepEqual(client.calls.post[0], {
+    path: '/api/v1/engine-data/exports',
+    body: { exportType: 'RULE_USAGE', windowDays: 90, approvalId: 'exp-1', idempotencyKey: 'idem-1' },
+  });
+});
+
+test('exports submit 缺审批ID结构化拒绝（不绕审批、不伪造）', async () => {
+  const client = fakeClient();
+  await assert.rejects(
+    () => runCommand(client, 'exports', 'submit', ['RULE_USAGE'], {}),
+    (err) => err instanceof CliUsageError && /approvalId/.test(err.message),
+  );
+  assert.equal(client.calls.post.length, 0);
+});
+
+test('exports status 经状态端点按 jobCode 查', async () => {
+  const client = fakeClient();
+  await runCommand(client, 'exports', 'status', ['job-1'], {});
+  assert.equal(client.calls.get[0], '/api/v1/engine-data/exports/job-1');
+});
+
+test('exports list 经列表端点取近期作业', async () => {
+  const client = fakeClient();
+  await runCommand(client, 'exports', 'list', [], {});
+  assert.equal(client.calls.get[0], '/api/v1/engine-data/exports');
+});
+
+test('exports complete 走合规导出审批登记端点，不绕审批', async () => {
+  const client = fakeClient();
+  await runCommand(client, 'exports', 'complete', ['exp-1', 'job-1'], {});
+  assert.equal(client.calls.post[0].path, '/api/v1/compliance/exports/exp-1:complete-from-job');
+  assert.equal(client.calls.post[0].body.jobId, 'job-1');
+});
+
+test('exports 未知动作结构化拒绝', async () => {
+  const client = fakeClient();
+  await assert.rejects(
+    () => runCommand(client, 'exports', 'wipe', [], {}),
+    (err) => err instanceof CliUsageError,
+  );
 });
 
 test('未知命令域结构化拒绝', async () => {

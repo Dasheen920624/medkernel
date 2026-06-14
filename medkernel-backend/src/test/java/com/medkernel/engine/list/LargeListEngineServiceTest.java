@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.relational.core.mapping.Table;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.shared.export.ExportArtifact;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
@@ -419,7 +420,7 @@ class LargeListEngineServiceTest {
         );
         when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(completedJob));
 
-        LargeListExportArtifact artifact = service.completedExportArtifact("job-1");
+        ExportArtifact artifact = service.completedExportArtifact("job-1");
 
         assertEquals("AUDIT_EVENT", artifact.resourceType());
         assertEquals(completedJob.requestSnapshot(), artifact.requestSnapshot());

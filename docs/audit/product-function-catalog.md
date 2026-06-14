@@ -10,15 +10,15 @@
 - 后端菜单：31 项。
 - 页面与页内组件：45 项。
 - 后端控制器：83 项。
-- 批量、导入、导出和异步任务承载类：13 项。
+- 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 77 |
-| MERGE | 41 |
+| KEEP | 76 |
+| MERGE | 45 |
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
@@ -394,8 +394,8 @@
 | `ContextFieldCatalogController` | GET /api/v1/engine/context/field-catalog<br>POST /api/v1/engine/context/field-catalog<br>PUT /api/v1/engine/context/field-catalog/{fieldId}<br>DELETE /api/v1/engine/context/field-catalog/{fieldId} | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ContextSnapshotController decision=KEEP -->
 | `ContextSnapshotController` | POST /api/v1/engine/context/snapshots<br>GET /api/v1/engine/context/snapshots/{snapshotId}<br>GET /api/v1/engine/context/snapshots/{snapshotId}/diagnose<br>GET /api/v1/engine/context/snapshots | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
-<!-- capability:controller:controller@EngineDataController decision=KEEP -->
-| `EngineDataController` | GET /api/v1/engine-data/rule-usage<br>GET /api/v1/engine-data/knowledge-usage<br>GET /api/v1/engine-data/clinical-signals<br>GET /api/v1/engine-data/tools<br>POST /api/v1/engine-data/tools/{toolName}:execute | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@EngineDataController decision=MERGE -->
+| `EngineDataController` | GET /api/v1/engine-data/rule-usage<br>GET /api/v1/engine-data/knowledge-usage<br>GET /api/v1/engine-data/clinical-signals<br>GET /api/v1/engine-data/tools<br>POST /api/v1/engine-data/tools/{toolName}:execute<br>POST /api/v1/engine-data/exports<br>GET /api/v1/engine-data/exports/{jobCode}<br>GET /api/v1/engine-data/exports<br>其余 2 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@DeveloperConsoleController decision=KEEP -->
 | `DeveloperConsoleController` | GET /api/v1/system/dev-console/api-contracts | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@EmbedEngineController decision=API_ONLY -->
@@ -521,6 +521,8 @@
 |---|---|---|---|
 <!-- capability:batch:batch@ExportApprovalController decision=MERGE -->
 | `ExportApprovalController` | `medkernel-backend/src/main/java/com/medkernel/compliance/exportapproval/ExportApprovalController.java` | MERGE | 对应页面的受控导出 |
+<!-- capability:batch:batch@ExportApprovalGateService decision=MERGE -->
+| `ExportApprovalGateService` | `medkernel-backend/src/main/java/com/medkernel/compliance/exportapproval/ExportApprovalGateService.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@ExportApprovalService decision=MERGE -->
 | `ExportApprovalService` | `medkernel-backend/src/main/java/com/medkernel/compliance/exportapproval/ExportApprovalService.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@PersonnelImportService decision=MERGE -->
@@ -531,6 +533,10 @@
 | `AuthoringBatchJobService` | `medkernel-backend/src/main/java/com/medkernel/engine/authoring/AuthoringBatchJobService.java` | MERGE | 知识治理 / 知识资产 |
 <!-- capability:batch:batch@ClinicalEventBatchSuffixController decision=MERGE -->
 | `ClinicalEventBatchSuffixController` | `medkernel-backend/src/main/java/com/medkernel/engine/context/ClinicalEventBatchSuffixController.java` | MERGE | 对应业务页的异步任务 |
+<!-- capability:batch:batch@EngineDataExportAsyncConfig decision=MERGE -->
+| `EngineDataExportAsyncConfig` | `medkernel-backend/src/main/java/com/medkernel/engine/datasvc/export/EngineDataExportAsyncConfig.java` | MERGE | 对应页面的受控导出 |
+<!-- capability:batch:batch@EngineDataExportService decision=MERGE -->
+| `EngineDataExportService` | `medkernel-backend/src/main/java/com/medkernel/engine/datasvc/export/EngineDataExportService.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@KnowledgeExportAsyncConfig decision=MERGE -->
 | `KnowledgeExportAsyncConfig` | `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportAsyncConfig.java` | MERGE | 对应页面的受控导出 |
 <!-- capability:batch:batch@KnowledgeExportController decision=MERGE -->

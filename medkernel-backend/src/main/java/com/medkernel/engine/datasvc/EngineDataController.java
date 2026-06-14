@@ -1,5 +1,8 @@
 package com.medkernel.engine.datasvc;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Instant;
 
 import java.util.List;
@@ -14,18 +17,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.medkernel.engine.datasvc.export.EngineDataExportJob;
+import com.medkernel.engine.datasvc.export.EngineDataExportService;
+import com.medkernel.engine.datasvc.export.EngineDataExportSubmitRequest;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 /**
- * 引擎数据服务层只读统计控制器（DATASVC-01 PR1）。
+ * 引擎数据服务层只读统计与异步导出控制器（DATASVC-01）。
  *
- * <p>四入口（临床端嵌入 / 管理质控端 / CLI / MCP）共用同一后端受控合同；当前三组读模型：规则使用统计
+ * <p>四入口（临床端嵌入 / 管理质控端 / CLI / MCP）共用同一后端受控合同；三组读模型：规则使用统计
  * {@code /api/v1/engine-data/rule-usage}、知识使用统计 {@code /api/v1/engine-data/knowledge-usage}
- * 与临床信号统计 {@code /api/v1/engine-data/clinical-signals}（均 D2 去标识聚合），外加 CLI/MCP 共用的
- * 受控工具入口 {@code /api/v1/engine-data/tools}（目录 + 执行，FR-4 治理信封）。读侧统一
+ * 与临床信号统计 {@code /api/v1/engine-data/clinical-signals}（均 D2 去标识聚合），CLI/MCP 共用的
+ * 受控工具入口 {@code /api/v1/engine-data/tools}（目录 + 执行，FR-4 治理信封），以及经 SYS-06 导出审批闸
+ * 控制的异步 CSV 导出 {@code /api/v1/engine-data/exports/*}（{@code engine-data.export}，FR-1）。读侧统一
  * {@code engine-data.read}，全线 {@link DataScope} 强多租户隔离；后端脱敏 + 数据分级 + 审计 + 诚实降级。
  */
 @RestController
@@ -37,15 +45,18 @@ public class EngineDataController {
     private final KnowledgeUsageStatsService knowledgeUsageStatsService;
     private final ClinicalSignalsService clinicalSignalsService;
     private final ControlledToolService controlledToolService;
+    private final EngineDataExportService engineDataExportService;
 
     public EngineDataController(RuleUsageStatsService ruleUsageStatsService,
             KnowledgeUsageStatsService knowledgeUsageStatsService,
             ClinicalSignalsService clinicalSignalsService,
-            ControlledToolService controlledToolService) {
+            ControlledToolService controlledToolService,
+            EngineDataExportService engineDataExportService) {
         this.ruleUsageStatsService = ruleUsageStatsService;
         this.knowledgeUsageStatsService = knowledgeUsageStatsService;
         this.clinicalSignalsService = clinicalSignalsService;
         this.controlledToolService = controlledToolService;
+        this.engineDataExportService = engineDataExportService;
     }
 
     /**
@@ -114,5 +125,57 @@ public class EngineDataController {
             @PathVariable String toolName,
             @Valid @RequestBody ToolExecutionRequest request) {
         return ApiResult.ok(controlledToolService.execute(toolName, request));
+    }
+
+    /**
+     * 提交异步导出作业（FR-1，须先有 APPROVED 的 SYS-06 导出审批，不绕审批）。立即返回 PENDING；轮询状态。
+     */
+    @PostMapping("/exports")
+    @PreAuthorize("@perm.has('engine-data.export')")
+    public ApiResult<EngineDataExportJob> submitExport(@Valid @RequestBody EngineDataExportSubmitRequest request) {
+        return ApiResult.ok(engineDataExportService.submit(
+            request.exportType(), request.windowDays(), request.approvalId(), request.idempotencyKey()));
+    }
+
+    /**
+     * 查询导出作业状态（按 jobCode）。
+     */
+    @GetMapping("/exports/{jobCode}")
+    @PreAuthorize("@perm.has('engine-data.export')")
+    public ApiResult<EngineDataExportJob> getExport(@PathVariable String jobCode) {
+        return ApiResult.ok(engineDataExportService.get(jobCode));
+    }
+
+    /**
+     * 列出当前租户最近的导出作业。
+     */
+    @GetMapping("/exports")
+    @PreAuthorize("@perm.has('engine-data.export')")
+    public ApiResult<List<EngineDataExportJob>> listExports() {
+        return ApiResult.ok(engineDataExportService.listRecent());
+    }
+
+    /**
+     * 取消未终态的导出作业。
+     */
+    @PostMapping("/exports/{jobCode}/cancel")
+    @PreAuthorize("@perm.has('engine-data.export')")
+    public ApiResult<EngineDataExportJob> cancelExport(@PathVariable String jobCode) {
+        return ApiResult.ok(engineDataExportService.cancel(jobCode));
+    }
+
+    /**
+     * 下载已成功导出作业的 CSV 文件。
+     */
+    @GetMapping("/exports/{jobCode}/download")
+    @PreAuthorize("@perm.has('engine-data.export')")
+    public void downloadExport(@PathVariable String jobCode, HttpServletResponse response) throws IOException {
+        InputStream input = engineDataExportService.downloadFile(jobCode);
+        String safeJobCode = jobCode.replaceAll("[^A-Za-z0-9_.-]", "_");
+        response.setContentType("text/csv;charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"engine-data-export-" + safeJobCode + ".csv\"");
+        try (input; OutputStream output = response.getOutputStream()) {
+            input.transferTo(output);
+        }
     }
 }

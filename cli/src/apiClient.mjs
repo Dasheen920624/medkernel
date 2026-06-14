@@ -62,6 +62,7 @@ export function createClient({ baseUrl, token, fetchImpl = fetch } = {}) {
 
   return {
     get: (path) => request('GET', path),
+    post: (path, body) => request('POST', path, body),
     executeTool: (toolName, body) =>
       request('POST', `/api/v1/engine-data/tools/${encodeURIComponent(toolName)}:execute`, body),
   };

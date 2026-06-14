@@ -1,8 +1,8 @@
 /**
  * CLI 命令域（DATASVC-01 FR-3，规范 §8.5 首版 6 命令域）。
  *
- * 每个命令域只经后端受控合同（受控工具执行入口 / 只读统计端点）取数，**不直连库、不绕治理**。
- * `exports` 后端异步导出尚未实现——诚实标缺口、不伪造任务、不绕导出审批（铁律 #1）。
+ * 每个命令域只经后端受控合同（受控工具执行入口 / 只读统计端点 / 异步导出端点）取数，**不直连库、不绕治理**。
+ * `exports` 走后端经 SYS-06 审批闸控制的异步导出端点，**不绕导出审批、不伪造任务**（铁律 #1）。
  */
 
 export class CliUsageError extends Error {
@@ -18,12 +18,16 @@ export const DOMAINS = {
   rules: '检查规则解释、规则使用统计',
   'clinical-signals': '查看脱敏聚合后的临床信号与引擎降级情况',
   privacy: '验证数据分级是否准入数据服务/CLI/MCP',
-  exports: '提交与查看异步导出任务（后端未实现，诚实标缺口）',
+  exports: '提交与查看经审批闸控制的异步导出任务（submit/status/list/cancel/complete）',
   diagnostics: '检查服务连通、受控工具目录与状态',
 };
 
 function requireArg(positional, name) {
-  const value = positional[0];
+  return requireArgAt(positional, 0, name);
+}
+
+function requireArgAt(positional, index, name) {
+  const value = positional[index];
   if (value == null || String(value).trim() === '') {
     throw new CliUsageError(`缺少参数 ${name}`);
   }
@@ -93,13 +97,60 @@ export async function runCommand(client, domain, action, positional = [], option
           throw new CliUsageError(`privacy 不支持的动作：${action || '(空)'}（可用：validate）`);
       }
     case 'exports':
-      // 后端异步导出任务尚未实现：诚实标缺口，不调后端、不伪造任务、不绕导出审批（铁律 #1）。
-      return {
-        domain,
-        action: action || '(空)',
-        implemented: false,
-        message: '后端异步导出任务尚未实现（DATASVC-01 后续切片）；CLI 不绕过导出审批，未伪造任务。',
-      };
+      // 走后端经 SYS-06 审批闸控制的异步导出端点；CLI 不直连库、不绕导出审批、不伪造任务（铁律 #1）。
+      switch (action) {
+        case 'submit': {
+          const exportType = requireArg(positional, 'exportType');
+          const approvalId = requireArgAt(positional, 1, 'approvalId');
+          const idempotencyKey = requireArgAt(positional, 2, 'idempotencyKey');
+          const windowDays = options.windowDays == null ? 0 : Number(options.windowDays);
+          return {
+            domain,
+            action,
+            result: await client.post('/api/v1/engine-data/exports', {
+              exportType,
+              windowDays,
+              approvalId,
+              idempotencyKey,
+            }),
+          };
+        }
+        case 'status':
+          return {
+            domain,
+            action,
+            result: await client.get(
+              `/api/v1/engine-data/exports/${encodeURIComponent(requireArg(positional, 'jobCode'))}`,
+            ),
+          };
+        case 'list':
+          return { domain, action, result: await client.get('/api/v1/engine-data/exports') };
+        case 'cancel':
+          return {
+            domain,
+            action,
+            result: await client.post(
+              `/api/v1/engine-data/exports/${encodeURIComponent(requireArg(positional, 'jobCode'))}/cancel`,
+            ),
+          };
+        case 'complete': {
+          // 登记导出完成走合规导出审批端点（audit.export，服务端鉴权）；CLI 不绕审批。
+          const approvalId = requireArg(positional, 'approvalId');
+          const jobCode = requireArgAt(positional, 1, 'jobCode');
+          return {
+            domain,
+            action,
+            result: await client.post(
+              `/api/v1/compliance/exports/${encodeURIComponent(approvalId)}:complete-from-job`,
+              { jobId: jobCode, reason: options.reason || `CLI 登记导出完成 ${jobCode}` },
+            ),
+          };
+        }
+        default:
+          throw new CliUsageError(
+            `exports 不支持的动作：${action || '(空)'}（可用：submit|status|list|cancel|complete）`,
+          );
+      }
     default:
       throw new CliUsageError(`未知命令域：${domain}（可用：${Object.keys(DOMAINS).join(' / ')}）`);
   }

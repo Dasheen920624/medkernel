@@ -16,14 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
-import com.medkernel.engine.list.LargeListEngineService;
-import com.medkernel.engine.list.LargeListExportArtifact;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.export.ExportArtifact;
+import com.medkernel.shared.export.ExportArtifactProvider;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
@@ -42,19 +42,19 @@ public class ExportApprovalService {
     private final ExportApprovalRepository repository;
     private final EvidenceService evidenceService;
     private final AuditRecorder auditRecorder;
-    private final LargeListEngineService largeListEngineService;
+    private final List<ExportArtifactProvider> artifactProviders;
     private final ObjectMapper objectMapper;
 
     public ExportApprovalService(
             ExportApprovalRepository repository,
             EvidenceService evidenceService,
             AuditRecorder auditRecorder,
-            LargeListEngineService largeListEngineService,
+            List<ExportArtifactProvider> artifactProviders,
             ObjectMapper objectMapper) {
         this.repository = repository;
         this.evidenceService = evidenceService;
         this.auditRecorder = auditRecorder;
-        this.largeListEngineService = largeListEngineService;
+        this.artifactProviders = List.copyOf(artifactProviders);
         this.objectMapper = objectMapper.copy()
             .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
@@ -215,7 +215,7 @@ public class ExportApprovalService {
             throw ApiException.conflict("只有审批通过的导出申请才能登记导出完成");
         }
         checkVersion(current, request.expectedVersion());
-        LargeListExportArtifact artifact = largeListEngineService.completedExportArtifact(
+        ExportArtifact artifact = resolveProvider(current.resourceType()).completedExportArtifact(
             normalizeToken(request.jobId(), "导出任务 ID 不能为空", 128));
         assertApprovedArtifact(current, artifact);
         String exportUri = artifact.downloadUri();
@@ -311,7 +311,7 @@ public class ExportApprovalService {
             String tenantId,
             ExportApproval approval,
             ExportJobCompletionRequest request,
-            LargeListExportArtifact artifact,
+            ExportArtifact artifact,
             String actor) {
         return evidenceService.createSnapshot(tenantId, new EvidenceCreateDto(
             evidenceId(approval.approvalId(), "export"),
@@ -332,7 +332,20 @@ public class ExportApprovalService {
                 "reason", request.reason()))));
     }
 
-    private void assertApprovedArtifact(ExportApproval approval, LargeListExportArtifact artifact) {
+    private ExportArtifactProvider resolveProvider(String resourceType) {
+        List<ExportArtifactProvider> matches = artifactProviders.stream()
+            .filter(provider -> provider.supports(resourceType))
+            .toList();
+        if (matches.isEmpty()) {
+            throw ApiException.conflict("没有导出产物来源支持资源类型：" + resourceType);
+        }
+        if (matches.size() > 1) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "资源类型存在多个导出产物来源：" + resourceType);
+        }
+        return matches.getFirst();
+    }
+
+    private void assertApprovedArtifact(ExportApproval approval, ExportArtifact artifact) {
         if (!approval.resourceType().equals(normalizeResourceType(artifact.resourceType()))) {
             throw ApiException.conflict("导出任务资源类型与审批申请不一致");
         }

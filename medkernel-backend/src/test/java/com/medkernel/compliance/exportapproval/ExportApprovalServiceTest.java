@@ -14,12 +14,13 @@ import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
 import com.medkernel.engine.list.LargeListEngineService;
-import com.medkernel.engine.list.LargeListExportArtifact;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.export.ExportArtifact;
+import com.medkernel.shared.export.ExportArtifactProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -50,7 +51,7 @@ class ExportApprovalServiceTest {
             repository,
             evidenceService,
             auditRecorder,
-            largeListEngineService,
+            List.of(largeListEngineService),
             new ObjectMapper());
     }
 
@@ -189,8 +190,9 @@ class ExportApprovalServiceTest {
         ExportApproval existing = approvedAuditApproval();
         when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
             .thenReturn(Optional.of(existing));
+        when(largeListEngineService.supports("audit_event")).thenReturn(true);
         when(largeListEngineService.completedExportArtifact("job-audit-1"))
-            .thenReturn(new LargeListExportArtifact(
+            .thenReturn(new ExportArtifact(
                 "job-audit-1",
                 "AUDIT_EVENT",
                 existing.exportScopeSnapshot(),
@@ -232,8 +234,9 @@ class ExportApprovalServiceTest {
         ExportApproval existing = approvedAuditApproval();
         when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
             .thenReturn(Optional.of(existing));
+        when(largeListEngineService.supports("audit_event")).thenReturn(true);
         when(largeListEngineService.completedExportArtifact("job-audit-2"))
-            .thenReturn(new LargeListExportArtifact(
+            .thenReturn(new ExportArtifact(
                 "job-audit-2",
                 "AUDIT_EVENT",
                 "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"LOGIN\"},\"selectedScope\":\"FILTERED_RESULT\"}",
@@ -253,6 +256,100 @@ class ExportApprovalServiceTest {
         assertThat(exception.getMessage()).contains("审批范围");
         verify(repository, never()).save(any());
         verify(evidenceService, never()).createSnapshot(any(), any());
+    }
+
+    @Test
+    void completeExportFromJobResolvesProviderByResourceTypeAmongMany() {
+        ExportArtifactProvider engineDataProvider = mock(ExportArtifactProvider.class);
+        when(largeListEngineService.supports("engine_data_rule_usage")).thenReturn(false);
+        when(engineDataProvider.supports("engine_data_rule_usage")).thenReturn(true);
+        ExportApprovalService twoProviderService = new ExportApprovalService(
+            repository,
+            evidenceService,
+            auditRecorder,
+            List.of(largeListEngineService, engineDataProvider),
+            new ObjectMapper());
+
+        ExportApproval existing = approvedEngineDataApproval();
+        when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
+            .thenReturn(Optional.of(existing));
+        when(engineDataProvider.completedExportArtifact("job-ed-1"))
+            .thenReturn(new ExportArtifact(
+                "job-ed-1",
+                "engine_data_rule_usage",
+                existing.exportScopeSnapshot(),
+                existing.idempotencyKey(),
+                "/api/v1/engine-data/exports/job-ed-1/download",
+                DIGEST));
+        when(evidenceService.createSnapshot(eq("t-1"), any(EvidenceCreateDto.class)))
+            .thenReturn(evidence("evd-exp-engine-data-rule-usage-idem-001-export",
+                "/api/v1/compliance/evidence/snapshots/evd-exp-engine-data-rule-usage-idem-001-export/file"));
+        when(repository.save(any(ExportApproval.class)))
+            .thenAnswer(invocation -> invocation.<ExportApproval>getArgument(0));
+
+        ExportApprovalResponse response = twoProviderService.completeExportFromJob(
+            "t-1",
+            existing.approvalId(),
+            new ExportJobCompletionRequest("job-ed-1", "登记 engine-data 导出完成", 2L),
+            "auditor-1");
+
+        assertThat(response.status()).isEqualTo(ExportApprovalStatus.EXPORTED);
+        assertThat(response.exportUri()).isEqualTo("/api/v1/engine-data/exports/job-ed-1/download");
+        verify(engineDataProvider).completedExportArtifact("job-ed-1");
+        verify(largeListEngineService, never()).completedExportArtifact(any());
+    }
+
+    @Test
+    void completeExportFromJobRejectsWhenNoProviderSupportsResourceType() {
+        when(largeListEngineService.supports(any())).thenReturn(false);
+        ExportApproval existing = approvedEngineDataApproval();
+        when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
+            .thenReturn(Optional.of(existing));
+
+        ApiException exception = catchThrowableOfType(
+            () -> service.completeExportFromJob(
+                "t-1",
+                existing.approvalId(),
+                new ExportJobCompletionRequest("job-ed-x", "登记导出", 2L),
+                "auditor-1"),
+            ApiException.class);
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+        assertThat(exception.getMessage()).contains("资源类型");
+        verify(repository, never()).save(any());
+        verify(evidenceService, never()).createSnapshot(any(), any());
+    }
+
+    private ExportApproval approvedEngineDataApproval() {
+        ExportApproval requested = requestedApproval("exp-engine-data-rule-usage-idem-001", "requester-1");
+        Instant reviewedAt = Instant.parse("2026-06-05T01:00:00Z");
+        return new ExportApproval(
+            requested.id(),
+            requested.approvalId(),
+            requested.tenantId(),
+            "engine_data_rule_usage",
+            "{\"exportType\":\"RULE_USAGE\",\"windowDays\":90}",
+            requested.idempotencyKey(),
+            requested.requestReason(),
+            requested.requestedBy(),
+            requested.requestedAt(),
+            "APPROVED",
+            "auditor-1",
+            "APPROVE",
+            "审批通过，允许生成真实导出文件",
+            reviewedAt,
+            null,
+            null,
+            "evd-exp-engine-data-rule-usage-idem-001-approval",
+            "/api/v1/compliance/evidence/snapshots/evd-exp-engine-data-rule-usage-idem-001-approval/file",
+            null,
+            null,
+            2L,
+            requested.createdAt(),
+            requested.createdBy(),
+            reviewedAt,
+            "auditor-1",
+            "trace-test");
     }
 
     private ExportApproval requestedApproval(String approvalId, String requestedBy) {
