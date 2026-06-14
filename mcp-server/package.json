@@ -1,0 +1,16 @@
+{
+  "name": "@medkernel/mcp-server",
+  "version": "0.1.0",
+  "description": "MedKernel MCP 服务——把后端受控工具经 MCP 协议（stdio JSON-RPC）暴露给外部 Agent（DATASVC-01 FR-4 / AIK-STD-14 底座，不绕治理）",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "medkernel-mcp": "./src/server.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
