@@ -36,6 +36,11 @@ class ControlledToolServiceTest {
     private RuleUsageStatsService ruleUsageStatsService;
     private KnowledgeUsageStatsService knowledgeUsageStatsService;
     private ClinicalSignalsService clinicalSignalsService;
+    private RuleExplanationService ruleExplanationService;
+    private KnowledgeExistenceService knowledgeExistenceService;
+    private KnowledgeSearchService knowledgeSearchService;
+    private PrivacyPolicyService privacyPolicyService;
+    private ClinicalContextService clinicalContextService;
     private AuditRecorder auditRecorder;
     private ControlledToolService service;
 
@@ -44,9 +49,15 @@ class ControlledToolServiceTest {
         ruleUsageStatsService = mock(RuleUsageStatsService.class);
         knowledgeUsageStatsService = mock(KnowledgeUsageStatsService.class);
         clinicalSignalsService = mock(ClinicalSignalsService.class);
+        ruleExplanationService = mock(RuleExplanationService.class);
+        knowledgeExistenceService = mock(KnowledgeExistenceService.class);
+        knowledgeSearchService = mock(KnowledgeSearchService.class);
+        privacyPolicyService = mock(PrivacyPolicyService.class);
+        clinicalContextService = mock(ClinicalContextService.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
-            clinicalSignalsService, auditRecorder);
+            clinicalSignalsService, ruleExplanationService, knowledgeExistenceService,
+            knowledgeSearchService, privacyPolicyService, clinicalContextService, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
     }
 
@@ -56,7 +67,11 @@ class ControlledToolServiceTest {
     }
 
     private ToolExecutionRequest req() {
-        return new ToolExecutionRequest("AI Agent 解释规则使用", null, null, 0, 20);
+        return new ToolExecutionRequest("AI Agent 解释规则使用", null, null, null, 0, 20);
+    }
+
+    private ToolExecutionRequest reqTarget(String target) {
+        return new ToolExecutionRequest("AI Agent 解释规则使用", target, null, null, 0, 20);
     }
 
     private RuleUsageStatsResponse ruleResponse(long total, boolean degraded) {
@@ -65,15 +80,158 @@ class ControlledToolServiceTest {
     }
 
     @Test
-    void listTools_registersControlledToolsWithDataLevels() {
+    void listTools_registersControlledToolsUnderEngineDataRead() {
         List<ControlledToolDescriptor> tools = service.listTools();
 
         assertThat(tools).extracting(ControlledToolDescriptor::name)
             .contains("queryRuleUsage", "summarizeEngineSignals");
-        assertThat(tools).allSatisfy(t -> {
-            assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D2);
-            assertThat(t.requiredPermission()).isEqualTo("engine-data.read");
-        });
+        // 所有受控工具统一受 engine-data.read 管控（恒不变量）。
+        assertThat(tools).allSatisfy(t ->
+            assertThat(t.requiredPermission()).isEqualTo("engine-data.read"));
+        // D2 聚合类工具数据级别为 D2。
+        assertThat(tools).filteredOn(t -> t.name().equals("queryRuleUsage"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D2));
+    }
+
+    @Test
+    void listTools_registersExplainRuleAndCheckKnowledgeExistenceAtD1() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name)
+            .contains("explainRule", "checkKnowledgeExistence");
+        // 单对象解释/存在性工具为 D1 已发布资产元数据。
+        assertThat(tools).filteredOn(t -> t.name().equals("explainRule"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1));
+        assertThat(tools).filteredOn(t -> t.name().equals("checkKnowledgeExistence"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1));
+    }
+
+    @Test
+    void execute_explainRule_wrapsRuleMetadataInEnvelopeAtD1() {
+        when(ruleExplanationService.explainRule("R-7")).thenReturn(new RuleExplanation(
+            "R-7", "CODE-7", "高危药物配伍规则", "ORDER", "HIGH", "PUBLISHED", "v9", "pkg-1.0",
+            EngineDataLevel.D1, Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("explainRule", reqTarget("R-7"));
+
+        assertThat(envelope.toolName()).isEqualTo("explainRule");
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.permissionGranted()).isTrue();
+        assertThat(envelope.degraded()).isFalse();
+        assertThat(envelope.traceId()).isEqualTo("trace-xyz");
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.desensitizationPolicy()).isNotBlank();
+        assertThat(envelope.payload()).isInstanceOf(RuleExplanation.class);
+        assertThat(((RuleExplanation) envelope.payload()).ruleCode()).isEqualTo("CODE-7");
+    }
+
+    @Test
+    void execute_explainRule_missingTarget_throwsStructuredErrorNotLeakingInternals() {
+        // explainRule 必须指定目标规则；缺 target 结构化拒绝，不泄漏内部。
+        assertThatThrownBy(() -> service.execute("explainRule", req()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageNotContaining("SQL")
+            .hasMessageNotContaining("Exception");
+    }
+
+    @Test
+    void execute_checkKnowledgeExistence_returnsExistsFalseHonestlyNotError() {
+        when(knowledgeExistenceService.checkExistence("GONE")).thenReturn(new KnowledgeExistence(
+            "GONE", false, null, null, EngineDataLevel.D1,
+            Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("checkKnowledgeExistence", reqTarget("GONE"));
+
+        // 真实不存在＝诚实回答（非降级非报错，铁律 #1）。
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.degraded()).isFalse();
+        assertThat(envelope.payload()).isInstanceOf(KnowledgeExistence.class);
+        assertThat(((KnowledgeExistence) envelope.payload()).exists()).isFalse();
+    }
+
+    @Test
+    void listTools_registersSearchKnowledgeAndValidatePrivacyPolicy() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name)
+            .contains("searchKnowledge", "validatePrivacyPolicy");
+        assertThat(tools).filteredOn(t -> t.name().equals("searchKnowledge"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1));
+        // 策略判定结果为 D0 策略元数据。
+        assertThat(tools).filteredOn(t -> t.name().equals("validatePrivacyPolicy"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D0));
+    }
+
+    @Test
+    void execute_searchKnowledge_wrapsHitsInEnvelopeAtD1() {
+        when(knowledgeSearchService.search("糖尿病", 0, 20)).thenReturn(new KnowledgeSearchResult(
+            EngineDataLevel.D1, 1L, 0, 20,
+            List.of(new KnowledgeSearchHit("K-DM", "糖尿病诊疗指南", "GUIDELINE", "ACTIVE")),
+            Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("searchKnowledge", reqTarget("糖尿病"));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(KnowledgeSearchResult.class);
+        assertThat(((KnowledgeSearchResult) envelope.payload()).total()).isEqualTo(1L);
+    }
+
+    @Test
+    void execute_validatePrivacyPolicy_deniesD5AtD0Envelope() {
+        when(privacyPolicyService.validate("D5")).thenReturn(new PrivacyPolicyDecision(
+            "D5", false, false, "重要个人信息禁入数据服务/CLI/MCP/模型输入（FR-2）",
+            EngineDataLevel.D0, Instant.parse("2026-06-14T00:00:00Z")));
+
+        ToolExecutionEnvelope envelope = service.execute("validatePrivacyPolicy", reqTarget("D5"));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D0);
+        assertThat(envelope.degraded()).isFalse();
+        assertThat(envelope.payload()).isInstanceOf(PrivacyPolicyDecision.class);
+        assertThat(((PrivacyPolicyDecision) envelope.payload()).allowed()).isFalse();
+    }
+
+    @Test
+    void listTools_registersGetClinicalContextExplanationAtD4() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name).contains("getClinicalContextExplanation");
+        assertThat(tools).filteredOn(t -> t.name().equals("getClinicalContextExplanation"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D4));
+    }
+
+    @Test
+    void execute_getClinicalContextExplanation_wrapsMaskedContextAtD4WithMaskedPolicy() {
+        when(clinicalContextService.explainContext("tok-1", "AI 解释临床会话授权范围"))
+            .thenReturn(new ClinicalContextExplanation(true, "已校验", "order-sign", "clinical-decision-user",
+                "IFRAME", "ref:abc123def456", "ref:999000aaa111",
+                Instant.parse("2026-06-14T01:00:00Z"), EngineDataLevel.D4,
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("getClinicalContextExplanation",
+            new ToolExecutionRequest("AI 解释临床会话授权范围", "tok-1", null, null, 0, 20));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D4);
+        assertThat(envelope.desensitizationPolicy()).isEqualTo("D4_MASKED_MINIMAL_CONTEXT");
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(ClinicalContextExplanation.class);
+        ClinicalContextExplanation ctx = (ClinicalContextExplanation) envelope.payload();
+        assertThat(ctx.authorized()).isTrue();
+        assertThat(ctx.patientRef()).startsWith("ref:");
+    }
+
+    @Test
+    void execute_getClinicalContextExplanation_missingLaunchToken_throwsStructured() {
+        assertThatThrownBy(() -> service.execute("getClinicalContextExplanation", req()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageNotContaining("SQL")
+            .hasMessageNotContaining("Exception");
     }
 
     @Test
