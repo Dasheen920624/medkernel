@@ -2,6 +2,7 @@ package com.medkernel.engine.llm.egress;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -78,18 +79,30 @@ public class ModelEgressGuard {
         String desensitizedHash = sha256(payload);
 
         // FR-3：高敏出域须命中已批准审批记录，否则诚实阻断（不静默出域）。
+        Long approvalId = null;
         if ("HIGH".equalsIgnoreCase(whitelist.sensitivityLevel())) {
-            boolean approved = approvalRepo
+            ModelEgressApproval approval = approvalRepo
                 .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
                     tenantId, capabilityCode, desensitizedHash, "APPROVED")
-                .isPresent();
-            if (!approved) {
-                throw new ApiException(ErrorCode.ENG_LLM_007,
-                    "能力 " + capabilityCode + " 高敏数据外调出域未经审批，已阻断");
-            }
+                .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_007,
+                    "能力 " + capabilityCode + " 高敏数据外调出域未经审批，已阻断"));
+            approvalId = approval.id();
         }
 
+        // FR-5：出域留证（字段清单 + 脱敏后 hash + 审批引用 + 目标 provider）。
+        Instant now = Instant.now();
+        evidenceRepo.save(new ModelEgressEvidence(
+            null, tenantId, capabilityCode, taskId,
+            toJsonArray(egressFields), desensitizedHash, approvalId, providerCode,
+            now, "system", now, "system"));
+
         return new EgressPreparation(payload, egressFields, desensitizedHash);
+    }
+
+    private String toJsonArray(List<String> fields) {
+        var array = OBJECT_MAPPER.createArrayNode();
+        fields.forEach(array::add);
+        return array.toString();
     }
 
     private Set<String> parseAllowedFields(ModelEgressWhitelist whitelist) {

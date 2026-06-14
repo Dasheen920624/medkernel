@@ -3,8 +3,10 @@ package com.medkernel.engine.llm.egress;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -121,5 +123,22 @@ class ModelEgressGuardTest {
             "tenant-1", "knowledge.extract", "{\"clinicalText\":\"主诉发热\"}", "task-1", "claude");
 
         assertThat(prep.egressFields()).containsExactly("clinicalText");
+    }
+
+    @Test
+    void recordsEgressEvidenceOnSuccess() {
+        whitelist("[\"clinicalText\"]", "LOW");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract", "{\"clinicalText\":\"主诉发热\"}", "task-77", "ollama-local");
+
+        // FR-5：成功出域留证——字段清单 + 脱敏后 hash + 目标 provider + taskId
+        verify(evidenceRepo).save(argThat(e ->
+            "tenant-1".equals(e.tenantId())
+                && "knowledge.extract".equals(e.capabilityCode())
+                && "task-77".equals(e.taskId())
+                && "ollama-local".equals(e.providerCode())
+                && "[\"clinicalText\"]".equals(e.egressFields())
+                && prep.desensitizedHash().equals(e.desensitizedHash())));
     }
 }
