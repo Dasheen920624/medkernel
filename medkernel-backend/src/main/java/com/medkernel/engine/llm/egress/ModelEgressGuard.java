@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.medkernel.engine.llm.ModelDataDesensitizer;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 
 /**
  * 模型外调出域数据最小化与安全闸（LLM-03）。
@@ -56,6 +58,11 @@ public class ModelEgressGuard {
             .findByTenantIdAndCapabilityCode(tenantId, capabilityCode)
             .orElse(null);
         Set<String> allowed = parseAllowedFields(whitelist);
+        // FR-1/4：未配置出域白名单（无允许字段契约）一律阻断，不静默放行任何字段。
+        if (allowed.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_LLM_006,
+                "能力 " + capabilityCode + " 未配置出域字段白名单，外调被阻断");
+        }
 
         ObjectNode source = parsePayloadObject(payloadJson);
         ObjectNode minimized = OBJECT_MAPPER.createObjectNode();
@@ -68,7 +75,21 @@ public class ModelEgressGuard {
         });
 
         String payload = minimized.toString();
-        return new EgressPreparation(payload, egressFields, sha256(payload));
+        String desensitizedHash = sha256(payload);
+
+        // FR-3：高敏出域须命中已批准审批记录，否则诚实阻断（不静默出域）。
+        if ("HIGH".equalsIgnoreCase(whitelist.sensitivityLevel())) {
+            boolean approved = approvalRepo
+                .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
+                    tenantId, capabilityCode, desensitizedHash, "APPROVED")
+                .isPresent();
+            if (!approved) {
+                throw new ApiException(ErrorCode.ENG_LLM_007,
+                    "能力 " + capabilityCode + " 高敏数据外调出域未经审批，已阻断");
+            }
+        }
+
+        return new EgressPreparation(payload, egressFields, desensitizedHash);
     }
 
     private Set<String> parseAllowedFields(ModelEgressWhitelist whitelist) {
