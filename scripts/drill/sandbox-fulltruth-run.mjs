@@ -70,13 +70,13 @@ function traceId(stage) {
   return `sandbox-fulltruth-${stage}-${Date.now()}`;
 }
 
-async function loadAccount() {
+async function loadAccount(roleCode = "clinical-decision-user") {
   const data = JSON.parse(await readFile(credentialPath, "utf8"));
   const account =
-    data.roleAccounts?.["clinical-decision-user"]
-    ?? data.platformRoleAccounts?.["clinical-decision-user"];
+    data.roleAccounts?.[roleCode]
+    ?? data.platformRoleAccounts?.[roleCode];
   if (!account?.username || !account?.password || !account?.tenantId) {
-    throw new Error("凭据缺少 clinical-decision-user 可用账号");
+    throw new Error(`凭据缺少 ${roleCode} 可用账号`);
   }
   return account;
 }
@@ -134,7 +134,7 @@ async function login(browser, account) {
   return context;
 }
 
-async function runScenario(context, scenario) {
+async function runScenario(context, verificationContext, scenario) {
   const integrationMode = scenario.integrationMode ?? "IFRAME";
   const run = requireOk(
     await apiPost(
@@ -224,7 +224,7 @@ async function runScenario(context, scenario) {
     );
   }
 
-  const businessFact = await verifyBusinessFact(context, scenario, run);
+  const businessFact = await verifyBusinessFact(context, verificationContext, scenario, run);
 
   return {
     scenarioId: scenario.id,
@@ -267,7 +267,7 @@ async function runScenario(context, scenario) {
   };
 }
 
-async function verifyBusinessFact(context, scenario, run) {
+async function verifyBusinessFact(context, verificationContext, scenario, run) {
   if (scenario.kind === "PATHWAY") {
     const advanceStep = run.steps?.find((step) => step.stage === "PATHWAY_ADVANCE");
     const detail = requireOk(
@@ -306,19 +306,29 @@ async function verifyBusinessFact(context, scenario, run) {
     };
   }
   if (scenario.kind === "EVALUATION") {
+    const evaluationStep = run.steps?.find((step) => step.stage === "EVALUATION");
     const diagnose = requireOk(
       await apiGet(
-        context,
+        verificationContext,
         `/engine/evaluation/runs/${run.evaluationRunId}/diagnose`,
         `verify-evaluation-${scenario.id}`,
       ),
       `回查场景 ${scenario.id} 评估运行`,
     );
+    const entity = diagnose.entity ?? {};
+    const resultCount = Number(entity.resultCount ?? evaluationStep?.serverFacts?.resultCount ?? 0);
+    const findingCount = Number(entity.findingCount ?? evaluationStep?.serverFacts?.findingCount ?? 0);
+    const taskCount = Number(entity.taskCount ?? evaluationStep?.serverFacts?.taskCount ?? 0);
+    if (resultCount < 1 || findingCount < 1) {
+      throw new Error(`场景 ${scenario.id} 评估运行未形成结果与问题闭环`);
+    }
     return {
       evaluationRunId: run.evaluationRunId,
-      status: diagnose.run?.status ?? diagnose.status,
-      resultCount: diagnose.results?.length ?? 0,
-      findingCount: diagnose.findings?.length ?? 0,
+      status: diagnose.currentStatus ?? entity.status,
+      resultCount,
+      findingCount,
+      taskCount,
+      diagnosisVerified: diagnose.entityId === run.evaluationRunId,
     };
   }
   return { status: "NOT_APPLICABLE" };
@@ -384,6 +394,8 @@ async function main() {
     environment: baseUrl,
     parentOrigin,
     credentialSource: credentialPath,
+    primaryRole: "clinical-decision-user",
+    verificationRole: "quality-governor",
     readyScenarioCount: readyScenarios.length,
     blockedScenarioCount: selected.blocked.length,
     blockedScenarios: selected.blocked.map((scenario) => ({
@@ -398,11 +410,12 @@ async function main() {
 
   const browser = await chromium.launch();
   try {
-    const context = await login(browser, await loadAccount());
+    const context = await login(browser, await loadAccount("clinical-decision-user"));
+    const verificationContext = await login(browser, await loadAccount("quality-governor"));
     try {
       for (const scenario of readyScenarios) {
         try {
-          summary.results.push(await runScenario(context, scenario));
+          summary.results.push(await runScenario(context, verificationContext, scenario));
         } catch (error) {
           summary.failures.push({
             scenarioId: scenario.id,
@@ -420,6 +433,7 @@ async function main() {
         });
       }
     } finally {
+      await verificationContext.close();
       await context.close();
     }
   } finally {
