@@ -13,6 +13,22 @@
 
 ---
 
+## 2026-06-14 第二阶段 P2-A 模型底座（进行中）：LLM-03 出域闸已闭环，LLM-08/07 待续
+
+- **活跃分支** `claude/wave2-p2a-model-foundation`（base=最新 `origin/main` `a1204184`，**未推送、未 PR**）。计划见 [docs/superpowers/plans/2026-06-14-wave2-p2a-model-foundation.md](superpowers/plans/2026-06-14-wave2-p2a-model-foundation.md)。用户决策：三卡（LLM-03+08+07）**合一个大 PR**、本会话**内联 TDD**执行。
+- **已完成（子系统一 = LLM-03 出域数据最小化闸，红线先行，7 提交）**：
+  - 三表（`model_egress_whitelist`/`approval`/`evidence`）V124 五方言迁移（Oracle 真容器迁移已验证）；实体+仓储（Spring Data JDBC）。
+  - `ModelEgressGuard.prepareEgress`：白名单字段最小化（FR-1）+ 保留字段强制 MASK_ALL 脱敏（FR-2，脱敏逻辑抽 `ModelDataDesensitizer` 共享，网关委派 DRY）+ 高敏审批闸（FR-3，无 APPROVED→`ENG-LLM-007`）+ 无白名单契约阻断（FR-4，`ENG-LLM-006`）+ 出域证据落账（FR-5）。
+  - `ModelEgressGovernanceService` + `ModelEgressController`（PUT 白名单/POST 审批）；新权限码 **`llm.egress.manage`** 授**集成运维员**（经 `allOf` 自动并入超管/平台治理/机构管理员；合规审计员「独立只读」不变量不破，按 `llm.*` 惯例不入 sys_permission 种子）。
+  - 契约登记：DomainOwnershipCatalog `model_egress_` 前缀、ServiceContractCatalog `model-egress`、迁移基线三集 + 多方言冒烟版本→124。
+  - **全量 `mvn test` 2297 绿**（基线 2282 + 新增 15）。新错误码 `ENG-LLM-006/007` 入 `ErrorCode`。
+- **当前下一步（子系统二 = LLM-08 provider 接入，按计划 T7→T13）**：
+  1. T7 `DeploymentFormService`：新增配置键 `medkernel.deployment.form`（`PRODUCTION_CENTER`/`HOSPITAL_RUNTIME`，**默认最严格 `HOSPITAL_RUNTIME`**），改 `SystemConfigService`+`SystemConfigSeeder`。
+  2. T8 `model_provider` 表 **V125** 五方言（credential_ref 不落明文）。
+  3. T9-12 provider 抽象+适配器（Ollama/OpenAI兼容/Claude，HTTP 经接口注入便于 mock）+ 健康检查 + `submitTask` 第 4 步接线（缺位/断连/形态禁外部→诚实 B0，过出域闸→真实产出），错误码 008/009。
+  - 随后子系统三 = LLM-07 评测闸（T14-18，V126）；最后权限/收口/卡回填/JS 三门禁/PR。
+- **恒守**：TDD 红绿 + 每张卡 B0 验收（关 provider 主链路仍可跑）；铁律 #1 不伪造模型名/置信度/引文。
+
 ## 2026-06-14 第二阶段（知识生产工厂）纳入计划：第一阶段收官，转入第二波 AI 加深，当前活跃主线 = wave2
 
 - **节奏切换**：D0–D6 B0 真实基线 + P5 第一阶段端到端旅程已收官（核心 §0「第二波后置于第一波」条件满足）；正式转入**第二波 · AI 加深 = 第二阶段知识生产工厂**。设计已于 PR #597 落卡并入 main。
