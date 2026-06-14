@@ -13,17 +13,26 @@
 
 ---
 
-## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR1-b（知识使用统计 D2，全量+门禁绿，待推送/PR）
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR1-c（临床信号统计 D2，待推送/PR）
 
-- **活跃分支** `claude/wave2-p2b-datasvc01-knowledge`（base=最新 `origin/main` `eb815ec8`，含 PR1-a 合并）。`DATASVC-01` 是 **12d 大卡按 PR 分期**，本提交＝ **PR1-b 切片：知识使用统计 D2 去标识聚合**（最有据续切片，上游 `recommendation_source` 已真实存在）。**本提交首带走上一段 PR1-a「待推送/PR」陈旧簿记**（[PR #608](https://github.com/Dasheen920624/medkernel/pull/608) `eb815ec8` 已合并，见下方 PR1-a 闭环段）。
+- **活跃分支** `claude/wave2-p2b-datasvc01-clinical-signals`（base=最新 `origin/main`，含 PR1-b 合并）。`DATASVC-01` 是 **12d 大卡按 PR 分期**，本提交＝ **PR1-c 切片：临床信号统计 D2 去标识聚合**（最有据续切片，上游 `recommendation_card` 已真实存在）。**本提交首带走上一段 PR1-b「待推送/PR」陈旧簿记**（[PR #609](https://github.com/Dasheen920624/medkernel/pull/609) `ed66a41f` 已合并，见下方 PR1-b 闭环段）。
+- **已完成（PR1-c）**：续建 `com.medkernel.engine.datasvc` 临床信号统计组，镜像规则/知识使用模式。
+  - `ClinicalSignalStat` 投影 + `ClinicalSignalsResponse`（恒 D2 去标识）。
+  - `ClinicalSignalsRepository`：**只读聚合** `recommendation_card`（engine-recommendation 所属真实 CDSS 决策信号事实，仅读 SELECT、不写不违域归属；card 表无患者标识天然 D2）——按 `card_type` 信号类别聚合 `COUNT(*)` 信号总数 / 高危数（risk_level IN HIGH,CRITICAL）/ 真实记录采纳数（ACCEPTED）/ 驳回数（REJECTED）/ `MAX(created_at)` 最近信号时刻，跨方言 `OFFSET ROWS FETCH NEXT` 分页 + 子查询计数；经真实 H2 集成测试验证。
+  - `ClinicalSignalsService`：服务端分页（默认 20/上限 200）+ 默认 90 天窗 + 每次查询审计（`EXECUTE recommendation_card`）+ **上游不可用诚实降级（`degraded=true` 不以空数据伪装）**；空上游＝真实无数据诚实返回（铁律 #1）。
+  - `EngineDataController` 加 `GET /api/v1/engine-data/clinical-signals`（复用 `engine-data.read`，无新权限码）；契约 `engine-data` 补声明 `recommendation_card` 审计点；产品功能目录重生成（端点列加 `clinical-signals`）。
+- **验证**：datasvc 测试包 21 绿（新增 7：service 4 + controller security 2 + 仓储集成 1）；产品目录 `--check` 退 0；全量 `mvn test` 与前端 `productCatalog.test.ts` 收尾前跑（见下一步）。
+- **诚实分寸（大卡未完，FR/AC 不全勾）**：本切片补 FR-1 第 3 组（临床信号）+ FR-2 数据分级框架（D2）+ FR-6 审计 + FR-7 上游降级；采纳·驳回为真实状态计数非伪造率（铁律 #1/#10）。**未实现**：工具调用读模型（FR-1 第 4 组，随 PR2 工具入口）、**D3/D4 字段级加密**（D2 去标识不落患者字段故未触发，须随 D3/D4 数据切片实现）、数据分级元数据表/导出、CLI(FR-3)/MCP(FR-4)。`backlog.md` DATASVC-01 保持 `pending`（大卡未完）。卡 [DATASVC-01](cards/wave2/DATASVC-01.md)「实现进度」加 PR1-c 诚实标切片。
+- **当前下一步**：全量 `mvn test` + 前端 `productCatalog.test.ts` 本地跑绿 → 提交→推送→建 PR（base=`main`），CI 全绿后请求授权 squash 合并 → 续 **PR2（CLI 6 命令域 + MCP 7 受控工具，FR-3/4/5）** 或 D3-D4 字段级加密数据切片 / P2-B 其他卡（`AIK-STD-13/14`）。**PR1 读模型三组（规则/知识/临床信号）已全，PR2 工具入口可起。**
+
+---
+
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR1-b（知识使用统计 D2，已合并入 main，PR #609 `ed66a41f`，CI 8/8 绿）
+
+- **已合并** [PR #609](https://github.com/Dasheen920624/medkernel/pull/609) squash `ed66a41f`（CI 8/8 全绿）；分支 `claude/wave2-p2b-datasvc01-knowledge` 已删。`DATASVC-01` 12d 大卡 **PR1-b 切片：知识使用统计 D2 去标识聚合**（上游 `recommendation_source` KNOWLEDGE 子集已真实存在）。
 - **已完成（PR1-b）**：续建 `com.medkernel.engine.datasvc` 知识使用统计组，镜像 PR1-a 规则使用模式。
-  - `KnowledgeUsageStat` 投影 + `KnowledgeUsageStatsResponse`（恒 D2 去标识）。
-  - `KnowledgeUsageStatsRepository`：**只读聚合** `recommendation_source` 中 `source_type='KNOWLEDGE'` 且 `source_ref_id` 非空子集（engine-recommendation 所属，仅读 SELECT 合规、不写不违域归属）——按知识引用键聚合 `COUNT(*)` 引用次数 / `COUNT(DISTINCT card_id)` 去重卡片数 / `MAX(created_at)` 最近使用，跨方言 `OFFSET ROWS FETCH NEXT` 分页 + 子查询计数；经真实 H2 集成测试验证（含排除 RULE 与无 ref 键）。
-  - `KnowledgeUsageStatsService`：服务端分页（默认 20/上限 200）+ 默认 90 天窗 + 每次查询审计（`EXECUTE recommendation_source`）+ **上游不可用诚实降级（`degraded=true` 不以空数据伪装）**；空上游＝真实无数据诚实返回（铁律 #1）。
-  - `EngineDataController` 加 `GET /api/v1/engine-data/knowledge-usage`（复用 `engine-data.read`，§8.4 管理质控端，权限授权与 PR1-a 同，无新权限码）；契约 `engine-data` 补声明 `recommendation_source` 审计点；产品功能目录重生成（端点列加 `knowledge-usage`，控制器数不变 83）。
-- **验证**：datasvc 测试包 14 绿（新增 7：service 4 + controller security 2 + 仓储集成 1）；产品目录 `--check` 退 0；全量 `mvn test` 与前端 `productCatalog.test.ts` 收尾前跑（见下一步）。
-- **诚实分寸（大卡未完，FR/AC 不全勾）**：本切片补 FR-1 第 2 组（知识使用）+ FR-2 数据分级框架（D2）+ FR-6 审计 + FR-7 上游降级；**未实现**：临床信号/工具入口（FR-1 第 3/4 组）、**D3/D4 字段级加密**（D2 去标识不落患者字段故未触发，须随 D3/D4 数据切片实现）、数据分级元数据表/导出、CLI(FR-3)/MCP(FR-4)。`backlog.md` DATASVC-01 保持 `pending`（大卡未完）。卡 [DATASVC-01](cards/wave2/DATASVC-01.md)「实现进度」加 PR1-b 诚实标切片。
-- **当前下一步**：全量 `mvn test` + 前端 `productCatalog.test.ts` 本地跑绿 → 提交→推送→建 PR（base=`main`），CI 全绿后请求授权 squash 合并 → 续 DATASVC-01 后续切片（临床信号/工具入口 / D3-D4 字段级加密 / CLI+MCP）或 P2-B 其他卡（`AIK-STD-13/14`）。
+  - `KnowledgeUsageStat` + `KnowledgeUsageStatsResponse`（恒 D2 去标识）；`KnowledgeUsageStatsRepository` 只读聚合 `recommendation_source` 中 `source_type='KNOWLEDGE'` 且 `source_ref_id` 非空子集，按知识引用键聚合 `COUNT(*)` 引用次数 / `COUNT(DISTINCT card_id)` 去重卡片数 / `MAX(created_at)` 最近使用；`KnowledgeUsageStatsService`（90 天窗 + 分页 + 审计 `EXECUTE recommendation_source` + 上游不可用诚实降级）；`EngineDataController` 加 `GET /api/v1/engine-data/knowledge-usage`（复用 `engine-data.read`，无新权限码）；契约补 `recommendation_source` 审计点；产品目录重生成。
+- **验证全绿（合并时）**：全量 `mvn test` **2366 通过**（基线 2359 + 新增 7）；四门禁全过 + `git diff --check` + 前端 `productCatalog.test.ts` 5/5。
 
 ---
 
