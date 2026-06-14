@@ -676,7 +676,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 >
 > 现状：仓库尚未对外发布、生产无 V11-V14 执行记录（v1.0-GA-evidence 文档 [docs/release/v1.0.0-ga-evidence.md](docs/release/v1.0.0-ga-evidence.md) 可查证 GA 还未生效），所以**默认改既有 V8-V14**。
 >
-> 但每个 PR 在 push 前必须用 `grep -n "validateOnMigrate" medkernel-backend/src/main/resources/application*.yml` 和 `git log --oneline V11 V12 V13 V14` 确认仓库实际尚未冻结 baseline，否则改为新增 `V15__{module}_comments.sql`。
+> 但每个 PR 在 push 前必须用 `grep -n "validateOnMigrate" medkernel-backend/src/main/resources/application*.yml` 和 `git log --oneline V11 V12 V13 V14` 确认仓库基线迁移尚未投入使用，否则改为新增 `V15__{module}_comments.sql`。
 
 ---
 

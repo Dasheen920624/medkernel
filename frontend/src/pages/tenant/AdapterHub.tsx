@@ -44,6 +44,7 @@ import {
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
+  useMasterDataReconciliation,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -61,6 +62,7 @@ import {
   type IntegrationMessageLog,
   type IntegrationOnboarding,
   type IntegrationWebhookConfig,
+  type MasterDataReconciliation,
   type RegionalSource,
   type SecurityProfile,
   type WebhookCreateResult,
@@ -166,6 +168,15 @@ const TRUST_LEVEL_COLOR: Record<string, string> = {
   LOW: "red",
 };
 
+const MASTER_DATA_RESOURCE_LABEL: Record<
+  MasterDataReconciliation["resources"][number]["resourceType"],
+  string
+> = {
+  ORG_UNIT: "院内组织",
+  PERSON: "院内人员",
+  LOCAL_TERM: "院内字典",
+};
+
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
@@ -235,6 +246,8 @@ export default function AdapterHub() {
   const [expertMode, setExpertMode] = useState(false);
   const [contractVersionInput, setContractVersionInput] = useState("");
   const [contractVersion, setContractVersion] = useState("");
+  const [masterDataSourceInput, setMasterDataSourceInput] = useState("");
+  const [masterDataSource, setMasterDataSource] = useState("");
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
   const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
@@ -255,6 +268,10 @@ export default function AdapterHub() {
   const adaptersQuery = useIntegrationAdapters();
   const statusQuery = useAdapterHubStatus();
   const dataContractQuery = useIntegrationDataContract(contractVersion, contractVersion.length > 0);
+  const masterDataQuery = useMasterDataReconciliation(
+    masterDataSource,
+    masterDataSource.length > 0,
+  );
   const logsQuery = useIntegrationLogs(logPage, LOG_PAGE_SIZE);
   const onboardingsQuery = useIntegrationOnboardings();
   const webhooksQuery = useWebhooks();
@@ -312,7 +329,8 @@ export default function AdapterHub() {
       logsQuery.isError ||
       onboardingsQuery.isError ||
       webhooksQuery.isError ||
-      regionalSourcesQuery.isError,
+      regionalSourcesQuery.isError ||
+      (masterDataSource.length > 0 && masterDataQuery.isError),
   });
 
   useEffect(() => {
@@ -519,6 +537,15 @@ export default function AdapterHub() {
       return;
     }
     setContractVersion(nextVersion);
+  }
+
+  function handleLoadMasterDataReconciliation() {
+    const source = masterDataSourceInput.trim().toUpperCase();
+    if (!source) {
+      message.warning("请输入来源系统。");
+      return;
+    }
+    setMasterDataSource(source);
   }
 
   const adapterColumns: ColumnsType<IntegrationAdapter> = [
@@ -963,6 +990,81 @@ export default function AdapterHub() {
                       }}
                       scroll={{ x: 900 }}
                     />
+                  </div>
+                ),
+              },
+              {
+                key: "master-data",
+                label: "主数据同步",
+                children: (
+                  <div className={styles.sectionStack}>
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="组织、人员用户、角色身份和院内字典按来源精确同步"
+                      description="同步入口使用时间戳与 HMAC 签名、连续游标和来源版本控制；全量快照会停用来源已删除记录，院内人工及其他来源数据不会被接管。"
+                    />
+                    <div className={styles.toolbar}>
+                      <Input
+                        value={masterDataSourceInput}
+                        onChange={(event) => setMasterDataSourceInput(event.target.value)}
+                        placeholder="例如 HIS、LIS、HRP"
+                        maxLength={64}
+                      />
+                      <Button
+                        icon={<ReloadOutlined aria-hidden="true" />}
+                        loading={masterDataQuery.isFetching}
+                        onClick={handleLoadMasterDataReconciliation}
+                      >
+                        查询对账
+                      </Button>
+                    </div>
+                    {masterDataSource && masterDataQuery.isError && (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message="主数据对账查询失败"
+                        description="请核对来源系统标识与集成读取权限后重试。"
+                      />
+                    )}
+                    {masterDataQuery.data && (
+                      <>
+                        <Descriptions bordered size="small" column={2}>
+                          <Descriptions.Item label="来源系统">
+                            {masterDataQuery.data.sourceSystem}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="最后成功批次">
+                            {masterDataQuery.data.lastSuccessfulBatchId ?? "尚无成功批次"}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="连续游标">
+                            {masterDataQuery.data.cursor ?? "尚无游标"}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="最近同步">
+                            {masterDataQuery.data.lastSyncedAt
+                              ? new Date(masterDataQuery.data.lastSyncedAt).toLocaleString()
+                              : "尚未同步"}
+                          </Descriptions.Item>
+                        </Descriptions>
+                        <Table
+                          rowKey="resourceType"
+                          pagination={false}
+                          size="small"
+                          dataSource={masterDataQuery.data.resources}
+                          columns={[
+                            {
+                              title: "主数据范围",
+                              dataIndex: "resourceType",
+                              render: (value) =>
+                                MASTER_DATA_RESOURCE_LABEL[
+                                  value as keyof typeof MASTER_DATA_RESOURCE_LABEL
+                                ],
+                            },
+                            { title: "当前有效", dataIndex: "activeCount" },
+                            { title: "已停用", dataIndex: "disabledCount" },
+                          ]}
+                        />
+                      </>
+                    )}
                   </div>
                 ),
               },

@@ -1,0 +1,530 @@
+{
+  "generatedAt": "2026-06-14T01:17:54.186Z",
+  "environment": "https://193.112.107.134",
+  "parentOrigin": "https://193.112.107.134",
+  "credentialSource": "/tmp/p5-14-role-drill-credentials-20260612.json",
+  "primaryRole": "clinical-decision-user",
+  "verificationRole": "quality-governor",
+  "readyScenarioCount": 6,
+  "blockedScenarioCount": 9,
+  "blockedScenarios": [
+    {
+      "scenarioId": "sbx-med-warfarin-asa",
+      "ruleCode": "SBX.MED.WARFARIN.ASA",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-order-contrast-ckd",
+      "ruleCode": "SBX.ORDER.CONTRAST.CKD",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-dx-acs",
+      "ruleCode": "SBX.DX.ACS",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-report-critical",
+      "ruleCode": "SBX.REPORT.CRITICAL",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-discharge-check",
+      "ruleCode": "SBX.DISCHARGE.CHECK",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-followup-inr",
+      "ruleCode": "SBX.FOLLOWUP.INR",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-insurance-drg",
+      "ruleCode": "SBX.INSURANCE.DRG",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-quality-record",
+      "ruleCode": "SBX.QUALITY.RECORD",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    },
+    {
+      "scenarioId": "sbx-record-completeness",
+      "ruleCode": "SBX.RECORD.COMPLETENESS",
+      "reason": "CLINICAL_REVIEW_REQUIRED"
+    }
+  ],
+  "results": [
+    {
+      "scenarioId": "sbx-lab-critical-k",
+      "ruleCode": "SBX.LAB.CRITICAL.K",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-lab-critical-k-1781399874584",
+      "snapshotId": "ctx-8778460c-7fec-4803-ab46-a64cfc8ec254",
+      "triggerId": "rt-4e6b6f13-db40-4c4a-9567-8de02df093e9",
+      "cardId": "rc-f52dd19e-17e9-41d9-b2f2-f53ab2690599",
+      "cardAction": "请结合推荐解释确认处理",
+      "cardRiskLevel": "CRITICAL",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "status": "NOT_APPLICABLE"
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-8778460c-7fec-4803-ab46-a64cfc8ec254"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "triggerId": "rt-4e6b6f13-db40-4c4a-9567-8de02df093e9",
+            "status": "EVALUATED",
+            "expectedRuleCode": "SBX.LAB.CRITICAL.K",
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-lab-critical-k-1781399874584",
+            "expiredAt": "2026-06-14T01:22:54.785681280Z",
+            "integrationMode": "IFRAME",
+            "hook": "result-review"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_RETURNED_BY_LIST",
+        "note": "编排响应、推荐卡与反馈事实已闭环；执行目录未返回可关联行时不伪造。"
+      }
+    },
+    {
+      "scenarioId": "sbx-pathway-ed",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-pathway-ed-1781399874883",
+      "snapshotId": "ctx-6f5705d8-1a29-4707-ab31-eb4a2d2e592c",
+      "triggerId": "rt-aaf9a59b-712d-449d-81c1-bf887bc6cb7d",
+      "cardId": "rc-ed95c4c1-b0bf-44c7-8a1a-2fb1e85eaae7",
+      "cardAction": "PATHWAY",
+      "cardRiskLevel": "MEDIUM",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "patientPathwayId": "pp-732b91d6-b527-458d-9a73-d39eaaaa1a99",
+        "status": "NODE_EXECUTING",
+        "currentNodeCode": "DISPOSITION",
+        "previousNodeCode": "ASSESS",
+        "edgeCode": "E-ASSESS-DISPOSITION",
+        "advancementVerified": true
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-6f5705d8-1a29-4707-ab31-eb4a2d2e592c"
+          },
+          "error": null
+        },
+        {
+          "stage": "PATHWAY_ENTER",
+          "endpoint": "/api/v1/engine/pathway/patient-pathways/enter",
+          "status": "OK",
+          "serverFacts": {
+            "status": "NODE_EXECUTING",
+            "templateId": "pt-69a3aabb-5157-4a7c-b293-ce027a5741c6",
+            "patientPathwayId": "pp-732b91d6-b527-458d-9a73-d39eaaaa1a99",
+            "templateCode": "PATH.ED.DISPOSITION",
+            "currentNodeCode": "ASSESS"
+          },
+          "error": null
+        },
+        {
+          "stage": "PATHWAY_ADVANCE",
+          "endpoint": "/api/v1/engine/pathway/patient-pathways/pp-732b91d6-b527-458d-9a73-d39eaaaa1a99/advance",
+          "status": "OK",
+          "serverFacts": {
+            "previousNodeCode": "ASSESS",
+            "edgeType": "DEFAULT",
+            "patientPathwayId": "pp-732b91d6-b527-458d-9a73-d39eaaaa1a99",
+            "status": "NODE_EXECUTING",
+            "nextNodeCode": "DISPOSITION",
+            "edgeCode": "E-ASSESS-DISPOSITION",
+            "snapshotId": "ctx-6f5705d8-1a29-4707-ab31-eb4a2d2e592c"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0,
+            "triggerId": "rt-aaf9a59b-712d-449d-81c1-bf887bc6cb7d",
+            "status": "EVALUATED"
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-pathway-ed-1781399874883",
+            "expiredAt": "2026-06-14T01:22:55.147390510Z",
+            "integrationMode": "IFRAME",
+            "hook": "patient-view"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_APPLICABLE",
+        "note": "外圈引擎场景以对应运行事实回查为准。"
+      }
+    },
+    {
+      "scenarioId": "sbx-recommendation-composite",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-recommendation-composite-1781399875236",
+      "snapshotId": "ctx-12d5849b-e873-496a-b769-d21635a88e66",
+      "triggerId": "rt-470225ac-8f25-49d7-a4bf-686604396126",
+      "cardId": "rc-4f381659-27b8-46f3-a40d-d70235824c12",
+      "cardAction": "SUGGEST_ORDER",
+      "cardRiskLevel": "MEDIUM",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "status": "NOT_APPLICABLE"
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-12d5849b-e873-496a-b769-d21635a88e66"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0,
+            "triggerId": "rt-470225ac-8f25-49d7-a4bf-686604396126",
+            "status": "EVALUATED"
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-recommendation-composite-1781399875236",
+            "expiredAt": "2026-06-14T01:22:55.423659329Z",
+            "integrationMode": "IFRAME",
+            "hook": "patient-view"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_APPLICABLE",
+        "note": "外圈引擎场景以对应运行事实回查为准。"
+      }
+    },
+    {
+      "scenarioId": "sbx-followup-closed-loop",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-followup-closed-loop-1781399875465",
+      "snapshotId": "ctx-a0549573-ccb2-4d41-8fbf-af2afb4375c0",
+      "triggerId": "rt-ba03ff4b-e9d3-4ae6-8d82-4b827f99029a",
+      "cardId": "rc-a6d93874-0670-4c56-b506-ece7291a0a21",
+      "cardAction": "FOLLOWUP",
+      "cardRiskLevel": "HIGH",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "followupPlanId": "fp-b40bc805-6912-4cf4-a0f4-de6125cb1ab6",
+        "status": "ACTIVE",
+        "taskCount": 1
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-a0549573-ccb2-4d41-8fbf-af2afb4375c0"
+          },
+          "error": null
+        },
+        {
+          "stage": "FOLLOWUP",
+          "endpoint": "/api/v1/engine/followup/plans/generate",
+          "status": "OK",
+          "serverFacts": {
+            "taskCount": 1,
+            "status": "ACTIVE",
+            "modelStatus": "MODEL_DISABLED",
+            "traceId": "sandbox-fulltruth-run-sbx-followup-closed-loop-1781399875465",
+            "followupPlanId": "fp-b40bc805-6912-4cf4-a0f4-de6125cb1ab6"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0,
+            "triggerId": "rt-ba03ff4b-e9d3-4ae6-8d82-4b827f99029a",
+            "status": "EVALUATED"
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-followup-closed-loop-1781399875465",
+            "expiredAt": "2026-06-14T01:22:55.657198499Z",
+            "integrationMode": "IFRAME",
+            "hook": "patient-view"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_APPLICABLE",
+        "note": "外圈引擎场景以对应运行事实回查为准。"
+      }
+    },
+    {
+      "scenarioId": "sbx-evaluation-closed-loop",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-evaluation-closed-loop-1781399875764",
+      "snapshotId": "ctx-a5e0a1c0-919f-449a-926a-4b570223166e",
+      "triggerId": "rt-8ef60b94-514e-42fd-842c-cba121dbbb0e",
+      "cardId": "rc-e17038cd-dc66-4544-a7d1-94da5a884fcc",
+      "cardAction": "EVALUATION",
+      "cardRiskLevel": "MEDIUM",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "evaluationRunId": "er-cb244aeb-6dcd-4b4c-8ffd-584578e5933e",
+        "status": "RECORDED",
+        "resultCount": 1,
+        "findingCount": 1,
+        "taskCount": 1,
+        "diagnosisVerified": true
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-a5e0a1c0-919f-449a-926a-4b570223166e"
+          },
+          "error": null
+        },
+        {
+          "stage": "EVALUATION",
+          "endpoint": "/api/v1/engine/evaluation/snapshots:evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "taskCount": 1,
+            "status": "RECORDED",
+            "findingCount": 1,
+            "resultCount": 1,
+            "evaluationRunId": "er-cb244aeb-6dcd-4b4c-8ffd-584578e5933e"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0,
+            "triggerId": "rt-8ef60b94-514e-42fd-842c-cba121dbbb0e",
+            "status": "EVALUATED"
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-evaluation-closed-loop-1781399875764",
+            "expiredAt": "2026-06-14T01:22:55.956583693Z",
+            "integrationMode": "IFRAME",
+            "hook": "patient-view"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_APPLICABLE",
+        "note": "外圈引擎场景以对应运行事实回查为准。"
+      }
+    },
+    {
+      "scenarioId": "sbx-embed-modes",
+      "result": "PASS",
+      "traceId": "sandbox-fulltruth-run-sbx-embed-modes-1781399876046",
+      "snapshotId": "ctx-5ebd3ba0-9b1b-43ee-8b04-f64bafcd9c96",
+      "triggerId": "rt-20db1a60-cab7-439a-9d82-081f99f53ef1",
+      "cardId": "rc-9e8fe139-dd27-45ed-a89b-4b80dcd247a3",
+      "cardAction": "IFRAME_SDK_API",
+      "cardRiskLevel": "LOW",
+      "feedbackStatus": "ACCEPTED",
+      "callbackStatus": "NOT_CONNECTED",
+      "callbackDelivered": false,
+      "degradationReason": "HOST_CALLBACK_NOT_CONFIGURED",
+      "integrationMode": "IFRAME",
+      "supportedEmbedModes": [
+        "IFRAME",
+        "SDK",
+        "API"
+      ],
+      "embedUrl": "/embed/launch?token=***",
+      "businessFact": {
+        "status": "NOT_APPLICABLE"
+      },
+      "engineSteps": [
+        {
+          "stage": "CONTEXT",
+          "endpoint": "/api/v1/engine/context/snapshots",
+          "status": "OK",
+          "serverFacts": {
+            "status": "ACTIVE",
+            "qualityStatus": "VALID",
+            "snapshotId": "ctx-5ebd3ba0-9b1b-43ee-8b04-f64bafcd9c96"
+          },
+          "error": null
+        },
+        {
+          "stage": "RECOMMENDATION",
+          "endpoint": "/api/v1/engine/recommendations/evaluate",
+          "status": "OK",
+          "serverFacts": {
+            "visibleCardCount": 1,
+            "suppressedCardCount": 0,
+            "triggerId": "rt-20db1a60-cab7-439a-9d82-081f99f53ef1",
+            "status": "EVALUATED"
+          },
+          "error": null
+        },
+        {
+          "stage": "TOKEN",
+          "endpoint": "/api/v1/engine/embed/launch-tokens",
+          "status": "OK",
+          "serverFacts": {
+            "hookInstance": "sandbox-fulltruth-run-sbx-embed-modes-1781399876046",
+            "expiredAt": "2026-06-14T01:22:56.244474594Z",
+            "integrationMode": "IFRAME",
+            "hook": "patient-view"
+          },
+          "error": null
+        }
+      ],
+      "executionFact": {
+        "status": "NOT_APPLICABLE",
+        "note": "外圈引擎场景以对应运行事实回查为准。"
+      }
+    }
+  ],
+  "embedModeVerifications": [
+    {
+      "integrationMode": "SDK",
+      "traceId": "sandbox-fulltruth-run-sbx-embed-modes-sdk-1781399876286",
+      "launchActive": true,
+      "supportedEmbedModes": [
+        "IFRAME",
+        "SDK",
+        "API"
+      ]
+    },
+    {
+      "integrationMode": "API",
+      "traceId": "sandbox-fulltruth-run-sbx-embed-modes-api-1781399876484",
+      "launchActive": true,
+      "supportedEmbedModes": [
+        "IFRAME",
+        "SDK",
+        "API"
+      ]
+    }
+  ],
+  "failures": []
+}

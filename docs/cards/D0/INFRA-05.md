@@ -1,7 +1,7 @@
-# INFRA-05 · 27 二级菜单粒度权限模型
+# INFRA-05 · 普通功能菜单粒度权限模型
 
 > 读卡前置：[核心 CONSTITUTION](../../CONSTITUTION.md) + [D0 域简报](_brief.md)。
-> 迁移来源（覆盖矩阵锚点）：质量基线 §9 13 角色矩阵 · 核心 §2.2 27 二级 + 5 高级菜单 · 详规 §7.3 五维权限。
+> 迁移来源（覆盖矩阵锚点）：质量基线 §9 角色矩阵 · 核心 §2.2 普通功能菜单目录 · 详规 §7.3 五维权限。
 
 ## 身份
 - 卡 ID：INFRA-05
@@ -13,12 +13,12 @@
 
 ## 目标
 
-交付**27 二级菜单 + 5 高级工具粒度的权限矩阵**：后端 `MenuPermissionCatalog`（菜单权限点目录）+ `DefaultPermissionPolicy`（13 角色 × 32 菜单 默认矩阵）+ 前端 `routes.ts` requiredPermissions/requiredRoles 全覆盖，使五维权限的"菜单维"真正到二级粒度生效。
+交付**普通功能入口粒度的权限矩阵**：后端 `MenuPermissionCatalog`（29 个主导航 + 1 个页头 + 1 个个人入口）+ `DefaultPermissionPolicy`（职责角色默认矩阵）+ 前端 `routes.ts` requiredPermissions/requiredRoles 全覆盖，使五维权限的"菜单维"真正到功能入口粒度生效。
 
 ## 功能要求（原子可测条目）
 
-- [x] **FR-1 MenuPermissionCatalog**：后端定义 27 二级 + 5 高级 全部菜单的权限点目录（菜单 key → 权限点），单一权威。
-- [x] **FR-2 DefaultPermissionPolicy**：13 角色（质量基线 §9）× 32 菜单 默认可见性矩阵，内置初始化。
+- [x] **FR-1 MenuPermissionCatalog**：后端定义 29 个主导航 + 1 个页头 + 1 个个人入口的权限点目录（菜单 key → 权限点），单一权威。
+- [x] **FR-2 DefaultPermissionPolicy**：职责角色 × 31 入口默认可见性矩阵，内置初始化。
 - [x] **FR-3 前端 routes.ts 全覆盖**：每路由声明 `requiredPermissions` + `requiredRoles`（[BASE-06](BASE-06.md) 元数据 schema），无遗漏。
 - [x] **FR-4 13 角色菜单呈现**：13 角色逐个登入，菜单按矩阵正确呈现（无越权可见、无应见缺失）。
 - [x] **FR-5 粒度可定制**：租户/角色可在默认矩阵上局部覆盖（核心 §9 继承覆盖）。
@@ -26,7 +26,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：`GET /api/v1/security/menu-permissions/visible`（按五维返回可见菜单树）；`GET /api/v1/security/menu-permissions/catalog`（32 菜单目录 + 13 角色默认矩阵）；`PATCH /api/v1/security/menu-permissions/overrides`（D5 用户管理消费的租户级角色菜单覆盖）。
+- 端点：`GET /api/v1/security/menu-permissions/visible`（按五维返回可见菜单树）；`GET /api/v1/security/menu-permissions/catalog`（31 入口目录 + 职责角色默认矩阵）；`PATCH /api/v1/security/menu-permissions/overrides`（D5 用户管理消费的租户级角色菜单覆盖）。
 - DTO：菜单权限矩阵 Record；可见菜单树 Record。
 - 响应信封：`ApiResult`。
 - 状态机：N·A —— 权限矩阵是治理主数据。
@@ -42,7 +42,7 @@ N·A —— 矩阵管理 UI 在 D5「用户管理」；菜单渲染在 [BASE-06]
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 新增 V43，将旧一级菜单权限停用，并种子 31 个新增二级 / 高级菜单权限点；`menu.workbench` 继续复用既有权限码。
 
 ## 视角清单（11 视角逐条）
-1. **产品架构**：菜单权限点目录单一源；32 菜单粒度锁定（核心 §2.2）。
+1. **产品架构**：菜单权限点目录单一源；31 个入口按七业务域与承载位置分类（核心 §2.2）。
 2. **产品体验**：角色登入只见其菜单（默认角色视图，核心 §16）；无越权噪音。
 3. **系统与数据架构**：矩阵可缓存（关系库权威、缓存投影）；菜单树解析高效。
 4. **临床医疗安全**：N·A —— 但临床高危菜单（如发布/双签）按角色受限。
@@ -55,11 +55,11 @@ N·A —— 矩阵管理 UI 在 D5「用户管理」；菜单渲染在 [BASE-06]
 11. **AI / 模型治理与可降级**：AI 知识审核/AI 工作流菜单按角色受限。
 
 ## 适用不变量
-- 命中核心约束：**#7 五维权限（菜单维到 27+5 粒度）** · **§2.2 菜单锁** · **§9 矩阵继承覆盖** · **§13 13 角色截图证据**。
-- 本卡落点：MenuPermissionCatalog + DefaultPermissionPolicy + routes.ts 全覆盖 + 前后端同源，让"菜单维权限"从一级 sectionKey 真正下沉到 27+5 二级粒度。
+- 命中核心约束：**#7 五维权限（菜单维到普通功能入口粒度）** · **§2.2 菜单锁** · **§9 矩阵继承覆盖** · **§13 角色截图证据**。
+- 本卡落点：MenuPermissionCatalog + DefaultPermissionPolicy + routes.ts 全覆盖 + 前后端同源，让"菜单维权限"从一级 sectionKey 真正下沉到每个功能入口。
 
 ## 验收 + 验证
-- [x] **AC-1（FR-1/2）**：32 菜单权限点目录完整；13 角色默认矩阵初始化与质量基线 §9 一致。
+- [x] **AC-1（FR-1/2）**：31 入口权限点目录完整；职责角色默认矩阵初始化与质量基线 §9 一致。
 - [x] **AC-2（FR-3）**：每路由有 requiredPermissions/requiredRoles，无遗漏（构建校验）。
 - [x] **AC-3（FR-4）**：13 角色逐个登入截图，菜单按矩阵呈现（无越权/无缺失）。
 - [x] **AC-4（FR-5）**：租户局部覆盖某角色某菜单可见性生效。
@@ -76,6 +76,6 @@ N·A —— 矩阵管理 UI 在 D5「用户管理」；菜单渲染在 [BASE-06]
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（10d，后端为主 + 前端 routes）
-- PR1：MenuPermissionCatalog + DefaultPermissionPolicy 13×32 矩阵 + 迁移种子 → AC-1。
+- PR1：MenuPermissionCatalog + DefaultPermissionPolicy 职责角色矩阵 + 迁移种子 → AC-1。
 - PR2：前端 routes.ts 全覆盖 + 可见菜单端点 + 前后端同源 → AC-2/3/5。
 - PR3：租户/角色覆盖 + 矩阵管理端点（D5 消费）→ AC-4。

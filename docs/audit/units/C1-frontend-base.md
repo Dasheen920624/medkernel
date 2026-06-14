@@ -7,7 +7,7 @@
 `frontend/src/app`(路由/PageShell/六态/状态机 Badge) + `shared/ui`(MetricGrid/分页/详情抽屉/导出/保存视图) + `shared/config`(路由元数据) + `eslint-rules/no-page-mock.js`。
 
 ## 十维度要点
-- **业务正确性 ✅**：5+1 菜单、路由元数据单一源、PageShell、六态、状态机 Badge、7 步流组件、服务端分页底座真实（BASE-06/08）。
+- **业务正确性 ✅**：七业务域菜单、路由元数据单一源、PageShell、六态、状态机 Badge、7 步流组件、服务端分页底座真实（BASE-06/08）。
 - **视觉债 ✅ 基本达标**：设计 token、CSS Module（各区 *.module.css），生产代码无硬编码颜色/inline style 的门禁存在（BASE-10）。
 - **代码净化门禁 🔴 C1-H-01（系统性根因 R1）**：`eslint-rules/no-page-mock.js` 仅拦 SHOUTY_CASE 命名的对象数组，**camelCase 一律放行**；且实际有 **13 个页面直接 `/* eslint-disable medkernel/no-page-mock */`** 整文件关闭。导致 A7/A10/A12/A14/A15 等前端假闭环全面回潮（真实性审计 R1 未根治）。
 - **可观测性/测试 🟡 C1-M-01**：前端无前端错误监控；测试见 D2（仅冒烟）。

@@ -15,8 +15,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
+import com.medkernel.engine.followup.FollowupTemplate;
+import com.medkernel.engine.followup.FollowupTemplateRepository;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
+import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -39,6 +42,8 @@ public class AuthoringAssetLibraryService {
     private final RuleDefinitionRepository rules;
     private final PathwayTemplateRepository pathways;
     private final ConditionFragmentRepository fragments;
+    private final FollowupTemplateRepository followupTemplates;
+    private final AssetVersionRepository assetVersions;
     private final AuthoringAssetProfileRepository profiles;
     private final AuthoringAssetFavoriteRepository favorites;
 
@@ -47,12 +52,16 @@ public class AuthoringAssetLibraryService {
             RuleDefinitionRepository rules,
             PathwayTemplateRepository pathways,
             ConditionFragmentRepository fragments,
+            FollowupTemplateRepository followupTemplates,
+            AssetVersionRepository assetVersions,
             AuthoringAssetProfileRepository profiles,
             AuthoringAssetFavoriteRepository favorites) {
         this.json = json;
         this.rules = rules;
         this.pathways = pathways;
         this.fragments = fragments;
+        this.followupTemplates = followupTemplates;
+        this.assetVersions = assetVersions;
         this.profiles = profiles;
         this.favorites = favorites;
     }
@@ -82,6 +91,10 @@ public class AuthoringAssetLibraryService {
         if (requestedType == null || requestedType == VersionedAssetType.CONDITION_FRAGMENT) {
             fragments.pageByFilter(tenantId, null, null, null, 0, SOURCE_SCAN_LIMIT).forEach(fragment ->
                 rows.add(fragmentItem(tenantId, userId, fragment)));
+        }
+        if (requestedType == null || requestedType == VersionedAssetType.FOLLOWUP) {
+            followupTemplates.findByTenantIdOrderByUpdatedAtDesc(tenantId).forEach(template ->
+                rows.add(followupItem(tenantId, userId, template)));
         }
 
         List<AuthoringAssetLibraryItem> filtered = rows.stream()
@@ -281,6 +294,31 @@ public class AuthoringAssetLibraryService {
             fragment.updatedAt());
     }
 
+    private AuthoringAssetLibraryItem followupItem(
+            String tenantId,
+            String userId,
+            FollowupTemplate template) {
+        AuthoringAssetProfile profile = profile(
+            tenantId, VersionedAssetType.FOLLOWUP, template.templateId()).orElse(null);
+        String status = assetVersions.findByVersionIdAndTenantId(template.assetVersionId(), tenantId)
+            .map(version -> version.status().name())
+            .orElse("MISSING_VERSION");
+        return new AuthoringAssetLibraryItem(
+            VersionedAssetType.FOLLOWUP,
+            template.templateId(),
+            template.templateCode(),
+            template.name(),
+            category(profile, "随访模板"),
+            tags(profile),
+            String.valueOf(template.versionNo()),
+            status,
+            null,
+            favorite(tenantId, userId, VersionedAssetType.FOLLOWUP, template.templateId()),
+            false,
+            template.updatedAt()
+        );
+    }
+
     private Optional<AuthoringAssetProfile> profile(
             String tenantId,
             VersionedAssetType type,
@@ -362,6 +400,8 @@ public class AuthoringAssetLibraryService {
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "路径资产不存在: " + assetId));
             case CONDITION_FRAGMENT -> fragments.findByFragmentIdAndTenantId(assetId, tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "条件片段资产不存在: " + assetId));
+            case FOLLOWUP -> followupTemplates.findByTemplateIdAndTenantId(assetId, tenantId)
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板资产不存在: " + assetId));
             default -> throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前资产类型尚未接入资产库: " + assetType);
         }
     }

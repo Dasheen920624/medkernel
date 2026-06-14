@@ -164,13 +164,6 @@ export function AppLayout() {
     [visibleMenuSections],
   );
 
-  const expertMenuSections = useMemo(
-    () =>
-      getMenuSectionsForProfile(securityProfile.data, "expert")
-        .filter((section) => section.items.length > 0)
-        .map((section) => ({ ...section, label: `${section.label} · 专家模式` })),
-    [securityProfile.data],
-  );
   const headerItems = useMemo(
     () => getMenuItemsForProfile(securityProfile.data, "header"),
     [securityProfile.data],
@@ -179,10 +172,7 @@ export function AppLayout() {
     () => getMenuItemsForProfile(securityProfile.data, "profile"),
     [securityProfile.data],
   );
-  const commandSections = useMemo(
-    () => [...visibleMenuSections, ...expertMenuSections],
-    [expertMenuSections, visibleMenuSections],
-  );
+  const commandSections = visibleMenuSections;
   const displayName = userDisplayName(securityProfile.data);
   const roleName = primaryRoleName(securityProfile.data);
   const orgText = organizationSummary(securityProfile.data);

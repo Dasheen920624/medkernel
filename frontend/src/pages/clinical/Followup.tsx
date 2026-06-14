@@ -10,6 +10,7 @@ import {
   Drawer,
   Form,
   Input,
+  InputNumber,
   Modal,
   Progress,
   Row,
@@ -17,6 +18,7 @@ import {
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   message,
 } from "antd";
@@ -36,6 +38,9 @@ import {
   useGenerateFollowupPlan,
   useContextSnapshotDetail,
   useContextSnapshots,
+  useCreateFollowupTemplate,
+  useFollowupTemplates,
+  usePublishFollowupTemplate,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
 } from "@/shared/api/hooks";
@@ -43,6 +48,7 @@ import type {
   FollowupAbnormalReportResponse,
   FollowupPlanDetailResponse,
   FollowupPlanStatus,
+  FollowupTemplateResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
@@ -68,8 +74,10 @@ const taskTypeOptions = [
 ];
 
 export default function Followup() {
+  const [activeTab, setActiveTab] = useState("plans");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
+  const [templateModalVisible, setTemplateModalVisible] = useState(false);
   const [patientFilter, setPatientFilter] = useState("");
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
@@ -80,6 +88,7 @@ export default function Followup() {
   );
 
   const [generateForm] = Form.useForm();
+  const [templateForm] = Form.useForm();
   const [questionnaireForm] = Form.useForm();
   const [abnormalForm] = Form.useForm();
 
@@ -103,8 +112,11 @@ export default function Followup() {
   });
 
   const generatePlanMutation = useGenerateFollowupPlan();
+  const createTemplateMutation = useCreateFollowupTemplate();
+  const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const templatesQuery = useFollowupTemplates({ page: 1, size: 100, sort: "updatedAt,desc" });
   const hasSnapshotFilter = Boolean(snapshotPatientId.trim() || snapshotEncounterId.trim());
   const snapshotsQuery = useContextSnapshots(
     {
@@ -122,6 +134,19 @@ export default function Followup() {
   });
 
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
+  const templates = useMemo(() => templatesQuery.data?.items ?? [], [templatesQuery.data?.items]);
+  const publishedTemplates = useMemo(
+    () => templates.filter((template) => template.assetStatus === "PUBLISHED"),
+    [templates],
+  );
+  const templateOptions = useMemo(
+    () =>
+      publishedTemplates.map((template) => ({
+        value: template.templateId,
+        label: `${template.name} · v${template.versionNo}`,
+      })),
+    [publishedTemplates],
+  );
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
   const selectedTask =
     selectedPlanDetail?.tasks.find((task) => task.taskId === selectedTaskId) ?? null;
@@ -146,10 +171,12 @@ export default function Followup() {
       const values = await generateForm.validateFields();
       const response = await generatePlanMutation.mutateAsync({
         contextSnapshotId: selectedSnapshotId,
+        templateId: values.templateId,
         riskLevel: values.riskLevel,
         taskTypes: values.taskTypes,
         idempotencyKey: buildPlanIdempotencyKey(
           selectedSnapshotId,
+          values.templateId,
           values.riskLevel,
           values.taskTypes,
         ),
@@ -166,6 +193,71 @@ export default function Followup() {
     } catch (error: unknown) {
       if (applyApiFieldErrors(generateForm, error)) return;
       message.error(getApiErrorMessage(error, "随访计划生成失败"));
+    }
+  };
+
+  const handleCreateTemplate = async () => {
+    try {
+      const values = await templateForm.validateFields();
+      await createTemplateMutation.mutateAsync({
+        templateCode: values.templateCode,
+        versionNo: Number(values.versionNo),
+        name: values.name,
+        description: values.description,
+        organizationScope: values.organizationScope,
+        applicableScope: values.applicableScope,
+        tasks: [
+          {
+            taskType: "QUESTIONNAIRE",
+            delayDays: Number(values.questionnaireDelayDays),
+            questionnaireTemplateId: values.questionnaireTemplateId,
+          },
+          {
+            taskType: "OUTPATIENT",
+            delayDays: Number(values.outpatientDelayDays),
+          },
+        ],
+        questionnaireDefinition: JSON.stringify({
+          questions: [
+            {
+              code: values.questionCode,
+              type: values.questionType,
+              required: true,
+            },
+          ],
+        }),
+        abnormalActionDefinition: JSON.stringify({
+          condition: values.abnormalCondition,
+          notifyTarget: values.notifyTarget,
+        }),
+        sourceRef: values.sourceRef,
+      });
+
+      message.success("随访模板已创建，请发布后用于计划生成");
+      setTemplateModalVisible(false);
+      templateForm.resetFields();
+      await templatesQuery.refetch();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(templateForm, error)) return;
+      message.error(getApiErrorMessage(error, "随访模板创建失败"));
+    }
+  };
+
+  const handlePublishTemplate = async (template: FollowupTemplateResponse) => {
+    try {
+      await publishTemplateMutation.mutateAsync({
+        templateId: template.templateId,
+        request: {
+          impactDigest:
+            template.contentHash ||
+            `followup-template-${template.templateId}-v${template.versionNo}`,
+          reason: "第一阶段随访模板发布",
+        },
+      });
+      message.success("随访模板已发布，可用于新随访计划");
+      await templatesQuery.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "随访模板发布失败"));
     }
   };
 
@@ -252,6 +344,19 @@ export default function Followup() {
       render: (code: string) => <Tag>{code}</Tag>,
     },
     {
+      title: "模板",
+      key: "template",
+      render: (_value: unknown, record) =>
+        record.templateId ? (
+          <Tag color="purple">
+            {record.templateId}
+            {record.templateVersion ? ` · v${record.templateVersion}` : ""}
+          </Tag>
+        ) : (
+          <Tag>未绑定</Tag>
+        ),
+    },
+    {
       title: "任务进度",
       key: "progress",
       render: (_value: unknown, record) => {
@@ -300,120 +405,244 @@ export default function Followup() {
     },
   ];
 
+  const templateColumns: TableProps<FollowupTemplateResponse>["columns"] = [
+    {
+      title: "模板名称",
+      dataIndex: "name",
+      key: "name",
+      render: (name: string, record) => (
+        <Space direction="vertical" size={0}>
+          <span className={styles.textStrong}>{name}</span>
+          <span className={styles.textMuted}>
+            {record.templateCode} · v{record.versionNo}
+          </span>
+        </Space>
+      ),
+    },
+    {
+      title: "适用范围",
+      dataIndex: "applicableScope",
+      key: "applicableScope",
+      render: (scope: string) => <Tag>{scope}</Tag>,
+    },
+    {
+      title: "任务",
+      key: "tasks",
+      render: (_value: unknown, record) => (
+        <Space wrap>
+          {record.tasks.map((task) => (
+            <Tag key={`${record.templateId}-${task.taskType}`}>
+              {customerEnumLabel(task.taskType)} +{task.delayDays}天
+            </Tag>
+          ))}
+        </Space>
+      ),
+    },
+    {
+      title: "状态",
+      dataIndex: "assetStatus",
+      key: "assetStatus",
+      render: (status: string) => (
+        <Tag color={status === "PUBLISHED" ? "green" : "gold"}>{customerEnumLabel(status)}</Tag>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_value: unknown, record) =>
+        record.assetStatus === "PUBLISHED" ? (
+          <Tag color="green">可用于计划生成</Tag>
+        ) : (
+          <Button
+            type="link"
+            onClick={() => void handlePublishTemplate(record)}
+            loading={publishTemplateMutation.isPending}
+            className={styles.buttonLink}
+          >
+            发布模板
+          </Button>
+        ),
+    },
+  ];
+
   return (
     <PageShell
       title="智能随访工作台"
       description="查看真实随访计划、提交问卷回收内容，并上报随访异常事件。页面只展示后端接口返回的数据。"
     >
-      <Row gutter={[16, 16]} className={styles.sectionGapLg}>
-        <Col xs={24} sm={12} xl={6}>
-          <Card>
-            <Statistic
-              title="作用域随访计划数"
-              value={statsLoading ? "..." : stats.totalPlans}
-              prefix={<FileTextOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card>
-            <Statistic
-              title="作用域执行中计划"
-              value={statsLoading ? "..." : stats.activePlans}
-              prefix={<CompassOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card>
-            <Statistic
-              title="作用域已完成任务"
-              value={statsLoading ? "..." : stats.completedTasks}
-              prefix={<CheckCircleOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card>
-            <Statistic
-              title="作用域任务完成率"
-              value={statsLoading ? "..." : stats.taskCompletionRatePercent}
-              suffix="%"
-              prefix={<AlertOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="作用域异常回院率"
-              value={statsLoading ? "..." : stats.abnormalReturnRatePercent}
-              suffix="%"
-              prefix={<WarningOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { key: "plans", label: "计划执行" },
+          { key: "templates", label: "模板治理" },
+        ]}
+      />
+      {activeTab === "plans" ? (
+        <>
+          <Row gutter={[16, 16]} className={styles.sectionGapLg}>
+            <Col xs={24} sm={12} xl={6}>
+              <Card>
+                <Statistic
+                  title="作用域随访计划数"
+                  value={statsLoading ? "..." : stats.totalPlans}
+                  prefix={<FileTextOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card>
+                <Statistic
+                  title="作用域执行中计划"
+                  value={statsLoading ? "..." : stats.activePlans}
+                  prefix={<CompassOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card>
+                <Statistic
+                  title="作用域已完成任务"
+                  value={statsLoading ? "..." : stats.completedTasks}
+                  prefix={<CheckCircleOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card>
+                <Statistic
+                  title="作用域任务完成率"
+                  value={statsLoading ? "..." : stats.taskCompletionRatePercent}
+                  suffix="%"
+                  prefix={<AlertOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card>
+                <Statistic
+                  title="作用域异常回院率"
+                  value={statsLoading ? "..." : stats.abnormalReturnRatePercent}
+                  suffix="%"
+                  prefix={<WarningOutlined />}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-      <Card className={styles.sectionGapLg}>
-        <Space wrap className={styles.rowBetween}>
-          <Space wrap>
-            <Input
-              placeholder="按患者 ID 检索"
-              allowClear
-              value={patientFilter}
-              onChange={(event) => setPatientFilter(event.target.value)}
-              onPressEnter={() => void refreshFollowupData()}
-              className={styles.searchInput}
+          <Card className={styles.sectionGapLg}>
+            <Space wrap className={styles.rowBetween}>
+              <Space wrap>
+                <Input
+                  placeholder="按患者 ID 检索"
+                  allowClear
+                  value={patientFilter}
+                  onChange={(event) => setPatientFilter(event.target.value)}
+                  onPressEnter={() => void refreshFollowupData()}
+                  className={styles.searchInput}
+                />
+                <Button onClick={() => void refreshFollowupData()}>查询</Button>
+              </Space>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedSnapshotId("");
+                  setGenerateModalVisible(true);
+                }}
+              >
+                生成随访计划
+              </Button>
+            </Space>
+          </Card>
+
+          {isError && (
+            <Alert
+              type="error"
+              showIcon
+              className={styles.sectionGap}
+              message="随访计划接口读取失败"
+              description="请检查登录权限、服务空间或后端接口状态。"
             />
-            <Button onClick={() => void refreshFollowupData()}>查询</Button>
-          </Space>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setSelectedSnapshotId("");
-              setGenerateModalVisible(true);
-            }}
-          >
-            生成随访计划
-          </Button>
+          )}
+
+          {statsError && (
+            <Alert
+              type="error"
+              showIcon
+              className={styles.sectionGap}
+              message="随访统计接口读取失败"
+              description="看板统计来自后端作用域聚合，当前不可用时不使用当前页数据冒充全局统计。"
+            />
+          )}
+
+          <Card>
+            <Table
+              columns={columns}
+              dataSource={displayPlans}
+              rowKey="planId"
+              loading={isLoading}
+              locale={{ emptyText: "当前暂无随访计划" }}
+              pagination={{
+                pageSize: 10,
+                showTotal: (total) => `共 ${total} 个随访计划`,
+              }}
+            />
+          </Card>
+        </>
+      ) : (
+        <Space direction="vertical" size="large" className={styles.fullWidth}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic title="模板总数" value={templates.length} />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic title="已发布模板" value={publishedTemplates.length} />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="待治理模板"
+                  value={
+                    templates.filter((template) => template.assetStatus !== "PUBLISHED").length
+                  }
+                />
+              </Card>
+            </Col>
+          </Row>
+          <Card>
+            <Space wrap className={styles.rowBetween}>
+              <Space direction="vertical" size={0}>
+                <span className={styles.textStrong}>随访模板资产</span>
+                <span className={styles.textMuted}>
+                  模板发布后才能绑定随访计划，运行期只记录计划和任务实例。
+                </span>
+              </Space>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setTemplateModalVisible(true)}
+              >
+                新建模板
+              </Button>
+            </Space>
+          </Card>
+          <Card>
+            <Table
+              columns={templateColumns}
+              dataSource={templates}
+              rowKey="templateId"
+              loading={templatesQuery.isLoading}
+              locale={{ emptyText: "当前暂无随访模板" }}
+              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 个随访模板` }}
+            />
+          </Card>
         </Space>
-      </Card>
-
-      {isError && (
-        <Alert
-          type="error"
-          showIcon
-          className={styles.sectionGap}
-          message="随访计划接口读取失败"
-          description="请检查登录权限、服务空间或后端接口状态。"
-        />
       )}
-
-      {statsError && (
-        <Alert
-          type="error"
-          showIcon
-          className={styles.sectionGap}
-          message="随访统计接口读取失败"
-          description="看板统计来自后端作用域聚合，当前不可用时不使用当前页数据冒充全局统计。"
-        />
-      )}
-
-      <Card>
-        <Table
-          columns={columns}
-          dataSource={displayPlans}
-          rowKey="planId"
-          loading={isLoading}
-          locale={{ emptyText: "当前暂无随访计划" }}
-          pagination={{
-            pageSize: 10,
-            showTotal: (total) => `共 ${total} 个随访计划`,
-          }}
-        />
-      </Card>
 
       <Modal
         title="生成随访计划"
@@ -504,6 +733,18 @@ export default function Followup() {
             />
           </Form.Item>
           <Form.Item
+            name="templateId"
+            label="随访模板"
+            rules={[{ required: true, message: "请选择已发布随访模板" }]}
+          >
+            <Select
+              loading={templatesQuery.isLoading}
+              options={templateOptions}
+              placeholder="选择已发布随访模板"
+              notFoundContent="当前暂无已发布随访模板"
+            />
+          </Form.Item>
+          <Form.Item
             name="taskTypes"
             label="随访任务类型"
             rules={[{ required: true, message: "请至少选择一种任务类型" }]}
@@ -536,6 +777,18 @@ export default function Followup() {
               </Descriptions.Item>
               <Descriptions.Item label="病种编码">
                 {selectedPlanDetail.diseaseCode}
+              </Descriptions.Item>
+              <Descriptions.Item label="随访模板">
+                {selectedPlanDetail.templateId ? (
+                  <Tag color="purple">
+                    {selectedPlanDetail.templateId}
+                    {selectedPlanDetail.templateVersion
+                      ? ` · v${selectedPlanDetail.templateVersion}`
+                      : ""}
+                  </Tag>
+                ) : (
+                  "未绑定"
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Badge
@@ -670,13 +923,170 @@ export default function Followup() {
           </Space>
         )}
       </Drawer>
+      <Modal
+        title="新建随访模板"
+        open={templateModalVisible}
+        onOk={handleCreateTemplate}
+        onCancel={() => {
+          setTemplateModalVisible(false);
+          templateForm.resetFields();
+        }}
+        confirmLoading={createTemplateMutation.isPending}
+        destroyOnClose
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form
+          form={templateForm}
+          layout="vertical"
+          className={styles.formGap}
+          initialValues={{
+            versionNo: 1,
+            organizationScope: "p5-hospital",
+            applicableScope: "COPD",
+            questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
+            questionCode: "dyspnea",
+            questionType: "TEXT",
+            questionnaireDelayDays: 7,
+            outpatientDelayDays: 14,
+            abnormalCondition: "出现呼吸困难加重或血氧下降",
+            notifyTarget: "责任医生与随访护士",
+            sourceRef: "FIRST_PHASE_FOLLOWUP_TEMPLATE",
+          }}
+        >
+          <Form.Item
+            name="templateCode"
+            label="模板编码"
+            rules={[{ required: true, message: "请输入模板编码" }]}
+          >
+            <Input placeholder="例如 FUP.COPD.DISCHARGE" />
+          </Form.Item>
+          <Form.Item
+            name="name"
+            label="模板名称"
+            rules={[{ required: true, message: "请输入模板名称" }]}
+          >
+            <Input placeholder="例如 慢阻肺出院随访" />
+          </Form.Item>
+          <Form.Item name="description" label="模板说明">
+            <TextArea rows={2} placeholder="说明适用场景、随访目标和触发条件" />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item
+                name="versionNo"
+                label="版本"
+                rules={[{ required: true, message: "请输入版本号" }]}
+              >
+                <InputNumber min={1} className={styles.fullWidth} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="organizationScope"
+                label="组织范围"
+                rules={[{ required: true, message: "请输入组织范围" }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="applicableScope"
+                label="适用范围"
+                rules={[{ required: true, message: "请输入适用范围" }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="questionnaireDelayDays"
+                label="问卷延迟天数"
+                rules={[{ required: true, message: "请输入问卷延迟天数" }]}
+              >
+                <InputNumber min={0} className={styles.fullWidth} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="outpatientDelayDays"
+                label="复诊延迟天数"
+                rules={[{ required: true, message: "请输入复诊延迟天数" }]}
+              >
+                <InputNumber min={0} className={styles.fullWidth} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="questionnaireTemplateId"
+            label="问卷模板 ID"
+            rules={[{ required: true, message: "请输入问卷模板 ID" }]}
+          >
+            <Input />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="questionCode"
+                label="问题编码"
+                rules={[{ required: true, message: "请输入问题编码" }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="questionType"
+                label="问题类型"
+                rules={[{ required: true, message: "请输入问题类型" }]}
+              >
+                <Select
+                  options={[
+                    { value: "TEXT", label: "文本" },
+                    { value: "SINGLE_CHOICE", label: "单选" },
+                    { value: "NUMBER", label: "数值" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="abnormalCondition"
+            label="异常触发条件"
+            rules={[{ required: true, message: "请输入异常触发条件" }]}
+          >
+            <TextArea rows={2} />
+          </Form.Item>
+          <Form.Item
+            name="notifyTarget"
+            label="通知对象"
+            rules={[{ required: true, message: "请输入通知对象" }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="sourceRef"
+            label="来源引用"
+            rules={[{ required: true, message: "请输入来源引用" }]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageShell>
   );
 }
 
-function buildPlanIdempotencyKey(snapshotId: string, riskLevel: string, taskTypes: string[]) {
-  return `followup-plan-${snapshotId}-${riskLevel}-${[...taskTypes].sort().join("-")}`.slice(
-    0,
-    160,
-  );
+function buildPlanIdempotencyKey(
+  snapshotId: string,
+  templateId: string,
+  riskLevel: string,
+  taskTypes: string[],
+) {
+  return `followup-plan-${snapshotId}-${templateId}-${riskLevel}-${[...taskTypes]
+    .sort()
+    .join("-")}`.slice(0, 160);
 }

@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    {
+      "id": "sbx-lab-critical-k",
+      "ruleCode": "SBX.LAB.CRITICAL.K",
+      "ruleType": "LAB",
+      "triggerPoint": "result-review",
+      "riskLevel": "CRITICAL",
+      "actionCode": "STRONG_REMINDER",
+      "reviewStatus": "APPROVED_FOR_SANDBOX",
+      "reviewEvidence": "P5 幕6金样已完成规则命中、医师确认与服务端回查",
+      "name": "血钾危急值红线",
+      "sourceRef": "检验危急值管理制度",
+      "changeSummary": "初始化沙盘高钾危急值金样，强提醒且不自动开立或修改医嘱",
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "result-review",
+          "meta": {
+            "parameters": [
+              {
+                "key": "observationCode",
+                "label": "检验项",
+                "valueType": "CODE",
+                "required": true
+              },
+              {
+                "key": "criticalThreshold",
+                "label": "危急阈值",
+                "valueType": "DECIMAL",
+                "required": true
+              },
+              {
+                "key": "returnMinutes",
+                "label": "回报时限分钟",
+                "valueType": "INTEGER",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "population": {},
+            "orgScope": {},
+            "settings": [
+              "INPATIENT",
+              "OUTPATIENT",
+              "ED",
+              "FOLLOWUP"
+            ],
+            "effective": {
+              "rolloutPercent": 100
+            }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": {
+                  "field": "observations[].valueNumeric",
+                  "select": "latest",
+                  "where": {
+                    "all": [
+                      {
+                        "expr": {
+                          "field": "observations[].code"
+                        },
+                        "operator": "equals",
+                        "value": {
+                          "const": "2823-3"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "operator": "gte",
+                "value": 5.5
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "atSeverity": "CRITICAL",
+              "indicator": "critical",
+              "summary": "检验结果达到危急值，需立即回报并人工确认",
+              "detail": "命中后须在规定时限内完成危急值回报、确认与记录，不自动开立或修改医嘱。",
+              "source": {
+                "label": "检验危急值管理制度"
+              },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "血钾危急值回报",
+            "summary": "沙盘金样按检验编码和危急阈值生成可追溯提醒"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-LAB-K-POS",
+            "encounterId": "SBX-LAB-K-ENC-POS",
+            "observationCode": "2823-3",
+            "observationName": "血清钾",
+            "valueNumeric": 6.8,
+            "expectedHit": true,
+            "expectedSeverity": "CRITICAL",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-LAB-K-NEG",
+            "encounterId": "SBX-LAB-K-ENC-NEG",
+            "observationCode": "2823-3",
+            "observationName": "血清钾",
+            "valueNumeric": 4.5,
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-LAB-K-BND",
+            "encounterId": "SBX-LAB-K-ENC-BND",
+            "observationCode": "2823-3",
+            "observationName": "血清钾",
+            "valueNumeric": 5.5,
+            "expectedHit": true,
+            "expectedSeverity": "CRITICAL",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "CONFLICT",
+            "patientId": "SBX-LAB-K-CFL",
+            "encounterId": "SBX-LAB-K-ENC-CFL",
+            "observationCode": "2951-2",
+            "observationName": "血清钠",
+            "valueNumeric": 160,
+            "expectedHit": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "sbx-med-warfarin-asa",
+      "ruleCode": "SBX.MED.WARFARIN.ASA",
+      "ruleType": "ORDER",
+      "triggerPoint": "medication-prescribe",
+      "riskLevel": "HIGH",
+      "actionCode": "STRONG_REMINDER",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "华法林与阿司匹林联用风险",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-order-contrast-ckd",
+      "ruleCode": "SBX.ORDER.CONTRAST.CKD",
+      "ruleType": "ORDER",
+      "triggerPoint": "order-sign",
+      "riskLevel": "HIGH",
+      "actionCode": "BLOCK",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "肾功能不全造影剂风险",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-dx-acs",
+      "ruleCode": "SBX.DX.ACS",
+      "ruleType": "DIAGNOSIS",
+      "triggerPoint": "patient-view",
+      "riskLevel": "MEDIUM",
+      "actionCode": "REMIND",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "胸痛与肌钙蛋白异常提示",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-report-critical",
+      "ruleCode": "SBX.REPORT.CRITICAL",
+      "ruleType": "REPORT",
+      "triggerPoint": "result-review",
+      "riskLevel": "HIGH",
+      "actionCode": "STRONG_REMINDER",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "影像报告危急征象回报",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-discharge-check",
+      "ruleCode": "SBX.DISCHARGE.CHECK",
+      "ruleType": "DISCHARGE",
+      "triggerPoint": "discharge-sign",
+      "riskLevel": "MEDIUM",
+      "actionCode": "REMIND",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "出院带药与随访核查",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-followup-inr",
+      "ruleCode": "SBX.FOLLOWUP.INR",
+      "ruleType": "FOLLOWUP",
+      "triggerPoint": "followup-alert",
+      "riskLevel": "HIGH",
+      "actionCode": "STRONG_REMINDER",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "随访 INR 异常处理",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-insurance-drg",
+      "ruleCode": "SBX.INSURANCE.DRG",
+      "ruleType": "INSURANCE",
+      "triggerPoint": "order-sign",
+      "riskLevel": "LOW",
+      "actionCode": "INFO",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "医保 DRG/DIP 合理性提示",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-quality-record",
+      "ruleCode": "SBX.QUALITY.RECORD",
+      "ruleType": "QUALITY",
+      "triggerPoint": "patient-view",
+      "riskLevel": "MEDIUM",
+      "actionCode": "REMIND",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "病历内涵质控提示",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    },
+    {
+      "id": "sbx-record-completeness",
+      "ruleCode": "SBX.RECORD.COMPLETENESS",
+      "ruleType": "RECORD",
+      "triggerPoint": "patient-view",
+      "riskLevel": "LOW",
+      "actionCode": "INFO",
+      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
+      "reviewEvidence": null,
+      "name": "病历结构化完整性提示",
+      "sourceRef": null,
+      "changeSummary": null,
+      "clinicalContent": null
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 package com.medkernel.engine.org;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -188,6 +189,105 @@ public class OrgUnitService {
     }
 
     /**
+     * 按组织编码幂等同步院内组织主数据，父级调整沿用闭包表迁移能力。
+     *
+     * @return 当前租户内组织主键
+     */
+    @Transactional
+    public String syncFromExternal(OrgUnitSyncCommand command) {
+        if (command == null || !hasText(command.code())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "组织同步缺少组织编码");
+        }
+        String tenantId = requireCurrentTenant();
+        String sourceActor = requireExternalSourceActor();
+        OrgUnit current = repository.findByTenantIdAndCode(tenantId, command.code().trim())
+            .orElse(null);
+        if (current != null && !sourceActor.equals(current.createdBy())) {
+            throw ApiException.conflict("组织编码已由人工或其他来源维护，不能被当前来源接管");
+        }
+        if (command.disable()) {
+            if (current == null) {
+                throw ApiException.notFound("组织单元 code=" + command.code());
+            }
+            boolean hasActiveChildren = repository
+                .findByTenantIdAndParentIdOrderByCodeAsc(tenantId, current.id())
+                .stream()
+                .anyMatch(OrgUnit::isActive);
+            if (hasActiveChildren) {
+                throw new ApiException(ErrorCode.CONFLICT, "组织仍有启用中的直接子节点，不能停用");
+            }
+            Instant now = Instant.now();
+            repository.save(new OrgUnit(
+                current.id(), current.parentId(), current.tenantId(), current.orgPath(),
+                current.level(), current.code(), current.name(), current.namePinyin(),
+                current.facilityType(), current.specialtyId(), OrgUnitStatus.SUSPENDED,
+                current.createdAt(), current.createdBy(), now, currentActor()));
+            return current.id();
+        }
+
+        if (command.level() == null || !hasText(command.name())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "组织同步缺少层级或名称");
+        }
+        OrgUnit parent = hasText(command.parentCode())
+            ? repository.findByTenantIdAndCode(tenantId, command.parentCode().trim())
+                .orElseThrow(() -> ApiException.notFound("父级组织 code=" + command.parentCode()))
+            : null;
+        if (current == null) {
+            OrgUnit created = createOrgUnit(new OrgUnit(
+                null,
+                parent == null ? null : parent.id(),
+                null,
+                null,
+                command.level(),
+                command.code().trim(),
+                command.name().trim(),
+                normalizeFilter(command.namePinyin()),
+                command.facilityType(),
+                normalizeFilter(command.specialtyId()),
+                command.status() == null ? OrgUnitStatus.ACTIVE : command.status(),
+                null, null, null, null));
+            return created.id();
+        }
+        if (current.level() != command.level()) {
+            throw new ApiException(ErrorCode.CONFLICT, "既有组织层级不能通过同步直接变更");
+        }
+        if (parent == null && current.parentId() != null) {
+            throw new ApiException(ErrorCode.CONFLICT, "非根组织同步时必须提供父级组织");
+        }
+        if (parent != null && !parent.id().equals(current.parentId())) {
+            current = reparentOrgUnit(current.id(), parent.id());
+        }
+        Instant now = Instant.now();
+        OrgUnit saved = repository.save(new OrgUnit(
+            current.id(),
+            current.parentId(),
+            current.tenantId(),
+            current.orgPath(),
+            current.level(),
+            current.code(),
+            command.name().trim(),
+            normalizeFilter(command.namePinyin()),
+            command.facilityType(),
+            normalizeFilter(command.specialtyId()),
+            command.status() == null ? OrgUnitStatus.ACTIVE : command.status(),
+            current.createdAt(),
+            current.createdBy(),
+            now,
+            currentActor()));
+        return saved.id();
+    }
+
+    @Transactional
+    public void disableFromExternal(String internalId) {
+        String tenantId = requireCurrentTenant();
+        OrgUnit current = repository.findByTenantIdAndId(tenantId, internalId)
+            .orElseThrow(() -> ApiException.notFound("组织单元 id=" + internalId));
+        syncFromExternal(new OrgUnitSyncCommand(
+            current.code(), null, current.level(), current.name(), current.namePinyin(),
+            current.facilityType(), current.specialtyId(), OrgUnitStatus.SUSPENDED, true));
+    }
+
+    /**
      * 查询当前租户下指定组织从根节点到自身的完整路径。
      *
      * @param code 目标组织编码
@@ -335,6 +435,14 @@ public class OrgUnitService {
         return RequestContext.currentUserId()
             .filter(s -> !s.isBlank())
             .orElse("system");
+    }
+
+    private String requireExternalSourceActor() {
+        String actor = currentActor();
+        if (!actor.startsWith("integration:")) {
+            throw ApiException.forbidden("组织主数据同步必须在受信集成来源上下文中执行");
+        }
+        return actor;
     }
 
     private String normalizeFilter(String value) {

@@ -10,6 +10,7 @@ required=(
   "deploy/docker/backend/Dockerfile"
   "deploy/docker/frontend/Dockerfile"
   "deploy/docker/frontend/nginx.conf"
+  "deploy/onprem/templates/medkernel.nginx.conf"
   "deploy/docker/scripts/common.sh"
   "deploy/docker/scripts/bootstrap-runtime.sh"
   "deploy/docker/scripts/up.sh"
@@ -74,6 +75,20 @@ grep -q -- '--mount=type=cache,target=/root/.m2' "$ROOT/deploy/docker/backend/Do
 ! grep -q 'mvn -B -q' "$ROOT/deploy/docker/backend/Dockerfile"
 grep -q 'maven.test.skip=true' "$ROOT/deploy/docker/backend/Dockerfile"
 grep -A4 'location = /healthz' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_set_header Host \$host;'
+
+EMBED_BLOCK="$(grep -A6 'location = /embed/launch' "$ROOT/deploy/docker/frontend/nginx.conf")"
+grep -q 'frame-ancestors \*' <<<"$EMBED_BLOCK"
+if grep -q 'X-Frame-Options' <<<"$EMBED_BLOCK"; then
+  echo "嵌入启动页不得返回 X-Frame-Options" >&2
+  exit 1
+fi
+ONPREM_EMBED_BLOCK="$(grep -A7 'location = /embed/launch' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf")"
+grep -q 'frame-ancestors \*' <<<"$ONPREM_EMBED_BLOCK"
+grep -q 'Strict-Transport-Security' <<<"$ONPREM_EMBED_BLOCK"
+if grep -q 'X-Frame-Options' <<<"$ONPREM_EMBED_BLOCK"; then
+  echo "院内部署嵌入启动页不得返回 X-Frame-Options" >&2
+  exit 1
+fi
 grep -q 'pg_dump' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q 'checksum_file' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q '.sha256' "$ROOT/deploy/docker/scripts/backup.sh"

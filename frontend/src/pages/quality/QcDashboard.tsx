@@ -123,7 +123,7 @@ export default function QcDashboard() {
   if (dashboardQuery.isLoading) {
     return (
       <PageShell
-        title="质量与运营概览"
+        title="质量管理概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
@@ -137,7 +137,7 @@ export default function QcDashboard() {
   if (dashboardQuery.isError) {
     return (
       <PageShell
-        title="质量与运营概览"
+        title="质量管理概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
@@ -160,7 +160,7 @@ export default function QcDashboard() {
   if (!dashboard || isEmpty) {
     return (
       <PageShell
-        title="质量与运营概览"
+        title="质量管理概览"
         description="真实指标、风险热力与闭环价值"
         primary={primaryAction}
         extras={extraActions}
@@ -177,7 +177,7 @@ export default function QcDashboard() {
 
   return (
     <PageShell
-      title="质量与运营概览"
+      title="质量管理概览"
       description="真实指标、风险热力与闭环价值"
       primary={primaryAction}
       extras={extraActions}

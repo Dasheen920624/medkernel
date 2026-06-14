@@ -301,6 +301,108 @@ public class ComplianceUserService {
         return detail(userId);
     }
 
+    /**
+     * 幂等同步由院内身份源权威维护的用户主体，不创建或回传平台口令。
+     */
+    @Transactional
+    public ComplianceUserDetail syncExternalUser(String userId, String displayName, String status) {
+        String safeUserId = requireText(compact(userId), "院内用户标识不能为空");
+        String safeDisplayName = requireText(compact(displayName), "院内用户姓名不能为空");
+        String safeStatus = "DISABLED".equalsIgnoreCase(status) ? "DISABLED" : "ACTIVE";
+        String tenantId = tenantId();
+        String sourceActor = requireExternalSourceActor();
+        TenantUser current = users.findByTenantIdAndUserId(tenantId, safeUserId).orElse(null);
+        Instant now = Instant.now();
+        if (current == null) {
+            users.save(new TenantUser(
+                null, tenantId, safeUserId, safeDisplayName, safeStatus, 1L,
+                now, actor(), now, actor(), traceId()));
+            auditRecorder.record(
+                AuditAction.CREATE, "tenant_user", safeUserId, "同步院内身份源用户");
+            return detail(safeUserId);
+        }
+        if (credentials.findByTenantIdAndUserId(tenantId, safeUserId).isPresent()) {
+            throw ApiException.conflict("平台凭证用户不能被院内身份源同步接管");
+        }
+        if (!sourceActor.equals(current.createdBy())) {
+            throw ApiException.conflict("院内用户已由人工或其他来源维护，不能被当前来源接管");
+        }
+        if (!current.status().equalsIgnoreCase(safeStatus)) {
+            setStatus(safeUserId, safeStatus);
+            current = users.findByTenantIdAndUserId(tenantId, safeUserId).orElseThrow();
+        }
+        if (!current.displayName().equals(safeDisplayName)) {
+            users.save(new TenantUser(
+                current.id(), current.tenantId(), current.userId(), safeDisplayName,
+                current.status(), current.version() + 1L, current.createdAt(), current.createdBy(),
+                now, actor(), traceId()));
+            auditRecorder.record(
+                AuditAction.UPDATE, "tenant_user", safeUserId, "同步院内用户显示名称");
+        }
+        return detail(safeUserId);
+    }
+
+    /**
+     * 用当前院内来源的期望职责替换该来源此前创建的职责，不影响人工或其他来源分配。
+     */
+    @Transactional
+    public void syncExternalRole(
+            String userId,
+            ComplianceUserRoleRequest desired,
+            Authentication authentication) {
+        TenantUser user = findUser(userId);
+        String sourceActor = requireExternalSourceActor();
+        if (!sourceActor.equals(user.createdBy())) {
+            throw ApiException.conflict("院内用户已由人工或其他来源维护，不能同步其职责");
+        }
+
+        RoleCode desiredRole = null;
+        String desiredScopeLevel = null;
+        String desiredScopeCode = null;
+        if (desired != null) {
+            desiredRole = requireRole(desired.roleCode());
+            SystemSuperAdminGuard.assertTenantManagedRole(desiredRole.code());
+            assertRoleGrantAllowed(authentication, desiredRole);
+            desiredScopeLevel = normalizeScopeLevel(desired.scopeLevel());
+            desiredScopeCode = desired.scopeCode().trim();
+            assertScopeAllowed(desiredScopeLevel, desiredScopeCode);
+        }
+
+        Instant now = Instant.now();
+        for (UserRoleAssignment assignment :
+                roleAssignments.findActiveByTenantIdAndUserId(tenantId(), userId)) {
+            boolean sameDesired = desiredRole != null
+                && assignment.roleCode().equals(desiredRole.code())
+                && assignment.scopeLevel().equals(desiredScopeLevel)
+                && assignment.scopeCode().equals(desiredScopeCode);
+            if (!sourceActor.equals(assignment.createdBy()) || sameDesired) {
+                continue;
+            }
+            SystemSuperAdminGuard.assertAssignmentMutable(assignment);
+            roleAssignments.save(new UserRoleAssignment(
+                assignment.id(),
+                assignment.tenantId(),
+                assignment.userId(),
+                assignment.roleCode(),
+                assignment.scopeLevel(),
+                assignment.scopeCode(),
+                "N",
+                assignment.createdAt(),
+                assignment.createdBy(),
+                now,
+                sourceActor));
+            auditRecorder.record(
+                AuditAction.UPDATE,
+                "user_role_assignment",
+                userId,
+                "同步撤销来源职责 role=" + assignment.roleCode()
+                    + " scope=" + assignment.scopeLevel() + ":" + assignment.scopeCode());
+        }
+        if (desiredRole != null) {
+            saveRole(userId, desiredRole.code(), desiredScopeLevel, desiredScopeCode);
+        }
+    }
+
     private ComplianceUserSummary summary(
             TenantUser user,
             Optional<PlatformCredential> credential,
@@ -475,6 +577,14 @@ public class ComplianceUserService {
 
     private String actor() {
         return RequestContext.currentUserId().orElse("system");
+    }
+
+    private String requireExternalSourceActor() {
+        String sourceActor = actor();
+        if (!sourceActor.startsWith("integration:")) {
+            throw ApiException.forbidden("院内身份同步必须在受信集成来源上下文中执行");
+        }
+        return sourceActor;
     }
 
     private String traceId() {

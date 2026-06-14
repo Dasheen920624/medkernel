@@ -37,6 +37,7 @@ import {
   usePackages,
   usePackageReleaseAdapters,
   useRejectTerminologyCandidate,
+  useResolveTerminologyConflict,
   useReleasePackage,
   useRollbackPackage,
   useSaveView,
@@ -110,6 +111,15 @@ const STATUS_LABEL: Record<TermMapping["status"], string> = {
   DRAFT: "草稿",
   SUPERSEDED: "已替换",
   ROLLED_BACK: "已回滚",
+};
+
+const CONFLICT_TYPE_LABEL: Record<MappingConflict["conflictType"], string> = {
+  ONE_TO_MANY: "一对多冲突",
+  MANY_TO_ONE: "多对一冲突",
+  DISABLED_CODE: "停用编码冲突",
+  CROSS_SYSTEM_INCONSISTENT: "跨体系不一致",
+  HOMONYM: "同名异义",
+  SYNONYM_MISMATCH: "同义词不一致",
 };
 
 const RISK_COLOR: Record<TermMapping["riskLevel"], string> = {
@@ -301,13 +311,16 @@ export default function TerminologyMapping() {
   }>();
   const [selectedMapping, setSelectedMapping] = useState<TermMapping>();
   const [activeCandidate, setActiveCandidate] = useState<TermMappingCandidate>();
+  const [activeConflict, setActiveConflict] = useState<MappingConflict>();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [conflictOpen, setConflictOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [confirmForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
+  const [conflictForm] = Form.useForm();
   const [buildForm] = Form.useForm();
   const [publishForm] = Form.useForm();
   const [rollbackForm] = Form.useForm();
@@ -341,6 +354,7 @@ export default function TerminologyMapping() {
   const releaseAdapters = usePackageReleaseAdapters(canPublish);
   const confirmCandidate = useConfirmTerminologyCandidate();
   const rejectCandidate = useRejectTerminologyCandidate();
+  const resolveConflict = useResolveTerminologyConflict();
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
   const buildPackage = useBuildTerminologyKnowledgePackage();
   const publishPackage = useReleasePackage();
@@ -544,8 +558,7 @@ export default function TerminologyMapping() {
       title: "冲突类型",
       dataIndex: "conflictType",
       width: 160,
-      render: (value: MappingConflict["conflictType"]) =>
-        value === "ONE_TO_MANY" ? "一对多冲突" : value,
+      render: (value: MappingConflict["conflictType"]) => CONFLICT_TYPE_LABEL[value],
     },
     {
       title: "风险",
@@ -558,6 +571,23 @@ export default function TerminologyMapping() {
     {
       title: "待裁说明",
       dataIndex: "description",
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 100,
+      render: (_, conflict) => (
+        <Button
+          size="small"
+          disabled={!canWrite}
+          onClick={() => {
+            setActiveConflict(conflict);
+            setConflictOpen(true);
+          }}
+        >
+          裁决
+        </Button>
+      ),
     },
   ];
 
@@ -607,6 +637,31 @@ export default function TerminologyMapping() {
     setRejectOpen(false);
     setActiveCandidate(undefined);
     rejectForm.resetFields();
+  }
+
+  async function submitConflictResolution() {
+    if (!activeConflict) return;
+    let values: { resolutionNote: string };
+    try {
+      values = await conflictForm.validateFields();
+    } catch {
+      return;
+    }
+    try {
+      await resolveConflict.mutateAsync({
+        conflictId: activeConflict.id,
+        request: {
+          packageVersion: requestPackageVersion,
+          resolutionNote: values.resolutionNote.trim(),
+        },
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "冲突裁决失败，请稍后重试"));
+      return;
+    }
+    setConflictOpen(false);
+    setActiveConflict(undefined);
+    conflictForm.resetFields();
   }
 
   async function submitOrdinaryBatchConfirmation() {
@@ -970,6 +1025,39 @@ export default function TerminologyMapping() {
             rules={[{ required: true, whitespace: true, message: "请填写驳回理由" }]}
           >
             <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="处置映射冲突"
+        open={conflictOpen}
+        onCancel={() => {
+          setConflictOpen(false);
+          setActiveConflict(undefined);
+          conflictForm.resetFields();
+        }}
+        onOk={() => void submitConflictResolution()}
+        okText="提交裁决"
+        destroyOnClose
+      >
+        <Form form={conflictForm} layout="vertical" preserve={false}>
+          <Alert
+            type={activeConflict?.riskLevel === "HIGH" ? "warning" : "info"}
+            showIcon
+            className={styles.sectionAlert}
+            message={
+              activeConflict
+                ? `${CONFLICT_TYPE_LABEL[activeConflict.conflictType]} · ${RISK_LABEL[activeConflict.riskLevel]}风险`
+                : "请核对冲突范围"
+            }
+            description={activeConflict?.description}
+          />
+          <Form.Item
+            name="resolutionNote"
+            label="裁决依据"
+            rules={[{ required: true, whitespace: true, message: "请填写裁决依据" }]}
+          >
+            <Input.TextArea rows={4} maxLength={500} />
           </Form.Item>
         </Form>
       </Modal>

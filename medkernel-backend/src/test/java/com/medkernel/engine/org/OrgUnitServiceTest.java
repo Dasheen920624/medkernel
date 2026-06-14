@@ -214,6 +214,31 @@ class OrgUnitServiceTest {
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
     }
 
+    @Test
+    void externalSyncCannotTakeOverOrganizationOwnedByAnotherSource() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace", OrgScope.tenant("t-1"), "integration:HIS"));
+        OrgUnit existing = sample(
+            "t-1", null, OrgLevel.FACILITY, "HOSP-001", "hospital-1");
+        Mockito.when(repository.findByTenantIdAndCode("t-1", "HOSP-001"))
+            .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.syncFromExternal(new OrgUnitSyncCommand(
+            "HOSP-001",
+            null,
+            OrgLevel.FACILITY,
+            "第一医院",
+            null,
+            OrgFacilityType.HOSPITAL,
+            null,
+            OrgUnitStatus.ACTIVE,
+            false)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("其他来源");
+
+        Mockito.verify(repository, Mockito.never()).save(any(OrgUnit.class));
+    }
+
     private OrgUnit sampleHospital(String tenantId) {
         return sample(tenantId, null, OrgLevel.FACILITY, "HOSP-001", "10");
     }

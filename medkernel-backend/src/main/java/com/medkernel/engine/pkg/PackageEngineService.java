@@ -46,6 +46,8 @@ import com.medkernel.engine.authoring.ConditionFragmentRepository;
 import com.medkernel.engine.authoring.ConditionFragmentStatus;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
+import com.medkernel.engine.followup.FollowupTemplate;
+import com.medkernel.engine.followup.FollowupTemplateRepository;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
@@ -130,6 +132,7 @@ public class PackageEngineService {
     private final ConditionFragmentRepository conditionFragmentRepository;
     private final PathwayTemplateRepository pathwayRepository;
     private final EvaluationIndicatorRepository evaluationRepository;
+    private final FollowupTemplateRepository followupTemplateRepository;
     private final RuleVersionRepository ruleVersionRepository;
     private final KnowledgeIdentityRepository knowledgeIdentityRepository;
     private final PathwayMilestoneRepository pathwayMilestoneRepository;
@@ -169,6 +172,7 @@ public class PackageEngineService {
             PathwayEdgeRepository pathwayEdgeRepository,
             SpecialtyMetricBindingRepository pathwayMetricBindingRepository,
             EvaluationIndicatorRepository evaluationRepository,
+            FollowupTemplateRepository followupTemplateRepository,
             KnowledgeIdentityRepository knowledgeIdentityRepository,
             KnowledgeAssetVersionRepository knowledgeVersionRepository,
             TermMappingSnapshotRepository terminologySnapshotRepository,
@@ -199,6 +203,7 @@ public class PackageEngineService {
         this.pathwayEdgeRepository = pathwayEdgeRepository;
         this.pathwayMetricBindingRepository = pathwayMetricBindingRepository;
         this.evaluationRepository = evaluationRepository;
+        this.followupTemplateRepository = followupTemplateRepository;
         this.knowledgeIdentityRepository = knowledgeIdentityRepository;
         this.pathwayMilestoneRepository = pathwayMilestoneRepository;
         this.knowledgeVersionRepository = knowledgeVersionRepository;
@@ -598,7 +603,7 @@ public class PackageEngineService {
                 .isEmpty()) {
             throw new ApiException(
                 ErrorCode.PACKAGE_DEPENDENCY_MISSING,
-                "术语知识包没有冻结任何映射快照: " + item.assetId()
+                "术语知识包没有固化任何映射快照: " + item.assetId()
             );
         }
     }
@@ -1257,6 +1262,15 @@ public class PackageEngineService {
                         "离线导出条件片段不存在: " + item.assetId()
                     ))
             );
+            case FOLLOWUP -> buildFollowupTemplateAssetContent(
+                followupTemplateRepository.findByTemplateIdAndTenantId(item.assetId(), sourceTenantId)
+                    .filter(template -> Integer.toString(template.versionNo()).equals(effectiveVersion))
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "离线导出随访模板版本不存在: " + item.assetId() + "@" + effectiveVersion
+                    )),
+                item
+            );
             default -> {
                 if (isDeclarativePackageAssetType(item.assetType())) {
                     yield buildDeclarativeAssetContent(item);
@@ -1353,6 +1367,28 @@ public class PackageEngineService {
                 fragment.updatedBy(),
                 fragment.traceId()
             )
+        ));
+    }
+
+    private JsonNode buildFollowupTemplateAssetContent(
+            FollowupTemplate template,
+            EffectivePackageItem item) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineFollowupContent(
+            new PackageOfflineFollowupTemplate(
+                template.templateId(),
+                template.templateCode(),
+                template.versionNo(),
+                template.name(),
+                template.description(),
+                template.organizationScope(),
+                template.applicableScope(),
+                template.taskDefinitionJson(),
+                template.questionnaireDefinitionJson(),
+                template.abnormalActionJson(),
+                template.sourceRef()
+            ),
+            item.contentHash(),
+            AssetVersionStatus.PUBLISHED.name()
         ));
     }
 
@@ -1654,6 +1690,8 @@ public class PackageEngineService {
                 assetId, assetVersion, content, tenantId, actor, traceId, now);
             case CONDITION_FRAGMENT -> importOfflineConditionFragmentSnapshot(
                 assetId, assetVersion, content, tenantId, actor, traceId, now);
+            case FOLLOWUP -> importOfflineFollowupTemplateSnapshot(
+                assetId, assetVersion, content, tenantId, actor, traceId, now);
             default -> {
                 if (isDeclarativePackageAssetType(assetType)) {
                     importOfflineDeclarativeAssetSnapshot(
@@ -1731,6 +1769,7 @@ public class PackageEngineService {
                 validateOfflineTerminologySnapshots(terminologyContent);
             }
             case CONDITION_FRAGMENT -> validateOfflineConditionFragmentContent(assetId, assetVersion, content);
+            case FOLLOWUP -> validateOfflineFollowupContent(assetId, assetVersion, content);
             default -> {
                 if (isDeclarativePackageAssetType(assetType)) {
                     validateOfflineDeclarativeAssetContent(assetType, assetId, assetVersion, content);
@@ -1781,6 +1820,42 @@ public class PackageEngineService {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包条件片段必须为 ACTIVE 状态, 当前: " + fragment.status());
         }
+    }
+
+    private void validateOfflineFollowupContent(
+            String assetId,
+            String assetVersion,
+            JsonNode content) {
+        PackageOfflineFollowupContent followup =
+            readOfflineContent(content, PackageOfflineFollowupContent.class);
+        PackageOfflineFollowupTemplate template = followup.template();
+        if (template == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包随访模板快照缺少 template");
+        }
+        if (!assetId.equals(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包随访模板 templateId 与资产条目不一致");
+        }
+        if (!Integer.toString(template.versionNo()).equals(assetVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包随访模板 versionNo 与资产条目不一致");
+        }
+        if (normalizedText(template.templateCode()) == null
+                || normalizedText(template.name()) == null
+                || normalizedText(template.organizationScope()) == null
+                || normalizedText(template.applicableScope()) == null
+                || normalizedText(template.taskDefinitionJson()) == null
+                || normalizedText(template.questionnaireDefinitionJson()) == null
+                || normalizedText(template.abnormalActionJson()) == null
+                || normalizedText(template.sourceRef()) == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包随访模板缺少必需配置");
+        }
+        if (normalizedText(followup.contentHash()) == null
+                || !followup.contentHash().matches("[a-f0-9]{64}")) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包随访模板内容摘要不合法");
+        }
+        ensurePackageAssetPublished("随访模板", followup.status());
+        requireJsonArray(template.taskDefinitionJson(), "离线包随访模板任务定义");
+        requireJsonObject(template.questionnaireDefinitionJson(), "离线包随访问卷定义");
+        requireJsonObject(template.abnormalActionJson(), "离线包随访异常处置定义");
     }
 
     private void validateOfflineDeclarativeAssetContent(
@@ -2837,6 +2912,111 @@ public class PackageEngineService {
         ));
     }
 
+    private void importOfflineFollowupTemplateSnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        validateOfflineFollowupContent(assetId, assetVersion, content);
+        PackageOfflineFollowupContent followup =
+            readOfflineContent(content, PackageOfflineFollowupContent.class);
+        PackageOfflineFollowupTemplate template = followup.template();
+        Optional<FollowupTemplate> existing =
+            followupTemplateRepository.findByTemplateIdAndTenantId(assetId, tenantId);
+        if (existing.isPresent()) {
+            AssetVersion existingVersion = assetVersions
+                .findByVersionIdAndTenantId(existing.get().assetVersionId(), tenantId)
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.CONFLICT,
+                    "本地随访模板缺少统一资产版本: " + assetId
+                ));
+            if (!followup.contentHash().equals(existingVersion.contentHash())) {
+                throw new ApiException(ErrorCode.CONFLICT, "本地随访模板与离线包内容摘要不一致: " + assetId);
+            }
+            return;
+        }
+        followupTemplateRepository.findByTenantIdAndTemplateCodeAndVersionNo(
+            tenantId, template.templateCode(), template.versionNo()
+        ).ifPresent(conflict -> {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "随访模板编码版本已被其他业务 ID 占用: "
+                    + template.templateCode() + "@" + template.versionNo()
+            );
+        });
+
+        String versionId = "av-" + UUID.randomUUID();
+        assetVersions.save(new AssetVersion(
+            null,
+            versionId,
+            tenantId,
+            VersionedAssetType.FOLLOWUP,
+            assetId,
+            assetVersion,
+            template.organizationScope(),
+            template.applicableScope(),
+            followup.contentHash(),
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            "version:FOLLOWUP:" + assetId + ":" + assetVersion,
+            template.sourceRef(),
+            now,
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+        followupTemplateRepository.save(new FollowupTemplate(
+            null,
+            template.templateId(),
+            tenantId,
+            template.templateCode(),
+            template.versionNo(),
+            template.name(),
+            template.description(),
+            template.organizationScope(),
+            template.applicableScope(),
+            template.taskDefinitionJson(),
+            template.questionnaireDefinitionJson(),
+            template.abnormalActionJson(),
+            template.sourceRef(),
+            versionId,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+    }
+
+    private void requireJsonArray(String payload, String label) {
+        JsonNode node = readJsonNode(payload, label);
+        if (!node.isArray() || node.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, label + "必须是非空 JSON 数组");
+        }
+    }
+
+    private void requireJsonObject(String payload, String label) {
+        JsonNode node = readJsonNode(payload, label);
+        if (!node.isObject()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, label + "必须是 JSON 对象");
+        }
+    }
+
+    private JsonNode readJsonNode(String payload, String label) {
+        try {
+            return OFFLINE_EXPORT_MAPPER.readTree(payload);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, label + "不是合法 JSON", exception);
+        }
+    }
+
     private <T> T readOfflineContent(JsonNode content, Class<T> type) {
         try {
             return OFFLINE_EXPORT_MAPPER.treeToValue(content, type);
@@ -3430,6 +3610,26 @@ public class PackageEngineService {
 
     private record PackageOfflineConditionFragmentContent(
         PackageOfflineConditionFragment fragment
+    ) {}
+
+    private record PackageOfflineFollowupContent(
+        PackageOfflineFollowupTemplate template,
+        String contentHash,
+        String status
+    ) {}
+
+    private record PackageOfflineFollowupTemplate(
+        String templateId,
+        String templateCode,
+        int versionNo,
+        String name,
+        String description,
+        String organizationScope,
+        String applicableScope,
+        String taskDefinitionJson,
+        String questionnaireDefinitionJson,
+        String abnormalActionJson,
+        String sourceRef
     ) {}
 
     private record PackageOfflineConditionFragment(
@@ -4584,10 +4784,32 @@ public class PackageEngineService {
                 }
             }
             case FOLLOWUP -> {
-                throw new ApiException(
-                    ErrorCode.ENG_PACKAGE_002,
-                    "随访计划属于患者运行数据，不允许作为配置包资产入包；请在 D3 FOLLOW-01 建立随访模板资产后再接入包发布"
-                );
+                FollowupTemplate template = followupTemplateRepository
+                    .findByTemplateIdAndTenantId(assetId, tenantId)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包随访模板不存在: " + assetId
+                    ));
+                if (!Integer.toString(template.versionNo()).equals(assetVersion)) {
+                    throw new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包随访模板版本不存在: " + assetId + "@" + assetVersion
+                    );
+                }
+                AssetVersion unifiedVersion = assetVersions
+                    .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                        tenantId, VersionedAssetType.FOLLOWUP, assetId, assetVersion)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "统一随访模板版本不存在: " + assetId + "@" + assetVersion
+                    ));
+                if (unifiedVersion.status() != AssetVersionStatus.PUBLISHED) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许统一底座 PUBLISHED 状态的随访模板入包, 当前: "
+                            + unifiedVersion.status()
+                    );
+                }
             }
             default -> {
                 if (!isDeclarativePackageAssetType(type)) {
@@ -4603,11 +4825,10 @@ public class PackageEngineService {
                         ErrorCode.PACKAGE_DEPENDENCY_MISSING,
                         "入包声明型配置资产版本不存在: " + type + ":" + assetId + "@" + assetVersion
                     ));
-                if (version.status() != AssetVersionStatus.PUBLISHED
-                        && version.status() != AssetVersionStatus.PUBLISHED) {
+                if (version.status() != AssetVersionStatus.PUBLISHED) {
                     throw new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
-                        "只允许 PUBLISHED 或 ACTIVE 状态的声明型配置资产入包, 当前: " + version.status()
+                        "只允许 PUBLISHED 状态的声明型配置资产入包, 当前: " + version.status()
                     );
                 }
             }

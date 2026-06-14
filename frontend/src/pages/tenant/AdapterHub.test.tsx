@@ -15,6 +15,7 @@ import {
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
+  useMasterDataReconciliation,
   useOrgUnits,
   useRegionalSources,
   useRegisterRegionalSource,
@@ -32,6 +33,7 @@ import {
   type IntegrationMessageLog,
   type IntegrationOnboarding,
   type IntegrationWebhookConfig,
+  type MasterDataReconciliation,
   type RegionalSource,
   type SecurityProfile,
 } from "@/shared/api/hooks";
@@ -52,6 +54,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useIntegrationAdapters: vi.fn(),
   useIntegrationLogs: vi.fn(),
   useIntegrationOnboardings: vi.fn(),
+  useMasterDataReconciliation: vi.fn(),
   useOrgUnits: vi.fn(),
   useRegionalSources: vi.fn(),
   useRegisterRegionalSource: vi.fn(),
@@ -191,6 +194,18 @@ const status: AdapterHubStatus = {
       ready: false,
       gaps: ["缺少 LIS 适配器"],
     },
+  ],
+};
+
+const masterDataReconciliation: MasterDataReconciliation = {
+  sourceSystem: "HIS",
+  lastSuccessfulBatchId: "batch-20260614-001",
+  cursor: "cursor-42",
+  lastSyncedAt: "2026-06-14T00:30:00Z",
+  resources: [
+    { resourceType: "ORG_UNIT", activeCount: 24, disabledCount: 1 },
+    { resourceType: "PERSON", activeCount: 860, disabledCount: 12 },
+    { resourceType: "LOCAL_TERM", activeCount: 4_200, disabledCount: 18 },
   ],
 };
 
@@ -365,6 +380,7 @@ function setupMocks() {
     query({ items: [failedLog, deadLetterLog], total: 2 }) as never,
   );
   vi.mocked(useIntegrationOnboardings).mockReturnValue(query([onboarding]) as never);
+  vi.mocked(useMasterDataReconciliation).mockReturnValue(query(masterDataReconciliation) as never);
   vi.mocked(useWebhooks).mockReturnValue(query([webhook]) as never);
   vi.mocked(useTerminologyMappings).mockReturnValue(
     query({
@@ -465,6 +481,19 @@ describe("AdapterHub", () => {
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
+  });
+
+  it("exposes hospital master-data reconciliation in the ordinary integration workspace", async () => {
+    render(<AdapterHub />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "主数据同步" }));
+    await userEvent.type(screen.getByPlaceholderText("例如 HIS、LIS、HRP"), "HIS");
+    await userEvent.click(screen.getByRole("button", { name: "查询对账" }));
+
+    expect(useMasterDataReconciliation).toHaveBeenLastCalledWith("HIS", true);
+    expect(screen.getByText("batch-20260614-001")).toBeInTheDocument();
+    expect(screen.getByText("院内人员")).toBeInTheDocument();
+    expect(screen.getByText("860")).toBeInTheDocument();
   });
 
   it("loads the data contract summary with an explicit package version", async () => {

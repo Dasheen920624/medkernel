@@ -163,6 +163,144 @@ public class PersonnelService {
         return detail(person.personId(), activation);
     }
 
+    /**
+     * 幂等同步院内人员、主任职、外部身份用户和职责角色。
+     *
+     * <p>同步用户只建立外部身份主体，不生成平台口令；停用保留人员、任职和身份历史。
+     *
+     * @return 人员主键
+     */
+    @Transactional
+    public String syncFromExternal(PersonnelSyncCommand command, Authentication authentication) {
+        if (command == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "人员同步命令不能为空");
+        }
+        String tenantId = tenantId();
+        String sourceActor = requireExternalSourceActor();
+        String employeeNo = required(command.employeeNo(), "人员编号");
+        Person current = people.findByTenantIdAndEmployeeNo(tenantId, employeeNo).orElse(null);
+        if (current != null && !sourceActor.equals(current.createdBy())) {
+            throw ApiException.conflict("人员编号已由人工或其他来源维护，不能被当前来源接管");
+        }
+        if (command.disable()) {
+            if (current == null) {
+                throw ApiException.notFound("人员编号 " + employeeNo);
+            }
+            Instant now = Instant.now();
+            people.save(new Person(
+                current.personId(), current.tenantId(), current.employeeNo(), current.displayName(),
+                current.mobileHint(), PersonStatus.INACTIVE, current.version() + 1L,
+                current.createdAt(), current.createdBy(), now, actor(), traceId()));
+            appointments.findByTenantIdAndPersonIdOrderByEffectiveFromDesc(tenantId, current.personId())
+                .stream()
+                .filter(item -> item.status() == AppointmentStatus.ACTIVE)
+                .forEach(item -> appointments.save(new PersonAppointment(
+                    item.appointmentId(), item.tenantId(), item.personId(), item.organizationId(),
+                    item.departmentId(), item.wardId(), item.appointmentType(), item.positionTitle(),
+                    item.primaryFlag(), item.effectiveFrom(), now, AppointmentStatus.ENDED,
+                    item.version() + 1L, item.createdAt(), item.createdBy(), now, actor(), traceId())));
+            accountLinks.findByTenantIdAndPersonId(tenantId, current.personId())
+                .ifPresent(link -> {
+                    identities.syncExternalIdentity(tenantId, link.userId(), null, null);
+                    users.syncExternalRole(link.userId(), null, authentication);
+                    users.syncExternalUser(link.userId(), current.displayName(), "DISABLED");
+                    accountLinks.save(new PersonAccountLink(
+                        link.linkId(), link.tenantId(), link.personId(), link.userId(),
+                        "INACTIVE", link.version() + 1L, link.createdAt(), link.createdBy(),
+                        now, actor(), traceId()));
+                });
+            auditRecorder.record(
+                AuditAction.UPDATE, "mk_identity_person", current.personId(), "同步停用院内人员");
+            return current.personId();
+        }
+
+        OrgUnit organization = requireOrganizationByCode(command.organizationCode(), null);
+        OrgUnit department = blankToNull(command.departmentCode()) == null
+            ? null : requireOrganizationByCode(command.departmentCode(), OrgLevel.DEPARTMENT);
+        OrgUnit ward = blankToNull(command.wardCode()) == null
+            ? null : requireOrganizationByCode(command.wardCode(), OrgLevel.WARD);
+        assertAppointmentHierarchy(organization, department, ward);
+        if (command.appointmentType() == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "人员同步缺少任职类型");
+        }
+
+        Instant now = Instant.now();
+        Person person = current == null
+            ? people.save(new Person(
+                "person-" + Ulid.newUlid(), tenantId, employeeNo,
+                required(command.displayName(), "姓名"), null, PersonStatus.ACTIVE, 1L,
+                now, actor(), now, actor(), traceId()))
+            : people.save(new Person(
+                current.personId(), current.tenantId(), current.employeeNo(),
+                required(command.displayName(), "姓名"), current.mobileHint(), PersonStatus.ACTIVE,
+                current.version() + 1L, current.createdAt(), current.createdBy(),
+                now, actor(), traceId()));
+
+        PersonAppointment primary = appointments
+            .findFirstByTenantIdAndPersonIdAndStatusAndPrimaryFlagOrderByEffectiveFromDesc(
+                tenantId, person.personId(), AppointmentStatus.ACTIVE, "Y")
+            .orElse(null);
+        if (primary != null && !sourceActor.equals(primary.createdBy())) {
+            throw ApiException.conflict("人员主任职已由人工或其他来源维护，不能被当前来源接管");
+        }
+        appointments.save(new PersonAppointment(
+            primary == null ? "appt-" + Ulid.newUlid() : primary.appointmentId(),
+            tenantId,
+            person.personId(),
+            organization.id(),
+            department == null ? null : department.id(),
+            ward == null ? null : ward.id(),
+            command.appointmentType(),
+            blankToNull(command.positionTitle()),
+            "Y",
+            primary == null ? now : primary.effectiveFrom(),
+            null,
+            AppointmentStatus.ACTIVE,
+            primary == null ? 1L : primary.version() + 1L,
+            primary == null ? now : primary.createdAt(),
+            primary == null ? actor() : primary.createdBy(),
+            now,
+            actor(),
+            traceId()));
+
+        String userId = blankToNull(command.userId());
+        if (userId != null) {
+            users.syncExternalUser(userId, person.displayName(), "ACTIVE");
+            PersonAccountLink link = accountLinks.findByTenantIdAndPersonId(tenantId, person.personId())
+                .orElse(null);
+            if (link != null && !link.userId().equals(userId)) {
+                throw ApiException.conflict("人员已关联其他院内用户标识");
+            }
+            if (link != null && !sourceActor.equals(link.createdBy())) {
+                throw ApiException.conflict("人员账号关联已由人工或其他来源维护，不能被当前来源接管");
+            }
+            if (link == null) {
+                accountLinks.save(new PersonAccountLink(
+                    "pal-" + Ulid.newUlid(), tenantId, person.personId(), userId, "ACTIVE", 1L,
+                    now, actor(), now, actor(), traceId()));
+            }
+            syncExternalRole(
+                userId, organization, department, ward, command.roleCode(), authentication);
+            identities.syncExternalIdentity(
+                tenantId,
+                userId,
+                command.identityProvider(),
+                blankToNull(command.identitySubject()));
+        }
+        auditRecorder.record(
+            AuditAction.UPDATE, "mk_identity_person", person.personId(), "同步院内人员与主任职");
+        return person.personId();
+    }
+
+    @Transactional
+    public void disableFromExternal(String internalId, Authentication authentication) {
+        Person current = people.findByTenantIdAndPersonId(tenantId(), internalId)
+            .orElseThrow(() -> ApiException.notFound("人员 " + internalId));
+        syncFromExternal(new PersonnelSyncCommand(
+            current.employeeNo(), current.displayName(), null, null, null, null, null,
+            null, null, null, null, PersonStatus.INACTIVE, true), authentication);
+    }
+
     AccountProvision createAccount(
             Person person,
             OrgUnit organization,
@@ -219,6 +357,27 @@ public class PersonnelService {
         }
         OrgUnit scope = ward != null ? ward : department == null ? organization : department;
         users.assignRole(
+            userId,
+            new ComplianceUserRoleRequest(
+                roleCode.trim(),
+                roleScopeLevel(scope.level()),
+                scope.id()),
+            authentication);
+    }
+
+    private void syncExternalRole(
+            String userId,
+            OrgUnit organization,
+            OrgUnit department,
+            OrgUnit ward,
+            String roleCode,
+            Authentication authentication) {
+        if (roleCode == null || roleCode.isBlank()) {
+            users.syncExternalRole(userId, null, authentication);
+            return;
+        }
+        OrgUnit scope = ward != null ? ward : department == null ? organization : department;
+        users.syncExternalRole(
             userId,
             new ComplianceUserRoleRequest(
                 roleCode.trim(),
@@ -330,6 +489,16 @@ public class PersonnelService {
         return org;
     }
 
+    private OrgUnit requireOrganizationByCode(String code, OrgLevel expectedLevel) {
+        OrgUnit org = organizations.findByTenantIdAndCode(tenantId(), required(code, "组织编码"))
+            .filter(item -> item.status() == OrgUnitStatus.ACTIVE)
+            .orElseThrow(() -> ApiException.notFound("组织 code=" + code));
+        if (expectedLevel != null && org.level() != expectedLevel) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "组织 " + org.name() + " 不是" + expectedLevel);
+        }
+        return org;
+    }
+
     private void assertAppointmentHierarchy(
             OrgUnit organization,
             OrgUnit department,
@@ -386,6 +555,14 @@ public class PersonnelService {
 
     private String actor() {
         return RequestContext.currentUserId().orElse("system");
+    }
+
+    private String requireExternalSourceActor() {
+        String sourceActor = actor();
+        if (!sourceActor.startsWith("integration:")) {
+            throw ApiException.forbidden("人员主数据同步必须在受信集成来源上下文中执行");
+        }
+        return sourceActor;
     }
 
     private String traceId() {

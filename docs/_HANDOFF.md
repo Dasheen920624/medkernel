@@ -1,31 +1,32 @@
 # 会话接力
 
-## 2026-06-13 新工作线·MedKernel 全真体验沙盘（业务系统场景模拟器）：设计 spec 实现就绪，PR #598 待合并，**下一步=合并后转 writing-plans 出阶段A 实施计划**
+## 2026-06-14 P5 第一阶段**最终收官目标环境复演已通过**：134 已部署 `e7392c8f`，沙盘、整改与核心 readiness 留证；下一步提交 PR/CI/合并
 
-- 与 P5 演练主线（幕0–幕10）并行的独立工作线。缘起：嵌入式 CDSS（`/embed/launch`）只能被宿主拉起、演练未端到端展示。用户要 `/sandbox` 页**模拟宿主业务系统(HIS/EMR/LIS)→真实数据录入→调真引擎→嵌入式终端真体验→完整路径可核查**，呈现**规则引擎全部能力（9 规则类型×6 触发点×5 动作×4 严重度）+ 十大引擎**，全真不造假、完美体验。
-- 用户裁定：**整体一份 spec**（不分解），框架先行+内容分波实施。spec = [`docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md`](docs/superpowers/specs/2026-06-13-medkernel-fulltruth-sandbox-design.md)（314 行，含接口契约/类型/编排时序/场景全表/seed 脚本/文件清单/测试验收/§23 实现者踩坑预警）。
-- 分支 `codex/sandbox-fulltruth-design-spec`，已推送、PR **#598**（base=main，已并入当时 main 的幕7-10）。用户已授权 squash 合并 + 出实施计划。
-- **下一步**：① #598 CI 绿 → squash 合并；② 转 writing-plans 出阶段A（框架）详细实施计划（先用已有高钾场景端到端跑通）；③ §7 场景临床内容待用户校准。
-- 关键事实（spec 已固化）：嵌入卡来自已发布规则动作定义经 `RecommendationDeterministicMatcher` 产卡；数据三入口（临床事件经 `ClinicalEventEngineDispatcher` 自动扇出/快照/适配器inbound）；新增 `sandbox.run` 权限 + `menu.sandbox`；新规则经真治理 API seed 发布（`scripts/sandbox/seed-scenarios.mjs` 复用幕4 基建）。
-
----
-
-## 2026-06-13 幕10 审计导出审批**真实演练已通过**：第一阶段幕0–幕10端到端演练已跑完，**下一步=本批验证/PR/CI/合并后形成第一阶段正式收口**
-
-- 当前执行线：P5 第一阶段端到端旅程 · 幕10 审计导出审批。当前工作分支 `codex/p5-act10-audit-export-approval`，base 为 `origin/main=f0179edc`（PR #595「P5幕9系统接入正幕真实演练闭环」已 squash 合并）。134 当前程序仍为幕8修复部署 `f347924a`，幕9/幕10只新增演练脚本与证据文档，未部署新程序。
+- **最新主线已同步**：`origin/main=fed37d21` 已包含 PR #598「MedKernel 全真体验沙盘（业务系统场景模拟器）spec」与 PR #599「全真体验沙盘 全阶段(A1/A2/B/C/D)实施计划」。用户已明确要求“获取最新代码，同步开发相应功能”“纳入第一阶段的工作中”，因此沙盘/业务系统模拟器不作为阶段外独立线挂起，而是并入第一阶段最终验收补充范围。
+- **重新打开原因已闭环到目标环境**：第二轮演练遗漏院内业务系统嵌入链路；本轮补齐 `/sandbox` 宿主、后端场景目录、嵌入令牌 `hookInstance` 契约、沙盘全真复演、主数据同步合同、随访模板资产命名、领域 owner 与第一阶段整改闭环。术语一对多冲突处置已纳入本地前端全量验证与覆盖矩阵，不再作为本轮 134 阻断项。
+- **当前执行目标**：提交当前分支最终收官 PR，等待远端 CI 全绿并合并；合并后从新 `origin/main` 形成主线正式结论。当前不冒领 CI、PR 或合并完成。
+- **本轮长任务计划**：总控计划 `docs/superpowers/plans/2026-06-14-p5-first-phase-final-closeout.md` 已更新到目标环境复演完成，剩余 PR/CI/合并门禁。
+- **本轮本地收敛事实（2026-06-14）**：新增 `GET /api/v1/engine/sandbox/scenarios`，场景目录由后端 `SandboxScenarioCatalog` 提供，前端 `useSandboxScenarios` 消费目录并只保留“后端目录不可用”的诚实占位，不再在前端伪造临床场景阈值；沙盘数值录入改为目录驱动，仍调用真实引擎编排。主数据同步 traceId 回退改为请求上下文 traceId，避免 UUID 冒充 hash；`master_data_sync_*`、`followup_template` 迁移表名收敛为 `mk_integration_*` / `mk_followup_*`，并同步领域 owner 目录。后续 134 红灯还闭环了沙盘重复触发编码、`source_event_id`/路径推进 eventId 字段长度、质控场景病人匹配、嵌入令牌 `hookInstance` 返回契约和沙盘评估取证角色。
+- **本轮本地验证已通过**：脚本语法与沙盘规则 `node --check ... && node --test scripts/sandbox/scenario-rules.test.mjs` 通过；后端定向回归 41/123/110 项通过；`cd medkernel-backend && mvn test` 2282 项通过，含五方言迁移烟测到 V123；前端沙盘定向 109 项通过，`cd frontend && npm test` 94 文件 / 695 项通过，`npm run build && npm run lint` 通过；T-GATE 真实性 1633 文件、配置边界 1492 文件、迁移规约 25 文件、中文注释、`git diff --check` 均通过。本地摘要证据：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/02-local-gate-summary.json`。
+- **134 发布与复演已通过**：最终部署 `e7392c8f`，发布前备份 `/zoesoft/medkernel/backups/p5-final-e7392c8f-predeploy-20260614-091355` 隔离恢复 `restore_status=PASSED`、临时库清理 0、`destructive_action_performed=false`；程序备份 `/zoesoft/medkernel/backups/deploy-20260614-091441`；post-deploy manifest/jar 精确匹配 `e7392c8f` / `a145ee583e912b4e08570371787884052c49a6e318b68b5f683fac9db3034e4b`，HTTPS readiness 200，Flyway 123，181 表，AppleDouble 0。
+- **沙盘全真 PASS**：`docs/release/evidence/p5-second-fresh-drill-20260612/sandbox/00-sandbox-summary.json`，6 个可运行场景 `failures=[]`，9 个未评审场景保持 `CLINICAL_REVIEW_REQUIRED` 阻断；IFRAME 主链路和 SDK/API 模式令牌兑换通过；评估场景 `resultCount=1/findingCount=1/taskCount=1`，由 `clinical-decision-user` 跑主链路、`quality-governor` 做诊断回查。
+- **整改闭环 PASS**：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/01-rectification-closeout.json`，沙盘评估演练新增 4 条整改任务全部由临床治理角色提交、质量治理角色复核关闭；最终 `totalTasks=7/openTasks=0/closureRate=1`。
+- **核心 readiness PASS**：`docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json`，7 类角色 21 个只读探针通过，未发现演示或固定医学文本。最终目标状态证据：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/deploy-e7392c8f/final-target-state-e7392c8f.properties`。
+- **主线事实**：PR #596「P5幕10审计导出审批真实演练闭环」已于 2026-06-14（Asia/Shanghai）squash 合并，`main=5e788e4d` 的幕0–幕10演练证据保持有效；本轮最终收官补充仍在当前工作分支，尚未进入 `origin/main`。
+- **部署边界**：134 当前程序已部署当前分支提交 `e7392c8f`；不得冒领远端 CI、PR 合并或 `origin/main` 已包含该提交。
 - **幕9已收尾事实**：PR #595 已合并，CI 8/8 通过。幕9 canonical run `p5-act9-main-20260613-232500` 保持有效：HIS `p5-his-main-260613232500 ACTIVE/HEALTHY`、EMR `p5-emr-main-260613232500 ACTIVE/NOT_CONNECTED`、ADAPTER/FHIR 接入申请 ONLINE、区域来源可信分级、数据质量报告、死信重放均已闭环。
 - **幕10 canonical PASS**：脚本 `scripts/drill/p5-act10-audit-export-approval.mjs`，`DRILL_RUN_TAG=p5-act10-audit-20260613-234800`，`00-act10-summary.json failures=[]`。证据目录 `docs/release/evidence/p5-second-fresh-drill-20260612/幕10-审计导出审批/`。
 - **审计与审批链路**：合规审计员 `compliance-auditor` 生成审计快照并申请 `AUDIT_EVENT` 导出 `exp-audit-event-p5-act10-60613-234800`；自审批负向探针返回 `403 / ENG-API-004`（申请人与审批人不能相同）；组织管理员 `organization-admin` 审批后生成审批证据 `evd-exp-audit-event-p5-act10-60613-234800-approval`。
 - **真实导出与证据链**：大列表导出任务 `6777d2b2-f0e6-4668-b1bc-df9b8fb1673d` 成功，导出审批登记为 `EXPORTED`；真实 CSV `audit-events-export.csv` 75838 bytes，摘要 `sm3:45da5bd18e13717d78aece32926e7c32f0c991f6a96bf47073c30b30ba0a188d`。审批证据与导出证据均 `SM3_WITH_SM2` 验签通过；证据包 `archiveHash=sm3:a2be67e6e512bc2abfa0cba7f8508b1435edec48ed2b535c2d22b7074608126a`，真实 NDJSON 1950 bytes / 3 行。
 - **运行态诚实降级**：`/system/operations` 返回 `healthStatus=UP`，依赖状态 `UP=2 / DEGRADED=1 / NOT_CONNECTED=3 / MODEL_DISABLED=2`；图谱、搜索、外部 Provider 不伪装连接；Dify 与模型 Provider 为 `MODEL_DISABLED`；备份恢复因无隔离恢复演练证据保持 `DEGRADED/NOT_AVAILABLE`。
 - **诚实收敛说明**：幕10 canonical 前真实跑过 `probe-act10-1781365216275` 和误写日期标签的 `p5-act10-audit-20260614-000500` 收敛批次，未清库；证据包 `itemCount=3` 是真实历史数据叠加，不是重复造证。正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
-- **已更新文档**：幕10 README、P5 证据总 README、`docs/audit/p5-second-fresh-drill-checkpoint.md`、`docs/audit/p5-first-phase-closeout.md` 与本 `_HANDOFF`。当前还未提交/推送/PR。
+- **正式收口报告**：`docs/audit/p5-first-phase-closeout.md`；阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`；总证据目录：`docs/release/evidence/p5-second-fresh-drill-20260612/`。
 
 ### 当前下一步（精确照做）
 
-1. 补跑收尾验证：`node --check scripts/drill/p5-act10-audit-export-approval.mjs`、`npm test -- src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SystemProviders.test.tsx src/shared/api/hooks.test.ts`、真实性/配置边界/中文注释、`git diff --check`，staged 后再跑 `git diff --cached --check`。
-2. stage 幕10脚本 + 证据 + README/checkpoint/_HANDOFF，提交、推送并创建 PR；CI 全绿后 squash 合并。
-3. 合并后从新 `origin/main` 形成第一阶段正式验收报告和结构冻结证明；正式知识生产仍阻断，文献资料库根地址为空，不得进入 P6。
+1. 运行最终本地门禁（至少 `git diff --check`、T-GATE、受影响后端/前端测试；若时间允许补全量后端/前端），把新增证据和文档一起提交。
+2. 推送 `codex/p5-first-phase-final-handoff` 并创建第一阶段最终收官 PR；PR 描述写清范围、验证、部署、医疗安全、迁移影响和仍未声明完成项。
+3. 等远端 CI 全绿后按规则合并；合并后从新 `origin/main` 继续下一阶段。正式知识生产继续阻断，直到文献资料库受管根地址完成真实配置与独立验收。
 
 ---
 
@@ -288,7 +289,7 @@
 1. 提交 ab213 发布与 post-deploy 证据，创建 PR，等待 CI 全绿并 squash 合并。
 2. 继续跨角色审批、第一阶段端到端旅程、恢复、医疗安全、最小化、五方言与 GA 门禁。
 3. 继续保持正式知识生产阻断；文献资料库根地址仍为空，不得配置正式资料库或生成正式知识，不得进入 P6。
-4. P5 全部通过后形成第一阶段正式验收并冻结结构。
+4. P5 全部通过后形成第一阶段正式验收与可追溯基线。
 
 ## 2026-06-12 P4 fd843 精确部署完成，14 角色菜单路由冒烟通过
 
@@ -425,4 +426,4 @@
 2. 从最新 `origin/main` 继续当前会话，执行真实前台 14 角色 P4 首轮全流程；API 只用于模拟外部系统或铺设无关前置。
 3. 发现不合理功能时登记、复现、定根因、写失败测试并重构，不为旧演练数据或旧包保留兼容负担。
 4. P4 完整问题清单关闭后，重新备份并清库，进入 P5 第二轮完整重演；不得复用首轮业务结果冒充通过。
-5. P5 与第一阶段正式验收通过、结构冻结后，才可在系统配置页维护正式文献资料库受管 URI 并进入 P6。
+5. P5 与第一阶段正式验收通过、可追溯基线和正式文献资料库前置条件均核验后，才可在系统配置页维护受管 URI 并进入 P6。

@@ -10,7 +10,7 @@ const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const EmbedLaunch = lazy(() => import("@/pages/clinical/EmbedLaunch"));
 
-// 机构治理域
+// 机构与人员域
 const ImplementationGuide = lazy(() => import("@/pages/tenant/ImplementationGuide"));
 const TenantOnboarding = lazy(() => import("@/pages/tenant/TenantOnboarding"));
 const ConfigPackages = lazy(() => import("@/pages/tenant/ConfigPackages"));
@@ -29,8 +29,9 @@ const RuleValidate = lazy(() => import("@/pages/clinical/RuleValidate"));
 const WorkflowTodos = lazy(() => import("@/pages/clinical/WorkflowTodos"));
 const Notifications = lazy(() => import("@/pages/clinical/Notifications"));
 const Followup = lazy(() => import("@/pages/clinical/Followup"));
+const SandboxHost = lazy(() => import("@/pages/sandbox/SandboxHost"));
 
-// 质量与运营域
+// 质量管理、合规安全与系统运维域
 const QcDashboard = lazy(() => import("@/pages/quality/QcDashboard"));
 const QcAlerts = lazy(() => import("@/pages/quality/QcAlerts"));
 const InsuranceAudit = lazy(() => import("@/pages/quality/InsuranceAudit"));
@@ -65,7 +66,7 @@ export function AppRouter() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/workbench/readiness-validation" element={<ReadinessValidation />} />
 
-          {/* 机构治理 */}
+          {/* 机构与人员 */}
           <Route path="/onboarding/guide" element={<ImplementationGuide />} />
           <Route path="/tenant/onboarding" element={<TenantOnboarding />} />
           <Route path="/config/packages" element={<ConfigPackages />} />
@@ -84,8 +85,9 @@ export function AppRouter() {
           <Route path="/workflow/todos" element={<WorkflowTodos />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/clinical/followup" element={<Followup />} />
+          <Route path="/sandbox" element={<SandboxHost />} />
 
-          {/* 质量与运营 */}
+          {/* 质量管理、合规安全与系统运维 */}
           <Route path="/qc/dashboard" element={<QcDashboard />} />
           <Route path="/qc/alerts" element={<QcAlerts />} />
           <Route path="/qc/insurance" element={<InsuranceAudit />} />

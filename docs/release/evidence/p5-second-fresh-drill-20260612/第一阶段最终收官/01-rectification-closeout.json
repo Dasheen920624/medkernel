@@ -1,0 +1,129 @@
+{
+  "runTag": "p5-final-rectification-1781399992713",
+  "generatedAt": "2026-06-14T01:19:53.979Z",
+  "baseUrl": "https://193.112.107.134",
+  "findingPrefix": "P5.ACT7.FOLLOWUP.ABNORMAL.",
+  "sandboxFindingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+  "sandboxTracePrefix": "sandbox-fulltruth-run-sbx-evaluation-closed-loop-",
+  "initialPendingCount": 4,
+  "actions": [
+    {
+      "findingId": "qf-ad619585-0032-4461-a412-97bfbeed6a14",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-a5cd27f8-b949-4534-918e-8ee19abb137d",
+      "action": "SUBMIT",
+      "result": {
+        "taskId": "rct-a5cd27f8-b949-4534-918e-8ee19abb137d",
+        "findingStatus": "REMEDIATING",
+        "taskStatus": "SUBMITTED",
+        "traceId": "p5-final-rectification-1781399992713-submit-rectification-1781399993170"
+      }
+    },
+    {
+      "findingId": "qf-ad619585-0032-4461-a412-97bfbeed6a14",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-a5cd27f8-b949-4534-918e-8ee19abb137d",
+      "action": "REVIEW",
+      "result": {
+        "reviewId": "rr-b56b00c2-4f32-4f35-88d1-c113de1c6654",
+        "findingStatus": "CLOSED",
+        "taskStatus": "CLOSED",
+        "traceId": "p5-final-rectification-1781399992713-review-rectification-1781399993289"
+      }
+    },
+    {
+      "findingId": "qf-0baff127-d911-49f7-987a-adcdadc7bfed",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-a6f3ac5d-87da-4158-93f2-981cdbf9219e",
+      "action": "SUBMIT",
+      "result": {
+        "taskId": "rct-a6f3ac5d-87da-4158-93f2-981cdbf9219e",
+        "findingStatus": "REMEDIATING",
+        "taskStatus": "SUBMITTED",
+        "traceId": "p5-final-rectification-1781399992713-submit-rectification-1781399993413"
+      }
+    },
+    {
+      "findingId": "qf-0baff127-d911-49f7-987a-adcdadc7bfed",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-a6f3ac5d-87da-4158-93f2-981cdbf9219e",
+      "action": "REVIEW",
+      "result": {
+        "reviewId": "rr-1c408091-a850-464f-b856-19eb999ad0eb",
+        "findingStatus": "CLOSED",
+        "taskStatus": "CLOSED",
+        "traceId": "p5-final-rectification-1781399992713-review-rectification-1781399993498"
+      }
+    },
+    {
+      "findingId": "qf-afe245c9-cc67-460e-a901-50a22bce25b8",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-d4690ade-fdcb-4546-8308-871fa5773dfc",
+      "action": "SUBMIT",
+      "result": {
+        "taskId": "rct-d4690ade-fdcb-4546-8308-871fa5773dfc",
+        "findingStatus": "REMEDIATING",
+        "taskStatus": "SUBMITTED",
+        "traceId": "p5-final-rectification-1781399992713-submit-rectification-1781399993590"
+      }
+    },
+    {
+      "findingId": "qf-afe245c9-cc67-460e-a901-50a22bce25b8",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-d4690ade-fdcb-4546-8308-871fa5773dfc",
+      "action": "REVIEW",
+      "result": {
+        "reviewId": "rr-596bde0f-4d21-4c8f-9eda-8fb20519c70b",
+        "findingStatus": "CLOSED",
+        "taskStatus": "CLOSED",
+        "traceId": "p5-final-rectification-1781399992713-review-rectification-1781399993674"
+      }
+    },
+    {
+      "findingId": "qf-8a09e97a-9040-4501-bd09-8686396f718e",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-d7590cfa-ff85-45e9-9be5-957f347a0012",
+      "action": "SUBMIT",
+      "result": {
+        "taskId": "rct-d7590cfa-ff85-45e9-9be5-957f347a0012",
+        "findingStatus": "REMEDIATING",
+        "taskStatus": "SUBMITTED",
+        "traceId": "p5-final-rectification-1781399992713-submit-rectification-1781399993763"
+      }
+    },
+    {
+      "findingId": "qf-8a09e97a-9040-4501-bd09-8686396f718e",
+      "findingCode": "P5.ACT7.FOLLOWUP.QUALITY_FND",
+      "scope": "SANDBOX_EVALUATION_RECTIFICATION",
+      "taskId": "rct-d7590cfa-ff85-45e9-9be5-957f347a0012",
+      "action": "REVIEW",
+      "result": {
+        "reviewId": "rr-184eba9d-523e-48f1-a91b-f14d7f470f26",
+        "findingStatus": "CLOSED",
+        "taskStatus": "CLOSED",
+        "traceId": "p5-final-rectification-1781399992713-review-rectification-1781399993860"
+      }
+    }
+  ],
+  "remainingP5Issues": [],
+  "finalReport": {
+    "status": "AVAILABLE",
+    "totalTasks": 7,
+    "openTasks": 0,
+    "closedTasks": 7,
+    "waivedTasks": 0,
+    "overdueTasks": 0,
+    "highPriorityOpenTasks": 0,
+    "closureRate": 1,
+    "sourceTable": "rectification_task",
+    "traceId": "p5-final-rectification-1781399992713-verify-report-1781399993943"
+  },
+  "conclusion": "PASS"
+}

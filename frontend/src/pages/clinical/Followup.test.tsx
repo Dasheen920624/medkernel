@@ -6,25 +6,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Followup from "./Followup";
 
 const followupHookMocks = vi.hoisted(() => ({
+  createTemplate: vi.fn(),
   generatePlan: vi.fn(),
+  publishTemplate: vi.fn(),
   refetchPlans: vi.fn(),
   reportAbnormal: vi.fn(),
   submitQuestionnaire: vi.fn(),
+  useCreateFollowupTemplate: vi.fn(),
   useFollowupStats: vi.fn(),
   useFollowupPlans: vi.fn(),
+  useFollowupTemplates: vi.fn(),
   useContextSnapshotDetail: vi.fn(),
   useContextSnapshots: vi.fn(),
   useGenerateFollowupPlan: vi.fn(),
+  usePublishFollowupTemplate: vi.fn(),
   useReportFollowupAbnormal: vi.fn(),
   useSubmitFollowupQuestionnaire: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useCreateFollowupTemplate: followupHookMocks.useCreateFollowupTemplate,
   useFollowupStats: followupHookMocks.useFollowupStats,
   useFollowupPlans: followupHookMocks.useFollowupPlans,
+  useFollowupTemplates: followupHookMocks.useFollowupTemplates,
   useContextSnapshotDetail: followupHookMocks.useContextSnapshotDetail,
   useContextSnapshots: followupHookMocks.useContextSnapshots,
   useGenerateFollowupPlan: followupHookMocks.useGenerateFollowupPlan,
+  usePublishFollowupTemplate: followupHookMocks.usePublishFollowupTemplate,
   useReportFollowupAbnormal: followupHookMocks.useReportFollowupAbnormal,
   useSubmitFollowupQuestionnaire: followupHookMocks.useSubmitFollowupQuestionnaire,
 }));
@@ -42,7 +50,21 @@ function renderFollowup() {
 describe("Followup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    followupHookMocks.createTemplate.mockResolvedValue({
+      templateId: "ftpl-new",
+      templateCode: "FUP.COPD.NEW",
+      versionNo: 1,
+      name: "慢阻肺复诊模板",
+      assetStatus: "DRAFT",
+      tasks: [],
+      traceId: "trace-template-new",
+    });
     followupHookMocks.generatePlan.mockResolvedValue({ planId: "plan-real-1" });
+    followupHookMocks.publishTemplate.mockResolvedValue({
+      templateId: "ftpl-1",
+      assetStatus: "PUBLISHED",
+      traceId: "trace-template-published",
+    });
     followupHookMocks.reportAbnormal.mockResolvedValue({
       eventId: "event-return-1",
       returnTaskId: "return-task-1",
@@ -74,6 +96,8 @@ describe("Followup", () => {
             patientId: "patient-real-1",
             encounterId: "enc-real-1",
             diseaseCode: "COPD",
+            templateId: "ftpl-1",
+            templateVersion: 1,
             status: "ACTIVE",
             tasks: [
               {
@@ -101,9 +125,65 @@ describe("Followup", () => {
       isLoading: false,
       refetch: followupHookMocks.refetchPlans,
     });
+    followupHookMocks.useFollowupTemplates.mockReturnValue({
+      data: {
+        items: [
+          {
+            templateId: "ftpl-1",
+            templateCode: "FUP.COPD",
+            versionNo: 1,
+            name: "慢阻肺出院随访",
+            description: "出院后问卷与复诊随访",
+            organizationScope: "p5-hospital",
+            applicableScope: "COPD",
+            questionnaireDefinition: "{}",
+            abnormalActionDefinition: "{}",
+            assetStatus: "PUBLISHED",
+            contentHash: "sm3:published-template",
+            tasks: [
+              {
+                taskType: "QUESTIONNAIRE",
+                delayDays: 7,
+                questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
+              },
+            ],
+            traceId: "trace-template-1",
+          },
+          {
+            templateId: "ftpl-draft",
+            templateCode: "FUP.DRAFT",
+            versionNo: 1,
+            name: "待发布模板",
+            organizationScope: "p5-hospital",
+            applicableScope: "COPD",
+            questionnaireDefinition: "{}",
+            abnormalActionDefinition: "{}",
+            assetStatus: "DRAFT",
+            contentHash: "sm3:draft-template",
+            tasks: [],
+            traceId: "trace-template-draft",
+          },
+        ],
+        page: 1,
+        size: 100,
+        total: 2,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    followupHookMocks.useCreateFollowupTemplate.mockReturnValue({
+      isPending: false,
+      mutateAsync: followupHookMocks.createTemplate,
+    });
     followupHookMocks.useGenerateFollowupPlan.mockReturnValue({
       isPending: false,
       mutateAsync: followupHookMocks.generatePlan,
+    });
+    followupHookMocks.usePublishFollowupTemplate.mockReturnValue({
+      isPending: false,
+      mutateAsync: followupHookMocks.publishTemplate,
     });
     followupHookMocks.useContextSnapshots.mockReturnValue({
       data: {
@@ -210,6 +290,8 @@ describe("Followup", () => {
     await user.click(screen.getByRole("button", { name: "选择 snapshot-followup-1" }));
     await user.click(screen.getByLabelText("随访风险分层"));
     await user.click(screen.getByText("高风险"));
+    await user.click(screen.getByLabelText("随访模板"));
+    await user.click(screen.getByText("慢阻肺出院随访 · v1"));
     await user.click(
       within(screen.getByRole("dialog", { name: "生成随访计划" })).getByRole("button", {
         name: /生 成/,
@@ -219,12 +301,34 @@ describe("Followup", () => {
     await waitFor(() =>
       expect(followupHookMocks.generatePlan).toHaveBeenCalledWith({
         contextSnapshotId: "snapshot-followup-1",
+        templateId: "ftpl-1",
         riskLevel: "HIGH",
         taskTypes: ["QUESTIONNAIRE"],
-        idempotencyKey: "followup-plan-snapshot-followup-1-HIGH-QUESTIONNAIRE",
+        idempotencyKey: "followup-plan-snapshot-followup-1-ftpl-1-HIGH-QUESTIONNAIRE",
       }),
     );
     expect(screen.queryByLabelText("患者 ID")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("就诊 ID")).not.toBeInTheDocument();
+  });
+
+  it("shows followup template governance and publishes draft templates", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+
+    expect(screen.getByText("慢阻肺出院随访")).toBeInTheDocument();
+    expect(screen.getByText("待发布模板")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /发布模板/ }));
+
+    await waitFor(() =>
+      expect(followupHookMocks.publishTemplate).toHaveBeenCalledWith({
+        templateId: "ftpl-draft",
+        request: {
+          impactDigest: "sm3:draft-template",
+          reason: "第一阶段随访模板发布",
+        },
+      }),
+    );
   });
 });

@@ -116,6 +116,82 @@ public class TerminologyService {
     }
 
     /**
+     * 幂等同步院内业务系统本地术语，禁用时保留既有映射和审计历史。
+     *
+     * @return 本地术语主键
+     */
+    @Transactional
+    public String syncLocalTerm(LocalTermSyncCommand command) {
+        String tenantId = requireCurrentTenant();
+        if (command == null || command.sourceSystem() == null || command.sourceSystem().isBlank()
+                || command.localCode() == null || command.localCode().isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内字典同步缺少来源系统或本地编码");
+        }
+        String sourceActor = requireExternalSourceActor(command.sourceSystem());
+        TermCategory category;
+        try {
+            category = TermCategory.valueOf(command.category().trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (RuntimeException exception) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内字典分类不受支持");
+        }
+        Optional<LocalTerm> existing = localTermRepository
+            .findByTenantIdAndSourceSystemAndLocalCodeAndCategory(
+                tenantId, command.sourceSystem().trim(), command.localCode().trim(), category);
+        LocalTerm current = existing.orElse(null);
+        if (current != null && !sourceActor.equals(current.createdBy())) {
+            throw ApiException.conflict("院内字典编码已由人工或其他来源维护，不能被当前来源接管");
+        }
+        if (command.disable() && current == null) {
+            throw ApiException.notFound("院内字典 " + command.localCode());
+        }
+        if (!command.disable() && (command.localName() == null || command.localName().isBlank())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内字典同步缺少名称");
+        }
+        Instant now = Instant.now();
+        LocalTermStatus status = command.disable()
+            ? LocalTermStatus.DISABLED
+            : current != null && current.status() == LocalTermStatus.MAPPED
+                ? LocalTermStatus.MAPPED
+                : LocalTermStatus.UNMAPPED;
+        LocalTerm saved = localTermRepository.save(new LocalTerm(
+            current == null ? null : current.id(),
+            tenantId,
+            command.sourceSystem().trim(),
+            command.localCode().trim(),
+            category,
+            command.disable() ? current.localName() : command.localName().trim(),
+            command.disable()
+                ? current.normalizedName()
+                : normalizedOrFallback(command.normalizedName(), command.localName(), command.localCode()),
+            command.disable() ? current.departmentId() : blankToNull(command.departmentCode()),
+            status,
+            current == null ? now : current.firstSeenAt(),
+            now,
+            current == null ? now : current.createdAt(),
+            current == null ? currentUserId() : current.createdBy(),
+            now,
+            currentUserId()));
+        return String.valueOf(saved.id());
+    }
+
+    @Transactional
+    public void disableLocalTermFromExternal(String internalId) {
+        String tenantId = requireCurrentTenant();
+        Long id;
+        try {
+            id = Long.valueOf(internalId);
+        } catch (NumberFormatException exception) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内字典内部标识非法");
+        }
+        LocalTerm current = localTermRepository.findByTenantIdAndId(tenantId, id)
+            .orElseThrow(() -> ApiException.notFound("院内字典 id=" + internalId));
+        syncLocalTerm(new LocalTermSyncCommand(
+            current.sourceSystem(), current.localCode(), current.category().name(),
+            current.localName(), current.normalizedName(), current.departmentId(),
+            LocalTermStatus.DISABLED.name(), true));
+    }
+
+    /**
      * 按租户 + 过滤条件分页查询标准术语。
      */
     public PageResponse<StandardTerm> pageStandardTerms(PageRequest request, StandardTermFilter filter) {
@@ -443,11 +519,24 @@ public class TerminologyService {
         return RequestContext.currentUserId().orElse("system");
     }
 
+    private String requireExternalSourceActor(String sourceSystem) {
+        String actor = currentUserId();
+        String expected = "integration:" + sourceSystem.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!expected.equalsIgnoreCase(actor)) {
+            throw ApiException.forbidden("院内字典同步来源与受信集成上下文不一致");
+        }
+        return actor;
+    }
+
     private String normalizeKeyword(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
         return "%" + raw.trim().toLowerCase() + "%";
+    }
+
+    private String blankToNull(String raw) {
+        return raw == null || raw.isBlank() ? null : raw.trim();
     }
 
     private String normalizedOrFallback(String normalized, String displayName, String code) {

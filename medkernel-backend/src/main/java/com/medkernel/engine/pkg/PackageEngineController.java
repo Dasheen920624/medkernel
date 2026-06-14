@@ -70,7 +70,7 @@ public class PackageEngineController {
     }
 
     /**
-     * 把当前组织范围的已确认术语映射冻结为知识包草稿。
+     * 把当前组织范围的已确认术语映射固化为知识包草稿。
      *
      * <p>权限：{@code term.write}。
      */

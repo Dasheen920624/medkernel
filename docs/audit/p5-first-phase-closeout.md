@@ -1,22 +1,34 @@
-# P5 第一阶段正式收口报告
+# P5 第一阶段收口复核报告
 
-> 日期：2026-06-13
-> 状态：随幕10收尾 PR 验证与合并生效
+> 日期：2026-06-14
+> 状态：目标环境复演已通过；待提交 PR、远端 CI 全绿并合并后形成主线正式结论
 > 范围：P5 第二轮全新演练从干净基线到幕10审计导出审批的第一阶段端到端旅程。
+> 当前目标环境：134 manifest `e7392c8f`，readiness 200，沙盘与整改闭环已留证
 
 ## 1. 收口裁决
 
-P5 第一阶段幕0–幕10端到端演练已在 134 真实环境跑完，并按仓库证据归档。当前结论：
+P5 第一阶段幕0–幕10既有演练已在 134 真实环境跑完并按仓库证据归档；完整性复核发现的院内业务系统嵌入链路、沙盘、遗留整改和本地覆盖缺口已在当前分支补齐并部署复演。当前事实：
 
 - 第一阶段 B0 主链路已完成真实演练：部署接管、租户/组织/角色、术语、知识诚实边界、规则、路径、临床运行、随访质控、配置包、系统接入和审计导出审批。
 - 发现的阻断缺陷均按 TDD 闭环并经对应 PR/部署/复验归档；脚本或数据收敛造成的失败批次均保留，不清库、不改写历史。
+- 2026-06-14 最终目标环境部署为 `e7392c8f`：发布前备份与隔离恢复通过，部署后 manifest/jar/readiness/Flyway/表计数/xattr 通过；最终目标状态保持 `medkernel/nginx/postgresql=active`、HTTPS readiness 200。
+- 全真体验沙盘目标环境复演通过：6 个已评审可运行场景 `failures=[]`，9 个未评审场景继续阻断；IFRAME/SDK/API 嵌入模式均可兑换令牌；沙盘评估场景形成 `resultCount=1/findingCount=1/taskCount=1`。
+- 第一阶段整改闭环通过：幕7 历史遗留已在早前关闭，本轮沙盘评估演练新增 4 条整改任务由临床治理角色提交、质量治理角色复核关闭；最终整改报告 `totalTasks=7/openTasks=0/closureRate=1`。
+- P5 核心只读 readiness 探针通过：7 类角色、21 个代表 API 均可达，未发现演示或固定医学文本。
 - 正式知识生产继续阻断：文献资料库根地址为空，不得进入 P6；无模型、无图、无外部 Provider 时系统按 B0 确定性主链路诚实降级。
+
+因此本分支具备提交最终收官 PR 的证据基础；但主线正式结论仍以 PR、远端 CI 全绿、合并后 `origin/main` 包含合并提交为准，当前报告不冒领 CI 或合并完成。
 
 ## 2. 证据索引
 
 - 总证据目录：`docs/release/evidence/p5-second-fresh-drill-20260612/`
 - 阶段检查点：`docs/audit/p5-second-fresh-drill-checkpoint.md`
 - 幕10收尾证据：`docs/release/evidence/p5-second-fresh-drill-20260612/幕10-审计导出审批/`
+- 第一阶段最终收官本地门禁摘要：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/02-local-gate-summary.json`
+- `e7392c8f` 发布前备份、部署与最终目标状态：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/deploy-e7392c8f/`
+- 沙盘全真复演：`docs/release/evidence/p5-second-fresh-drill-20260612/sandbox/00-sandbox-summary.json`
+- 整改闭环：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/01-rectification-closeout.json`
+- 核心 readiness：`docs/release/evidence/p5-second-fresh-drill-20260612/core-readiness/p5-core-readiness-probe.json`
 - 接力状态：`docs/_HANDOFF.md`
 
 ## 3. 幕级结果
@@ -60,9 +72,27 @@ P5 第一阶段幕0–幕10端到端演练已在 134 真实环境跑完，并按
 - `scripts/check-comment-zh.sh`：0 fail / 0 warn。
 - `git diff --check`：通过。
 - 幕10 JSON 证据可解析，PNG/CSV/NDJSON 文件非空。
+- PR #596 CI：8/8 通过并合并。
 
 ## 6. 未声明完成项
 
 - 不声明真实院方 IdP、真实短信/邮件/移动推送、真实外部 Provider、真实 Dify/模型工作流、真实图谱/搜索投影已接通。
 - 不声明正式知识生产已开放；文献资料库根地址仍为空，P6 继续阻断。
-- 不声明备份恢复已最新演练通过；当前运行态按事实显示 `DEGRADED/NOT_AVAILABLE`。
+- 不声明远端 CI、PR、合并或 `origin/main` 收官已完成；当前仍在工作分支。
+- 不声明未评审沙盘场景已可运行；9 个未评审场景继续按 `CLINICAL_REVIEW_REQUIRED` 阻断。
+- 不把收敛期失败批次或沙盘生成的历史数据清理成“干净通过”；目标库保留真实演练数据。
+
+## 7. 2026-06-14 收敛验证
+
+- `node --check scripts/drill/sandbox-fulltruth-run.mjs && node --check scripts/drill/p5-first-phase-rectification-closeout.mjs && node --check scripts/sandbox/seed-scenarios.mjs && node --test scripts/sandbox/scenario-rules.test.mjs`：通过，3 个 Node 测试通过。
+- 后端定向回归：沙盘、主数据同步、身份/人员适配、安全权限、模板资产与迁移合同相关组合均通过；最终聚焦 owner/模板/迁移回归 110 项通过。
+- `cd medkernel-backend && mvn test`：2282 项测试通过，0 failure / 0 error / 0 skipped；覆盖 `FlywayMultiDialectSmokeTest`，H2/PostgreSQL/Oracle 迁移到 V123 并验证重复迁移。
+- `cd frontend && npm test`：94 个文件 / 695 项测试通过；覆盖沙盘、嵌入、术语一对多冲突处置、配置包、路径、规则、随访、审计与运维页面。
+- `cd frontend && npm run build && npm run lint`：通过，ESLint 无 error。
+- T-GATE：真实性门禁扫描 1633 文件通过；配置边界扫描 1492 文件通过；迁移规约扫描 25 文件通过；中文注释 0 fail / 0 warn；`git diff --check` 通过。
+- 目标环境发布前备份与隔离恢复：`deploy-e7392c8f/predeploy-backup-e7392c8f.properties`，`restore_status=PASSED`，Flyway/表/知识包/质控指标/Origin 白名单/沙盘触发计数主库与恢复库一致，`restore_cleanup_database_count=0`。
+- 目标环境部署与 post-deploy：`deploy-e7392c8f/postdeploy-e7392c8f.properties`，manifest/jar 指向 `e7392c8f`，HTTPS readiness 200，Flyway `123|success=123|max_rank=123`，181 张表，AppleDouble 0。
+- 沙盘复演：`sandbox/00-sandbox-summary.json`，6 个可运行场景 `failures=[]`，9 个未评审场景阻断，SDK/API 模式兑换成功。
+- 整改复演：`01-rectification-closeout.json`，4 条沙盘评估整改任务提交并复核关闭，最终 `openTasks=0`。
+- 核心 readiness：`core-readiness/p5-core-readiness-probe.json`，`status=PASSED`，21 个探针通过。
+- 最终目标状态：`deploy-e7392c8f/final-target-state-e7392c8f.properties`，readiness 200，沙盘触发 44、沙盘路径 8、随访计划 8、评估运行 4，整改 `open=0`，AppleDouble 0。

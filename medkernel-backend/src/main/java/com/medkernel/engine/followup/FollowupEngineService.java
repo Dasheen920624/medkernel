@@ -52,6 +52,7 @@ public class FollowupEngineService {
     private final ContextSnapshotService contextSnapshotService;
     private final ContextSnapshotRepository contextSnapshots;
     private final ClinicalClockRepository clinicalClockRepository;
+    private final FollowupTemplateService templateService;
     private final ObjectMapper json = new ObjectMapper();
 
     public FollowupEngineService(
@@ -61,7 +62,8 @@ public class FollowupEngineService {
         FollowupEventRepository eventRepository,
         ContextSnapshotService contextSnapshotService,
         ContextSnapshotRepository contextSnapshots,
-        ClinicalClockRepository clinicalClockRepository
+        ClinicalClockRepository clinicalClockRepository,
+        FollowupTemplateService templateService
     ) {
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
@@ -70,6 +72,7 @@ public class FollowupEngineService {
         this.contextSnapshotService = contextSnapshotService;
         this.contextSnapshots = contextSnapshots;
         this.clinicalClockRepository = clinicalClockRepository;
+        this.templateService = templateService;
     }
 
     /**
@@ -103,7 +106,8 @@ public class FollowupEngineService {
             request.riskLevel(),
             request.taskTypes(),
             request.idempotencyKey(),
-            request.modelEnabled()));
+            request.modelEnabled(),
+            request.templateId()));
     }
 
     @Transactional
@@ -142,7 +146,8 @@ public class FollowupEngineService {
             riskLevel,
             taskTypes,
             idempotencyKey,
-            modelEnabled));
+            modelEnabled,
+            null));
     }
 
     private FollowupPlanDetailResponse generatePlan(FollowupPlanCommand request) {
@@ -175,6 +180,8 @@ public class FollowupEngineService {
             controlledPlan.sourceFactId(),
             controlledPlan.ruleCode(),
             controlledPlan.explanation(),
+            controlledPlan.templateId(),
+            controlledPlan.templateVersion(),
             now,
             actor,
             now,
@@ -185,23 +192,22 @@ public class FollowupEngineService {
 
         int index = 0;
         List<FollowupTaskDetailResponse> taskResponses = new java.util.ArrayList<>();
-        for (FollowupTaskType taskType : controlledPlan.taskTypes()) {
+        for (ResolvedTask resolvedTask : controlledPlan.tasks()) {
             Instant taskNow = Instant.now();
-            Instant dueDate = controlledPlan.dueAt() == null
-                ? taskNow.plusSeconds(DEFAULT_TASK_DELAY_SECONDS)
-                : controlledPlan.dueAt();
+            Instant dueDate = dueDate(controlledPlan, resolvedTask, taskNow);
             FollowupTask task = new FollowupTask(
                 null,
                 "ft-" + UUID.randomUUID(),
                 tenantId,
                 plan.planId(),
-                taskType,
+                resolvedTask.taskType(),
                 dueDate,
                 FollowupTaskStatus.PENDING,
                 null,
                 null,
                 taskIdempotencyKey(request.idempotencyKey(), index++),
                 controlledPlan.clinicalClockId(),
+                resolvedTask.questionnaireTemplateId(),
                 taskNow,
                 actor,
                 taskNow,
@@ -224,7 +230,9 @@ public class FollowupEngineService {
             plan.sourceFactType(),
             plan.sourceFactId(),
             plan.generationRuleCode(),
-            plan.generationExplanation()
+            plan.generationExplanation(),
+            plan.templateId(),
+            plan.templateVersion()
         );
     }
 
@@ -593,18 +601,33 @@ public class FollowupEngineService {
         }
 
         Optional<ClinicalClock> clock = controlledClock(request.pathwayId(), tenantId);
-        List<FollowupTaskType> taskTypes = resolveTaskTypes(request);
+        FollowupTemplate template = hasText(request.templateId())
+            ? templateService.requirePublished(request.templateId())
+            : null;
+        List<ResolvedTask> tasks = resolveTasks(request, template);
         String riskBucket = "HIGH".equalsIgnoreCase(blankToNull(request.riskLevel())) ? "HIGH" : "STANDARD";
-        String ruleCode = "CONTROLLED_FACT_" + sourceFactType + "_" + riskBucket;
-        String explanation = controlledExplanation(request, sourceFactType, sourceFactId, ruleCode, taskTypes, clock);
+        String ruleCode = template == null
+            ? "CONTROLLED_FACT_" + sourceFactType + "_" + riskBucket
+            : "FOLLOWUP_TEMPLATE_" + template.templateCode() + "_V" + template.versionNo();
+        String explanation = controlledExplanation(
+            request,
+            sourceFactType,
+            sourceFactId,
+            ruleCode,
+            tasks,
+            clock,
+            template
+        );
         return new ControlledPlan(
             sourceFactType,
             sourceFactId,
             ruleCode,
             explanation,
-            taskTypes,
+            tasks,
             clock.map(ClinicalClock::dueAt).orElse(null),
-            clock.map(ClinicalClock::clockId).orElse(null)
+            clock.map(ClinicalClock::clockId).orElse(null),
+            template == null ? null : template.templateId(),
+            template == null ? null : template.versionNo()
         );
     }
 
@@ -647,6 +670,35 @@ public class FollowupEngineService {
         return List.copyOf(derived);
     }
 
+    private List<ResolvedTask> resolveTasks(FollowupPlanCommand request, FollowupTemplate template) {
+        if (template != null) {
+            return templateService.tasks(template).stream()
+                .map(task -> new ResolvedTask(
+                    task.taskType(),
+                    task.delayDays(),
+                    blankToNull(task.questionnaireTemplateId())
+                ))
+                .toList();
+        }
+        return resolveTaskTypes(request).stream()
+            .map(type -> new ResolvedTask(
+                type,
+                null,
+                type == FollowupTaskType.QUESTIONNAIRE ? "FOLLOWUP_QUESTIONNAIRE_DEFAULT" : null
+            ))
+            .toList();
+    }
+
+    private Instant dueDate(ControlledPlan controlledPlan, ResolvedTask task, Instant taskNow) {
+        if (task.delayDays() != null) {
+            Instant base = controlledPlan.dueAt() == null ? taskNow : controlledPlan.dueAt();
+            return base.plusSeconds(task.delayDays() * 86_400L);
+        }
+        return controlledPlan.dueAt() == null
+            ? taskNow.plusSeconds(DEFAULT_TASK_DELAY_SECONDS)
+            : controlledPlan.dueAt();
+    }
+
     private FollowupTaskType parseTaskType(String type) {
         try {
             return FollowupTaskType.valueOf(type);
@@ -660,8 +712,9 @@ public class FollowupEngineService {
             String sourceFactType,
             String sourceFactId,
             String ruleCode,
-            List<FollowupTaskType> taskTypes,
-            Optional<ClinicalClock> clock) {
+            List<ResolvedTask> tasks,
+            Optional<ClinicalClock> clock,
+            FollowupTemplate template) {
         Map<String, Object> explanation = new LinkedHashMap<>();
         explanation.put("sourceFactType", sourceFactType);
         explanation.put("sourceFactId", sourceFactId);
@@ -682,7 +735,14 @@ public class FollowupEngineService {
         if (!request.taskTypes().isEmpty()) {
             explanation.put("requestedTaskTypes", request.taskTypes());
         }
-        explanation.put("generatedTaskTypes", taskTypes.stream().map(Enum::name).toList());
+        explanation.put("generatedTaskTypes", tasks.stream()
+            .map(task -> task.taskType().name())
+            .toList());
+        if (template != null) {
+            explanation.put("templateId", template.templateId());
+            explanation.put("templateVersion", template.versionNo());
+            explanation.put("templateCode", template.templateCode());
+        }
         clock.ifPresent(value -> {
             explanation.put("clinicalClockId", value.clockId());
             explanation.put("clinicalClockDueAt", value.dueAt().toString());
@@ -709,7 +769,9 @@ public class FollowupEngineService {
             plan.sourceFactType(),
             plan.sourceFactId(),
             plan.generationRuleCode(),
-            plan.generationExplanation()
+            plan.generationExplanation(),
+            plan.templateId(),
+            plan.templateVersion()
         );
     }
 
@@ -728,6 +790,9 @@ public class FollowupEngineService {
     }
 
     private String questionnaireTemplateId(FollowupTask task) {
+        if (hasText(task.questionnaireTemplateId())) {
+            return task.questionnaireTemplateId();
+        }
         return task.taskType() == FollowupTaskType.QUESTIONNAIRE
             ? "FOLLOWUP_QUESTIONNAIRE_DEFAULT"
             : null;
@@ -933,8 +998,16 @@ public class FollowupEngineService {
         String sourceFactId,
         String ruleCode,
         String explanation,
-        List<FollowupTaskType> taskTypes,
+        List<ResolvedTask> tasks,
         Instant dueAt,
-        String clinicalClockId
+        String clinicalClockId,
+        String templateId,
+        Integer templateVersion
+    ) {}
+
+    private record ResolvedTask(
+        FollowupTaskType taskType,
+        Integer delayDays,
+        String questionnaireTemplateId
     ) {}
 }

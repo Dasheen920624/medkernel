@@ -278,7 +278,7 @@ function expectedLandingFor(roleCode: string, displayName: string) {
     "clinical-governance": "临床知识治理",
     medication: "药事安全复核",
     diagnostic: "医技协同",
-    quality: "质量与运营概览",
+    quality: "质量管理概览",
     audit: "最近变化",
     tenant: "治理切片",
   } as const;

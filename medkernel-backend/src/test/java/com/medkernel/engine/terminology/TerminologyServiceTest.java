@@ -129,6 +129,29 @@ class TerminologyServiceTest {
     }
 
     @Test
+    void externalSyncCannotTakeOverLocalTermOwnedByAnotherSource() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace", OrgScope.tenant("t-1"), "integration:LIS"));
+        LocalTerm existing = new LocalTerm(
+            100L, "t-1", "LIS", "K001", TermCategory.LAB, "旧血钾",
+            "旧血钾", "dept-lab", LocalTermStatus.MAPPED,
+            Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-06-02T00:00:00Z"),
+            Instant.parse("2026-06-01T00:00:00Z"), "admin-1",
+            Instant.parse("2026-06-02T00:00:00Z"), "admin-1");
+        when(localTermRepository.findByTenantIdAndSourceSystemAndLocalCodeAndCategory(
+            "t-1", "LIS", "K001", TermCategory.LAB
+        )).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.syncLocalTerm(new LocalTermSyncCommand(
+            "LIS", "K001", "LAB", "血钾", "血钾|K",
+            "dept-lab", "ACTIVE", false)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("其他来源");
+
+        verify(localTermRepository, Mockito.never()).save(any(LocalTerm.class));
+    }
+
+    @Test
     void pageLocalTermsNormalizesKeywordAndEnumFilters() {
         when(localTermRepository.countByFilter("t-1", "LIS", "LAB", "UNMAPPED", "%肌钙蛋白%"))
             .thenReturn(2L);

@@ -42,7 +42,7 @@ const routeDecisions = {
     task: "按平台治理或医疗机构身份进入职责工作台",
   },
   "/bootstrap": {
-    decision: "EXPERT",
+    decision: "KEEP",
     targetDomain: "部署接管",
     targetEntry: "首次部署接管",
     task: "仅在首次部署时创建内置超级管理员并完成安全接管",
@@ -67,55 +67,55 @@ const routeDecisions = {
   },
   "/onboarding/guide": {
     decision: "MOVE",
-    targetDomain: "机构治理",
+    targetDomain: "系统运维",
     targetEntry: "实施与验收",
     task: "完成机构开通、初始化、联调和交付验收",
   },
   "/tenant/onboarding": {
     decision: "MOVE",
-    targetDomain: "机构治理",
+    targetDomain: "机构与人员",
     targetEntry: "服务机构",
     task: "维护服务机构、稳定组织层级和机构类型",
   },
   "/config/packages": {
     decision: "MOVE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "配置包与发布",
     task: "组装、审核、灰度、全量、同步和回滚配置包",
   },
   "/config/releases": {
     decision: "MERGE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "配置包与发布",
     task: "作为配置包详情中的影响、发布和回滚步骤",
   },
   "/authoring/assets": {
     decision: "MERGE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "知识资产",
     task: "在统一知识资产页内编目、复用和批量处理资产",
   },
   "/pathway/templates": {
     decision: "MOVE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "路径配置",
     task: "配置、审核、发布和回滚临床路径模板",
   },
   "/rule/definitions": {
     decision: "MOVE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "规则配置",
     task: "配置、试运行、审核和发布临床规则",
   },
   "/terminology/mapping": {
     decision: "MOVE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "术语与字典",
     task: "维护院内术语映射、冲突和高风险确认",
   },
   "/adapter/hub": {
-    decision: "EXPERT",
-    targetDomain: "机构治理",
+    decision: "MOVE",
+    targetDomain: "系统运维",
     targetEntry: "系统接入",
     task: "由集成和实施角色维护外部系统接入及失败补偿",
   },
@@ -139,7 +139,7 @@ const routeDecisions = {
   },
   "/rule/validate": {
     decision: "MERGE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "规则配置 / 试运行",
     task: "并入规则试运行与提醒详情，不保留客户独立菜单",
   },
@@ -161,69 +161,75 @@ const routeDecisions = {
     targetEntry: "随访协同",
     task: "生成随访计划、处理任务和异常回院事件",
   },
+  "/sandbox": {
+    decision: "KEEP",
+    targetDomain: "临床协同",
+    targetEntry: "全真体验沙盘",
+    task: "以院内业务系统视角复演真实引擎、嵌入终端与人工反馈闭环",
+  },
   "/qc/dashboard": {
     decision: "RENAME",
-    targetDomain: "质量与运营",
-    targetEntry: "质量与运营概览",
+    targetDomain: "质量管理",
+    targetEntry: "质量管理概览",
     task: "查看质量风险、运营趋势并下钻到责任问题",
   },
   "/qc/alerts": {
     decision: "RENAME",
-    targetDomain: "质量与运营",
+    targetDomain: "质量管理",
     targetEntry: "质量问题与整改",
     task: "确认问题、派发整改、复核并闭环",
   },
   "/qc/insurance": {
     decision: "RENAME",
-    targetDomain: "质量与运营",
+    targetDomain: "质量管理",
     targetEntry: "医保审核",
     task: "核查医保问题、依据和处置结果",
   },
   "/qc/eval/sets": {
     decision: "RENAME",
-    targetDomain: "质量与运营",
+    targetDomain: "质量管理",
     targetEntry: "评价指标",
     task: "维护评价指标、影响分析和发布状态",
   },
   "/qc/eval/results": {
     decision: "MERGE",
-    targetDomain: "质量与运营",
+    targetDomain: "质量管理",
     targetEntry: "质量问题与整改",
     task: "评估结果作为问题发现和整改页的来源视图",
   },
   "/knowledge/governance": {
     decision: "MOVE",
-    targetDomain: "知识配置",
+    targetDomain: "知识治理",
     targetEntry: "知识审核与发布",
     task: "审核平台主源或机构派生差异并发布、换基线或恢复标准",
   },
   "/admin/users": {
     decision: "MOVE",
-    targetDomain: "机构治理",
+    targetDomain: "机构与人员",
     targetEntry: "人员与账号",
     task: "维护自然人、任职、账号、职责和组织范围",
   },
   "/security/identity-binding": {
     decision: "MOVE",
-    targetDomain: "机构治理",
+    targetDomain: "机构与人员",
     targetEntry: "身份来源",
     task: "维护统一身份、员工号和证书的单个或批量绑定",
   },
   "/admin/audit": {
     decision: "MOVE",
-    targetDomain: "质量与运营",
+    targetDomain: "合规安全",
     targetEntry: "审计与证据",
     task: "按人员、对象、动作和时间追溯并受控导出证据",
   },
   "/security/baseline": {
     decision: "MOVE",
-    targetDomain: "质量与运营",
+    targetDomain: "合规安全",
     targetEntry: "安全与配置",
     task: "维护安全基线、系统配置、数据权限和脱敏策略",
   },
   "/system/providers": {
     decision: "RENAME",
-    targetDomain: "质量与运营",
+    targetDomain: "系统运维",
     targetEntry: "运行保障",
     task: "查看外部依赖、备份恢复、降级和部署健康状态",
   },
@@ -234,37 +240,37 @@ const routeDecisions = {
     task: "维护个人通知偏好和有权限的机构默认策略",
   },
   "/advanced/provenance": {
-    decision: "EXPERT",
-    targetDomain: "知识配置",
-    targetEntry: "来源与血缘（专家模式）",
+    decision: "MOVE",
+    targetDomain: "知识治理",
+    targetEntry: "来源与血缘",
     task: "按来源、版本和引用锚点追溯知识证据",
   },
   "/advanced/graph": {
-    decision: "EXPERT",
-    targetDomain: "知识配置",
-    targetEntry: "知识关系（专家模式）",
+    decision: "MOVE",
+    targetDomain: "知识治理",
+    targetEntry: "知识关系",
     task: "查询可重建的知识关系投影",
   },
   "/advanced/ai-workflows": {
-    decision: "EXPERT",
-    targetDomain: "知识配置",
-    targetEntry: "智能工作流（专家模式）",
+    decision: "MOVE",
+    targetDomain: "知识治理",
+    targetEntry: "智能工作流",
     task: "查看模型能力、任务和诚实降级状态",
   },
   "/advanced/domestic": {
-    decision: "EXPERT",
-    targetDomain: "质量与运营",
-    targetEntry: "运行保障 / 国产化核验",
+    decision: "MOVE",
+    targetDomain: "系统运维",
+    targetEntry: "国产化核验",
     task: "核查国产化适配与部署证据",
   },
   "/advanced/dev-console": {
-    decision: "EXPERT",
-    targetDomain: "质量与运营",
-    targetEntry: "运行保障 / 诊断工具",
+    decision: "MOVE",
+    targetDomain: "系统运维",
+    targetEntry: "诊断工具",
     task: "由开发和实施角色执行受控诊断",
   },
   "/embed/launch": {
-    decision: "EXPERT",
+    decision: "KEEP",
     targetDomain: "临床协同",
     targetEntry: "院内系统嵌入终端",
     task: "在受信来源内承载临床嵌入并回传人工反馈",
@@ -447,9 +453,9 @@ function controllerDecision(className, endpoints) {
   }
   if (/Developer|Projection|Diagnose|ModelGateway|PluginSecurity/i.test(text)) {
     return {
-      decision: "EXPERT",
-      target: "受控专家工具",
-      rationale: "保留诊断或投影能力，默认不向普通客户角色展示",
+      decision: "KEEP",
+      target: "所属业务域专业能力",
+      rationale: "按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示",
     };
   }
   if (/Batch|Export|RuntimeTask|AsyncSuffix/i.test(text)) {
@@ -507,9 +513,9 @@ function extractBatchCapabilities() {
       file: relative(repositoryRoot, file).replaceAll("\\", "/"),
       decision: "MERGE",
       target: /PersonnelImport/.test(className)
-        ? "机构治理 / 人员与账号"
+        ? "机构与人员 / 人员与账号"
         : /AuthoringBatch/.test(className)
-          ? "知识配置 / 知识资产"
+          ? "知识治理 / 知识资产"
           : /Export/.test(className)
             ? "对应页面的受控导出"
             : "对应业务页的异步任务",
@@ -601,7 +607,7 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
 
 > 本目录由 \`node scripts/audit/export-product-capabilities.mjs\` 从前端路由、后端菜单、页面组件、控制器和批量任务源码确定性生成。任何新增能力若没有显式裁决，生成器直接失败。
 >
-> 裁决口径：\`KEEP\` 保留、\`RENAME\` 重命名、\`MOVE\` 移位、\`MERGE\` 合并、\`SPLIT\` 拆分、\`EXPERT\` 专家化、\`API_ONLY\` 接口化、\`REMOVE\` 移除。每项能力只允许一个主裁决；目标名称与目标归属同时记录，不通过兼容入口保留旧结构。
+> 裁决口径：\`KEEP\` 保留、\`RENAME\` 重命名、\`MOVE\` 移位、\`MERGE\` 合并、\`SPLIT\` 拆分、\`API_ONLY\` 接口化、\`REMOVE\` 移除。每项能力只允许一个主裁决；目标名称与目标归属同时记录，不通过兼容入口保留旧结构。专业能力与普通功能一样归类，不使用独立专家裁决。
 
 ## 1. 库存结论
 
@@ -610,8 +616,8 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
 - 页面与页内组件：${pages.length} 项。
 - 后端控制器：${controllers.length} 项。
 - 批量、导入、导出和异步任务承载类：${batches.length} 项。
-- 目标客户主域：工作台、机构治理、知识配置、临床协同、质量与运营。
-- 专家能力默认隐藏并嵌入所属主域；仅服务外部系统的能力只保留接口契约。
+- 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
+- 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
 | 裁决 | 数量 |
 |---|---:|
@@ -650,8 +656,8 @@ ${batchRows}
 ## 7. 强制后续动作
 
 1. 目标信息架构必须以本目录的唯一任务和目标归属为输入，比较领域型、角色任务型、生命周期型和混合型方案后写入产品权威。
-2. \`MOVE\`、\`RENAME\`、\`MERGE\`、\`EXPERT\` 和 \`REMOVE\` 必须同步修改菜单、路由、权限、面包屑、页面、客户手册和自动化测试。
-3. \`API_ONLY\` 能力不得进入客户菜单，只能出现在第三方接口、嵌入契约、实施联调或专家诊断材料中。
+2. \`MOVE\`、\`RENAME\`、\`MERGE\` 和 \`REMOVE\` 必须同步修改菜单、路由、权限、面包屑、页面、客户手册和自动化测试。
+3. \`API_ONLY\` 能力不得进入客户菜单，只能出现在第三方接口、嵌入契约、实施联调或专业诊断材料中。
 4. 页面组件不是独立客户能力；没有独立任务的组件统一 \`MERGE\` 到父页面。
 5. 目录通过不等于产品门禁通过；必须继续完成 14 角色旅程、全中文、六态、桌面与移动端、八视角评审和全量测试。
 `;

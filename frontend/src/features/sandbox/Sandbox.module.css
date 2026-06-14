@@ -1,0 +1,129 @@
+.panel {
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 16);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+}
+
+.panel h5 {
+  margin: 0;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.descriptionGrid {
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.dataForm {
+  margin-top: calc(var(--mk-unit) * 12);
+}
+
+.dataForm :global(.ant-input-number-group-wrapper) {
+  width: min(100%, calc(var(--mk-unit) * 280));
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.stepLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 10);
+  width: 100%;
+}
+
+.traceDetails {
+  display: grid;
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.traceDetails > div:first-child {
+  display: flex;
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.traceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--mk-unit) * 10);
+}
+
+.traceGrid > div {
+  min-width: 0;
+}
+
+.traceGrid pre {
+  min-height: calc(var(--mk-unit) * 120);
+  max-height: calc(var(--mk-unit) * 280);
+  margin: calc(var(--mk-unit) * 6) 0 0;
+  padding: calc(var(--mk-unit) * 10);
+  overflow: auto;
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 6);
+  background: var(--ant-color-fill-quaternary);
+  color: var(--ant-color-text);
+  font-size: var(--ant-font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pathAlert,
+.traceCollapse {
+  margin-top: calc(var(--mk-unit) * 14);
+}
+
+.embedFrame {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--mk-unit) * 520);
+  margin-top: calc(var(--mk-unit) * 12);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 6);
+  background: var(--ant-color-bg-layout);
+}
+
+.embedEmpty {
+  display: grid;
+  min-height: calc(var(--mk-unit) * 320);
+  place-items: center;
+}
+
+.contractView {
+  display: grid;
+  min-height: calc(var(--mk-unit) * 320);
+  margin-top: calc(var(--mk-unit) * 12);
+  align-content: start;
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.contractCode {
+  margin: 0;
+  padding: calc(var(--mk-unit) * 14);
+  overflow: auto;
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 6);
+  background: var(--ant-color-fill-quaternary);
+  color: var(--ant-color-text);
+  font-size: var(--ant-font-size-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 72rem) {
+  .traceGrid {
+    grid-template-columns: 1fr;
+  }
+}

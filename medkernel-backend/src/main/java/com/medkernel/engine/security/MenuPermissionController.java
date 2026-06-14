@@ -30,7 +30,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 菜单权限目录与租户级覆盖接口。
  *
- * <p>INFRA-05 将入口维度锁定为五大主域及页头、个人、专家承载，本控制器只暴露该细粒度目录。
+ * <p>INFRA-05 将入口维度按业务域分类，并保留页头与个人承载，本控制器只暴露该细粒度目录。
  */
 @RestController
 @RequestMapping("/api/v1/security/menu-permissions")
@@ -71,8 +71,7 @@ public class MenuPermissionController {
         return ApiResult.ok(new VisibleMenuTreeResponse(
             visibleSections(profile.menuKeys()),
             visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.HEADER),
-            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.PROFILE),
-            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.EXPERT)));
+            visibleItems(profile.menuKeys(), MenuPermissionCatalog.MenuPlacement.PROFILE)));
     }
 
     @PatchMapping("/overrides")
@@ -180,8 +179,7 @@ public class MenuPermissionController {
     public record VisibleMenuTreeResponse(
         List<VisibleMenuSection> sections,
         List<MenuView> headerItems,
-        List<MenuView> profileItems,
-        List<MenuView> expertItems
+        List<MenuView> profileItems
     ) {}
 
     public record VisibleMenuSection(

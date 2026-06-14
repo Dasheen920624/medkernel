@@ -11,9 +11,20 @@ public record EmbedLaunchTokenResponse(
     String embedUrl,
     EmbedIntegrationMode integrationMode,
     String launchEndpoint,
-    String hook
+    String hook,
+    String hookInstance
 ) {
+    public EmbedLaunchTokenResponse(
+            String token,
+            Instant expiredAt,
+            String embedUrl,
+            EmbedIntegrationMode integrationMode,
+            String launchEndpoint,
+            String hook) {
+        this(token, expiredAt, embedUrl, integrationMode, launchEndpoint, hook, null);
+    }
+
     public EmbedLaunchTokenResponse(String token, Instant expiredAt, String embedUrl) {
-        this(token, expiredAt, embedUrl, EmbedIntegrationMode.IFRAME, "/api/v1/engine/embed/launch", null);
+        this(token, expiredAt, embedUrl, EmbedIntegrationMode.IFRAME, "/api/v1/engine/embed/launch", null, null);
     }
 }

@@ -13,7 +13,8 @@ record FollowupPlanCommand(
     String riskLevel,
     List<String> taskTypes,
     String idempotencyKey,
-    Boolean modelEnabled
+    Boolean modelEnabled,
+    String templateId
 ) {
     FollowupPlanCommand {
         taskTypes = taskTypes == null ? List.of() : List.copyOf(taskTypes);

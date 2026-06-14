@@ -7,7 +7,7 @@ package com.medkernel.engine.security;
  * 数据范围判断和前端菜单可见性共享同一套口径。
  */
 public enum PermissionDimension {
-    /** 菜单可见性权限，控制 5+1 信息架构内的入口显隐。 */
+    /** 菜单可见性权限，控制现行业务域内普通功能入口的显隐。 */
     MENU,
     /** 业务动作权限，控制读写、审核、发布、导出等操作。 */
     ACTION,

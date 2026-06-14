@@ -170,4 +170,4 @@ npm run dev
 
 ---
 
-**MedKernel · v1.0 GA · 发版日待引擎全能力验收后重新冻结**
+**MedKernel · v1.0 GA · 发版日待引擎全能力验收后重新确认**

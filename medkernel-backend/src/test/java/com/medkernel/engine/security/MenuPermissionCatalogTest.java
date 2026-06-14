@@ -1,7 +1,9 @@
 package com.medkernel.engine.security;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +26,7 @@ class MenuPermissionCatalogTest {
         "workflow-todos",
         "notifications",
         "clinical-followup",
+        "sandbox",
         "qc-dashboard",
         "qc-alerts",
         "insurance-audit",
@@ -50,7 +53,7 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(30)
+            .hasSize(31)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -59,10 +62,10 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
-    void catalogLocksPrimaryHeaderProfileAndExpertPlacements() {
+    void catalogLocksPrimaryHeaderAndProfilePlacements() {
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(23);
+            .hasSize(29);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
@@ -71,9 +74,31 @@ class MenuPermissionCatalogTest {
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PROFILE)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
             .containsExactly("notification-settings");
-        assertThat(MenuPermissionCatalog.allMenus())
-            .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.EXPERT)
-            .hasSize(5);
+    }
+
+    @Test
+    void catalogLocksSevenDomainOwnership() {
+        Map<String, Set<String>> menusBySection = MenuPermissionCatalog.allMenus().stream()
+            .filter(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
+            .collect(Collectors.groupingBy(
+                MenuPermissionCatalog.MenuPermission::sectionKey,
+                Collectors.mapping(MenuPermissionCatalog.MenuPermission::menuKey, Collectors.toSet())));
+
+        assertThat(menusBySection).containsExactlyInAnyOrderEntriesOf(Map.of(
+            "workbench", Set.of("workbench"),
+            "organization-people", Set.of("tenant-onboarding", "admin-users", "identity-bindings"),
+            "knowledge-governance", Set.of(
+                "knowledge-governance", "config-packages", "terminology-mapping",
+                "rule-definitions", "pathway-templates", "provenance", "graph-explore", "ai-workflows"),
+            "clinical-collaboration", Set.of(
+                "mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup",
+                "sandbox"),
+            "quality-management", Set.of(
+                "qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"),
+            "compliance-security", Set.of("admin-audit", "security-baseline"),
+            "system-operations", Set.of(
+                "implementation-guide", "adapter-hub", "system-providers", "domestic-check", "dev-console")
+        ));
     }
 
     @Test
@@ -82,7 +107,7 @@ class MenuPermissionCatalogTest {
             PermissionCode.MENU_WORKBENCH,
             PermissionCode.MENU_NOTIFICATIONS,
             PermissionCode.MENU_PROVENANCE)))
-            .containsExactly("workbench", "notifications", "provenance");
+            .containsExactly("workbench", "provenance", "notifications");
     }
 
     @Test

@@ -16,8 +16,8 @@ vi.mock("react-router-dom", async () => {
 
 const allowedSections: MenuSection[] = [
   {
-    key: "knowledge-configuration",
-    label: "知识配置",
+    key: "knowledge-governance",
+    label: "知识治理",
     items: [{ key: "terminology-mapping", label: "术语与字典", path: "/terminology/mapping" }],
   },
 ];
