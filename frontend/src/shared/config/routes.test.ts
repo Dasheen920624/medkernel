@@ -887,16 +887,29 @@ describe("route metadata", () => {
       sectionKey: "clinical-collaboration",
       menuKey: "sandbox",
       placement: "primary",
-      requiredRoles: ["clinical-decision-user", "implementation-operator"],
+      requiredRoles: [
+        "clinical-decision-user",
+        "implementation-operator",
+        "clinical-governor",
+        "integration-operator",
+      ],
       requiredPermissions: ["menu.sandbox", "sandbox.run"],
     });
-    expect(
-      canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
-        permissions: [{ code: "sandbox.run" }],
-        menuKeys: ["sandbox"],
-      }),
-    ).toBe(true);
+    for (const roleCode of [
+      "clinical-decision-user",
+      "implementation-operator",
+      "clinical-governor",
+      "integration-operator",
+    ]) {
+      expect(
+        canAccessRoute(route, {
+          roles: [{ code: roleCode }],
+          permissions: [{ code: "sandbox.run" }],
+          menuKeys: ["sandbox"],
+        }),
+        `${roleCode} 应能进入全真体验沙盘`,
+      ).toBe(true);
+    }
     expect(
       canAccessRoute(route, {
         roles: [{ code: "nursing-collaborator" }],

@@ -695,7 +695,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "全真体验沙盘",
     placement: "primary",
     navigationOrder: 6,
-    requiredRoles: ["clinical-decision-user", "implementation-operator"],
+    // 法定角色见 IA 矩阵 §3：主角色=临床决策使用者、实施运维员；
+    // 次角色=临床治理负责人（验证其治理的规则/路径表现）、集成运维员（验证院内系统嵌入链路）。
+    requiredRoles: [
+      "clinical-decision-user",
+      "implementation-operator",
+      "clinical-governor",
+      "integration-operator",
+    ],
     requiredPermissions: ["menu.sandbox", "sandbox.run"],
     experience: {
       primaryRole: "临床决策使用者 / 实施运维员",
