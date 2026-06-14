@@ -105,6 +105,7 @@ class SandboxOrchestrationServiceTest {
         assertThat(response.cardCount()).isEqualTo(1);
         assertThat(response.embedToken()).isEqualTo("token-x");
         assertThat(response.embedUrl()).isEqualTo("/embed/launch?token=token-x");
+        assertThat(response.hookInstance()).isEqualTo("hook-sandbox-x");
         assertThat(response.embedModes()).containsExactly("IFRAME");
 
         InOrder calls = inOrder(snapshots, recommendations, embed);
@@ -291,7 +292,8 @@ class SandboxOrchestrationServiceTest {
             RecommendationModelStatus.MODEL_DISABLED, List.of(), "trace-sandbox"));
         when(embed.generateToken(any())).thenReturn(new EmbedLaunchTokenResponse(
             "token-x", Instant.now().plusSeconds(300), "/embed/launch?token=token-x",
-            EmbedIntegrationMode.IFRAME, "/api/v1/engine/embed/launch", "result-review"));
+            EmbedIntegrationMode.IFRAME, "/api/v1/engine/embed/launch", "result-review",
+            "hook-sandbox-x"));
     }
 
     private static SandboxRunRequest request() {

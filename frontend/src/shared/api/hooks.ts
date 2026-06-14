@@ -7588,6 +7588,7 @@ export interface EmbedLaunchTokenResponse {
   integrationMode: "IFRAME" | "SDK" | "API";
   launchEndpoint: string;
   hook?: string;
+  hookInstance?: string;
 }
 
 export interface EmbedLaunchContextResponse {
@@ -7761,6 +7762,7 @@ export interface SandboxRunResponse {
   cardCount: number;
   embedToken?: string | null;
   embedUrl?: string | null;
+  hookInstance?: string | null;
   patientPathwayId?: string | null;
   followupPlanId?: string | null;
   evaluationRunId?: string | null;

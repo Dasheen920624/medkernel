@@ -85,7 +85,7 @@ class EmbedEngineControllerTest {
     void generateToken_ReturnsOkWithResponse() throws Exception {
         EmbedLaunchTokenResponse mockResponse = new EmbedLaunchTokenResponse(
             "tkn-123456", Instant.now().plusSeconds(60), "/embed/launch?token=tkn-123456",
-            EmbedIntegrationMode.SDK, "/api/v1/engine/embed/launch", "order-sign"
+            EmbedIntegrationMode.SDK, "/api/v1/engine/embed/launch", "order-sign", "hook-order-001"
         );
         when(service.generateToken(any(EmbedLaunchTokenRequest.class))).thenReturn(mockResponse);
 
@@ -102,7 +102,8 @@ class EmbedEngineControllerTest {
             .andExpect(jsonPath("$.data.embedUrl").value("/embed/launch?token=tkn-123456"))
             .andExpect(jsonPath("$.data.integrationMode").value("SDK"))
             .andExpect(jsonPath("$.data.launchEndpoint").value("/api/v1/engine/embed/launch"))
-            .andExpect(jsonPath("$.data.hook").value("order-sign"));
+            .andExpect(jsonPath("$.data.hook").value("order-sign"))
+            .andExpect(jsonPath("$.data.hookInstance").value("hook-order-001"));
 
         verify(service).generateToken(any(EmbedLaunchTokenRequest.class));
     }

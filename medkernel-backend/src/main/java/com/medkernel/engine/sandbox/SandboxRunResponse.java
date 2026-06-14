@@ -14,6 +14,7 @@ public record SandboxRunResponse(
     int cardCount,
     String embedToken,
     String embedUrl,
+    String hookInstance,
     String patientPathwayId,
     String followupPlanId,
     String evaluationRunId,
@@ -35,9 +36,28 @@ public record SandboxRunResponse(
             int cardCount,
             String embedToken,
             String embedUrl,
+            String patientPathwayId,
+            String followupPlanId,
+            String evaluationRunId,
+            List<String> embedModes,
             String result) {
         this(
             scenarioId, traceId, steps, snapshotId, triggerId, cardCount, embedToken, embedUrl,
-            null, null, null, List.of(), result);
+            null, patientPathwayId, followupPlanId, evaluationRunId, embedModes, result);
+    }
+
+    public SandboxRunResponse(
+            String scenarioId,
+            String traceId,
+            List<SandboxStepTrace> steps,
+            String snapshotId,
+            String triggerId,
+            int cardCount,
+            String embedToken,
+            String embedUrl,
+            String result) {
+        this(
+            scenarioId, traceId, steps, snapshotId, triggerId, cardCount, embedToken, embedUrl,
+            null, null, null, null, List.of(), result);
     }
 }

@@ -2408,6 +2408,7 @@ describe("sandbox orchestration api hook", () => {
       cardCount: 1,
       embedToken: "token-1",
       embedUrl: "/embed/launch?token=token-1",
+      hookInstance: "hook-sandbox-1",
       patientPathwayId: "pp-1",
       followupPlanId: "fp-1",
       evaluationRunId: "er-1",

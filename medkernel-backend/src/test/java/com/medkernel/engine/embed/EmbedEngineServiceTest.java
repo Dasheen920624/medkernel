@@ -85,6 +85,7 @@ class EmbedEngineServiceTest {
         assertThat(response.token()).startsWith("tkn-");
         assertThat(response.integrationMode()).isEqualTo(mode);
         assertThat(response.hook()).isEqualTo("order-sign");
+        assertThat(response.hookInstance()).isEqualTo("trace-1");
         verify(tokenRepo).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.status().equals(EmbedLaunchTokenStatus.UNUSED.name())
                 && saved.integrationMode().equals(mode.name())

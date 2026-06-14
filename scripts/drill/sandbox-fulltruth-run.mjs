@@ -177,7 +177,7 @@ async function runScenario(context, scenario) {
       token: run.embedToken,
       integrationMode,
       hook: scenario.triggerPoint,
-      hookInstance: `sandbox-${scenario.id}-${Date.now()}`,
+      hookInstance: run.hookInstance,
     }, `launch-${scenario.id}`),
     `兑换场景 ${scenario.id} 嵌入令牌`,
   );
@@ -350,7 +350,7 @@ async function verifyEmbedModes(context) {
         token: run.embedToken,
         integrationMode,
         hook: scenario.triggerPoint,
-        hookInstance: `sandbox-${scenario.id}-${integrationMode.toLowerCase()}-${Date.now()}`,
+        hookInstance: run.hookInstance,
       }, `launch-${scenario.id}-${integrationMode.toLowerCase()}`),
       `兑换场景 ${scenario.id} ${integrationMode} 令牌`,
     );

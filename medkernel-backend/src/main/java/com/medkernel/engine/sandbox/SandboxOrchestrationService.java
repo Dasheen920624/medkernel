@@ -179,7 +179,8 @@ public class SandboxOrchestrationService {
                 facts(
                     "integrationMode", String.valueOf(tokenResponse.integrationMode()),
                     "expiredAt", tokenResponse.expiredAt(),
-                    "hook", tokenResponse.hook())));
+                    "hook", tokenResponse.hook(),
+                    "hookInstance", tokenResponse.hookInstance())));
             return audited(new SandboxRunResponse(
                 scenarioId,
                 traceId,
@@ -189,6 +190,7 @@ public class SandboxOrchestrationService {
                 cardCount,
                 tokenResponse.token(),
                 tokenResponse.embedUrl(),
+                tokenResponse.hookInstance(),
                 playbookOutcome.patientPathwayId(),
                 playbookOutcome.followupPlanId(),
                 playbookOutcome.evaluationRunId(),
@@ -413,6 +415,7 @@ public class SandboxOrchestrationService {
         node.put("integrationMode", String.valueOf(response.integrationMode()));
         node.put("launchEndpoint", response.launchEndpoint());
         node.put("hook", response.hook());
+        node.put("hookInstance", response.hookInstance());
         return node;
     }
 

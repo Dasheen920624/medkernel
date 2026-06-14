@@ -118,7 +118,7 @@ public class EmbedEngineService {
             "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
 
         return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl,
-            req.integrationMode(), LAUNCH_ENDPOINT, hook);
+            req.integrationMode(), LAUNCH_ENDPOINT, hook, hookInstance);
     }
 
     /**
