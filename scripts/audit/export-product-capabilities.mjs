@@ -451,7 +451,7 @@ function controllerDecision(className, endpoints) {
       rationale: "仅服务外部系统或嵌入链路，不进入客户主菜单",
     };
   }
-  if (/Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval)|PluginSecurity/i.test(text)) {
+  if (/Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval|Enhancement)|PluginSecurity/i.test(text)) {
     return {
       decision: "KEEP",
       target: "所属业务域专业能力",

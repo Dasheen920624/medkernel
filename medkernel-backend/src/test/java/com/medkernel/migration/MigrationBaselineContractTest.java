@@ -174,7 +174,8 @@ class MigrationBaselineContractTest {
         "V123__sandbox_permission_catalog.sql",
         "V124__model_egress_governance.sql",
         "V125__model_provider.sql",
-        "V126__medical_regression_eval.sql"
+        "V126__medical_regression_eval.sql",
+        "V127__model_enhancement_matrix.sql"
     );
 
     @Test
@@ -300,7 +301,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -453,7 +454,7 @@ class MigrationBaselineContractTest {
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
-        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup",
+        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup", "idx_mk_llm_enhancement_matrix_status",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -676,6 +677,7 @@ class MigrationBaselineContractTest {
         "uk_mk_llm_egress_whitelist", "ck_mk_llm_egress_whitelist_sensitivity", "ck_mk_llm_egress_approval_status",
         "uk_mk_llm_provider_tenant_code", "ck_mk_llm_provider_type", "ck_mk_llm_provider_enabled",
         "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled", "ck_mk_llm_eval_run_status",
+        "uk_mk_llm_enhancement_matrix_point", "ck_mk_llm_enhancement_matrix_status", "ck_mk_llm_enhancement_matrix_enabled",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
         "pk_export_task", "uk_export_task_idempotency", "ck_export_task_scope", "ck_export_task_status",
@@ -872,7 +874,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",
@@ -997,6 +999,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_engine_notification", Set.of("source_type", "notification_level", "status")),
         Map.entry("embed_launch_token", Set.of("status")),
         Map.entry("model_capability_definition", Set.of("enabled_flag")),
+        Map.entry("mk_llm_enhancement_matrix", Set.of("access_status", "enabled_flag")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),

@@ -420,18 +420,23 @@ class DefaultPermissionPolicyTest {
     @Test
     void llmGovernanceActionsRestWithTheirGoverningRoles() {
         // LLM-03/07/08：provider 接入与出域治理归集成运维员，医学回归评测治理归质量与医保治理员（IA 矩阵 §9，ACTION 维度）。
+        // LLM-05：全业务模型增强接入矩阵＝「模型网关全局目录」，归平台治理管理员（§9），集成运维/质量治理均不持有。
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.INTEGRATION_OPERATOR))
             .contains(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE)
-            .doesNotContain(PermissionCode.LLM_EVAL_MANAGE);
+            .doesNotContain(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
             .contains(PermissionCode.LLM_EVAL_MANAGE)
-            .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE);
+            .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE,
+                PermissionCode.LLM_ENHANCEMENT_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
+            .contains(PermissionCode.LLM_ENHANCEMENT_MANAGE);
         // 临床决策用户对任何模型治理动作零授权（最小权限红线）。
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
             .doesNotContain(
                 PermissionCode.LLM_PROVIDER_MANAGE,
                 PermissionCode.LLM_EGRESS_MANAGE,
-                PermissionCode.LLM_EVAL_MANAGE);
+                PermissionCode.LLM_EVAL_MANAGE,
+                PermissionCode.LLM_ENHANCEMENT_MANAGE);
     }
 
     @Test
