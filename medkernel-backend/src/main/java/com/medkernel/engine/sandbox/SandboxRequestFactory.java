@@ -81,8 +81,9 @@ final class SandboxRequestFactory {
             String traceId,
             String patientPathwayId) {
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
+        String runScopedTriggerCode = "sandbox:" + scenario.id() + ":" + traceId;
         return new RecommendationTriggerRequest(
-            "sandbox:" + scenario.id(),
+            runScopedTriggerCode,
             scenario.triggerPoint(),
             "sandbox-event:" + scenario.id() + ":" + traceId,
             snapshotId,
