@@ -354,6 +354,10 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.EXECUTE, "mk_llm_eval_run", "运行医学回归评测"),
                 audit(AuditAction.UPDATE, "mk_llm_eval_run", "专家复核签字放行评测"))),
+        contract("model-enhancement-matrix", "全业务模型增强接入矩阵服务",
+            "com.medkernel.engine.llm.ModelEnhancementMatrixController", "/api/v1/model-enhancement-matrix",
+            permissions("llm.read", "llm.enhancement.manage"),
+            audits(audit(AuditAction.UPDATE, "mk_llm_enhancement_matrix", "维护模型增强接入矩阵业务点"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),

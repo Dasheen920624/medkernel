@@ -96,6 +96,7 @@ public enum PermissionCode {
     LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调出域字段白名单与高敏出域审批"),
     LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/凭据引用/启停）"),
     LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学回归基准集、运行评测与专家复核签字"),
+    LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点↔能力码↔B0 路径↔接入状态）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
