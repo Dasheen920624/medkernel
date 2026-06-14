@@ -449,6 +449,15 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void engineDataExportRestsWithManagementAndQualityRoles() {
+        // DATASVC-01：引擎数据异步导出归管理质控端（同 engine-data.read 归属）；临床决策用户无导出权。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
+            .contains(PermissionCode.ENGINE_DATA_EXPORT);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
+            .doesNotContain(PermissionCode.ENGINE_DATA_EXPORT);
+    }
+
+    @Test
     void complianceAuditorActionsAreReadOrExportOnly() {
         var permissions = DefaultPermissionPolicy.permissionsOf(RoleCode.COMPLIANCE_AUDITOR);
         assertThat(permissions)

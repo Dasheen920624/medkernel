@@ -98,6 +98,7 @@ public enum PermissionCode {
     LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学回归基准集、运行评测与专家复核签字"),
     LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点↔能力码↔B0 路径↔接入状态）"),
     ENGINE_DATA_READ("engine-data.read", Risk.LOW, "查询引擎数据服务层只读统计（规则/知识使用聚合，按数据分级与权限脱敏）"),
+    ENGINE_DATA_EXPORT("engine-data.export", Risk.MEDIUM, "提交与下载引擎数据服务层异步导出（D2 去标识聚合，审批闸控、字段脱敏、小样本抑制）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),

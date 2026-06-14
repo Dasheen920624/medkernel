@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -45,14 +46,17 @@ import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.crypto.SmCryptoService;
+import com.medkernel.shared.export.ExportArtifact;
+import com.medkernel.shared.export.ExportArtifactProvider;
 
 /**
  * 大规模数据列表检索与异步批量导出核心服务引擎。
  *
  * <p>提供高性能的列表检索（含游标分页、Total Estimate 行数近似优化）以及分批异步 CSV 导出。
+ * 作为 {@link ExportArtifactProvider} 向导出审批提供 AUDIT_EVENT / TERMINOLOGY_MAPPING 资源类型的完成产物。
  */
 @Service
-public class LargeListEngineService {
+public class LargeListEngineService implements ExportArtifactProvider {
 
     private static final Logger log = LoggerFactory.getLogger(LargeListEngineService.class);
 
@@ -370,7 +374,14 @@ public class LargeListEngineService {
     /**
      * 返回已完成导出任务的可信产物信息，由服务器读取真实文件并计算 SM3 摘要。
      */
-    public LargeListExportArtifact completedExportArtifact(String jobId) {
+    @Override
+    public boolean supports(String resourceType) {
+        String normalized = resourceType == null ? "" : resourceType.trim().toLowerCase(Locale.ROOT);
+        return "audit_event".equals(normalized) || "terminology_mapping".equals(normalized);
+    }
+
+    @Override
+    public ExportArtifact completedExportArtifact(String jobId) {
         LargeListExportJob job = getExportJob(jobId);
         if (!"SUCCESS".equals(job.status())) {
             throw new ApiException(ErrorCode.ENG_LIST_003, "导出任务尚未成功，不能登记审批产物");
@@ -383,7 +394,7 @@ public class LargeListEngineService {
             throw new ApiException(ErrorCode.ENG_LIST_004, "导出的物理 CSV 文件不存在或已被清理");
         }
         try (InputStream input = Files.newInputStream(path)) {
-            return new LargeListExportArtifact(
+            return new ExportArtifact(
                 job.jobId(),
                 job.resourceType(),
                 job.requestSnapshot(),

@@ -5,11 +5,28 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**：REST/CLI/MCP 三入口共用同一后端受控合同、不绕治理。**剩余未做（更大件，见下方最新段「当前下一步」）**：D3/D4 字段级加密 + 数据分级元数据表 + 异步导出后端 / MCP SSE 传输 / 或转 AIK-STD-13/14。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**：REST/CLI/MCP 三入口共用同一后端受控合同、不绕治理。**PR2-g 异步导出后端 = 已实现待合**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616)，分支 `claude/wave2-p2b-datasvc01-async-export`，下方最新段）：三组 D2 读模型经 SYS-06 审批闸控制的异步 CSV 导出 + CLI `exports` 接线，补全 FR-1 导出 / CLI 诚实缺口。**剩余未做**：D3/D4 字段级加密 + 数据分级元数据表 / MCP SSE 传输 / 或转 AIK-STD-13/14。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
 - **P6 阻断（恒守）**：正式知识生产继续阻断——文献资料库受管根地址为空，未配置真实院方 IdP/短信/模型/图谱/外部 Provider；缺连接时按 B0 确定性主链路诚实降级。**不得进入 P6**，直到文献库根地址完成真实配置与独立验收。
+
+---
+
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 PR2-g 异步导出后端 + CLI exports 接线（已实现待合，[PR #616](https://github.com/Dasheen920624/medkernel/pull/616)，分支 `claude/wave2-p2b-datasvc01-async-export`）
+
+> **接力须知**：本段对应 PR #616（用户手动合）。设计文档 [`docs/superpowers/specs/2026-06-14-engine-data-async-export-design.md`](superpowers/specs/2026-06-14-engine-data-async-export-design.md)。续接从最新 `origin/main` 起。合并后清理本分支、转下方「当前下一步」剩余件。
+
+- **目标**：补全 CLI `exports` 诚实缺口（FR-1 异步导出 / AC-1 导出部分）。三组 D2 去标识聚合读模型（规则/知识/临床信号）经 **SYS-06 导出审批闸控制的异步 CSV 导出**对外开放，复用 `KnowledgeExportJob` 执行骨架。
+- **已完成**：
+  - 新建 `com.medkernel.engine.datasvc.export`：`EngineDataExportJob`（表 `mk_engine_data_export_job`，**V128 五方言** + 中文 COMMENT + 索引；审批锚 approval_id/idempotency_key/request_snapshot）+ `ExportJobStatus` + `EngineDataExportType`（3 型携审批资源类型标识）+ 仓储 + `EngineDataExportService`（submit **不绕审批**＝须 APPROVED 审批且资源类型/范围一致 + 幂等去重 → PENDING + 事务后投递 worker；worker 分页拉读模型 + **小样本抑制（主计数 <10→suppressed，规范 line 258）** + 写 UTF-8 BOM CSV → SUCCEEDED；上游不可用诚实 FAILED 不出半真文件；TTL 7d）+ `EngineDataExportAsyncConfig` 线程池。
+  - **SYS-06 审批产物来源泛化**：抽中性 `ExportArtifact` + `ExportArtifactProvider`（**置于 `com.medkernel.shared.export`，非 compliance**——见教训）；`LargeListEngineService`/`EngineDataExportService` 各实现；`ExportApprovalService` 注入 `List<ExportArtifactProvider>` 按 resourceType 解析。原 `LargeListExportArtifact` 删除。
+  - **破循环依赖 + 守 SYS-02 依赖方向**：新增 `shared.export.ExportApprovalGate` 接口，impl `compliance.exportapproval.ExportApprovalGateService`（独立 bean，只读审批仓储校验）；`EngineDataExportService` 依赖 shared 闸接口（引擎→shared），不依赖 compliance 仓储/服务，既破 `ExportApprovalService↔EngineDataExportService` 环，又不违 arch（引擎/shared 不得依赖 compliance）。
+  - 新权限 **`engine-data.export`**（MEDIUM，授质量/医保治理员，临床决策用户无）；`EngineDataController` 加 5 端点（提交/状态/列表/取消/下载 CSV）；契约 `engine-data` 加权限 + `mk_engine_data_export_job` 审计点；新域 `engine-data-service` 入 `DomainOwnershipCatalog`；产品目录重生成（EngineDataController→MERGE 含导出端点 + 导出服务/配置/审批闸入异步承载类）。
+  - CLI `exports` 域**替换诚实缺口桩为真实** submit/status/list/cancel/complete（complete 走合规导出审批登记端点）；`apiClient` 加 `post`。
+- **验证全绿**：全量 `mvn test` **2433 通过**（基线 2409 + 新增 24）+ 四门禁（authenticity/config/migration/comment-zh，changed 模式）+ `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5 + CLI `node --test` 26/26。
+- **教训（写给下个会话）**：① arch 规则 **SYS-02**：`com.medkernel.engine..`/`shared..` **不得依赖** `com.medkernel.compliance..`（依赖方向只能业务→引擎/shared）——跨引擎/合规复用的抽象（接口/record）须放 `shared`，不能放 compliance；首版把 `ExportArtifact`/`Provider` 放 compliance + 引擎服务依赖 compliance 仓储，被 `ModuleBoundaryArchTest` 拦下（全量 CI 才暴露，本地先跑 `mvn test -Dtest=ModuleBoundaryArchTest`）。② 新增 `@Service`（即便非控制器）若类名含 Export 等会进产品功能目录批量承载类——改后端务必重生成 `product-function-catalog` 并本地跑前端 `productCatalog.test.ts`。
+- **当前下一步（接力点，从最新 `origin/main` 起新分支）**：PR #616 合并后剩余件二选一——① **D3/D4 字段级加密 + 数据分级元数据表**（AC-1 字段级加密缺口，须设计密钥边界：来源/轮换/本地开发替代）；② 转 **AIK-STD-13/14**（Agent 生产底座，MCP 工具+服务+异步导出底座均已就绪）。恒守：TDD 红绿 + 每卡 B0 验收 + P6 阻断 + 合并 main 逐 PR 授权。
 
 ---
 
