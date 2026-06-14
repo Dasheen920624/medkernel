@@ -15,7 +15,7 @@
 
 ## 2026-06-14 第一阶段全面复核收官（本轮）：独立复核 + 沙盘角色补全 + 文档收敛
 
-- 工作分支 `claude/p5-first-phase-comprehensive-closeout`（base=最新 `origin/main`）。用户要求对第一阶段做独立全面复核（功能完整性、菜单分类/命名、角色分配合理性），发现问题即优化改造，并梳理文档（移除过期/无意义、保持干净文档线），统一 PR 进 main 完美收尾。
+- 工作分支 `claude/p5-first-phase-comprehensive-closeout`（base=最新 `origin/main`），**已提交 `338f8464`、推送并创建 [PR #603](https://github.com/Dasheen920624/medkernel/pull/603)**。用户要求对第一阶段做独立全面复核（功能完整性、菜单分类/命名、角色分配合理性），发现问题即优化改造，并梳理文档（移除过期/无意义、保持干净文档线），统一 PR 进 main 完美收尾。
 - **复核结论（证据优先，绝大多数已成熟）**：
   - 全栈绿基线：后端 `mvn test` 2282 通过、前端 94 文件/695 通过、JS 三门禁（真实性 1633 / 配置边界 1535 / 中文注释 0fail）全绿、沙盘场景规则 `node --test` 通过、`git diff --check` 通过。
   - 菜单 IA：7 业务域 31 入口为 [`product-ia-matrix.md`](audit/product-ia-matrix.md) 唯一架构裁决产物（候选评分 38 胜出），代码 `routes.ts` 派生菜单且 `menu.test.ts` 锁定 29 主入口，命名已专门清理技术词/英文/旧域名——**属成熟设计，不为改而改推翻重组**（避免违背自家架构裁决并破坏锁定测试）；权威文档集零死链。
@@ -25,7 +25,7 @@
   1. **沙盘角色补全**（对齐 IA 矩阵 §3 次角色）：`SANDBOX_RUN`+`MENU_SANDBOX` 增授**集成运维员**（沙盘本质=以宿主系统视角验证院内业务系统嵌入链路，正是其本职；本就持 embed/recommendation 满血）与**临床治理负责人**（验证其治理的规则/路径端到端表现）。沙盘编排令牌进程内生成、embed 走公开 `/embed/launch` 路由用令牌兑换，故两角色**仅需 `sandbox.run`+`menu.sandbox`、零越权**（契合 spec §133 克制原则）。改动：`DefaultPermissionPolicy.java`、两处快照/不变量测试 `DefaultPermissionPolicyTest`、前端 `routes.ts` + `routes.test.ts`。
   2. **文档收敛**：`deferred-issues.md` 中 DEFER-019（随访模板资产）据 PR #600 收官证据转 `done`；本 `_HANDOFF.md` 将 16+ 已闭环幕级/阶段历史段收敛为下方索引表。
 - **如实保留（未动）**：旧巨物（`MEDKERNEL_*` 四件）按 [docs/README](README.md) §1 保留至 P8 才删，现 P5 不删；`docs/audit/BASE-*`、页面审计是交叉引用的审计痕迹保留；`.codex/`（厂商技能包）与 `docs/superpowers/plans/`（README 明示"设计证据非并行真相源"）的历史死链不动；DEFER-024（沙盘 #2–#10 临床阈值评审）继续 `open`，9 个未评审场景按 `CLINICAL_REVIEW_REQUIRED` 阻断。
-- **当前下一步**：① 本轮收尾验证（已跑全量后端/前端/构建/lint/门禁）→ 提交、推送、创建 PR；② CI 全绿后请求授权 squash 合并；③ 合并后从最新 `origin/main` 续第二阶段（知识生产工厂），恪守上方 P6 阻断。
+- **当前下一步**：① PR #603 CI 全绿后请求用户授权 squash 合并（合并 main 逐 PR 授权）；② 合并后确认 `origin/main` 含合并提交、清理已并分支；③ 从最新 `origin/main` 续第二阶段（知识生产工厂），恪守上方 P6 阻断。
 
 ---
 
