@@ -319,7 +319,7 @@ public final class DefaultPermissionPolicy {
             FOLLOWUP_READ,
             WORKFLOW_READ,
             NOTIFICATION_READ,
-            LLM_READ,
+            LLM_READ, LLM_EVAL_MANAGE,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_QC_DASHBOARD,

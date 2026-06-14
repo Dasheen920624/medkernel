@@ -76,6 +76,18 @@ public class ModelProviderRegistry {
         return Optional.empty();
     }
 
+    /**
+     * 按 provider 编码解析适配器+配置（用于医学回归评测，不论启停/健康，以便上线前评测候选 provider）。
+     */
+    public Optional<ResolvedProvider> resolveByCode(String tenantId, String providerCode) {
+        return repository.findByTenantIdAndProviderCode(tenantId, providerCode)
+            .map(config -> {
+                ProviderType type = parseType(config.providerType());
+                ModelProvider adapter = type == null ? null : adaptersByType.get(type);
+                return adapter == null ? null : new ResolvedProvider(adapter, config);
+            });
+    }
+
     private ProviderType parseType(String raw) {
         try {
             return ProviderType.valueOf(raw);
