@@ -146,6 +146,9 @@ jobs:
         if: always()
         run: node scripts/config-boundary-guard.mjs --mode=inventory
 
+      - name: Test MCP server (DATASVC-01 FR-4)
+        run: node --test mcp-server/test/*.test.mjs
+
   # 前端骨架编译检查
   frontend-build-test:
     name: frontend-build-test
