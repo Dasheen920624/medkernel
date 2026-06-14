@@ -1,0 +1,16 @@
+{
+  "name": "@medkernel/cli",
+  "version": "0.1.0",
+  "description": "MedKernel 产品级 CLI——面向交付与运维的受控数据服务客户端（DATASVC-01 FR-3，走后端 API 鉴权，不直连库、不绕治理）",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "medkernel": "./src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
