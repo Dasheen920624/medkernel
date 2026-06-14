@@ -19,6 +19,8 @@ const evidenceDir = path.join(
   "docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官",
 );
 const findingPrefix = "P5.ACT7.FOLLOWUP.ABNORMAL.";
+const sandboxFindingCode = "P5.ACT7.FOLLOWUP.QUALITY_FND";
+const sandboxTracePrefix = "sandbox-fulltruth-run-sbx-evaluation-closed-loop-";
 const runTag = `p5-final-rectification-${Date.now()}`;
 
 function traceId(stage) {
@@ -68,6 +70,19 @@ function requireOk(result, stage) {
     throw new Error(`${stage} 失败: HTTP ${result.status} ${JSON.stringify(result.body).slice(0, 600)}`);
   }
   return dataOf(result);
+}
+
+function closeoutScope(issue) {
+  if (issue.findingCode?.startsWith(findingPrefix)) {
+    return "P5_ACT7_LEGACY_RECTIFICATION";
+  }
+  if (
+    issue.findingCode === sandboxFindingCode
+    && issue.traceId?.startsWith(sandboxTracePrefix)
+  ) {
+    return "SANDBOX_EVALUATION_RECTIFICATION";
+  }
+  return null;
 }
 
 async function login(browser, account, role) {
@@ -121,12 +136,11 @@ async function main() {
       "查询质控问题",
     );
     const pendingIssues = (issuePage.items ?? []).filter(
-      (issue) =>
-        issue.findingCode?.startsWith(findingPrefix)
-        && !["CLOSED", "WAIVED"].includes(issue.status),
+      (issue) => closeoutScope(issue) && !["CLOSED", "WAIVED"].includes(issue.status),
     );
 
     for (const issue of pendingIssues) {
+      const scope = closeoutScope(issue);
       let detail = requireOk(
         await apiGet(
           qualityContext,
@@ -147,7 +161,9 @@ async function main() {
             `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
             {
               rectificationSummary:
-                "补齐失败演练遗留整改：已完成随访异常复评记录核对、证据引用校验和责任科室确认；未自动开立医嘱。",
+                scope === "SANDBOX_EVALUATION_RECTIFICATION"
+                  ? "关闭沙盘评估演练整改：已核对沙盘随访质量评估结果、问题编码、任务派发和证据引用；该任务仅由全真沙盘演练触发，不涉及真实患者处置。"
+                  : "补齐失败演练遗留整改：已完成随访异常复评记录核对、证据引用校验和责任科室确认；未自动开立医嘱。",
               evidenceRef: `P5-FIRST-PHASE-CLOSEOUT:${issue.findingId}:${taskId}`,
             },
             "submit-rectification",
@@ -158,6 +174,7 @@ async function main() {
         actions.push({
           findingId: issue.findingId,
           findingCode: issue.findingCode,
+          scope,
           taskId,
           action: "SUBMIT",
           result: submitted,
@@ -180,7 +197,9 @@ async function main() {
             {
               decision: "APPROVED",
               comment:
-                "第一阶段收官复核：遗留演练整改已由独立责任角色提交，问题、任务和证据引用一致，同意关闭。",
+                scope === "SANDBOX_EVALUATION_RECTIFICATION"
+                  ? "第一阶段收官复核：沙盘评估演练整改已由独立责任角色提交，问题、任务和演练证据引用一致，同意关闭。"
+                  : "第一阶段收官复核：遗留演练整改已由独立责任角色提交，问题、任务和证据引用一致，同意关闭。",
               evidenceRef: `P5-FIRST-PHASE-REVIEW:${issue.findingId}:${taskId}`,
             },
             "review-rectification",
@@ -191,6 +210,7 @@ async function main() {
         actions.push({
           findingId: issue.findingId,
           findingCode: issue.findingCode,
+          scope,
           taskId,
           action: "REVIEW",
           result: reviewed,
@@ -203,9 +223,7 @@ async function main() {
       "回查质控问题",
     );
     const remaining = (finalIssues.items ?? []).filter(
-      (issue) =>
-        issue.findingCode?.startsWith(findingPrefix)
-        && !["CLOSED", "WAIVED"].includes(issue.status),
+      (issue) => closeoutScope(issue) && !["CLOSED", "WAIVED"].includes(issue.status),
     );
     const report = requireOk(
       await apiGet(qualityContext, "/engine/rectifications/report", "verify-report"),
@@ -220,6 +238,8 @@ async function main() {
       generatedAt: new Date().toISOString(),
       baseUrl,
       findingPrefix,
+      sandboxFindingCode,
+      sandboxTracePrefix,
       initialPendingCount: pendingIssues.length,
       actions,
       remainingP5Issues: remaining,
