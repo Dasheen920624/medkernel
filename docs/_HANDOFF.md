@@ -5,7 +5,7 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）PR1-a/b/c（规则/知识/临床信号 D2，#608/#609/#610）+ PR2-a（受控工具入口，#611）**均已合并**，**当前在做 PR2-b：MCP 受控工具 `explainRule`+`checkKnowledgeExistence`（D1），已实现待推送/PR**（见下方最新段）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）PR1-a/b/c（规则/知识/临床信号 D2，#608/#609/#610）+ PR2-a（受控工具入口，#611）**均已合并**，**当前在做 [PR #612](https://github.com/Dasheen920624/medkernel/pull/612)（分支 `claude/wave2-p2b-datasvc01-explain-existence`）：批入 PR2-b+2-c 共 4 个 MCP 受控工具 `explainRule`/`checkKnowledgeExistence`（D1）+ `searchKnowledge`（D1）/`validatePrivacyPolicy`（D0），MCP 工具达 6/7，已推送待 CI/合并**（见下方最新段）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
@@ -13,18 +13,21 @@
 
 ---
 
-## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR2-b（MCP 受控工具 explainRule + checkKnowledgeExistence D1，待推送/PR）
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR2-b+2-c（4 个 MCP 受控工具，MCP 达 6/7，[PR #612](https://github.com/Dasheen920624/medkernel/pull/612) 已推送待 CI/合并）
 
-- **活跃分支** `claude/wave2-p2b-datasvc01-explain-existence`（base=最新 `origin/main` `b4ddb724`，含 PR2-a 合并）。`DATASVC-01` 是 **12d 大卡按 PR 分期**，本提交＝ **PR2-b 切片：在 PR2-a 受控工具底座上续登记两个单对象 D1 工具**（卡工序 PR2，朝 AC-2「MCP 7 工具」推进，现累计 4/7）。**PR2-a 已合并**（[PR #611](https://github.com/Dasheen920624/medkernel/pull/611) `b4ddb724`，见下方 PR2-a 闭环段）。
-- **已完成（PR2-b）**：续 `com.medkernel.engine.datasvc`，注册 `explainRule` + `checkKnowledgeExistence` 两个 D1 受控工具，不绕治理仅派发既有只读服务（FR-4/5/6）。
+- **活跃分支** `claude/wave2-p2b-datasvc01-explain-existence`（base=最新 `origin/main` `b4ddb724`，含 PR2-a 合并）→ [PR #612](https://github.com/Dasheen920624/medkernel/pull/612)。`DATASVC-01` 是 **12d 大卡按 PR 分期**；本 PR **批入 PR2-b+2-c 共 4 个受控工具**（用户授权后续多个小任务统一提交节省时间），朝 AC-2「MCP 7 工具」推进，**现累计 6/7**。**PR2-a 已合并**（[PR #611](https://github.com/Dasheen920624/medkernel/pull/611) `b4ddb724`，见下方 PR2-a 闭环段）。
+- **已完成（PR2-b：explainRule + checkKnowledgeExistence，D1）**：续 `com.medkernel.engine.datasvc`，不绕治理仅派发既有只读服务（FR-4/5/6）。
   - `ToolExecutionRequest` 加 `target` 目标标识字段（单对象工具自校验，缺失结构化 400 `ENG-API-001`，经 `requireTarget` 不泄漏内部）。
   - `RuleExplanationService` 只读 `rule_definition`（engine-rule 所属，仅读 SELECT 不违域归属，强租户隔离）映射单条规则**已发布资产元数据为 D1 解释**；规则不存在结构化 404（`ApiException.notFound`）；上游不可用诚实降级（字段留空不伪造元数据，铁律 #1）。
   - `KnowledgeExistenceService` 只读 `knowledge_identity`（engine-knowledge 所属，仅读）回答存在性；**真实不存在＝ `exists=false` 且 `degraded=false`（诚实回答非报错非降级，铁律 #1）**，仅上游不可用 `degraded=true` 不以「不存在」伪装。
-  - `RuleExplanation`/`KnowledgeExistence` 两 D1 DTO；`ControlledToolService` 注册两工具 + `policyFor(level)` 按数据级别给脱敏策略标识（D1=已发布资产元数据/D2=去标识聚合/D3+ 最严占位不以宽松伪装）；信封真实 SHA-256 hash + 工具调用审计（用途/级别/hash）。
-  - 契约 `engine-data` 补声明 `rule_definition`/`knowledge_identity` 审计点；**无新控制器/新端点**（两工具走既有 `POST /tools/{toolName}:execute`），产品功能目录 `--check` 无漂移。
-- **验证全绿**：全量 `mvn test` **2391 通过**（基线 2381 + 新增 10：RuleExplanationService 3 + KnowledgeExistenceService 3 + ControlledToolService 新增 4）；架构契约组（ServiceContract/OpenApi/ProfileGate/DomainOwnership/ApiContract）+ datasvc 全包 71 绿；产品目录 `--check` 退 0；前端 `productCatalog.test.ts` 5/5；`git diff --check` 干净。
-- **诚实分寸（大卡未完，FR/AC 不全勾）**：本切片补 FR-4 中 2 工具（累计 4/7：queryRuleUsage/summarizeEngineSignals/explainRule/checkKnowledgeExistence）。**未实现**：MCP 其余 3 工具（`searchKnowledge` 须知识检索读模型 / `validatePrivacyPolicy` 须隐私策略读模型 / `getClinicalContextExplanation` D4 须绑临床 launch token，留专门切片）、CLI 6 命令域（FR-3）、MCP 协议层适配、**D3/D4 字段级加密**、数据分级元数据表/导出。`backlog.md` DATASVC-01 保持 `pending`。卡 [DATASVC-01](cards/wave2/DATASVC-01.md)「实现进度」已加 PR2-b 诚实标切片。
-- **当前下一步**：提交→推送→建 PR（base=`main`），CI 全绿后请求授权 squash 合并 → 续 PR2 后续切片（MCP 其余工具 `searchKnowledge`/`validatePrivacyPolicy` 各自上游 / CLI 命令域）或 `getClinicalContextExplanation` D4 launch token 专门切片 / D3-D4 字段级加密数据切片 / P2-B 其他卡（`AIK-STD-13/14`）。
+  - `policyFor(level)` 按数据级别给脱敏策略标识（D1=已发布资产元数据/D2=去标识聚合/D3+ 最严策略，不以宽松伪装高敏处理）；信封真实 SHA-256 hash + 工具调用审计（用途/级别/hash）。契约 `engine-data` 补声明 `rule_definition`/`knowledge_identity` 审计点。
+- **已完成（PR2-c：searchKnowledge D1 + validatePrivacyPolicy D0）**：
+  - `KnowledgeSearchService` 按关键词只读检索 `knowledge_identity`（复用现成 `pageByFilter/countByFilter`，keyword 归一＝trim+lower+`%`，强租户隔离）映射 D1 命中列表服务端分页；真实无匹配诚实空结果非降级、上游不可用诚实降级不伪装。
+  - `PrivacyPolicyService` 纯数据分级 D0–D5 准入策略判定（无上游表，结果为 D0 策略元数据）：D0/D1/D2 准入；**D3/D4 须字段级加密、当前未实现故诚实判不准入（不以「已支持」伪装，铁律 #1）**；D5 重要个人信息禁入（FR-2）；非法级别结构化 400。
+  - 两工具注册入 `ControlledToolService`；**无新控制器/新端点**（均走既有 `POST /tools/{toolName}:execute`），契约/产品目录无新增（searchKnowledge 复用 `knowledge_identity` 审计点，validatePrivacyPolicy 不碰表）。
+- **验证全绿**：全量 `mvn test` **2401 通过**（PR2-a 基线 2381 + 共新增 20：PR2-b 10 + PR2-c 10〔KnowledgeSearchService 3 + PrivacyPolicyService 4 + ControlledToolService +3〕）；增量门禁（authenticity/config-boundary，**首推 guard-rules 曾因 `policyFor` Javadoc 含「占位」禁词失败、已改词修复并 `a150d7e6` 推送**）+ 架构契约组 + datasvc 全包绿；产品目录 `--check` 退 0；前端 `productCatalog.test.ts` 5/5；`git diff --check` 干净。
+- **诚实分寸（大卡未完，FR/AC 不全勾）**：MCP 工具 6/7（queryRuleUsage/summarizeEngineSignals/explainRule/checkKnowledgeExistence/searchKnowledge/validatePrivacyPolicy）。**未实现**：MCP 第 7 工具 `getClinicalContextExplanation`（D4 须绑临床 launch token + 用途 + 过期 + 能力码 + 组织范围，留专门切片）、CLI 6 命令域（FR-3）、MCP 协议层适配、**D3/D4 字段级加密** + 数据分级元数据表 + 异步导出。`backlog.md` DATASVC-01 保持 `pending`。卡 [DATASVC-01](cards/wave2/DATASVC-01.md)「实现进度」已加 PR2-b/2-c 诚实标切片。
+- **当前下一步**：PR #612 CI 全绿后请求授权 squash 合并 → 续 PR2 后续切片：`getClinicalContextExplanation` D4 launch token 专门切片 / CLI 6 命令域 / D3-D4 字段级加密数据切片 / P2-B 其他卡（`AIK-STD-13/14`）。**注**：PR2-c 两工具已在本地批入分支但**晚于首推**，须 `git add` 余下文件再追加提交推送（见下方提交清单）。
 
 ---
 

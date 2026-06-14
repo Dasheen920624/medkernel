@@ -38,6 +38,8 @@ class ControlledToolServiceTest {
     private ClinicalSignalsService clinicalSignalsService;
     private RuleExplanationService ruleExplanationService;
     private KnowledgeExistenceService knowledgeExistenceService;
+    private KnowledgeSearchService knowledgeSearchService;
+    private PrivacyPolicyService privacyPolicyService;
     private AuditRecorder auditRecorder;
     private ControlledToolService service;
 
@@ -48,9 +50,12 @@ class ControlledToolServiceTest {
         clinicalSignalsService = mock(ClinicalSignalsService.class);
         ruleExplanationService = mock(RuleExplanationService.class);
         knowledgeExistenceService = mock(KnowledgeExistenceService.class);
+        knowledgeSearchService = mock(KnowledgeSearchService.class);
+        privacyPolicyService = mock(PrivacyPolicyService.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
-            clinicalSignalsService, ruleExplanationService, knowledgeExistenceService, auditRecorder);
+            clinicalSignalsService, ruleExplanationService, knowledgeExistenceService,
+            knowledgeSearchService, privacyPolicyService, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
     }
 
@@ -143,6 +148,50 @@ class ControlledToolServiceTest {
         assertThat(envelope.degraded()).isFalse();
         assertThat(envelope.payload()).isInstanceOf(KnowledgeExistence.class);
         assertThat(((KnowledgeExistence) envelope.payload()).exists()).isFalse();
+    }
+
+    @Test
+    void listTools_registersSearchKnowledgeAndValidatePrivacyPolicy() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name)
+            .contains("searchKnowledge", "validatePrivacyPolicy");
+        assertThat(tools).filteredOn(t -> t.name().equals("searchKnowledge"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1));
+        // 策略判定结果为 D0 策略元数据。
+        assertThat(tools).filteredOn(t -> t.name().equals("validatePrivacyPolicy"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D0));
+    }
+
+    @Test
+    void execute_searchKnowledge_wrapsHitsInEnvelopeAtD1() {
+        when(knowledgeSearchService.search("糖尿病", 0, 20)).thenReturn(new KnowledgeSearchResult(
+            EngineDataLevel.D1, 1L, 0, 20,
+            List.of(new KnowledgeSearchHit("K-DM", "糖尿病诊疗指南", "GUIDELINE", "ACTIVE")),
+            Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("searchKnowledge", reqTarget("糖尿病"));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(KnowledgeSearchResult.class);
+        assertThat(((KnowledgeSearchResult) envelope.payload()).total()).isEqualTo(1L);
+    }
+
+    @Test
+    void execute_validatePrivacyPolicy_deniesD5AtD0Envelope() {
+        when(privacyPolicyService.validate("D5")).thenReturn(new PrivacyPolicyDecision(
+            "D5", false, false, "重要个人信息禁入数据服务/CLI/MCP/模型输入（FR-2）",
+            EngineDataLevel.D0, Instant.parse("2026-06-14T00:00:00Z")));
+
+        ToolExecutionEnvelope envelope = service.execute("validatePrivacyPolicy", reqTarget("D5"));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D0);
+        assertThat(envelope.degraded()).isFalse();
+        assertThat(envelope.payload()).isInstanceOf(PrivacyPolicyDecision.class);
+        assertThat(((PrivacyPolicyDecision) envelope.payload()).allowed()).isFalse();
     }
 
     @Test

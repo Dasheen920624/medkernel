@@ -33,6 +33,8 @@ public class ControlledToolService {
     static final String TOOL_SUMMARIZE_ENGINE_SIGNALS = "summarizeEngineSignals";
     static final String TOOL_EXPLAIN_RULE = "explainRule";
     static final String TOOL_CHECK_KNOWLEDGE_EXISTENCE = "checkKnowledgeExistence";
+    static final String TOOL_SEARCH_KNOWLEDGE = "searchKnowledge";
+    static final String TOOL_VALIDATE_PRIVACY_POLICY = "validatePrivacyPolicy";
     private static final String REQUIRED_PERMISSION = "engine-data.read";
     private static final String FINGERPRINT_BLANK_MESSAGE = "工具输出指纹不可为空";
 
@@ -41,6 +43,8 @@ public class ControlledToolService {
     private final ClinicalSignalsService clinicalSignalsService;
     private final RuleExplanationService ruleExplanationService;
     private final KnowledgeExistenceService knowledgeExistenceService;
+    private final KnowledgeSearchService knowledgeSearchService;
+    private final PrivacyPolicyService privacyPolicyService;
     private final AuditRecorder auditRecorder;
 
     public ControlledToolService(RuleUsageStatsService ruleUsageStatsService,
@@ -48,12 +52,16 @@ public class ControlledToolService {
             ClinicalSignalsService clinicalSignalsService,
             RuleExplanationService ruleExplanationService,
             KnowledgeExistenceService knowledgeExistenceService,
+            KnowledgeSearchService knowledgeSearchService,
+            PrivacyPolicyService privacyPolicyService,
             AuditRecorder auditRecorder) {
         this.ruleUsageStatsService = ruleUsageStatsService;
         this.knowledgeUsageStatsService = knowledgeUsageStatsService;
         this.clinicalSignalsService = clinicalSignalsService;
         this.ruleExplanationService = ruleExplanationService;
         this.knowledgeExistenceService = knowledgeExistenceService;
+        this.knowledgeSearchService = knowledgeSearchService;
+        this.privacyPolicyService = privacyPolicyService;
         this.auditRecorder = auditRecorder;
     }
 
@@ -69,7 +77,11 @@ public class ControlledToolService {
             new ControlledToolDescriptor(TOOL_EXPLAIN_RULE,
                 "解释单条规则的已发布资产元数据", EngineDataLevel.D1, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_CHECK_KNOWLEDGE_EXISTENCE,
-                "检查知识身份是否存在并附最小元数据", EngineDataLevel.D1, REQUIRED_PERMISSION));
+                "检查知识身份是否存在并附最小元数据", EngineDataLevel.D1, REQUIRED_PERMISSION),
+            new ControlledToolDescriptor(TOOL_SEARCH_KNOWLEDGE,
+                "按关键词检索知识身份的已发布资产元数据", EngineDataLevel.D1, REQUIRED_PERMISSION),
+            new ControlledToolDescriptor(TOOL_VALIDATE_PRIVACY_POLICY,
+                "判定数据分级是否准入数据服务/CLI/MCP", EngineDataLevel.D0, REQUIRED_PERMISSION));
     }
 
     /**
@@ -82,8 +94,31 @@ public class ControlledToolService {
             case TOOL_SUMMARIZE_ENGINE_SIGNALS -> executeSummarizeEngineSignals(request);
             case TOOL_EXPLAIN_RULE -> executeExplainRule(request);
             case TOOL_CHECK_KNOWLEDGE_EXISTENCE -> executeCheckKnowledgeExistence(request);
+            case TOOL_SEARCH_KNOWLEDGE -> executeSearchKnowledge(request);
+            case TOOL_VALIDATE_PRIVACY_POLICY -> executeValidatePrivacyPolicy(request);
             default -> throw ApiException.notFound("受控工具 " + toolName);
         };
+    }
+
+    private ToolExecutionEnvelope executeSearchKnowledge(ToolExecutionRequest request) {
+        String keyword = requireTarget(request, TOOL_SEARCH_KNOWLEDGE);
+        KnowledgeSearchResult result = knowledgeSearchService.search(keyword, request.page(), request.size());
+        String fingerprint = TOOL_SEARCH_KNOWLEDGE + "|keyword=" + keyword + "|total=" + result.total()
+            + "|hits=" + result.hits().stream()
+                .map(h -> h.identityCode() + ":" + h.status())
+                .collect(Collectors.joining(","));
+        return envelope(TOOL_SEARCH_KNOWLEDGE, result.dataLevel(), result.generatedAt(),
+            result.degraded(), result.degradeReason(), fingerprint, result, request.purpose());
+    }
+
+    private ToolExecutionEnvelope executeValidatePrivacyPolicy(ToolExecutionRequest request) {
+        String level = requireTarget(request, TOOL_VALIDATE_PRIVACY_POLICY);
+        PrivacyPolicyDecision result = privacyPolicyService.validate(level);
+        String fingerprint = TOOL_VALIDATE_PRIVACY_POLICY + "|level=" + result.requestedLevel()
+            + "|allowed=" + result.allowed() + "|encryption=" + result.requiresFieldEncryption();
+        // 策略判定无上游降级路径：诚实标 degraded=false。
+        return envelope(TOOL_VALIDATE_PRIVACY_POLICY, result.dataLevel(), result.generatedAt(),
+            false, null, fingerprint, result, request.purpose());
     }
 
     private ToolExecutionEnvelope executeExplainRule(ToolExecutionRequest request) {
