@@ -361,7 +361,9 @@ public final class ServiceContractCatalog {
         contract("engine-data", "引擎数据服务层只读统计服务",
             "com.medkernel.engine.datasvc.EngineDataController", "/api/v1/engine-data",
             permissions("engine-data.read"),
-            audits(audit(AuditAction.EXECUTE, "rule_execution_log", "查询规则使用统计（D2 去标识聚合）"))),
+            audits(
+                audit(AuditAction.EXECUTE, "rule_execution_log", "查询规则使用统计（D2 去标识聚合）"),
+                audit(AuditAction.EXECUTE, "recommendation_source", "查询知识使用统计（D2 去标识聚合）"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),
