@@ -35,6 +35,7 @@ public class ControlledToolService {
     static final String TOOL_CHECK_KNOWLEDGE_EXISTENCE = "checkKnowledgeExistence";
     static final String TOOL_SEARCH_KNOWLEDGE = "searchKnowledge";
     static final String TOOL_VALIDATE_PRIVACY_POLICY = "validatePrivacyPolicy";
+    static final String TOOL_GET_CLINICAL_CONTEXT_EXPLANATION = "getClinicalContextExplanation";
     private static final String REQUIRED_PERMISSION = "engine-data.read";
     private static final String FINGERPRINT_BLANK_MESSAGE = "工具输出指纹不可为空";
 
@@ -45,6 +46,7 @@ public class ControlledToolService {
     private final KnowledgeExistenceService knowledgeExistenceService;
     private final KnowledgeSearchService knowledgeSearchService;
     private final PrivacyPolicyService privacyPolicyService;
+    private final ClinicalContextService clinicalContextService;
     private final AuditRecorder auditRecorder;
 
     public ControlledToolService(RuleUsageStatsService ruleUsageStatsService,
@@ -54,6 +56,7 @@ public class ControlledToolService {
             KnowledgeExistenceService knowledgeExistenceService,
             KnowledgeSearchService knowledgeSearchService,
             PrivacyPolicyService privacyPolicyService,
+            ClinicalContextService clinicalContextService,
             AuditRecorder auditRecorder) {
         this.ruleUsageStatsService = ruleUsageStatsService;
         this.knowledgeUsageStatsService = knowledgeUsageStatsService;
@@ -62,6 +65,7 @@ public class ControlledToolService {
         this.knowledgeExistenceService = knowledgeExistenceService;
         this.knowledgeSearchService = knowledgeSearchService;
         this.privacyPolicyService = privacyPolicyService;
+        this.clinicalContextService = clinicalContextService;
         this.auditRecorder = auditRecorder;
     }
 
@@ -81,7 +85,9 @@ public class ControlledToolService {
             new ControlledToolDescriptor(TOOL_SEARCH_KNOWLEDGE,
                 "按关键词检索知识身份的已发布资产元数据", EngineDataLevel.D1, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_VALIDATE_PRIVACY_POLICY,
-                "判定数据分级是否准入数据服务/CLI/MCP", EngineDataLevel.D0, REQUIRED_PERMISSION));
+                "判定数据分级是否准入数据服务/CLI/MCP", EngineDataLevel.D0, REQUIRED_PERMISSION),
+            new ControlledToolDescriptor(TOOL_GET_CLINICAL_CONTEXT_EXPLANATION,
+                "解释临床 launch 令牌授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION));
     }
 
     /**
@@ -96,8 +102,19 @@ public class ControlledToolService {
             case TOOL_CHECK_KNOWLEDGE_EXISTENCE -> executeCheckKnowledgeExistence(request);
             case TOOL_SEARCH_KNOWLEDGE -> executeSearchKnowledge(request);
             case TOOL_VALIDATE_PRIVACY_POLICY -> executeValidatePrivacyPolicy(request);
+            case TOOL_GET_CLINICAL_CONTEXT_EXPLANATION -> executeGetClinicalContextExplanation(request);
             default -> throw ApiException.notFound("受控工具 " + toolName);
         };
+    }
+
+    private ToolExecutionEnvelope executeGetClinicalContextExplanation(ToolExecutionRequest request) {
+        String launchToken = requireTarget(request, TOOL_GET_CLINICAL_CONTEXT_EXPLANATION);
+        ClinicalContextExplanation result = clinicalContextService.explainContext(launchToken, request.purpose());
+        // 指纹仅含授权结果与非患者上下文（患者引用已在服务侧脱敏，不入指纹）。
+        String fingerprint = TOOL_GET_CLINICAL_CONTEXT_EXPLANATION + "|authorized=" + result.authorized()
+            + "|trigger=" + result.triggerPoint() + "|validUntil=" + result.sessionValidUntil();
+        return envelope(TOOL_GET_CLINICAL_CONTEXT_EXPLANATION, result.dataLevel(), result.generatedAt(),
+            result.degraded(), result.degradeReason(), fingerprint, result, request.purpose());
     }
 
     private ToolExecutionEnvelope executeSearchKnowledge(ToolExecutionRequest request) {
@@ -192,14 +209,16 @@ public class ControlledToolService {
     }
 
     /**
-     * 按数据级别给出后端脱敏策略标识（FR-2）：D0/D1 为已发布元数据无需脱敏，D2 为去标识聚合；
-     * D3 及以上须字段级加密，当前工具不暴露该层级，故默认返回最严策略标识（不以宽松策略伪装高敏处理）。
+     * 按数据级别给出后端脱敏策略标识（FR-2）：D0/D1 为已发布元数据无需脱敏，D2 为去标识聚合，
+     * D4 为最小授权上下文（患者引用不可逆脱敏，不输出原始患者字段）；D3/D5 当前工具不暴露，
+     * 默认返回最严策略标识（不以宽松策略伪装高敏处理）。
      */
     private static String policyFor(EngineDataLevel level) {
         return switch (level) {
             case D0 -> "D0_RUNTIME_METADATA";
             case D1 -> "D1_PUBLISHED_ASSET_METADATA";
             case D2 -> "D2_DEIDENTIFIED_AGGREGATE";
+            case D4 -> "D4_MASKED_MINIMAL_CONTEXT";
             default -> "RESTRICTED_FIELD_ENCRYPTION_REQUIRED";
         };
     }

@@ -40,6 +40,7 @@ class ControlledToolServiceTest {
     private KnowledgeExistenceService knowledgeExistenceService;
     private KnowledgeSearchService knowledgeSearchService;
     private PrivacyPolicyService privacyPolicyService;
+    private ClinicalContextService clinicalContextService;
     private AuditRecorder auditRecorder;
     private ControlledToolService service;
 
@@ -52,10 +53,11 @@ class ControlledToolServiceTest {
         knowledgeExistenceService = mock(KnowledgeExistenceService.class);
         knowledgeSearchService = mock(KnowledgeSearchService.class);
         privacyPolicyService = mock(PrivacyPolicyService.class);
+        clinicalContextService = mock(ClinicalContextService.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
             clinicalSignalsService, ruleExplanationService, knowledgeExistenceService,
-            knowledgeSearchService, privacyPolicyService, auditRecorder);
+            knowledgeSearchService, privacyPolicyService, clinicalContextService, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
     }
 
@@ -192,6 +194,44 @@ class ControlledToolServiceTest {
         assertThat(envelope.degraded()).isFalse();
         assertThat(envelope.payload()).isInstanceOf(PrivacyPolicyDecision.class);
         assertThat(((PrivacyPolicyDecision) envelope.payload()).allowed()).isFalse();
+    }
+
+    @Test
+    void listTools_registersGetClinicalContextExplanationAtD4() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name).contains("getClinicalContextExplanation");
+        assertThat(tools).filteredOn(t -> t.name().equals("getClinicalContextExplanation"))
+            .singleElement()
+            .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D4));
+    }
+
+    @Test
+    void execute_getClinicalContextExplanation_wrapsMaskedContextAtD4WithMaskedPolicy() {
+        when(clinicalContextService.explainContext("tok-1", "AI 解释临床会话授权范围"))
+            .thenReturn(new ClinicalContextExplanation(true, "已校验", "order-sign", "clinical-decision-user",
+                "IFRAME", "ref:abc123def456", "ref:999000aaa111",
+                Instant.parse("2026-06-14T01:00:00Z"), EngineDataLevel.D4,
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("getClinicalContextExplanation",
+            new ToolExecutionRequest("AI 解释临床会话授权范围", "tok-1", null, null, 0, 20));
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D4);
+        assertThat(envelope.desensitizationPolicy()).isEqualTo("D4_MASKED_MINIMAL_CONTEXT");
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(ClinicalContextExplanation.class);
+        ClinicalContextExplanation ctx = (ClinicalContextExplanation) envelope.payload();
+        assertThat(ctx.authorized()).isTrue();
+        assertThat(ctx.patientRef()).startsWith("ref:");
+    }
+
+    @Test
+    void execute_getClinicalContextExplanation_missingLaunchToken_throwsStructured() {
+        assertThatThrownBy(() -> service.execute("getClinicalContextExplanation", req()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageNotContaining("SQL")
+            .hasMessageNotContaining("Exception");
     }
 
     @Test
