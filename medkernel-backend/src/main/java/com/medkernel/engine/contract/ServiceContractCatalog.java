@@ -338,6 +338,12 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.EXECUTE, "model_capability_task", "提交和重试模型任务"),
                 audit(AuditAction.UPDATE, "model_capability_policy", "校验和保存租户模型治理策略"),
                 audit(AuditAction.UPDATE, "model_capability_definition", "维护平台模型能力目录"))),
+        contract("model-egress", "模型外调出域治理服务",
+            "com.medkernel.engine.llm.egress.ModelEgressController", "/api/v1/model-egress",
+            permissions("llm.egress.manage"),
+            audits(
+                audit(AuditAction.UPDATE, "model_egress_whitelist", "维护模型出域字段白名单"),
+                audit(AuditAction.UPDATE, "model_egress_approval", "裁定高敏出域审批"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),
