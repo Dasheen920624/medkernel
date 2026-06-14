@@ -1,6 +1,9 @@
 package com.medkernel.engine.sandbox;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -36,6 +39,7 @@ import com.medkernel.shared.context.RequestContext;
  */
 final class SandboxRequestFactory {
 
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
     private static final String SOURCE_SYSTEM = "MEDKERNEL_SANDBOX";
 
     private SandboxRequestFactory() {
@@ -81,11 +85,11 @@ final class SandboxRequestFactory {
             String traceId,
             String patientPathwayId) {
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
-        String runScopedTriggerCode = "sandbox:" + scenario.id() + ":" + traceId;
+        String runSuffix = traceSuffix(traceId);
         return new RecommendationTriggerRequest(
-            runScopedTriggerCode,
+            "sandbox:" + scenario.id() + ":" + runSuffix,
             scenario.triggerPoint(),
-            "sandbox-event:" + scenario.id() + ":" + traceId,
+            "sandbox-event:" + scenario.id() + ":" + runSuffix,
             snapshotId,
             scenario.patientId(),
             scenario.encounterId(),
@@ -96,6 +100,23 @@ final class SandboxRequestFactory {
             occurredAt,
             recommendationCandidates(scenario, patientPathwayId),
             Boolean.FALSE);
+    }
+
+    private static String traceSuffix(String traceId) {
+        String source = traceId == null || traceId.isBlank() ? "sandbox-run" : traceId;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(source.getBytes(StandardCharsets.UTF_8));
+            char[] result = new char[12];
+            for (int index = 0; index < 6; index++) {
+                int value = digest[index] & 0xff;
+                result[index * 2] = HEX[value >>> 4];
+                result[index * 2 + 1] = HEX[value & 0x0f];
+            }
+            return new String(result);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 摘要算法不可用", exception);
+        }
     }
 
     static EmbedLaunchTokenRequest launchToken(

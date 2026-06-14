@@ -240,9 +240,12 @@ class SandboxOrchestrationServiceTest {
             ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
         verify(recommendations).evaluate(requestCaptor.capture());
         assertThat(requestCaptor.getValue().triggerCode())
-            .isEqualTo("sandbox:sbx-recommendation-composite:trace-sandbox");
+            .matches("sandbox:sbx-recommendation-composite:[0-9a-f]{12}")
+            .doesNotContain("trace-sandbox");
         assertThat(requestCaptor.getValue().sourceEventId())
-            .isEqualTo("sandbox-event:sbx-recommendation-composite:trace-sandbox");
+            .matches("sandbox-event:sbx-recommendation-composite:[0-9a-f]{12}")
+            .doesNotContain("trace-sandbox")
+            .hasSizeLessThanOrEqualTo(64);
         assertThat(requestCaptor.getValue().candidateCards()).singleElement().satisfies(card -> {
             assertThat(card.suggestedAction()).isEqualTo("SUGGEST_ORDER");
             assertThat(card.requiresPhysicianConfirmation()).isTrue();
