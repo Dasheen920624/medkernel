@@ -77,3 +77,8 @@
 - PR1（P0+P1 数据服务最小闭环）：规格对齐 + 规则/知识使用统计 + 脱敏聚合 + 数据分级 + 审计 + 五方言迁移 → AC-1。
 - PR2（P2 CLI + MCP）：CLI 6 命令域骨架 + MCP 7 受控工具 + 工具调用审计 + 不绕治理门禁 → AC-2/AC-3（降级）。
 - PR3（P3 临床端只读解释合同预留 + P4 管理扩展骨架）：嵌入依据/反馈合同（接 D3）+ 管理下钻/导出（接 D4）→ AC-3。
+
+## 实现进度（2026-06-14，按工序逐 PR；卡 FR/AC 因大卡分期未全勾，诚实标切片范围）
+- **PR1-a（本切片，已实现）= 规则使用统计 D2 去标识聚合**：`com.medkernel.engine.datasvc` 新建引擎数据服务层；`EngineDataLevel`(D0–D5) 数据分级枚举；`RuleUsageStatsRepository` **只读聚合** `rule_execution_log`（不写、不违域归属）跨方言 OFFSET/FETCH 分页 + 子查询计数；`RuleUsageStatsService`（服务端分页 + 默认 90 天窗 + 每次查询审计 + 上游不可用诚实降级不以空数据伪装）；`EngineDataController` `GET /api/v1/engine-data/rule-usage`（`engine-data.read`，授质量与医保治理员，§8.4 管理质控端）；契约登记 `engine-data`。测试：`RuleUsageStatsServiceTest`(4) + `EngineDataControllerSecurityTest`(2) + `RuleUsageStatsRepositoryIntegrationTest`(1 真实 H2 聚合)。**B0/真实性**：纯读现有真实执行事实，空上游诚实返回不伪造命中/采纳率（铁律 #1）。
+- **PR1 待续切片（未实现，诚实标）**：知识使用统计（FR-1 第 2 组）、临床信号/工具入口（第 3/4 组）；**D3/D4 字段级加密**（本切片 D2 去标识聚合不落患者字段故未触发，须随 D3/D4 数据落地切片实现，AC-1 字段级加密部分未达）；数据分级元数据表 + 异步导出（FR-1 导出）。
+- **PR2/PR3**：CLI 6 命令域 + MCP 7 受控工具（FR-3/4/5）、临床端只读解释（FR 临床）——未启动。

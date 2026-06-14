@@ -440,6 +440,15 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void engineDataReadRestsWithManagementAndQualityRoles() {
+        // DATASVC-01：引擎数据服务层只读统计归管理质控端（质量与医保治理员，§8.4）；临床决策用户不直接消费管理统计。
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
+            .contains(PermissionCode.ENGINE_DATA_READ);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_DECISION_USER))
+            .doesNotContain(PermissionCode.ENGINE_DATA_READ);
+    }
+
+    @Test
     void complianceAuditorActionsAreReadOrExportOnly() {
         var permissions = DefaultPermissionPolicy.permissionsOf(RoleCode.COMPLIANCE_AUDITOR);
         assertThat(permissions)

@@ -5,11 +5,25 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），**当前在做 `DATASVC-01` PR1 引擎数据服务最小闭环**（见下方最新段）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），**当前在做 `DATASVC-01`（12d 大卡分期）——PR1-a 规则使用统计 D2 已实现待 PR**（见下方最新段）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
 - **P6 阻断（恒守）**：正式知识生产继续阻断——文献资料库受管根地址为空，未配置真实院方 IdP/短信/模型/图谱/外部 Provider；缺连接时按 B0 确定性主链路诚实降级。**不得进入 P6**，直到文献库根地址完成真实配置与独立验收。
+
+---
+
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 引擎数据服务层 PR1-a（规则使用统计 D2，全量+四门禁绿，待推送/PR）
+
+- **活跃分支** `claude/wave2-p2b-datasvc01`（base=最新 `origin/main` `84c49d10`，含 LLM-05 合并后簿记首提交）。`DATASVC-01` 是 **12d 大卡按 PR 分期**，本提交＝ **PR1-a 切片：规则使用统计 D2 去标识聚合**（最有据切片，`rule_execution_log` 已真实存在）。
+- **已完成（PR1-a）**：新建引擎数据服务层 `com.medkernel.engine.datasvc`。
+  - `EngineDataLevel`(D0–D5) 数据分级枚举（规范 §7）；`RuleUsageStat` 投影 + `RuleUsageStatsResponse`。
+  - `RuleUsageStatsRepository`：**只读聚合** `rule_execution_log`（engine-rule 所属，仅写受域归属约束，只读 SELECT 合规）——跨方言标准 `OFFSET ROWS FETCH NEXT` 分页 + 子查询分组计数；`SUM(CASE WHEN hit=TRUE...)`/`MAX(executed_at)` 投影映射经真实 H2 集成测试验证。
+  - `RuleUsageStatsService`：服务端分页（默认 20/上限 200）+ 默认 90 天窗 + 每次查询审计（`EXECUTE rule_execution_log`）+ **上游不可用诚实降级（`degraded=true` 不以空数据伪装）**；空上游＝真实无数据诚实返回（铁律 #1）。
+  - `EngineDataController` `GET /api/v1/engine-data/rule-usage`（新权限 **`engine-data.read`** 授质量与医保治理员，§8.4 管理质控端；经 `allNonEmergencyPermissions` 自动并入超管/平台治理/机构管理员；临床决策用户无，`DefaultPermissionPolicyTest.engineDataReadRestsWithManagementAndQualityRoles` 锁定）；契约登记 `engine-data`；产品功能目录重生成（控制器 82→83）。
+- **验证全绿**：全量 `mvn test` **2359 通过**（基线 2351 + 新增 8：service 4 + controller security 2 + 仓储集成 1 + 权限断言 1）；四门禁全过 + `git diff --check` + 前端 `productCatalog.test.ts` 5/5。
+- **诚实分寸（大卡未完，FR/AC 不全勾）**：本切片仅 FR-1 第 1 组（规则使用）+ FR-2 数据分级框架（D2）+ FR-6 审计 + FR-7 上游降级；**未实现**：知识使用/临床信号/工具入口、**D3/D4 字段级加密**（D2 去标识不落患者字段故未触发，须随 D3/D4 数据切片实现）、数据分级元数据表/导出、CLI(FR-3)/MCP(FR-4)。`backlog.md` DATASVC-01 保持 `pending`（大卡未完）。卡 [DATASVC-01](cards/wave2/DATASVC-01.md) 加「实现进度」节诚实标切片。
+- **当前下一步**：提交→推送→建 PR（base=`main`），CI 全绿后请求授权 squash 合并 → 续 DATASVC-01 后续切片（知识使用统计 / D3-D4 字段级加密 / CLI+MCP）或 P2-B 其他卡（`AIK-STD-13/14`）。
 
 ---
 
