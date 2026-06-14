@@ -18,11 +18,11 @@
 **待建**：[LLM-01](LLM-01.md) 注释明确 provider 由本卡（`GA-ENG-LLM-02`/本卡）落地，当前一律 B0。本卡＝实现 provider 适配（B1/B2/Dify）+ 健康检查 + 缺位降级；接入前过 [LLM-07](LLM-07.md) 评测、出域过 [LLM-03](LLM-03.md)。**2026-06-13 校正**：B2 外部明确含 **Claude API / OpenAI 兼容 API**，按双形态——生产侧（外网生产中心，公开资料）可用，运行侧（内网医院，患者数据）禁外部 provider、只 B1 本地/B0（见 [_brief](_brief.md) §第二阶段设计校正）。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 provider 适配：B1 本地（Ollama/国产化）/ B2 外部（**Claude API · OpenAI 兼容 API** 等）/ Dify 三类可插拔适配器（统一接口）；**生产侧外网可用、运行侧内网禁外部 provider**（双形态）。
-- [ ] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。
-- [ ] FR-3 缺位降级：无 provider/断连 → 诚实 B0（[LLM-02](LLM-02.md) 矩阵），不伪造产出。
-- [ ] FR-4 真实产出：接入后产出标真实 `model_version`/置信度/来源（不再恒 B0）。
-- [ ] FR-5 上线门禁：provider/版本上线前过 [LLM-07](LLM-07.md) 医学回归。
+- [x] FR-1 provider 适配：B1 本地（Ollama/国产化）/ B2 外部（**Claude API · OpenAI 兼容 API** 等）/ Dify 三类可插拔适配器（统一接口）；**生产侧外网可用、运行侧内网禁外部 provider**（双形态）。（`ModelProvider` 抽象+三适配器 Ollama/OpenAI兼容/Claude，HTTP 经 `ModelProviderHttpClient` 注入；`DeploymentFormService` 双形态门禁 `ENG-LLM-009`）
+- [x] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。（`ModelProviderRegistry` 健康检查）
+- [x] FR-3 缺位降级：无 provider/断连 → 诚实 B0（[LLM-02](LLM-02.md) 矩阵），不伪造产出。（`submitTask` 缺位/断连/形态禁外部→诚实 B0）
+- [x] FR-4 真实产出：接入后产出标真实 `model_version`/置信度/来源（不再恒 B0）。（`submitTask` 过出域闸→真实产出）
+- [x] FR-5 上线门禁：provider/版本上线前过 [LLM-07](LLM-07.md) 医学回归。（`upsertProvider` 启用须过 `isClearedForGoLive` 否则 `ENG-LLM-008`）
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -50,8 +50,8 @@
 - 本卡落点：B1/B2/Dify 可插拔真实接入 + 健康检查 + 缺位诚实 B0 + 上线过评测。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2/4）：接真实 provider 产出真实 + 健康检查准确。
-- [ ] AC-2（FR-3/5）：断连降级 B0 不伪造；上线过 [LLM-07](LLM-07.md)。
+- [x] AC-1（FR-1/2/4）：接真实 provider 产出真实 + 健康检查准确。（适配器经 mock HTTP 测；`ModelProviderGovernanceServiceTest` 覆盖）
+- [x] AC-2（FR-3/5）：断连降级 B0 不伪造；上线过 [LLM-07](LLM-07.md)。（缺位 B0 测 + 启用门禁 `ENG-LLM-008` 测）
 - 关联 A1–A9 剧本：有/无 provider 双向。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★拔掉全部 provider 主链路仍 B0 可运行。

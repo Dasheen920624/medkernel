@@ -56,7 +56,7 @@ class ModelEgressGovernanceServiceTest {
         assertThat(saved.tenantId()).isEqualTo("tenant-1");
         assertThat(saved.allowedFields()).isEqualTo("[\"clinicalText\",\"ageYears\"]");
         assertThat(saved.sensitivityLevel()).isEqualTo("HIGH");
-        verify(auditRecorder).record(AuditAction.UPDATE, "model_egress_whitelist", "knowledge.extract",
+        verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
             "保存模型出域白名单 knowledge.extract");
     }
 
@@ -79,7 +79,7 @@ class ModelEgressGovernanceServiceTest {
         assertThat(approval.status()).isEqualTo("APPROVED");
         assertThat(approval.approver()).isEqualTo("compliance-001");
         assertThat(approval.payloadHash()).isEqualTo("hash-abc");
-        verify(auditRecorder).record(any(AuditAction.class), org.mockito.ArgumentMatchers.eq("model_egress_approval"),
+        verify(auditRecorder).record(any(AuditAction.class), org.mockito.ArgumentMatchers.eq("mk_llm_egress_approval"),
             org.mockito.ArgumentMatchers.eq("hash-abc"), any());
     }
 }

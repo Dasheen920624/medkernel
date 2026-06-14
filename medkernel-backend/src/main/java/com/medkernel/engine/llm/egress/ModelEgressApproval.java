@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>高敏出域需先经合规/安全人工审批；按租户+能力码+脱敏后载荷 hash 检索最近一条 {@code APPROVED} 记录，
  * 命中方可放行，否则诚实阻断（{@code ENG-LLM-007}），不静默出域。
  */
-@Table("model_egress_approval")
+@Table("mk_llm_egress_approval")
 public record ModelEgressApproval(
     @Id Long id,
     @Column("tenant_id") String tenantId,

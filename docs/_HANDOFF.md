@@ -13,7 +13,7 @@
 
 ---
 
-## 2026-06-14 第二阶段 P2-A 模型底座（进行中）：LLM-03 出域闸已闭环，LLM-08/07 待续
+## 2026-06-14 第二阶段 P2-A 模型底座（三子系统全实现 + 卡片 FR/AC 回填，全量+四门禁绿，待提交/推送/PR）：LLM-03+08+07 全闭环 + 迁移规约系统修复
 
 - **活跃分支** `claude/wave2-p2a-model-foundation`（base=最新 `origin/main` `a1204184`，**未推送、未 PR**）。计划见 [docs/superpowers/plans/2026-06-14-wave2-p2a-model-foundation.md](superpowers/plans/2026-06-14-wave2-p2a-model-foundation.md)。用户决策：三卡（LLM-03+08+07）**合一个大 PR**、本会话**内联 TDD**执行。
 - **已完成（子系统一 = LLM-03 出域数据最小化闸，红线先行，7 提交）**：
@@ -22,11 +22,15 @@
   - `ModelEgressGovernanceService` + `ModelEgressController`（PUT 白名单/POST 审批）；新权限码 **`llm.egress.manage`** 授**集成运维员**（经 `allOf` 自动并入超管/平台治理/机构管理员；合规审计员「独立只读」不变量不破，按 `llm.*` 惯例不入 sys_permission 种子）。
   - 契约登记：DomainOwnershipCatalog `model_egress_` 前缀、ServiceContractCatalog `model-egress`、迁移基线三集 + 多方言冒烟版本→124。
   - **全量 `mvn test` 2297 绿**（基线 2282 + 新增 15）。新错误码 `ENG-LLM-006/007` 入 `ErrorCode`。
-- **当前下一步（子系统二 = LLM-08 provider 接入，按计划 T7→T13）**：
-  1. T7 `DeploymentFormService`：新增配置键 `medkernel.deployment.form`（`PRODUCTION_CENTER`/`HOSPITAL_RUNTIME`，**默认最严格 `HOSPITAL_RUNTIME`**），改 `SystemConfigService`+`SystemConfigSeeder`。
-  2. T8 `model_provider` 表 **V125** 五方言（credential_ref 不落明文）。
-  3. T9-12 provider 抽象+适配器（Ollama/OpenAI兼容/Claude，HTTP 经接口注入便于 mock）+ 健康检查 + `submitTask` 第 4 步接线（缺位/断连/形态禁外部→诚实 B0，过出域闸→真实产出），错误码 008/009。
-  - 随后子系统三 = LLM-07 评测闸（T14-18，V126）；最后权限/收口/卡回填/JS 三门禁/PR。
+- **已完成（子系统二 = LLM-08 provider 接入，T7-13）**：部署形态 `DeploymentFormService`（默认最严 `HOSPITAL_RUNTIME`，134 生产中心显式配 `PRODUCTION_CENTER`）；`mk_llm_provider` 表 V125 五方言（credential_ref 仅存引用）；provider 抽象 `ModelProvider`+三适配器（Ollama/OpenAI兼容/Claude，HTTP 经 `ModelProviderHttpClient` 注入便于 mock）+ 健康检查 + `ModelProviderRegistry`；`submitTask` 第4步接线（缺位/断连/形态禁外部→诚实 B0，过出域闸→真实产出）；`ModelProviderController`+治理服务（`llm.provider.manage`）；双形态门禁 `ENG-LLM-009`。
+- **已完成（子系统三 = LLM-07 医学回归评测闸，T14-18）**：评测两表（`mk_llm_regression_case`/`mk_llm_eval_run`）V126 五方言；`MedicalRegressionEvaluator`（假引用 FAIL、越 OPT-04 红线 FAIL、无基准集不自动认证→诚实记 FAILED）；`ModelEvalService`（runEvaluation / signOff 专家复核签字 / isClearedForGoLive 门禁查询）；**T17 上线门禁** `ModelProviderGovernanceService.upsertProvider`：启用 provider 须过 `isClearedForGoLive` 否则 `ENG-LLM-008`（闸序：形态 009 在前、评测 008 在后；`enabled=false` 仅登记跳过门禁）；**T18 `ModelEvalController`**（`llm.eval.manage`，POST 跑评测 + `/{id}/sign-off`）。
+- **已完成（权限+契约+迁移规约收口）**：三权限码 `llm.provider.manage`/`llm.egress.manage`（集成运维员）+ `llm.eval.manage`（质量与医保治理员）已在 `PermissionCode`+`DefaultPermissionPolicy`，新增 `DefaultPermissionPolicyTest.llmGovernanceActionsRestWithTheirGoverningRoles` 精确授权断言（`PermissionDimensionModelTest` 由维度全集+平台治理全集断言自动覆盖三码）；`llm.*` 按惯例不入 sys_permission 种子（**无 V127**）；`ServiceContractCatalog` 登记 `model-evaluations` 契约。**迁移规约系统修复（原 T1-T14 系统性遗漏，CI guard-rules 会阻断）**：V124/V125/V126 六表全部按 `mk_<域>_<实体>` 规约重命名（`mk_llm_egress_whitelist`/`approval`/`evidence`、`mk_llm_provider`、`mk_llm_regression_case`、`mk_llm_eval_run`）+ 生产方言（postgres/oracle/kingbase）补中文 `COMMENT ON TABLE`；连带 6 实体 `@Table`、`DomainOwnershipCatalog`（prefix `mk_llm_egress_`+三表）、契约审计 target、各 service 审计字符串、`MigrationBaselineContractTest` 表名清单同步（**迁移文件名不变**保 Flyway 版本标识）。
+- **验证全绿**：全量 `mvn test` **2342 通过**（含 `FlywayMultiDialectSmokeTest` 真实多方言含 Oracle 迁移冒烟，证明重命名+COMMENT 五方言真实可执行）；**四门禁全过**（真实性/配置边界/迁移规约/中文注释，均从仓库根 `--mode=changed --base=origin/main`）；`git diff --check` 通过。
+- **当前下一步（精确续接点 = 提交→推送→PR；卡片已回填，未提交/未推送/未 PR）**：
+  ① **已完成**——卡片 FR/AC 逐条回填：`LLM-03` FR-1~5 + AC-1~2 全勾、`LLM-08` FR-1~5 + AC-1~2 全勾；`LLM-07` FR-2~5 + AC-2 勾，**FR-1 基准集 + AC-1 按诚实红线标「机制已建 / 真实数据待 P6」——无真实基准集时 `ModelEvalService.runEvaluation` 诚实记 `FAILED` 不自动认证，未标「已覆盖真实用例」**（P6 仍阻断真实知识生产）。
+  ② `backlog.md` 三卡仍 `pending`（仅 pending/done 两态），**合并后再转 done**。
+  ③ **下一动作**：`git add -A` → 提交（建议一提交收口本批未提交改动：T17/T18 上线门禁+控制器 + 迁移规约重命名收口 + 卡片回填 + 本接力）→ 推送 `claude/wave2-p2a-model-foundation` → 建大 PR（三卡合一，base=`main`），CI 全绿后请求用户授权 squash 合并（合并 main 逐 PR 授权）。
+- **勘误（避免误导）**：上方「子系统一」段第 23 行旧表名前缀 `model_egress_` 已由本段「迁移规约系统修复」统一为 `mk_llm_egress_`（三表 `mk_llm_egress_whitelist` / `mk_llm_egress_approval` / `mk_llm_egress_evidence`，`DomainOwnershipCatalog` 前缀同步为 `mk_llm_egress_`）；`ServiceContractCatalog` 的 `model-egress` 是契约/路由名（非表名），保持不变。
 - **恒守**：TDD 红绿 + 每张卡 B0 验收（关 provider 主链路仍可跑）；铁律 #1 不伪造模型名/置信度/引文。
 
 ## 2026-06-14 第二阶段（知识生产工厂）纳入计划：第一阶段收官，转入第二波 AI 加深，当前活跃主线 = wave2

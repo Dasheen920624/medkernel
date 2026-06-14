@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>登记租户可用的真实模型 provider：类型（B1 本地 OLLAMA / B2 外部 OPENAI_COMPATIBLE·CLAUDE / DIFY）、
  * 端点、凭据引用（{@code credentialRef} 仅存密钥管理引用，绝不落明文）、服务的模型版本、启停与健康状态。
  */
-@Table("model_provider")
+@Table("mk_llm_provider")
 public record ModelProviderConfig(
     @Id Long id,
     @Column("tenant_id") String tenantId,

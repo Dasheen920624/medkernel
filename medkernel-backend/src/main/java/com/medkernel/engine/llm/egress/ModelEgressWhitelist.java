@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>声明指定租户、指定能力码在 B2 外调时允许出域的字段清单（JSON 字符串数组）与出域敏感级别。
  * 敏感级 {@code HIGH} 的出域须经审批方可放行（{@link ModelEgressApproval}）。
  */
-@Table("model_egress_whitelist")
+@Table("mk_llm_egress_whitelist")
 public record ModelEgressWhitelist(
     @Id Long id,
     @Column("tenant_id") String tenantId,

@@ -1,7 +1,7 @@
 -- MedKernel 第二阶段 P2-A · LLM-07 医学回归评测基准集与运行结果（PostgreSQL）
--- ROLLBACK：确认无引用后依次 DROP TABLE model_eval_run / medical_regression_case。
+-- ROLLBACK：确认无引用后依次 DROP TABLE mk_llm_eval_run / mk_llm_regression_case。
 
-CREATE TABLE IF NOT EXISTS medical_regression_case (
+CREATE TABLE IF NOT EXISTS mk_llm_regression_case (
     id                BIGSERIAL     PRIMARY KEY,
     tenant_id         VARCHAR(64)   NOT NULL,
     capability_code   VARCHAR(64)   NOT NULL,
@@ -15,13 +15,13 @@ CREATE TABLE IF NOT EXISTS medical_regression_case (
     created_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
     updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
-    CONSTRAINT ck_medical_regression_case_citation CHECK (citation_required IN ('Y', 'N')),
-    CONSTRAINT ck_medical_regression_case_enabled CHECK (enabled_flag IN ('Y', 'N'))
+    CONSTRAINT ck_mk_llm_regression_case_citation CHECK (citation_required IN ('Y', 'N')),
+    CONSTRAINT ck_mk_llm_regression_case_enabled CHECK (enabled_flag IN ('Y', 'N'))
 );
 
-CREATE INDEX idx_medical_regression_case_tenant ON medical_regression_case (tenant_id, capability_code);
+CREATE INDEX idx_mk_llm_regression_case_tenant ON mk_llm_regression_case (tenant_id, capability_code);
 
-CREATE TABLE IF NOT EXISTS model_eval_run (
+CREATE TABLE IF NOT EXISTS mk_llm_eval_run (
     id                     BIGSERIAL    PRIMARY KEY,
     tenant_id              VARCHAR(64)  NOT NULL,
     provider_code          VARCHAR(64)  NOT NULL,
@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS model_eval_run (
     created_by             VARCHAR(64)  NOT NULL DEFAULT 'system',
     updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_by             VARCHAR(64)  NOT NULL DEFAULT 'system',
-    CONSTRAINT ck_model_eval_run_status CHECK (status IN ('PASSED', 'FAILED', 'PENDING_REVIEW'))
+    CONSTRAINT ck_mk_llm_eval_run_status CHECK (status IN ('PASSED', 'FAILED', 'PENDING_REVIEW'))
 );
 
-CREATE INDEX idx_model_eval_run_lookup ON model_eval_run (tenant_id, provider_code, model_version, status);
+CREATE INDEX idx_mk_llm_eval_run_lookup ON mk_llm_eval_run (tenant_id, provider_code, model_version, status);
+
+COMMENT ON TABLE mk_llm_regression_case IS '医学回归评测基准用例：登记输入与期望短语及红线类型，不含真实患者数据';
+COMMENT ON TABLE mk_llm_eval_run IS '模型版本医学回归评测运行结果：上线门禁依据，记录通过率与红线判定及复核签字';

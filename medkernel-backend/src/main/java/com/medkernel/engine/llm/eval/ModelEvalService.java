@@ -85,7 +85,7 @@ public class ModelEvalService {
             run.totalCases(), run.passedCases(), run.failedCases(),
             run.fakeCitationDetected(), run.redLineBreach(), "PASSED",
             actor, now, run.createdAt(), run.createdBy(), now, actor));
-        auditRecorder.record(AuditAction.UPDATE, "model_eval_run", String.valueOf(runId),
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_eval_run", String.valueOf(runId),
             "专家复核签字放行评测 " + run.providerCode() + "/" + run.modelVersion());
         return signed;
     }
@@ -105,7 +105,7 @@ public class ModelEvalService {
             verdict.total(), verdict.passed(), verdict.failed(),
             verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
             verdict.status(), null, null, now, actor, now, actor));
-        auditRecorder.record(AuditAction.EXECUTE, "model_eval_run", providerCode + "/" + modelVersion,
+        auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", providerCode + "/" + modelVersion,
             "运行医学回归评测 " + providerCode + "/" + modelVersion + " -> " + verdict.status());
         return saved;
     }

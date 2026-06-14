@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>{@code status}：{@code PASSED} 方可上线（接 {@code ENG-LLM-008} 门禁）；{@code PENDING_REVIEW}
  * 为高风险换版需专家复核签字；{@code FAILED} 阻断上线。{@code fakeCitationDetected}/{@code redLineBreach} 任一为真即 FAILED。
  */
-@Table("model_eval_run")
+@Table("mk_llm_eval_run")
 public record ModelEvalRun(
     @Id Long id,
     @Column("tenant_id") String tenantId,

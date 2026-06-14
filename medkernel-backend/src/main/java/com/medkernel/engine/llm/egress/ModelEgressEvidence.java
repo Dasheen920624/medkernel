@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>每次真实出域留痕：出域字段清单、脱敏后内容 SHA-256、审批引用、目标 provider，
  * 供合规审计追溯数据出境（[SYS-06]/[EVID-01]）。
  */
-@Table("model_egress_evidence")
+@Table("mk_llm_egress_evidence")
 public record ModelEgressEvidence(
     @Id Long id,
     @Column("tenant_id") String tenantId,

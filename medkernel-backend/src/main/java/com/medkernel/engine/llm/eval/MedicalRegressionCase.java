@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>{@code expectedPhrase} 为期望产出关键短语；{@code redLineType} 非空表示红线用例（越线判 FAIL）；
  * {@code citationRequired}=Y 表示产出须带可回溯真实引用，否则判假引用 FAIL。
  */
-@Table("medical_regression_case")
+@Table("mk_llm_regression_case")
 public record MedicalRegressionCase(
     @Id Long id,
     @Column("tenant_id") String tenantId,

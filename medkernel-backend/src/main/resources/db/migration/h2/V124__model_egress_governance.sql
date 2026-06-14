@@ -1,7 +1,7 @@
 -- MedKernel 第二阶段 P2-A · LLM-03 出域数据最小化与外调安全治理（H2）
--- ROLLBACK：确认无引用后依次 DROP TABLE model_egress_evidence / model_egress_approval / model_egress_whitelist。
+-- ROLLBACK：确认无引用后依次 DROP TABLE mk_llm_egress_evidence / mk_llm_egress_approval / mk_llm_egress_whitelist。
 
-CREATE TABLE IF NOT EXISTS model_egress_whitelist (
+CREATE TABLE IF NOT EXISTS mk_llm_egress_whitelist (
     id                BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id         VARCHAR(64)   NOT NULL,
     capability_code   VARCHAR(64)   NOT NULL,
@@ -11,11 +11,11 @@ CREATE TABLE IF NOT EXISTS model_egress_whitelist (
     created_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
     updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
-    CONSTRAINT uk_model_egress_whitelist UNIQUE (tenant_id, capability_code),
-    CONSTRAINT ck_model_egress_whitelist_sensitivity CHECK (sensitivity_level IN ('LOW', 'MEDIUM', 'HIGH'))
+    CONSTRAINT uk_mk_llm_egress_whitelist UNIQUE (tenant_id, capability_code),
+    CONSTRAINT ck_mk_llm_egress_whitelist_sensitivity CHECK (sensitivity_level IN ('LOW', 'MEDIUM', 'HIGH'))
 );
 
-CREATE TABLE IF NOT EXISTS model_egress_approval (
+CREATE TABLE IF NOT EXISTS mk_llm_egress_approval (
     id                BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id         VARCHAR(64)   NOT NULL,
     capability_code   VARCHAR(64)   NOT NULL,
@@ -27,13 +27,13 @@ CREATE TABLE IF NOT EXISTS model_egress_approval (
     created_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
     updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
-    CONSTRAINT ck_model_egress_approval_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+    CONSTRAINT ck_mk_llm_egress_approval_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
 );
 
-CREATE INDEX idx_model_egress_approval_lookup
-    ON model_egress_approval (tenant_id, capability_code, payload_hash, status);
+CREATE INDEX idx_mk_llm_egress_approval_lookup
+    ON mk_llm_egress_approval (tenant_id, capability_code, payload_hash, status);
 
-CREATE TABLE IF NOT EXISTS model_egress_evidence (
+CREATE TABLE IF NOT EXISTS mk_llm_egress_evidence (
     id                BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id         VARCHAR(64)   NOT NULL,
     capability_code   VARCHAR(64)   NOT NULL,
@@ -48,5 +48,5 @@ CREATE TABLE IF NOT EXISTS model_egress_evidence (
     updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system'
 );
 
-CREATE INDEX idx_model_egress_evidence_tenant
-    ON model_egress_evidence (tenant_id, capability_code);
+CREATE INDEX idx_mk_llm_egress_evidence_tenant
+    ON mk_llm_egress_evidence (tenant_id, capability_code);

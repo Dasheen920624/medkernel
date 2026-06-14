@@ -68,7 +68,7 @@ public class ModelEgressGovernanceService {
             existing.map(ModelEgressWhitelist::createdBy).orElse(actor),
             now,
             actor));
-        auditRecorder.record(AuditAction.UPDATE, "model_egress_whitelist", code,
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_egress_whitelist", code,
             "保存模型出域白名单 " + code);
         return saved;
     }
@@ -91,7 +91,7 @@ public class ModelEgressGovernanceService {
         ModelEgressApproval saved = approvalRepo.save(new ModelEgressApproval(
             null, tenantId, code, request.payloadHash().trim(), decision,
             actor, now, now, actor, now, actor));
-        auditRecorder.record(AuditAction.UPDATE, "model_egress_approval", request.payloadHash().trim(),
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_egress_approval", request.payloadHash().trim(),
             "裁定模型出域审批 " + code + " -> " + decision);
         return saved;
     }
