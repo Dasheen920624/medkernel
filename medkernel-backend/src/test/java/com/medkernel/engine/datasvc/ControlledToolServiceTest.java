@@ -1,0 +1,155 @@
+package com.medkernel.engine.datasvc;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
+
+/**
+ * 引擎数据服务层 · 受控工具服务单元测试（DATASVC-01 PR2，CLI/MCP 共用受控工具执行入口）。
+ *
+ * <p>验证：工具目录登记（FR-3/4）、执行包裹 FR-4 治理信封（traceId/数据级别/脱敏策略/来源版本/权限结果/
+ * 降级状态/输出 hash）、不绕治理仅调既有受控服务（FR-5）、每次调用留审计含输出 hash（FR-6）、
+ * 上游降级诚实透传不伪装（FR-7/铁律 #1）、未知工具返回结构化原因不泄漏内部（FR-4）。
+ */
+class ControlledToolServiceTest {
+
+    private RuleUsageStatsService ruleUsageStatsService;
+    private KnowledgeUsageStatsService knowledgeUsageStatsService;
+    private ClinicalSignalsService clinicalSignalsService;
+    private AuditRecorder auditRecorder;
+    private ControlledToolService service;
+
+    @BeforeEach
+    void setUp() {
+        ruleUsageStatsService = mock(RuleUsageStatsService.class);
+        knowledgeUsageStatsService = mock(KnowledgeUsageStatsService.class);
+        clinicalSignalsService = mock(ClinicalSignalsService.class);
+        auditRecorder = mock(AuditRecorder.class);
+        service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
+            clinicalSignalsService, auditRecorder);
+        RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        RequestContext.clear();
+    }
+
+    private ToolExecutionRequest req() {
+        return new ToolExecutionRequest("AI Agent 解释规则使用", null, null, 0, 20);
+    }
+
+    private RuleUsageStatsResponse ruleResponse(long total, boolean degraded) {
+        return new RuleUsageStatsResponse(EngineDataLevel.D2, total, 0, 20, List.of(),
+            Instant.parse("2026-06-14T00:00:00Z"), degraded, degraded ? "上游不可用" : null);
+    }
+
+    @Test
+    void listTools_registersControlledToolsWithDataLevels() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).extracting(ControlledToolDescriptor::name)
+            .contains("queryRuleUsage", "summarizeEngineSignals");
+        assertThat(tools).allSatisfy(t -> {
+            assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D2);
+            assertThat(t.requiredPermission()).isEqualTo("engine-data.read");
+        });
+    }
+
+    @Test
+    void execute_queryRuleUsage_wrapsResultInGovernanceEnvelope() {
+        when(ruleUsageStatsService.queryRuleUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(ruleResponse(7L, false));
+
+        ToolExecutionEnvelope envelope = service.execute("queryRuleUsage", req());
+
+        assertThat(envelope.toolName()).isEqualTo("queryRuleUsage");
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D2);
+        assertThat(envelope.permissionGranted()).isTrue();
+        assertThat(envelope.degraded()).isFalse();
+        assertThat(envelope.traceId()).isEqualTo("trace-xyz");
+        // 输出 hash 必须是真实 SHA-256 指纹（FR-6 审计输出 hash）
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.desensitizationPolicy()).isNotBlank();
+        assertThat(envelope.payload()).isInstanceOf(RuleUsageStatsResponse.class);
+        assertThat(((RuleUsageStatsResponse) envelope.payload()).total()).isEqualTo(7L);
+    }
+
+    @Test
+    void execute_summarizeEngineSignals_aggregatesThreeReadModels() {
+        when(ruleUsageStatsService.queryRuleUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(ruleResponse(5L, false));
+        when(knowledgeUsageStatsService.queryKnowledgeUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(new KnowledgeUsageStatsResponse(EngineDataLevel.D2, 3L, 0, 20, List.of(),
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+        when(clinicalSignalsService.queryClinicalSignals(any(), any(), anyInt(), anyInt()))
+            .thenReturn(new ClinicalSignalsResponse(EngineDataLevel.D2, 2L, 0, 20, List.of(),
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("summarizeEngineSignals", req());
+
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D2);
+        assertThat(envelope.payload()).isInstanceOf(EngineSignalsSummary.class);
+        EngineSignalsSummary summary = (EngineSignalsSummary) envelope.payload();
+        assertThat(summary.ruleGroups()).isEqualTo(5L);
+        assertThat(summary.knowledgeGroups()).isEqualTo(3L);
+        assertThat(summary.clinicalSignalGroups()).isEqualTo(2L);
+    }
+
+    @Test
+    void execute_summarizeEngineSignals_propagatesDegradedHonestlyWhenAnyUpstreamDegraded() {
+        when(ruleUsageStatsService.queryRuleUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(ruleResponse(0L, true));
+        when(knowledgeUsageStatsService.queryKnowledgeUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(new KnowledgeUsageStatsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+        when(clinicalSignalsService.queryClinicalSignals(any(), any(), anyInt(), anyInt()))
+            .thenReturn(new ClinicalSignalsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
+                Instant.parse("2026-06-14T00:00:00Z"), false, null));
+
+        ToolExecutionEnvelope envelope = service.execute("summarizeEngineSignals", req());
+
+        // 任一上游降级则汇总诚实标降级，不伪装完整（铁律 #1 / FR-7）。
+        assertThat(envelope.degraded()).isTrue();
+        assertThat(envelope.degradeReason()).isNotBlank();
+    }
+
+    @Test
+    void execute_unknownTool_throwsStructuredErrorNotLeakingInternals() {
+        assertThatThrownBy(() -> service.execute("dropAllTables", req()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageNotContaining("SQL")
+            .hasMessageNotContaining("Exception");
+    }
+
+    @Test
+    void execute_recordsToolCallAuditWithPurposeAndLevel() {
+        when(ruleUsageStatsService.queryRuleUsage(any(), any(), anyInt(), anyInt()))
+            .thenReturn(ruleResponse(1L, false));
+
+        service.execute("queryRuleUsage", req());
+
+        verify(auditRecorder, times(1)).record(eq(AuditAction.EXECUTE), eq("engine_data_tool"),
+            eq("queryRuleUsage"), contains("AI Agent 解释规则使用"));
+    }
+}

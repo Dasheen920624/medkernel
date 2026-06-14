@@ -364,7 +364,8 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.EXECUTE, "rule_execution_log", "查询规则使用统计（D2 去标识聚合）"),
                 audit(AuditAction.EXECUTE, "recommendation_source", "查询知识使用统计（D2 去标识聚合）"),
-                audit(AuditAction.EXECUTE, "recommendation_card", "查询临床信号统计（D2 去标识聚合）"))),
+                audit(AuditAction.EXECUTE, "recommendation_card", "查询临床信号统计（D2 去标识聚合）"),
+                audit(AuditAction.EXECUTE, "engine_data_tool", "执行受控工具（CLI/MCP 共用入口）"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),

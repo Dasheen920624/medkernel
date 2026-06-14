@@ -3,12 +3,16 @@ package com.medkernel.engine.datasvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
 import java.util.List;
+
+import org.springframework.http.MediaType;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +45,9 @@ class EngineDataControllerSecurityTest {
 
     @MockBean
     private ClinicalSignalsService clinicalSignalsService;
+
+    @MockBean
+    private ControlledToolService controlledToolService;
 
     @AfterEach
     void clearContext() {
@@ -112,6 +119,31 @@ class EngineDataControllerSecurityTest {
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));
 
         mockMvc.perform(get("/api/v1/engine-data/clinical-signals")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotExecuteControlledTool() throws Exception {
+        mockMvc.perform(post("/api/v1/engine-data/tools/queryRuleUsage:execute")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"purpose\":\"探测\"}")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void qualityGovernorCanListControlledTools() throws Exception {
+        when(controlledToolService.listTools()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine-data/tools")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
