@@ -1,11 +1,11 @@
 # 会话接力
 
-## 2026-06-14 P5 第一阶段**最终收官已并入主线**：PR #600 已合并，`origin/main=b410f5a3`；134 目标环境复演通过
+## 2026-06-14 P5 第一阶段**最终收官已并入主线**：PR #600 功能收官提交 `b410f5a3`；134 目标环境复演通过
 
-- **主线正式事实**：PR #600「P5第一阶段最终收官复演闭环」已于 2026-06-14 09:46（Asia/Shanghai）squash 合并，`origin/main=b410f5a356161a41eca4e434ee2b9a8adda974fc`。该主线已包含 PR #597 第二阶段知识生产工厂落卡、PR #598 沙盘 spec、PR #599 沙盘实施计划和本轮最终收官证据。
+- **主线正式事实**：PR #600「P5第一阶段最终收官复演闭环」已于 2026-06-14 09:46（Asia/Shanghai）squash 合并，功能收官合并提交为 `b410f5a356161a41eca4e434ee2b9a8adda974fc`。该提交已包含 PR #597 第二阶段知识生产工厂落卡、PR #598 沙盘 spec、PR #599 沙盘实施计划和本轮最终收官证据；后续接力一律从最新 `origin/main` 继续，不把历史合并提交冒认为当前主线指针。
 - **CI 事实**：PR #600 最终 CI run `27484891439` 8/8 通过：`backend-build-test`、`frontend-build-test`、`frontend-lint`、`guard-rules`、`comment-language-check`、`jdk-matrix-smoke (temurin|zulu|corretto)`。
 - **重新打开原因已闭环到目标环境**：第二轮演练遗漏院内业务系统嵌入链路；本轮补齐 `/sandbox` 宿主、后端场景目录、嵌入令牌 `hookInstance` 契约、沙盘全真复演、主数据同步合同、随访模板资产命名、领域 owner 与第一阶段整改闭环。术语一对多冲突处置已纳入本地前端全量验证与覆盖矩阵，不再作为本轮 134 阻断项。
-- **当前执行目标**：第一阶段收官已形成主线正式结论；后续从 `origin/main=b410f5a3` 继续第二阶段，但正式知识生产仍阻断，直到文献资料库受管根地址完成真实配置与独立验收。
+- **当前执行目标**：第一阶段收官已形成主线正式结论；后续从最新 `origin/main` 继续第二阶段，但正式知识生产仍阻断，直到文献资料库受管根地址完成真实配置与独立验收。
 - **本轮长任务计划**：总控计划 `docs/superpowers/plans/2026-06-14-p5-first-phase-final-closeout.md` 已执行完成；本接力仅保留主线合并后的真实状态。
 - **本轮本地收敛事实（2026-06-14）**：新增 `GET /api/v1/engine/sandbox/scenarios`，场景目录由后端 `SandboxScenarioCatalog` 提供，前端 `useSandboxScenarios` 消费目录并只保留“后端目录不可用”的诚实占位，不再在前端伪造临床场景阈值；沙盘数值录入改为目录驱动，仍调用真实引擎编排。主数据同步 traceId 回退改为请求上下文 traceId，避免 UUID 冒充 hash；`master_data_sync_*`、`followup_template` 迁移表名收敛为 `mk_integration_*` / `mk_followup_*`，并同步领域 owner 目录。后续 134 红灯还闭环了沙盘重复触发编码、`source_event_id`/路径推进 eventId 字段长度、质控场景病人匹配、嵌入令牌 `hookInstance` 返回契约和沙盘评估取证角色。
 - **本轮本地验证已通过**：脚本语法与沙盘规则 `node --check ... && node --test scripts/sandbox/scenario-rules.test.mjs` 通过；后端定向回归 41/123/110 项通过；`cd medkernel-backend && mvn test` 2282 项通过，含五方言迁移烟测到 V123；前端沙盘定向 109 项通过，`cd frontend && npm test` 94 文件 / 695 项通过，`npm run build && npm run lint` 通过；T-GATE 真实性 1633 文件、配置边界 1492 文件、迁移规约 25 文件、中文注释、`git diff --check` 均通过。本地摘要证据：`docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/02-local-gate-summary.json`。
@@ -24,8 +24,8 @@
 
 ### 当前下一步（精确照做）
 
-1. 第一阶段收官线已完成：PR #600 已合并，CI 8/8 通过，`origin/main=b410f5a3`。
-2. 从 `origin/main=b410f5a3` 起续第二阶段/知识生产工厂；不得跳过 P6 阻断条件。
+1. 第一阶段收官线已完成：PR #600 已合并，功能收官提交 `b410f5a3`，CI 8/8 通过。
+2. 从最新 `origin/main` 起续第二阶段/知识生产工厂；不得跳过 P6 阻断条件。
 3. 正式知识生产继续阻断，直到文献资料库受管根地址完成真实配置与独立验收；134 若需重发主线 `b410f5a3`，必须重新执行发布前备份、隔离恢复、部署与 post-deploy 取证。
 
 ---
