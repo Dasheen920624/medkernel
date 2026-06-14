@@ -344,6 +344,10 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.UPDATE, "model_egress_whitelist", "维护模型出域字段白名单"),
                 audit(AuditAction.UPDATE, "model_egress_approval", "裁定高敏出域审批"))),
+        contract("model-providers", "模型 provider 接入治理服务",
+            "com.medkernel.engine.llm.provider.ModelProviderController", "/api/v1/model-providers",
+            permissions("llm.provider.manage"),
+            audits(audit(AuditAction.UPDATE, "model_provider", "配置模型 provider 接入"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),

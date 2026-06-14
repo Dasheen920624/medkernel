@@ -94,6 +94,7 @@ public enum PermissionCode {
     LLM_EXECUTE("llm.execute", Risk.MEDIUM, "提交和重试模型任务"),
     LLM_MANAGE("llm.manage", Risk.HIGH, "管理租户模型路由、脱敏和输出结构策略"),
     LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调出域字段白名单与高敏出域审批"),
+    LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/凭据引用/启停）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
