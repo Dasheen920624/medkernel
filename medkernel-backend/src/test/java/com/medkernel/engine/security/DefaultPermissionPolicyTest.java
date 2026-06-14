@@ -83,6 +83,7 @@ class DefaultPermissionPolicyTest {
             "cdss-fatigue",
             "workflow-todos",
             "clinical-followup",
+            "sandbox",
             "qc-dashboard",
             "qc-alerts",
             "notifications")),
@@ -137,6 +138,7 @@ class DefaultPermissionPolicyTest {
             "terminology-mapping",
             "graph-explore",
             "ai-workflows",
+            "sandbox",
             "admin-audit",
             "security-baseline",
             "adapter-hub",
@@ -237,9 +239,13 @@ class DefaultPermissionPolicyTest {
 
     @Test
     void sandboxRolesCanRunAndReachTheOrdinaryClinicalEntry() {
+        // 全真体验沙盘的法定角色见 IA 矩阵 §3：主角色=临床决策使用者、实施运维员；
+        // 次角色=临床治理负责人（验证其治理的规则/路径端到端表现）、集成运维员（验证院内系统嵌入链路）。
         for (RoleCode role : List.of(
                 RoleCode.CLINICAL_DECISION_USER,
-                RoleCode.IMPLEMENTATION_OPERATOR)) {
+                RoleCode.IMPLEMENTATION_OPERATOR,
+                RoleCode.CLINICAL_GOVERNOR,
+                RoleCode.INTEGRATION_OPERATOR)) {
             assertThat(DefaultPermissionPolicy.permissionsOf(role))
                 .as("%s 必须能运行并进入全真体验沙盘", role.code())
                 .contains(PermissionCode.SANDBOX_RUN, PermissionCode.MENU_SANDBOX);

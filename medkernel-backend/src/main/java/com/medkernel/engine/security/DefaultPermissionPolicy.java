@@ -183,7 +183,10 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             AUDIT_READ,
-            LLM_READ, LLM_EXECUTE),
+            LLM_READ, LLM_EXECUTE,
+            // 临床治理负责人在全真体验沙盘以院内业务系统视角验证其治理的规则/路径端到端表现；
+            // 沙盘编排进程内复用引擎、嵌入令牌由编排生成，仅需 sandbox.run，不额外授一线写权。见 IA 矩阵 §3。
+            SANDBOX_RUN),
             MENU_WORKBENCH,
             MENU_PATHWAY_TEMPLATES,
             MENU_RULE_DEFINITIONS,
@@ -193,6 +196,7 @@ public final class DefaultPermissionPolicy {
             MENU_WORKFLOW_TODOS,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP,
+            MENU_SANDBOX,
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
             MENU_KNOWLEDGE_GOVERNANCE,
@@ -378,6 +382,9 @@ public final class DefaultPermissionPolicy {
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
             WORKBENCH_READINESS_VIEW,
+            // 集成运维员是院内业务系统接入与嵌入链路的责任角色；全真体验沙盘正是以宿主系统视角
+            // 验证嵌入终端与真实引擎调用，故纳入沙盘运行角色，仅需 sandbox.run。见 IA 矩阵 §3。
+            SANDBOX_RUN,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_TERMINOLOGY_MAPPING,
@@ -389,6 +396,7 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATION_SETTINGS,
             MENU_GRAPH_EXPLORE,
             MENU_AI_WORKFLOWS,
+            MENU_SANDBOX,
             MENU_DOMESTIC_CHECK,
             MENU_DEV_CONSOLE);
     }

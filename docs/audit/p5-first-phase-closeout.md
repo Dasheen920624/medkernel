@@ -97,3 +97,13 @@ P5 第一阶段幕0–幕10既有演练已在 134 真实环境跑完并按仓库
 - 整改复演：`01-rectification-closeout.json`，4 条沙盘评估整改任务提交并复核关闭，最终 `openTasks=0`。
 - 核心 readiness：`core-readiness/p5-core-readiness-probe.json`，`status=PASSED`，21 个探针通过。
 - 最终目标状态：`deploy-e7392c8f/final-target-state-e7392c8f.properties`，readiness 200，沙盘触发 44、沙盘路径 8、随访计划 8、评估运行 4，整改 `open=0`，AppleDouble 0。
+
+## 8. 2026-06-14 收官后独立全面复核
+
+PR #600 合并后，对第一阶段（功能完整性、菜单分类/命名、角色分配合理性、文档线）做了一次独立全面复核，结论与改造如下：
+
+- **全栈绿基线复核通过**：后端 `mvn test` 2282 项、前端 94 文件/695 项、JS 三门禁（真实性 1633 / 配置边界 1535 / 中文注释 0 fail）、沙盘场景规则 `node --test`、`git diff --check` 均通过。
+- **菜单 IA 判定为成熟设计、不重组**：7 业务域 31 入口为 `product-ia-matrix.md` 唯一架构裁决产物，代码 `routes.ts` 派生菜单并由 `menu.test.ts` 锁定 29 主入口，命名已清理技术词/英文/旧域名；权威文档集零死链。不为改而改推翻分类/命名（避免违背架构裁决并破坏锁定测试）。
+- **角色分配交叉核对，补全唯一缺口**：IA 矩阵 §3「主+次角色」与 `DefaultPermissionPolicy` 菜单授权逐项核对，仅全真体验沙盘缺少矩阵列明的次角色。已为**集成运维员**（验证院内系统嵌入链路）与**临床治理负责人**（验证其治理的规则/路径端到端表现）补 `SANDBOX_RUN`+`MENU_SANDBOX`；沙盘令牌进程内生成、embed 走公开 launch 路由兑换，故零越权（仅 `sandbox.run`+`menu.sandbox`）。同步更新两处权限断言与前端路由及其测试。
+- **文档收敛**：`deferred-issues.md` DEFER-019（随访模板资产）据本报告 §7 证据转 `done`；`_HANDOFF.md` 将 16+ 已闭环历史段收敛为索引，保持干净文档线。旧巨物按 README 保留至 P8、审计痕迹与非权威设计证据如实保留。
+- **未声明变更**：未推翻菜单分类/命名；未扩展沙盘以外的角色权限；未删除证据或审计痕迹；P6 阻断与未评审沙盘场景阻断保持不变。
