@@ -26,6 +26,10 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.llm.egress.ModelEgressGuard;
+import com.medkernel.engine.llm.provider.ModelProviderRegistry;
+import com.medkernel.engine.llm.provider.ProviderCompletion;
+import com.medkernel.engine.llm.provider.ProviderRequest;
 
 /**
  * 模型能力网关核心领域服务实现类 (GA-ENG-API-12)。
@@ -52,17 +56,23 @@ public class ModelGatewayService {
     private final ModelCapabilityDefinitionRepository definitionRepo;
     private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final ModelProviderRegistry providerRegistry;
+    private final ModelEgressGuard egressGuard;
 
     public ModelGatewayService(ModelCapabilityTaskRepository taskRepo,
                                ModelCapabilityPolicyRepository policyRepo,
                                ModelCapabilityDefinitionRepository definitionRepo,
                                AuditRecorder auditRecorder,
-                               IsolatedAuditPublisher isolatedAudit) {
+                               IsolatedAuditPublisher isolatedAudit,
+                               ModelProviderRegistry providerRegistry,
+                               ModelEgressGuard egressGuard) {
         this.taskRepo = taskRepo;
         this.policyRepo = policyRepo;
         this.definitionRepo = definitionRepo;
         this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
+        this.providerRegistry = providerRegistry;
+        this.egressGuard = egressGuard;
     }
 
     /**
@@ -234,20 +244,21 @@ public class ModelGatewayService {
         String inputHash = computeSha256(req.inputData());
         String inputSummary = desensitizedInput.length() > 500 ? desensitizedInput.substring(0, 500) : desensitizedInput;
 
-        // 4. 路由与推理：当前未接入任何真实模型 provider（B1 本地 / B2 外部 / Dify 由 GA-ENG-LLM-02 落地）。
-        //    据宪法 #9/#13，provider 缺位时一律诚实降级到 B0 确定性基线，
-        //    禁止伪造 B1/B2 模型名、置信度、来源引文或患者数据。
+        // 4. 路由与推理：按策略解析真实 provider（B1 本地 / B2 外部）。有健康 provider 且（B2）过出域闸
+        //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
+        //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         String strategy = policy.routeStrategy();
-        String outputContent = executeB0Fallback(capabilityCode);
-        String modelMode = "B0";
-        String modelVersion = "B0-Deterministic-Baseline";
-        String promptVersion = "baseline";
-        String sourceCitations = "[]";
-        Double confidence = null;
-        String riskLevel = "LOW";
-        boolean fallbackUsed = true;
-        String fallbackReason = baselineReason(strategy);
-        String taskStatus = "DEGRADED";
+        RouteOutcome outcome = route(tenantId, capabilityCode, strategy, desensitizedInput, taskId);
+        String outputContent = outcome.outputContent();
+        String modelMode = outcome.modelMode();
+        String modelVersion = outcome.modelVersion();
+        String promptVersion = outcome.promptVersion();
+        String sourceCitations = outcome.sourceCitations();
+        Double confidence = outcome.confidence();
+        String riskLevel = outcome.riskLevel();
+        boolean fallbackUsed = outcome.fallbackUsed();
+        String fallbackReason = outcome.fallbackReason();
+        String taskStatus = outcome.taskStatus();
 
         // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出（当前恒为 B0 基线），未来接入 provider 后对模型输出复用同一校验。
@@ -590,6 +601,67 @@ public class ModelGatewayService {
             return "未接入外部大模型/Dify(B2)，按 B0 确定性基线执行；模型接入由 GA-ENG-LLM-02 落地";
         }
         return "未识别的路由策略 " + strategy + "，回退 B0 确定性基线";
+    }
+
+    /** 单次任务的路由产出（真实增强或诚实 B0 降级）。 */
+    private record RouteOutcome(
+        String outputContent, String modelMode, String modelVersion, String promptVersion,
+        String sourceCitations, Double confidence, String riskLevel,
+        boolean fallbackUsed, String fallbackReason, String taskStatus) {}
+
+    /**
+     * 按路由策略解析真实 provider 并产出；任一环节不可用一律诚实降级 B0（铁律 #1/#2/#4）。
+     */
+    private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
+                               String desensitizedInput, String taskId) {
+        var resolved = providerRegistry.resolve(tenantId, strategy);
+        if (resolved.isEmpty()) {
+            // 无配置 / 全不健康 / 运行侧内网形态禁外部 → 诚实 B0。
+            return b0Outcome(capabilityCode, baselineReason(strategy));
+        }
+        ModelProviderRegistry.ResolvedProvider provider = resolved.get();
+
+        String prompt = desensitizedInput;
+        if (provider.adapter().type().external()) {
+            // B2 外调必先过出域数据最小化闸；越白名单/未审批阻断 → 不出域、诚实降级 B0。
+            try {
+                String egressJson = OBJECT_MAPPER.createObjectNode().put("prompt", desensitizedInput).toString();
+                var prep = egressGuard.prepareEgress(
+                    tenantId, capabilityCode, egressJson, taskId, provider.config().providerCode());
+                prompt = readPromptField(prep.payload(), desensitizedInput);
+            } catch (ApiException egressBlocked) {
+                log.warn("外调出域闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
+                publishFailureAudit(egressBlocked.errorCode(),
+                    "外调出域闸阻断 capabilityCode=" + capabilityCode + "：" + egressBlocked.getMessage());
+                return b0Outcome(capabilityCode, "外调出域闸阻断，已降级 B0：" + egressBlocked.getMessage());
+            }
+        }
+
+        try {
+            ProviderCompletion completion = provider.adapter()
+                .complete(provider.config(), new ProviderRequest(capabilityCode, prompt));
+            // 真实增强产出：真实 model_version；置信度/引文仅由 provider 真实返回，绝不伪造。
+            return new RouteOutcome(
+                completion.content(), provider.modelMode(), completion.modelVersion(), "provider",
+                completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED");
+        } catch (ApiException providerFailed) {
+            log.warn("provider 调用失败 capabilityCode={}：{}", capabilityCode, providerFailed.getMessage());
+            return b0Outcome(capabilityCode, "provider 调用失败，已降级 B0：" + providerFailed.getMessage());
+        }
+    }
+
+    private String readPromptField(String json, String fallback) {
+        try {
+            return OBJECT_MAPPER.readTree(json).path("prompt").asText(fallback);
+        } catch (Exception parseFailed) {
+            return fallback;
+        }
+    }
+
+    private RouteOutcome b0Outcome(String capabilityCode, String fallbackReason) {
+        return new RouteOutcome(
+            executeB0Fallback(capabilityCode), "B0", "B0-Deterministic-Baseline", "baseline",
+            "[]", null, "LOW", true, fallbackReason, "DEGRADED");
     }
 
     /**
