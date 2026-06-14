@@ -41,11 +41,7 @@ describe("SandboxDataEntry", () => {
     const onRun = vi.fn();
     render(
       <ConfigProvider>
-        <SandboxDataEntry
-          scenario={numericScenario}
-          running={false}
-          onRun={onRun}
-        />
+        <SandboxDataEntry scenario={numericScenario} running={false} onRun={onRun} />
       </ConfigProvider>,
     );
 
@@ -65,11 +61,7 @@ describe("SandboxDataEntry", () => {
   it("locks the trigger while a run is pending", () => {
     render(
       <ConfigProvider>
-        <SandboxDataEntry
-          scenario={numericScenario}
-          running
-          onRun={vi.fn()}
-        />
+        <SandboxDataEntry scenario={numericScenario} running onRun={vi.fn()} />
       </ConfigProvider>,
     );
 

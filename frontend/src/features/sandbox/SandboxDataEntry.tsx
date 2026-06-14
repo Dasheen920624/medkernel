@@ -29,7 +29,7 @@ export default function SandboxDataEntry({ scenario, running, onRun }: SandboxDa
     numericValue > scenario.upperReferenceValue;
   const precision =
     scenario.step !== null && scenario.step !== undefined && scenario.step < 1
-      ? String(scenario.step).split(".")[1]?.length ?? 1
+      ? (String(scenario.step).split(".")[1]?.length ?? 1)
       : undefined;
 
   return (

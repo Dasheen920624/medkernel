@@ -47,10 +47,7 @@ export default function SandboxHost() {
   const [runError, setRunError] = useState<string | null>(null);
   const [latestDecision, setLatestDecision] = useState<SandboxEmbedDecision | null>(null);
   const [embedMode, setEmbedMode] = useState<SandboxEmbedMode>("IFRAME");
-  const scenarios = useMemo(
-    () => mergeSandboxCatalog(scenariosQuery.data),
-    [scenariosQuery.data],
-  );
+  const scenarios = useMemo(() => mergeSandboxCatalog(scenariosQuery.data), [scenariosQuery.data]);
   const selectedScenario: SandboxScenario =
     scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
   const scenarioGroups = scenariosByServicePackage(scenarios);

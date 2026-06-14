@@ -106,9 +106,7 @@ export const SANDBOX_SCENARIOS: SandboxScenario[] = [
   } satisfies UnavailableSandboxScenario,
 ];
 
-export function isNumericScenario(
-  scenario: SandboxScenario,
-): scenario is NumericSandboxScenario {
+export function isNumericScenario(scenario: SandboxScenario): scenario is NumericSandboxScenario {
   return scenario.inputKind === "numeric";
 }
 
@@ -120,13 +118,10 @@ export function scenariosByServicePackage(
     "quality-improvement": [],
     "engine-orchestration": [],
   };
-  return scenarios.reduce<Record<SandboxServicePackage, SandboxScenario[]>>(
-    (groups, scenario) => {
-      groups[scenario.servicePackage].push(scenario);
-      return groups;
-    },
-    initial,
-  );
+  return scenarios.reduce<Record<SandboxServicePackage, SandboxScenario[]>>((groups, scenario) => {
+    groups[scenario.servicePackage].push(scenario);
+    return groups;
+  }, initial);
 }
 
 export function buildSandboxContextOverride(
@@ -136,9 +131,9 @@ export function buildSandboxContextOverride(
 ) {
   let criticalFlag: "HIGH" | null = null;
   if (
-    scenario.upperReferenceValue !== null
-    && scenario.upperReferenceValue !== undefined
-    && numericValue > scenario.upperReferenceValue
+    scenario.upperReferenceValue !== null &&
+    scenario.upperReferenceValue !== undefined &&
+    numericValue > scenario.upperReferenceValue
   ) {
     criticalFlag = "HIGH";
   }
@@ -204,7 +199,9 @@ export function buildSandboxContextOverride(
   };
 }
 
-export function mergeSandboxCatalog(catalog?: readonly SandboxCatalogScenario[]): SandboxScenario[] {
+export function mergeSandboxCatalog(
+  catalog?: readonly SandboxCatalogScenario[],
+): SandboxScenario[] {
   if (!catalog?.length) {
     return SANDBOX_SCENARIOS;
   }
@@ -218,7 +215,10 @@ export function mergeSandboxCatalog(catalog?: readonly SandboxCatalogScenario[])
   });
 }
 
-function mergeKnownScenario(local: SandboxScenario, remote: SandboxCatalogScenario): SandboxScenario {
+function mergeKnownScenario(
+  local: SandboxScenario,
+  remote: SandboxCatalogScenario,
+): SandboxScenario {
   return {
     ...local,
     servicePackage: normalizeServicePackage(remote.servicePackage, local.servicePackage),
@@ -259,8 +259,7 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
     expectedAssetCode: remote.expectedAssetCode ?? null,
     status,
     statusReason:
-      remote.statusReason ??
-      (status === "ready" ? OUTER_READY_REASON : CLINICAL_REVIEW_REASON),
+      remote.statusReason ?? (status === "ready" ? OUTER_READY_REASON : CLINICAL_REVIEW_REASON),
   };
   if (remote.input?.kind === "numeric") {
     if (!hasNumericInputContract(remote)) {

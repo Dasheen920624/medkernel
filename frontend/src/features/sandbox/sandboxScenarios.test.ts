@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { SANDBOX_SCENARIOS, mergeSandboxCatalog, scenariosByServicePackage } from "./sandboxScenarios";
+import {
+  SANDBOX_SCENARIOS,
+  mergeSandboxCatalog,
+  scenariosByServicePackage,
+} from "./sandboxScenarios";
 
 describe("sandboxScenarios", () => {
   it("uses an honest disabled placeholder until the backend-owned catalog loads", () => {
