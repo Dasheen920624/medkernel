@@ -1,7 +1,7 @@
 # P5 第二轮全新演练阶段检查点
 
 > 日期：2026-06-14
-> 状态：幕0–幕10既有演练已完成；第一阶段因完整性缺口重新打开验收
+> 状态：幕0–幕10既有演练已完成；第一阶段补充缺口已在 134 复演通过，待 PR/CI/合并
 > 目标：从再次清库后的干净基线完整重演，发现问题按 TDD 闭环，最终完成第一阶段正式验收。
 > 收口报告：`docs/audit/p5-first-phase-closeout.md`
 
@@ -11,11 +11,10 @@ P5 已完成清库前备份与隔离恢复、全新清库、首发接管、客�
 
 因此当前裁决为：
 
-- PR #596 已完成幕10并合并为 `main=5e788e4d`；第一阶段最终验收因嵌入业务系统等缺口重新打开。
-- 当前已确认缺口：真实跨站 iframe 嵌入被认证与响应头阻断；术语一对多冲突缺前台处置；首次失败演练遗留 1 条 open 整改任务；D0–D6 功能、页面、菜单和证据正在统一覆盖审计。
-- 2026-06-14 本轮本地收敛已完成：新增沙盘后端场景目录接口并让前端从后端目录驱动场景；院内主数据同步、身份/人员适配、随访模板资产、迁移命名与领域 owner 归属已通过本地验证；本地摘要见 `docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/02-local-gate-summary.json`。
-- 本轮本地验证已通过：后端 `mvn test` 2282 项、前端 `npm test` 94 文件 / 695 项、前端 build/lint、五方言迁移烟测、真实性/配置/迁移/中文注释/whitespace 门禁。该结果不等价于 134 已部署或第一阶段最终验收通过。
-- 134 当前程序 manifest 为 `f347924a`（幕8质控指标统一资产组织域修复部署）；幕9/幕10为脚本与证据文档收口，未重新部署程序。
+- PR #596 已完成幕10并合并为 `main=5e788e4d`；随后重新打开的补充缺口已在当前分支收敛并部署到 134。
+- 2026-06-14 本轮补齐：沙盘后端场景目录、前端目录驱动、院内主数据同步验证、随访模板资产、迁移命名、领域 owner 归属、沙盘嵌入 `hookInstance` 契约、沙盘评估取证角色、沙盘评估整改收官范围。
+- 本轮本地验证已通过：后端 `mvn test` 2282 项、前端 `npm test` 94 文件 / 695 项、前端 build/lint、五方言迁移烟测、真实性/配置/迁移/中文注释/whitespace 门禁；本地摘要见 `docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/02-local-gate-summary.json`。
+- 134 当前程序 manifest 为 `e7392c8f`；发布前备份与隔离恢复、post-deploy、沙盘全真复演、整改闭环和核心 readiness 均已留证。当前仍未完成 PR、远端 CI 和合并，因此不写成主线正式完成。
 - 正式知识生产继续阻断；文献资料库根地址仍为空，不得进入 P6。
 
 ## 2. 备份、恢复与干净基线
@@ -242,10 +241,11 @@ TDD 闭环（本地绿灯，待部署复验）：
 
 ## 6. 当前 134 状态
 
-- manifest：`source/commit=f347924a`（幕8质控指标统一资产组织域修复部署）；`origin/main` 已合并幕9证据为 `f0179edc`，134 尚未因幕9/幕10脚本与证据文档重新部署程序。
+- manifest：`source/commit=e7392c8f`，jar SHA-256 `a145ee583e912b4e08570371787884052c49a6e318b68b5f683fac9db3034e4b`。
 - 服务：`medkernel|nginx|postgresql=active|active|active`；演练辅助服务 `medkernel-mock-third-party=active`（仅监听 127.0.0.1:9301）。
-- HTTP / HTTPS readiness：`200|200`。
-- Flyway / 表数：`118|118|118` / 178 张 public 基表。
+- HTTP / HTTPS readiness：HTTPS readiness 200，`{"status":"UP"}`。
+- Flyway / 表数：`123|success=123|max_rank=123` / 181 张 public 基表。
+- 发布纪律：`deploy-e7392c8f/predeploy-backup-e7392c8f.properties` 隔离恢复通过，`restore_cleanup_database_count=0`，`destructive_action_performed=false`；post-deploy AppleDouble 0。
 - 知识数据：幕9 演练映射包 `TERM.P5.MAPPING 2026.06.1 ACTIVE` 与幕5 路径知识包/模板保留，均为演练数据，非正式知识生产。
 - 规则治理：红线规则 `P5.ACT4.CRITICAL.K`（`rule-95d0454a`）`rule_governance.state=FULL`、委员会会签 2/2、院级全量发布计划携独立电子签名；4 份标准上下文快照 ACTIVE。
 - 路径治理：`PATH.ED.DISPOSITION` 已发布并院级全量，患者入径真实触发于幕6。
@@ -253,6 +253,9 @@ TDD 闭环（本地绿灯，待部署复验）：
 - 配置包治理：幕8 canonical 包 `P5.ACT8.CONFIG.260613225241` v1 `ACTIVE`、v2 `OFFLINE`；收敛期失败包保留未清库；质控指标 v2 `ACTIVE` 且组织域 `tenant:p5-hospital`。
 - 集成适配器：旧发布链适配器 `p5-his-gateway REST ACTIVE/HEALTHY`；幕9正幕 canonical HIS `p5-his-main-260613232500 ACTIVE/HEALTHY`、EMR `p5-emr-main-260613232500 ACTIVE/NOT_CONNECTED`；ADAPTER/FHIR 接入申请均已 ONLINE，区域来源、数据质量报告与死信重放证据已落库。
 - 审计与证据：幕10 canonical 审计导出申请 `exp-audit-event-p5-act10-60613-234800` 已 `EXPORTED`；真实 CSV 导出任务 `6777d2b2-f0e6-4668-b1bc-df9b8fb1673d` 成功；审批证据与导出证据均验签通过；运行态仍诚实暴露 `NOT_CONNECTED` / `MODEL_DISABLED` / 备份恢复 `NOT_AVAILABLE`。
+- 沙盘全真复演：`sandbox/00-sandbox-summary.json`，6 个可运行场景 PASS、9 个未评审场景阻断；最终目标状态中 sandbox trigger 44、路径实例 8、随访计划 8、评估运行 4，均为真实演练数据并保留未清库。
+- 整改闭环：`01-rectification-closeout.json` 最终 `totalTasks=7/openTasks=0/closureRate=1`；沙盘评估演练新增整改任务均已由独立角色提交/复核关闭。
+- 核心 readiness：`core-readiness/p5-core-readiness-probe.json`，7 类角色 21 个只读探针 `PASSED`。
 - 文献资料库根地址：长度 0。
 - 追踪标识合同：所有字符型 `trace_id` 列均不短于 128。
 
@@ -265,4 +268,4 @@ TDD 闭环（本地绿灯，待部署复验）：
 5. ~~幕4 规则治理（治理侧完整旅程到院级全量），暴露三项阻断缺陷 TDD 闭环。~~ 已完成（5.7；PR #582/#583/#584 → `f75f7edb` 部署；`rule_governance.state=FULL` + 独立电子签名落库）。
 6. ~~幕5 路径治理、幕6 临床运行、幕7 随访质控、幕8 配置包与发布治理、幕9 系统接入正幕、幕10 审计导出审批。~~ 幕5/6 已修复、部署并归档；幕7/8/9/10 已在 134 真实演练通过。
 7. ~~提交幕10脚本、证据、checkpoint 与 `_HANDOFF`，通过本地验证、T-GATE、CI 并 squash 合并。~~ 已完成（PR #596 → `5e788e4d`）；仅幕10结论生效。
-8. 当前门禁：完成 D0–D6 全覆盖审计，补齐功能、页面、菜单与演练缺口，统一部署和真实复演后重新形成第一阶段最终验收。
+8. 当前门禁：提交当前分支最终收官证据 PR，等待远端 CI 全绿并合并；合并后以新 `origin/main` 形成主线正式结论。

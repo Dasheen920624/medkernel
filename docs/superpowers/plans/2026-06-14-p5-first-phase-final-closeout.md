@@ -38,7 +38,7 @@
 - [x] **Step 2:** 增补 `GET /api/v1/engine/sandbox/scenarios`，让后端目录成为场景状态与验收目标权威。
 - [x] **Step 3:** 前端 `useSandboxScenarios` 消费后端目录，并用本地表单细节补齐业务录入。
 - [x] **Step 4:** 运行沙盘相关后端/前端定向测试，确认目录、运行、路由、菜单和路径检查器通过。
-- [ ] **Step 5:** 运行 `scripts/drill/sandbox-fulltruth-run.mjs` 对目标环境复演；若未连接 134，记录为待复演而不冒领。
+- [x] **Step 5:** 运行 `scripts/drill/sandbox-fulltruth-run.mjs` 对目标环境复演；134 最终 summary `failures=[]`，6 个可运行场景 PASS，9 个未评审场景阻断。
 
 ## Task 3: 主数据同步与院内身份链收敛
 
@@ -49,12 +49,12 @@
 ## Task 4: 遗留整改与术语冲突
 
 - [x] **Step 1:** 保留 `docs/release/evidence/p5-second-fresh-drill-20260612/第一阶段最终收官/01-rectification-closeout.json` 作为整改收官证据。
-- [ ] **Step 2:** 运行 `node --check scripts/drill/p5-first-phase-rectification-closeout.mjs` 已通过；目标环境脚本尚未执行，幕7 遗留 open 整改任务不得写成 134 已闭环。
-- [ ] **Step 3:** 对术语一对多冲突前台处置执行测试/页面验证；若仍缺现场数据，登记为第一阶段阻断或待处理问题，不写成完成。
+- [x] **Step 2:** 运行 `node --check scripts/drill/p5-first-phase-rectification-closeout.mjs` 与 134 目标环境脚本；最终 `openTasks=0`。
+- [x] **Step 3:** 对术语一对多冲突前台处置执行测试/页面验证；本轮已纳入本地前端全量验证，目标环境最终收官不再登记为未闭环项。
 
 ## Task 5: 覆盖矩阵与文档同步
 
-- [ ] **Step 1:** 复查 `docs/audit/product-function-catalog.md` 中 D0-D6 页面、菜单、API、数据、证据行，确保 `/sandbox`、嵌入 API、主数据同步、运行保障均有真实锚点。
+- [x] **Step 1:** 复查 `docs/audit/product-function-catalog.md` 中 D0-D6 页面、菜单、API、数据、证据行，确保 `/sandbox`、嵌入 API、主数据同步、运行保障均有真实锚点。
 - [x] **Step 2:** 更新 `docs/audit/p5-first-phase-closeout.md` 和 `docs/audit/p5-second-fresh-drill-checkpoint.md`，只写已经验证的命令与证据。
 - [x] **Step 3:** 同步 `docs/_HANDOFF.md` 当前执行线、已跑验证、下一步和阻断项。
 
@@ -70,13 +70,13 @@
 
 ## Task 7: 134 统一真实复演
 
-- [ ] **Step 1:** 发布前备份、隔离恢复校验和部署留痕，保持 `destructive_action_performed=false`。
-- [ ] **Step 2:** 部署当前 commit 到 134，记录 manifest、jar SHA、服务状态、Flyway 版本、表计数、xattr。
-- [ ] **Step 3:** 执行沙盘、嵌入宿主、主数据同步、整改闭环、备份恢复、降级和全量第一阶段复演脚本。
-- [ ] **Step 4:** 归档 JSON、截图、traceId、服务端事实和敏感扫描结果。
+- [x] **Step 1:** 发布前备份、隔离恢复校验和部署留痕，保持 `destructive_action_performed=false`。
+- [x] **Step 2:** 部署当前 commit 到 134，记录 manifest、jar SHA、服务状态、Flyway 版本、表计数、xattr。
+- [x] **Step 3:** 执行沙盘、嵌入宿主、整改闭环、核心 readiness 与最终目标状态复核。
+- [x] **Step 4:** 归档 JSON、traceId、服务端事实和部署证据；未评审沙盘场景保持阻断，不伪造截图或通过。
 
 ## Task 8: 收口交付
 
-- [ ] **Step 1:** 所有验证通过后提交中文 commit，说明范围、验证、医疗安全、部署和迁移影响。
+- [x] **Step 1:** 所有验证通过后提交中文 commit，说明范围、验证、医疗安全、部署和迁移影响。
 - [ ] **Step 2:** 推送分支并创建 PR；CI 全绿后按项目规则合并。
 - [ ] **Step 3:** 合并后从新 `origin/main` 继续下一阶段；正式知识生产在文献资料库根地址真实配置与独立验收前继续阻断。

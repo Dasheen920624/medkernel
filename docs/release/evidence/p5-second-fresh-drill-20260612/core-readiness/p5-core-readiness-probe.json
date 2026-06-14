@@ -1,7 +1,7 @@
 {
   "status": "PASSED",
-  "startedAt": "2026-06-12T14:58:53.053Z",
-  "finishedAt": "2026-06-12T14:58:54.830Z",
+  "startedAt": "2026-06-14T01:20:28.275Z",
+  "finishedAt": "2026-06-14T01:20:30.778Z",
   "baseUrl": "https://193.112.107.134/medkernel/api/v1",
   "credentialBoundary": {
     "source": "P5_ROLE_CREDENTIALS_FILE",
@@ -55,8 +55,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 1,
+        "total": 1
       },
       "fakeTextFound": false
     },
@@ -68,8 +68,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 1,
+        "total": 1
       },
       "fakeTextFound": false
     },
@@ -81,8 +81,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 5,
+        "total": 10
       },
       "fakeTextFound": false
     },
@@ -94,8 +94,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 5,
+        "total": 10
       },
       "fakeTextFound": false
     },
@@ -107,8 +107,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 5,
+        "total": 58
       },
       "fakeTextFound": false
     },
@@ -153,8 +153,8 @@
       "status": 200,
       "dataShape": {
         "kind": "page",
-        "size": 0,
-        "total": 0
+        "size": 5,
+        "total": 6
       },
       "fakeTextFound": false
     },
@@ -192,7 +192,7 @@
       "status": 200,
       "dataShape": {
         "kind": "array",
-        "size": 0
+        "size": 3
       },
       "fakeTextFound": false
     },
