@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.medkernel.engine.factory.ProfessionalAssetTemplate;
+import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -30,11 +32,14 @@ public class KnowledgeProductionController {
 
     private final KnowledgeProductionOrchestrationService service;
     private final CandidateProvenanceService provenanceService;
+    private final ProfessionalAssetTemplateRegistry templateRegistry;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
-                                         CandidateProvenanceService provenanceService) {
+                                         CandidateProvenanceService provenanceService,
+                                         ProfessionalAssetTemplateRegistry templateRegistry) {
         this.service = service;
         this.provenanceService = provenanceService;
+        this.templateRegistry = templateRegistry;
     }
 
     @PostMapping("/jobs")
@@ -98,5 +103,12 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<ProductionJobResponse> replayJob(@PathVariable String jobCode) {
         return ApiResult.ok(service.replayJob(jobCode));
+    }
+
+    /** 全专业标准资产模板目录（AIK-STD-12 FR-1）：审核台/工作台按资产类型+领域对照核查完整性。 */
+    @GetMapping("/asset-templates")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<ProfessionalAssetTemplate>> assetTemplates() {
+        return ApiResult.ok(templateRegistry.listAll());
     }
 }
