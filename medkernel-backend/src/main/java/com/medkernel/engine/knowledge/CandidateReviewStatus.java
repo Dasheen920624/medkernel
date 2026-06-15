@@ -11,5 +11,7 @@ public enum CandidateReviewStatus {
     /** 审核通过，后续交由 SYS-08 原子替换 */
     APPROVED,
     /** 审核拒绝并留档 */
-    REJECTED
+    REJECTED,
+    /** 已退修，退回生产者修订重提，退出审核台队列 */
+    RETURNED
 }
