@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR3 候选会签路由（FR-6）+ 院内覆盖角色边界（FR-7）（已实现待合，分支 `claude/wave2-p2b-aikstd13-pr3-review-routing`）
+
+> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）已合并入 main。本段＝PR3 续接（FR-6 会签路由 + FR-7 院内归口边界）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md`](superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md) §9。实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md`](superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md)。续接从最新 `origin/main` 起。
+
+- **已实现（PR3，续 `com.medkernel.engine.knowledge.production`）**：
+  - **FR-6 候选会签路由**：新 `KnowledgeDomain`（CLINICAL/PHARMACY/TERMINOLOGY_REPORT/EVALUATION_INSURANCE/GENERAL）+ `CandidateReviewRouter`（@Service，**纯确定性 B0** `resolve(管道,领域,风险)`）+ `ReviewRoutingDecision`（归口角色 + 领域会签角色 + 是否双签 + 领域）。归口按管道（PLATFORM_SOURCE→平台知识治理员 / TENANT_OVERLAY→机构知识治理员）；领域按 domain（临床→临床治理负责人、**药学→药事安全人员**、术语报告→医技协同、评估医保→质量与医保、通用→同归口）；HIGH→双签。`submitCandidate` 提交即返回 `CandidateSubmissionResponse(候选引用+路由)`；`listCandidates` 每条血缘附 `ProductionCandidateView(血缘+路由)`（只读 resolve，不存派生列）。
+  - **药学＝领域非资产类型**：**原地改** V130 加 `domain VARCHAR(24) NOT NULL`+CHECK、V131 加 `risk_level VARCHAR(16) NOT NULL`+CHECK（各 5 方言，**不新建 V132，`LATEST_MIGRATION_VERSION` 保持 131**，靠新建库生效）；**不动 `VersionedAssetType`**（说明书走 KNOWLEDGE、DDI 走 RULE，经 domain 区分）；job `domain` 应用层 `@NotNull` 必填。
+  - **FR-7 院内覆盖角色边界**：路由器保证 TENANT_OVERLAY 候选归口恒为机构知识治理员、永不平台归口（定向测试锁定）；叠加 PR1 `guardPipelineOwnership` 硬隔离，**不新增权限码、不建 `ReviewAssignment`**（物化前不伪装已分派，待 P2-C）。
+- **验证全绿**：全量 `mvn test` **2507 通过**（基线 2496 + 新增 11：路由 10 + createJobPersistsDeclaredDomain 1）+ **五方言 Flyway smoke 真实容器 3/3**（原地改 V130/V131 在 h2/postgres/oracle/dm/kingbase 干净建表，含 domain/risk_level 列 + 两 CHECK）+ 四门禁 changed（真实性/配置/迁移/中文注释）全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（端点数不变，仅响应体扩展，无目录漂移）。卡 [AIK-STD-13](cards/wave2/AIK-STD-13.md) FR-6/FR-7 勾「✅（PR3）」；backlog **仍 pending**（多 PR 大卡）。
+- **当前下一步（接力点）**：① 推送本分支 + 开 PR（**合并 main 须逐 PR 点名授权**）；② PR4+——FR-2 外部模型生产器实接（P6 闸）、候选真实物化入既有版本/审核链建真 `ReviewAssignment`（接 AIK-STD-04/10 解析管道，需身份+源 FK 解析）；或转 `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费本 PR 路由决策）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+
+---
+
 ## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR2 生命周期 + 候选血缘（已合并入 main，[PR #620](https://github.com/Dasheen920624/medkernel/pull/620) `1cfd3d2d`，分支 `claude/wave2-p2b-aikstd13-pr2-lifecycle-lineage` 已删）
 
 > **接力须知**：AIK-STD-13 PR1（#619）已合并入 main。本段＝PR2 续接（FR-1 生命周期 + FR-5 候选血缘可回溯），已 squash 合入 main `1cfd3d2d`。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md`](superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md) §8。续接从最新 `origin/main` 起。
