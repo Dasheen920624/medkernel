@@ -23,6 +23,7 @@ public record KnowledgeProductionJob(
     @Column("asset_type") VersionedAssetType assetType,
     @Column("producer") KnowledgeProducer producer,
     @Column("target_pipeline") TargetPipeline targetPipeline,
+    @Column("domain") KnowledgeDomain domain,
     @Column("model_strategy") String modelStrategy,
     @Column("status") ProductionJobStatus status,
     @Column("candidate_count") int candidateCount,

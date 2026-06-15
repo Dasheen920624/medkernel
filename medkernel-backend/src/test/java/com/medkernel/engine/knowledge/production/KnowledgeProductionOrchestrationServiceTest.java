@@ -64,8 +64,9 @@ class KnowledgeProductionOrchestrationServiceTest {
             KnowledgeProductionJob j = inv.getArgument(0);
             return j.id() == null
                 ? new KnowledgeProductionJob(1L, j.tenantId(), j.jobCode(), j.sourceScope(), j.assetType(),
-                    j.producer(), j.targetPipeline(), j.modelStrategy(), j.status(), j.candidateCount(),
-                    j.lineage(), j.createdAt(), j.createdBy(), j.updatedAt(), j.updatedBy(), j.traceId())
+                    j.producer(), j.targetPipeline(), j.domain(), j.modelStrategy(), j.status(),
+                    j.candidateCount(), j.lineage(), j.createdAt(), j.createdBy(), j.updatedAt(),
+                    j.updatedBy(), j.traceId())
                 : j;
         });
     }
@@ -81,7 +82,7 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private ProductionJobRequest request(TargetPipeline pipeline) {
         return new ProductionJobRequest("探索 run r-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.MANUAL, pipeline, null);
+            KnowledgeProducer.MANUAL, pipeline, KnowledgeDomain.GENERAL, null);
     }
 
     private KnowledgeAssetEnvelope envelope(String orgScope, VersionedAssetType type) {
@@ -94,8 +95,9 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private KnowledgeProductionJob overlayJob(String tenantId, VersionedAssetType type) {
         return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1", type,
-            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, null, ProductionJobStatus.PENDING,
-            0, null, java.time.Instant.now(), "user-001", java.time.Instant.now(), "user-001", "trace-1");
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            ProductionJobStatus.PENDING, 0, null, java.time.Instant.now(), "user-001",
+            java.time.Instant.now(), "user-001", "trace-1");
     }
 
     // ─── FR-4 双形态隔离守卫（createJob）─────────────────────────
@@ -140,6 +142,17 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(response.targetPipeline()).isEqualTo(TargetPipeline.TENANT_OVERLAY);
         assertThat(response.producer()).isEqualTo(KnowledgeProducer.MANUAL);
         assertThat(response.status()).isEqualTo(ProductionJobStatus.PENDING);
+    }
+
+    @Test
+    void createJobPersistsDeclaredDomain() {
+        asTenant(CUSTOMER);
+        ProductionJobRequest req = new ProductionJobRequest("探索 run r-1", VersionedAssetType.RULE,
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.PHARMACY, null);
+
+        ProductionJobResponse response = service.createJob(req);
+
+        assertThat(response.domain()).isEqualTo(KnowledgeDomain.PHARMACY);
     }
 
     // ─── FR-3/4/5 submitCandidate ──────────────────────────────
@@ -242,9 +255,9 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private KnowledgeProductionJob jobWith(String tenantId, ProductionJobStatus status, TargetPipeline pipeline) {
         return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1",
-            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, "strat-1", status, 0,
-            "{\"producer\":\"MANUAL\"}", java.time.Instant.now(), "user-001", java.time.Instant.now(),
-            "user-001", "trace-1");
+            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, KnowledgeDomain.GENERAL,
+            "strat-1", status, 0, "{\"producer\":\"MANUAL\"}", java.time.Instant.now(), "user-001",
+            java.time.Instant.now(), "user-001", "trace-1");
     }
 
     @Test

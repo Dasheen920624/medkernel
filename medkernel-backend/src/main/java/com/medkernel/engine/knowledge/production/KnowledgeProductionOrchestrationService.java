@@ -65,8 +65,8 @@ public class KnowledgeProductionOrchestrationService {
             + "\",\"createdAt\":\"" + now + "\"}";
         KnowledgeProductionJob job = jobRepository.save(new KnowledgeProductionJob(
             null, tenantId, jobCode, request.sourceScope(), request.assetType(), request.producer(),
-            request.targetPipeline(), request.modelStrategy(), ProductionJobStatus.PENDING, 0, lineage,
-            now, actor, now, actor, RequestContext.currentTraceId()));
+            request.targetPipeline(), request.domain(), request.modelStrategy(), ProductionJobStatus.PENDING,
+            0, lineage, now, actor, now, actor, RequestContext.currentTraceId()));
         auditRecorder.record(AuditAction.CREATE, "mk_knowledge_production_job", jobCode,
             "建知识生产 job producer=" + request.producer() + " pipeline=" + request.targetPipeline()
                 + " assetType=" + request.assetType());
@@ -108,8 +108,9 @@ public class KnowledgeProductionOrchestrationService {
             candidate.assetIdentity(), candidate.contentHash(), candidateRef, now, actor));
         jobRepository.save(new KnowledgeProductionJob(
             job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
-            job.targetPipeline(), job.modelStrategy(), ProductionJobStatus.RUNNING, job.candidateCount() + 1,
-            job.lineage(), job.createdAt(), job.createdBy(), now, actor, job.traceId()));
+            job.targetPipeline(), job.domain(), job.modelStrategy(), ProductionJobStatus.RUNNING,
+            job.candidateCount() + 1, job.lineage(), job.createdAt(), job.createdBy(), now, actor,
+            job.traceId()));
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_production_job", jobCode,
             "提交候选 producer=" + job.producer() + " pipeline=" + job.targetPipeline()
                 + " 身份=" + candidate.assetIdentity() + " 指纹=" + candidate.contentHash()
@@ -171,8 +172,8 @@ public class KnowledgeProductionOrchestrationService {
             + "\",\"createdAt\":\"" + now + "\"}";
         KnowledgeProductionJob replay = jobRepository.save(new KnowledgeProductionJob(
             null, tenantId, newCode, original.sourceScope(), original.assetType(), original.producer(),
-            original.targetPipeline(), original.modelStrategy(), ProductionJobStatus.PENDING, 0, lineage,
-            now, actor, now, actor, RequestContext.currentTraceId()));
+            original.targetPipeline(), original.domain(), original.modelStrategy(), ProductionJobStatus.PENDING,
+            0, lineage, now, actor, now, actor, RequestContext.currentTraceId()));
         auditRecorder.record(AuditAction.CREATE, "mk_knowledge_production_job", newCode,
             "重放知识生产 job replayedFrom=" + original.jobCode());
         return ProductionJobResponse.from(replay);
@@ -190,8 +191,8 @@ public class KnowledgeProductionOrchestrationService {
         String actor = currentActor();
         KnowledgeProductionJob saved = jobRepository.save(new KnowledgeProductionJob(
             job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
-            job.targetPipeline(), job.modelStrategy(), target, job.candidateCount(), job.lineage(),
-            job.createdAt(), job.createdBy(), now, actor, job.traceId()));
+            job.targetPipeline(), job.domain(), job.modelStrategy(), target, job.candidateCount(),
+            job.lineage(), job.createdAt(), job.createdBy(), now, actor, job.traceId()));
         auditRecorder.record(AuditAction.UPDATE, "mk_knowledge_production_job", jobCode, summary);
         return ProductionJobResponse.from(saved);
     }

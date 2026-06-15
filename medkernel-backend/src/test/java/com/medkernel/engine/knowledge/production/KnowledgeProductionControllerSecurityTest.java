@@ -52,7 +52,7 @@ class KnowledgeProductionControllerSecurityTest {
 
     private static final String JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
-        + "\"targetPipeline\":\"TENANT_OVERLAY\"}";
+        + "\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\"}";
 
     private static final String CANDIDATE_BODY =
         "{\"assetType\":\"KNOWLEDGE\",\"assetIdentity\":\"id\",\"subject\":\"s\",\"versionLabel\":\"v\","
@@ -62,8 +62,8 @@ class KnowledgeProductionControllerSecurityTest {
 
     private ProductionJobResponse jobResponse() {
         return new ProductionJobResponse("job-1", "tenant-1", "run-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, null, ProductionJobStatus.PENDING, 0,
-            Instant.now());
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            ProductionJobStatus.PENDING, 0, Instant.now());
     }
 
     @Test

@@ -14,6 +14,7 @@ public record ProductionJobResponse(
     VersionedAssetType assetType,
     KnowledgeProducer producer,
     TargetPipeline targetPipeline,
+    KnowledgeDomain domain,
     String modelStrategy,
     ProductionJobStatus status,
     int candidateCount,
@@ -22,7 +23,7 @@ public record ProductionJobResponse(
 
     public static ProductionJobResponse from(KnowledgeProductionJob job) {
         return new ProductionJobResponse(job.jobCode(), job.tenantId(), job.sourceScope(), job.assetType(),
-            job.producer(), job.targetPipeline(), job.modelStrategy(), job.status(), job.candidateCount(),
-            job.createdAt());
+            job.producer(), job.targetPipeline(), job.domain(), job.modelStrategy(), job.status(),
+            job.candidateCount(), job.createdAt());
     }
 }
