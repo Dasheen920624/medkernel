@@ -31,7 +31,10 @@
 - **FR-6 候选会签路由**：新枚举 `KnowledgeDomain`（临床/药学/术语报告/评估医保/通用）+ `CandidateReviewRouter`（@Service，**纯确定性 B0** `resolve(管道,领域,风险)`）+ `ReviewRoutingDecision`（归口角色 + 领域会签角色 + 是否双签 + 领域）。归口按管道（平台主源→平台知识治理员 / 院内覆盖→机构知识治理员）；领域会签按 domain（临床→临床治理负责人、**药学→药事安全人员**、术语报告→医技协同人员、评估医保→质量与医保治理员、通用→同归口）；HIGH→双签。`submitCandidate` 提交即返回 `CandidateSubmissionResponse(候选引用+路由)`；`listCandidates` 每条血缘附 `ProductionCandidateView(血缘+路由)`（FR-5/6 可回溯，只读 resolve 不存派生列）。
 - **药学＝领域非资产类型**：原地改 V130 加 `domain VARCHAR(24) NOT NULL`+CHECK（5 方言）、V131 加 `risk_level VARCHAR(16) NOT NULL`+CHECK（5 方言），**不新建 V132、不动 `VersionedAssetType`**（说明书走 `KNOWLEDGE`、DDI 走 `RULE`，经 domain 区分领域）；job `domain` 应用层 `@NotNull` 必填（须显式申报方能正确路由）。
 - **FR-7 院内覆盖角色边界**：路由器保证 `TENANT_OVERLAY` 候选归口恒为机构知识治理员，**永不路由平台归口**（定向测试锁定）；叠加 PR1 `guardPipelineOwnership` 硬隔离，**不新增权限码/不建 `ReviewAssignment`**（物化前不伪装已分派，待 P2-C）。
-- **PR4+ 待做**：FR-2 外部模型生产器实接（P6 闸）、候选真实物化入既有版本/审核链建真 `ReviewAssignment`（接 AIK-STD-04/10 解析管道）。
+**PR4（候选真实物化入版本/审核链，分支 `claude/wave2-p2b-aikstd13-pr4-candidate-materialization`）**：
+- **候选真实物化**（替换 PR1 暂存桩，使能 FR-3 统一流水线 + FR-5 血缘）：`MaterializingCandidateIntake` 替换 `StagingCandidateIntake`——`SourceReferenceResolver` 解析受控源串引用 `源编码:版本:锚点`→源 FK（**B0 解析不出诚实拒收**）+ `MaterializationTarget`（现有身份 **异或** 新建身份壳 `NewIdentitySpec`，二选一校验，新建 find-or-create + ACTIVE 保守默认）→ 信封经 `KnowledgeVersionService.classifyCandidate` 真实落版本（`PENDING_REPLACEMENT_REVIEW` 待审）/ `CandidateClassification` + **据 PR3 路由建真 `ReviewAssignment`**（归口 ∪ 领域，`LinkedHashSet` 去重）；`classifyCandidate` 接 `ReviewAssignmentPlan`（null 零回归）。
+- **服务端编排合成诚实 API-03 上下文**：编排无 HTTP 入参，`KnowledgeApiContext.validateTenant` 非空闸 → 合成 request_id=`kpm:uuid`、user_id=会话 actor、**package_version=job 编码（真实溯源）**、role_codes=PR3 归口治理角色。真实 H2 端到端集成测试 `CandidateMaterializationIntegrationTest` 锁定（候选→版本/分类/多角色分派全链）。仅覆盖可解析受控源（discovery-origin）。
+- **PR5+ 待做**：FR-2 外部模型生产器实接（受 **P6 阻断**）；非 discovery 源候选物化（接更宽解析管道 AIK-STD-04/10）。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
