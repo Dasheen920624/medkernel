@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS mk_knowledge_production_job (
     asset_type       VARCHAR(32)   NOT NULL,
     producer         VARCHAR(16)   NOT NULL,
     target_pipeline  VARCHAR(16)   NOT NULL,
+    domain           VARCHAR(24)   NOT NULL,
     model_strategy   VARCHAR(256)  NULL,
     status           VARCHAR(16)   NOT NULL DEFAULT 'PENDING',
     candidate_count  INTEGER       NOT NULL DEFAULT 0,
@@ -22,7 +23,8 @@ CREATE TABLE IF NOT EXISTS mk_knowledge_production_job (
     CONSTRAINT uk_mk_knowledge_production_job_code UNIQUE (job_code),
     CONSTRAINT ck_mk_knowledge_production_job_producer CHECK (producer IN ('API_MODEL', 'AGENT_TOOL', 'LOCAL_MODEL', 'MANUAL')),
     CONSTRAINT ck_mk_knowledge_production_job_pipeline CHECK (target_pipeline IN ('PLATFORM_SOURCE', 'TENANT_OVERLAY')),
-    CONSTRAINT ck_mk_knowledge_production_job_status CHECK (status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'))
+    CONSTRAINT ck_mk_knowledge_production_job_status CHECK (status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED')),
+    CONSTRAINT ck_mk_knowledge_production_job_domain CHECK (domain IN ('CLINICAL', 'PHARMACY', 'TERMINOLOGY_REPORT', 'EVALUATION_INSURANCE', 'GENERAL'))
 );
 
 CREATE INDEX idx_mk_knowledge_production_job_lookup ON mk_knowledge_production_job (tenant_id, target_pipeline, status);

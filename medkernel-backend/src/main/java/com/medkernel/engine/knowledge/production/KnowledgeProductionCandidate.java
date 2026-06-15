@@ -6,6 +6,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
+
 /**
  * 知识候选生产血缘（AIK-STD-13 PR2，FR-5 每候选可回溯）。
  *
@@ -20,6 +22,7 @@ public record KnowledgeProductionCandidate(
     @Column("asset_identity") String assetIdentity,
     @Column("content_hash") String contentHash,
     @Column("candidate_ref") String candidateRef,
+    @Column("risk_level") KnowledgeRiskLevel riskLevel,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy
 ) {

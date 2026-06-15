@@ -25,6 +25,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.RequestContext;
 
@@ -52,7 +53,7 @@ class KnowledgeProductionControllerSecurityTest {
 
     private static final String JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
-        + "\"targetPipeline\":\"TENANT_OVERLAY\"}";
+        + "\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\"}";
 
     private static final String CANDIDATE_BODY =
         "{\"assetType\":\"KNOWLEDGE\",\"assetIdentity\":\"id\",\"subject\":\"s\",\"versionLabel\":\"v\","
@@ -62,8 +63,8 @@ class KnowledgeProductionControllerSecurityTest {
 
     private ProductionJobResponse jobResponse() {
         return new ProductionJobResponse("job-1", "tenant-1", "run-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, null, ProductionJobStatus.PENDING, 0,
-            Instant.now());
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            ProductionJobStatus.PENDING, 0, Instant.now());
     }
 
     @Test
@@ -96,7 +97,9 @@ class KnowledgeProductionControllerSecurityTest {
 
     @Test
     void knowledgeGovernorCanSubmitCandidate() throws Exception {
-        when(service.submitCandidate(anyString(), any())).thenReturn("staged:id");
+        when(service.submitCandidate(anyString(), any())).thenReturn(
+            new CandidateSubmissionResponse("staged:id", new ReviewRoutingDecision(
+                RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false, KnowledgeDomain.GENERAL)));
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/candidates")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")

@@ -59,13 +59,14 @@ class KnowledgeProductionOrchestrationServiceTest {
         auditRecorder = mock(AuditRecorder.class);
         service = new KnowledgeProductionOrchestrationService(
             jobRepository, candidateRepository, candidateIntake, new KnowledgeAssetSchemaValidator(),
-            auditRecorder);
+            auditRecorder, new CandidateReviewRouter());
         when(jobRepository.save(any())).thenAnswer(inv -> {
             KnowledgeProductionJob j = inv.getArgument(0);
             return j.id() == null
                 ? new KnowledgeProductionJob(1L, j.tenantId(), j.jobCode(), j.sourceScope(), j.assetType(),
-                    j.producer(), j.targetPipeline(), j.modelStrategy(), j.status(), j.candidateCount(),
-                    j.lineage(), j.createdAt(), j.createdBy(), j.updatedAt(), j.updatedBy(), j.traceId())
+                    j.producer(), j.targetPipeline(), j.domain(), j.modelStrategy(), j.status(),
+                    j.candidateCount(), j.lineage(), j.createdAt(), j.createdBy(), j.updatedAt(),
+                    j.updatedBy(), j.traceId())
                 : j;
         });
     }
@@ -81,7 +82,7 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private ProductionJobRequest request(TargetPipeline pipeline) {
         return new ProductionJobRequest("探索 run r-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.MANUAL, pipeline, null);
+            KnowledgeProducer.MANUAL, pipeline, KnowledgeDomain.GENERAL, null);
     }
 
     private KnowledgeAssetEnvelope envelope(String orgScope, VersionedAssetType type) {
@@ -94,8 +95,9 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private KnowledgeProductionJob overlayJob(String tenantId, VersionedAssetType type) {
         return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1", type,
-            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, null, ProductionJobStatus.PENDING,
-            0, null, java.time.Instant.now(), "user-001", java.time.Instant.now(), "user-001", "trace-1");
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            ProductionJobStatus.PENDING, 0, null, java.time.Instant.now(), "user-001",
+            java.time.Instant.now(), "user-001", "trace-1");
     }
 
     // ─── FR-4 双形态隔离守卫（createJob）─────────────────────────
@@ -142,6 +144,17 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(response.status()).isEqualTo(ProductionJobStatus.PENDING);
     }
 
+    @Test
+    void createJobPersistsDeclaredDomain() {
+        asTenant(CUSTOMER);
+        ProductionJobRequest req = new ProductionJobRequest("探索 run r-1", VersionedAssetType.RULE,
+            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.PHARMACY, null);
+
+        ProductionJobResponse response = service.createJob(req);
+
+        assertThat(response.domain()).isEqualTo(KnowledgeDomain.PHARMACY);
+    }
+
     // ─── FR-3/4/5 submitCandidate ──────────────────────────────
 
     @Test
@@ -151,9 +164,12 @@ class KnowledgeProductionOrchestrationServiceTest {
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
         when(candidateIntake.intake(any(), any())).thenReturn("staged:discovery:SRC:v1:a");
 
-        String ref = service.submitCandidate("job-1", envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE));
+        CandidateSubmissionResponse resp = service.submitCandidate("job-1",
+            envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE));
 
-        assertThat(ref).isEqualTo("staged:discovery:SRC:v1:a");
+        assertThat(resp.candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
+        assertThat(resp.routing().ownerReviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR); // overlay→机构归口
         verify(candidateIntake).intake(any(), any());
         ArgumentCaptor<KnowledgeProductionJob> saved = ArgumentCaptor.forClass(KnowledgeProductionJob.class);
         verify(jobRepository).save(saved.capture());
@@ -242,9 +258,9 @@ class KnowledgeProductionOrchestrationServiceTest {
 
     private KnowledgeProductionJob jobWith(String tenantId, ProductionJobStatus status, TargetPipeline pipeline) {
         return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1",
-            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, "strat-1", status, 0,
-            "{\"producer\":\"MANUAL\"}", java.time.Instant.now(), "user-001", java.time.Instant.now(),
-            "user-001", "trace-1");
+            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, KnowledgeDomain.GENERAL,
+            "strat-1", status, 0, "{\"producer\":\"MANUAL\"}", java.time.Instant.now(), "user-001",
+            java.time.Instant.now(), "user-001", "trace-1");
     }
 
     @Test
@@ -265,20 +281,26 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(lineage.getValue().contentHash()).isEqualTo(candidate.contentHash());
         assertThat(lineage.getValue().candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
         assertThat(lineage.getValue().tenantId()).isEqualTo(CUSTOMER);
+        assertThat(lineage.getValue().riskLevel()).isEqualTo(KnowledgeRiskLevel.MEDIUM);
     }
 
     @Test
-    void listCandidatesReturnsJobLineage() {
+    void listCandidatesReturnsJobLineageWithRouting() {
         asTenant(CUSTOMER);
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
         KnowledgeProductionCandidate row = new KnowledgeProductionCandidate(5L, CUSTOMER, "job-1",
-            "discovery:SRC:v1:a", "hash", "staged:x", java.time.Instant.now(), "user-001");
+            "discovery:SRC:v1:a", "hash", "staged:x",
+            KnowledgeRiskLevel.HIGH, java.time.Instant.now(), "user-001");
         when(candidateRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1")).thenReturn(List.of(row));
 
-        List<KnowledgeProductionCandidate> rows = service.listCandidates("job-1");
+        List<ProductionCandidateView> views = service.listCandidates("job-1");
 
-        assertThat(rows).containsExactly(row);
+        assertThat(views).hasSize(1);
+        assertThat(views.get(0).candidateRef()).isEqualTo("staged:x");
+        assertThat(views.get(0).routing().requiresDualSign()).isTrue(); // HIGH→双签
+        assertThat(views.get(0).routing().ownerReviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR);
     }
 
     @Test

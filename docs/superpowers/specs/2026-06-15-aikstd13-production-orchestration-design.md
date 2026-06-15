@@ -17,8 +17,10 @@
 
 ## 2. PR 切片（仿 DATASVC-01 分期）
 
-- **PR1（本设计落点）= 编排核心**：FR-1 job 骨架（建/查/进度）· FR-3 统一候选池（消费信封入既有候选链）· **FR-4 双形态物理隔离守卫**（§9 红线）· FR-5 血缘/审计 · FR-2 的 **MANUAL/确定性生产器**（B0）。
-- **PR2+（后续）**：FR-5 job 重放 + 中止；FR-6 候选按归属+风险+领域路由会签（接审核分派）；FR-2 外部模型生产器实接（API/本地，经 LLM-01/08 网关，**P6 闸控**）；FR-7 院内覆盖角色边界五维资产权限细化。
+- **PR1（#619 已合）= 编排核心**：FR-1 job 骨架（建/查/进度）· FR-3 统一候选池（消费信封入既有候选链）· **FR-4 双形态物理隔离守卫**（§9 红线）· FR-5 血缘/审计 · FR-2 的 **MANUAL/确定性生产器**（B0）。
+- **PR2（#620 已合）= job 生命周期 + 候选血缘**：FR-1 complete/cancel/replay · FR-5 候选血缘表 + 可回溯（见 §8）。
+- **PR3（本设计落点 §9）= 候选会签路由 + 院内覆盖角色边界**：FR-6 候选按归属+风险+领域（含药学经 `domain=PHARMACY`）**确定性路由决策**（resolve，不建 `ReviewAssignment`——物化前不伪装已分派）· FR-7 院内覆盖角色边界（路由器保证院内候选只路由机构侧角色）。药学＝领域非类型，**不动 `VersionedAssetType`**。
+- **PR4+（后续）**：FR-2 外部模型生产器实接（API/本地，经 LLM-01/08 网关，**P6 闸控**）；候选真实物化入既有版本/审核链（接 AIK-STD-04/10 解析管道，建真 `ReviewAssignment`）。
 
 ## 3. PR1 组件设计
 
@@ -155,3 +157,75 @@
 ### 8.6 PR3+ 仍待
 
 - FR-6 候选按归属+风险+领域路由会签（接审核分派）· FR-2 外部模型生产器实接（P6 闸）· 候选真实物化入既有版本/审核链（接 AIK-STD-04/10 解析管道）· FR-7 院内覆盖角色边界细化。
+
+## 9. PR3 详细设计：候选会签路由（FR-6）+ 院内覆盖角色边界（FR-7）
+
+> PR1（#619）+ PR2（#620）已合并入 main。PR3 直续：候选**确定性会签路由决策** + 院内覆盖角色边界。仍 B0、不碰 P6/未建解析管道。
+
+### 9.0 关键约束（写给下个 AI）
+
+候选**尚未物化**进版本链（物化属 P2-C 解析管道，本卡留缝）。既有 `ReviewAssignment` 强依赖 `candidate_classification_id`/`identity_id`/`candidate_version_id`（均物化产物）。故 PR3 **不建 `ReviewAssignment` 行**，只产**确定性路由决策（resolve）**：算「该候选送谁会签 / 是否双签 / 领域」，留待物化时（P2-C）据此真正建分派。**诚实分寸：不伪装已分派**（铁律 #1）。
+
+路由是**纯确定性函数**（B0，无上游、无模型）：输入 = `targetPipeline`（job）+ `domain`（job）+ `riskLevel`（候选 envelope），输出 = 归口审核角色 + 领域会签角色 + 是否双签。
+
+**领域 vs 资产类型（正交，药学＝领域不是类型）**：医学**领域**（临床/药学/术语报告/评估医保）与**结构资产类型**（RULE/PATHWAY/KNOWLEDGE…）正交——一条「药学 DDI 规则」与「临床危急值规则」结构同为 `RULE`，单看类型分不出领域。**药学本身就是知识的一部分**，不另起资产类型（`DRUG_LABEL`/`DRUG_INTERACTION` 会把领域与结构混淆、且与 `domain=PHARMACY` 重复）：药品说明书＝`KNOWLEDGE` 资产、DDI＝`RULE` 资产（KNOWGEN-04 自身亦归 DDI 入「临床规则」），二者经 `domain=PHARMACY` 区分领域、路由药事安全人员。故本卡**只引入 `domain` 维度**填药学缺口，**不动 `VersionedAssetType`/资产表约束**。
+
+### 9.1 数据列补全（原地改 V130/V131，五方言 + 中文 COMMENT，**不新建 V132**）
+
+用户决策**原地改已合迁移**（greenfield 无兼容包袱，最直接、零 ALTER 碎片，靠新建库生效）——直接在 `CREATE TABLE` 中加列：
+
+| 迁移 | 变更 | 说明 |
+|---|---|---|
+| `V130`（job，5 方言） | `CREATE TABLE` 加列 `domain VARCHAR(24) NOT NULL` + `CHECK domain IN (5 域)` + COMMENT | 生产领域（`KnowledgeDomain`），应用层 `@NotNull` 强制申报 |
+| `V131`（候选血缘，5 方言） | `CREATE TABLE` 加列 `risk_level VARCHAR(16) NOT NULL` + `CHECK risk_level IN (LOW,MEDIUM,HIGH)` + COMMENT | 候选风险级（`KnowledgeRiskLevel`），提交时存真实 envelope 风险级 |
+
+- 路由结论（归口/领域角色/双签）**不落库**——纯函数派生，只读 resolve（不存派生数据）；只持久化非派生输入 `domain`（job）+ `risk_level`（候选）。
+- **`LATEST_MIGRATION_VERSION` 保持 131**（原地改 CREATE 内容，无新版本号）；迁移基线测试 `REQUIRED_*` 补 job.domain / candidate.risk_level 列。
+
+### 9.2 枚举 `KnowledgeDomain`（新）
+
+`{ CLINICAL, PHARMACY, TERMINOLOGY_REPORT, EVALUATION_INSURANCE, GENERAL }`——候选生产领域（核心 §6 会签领域归类）。
+
+### 9.3 路由器 `CandidateReviewRouter`（@Service，纯确定性 B0）
+
+`ReviewRoutingDecision resolve(TargetPipeline pipeline, KnowledgeDomain domain, KnowledgeRiskLevel risk)`：
+
+- **归口审核角色（按管道归属，FR-6/FR-7）**：`PLATFORM_SOURCE → PLATFORM_KNOWLEDGE_GOVERNOR`；`TENANT_OVERLAY → KNOWLEDGE_GOVERNOR`（机构侧，**永不平台归口**＝FR-7 边界）。
+- **领域会签角色（按领域，FR-6）**：`CLINICAL → CLINICAL_GOVERNOR`；`PHARMACY → MEDICATION_SAFETY_USER`；`TERMINOLOGY_REPORT → DIAGNOSTIC_SERVICE_USER`；`EVALUATION_INSURANCE → QUALITY_GOVERNOR`；`GENERAL →` 同归口角色（无独立专科会签）。
+- **是否双签（按风险，FR-6「高危走双签」）**：`risk == HIGH → true`（归口 + 领域两签）；否则 `false`（单签）。`GENERAL` 领域时领域角色＝归口角色，双签即归口角色**双人会签**（核心 §6 高危双人）。
+- 输出 `ReviewRoutingDecision(ownerReviewerRole, domainReviewerRole, requiresDualSign, domain)`（record，角色用 `RoleCode`）。PR3 只产此决策记录，**不执行分派**（消费者＝P2-C 物化链 / AIK-STD-12 审核台）。
+
+### 9.4 服务 / DTO / 控制器扩展
+
+- `ProductionJobRequest` 加 `domain`（`KnowledgeDomain` `@NotNull`，**必填**——无任何资产类型隐含药学，领域须由生产方显式申报方能正确路由）；`createJob` 持久化 job.domain；`replayJob` 沿用原 job 领域。
+- `submitCandidate`：落血缘行时存 `risk_level`（envelope 风险级）；返回值由 `String candidateRef` 升为 `CandidateSubmissionResponse(candidateRef, ReviewRoutingDecision)`（提交即返回路由，FR-6）。
+- `listCandidates`/`GET /jobs/{jobCode}/candidates`：每条血缘行附 resolve 出的 `ReviewRoutingDecision`（只读计算，FR-5/6 可回溯）；新 DTO `ProductionCandidateView(血缘字段 + routing)`。
+- 控制器**无新增端点**（submit/列候选既有端点，仅响应体扩展）。
+
+### 9.5 配套登记
+
+- 迁移基线：见 9.1（不升版本号，补 job.domain / candidate.risk_level 列）；域归属 engine-knowledge 不变（仅加列）；契约 `knowledge-production` 审计点不变（无新表/端点）；产品目录：控制器端点数不变（响应体扩展不计端点），`--check` 无漂移则不重生成，仍本地跑 `productCatalog.test.ts` 兜底。
+
+### 9.6 FR-7 院内覆盖角色边界
+
+FR-4 租户守卫（PR1 `guardPipelineOwnership`）已硬隔离：客户租户禁产平台主源、平台租户不产覆盖。PR3 增量＝**路由层一致性**：`TENANT_OVERLAY` 候选归口角色恒为 `KNOWLEDGE_GOVERNOR`（机构侧），**永不路由到 `PLATFORM_KNOWLEDGE_GOVERNOR`**；定向测试锁定（机构候选不会升格到平台归口）。**不新增权限码/机制**（避免与 FR-4 重复造轮子）。
+
+### 9.7 FR/AC 映射（PR3）
+
+- FR-6 ✅：候选按归属（管道→归口角色）+ 风险（HIGH→双签）+ 领域（domain→专科会签角色，药学经 `domain=PHARMACY`→药事安全人员）确定性路由；提交即返回 + 列候选可回溯。
+- FR-7 ✅：路由器保证院内覆盖候选只路由机构侧角色，平台归口不可达。
+- AC-3（FR-5 延伸）：候选血缘 + 路由决策可回溯（risk_level 持久 + 路由只读 resolve）。
+- 仍 pending（PR4+）：FR-2 外部生产器实接（P6）、候选真实物化建 `ReviewAssignment`（AIK-STD-04/10）。
+
+### 9.8 验证清单（PR3）
+
+- TDD：`CandidateReviewRouter` 全分支矩阵（2 管道 × 5 领域 × 3 风险，含 FR-7 边界 + 药学→药事安全人员）；`submitCandidate` 存 risk_level + 返回路由；`createJob` 必填 domain 校验；`listCandidates` 附路由；控制器响应体；迁移基线（job.domain/candidate.risk_level 列）。
+- 全量 `mvn test`（基线 2496 + 新增）+ 四门禁 changed + **五方言 Flyway smoke（原地改 V130/V131，含 Oracle/DM/Kingbase 真实容器须全绿）** + `git diff --check` + 前端 `productCatalog.test.ts`。
+
+### 9.9 显式不做（PR3 边界 / YAGNI）
+
+- 不建 `ReviewAssignment` 行（物化前不伪装已分派，待 P2-C）。
+- 不存路由结论派生列（纯函数 resolve）。
+- **不动 `VersionedAssetType`**：药学＝领域（`domain=PHARMACY`），非结构资产类型；说明书走 `KNOWLEDGE`、DDI 走 `RULE`，不另起 `DRUG_*` 类型（避免领域/结构混淆 + 与 domain 重复）。
+- 不接外部模型生产器（P6 闸，PR4+）。
+- 不做生产者工作台前端（承载于 AIK-STD-12）。

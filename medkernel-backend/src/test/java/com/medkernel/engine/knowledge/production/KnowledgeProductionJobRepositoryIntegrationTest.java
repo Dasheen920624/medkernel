@@ -30,7 +30,7 @@ class KnowledgeProductionJobRepositoryIntegrationTest {
     private KnowledgeProductionJob job(String jobCode, TargetPipeline pipeline) {
         Instant now = Instant.now();
         return new KnowledgeProductionJob(null, TENANT, jobCode, "探索 run r-1",
-            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, null,
+            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, KnowledgeDomain.GENERAL, null,
             ProductionJobStatus.PENDING, 0, "{\"producer\":\"MANUAL\"}", now, "user-001", now, "user-001",
             "trace-1");
     }
@@ -54,8 +54,9 @@ class KnowledgeProductionJobRepositoryIntegrationTest {
         repository.save(job("job-p1", TargetPipeline.TENANT_OVERLAY));
         repository.save(job("job-p2", TargetPipeline.TENANT_OVERLAY));
         repository.save(new KnowledgeProductionJob(null, "tenant-prod-other", "job-other", "s",
-            VersionedAssetType.RULE, KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, null,
-            ProductionJobStatus.PENDING, 0, null, Instant.now(), "u", Instant.now(), "u", "t"));
+            VersionedAssetType.RULE, KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY,
+            KnowledgeDomain.GENERAL, null, ProductionJobStatus.PENDING, 0, null, Instant.now(), "u",
+            Instant.now(), "u", "t"));
 
         long count = repository.countByTenantId(TENANT);
         List<KnowledgeProductionJob> page = repository.pageByTenantId(TENANT, 0, 10);
