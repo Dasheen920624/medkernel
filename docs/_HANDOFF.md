@@ -13,7 +13,7 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR2 前端 AI 标识/来源溯源 · 已实现待合，分支 `claude/wave2-p2b-aikstd12-pr2-aireview-frontend`）
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR2 前端 AI 标识/来源溯源 · 已合并入 main，[PR #624](https://github.com/Dasheen920624/medkernel/pull/624) `b95a9388`，分支已删）
 
 > **接力须知**：AIK-STD-12 PR1（#623）已合并入 main（provenance 端点就绪）。本段＝PR2——前端审核台接 PR1 端点展示 AI 来源。设计同 [PR1 spec §3 PR2](superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md)。续接从最新 `origin/main` 起。
 
@@ -23,7 +23,7 @@
   - 审核详情抽屉加 **「AI 生产来源溯源」区**（AI 标识 + 生产器 + job + 目标管道〔平台主源/院内覆盖〕+ 模型策略 + 生产时点/人）；仅有血缘时渲染。
   - **退修动作未做**：后端 review decision 仅 `APPROVE|REJECT` 无 RETURN 态，**不伪造退修**（需后端补决策类型，留后续）；审核人署名复用既有 `reviewedBy/reviewedAt`（SourceInfo 已展示）。
 - **验证全绿**：`KnowledgeGovernance.test.tsx` **12 通过**（基线 10 + 新增 2：候选表 AI 徽标 + 抽屉来源溯源，TDD 红绿）+ 全量前端 `vitest run` **697 通过**（94 文件）+ `tsc -b --noEmit` 通过 + `eslint` 干净 + 真实性/配置门禁 changed + `git diff --check` 干净。**无后端改动**（消费 PR1 端点）→ 产品目录不变。
-- **当前下一步（接力点）**：① 推送本分支 + 开 PR（合并 main 逐 PR 授权）；② **PR3** 全专业资产模板（FR-1，复用 `VersionedAssetType`+domain 不新建类型）；③ 退修态须先后端补 review decision RETURN 再接前端。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1/#3（AI 标识真实 + 审过才发）+ 合并 main 逐 PR 授权。
+- **当前下一步（接力点，从最新 `origin/main` `b95a9388` 起新分支）**：PR2 已合并入 main，审核台 AI 来源标识/溯源全链可见。续——① **AIK-STD-12 PR3** 全专业资产模板（FR-1，复用 `VersionedAssetType`+domain 不新建类型）收尾本卡；② 或转 **P2-C 工厂流水线**（AIK-STD-02 文档解析/03 术语/04 候选生成/05 11项门禁/06 评测/10 8态去重——把「来源→安全候选」内容管线建全，是离首发包最关键的硬骨头）；③ 退修态须先后端补 review decision RETURN 再接前端。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1/#3 + 合并 main 逐 PR 授权。**注**：本 PR2 收尾翻转留未提交工作树，待下张卡分支首个 docs 提交折叠。
 
 ---
 
