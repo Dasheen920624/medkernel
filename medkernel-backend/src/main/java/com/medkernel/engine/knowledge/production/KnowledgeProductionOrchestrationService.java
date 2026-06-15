@@ -143,12 +143,15 @@ public class KnowledgeProductionOrchestrationService {
         return jobRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
     }
 
-    /** 列某 job 的候选生产血缘（FR-5 可回溯）。 */
+    /** 列某 job 的候选生产血缘 + 会签路由决策（FR-5/6 可回溯，路由只读 resolve）。 */
     @Transactional(readOnly = true)
-    public List<KnowledgeProductionCandidate> listCandidates(String jobCode) {
+    public List<ProductionCandidateView> listCandidates(String jobCode) {
         String tenantId = requireCurrentTenant();
-        requireJob(tenantId, jobCode);
-        return candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode);
+        KnowledgeProductionJob job = requireJob(tenantId, jobCode);
+        return candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode).stream()
+            .map(row -> ProductionCandidateView.from(row,
+                reviewRouter.resolve(job.targetPipeline(), job.domain(), row.riskLevel())))
+            .toList();
     }
 
     /** 完成 job（FR-1）：PENDING/RUNNING → COMPLETED。 */

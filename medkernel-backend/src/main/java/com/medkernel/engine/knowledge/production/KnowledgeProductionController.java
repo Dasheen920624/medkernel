@@ -65,7 +65,7 @@ public class KnowledgeProductionController {
     /** 候选生产血缘列表（FR-5 可回溯）。 */
     @GetMapping("/jobs/{jobCode}/candidates")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<KnowledgeProductionCandidate>> listCandidates(@PathVariable String jobCode) {
+    public ApiResult<List<ProductionCandidateView>> listCandidates(@PathVariable String jobCode) {
         return ApiResult.ok(service.listCandidates(jobCode));
     }
 
