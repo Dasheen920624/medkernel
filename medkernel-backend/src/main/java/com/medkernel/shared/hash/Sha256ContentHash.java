@@ -62,9 +62,21 @@ public final class Sha256ContentHash {
         if (content == null || content.isBlank()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, emptyContentMessage);
         }
+        return digestToHex(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** 基于原始字节计算小写 SHA-256 十六进制字符串（FR-4 原文字节存证）。 */
+    public static String sha256Bytes(byte[] content, String emptyContentMessage) {
+        if (content == null || content.length == 0) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, emptyContentMessage);
+        }
+        return digestToHex(content);
+    }
+
+    private static String digestToHex(byte[] bytes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(content.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(bytes);
             StringBuilder hex = new StringBuilder(hash.length * 2);
             for (byte b : hash) {
                 String value = Integer.toHexString(0xff & b);
