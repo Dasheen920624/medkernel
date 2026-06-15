@@ -9,7 +9,7 @@
 - 前端路由：41 项。
 - 后端菜单：31 项。
 - 页面与页内组件：45 项。
-- 后端控制器：84 项。
+- 后端控制器：85 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
@@ -17,7 +17,7 @@
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 77 |
+| KEEP | 78 |
 | MERGE | 45 |
 | MOVE | 63 |
 | REMOVE | 1 |
@@ -442,6 +442,8 @@
 | `DiagnosisAssistController` | POST /api/v1/engine/recommendations/diagnosis-assist | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiscoveryController decision=KEEP -->
 | `DiscoveryController` | POST /api/v1/engine/knowledge/discovery:explore<br>GET /api/v1/engine/knowledge/discovery/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@KnowledgeProductionController decision=KEEP -->
+| `KnowledgeProductionController` | POST /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs/{jobCode}<br>POST /api/v1/engine/knowledge-production/jobs/{jobCode}/candidates | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@LargeListController decision=MERGE -->
 | `LargeListController` | GET /api/v1/large-lists/audit-events/list<br>POST /api/v1/large-lists/exports<br>GET /api/v1/large-lists/exports/{id}<br>GET /api/v1/large-lists/exports/{id}/download | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ModelEnhancementMatrixController decision=KEEP -->

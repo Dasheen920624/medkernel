@@ -14,8 +14,16 @@
 ## 目标
 建**统一知识生产编排层**：不管候选来自哪个生产器（① API 大模型自主 / ② Agent 工具协助 / ③ 本地大模型 / ④ 人工录入），都进**同一候选池、走同一安全流水线**；并落**双形态生产的物理隔离**——外网平台主源管道（产物归 `t-1`）与内网院内覆盖管道（产物只归本客户租户、禁与平台主资产混、禁反写主源）。编排层负责生产任务（job）调度、生产器路由、血缘/审计/可重放，是「AI 只产候选不产事实」红线的归口。
 
-## 现状（核查 2026-06-13，以 `medkernel-backend/src` 为准）
-**全新建**：早期 AIK 体系只假设 Dify/Ollama 模型推理，无「统一编排层 + 多生产器 + 双形态隔离」概念（域简报早期口径校正点 1/2）。上游已具备：模型网关 B0 空壳（[LLM-01](LLM-01.md)）、料源引擎（[KNOW-01](../D2/KNOW-01.md) 已 done）、平台/客户覆盖模型（`docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`）。本卡＝建编排 + 生产器接入框架 + 双管道隔离，**不另起资产表**（候选走既有版本/审核/替换链）。
+## 现状（核查 2026-06-13 → PR1 实现 2026-06-15）
+**全新建**：早期 AIK 体系只假设 Dify/Ollama 模型推理，无「统一编排层 + 多生产器 + 双形态隔离」概念（域简报早期口径校正点 1/2）。上游已具备：模型网关 B0 空壳（[LLM-01](LLM-01.md)）、料源引擎（[KNOW-01](../D2/KNOW-01.md) 已 done）、平台/客户覆盖模型（`docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`）+ `PlatformTenant.ID="t-1"`/`isPlatformTenant()` 守卫基座 + 既有候选审核链（`KnowledgeVersionService`/`CandidateClassification`/`ReviewAssignment`）。本卡＝建编排 + 生产器接入框架 + 双管道隔离，**不另起资产表**（候选走既有版本/审核/替换链）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md`](../../superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md)。
+
+## 实现进度（PR1 = 编排核心，分支 `claude/wave2-p2b-aikstd13-production-orchestration`）
+新包 `com.medkernel.engine.knowledge.production`（归 engine-knowledge 域）：
+- `KnowledgeProductionOrchestrationService`：建 job（FR-1 骨架）+ **FR-4 双形态物理隔离守卫**（PLATFORM_SOURCE 仅 `t-1` 平台租户 / TENANT_OVERLAY 仅客户租户 / 覆盖候选禁反写 t-1 主源 → `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`〔ENG-KNOW-005〕）+ 提交候选（FR-3：经 AIK-STD-01 校验闸 + 隔离 + 资产类型/租户一致校验 + 血缘审计 + 计数）。
+- `mk_knowledge_production_job` 表 V130 五方言（job/生产器/目标管道/状态/血缘/trace，mutable-audited）+ 枚举 `TargetPipeline`/`KnowledgeProducer`/`ProductionJobStatus`。
+- `KnowledgeCandidateIntake` 端口 + PR1 默认 `StagingCandidateIntake`（暂存桩，候选物化随解析管道 AIK-STD-04/10 接线，**不造平行候选表、不伪装已物化**）。
+- `KnowledgeProductionController`（建 job/列 job/查 job/提交候选，`knowledge.write`/`read`）。契约 `knowledge-production` + 域归属登记。
+- **PR2+ 待做**：FR-5 job 重放/中止、FR-6 候选按归属+风险+领域路由会签、FR-2 外部模型生产器实接（P6 闸）、FR-7 院内覆盖角色边界细化、候选真实物化入既有版本/审核链。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。

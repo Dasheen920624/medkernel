@@ -151,6 +151,8 @@ public enum ErrorCode {
     ENG_KNOW_002("ENG-KNOW-002", 409, "知识版本内容指纹冲突已存在", ErrorClass.DATA, false),
     KNOWLEDGE_CITATION_REQUIRED("ENG-KNOW-003", 409, "知识版本缺少来源引用，禁止激活", ErrorClass.DATA, false),
     AUTHORITY_OVERRIDE_DENIED("ENG-KNOW-004", 409, "低阶来源覆盖高阶来源需要显式理由和审核", ErrorClass.DATA, false),
+    KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION("ENG-KNOW-005", 422,
+        "知识生产管道越界：客户禁产平台主源或反写平台主源", ErrorClass.INPUT, false),
     MAPPING_HIGH_RISK_BATCH_DENIED("ENG-TERM-001", 409, "高风险映射候选禁止批量确认", ErrorClass.DATA, false),
     MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED("ENG-TERM-002", 409, "高风险映射候选必须逐条二次确认", ErrorClass.DATA, false),
     ENG_AUTH_001("ENG-AUTH-001", 401, "用户名或密码不正确", ErrorClass.AUTH, false),
