@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge.parsing;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -51,11 +53,11 @@ public class DocumentParseOrchestrationService {
     @Transactional
     public DocParseJob submit(DocumentParseRequest request) {
         String tenantId = requireCurrentTenant();
+        byte[] rawBytes = resolveRawBytes(request);
         SourceDocument sourceDoc = sourceDocumentRepository
             .findByTenantIdAndId(tenantId, request.sourceDocumentId())
             .orElseThrow(() -> ApiException.notFound("受控来源"));
 
-        byte[] rawBytes = request.content().getBytes(UTF_8);
         String sourceHash = Sha256ContentHash.sha256Bytes(rawBytes, EMPTY_MSG);
         String jobCode = "dpj:" + UUID.randomUUID();
         String actor = RequestContext.currentUserId().orElse(null);
@@ -115,6 +117,21 @@ public class DocumentParseOrchestrationService {
         auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", pending.jobCode(),
             "文档解析失败：" + error);
         return failed;
+    }
+
+    /**
+     * 按格式解析原文字节：结构化文本走 UTF-8；PDF/Word 二进制经 {@code content} 字段以 Base64 承载，
+     * 非法 Base64 即结构化 400（请求体不合法），绝不静默吞错。
+     */
+    private byte[] resolveRawBytes(DocumentParseRequest request) {
+        if (request.format() == DocumentFormat.STRUCTURED_TEXT) {
+            return request.content().getBytes(UTF_8);
+        }
+        try {
+            return Base64.getDecoder().decode(request.content());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "二进制格式 content 须为合法 Base64 编码");
+        }
     }
 
     private String requireCurrentTenant() {

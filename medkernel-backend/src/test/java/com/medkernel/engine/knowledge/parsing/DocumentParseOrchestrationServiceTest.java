@@ -101,11 +101,22 @@ class DocumentParseOrchestrationServiceTest {
     void unsupportedFormatFailsHonestly() {
         when(sourceDocumentRepository.findByTenantIdAndId("tenant-1", 5L))
             .thenReturn(Optional.of(stubDoc()));
+        // WORD 适配器尚未接入（PR3）；合法 Base64 证明已解码并分派，仅诚实判「暂不支持」
+        String wordBase64 = java.util.Base64.getEncoder()
+            .encodeToString("DOCX-BYTES".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        DocParseJob job = service.submit(req("%PDF-1.7", DocumentFormat.PDF));
+        DocParseJob job = service.submit(req(wordBase64, DocumentFormat.WORD));
 
         assertThat(job.status()).isEqualTo(ParseJobStatus.FAILED);
         assertThat(job.errorMessage()).contains("暂不支持");
+        verify(materializer, never()).materialize(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsInvalidBase64ForBinaryFormat() {
+        assertThatThrownBy(() -> service.submit(req("not*valid*base64*", DocumentFormat.PDF)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("Base64");
         verify(materializer, never()).materialize(any(), any(), any(), any(), any(), any(), any());
     }
 
