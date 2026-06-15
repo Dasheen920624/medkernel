@@ -13,7 +13,19 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-12 收尾 = 全专业资产模板(FR-1) + 候选退修(FR-3)（**全 FR 闭卡** · 已实现待合，分支 `claude/wave2-p2b-aikstd12-pr3-templates-return`）
+## 2026-06-15 第二阶段 P2-C 工厂流水线**入口** · AIK-STD-02 文档解析/引用锚点/版本存证（设计已落、PR1 进行中，分支 `claude/wave2-p2c-aikstd02-doc-parse-pipeline`）
+
+> **接力须知**：AIK-STD-12 全闭卡（#625）后，按 wave2 _brief §7 路线转 **P2-C 工厂流水线**（源→安全候选内容管线，离首发包最关键硬骨头）。本卡 = 管线**入口**（文档→带真实锚点的受控来源片段），下游 AIK-STD-03/04/05/10 消费。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI：又一次「别建重复表」命中）**：卡片预设 `doc_anchor`，但 KNOW-01 `source_fragment`（`anchor_path`+`anchor_label`+`text_excerpt`+`content_hash` V32，UNIQUE 锚点/hash）+ `source_version`（`content_hash`+`file_uri`，V49 doc-hash 唯一）+ `citation`（V49 偏移）已成熟承载锚点与存证。故**不建 `doc_anchor`**，解析产物物化进既有 `source_*`；唯一新表 = `mk_doc_parse_job`。真正缺口 = **解析层本身**（无 PDFBox/POI 依赖、无解析代码）。
+- **架构（端口-适配器）**：`DocumentParser` 端口 → `ParsedDocument`（章节树+表格+锚点）→ `ParsedDocumentMaterializer` 落 source_version(存证)+source_fragment(锚点)；`DocumentParseOrchestrationService` job 生命周期；归 `engine-knowledge` 域新包 `engine.knowledge.parsing`，复用 `knowledge.write/read` 不新增权限码。
+- **PR 切片（依赖隔离，PR1 零新依赖）**：PR1 管线核心 + `StructuredTextDocumentParser`(B0) + `mk_doc_parse_job`(V133 五方言) + 物化 + 诚实失败（FR-1 文本章节/FR-3/4/5 + B0）；PR2 `PdfDocumentParser`(PDFBox，FR-1 PDF)；PR3 `WordDocumentParser`(POI) + 表格理解(FR-2)。
+- **P6 分寸**：只建机制 + B0 + 测试夹具验证，不连真实文献库、不进 P6；缺源诚实降级。
+- **当前下一步（接力点）**：写 PR1 实施计划 → TDD 红绿实现 PR1 → 推送开 PR（合并 main 逐 PR 授权）。恒守：TDD + B0 + P6 阻断 + 铁律 #1（锚点/hash 真实，禁伪造结构）+ 域归属 SYS-02。
+
+---
+
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 收尾 = 全专业资产模板(FR-1) + 候选退修(FR-3)（**全 FR 闭卡** · 已合并入 main，[PR #625](https://github.com/Dasheen920624/medkernel/pull/625) `3d3ecb25`，分支已删）
 
 > **接力须知**：AIK-STD-12 PR1（#623）+ PR2（#624）已合并入 main。本段＝**本卡最后一刀**，补齐 FR-1 + FR-3 使全部 FR/AC 真实勾完。设计 [`docs/superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md`](superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md)，计划 [`docs/superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md`](superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md)。续接从最新 `origin/main` 起。
 
