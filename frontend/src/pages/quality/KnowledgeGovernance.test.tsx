@@ -10,6 +10,7 @@ const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
 
 const mockUseKnowledgeIdentities = vi.fn();
 const mockUseKnowledgeCandidates = vi.fn();
+const mockUseCandidateProvenance = vi.fn();
 const mockUseKnowledgeCandidateDiff = vi.fn();
 const mockUseReviewKnowledgeCandidate = vi.fn();
 const mockUseDeprecateKnowledgeIdentity = vi.fn();
@@ -23,6 +24,7 @@ const mockUseRestorePlatformKnowledge = vi.fn();
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
   useKnowledgeCandidates: (identityId?: number) => mockUseKnowledgeCandidates(identityId),
+  useCandidateProvenance: (refs: string[]) => mockUseCandidateProvenance(refs),
   useKnowledgeCandidateDiff: (candidateId?: number) => mockUseKnowledgeCandidateDiff(candidateId),
   useReviewKnowledgeCandidate: () => mockUseReviewKnowledgeCandidate(),
   useDeprecateKnowledgeIdentity: () => mockUseDeprecateKnowledgeIdentity(),
@@ -182,6 +184,7 @@ beforeEach(() => {
 
   mockUseKnowledgeIdentities.mockReset();
   mockUseKnowledgeCandidates.mockReset();
+  mockUseCandidateProvenance.mockReset();
   mockUseKnowledgeCandidateDiff.mockReset();
   mockUseReviewKnowledgeCandidate.mockReset();
   mockUseDeprecateKnowledgeIdentity.mockReset();
@@ -209,6 +212,12 @@ beforeEach(() => {
       message: "存在冲突候选，需人工审核。",
     },
     refetch: refetchCandidates,
+    isLoading: false,
+    isError: false,
+    error: undefined,
+  });
+  mockUseCandidateProvenance.mockReturnValue({
+    data: [],
     isLoading: false,
     isError: false,
     error: undefined,
@@ -533,6 +542,42 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
+  it("marks AI-factory candidates with an AI provenance tag and producer source", async () => {
+    mockUseCandidateProvenance.mockReturnValue({
+      data: [
+        {
+          candidateRef: "kv:42:2026.06",
+          aiGenerated: true,
+          producer: "API_MODEL",
+          jobCode: "job-vte-ai",
+          targetPipeline: "TENANT_OVERLAY",
+          domain: "DRUG",
+          modelStrategy: "gpt-pipeline",
+          riskLevel: "HIGH",
+          producedAt: "2026-06-06T01:05:00Z",
+          producedBy: "ai-factory",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+
+    // 审核台批量反查候选版本 kv:{identityId}:{versionNo} 的生产来源
+    await waitFor(() => {
+      expect(mockUseCandidateProvenance).toHaveBeenCalledWith(
+        expect.arrayContaining(["kv:42:2026.06"]),
+      );
+    });
+    // AI 生成候选须带 AI 标识（Tag 非按钮，不触发生成）+ 生产器来源
+    expect(await screen.findByText("AI 生成")).toBeInTheDocument();
+    expect(screen.getByText(/API 大模型/)).toBeInTheDocument();
+    // 仍不得出现 AI 生成按钮（本页只审不生成，B0 / AIREVIEW-01 边界）
+    expect(screen.queryByRole("button", { name: /AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
   it("opens the real candidate diff drawer with active and candidate version evidence", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -547,6 +592,37 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("candidate-real-hash").length).toBeGreaterThan(0);
     expect(screen.getByText("source-fragment-candidate")).toBeInTheDocument();
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
+  });
+
+  it("shows AI production provenance trace in the candidate review drawer", async () => {
+    const user = userEvent.setup();
+    mockUseCandidateProvenance.mockReturnValue({
+      data: [
+        {
+          candidateRef: "kv:42:2026.06",
+          aiGenerated: true,
+          producer: "API_MODEL",
+          jobCode: "job-vte-ai",
+          targetPipeline: "TENANT_OVERLAY",
+          domain: "DRUG",
+          modelStrategy: "gpt-pipeline",
+          riskLevel: "HIGH",
+          producedAt: "2026-06-06T01:05:00Z",
+          producedBy: "ai-factory",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    expect(screen.getByText("AI 生产来源溯源")).toBeInTheDocument();
+    expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
+    expect(screen.getByText("院内覆盖")).toBeInTheDocument();
+    expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
   });
 
   it(

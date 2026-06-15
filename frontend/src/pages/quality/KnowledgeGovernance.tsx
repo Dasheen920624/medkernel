@@ -31,12 +31,14 @@ import {
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
+  useCandidateProvenance,
   useKnowledgeIdentities,
   usePublishKnowledgeCustomization,
   useRestorePlatformKnowledge,
   useReviewKnowledgeCandidate,
   useSecurityProfile,
   type CandidateClassification,
+  type CandidateProvenanceView,
   type KnowledgeAssetVersion,
   type KnowledgeCandidateReviewDecision,
   type KnowledgeDomain,
@@ -97,6 +99,24 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
   MEDIUM: "warning",
   HIGH: "error",
 };
+
+// AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由后端判定）
+const PRODUCER_LABELS: Record<string, string> = {
+  API_MODEL: "API 大模型",
+  AGENT_TOOL: "Agent 工具",
+  LOCAL_MODEL: "本地模型",
+  MANUAL: "人工录入",
+};
+
+const PIPELINE_LABELS: Record<string, string> = {
+  PLATFORM_SOURCE: "平台主源",
+  TENANT_OVERLAY: "院内覆盖",
+};
+
+function producerLabel(producer?: string) {
+  if (!producer) return "未知来源";
+  return PRODUCER_LABELS[producer] ?? producer;
+}
 
 type ReviewFormValues = {
   packageVersion: string;
@@ -262,6 +282,22 @@ export default function KnowledgeGovernance() {
     () => candidateResponse?.classifications ?? [],
     [candidateResponse],
   );
+
+  // AIK-STD-12：审核台批量反查候选 AI 工厂生产来源（候选版本引用 kv:{identityId}:{versionNo}）。
+  const candidateRefs = useMemo(
+    () => candidates.map((candidate) => `kv:${candidate.identityId}:${candidate.versionNo}`),
+    [candidates],
+  );
+  const provenanceQuery = useCandidateProvenance(candidateRefs);
+  const provenanceByRef = useMemo(() => {
+    const map = new Map<string, CandidateProvenanceView>();
+    for (const view of provenanceQuery.data ?? []) {
+      map.set(view.candidateRef, view);
+    }
+    return map;
+  }, [provenanceQuery.data]);
+  const provenanceFor = (version?: KnowledgeAssetVersion) =>
+    version ? provenanceByRef.get(`kv:${version.identityId}:${version.versionNo}`) : undefined;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
   const diffQuery = useKnowledgeCandidateDiff(selectedCandidateId);
   const reviewMutation = useReviewKnowledgeCandidate();
@@ -596,6 +632,23 @@ export default function KnowledgeGovernance() {
             <Tag color={tagColorForReview(classification?.reviewStatus)}>
               {REVIEW_STATUS_LABELS[classification?.reviewStatus ?? ""] ?? "未返回状态"}
             </Tag>
+          </Space>
+        );
+      },
+    },
+    {
+      title: "AI 来源",
+      key: "provenance",
+      render: (_, record) => {
+        const provenance = provenanceFor(record);
+        if (!provenance) {
+          return <Text type="secondary">非工厂候选</Text>;
+        }
+        return (
+          <Space direction="vertical" size={2}>
+            {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
+            <Text>{producerLabel(provenance.producer)}</Text>
+            <Text type="secondary">job：{provenance.jobCode}</Text>
           </Space>
         );
       },
@@ -1154,6 +1207,33 @@ export default function KnowledgeGovernance() {
             reviewedBy={candidateVersion?.reviewedBy}
             reviewedAt={candidateVersion?.reviewedAt}
           />
+
+          {(() => {
+            const provenance = provenanceFor(candidateVersion);
+            if (!provenance) {
+              return null;
+            }
+            return (
+              <Descriptions column={1} bordered size="small" title="AI 生产来源溯源">
+                <Descriptions.Item label="AI 标识">
+                  {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
+                </Descriptions.Item>
+                <Descriptions.Item label="生产器">
+                  {producerLabel(provenance.producer)}
+                </Descriptions.Item>
+                <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                <Descriptions.Item label="目标管道">
+                  {PIPELINE_LABELS[provenance.targetPipeline] ?? provenance.targetPipeline}
+                </Descriptions.Item>
+                <Descriptions.Item label="模型策略">
+                  {provenance.modelStrategy || "无"}
+                </Descriptions.Item>
+                <Descriptions.Item label="生产时点 / 人">
+                  {provenance.producedAt ?? "未返回"} / {provenance.producedBy ?? "未返回"}
+                </Descriptions.Item>
+              </Descriptions>
+            );
+          })()}
 
           <Form
             form={reviewForm}
