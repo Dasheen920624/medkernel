@@ -80,7 +80,8 @@ public class KnowledgeProductionOrchestrationService {
      * 提交候选（FR-3）：经 AIK-STD-01 校验闸 + §9 隔离守卫，记血缘审计 + 计数，候选物化经 intake 端口。
      */
     @Transactional
-    public CandidateSubmissionResponse submitCandidate(String jobCode, KnowledgeAssetEnvelope candidate) {
+    public CandidateSubmissionResponse submitCandidate(String jobCode, KnowledgeAssetEnvelope candidate,
+                                                       MaterializationTarget target) {
         String tenantId = requireCurrentTenant();
         KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
@@ -102,7 +103,9 @@ public class KnowledgeProductionOrchestrationService {
                 "候选组织作用域与 job 租户不一致，禁跨租户入池");
         }
 
-        String candidateRef = candidateIntake.intake(job, candidate);
+        ReviewRoutingDecision routing = reviewRouter.resolve(
+            job.targetPipeline(), job.domain(), candidate.riskLevel());
+        String candidateRef = candidateIntake.intake(job, candidate, target, routing);
 
         Instant now = Instant.now();
         String actor = currentActor();
@@ -119,8 +122,6 @@ public class KnowledgeProductionOrchestrationService {
             "提交候选 producer=" + job.producer() + " pipeline=" + job.targetPipeline()
                 + " 身份=" + candidate.assetIdentity() + " 指纹=" + candidate.contentHash()
                 + " 候选引用=" + candidateRef);
-        ReviewRoutingDecision routing = reviewRouter.resolve(
-            job.targetPipeline(), job.domain(), candidate.riskLevel());
         return new CandidateSubmissionResponse(candidateRef, routing);
     }
 

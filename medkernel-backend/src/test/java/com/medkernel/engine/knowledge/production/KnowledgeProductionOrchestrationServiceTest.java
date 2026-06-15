@@ -162,15 +162,15 @@ class KnowledgeProductionOrchestrationServiceTest {
         asTenant(CUSTOMER);
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
-        when(candidateIntake.intake(any(), any())).thenReturn("staged:discovery:SRC:v1:a");
+        when(candidateIntake.intake(any(), any(), any(), any())).thenReturn("staged:discovery:SRC:v1:a");
 
         CandidateSubmissionResponse resp = service.submitCandidate("job-1",
-            envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE));
+            envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE), new MaterializationTarget(5L, null));
 
         assertThat(resp.candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
         assertThat(resp.routing().ownerReviewerRole())
             .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR); // overlay→机构归口
-        verify(candidateIntake).intake(any(), any());
+        verify(candidateIntake).intake(any(), any(), any(), any());
         ArgumentCaptor<KnowledgeProductionJob> saved = ArgumentCaptor.forClass(KnowledgeProductionJob.class);
         verify(jobRepository).save(saved.capture());
         assertThat(saved.getValue().candidateCount()).isEqualTo(1);
@@ -186,10 +186,11 @@ class KnowledgeProductionOrchestrationServiceTest {
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
 
         assertThatThrownBy(() ->
-            service.submitCandidate("job-1", envelope(PlatformTenant.ID, VersionedAssetType.KNOWLEDGE)))
+            service.submitCandidate("job-1", envelope(PlatformTenant.ID, VersionedAssetType.KNOWLEDGE),
+                new MaterializationTarget(5L, null)))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode").isEqualTo(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION);
-        verify(candidateIntake, never()).intake(any(), any());
+        verify(candidateIntake, never()).intake(any(), any(), any(), any());
     }
 
     @Test
@@ -199,9 +200,10 @@ class KnowledgeProductionOrchestrationServiceTest {
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
 
         assertThatThrownBy(() ->
-            service.submitCandidate("job-1", envelope(CUSTOMER, VersionedAssetType.RULE)))
+            service.submitCandidate("job-1", envelope(CUSTOMER, VersionedAssetType.RULE),
+                new MaterializationTarget(5L, null)))
             .isInstanceOf(ApiException.class);
-        verify(candidateIntake, never()).intake(any(), any());
+        verify(candidateIntake, never()).intake(any(), any(), any(), any());
     }
 
     @Test
@@ -211,9 +213,10 @@ class KnowledgeProductionOrchestrationServiceTest {
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
 
         assertThatThrownBy(() ->
-            service.submitCandidate("job-1", envelope("tenant-2", VersionedAssetType.KNOWLEDGE)))
+            service.submitCandidate("job-1", envelope("tenant-2", VersionedAssetType.KNOWLEDGE),
+                new MaterializationTarget(5L, null)))
             .isInstanceOf(ApiException.class);
-        verify(candidateIntake, never()).intake(any(), any());
+        verify(candidateIntake, never()).intake(any(), any(), any(), any());
     }
 
     @Test
@@ -227,9 +230,9 @@ class KnowledgeProductionOrchestrationServiceTest {
             KnowledgeRiskLevel.MEDIUM, CUSTOMER, Sha256ContentHash.sha256("x", "x"), "x",
             AssetVersionStatus.DRAFT);
 
-        assertThatThrownBy(() -> service.submitCandidate("job-1", noSource))
+        assertThatThrownBy(() -> service.submitCandidate("job-1", noSource, new MaterializationTarget(5L, null)))
             .isInstanceOf(ApiException.class);
-        verify(candidateIntake, never()).intake(any(), any());
+        verify(candidateIntake, never()).intake(any(), any(), any(), any());
     }
 
     @Test
@@ -238,7 +241,8 @@ class KnowledgeProductionOrchestrationServiceTest {
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "missing")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-            service.submitCandidate("missing", envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE)))
+            service.submitCandidate("missing", envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE),
+                new MaterializationTarget(5L, null)))
             .isInstanceOf(ApiException.class);
     }
 
@@ -268,10 +272,10 @@ class KnowledgeProductionOrchestrationServiceTest {
         asTenant(CUSTOMER);
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
-        when(candidateIntake.intake(any(), any())).thenReturn("staged:discovery:SRC:v1:a");
+        when(candidateIntake.intake(any(), any(), any(), any())).thenReturn("staged:discovery:SRC:v1:a");
         KnowledgeAssetEnvelope candidate = envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE);
 
-        service.submitCandidate("job-1", candidate);
+        service.submitCandidate("job-1", candidate, new MaterializationTarget(5L, null));
 
         ArgumentCaptor<KnowledgeProductionCandidate> lineage =
             ArgumentCaptor.forClass(KnowledgeProductionCandidate.class);

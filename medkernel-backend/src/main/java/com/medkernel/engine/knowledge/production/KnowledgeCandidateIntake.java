@@ -5,18 +5,21 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 /**
  * 候选入既有版本/审核链的接收端口（AIK-STD-13，FR-3）。
  *
- * <p>编排层经本端口把校验+隔离通过的候选信封交既有版本/审核/替换链物化，<b>不造平行候选表</b>。
- * 既有 {@code KnowledgeVersionService.classifyCandidate} 物化深耦合（需既有 knowledge_identity + 源 FK + 8 态去重，
- * 属 AIK-STD-04/10 解析管道·P2-C）；PR1 提供默认实现仅记血缘，真实物化随解析管道接线。
+ * <p>PR4 起真实物化：解析受控源 FK + 目标知识身份 → 经既有版本/审核/替换链落 {@code KnowledgeAssetVersion} +
+ * {@code CandidateClassification}，据 PR3 会签路由决策建 {@code ReviewAssignment}；返回真实物化版本引用（供血缘回溯）。
+ * 不造平行候选表；解析不出诚实拒收（铁律 #1）。
  */
 public interface KnowledgeCandidateIntake {
 
     /**
-     * 接收一条已校验且隔离通过的候选信封，返回候选引用标识（供血缘回溯）。
+     * 物化一条已校验且隔离通过的候选信封入既有版本/审核链。
      *
      * @param job 归属生产 job
      * @param candidate 候选信封（经 AIK-STD-01 校验 + §9 隔离守卫）
-     * @return 候选引用标识
+     * @param target 物化目标知识身份（生产方显式声明）
+     * @param routing PR3 会签路由决策（落审核分派依据）
+     * @return 真实物化版本引用标识
      */
-    String intake(KnowledgeProductionJob job, KnowledgeAssetEnvelope candidate);
+    String intake(KnowledgeProductionJob job, KnowledgeAssetEnvelope candidate,
+                  MaterializationTarget target, ReviewRoutingDecision routing);
 }

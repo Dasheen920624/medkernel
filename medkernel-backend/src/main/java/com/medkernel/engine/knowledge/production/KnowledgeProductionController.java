@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -58,8 +57,8 @@ public class KnowledgeProductionController {
     @PostMapping("/jobs/{jobCode}/candidates")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<CandidateSubmissionResponse> submitCandidate(@PathVariable String jobCode,
-                                             @Valid @RequestBody KnowledgeAssetEnvelope candidate) {
-        return ApiResult.ok(service.submitCandidate(jobCode, candidate));
+                                             @Valid @RequestBody CandidateSubmissionRequest request) {
+        return ApiResult.ok(service.submitCandidate(jobCode, request.candidate(), request.target()));
     }
 
     /** 候选生产血缘列表（FR-5 可回溯）。 */

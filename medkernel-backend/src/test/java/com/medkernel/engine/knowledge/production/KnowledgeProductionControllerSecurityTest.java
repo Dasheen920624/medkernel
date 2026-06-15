@@ -56,10 +56,11 @@ class KnowledgeProductionControllerSecurityTest {
         + "\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\"}";
 
     private static final String CANDIDATE_BODY =
-        "{\"assetType\":\"KNOWLEDGE\",\"assetIdentity\":\"id\",\"subject\":\"s\",\"versionLabel\":\"v\","
+        "{\"candidate\":{\"assetType\":\"KNOWLEDGE\",\"assetIdentity\":\"id\",\"subject\":\"s\",\"versionLabel\":\"v\","
         + "\"sources\":[{\"sourceRef\":\"SRC:v1:a\",\"authorityLevel\":\"A_REGULATION\"}],"
         + "\"trustLevel\":\"A_REGULATION\",\"riskLevel\":\"MEDIUM\",\"orgScope\":\"tenant-1\","
-        + "\"contentHash\":\"h\",\"payload\":\"x\",\"lifecycleStatus\":\"DRAFT\"}";
+        + "\"contentHash\":\"h\",\"payload\":\"x\",\"lifecycleStatus\":\"DRAFT\"},"
+        + "\"target\":{\"targetIdentityId\":5}}";
 
     private ProductionJobResponse jobResponse() {
         return new ProductionJobResponse("job-1", "tenant-1", "run-1", VersionedAssetType.KNOWLEDGE,
@@ -97,7 +98,7 @@ class KnowledgeProductionControllerSecurityTest {
 
     @Test
     void knowledgeGovernorCanSubmitCandidate() throws Exception {
-        when(service.submitCandidate(anyString(), any())).thenReturn(
+        when(service.submitCandidate(anyString(), any(), any())).thenReturn(
             new CandidateSubmissionResponse("staged:id", new ReviewRoutingDecision(
                 RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false, KnowledgeDomain.GENERAL)));
 
