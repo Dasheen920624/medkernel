@@ -5,7 +5,7 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**：REST/CLI/MCP 三入口共用同一后端受控合同、不绕治理。**PR2-g 异步导出后端 = 已实现待合**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616)，分支 `claude/wave2-p2b-datasvc01-async-export`，下方最新段）：三组 D2 读模型经 SYS-06 审批闸控制的异步 CSV 导出 + CLI `exports` 接线，补全 FR-1 导出 / CLI 诚实缺口。**剩余未做**：D3/D4 字段级加密 + 数据分级元数据表 / MCP SSE 传输 / 或转 AIK-STD-13/14。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**；**PR2-g 异步导出后端已合并**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616) `905aca01`，SYS-06 审批闸控制的 D2 CSV 导出 + CLI `exports`）。**AI 工厂第一刀 = `AIK-STD-01` 统一资产信封 schema + 校验闸已实现待合**（新分支 `claude/wave2-p2b-aikstd01-asset-envelope`，下方最新段）：核查发现地基（`engine.versioning` + KNOW-01/OPT-07）已实质建成，故不新建表，落「统一信封 + 校验闸」，backlog 转 done。**DATASVC-01 剩余未做**：D3/D4 字段级加密 + 数据分级元数据表（YAGNI，无 D3/D4 落库消费者，待真实切片）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
@@ -13,7 +13,18 @@
 
 ---
 
-## 2026-06-14 第二阶段 P2-B · DATASVC-01 PR2-g 异步导出后端 + CLI exports 接线（已实现待合，[PR #616](https://github.com/Dasheen920624/medkernel/pull/616)，分支 `claude/wave2-p2b-datasvc01-async-export`）
+## 2026-06-15 第二阶段 P2-B · AI 工厂第一刀 AIK-STD-01 统一资产信封 schema + 校验闸（已实现待合，分支 `claude/wave2-p2b-aikstd01-asset-envelope`）
+
+> **接力须知**：DATASVC-01 PR2-g（#616）已合并入 main。本段＝AI 工厂地基第一刀 AIK-STD-01。设计 [`docs/superpowers/specs/2026-06-15-aikstd01-asset-envelope-design.md`](superpowers/specs/2026-06-15-aikstd01-asset-envelope-design.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI）**：AIK-STD-01「全类资产统一 schema + 元数据」**地基已实质建成**——`engine.versioning` `AssetVersion`/`AssetVersionService` + `mk_version_asset_version`（统一版本注册表，asset_type/identity/version/org_path/content_hash/status/source_ref，**仅元数据无 payload**）+ `VersionedAssetType` 17 类 + KNOW-01/OPT-07（来源/引用/hash + 可信级 A–E + GRADE，均 done）。**AIK-STD-13 明确「不另起资产表（候选走既有链）」**。故**不新建 `knowledge_asset` 表**（会重复 `mk_version_asset_version`），落「统一资产信封 schema + 校验闸」。
+- **已实现**：新包 `com.medkernel.engine.factory`（X-AIK 域）——`KnowledgeAssetEnvelope`（信封：assetType `VersionedAssetType` + 身份/主题/版本标签 + sources `List<AssetSourceRef>` + trustLevel `SourceAuthorityLevel` + GRADE + riskLevel + orgScope + contentHash + payload + lifecycleStatus `AssetVersionStatus`，全复用既有枚举）+ `AssetSourceRef`（来源 + 权威级）+ `KnowledgeAssetSchemaValidator`（@Service，FR-3/4 校验闸：**无源拒收**〔铁律 #1〕/ 生命周期须候选态 DRAFT·IN_REVIEW〔铁律 #5 只产候选〕/ contentHash 须 SHA-256 格式且**真实等于 hash(payload)**〔禁伪造〕/ 全违规一次结构化抛 BAD_REQUEST / **类型无关可扩展**）。**无新表/端点/权限/迁移**。
+- **验证全绿**：`KnowledgeAssetSchemaValidatorTest` 15 通过 + 全量 `mvn test` 不回归 + 四门禁（changed）+ `git diff --check` 干净 + 产品目录 `--check` 无漂移（无控制器/迁移改动）。卡 [AIK-STD-01](cards/wave2/AIK-STD-01.md) FR/AC 全勾（机制达成，「资产登记落库」交 AIK-STD-13）；backlog AIK-STD-01 转 `done`。
+- **当前下一步（接力点）**：AIK-STD-01 合并后，AI 工厂链继续——`AIK-STD-13`（知识生产编排：候选 job + 四生产器路由 + 双形态隔离 + 血缘，**消费本卡信封**，候选走既有版本/审核/替换链）依赖 `AIK-STD-12`（审核台，pending）；或先做 `AIK-STD-12`（审核台 + 标准资产模板）。`LLM-06`（可信来源探索编排）亦 P2-B pending。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-14 第二阶段 P2-B · DATASVC-01 PR2-g 异步导出后端 + CLI exports 接线（已合并入 main，[PR #616](https://github.com/Dasheen920624/medkernel/pull/616) `905aca01`，分支 `claude/wave2-p2b-datasvc01-async-export`）
 
 > **接力须知**：本段对应 PR #616（用户手动合）。设计文档 [`docs/superpowers/specs/2026-06-14-engine-data-async-export-design.md`](superpowers/specs/2026-06-14-engine-data-async-export-design.md)。续接从最新 `origin/main` 起。合并后清理本分支、转下方「当前下一步」剩余件。
 
