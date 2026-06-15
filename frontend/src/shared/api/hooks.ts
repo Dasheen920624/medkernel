@@ -964,9 +964,10 @@ export type CandidateReviewStatus =
   | "DUPLICATE_SKIPPED"
   | "APPROVED"
   | "REJECTED"
+  | "RETURNED"
   | string;
 
-export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT";
+export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT" | "RETURN";
 
 export interface KnowledgeIdentity {
   id: number;
@@ -1269,6 +1270,39 @@ export function useCandidateProvenance(candidateRefs: string[]) {
       const { data } = await apiClient.post<{ data: CandidateProvenanceView[] }>(
         `${KNOWLEDGE_PRODUCTION_API_ROOT}/candidates/provenance`,
         { candidateRefs: refs },
+      );
+      return data.data;
+    },
+  });
+}
+
+/** AIK-STD-12 FR-1：专业标准资产模板的结构章节。 */
+export interface TemplateSection {
+  key: string;
+  label: string;
+  required: boolean;
+  hint: string;
+}
+
+/** AIK-STD-12 FR-1：全专业领域标准资产模板（结构骨架，按 assetType+domain 定位）。 */
+export interface ProfessionalAssetTemplate {
+  professionCode: string;
+  displayName: string;
+  assetType: string;
+  knowledgeDomain: KnowledgeDomain | null;
+  sections: TemplateSection[];
+}
+
+/**
+ * 全专业标准资产模板目录（AIK-STD-12 FR-1）：审核台按候选 assetType+domain 对照核查完整性。
+ * 确定性目录，全租户一致；缓存长（不随租户/候选变化）。
+ */
+export function useAssetTemplates() {
+  return useQuery({
+    queryKey: ["knowledge-production", "asset-templates"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ProfessionalAssetTemplate[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/asset-templates`,
       );
       return data.data;
     },

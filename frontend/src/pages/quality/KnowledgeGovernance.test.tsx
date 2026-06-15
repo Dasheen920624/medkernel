@@ -20,11 +20,13 @@ const mockUseOrgUnits = vi.fn();
 const mockUseCreateKnowledgeCustomization = vi.fn();
 const mockUsePublishKnowledgeCustomization = vi.fn();
 const mockUseRestorePlatformKnowledge = vi.fn();
+const mockUseAssetTemplates = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
   useKnowledgeCandidates: (identityId?: number) => mockUseKnowledgeCandidates(identityId),
   useCandidateProvenance: (refs: string[]) => mockUseCandidateProvenance(refs),
+  useAssetTemplates: () => mockUseAssetTemplates(),
   useKnowledgeCandidateDiff: (candidateId?: number) => mockUseKnowledgeCandidateDiff(candidateId),
   useReviewKnowledgeCandidate: () => mockUseReviewKnowledgeCandidate(),
   useDeprecateKnowledgeIdentity: () => mockUseDeprecateKnowledgeIdentity(),
@@ -132,6 +134,27 @@ const candidateClassification = {
   updatedBy: "workflow-know-02",
 };
 
+const assetTemplates = [
+  {
+    professionCode: "GUIDELINE",
+    displayName: "指南共识",
+    assetType: "KNOWLEDGE",
+    knowledgeDomain: "GUIDELINE",
+    sections: [
+      { key: "recommendation", label: "推荐意见", required: true, hint: "推荐意见（必备结构）" },
+      { key: "evidence", label: "证据等级", required: true, hint: "证据等级（必备结构）" },
+      { key: "references", label: "参考文献", required: true, hint: "参考文献（必备结构）" },
+    ],
+  },
+  {
+    professionCode: "RULE",
+    displayName: "规则",
+    assetType: "RULE",
+    knowledgeDomain: null,
+    sections: [{ key: "trigger", label: "触发条件", required: true, hint: "触发条件（必备结构）" }],
+  },
+];
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: {
@@ -194,6 +217,14 @@ beforeEach(() => {
   mockUseCreateKnowledgeCustomization.mockReset();
   mockUsePublishKnowledgeCustomization.mockReset();
   mockUseRestorePlatformKnowledge.mockReset();
+  mockUseAssetTemplates.mockReset();
+
+  mockUseAssetTemplates.mockReturnValue({
+    data: assetTemplates,
+    isLoading: false,
+    isError: false,
+    error: undefined,
+  });
 
   mockUseKnowledgeIdentities.mockReturnValue({
     data: { items: [realIdentity], page: 1, size: 20, total: 1, hasNext: false },
@@ -623,6 +654,60 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖")).toBeInTheDocument();
     expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
+  });
+
+  it("shows the professional asset template matching the candidate domain for completeness review", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    // realIdentity.domain = GUIDELINE → 匹配「指南共识」KNOWLEDGE 模板，展示结构清单
+    expect(screen.getByText("专业标准模板 · 指南共识")).toBeInTheDocument();
+    expect(screen.getByText("推荐意见")).toBeInTheDocument();
+    expect(screen.getByText("证据等级")).toBeInTheDocument();
+  });
+
+  it("returns a candidate for revision through the RETURN review decision with a mandatory reason", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
+      target: { value: "PKG.KNOW.2026.06" },
+    });
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "请补充禁忌章节后重提。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).toHaveBeenCalledWith({
+        candidateId: 9001,
+        packageVersion: "PKG.KNOW.2026.06",
+        request: {
+          decision: "RETURN",
+          reason: "请补充禁忌章节后重提。",
+        },
+        idempotencyKey: expect.stringContaining("knowledge-review-9001"),
+      });
+    });
+  });
+
+  it("does not submit a return decision when the revision reason is blank", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
+      target: { value: "PKG.KNOW.2026.06" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("请填写审核理由")).toBeInTheDocument();
+    });
+    expect(reviewCandidate).not.toHaveBeenCalled();
   });
 
   it(

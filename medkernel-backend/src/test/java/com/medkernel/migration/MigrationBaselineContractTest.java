@@ -179,7 +179,8 @@ class MigrationBaselineContractTest {
         "V128__engine_data_export_job.sql",
         "V129__knowledge_discovery_run.sql",
         "V130__knowledge_production_job.sql",
-        "V131__knowledge_production_candidate.sql"
+        "V131__knowledge_production_candidate.sql",
+        "V132__knowledge_review_return.sql"
     );
 
     @Test
@@ -1835,6 +1836,20 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.org_path")
                 .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary")
                 .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.reason");
+        }
+    }
+
+    @Test
+    void v132ShouldAddReturnReviewStateForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V132__knowledge_review_return.sql");
+            assertThat(ddl).as("%s 候选退修态迁移", dialect)
+                .contains("ck_knowledge_candidate_review_status")
+                .contains("ck_review_assignment_review_status")
+                .contains("ck_review_assignment_decision")
+                .contains("RETURNED")
+                .contains("'RETURN'")
+                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.decision");
         }
     }
 

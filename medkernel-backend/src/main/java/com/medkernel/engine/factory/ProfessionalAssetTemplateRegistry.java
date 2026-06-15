@@ -1,0 +1,94 @@
+package com.medkernel.engine.factory;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.versioning.VersionedAssetType;
+
+/**
+ * 全专业领域标准资产模板注册表（AIK-STD-12 FR-1）。
+ *
+ * <p>确定性代码态目录，不建表、不做租户自定义（无消费者需要）。覆盖术语/规则/路径/推荐/指标/随访/
+ * 护理/报告/中医/医保 + 指南/药品/诊断 共 13 专业。章节为既有专业文书结构标准，供生产/审核对照完整性，
+ * 不预填医学内容（守铁律 #1，正文须按真实来源填充）。
+ */
+@Service
+public class ProfessionalAssetTemplateRegistry {
+
+    private static final List<ProfessionalAssetTemplate> TEMPLATES = List.of(
+        // —— 医学领域型（assetType=KNOWLEDGE × domain）：知识审核台按 identity.domain 匹配 ——
+        knowledge("GUIDELINE", "指南共识", KnowledgeDomain.GUIDELINE,
+            req("recommendation", "推荐意见"), req("evidence", "证据等级"),
+            opt("population", "适用人群"), opt("implementation", "实施要点"), req("references", "参考文献")),
+        knowledge("DRUG", "药品说明书", KnowledgeDomain.DRUG,
+            req("indication", "适应症"), req("dosage", "用法用量"), req("contraindication", "禁忌"),
+            req("adverse", "不良反应"), opt("interaction", "药物相互作用"),
+            opt("precaution", "注意事项"), opt("special_population", "特殊人群用药")),
+        knowledge("NURSING", "护理", KnowledgeDomain.NURSING,
+            req("assessment", "护理评估"), req("diagnosis", "护理诊断"), req("goal", "护理目标"),
+            req("intervention", "护理措施"), req("evaluation", "护理评价")),
+        knowledge("REPORT", "报告解读", KnowledgeDomain.REPORT,
+            req("item", "检查项目"), req("reference_range", "参考区间"), req("interpretation", "异常判读"),
+            opt("clinical_meaning", "临床意义"), opt("recheck", "复查建议")),
+        knowledge("TCM", "中医药", KnowledgeDomain.TCM,
+            req("syndrome", "病名证候"), req("differentiation", "辨证分型"), req("therapy", "治法"),
+            req("prescription", "方药"), opt("technique", "适宜技术"), opt("regimen", "调护")),
+        knowledge("POLICY", "医保政策", KnowledgeDomain.POLICY,
+            req("basis", "政策依据"), req("scope", "适用范围"), opt("admission", "准入条件"),
+            req("payment", "支付标准"), opt("execution", "执行要点")),
+        knowledge("DIAGNOSIS", "诊断", KnowledgeDomain.DIAGNOSIS,
+            req("criteria", "诊断标准"), req("differential", "鉴别诊断"),
+            opt("staging", "分型分期"), opt("indication", "诊疗指针")),
+        // —— 结构型（domain 空）：目录完整性，供编著/生产工作台 ——
+        structural("TERMINOLOGY", "术语", VersionedAssetType.TERMINOLOGY,
+            req("term", "标准术语"), req("code", "编码体系"), opt("synonym", "同义词"),
+            opt("mapping", "映射关系"), req("source", "术语来源")),
+        structural("RULE", "规则", VersionedAssetType.RULE,
+            req("trigger", "触发条件"), req("logic", "判定逻辑"), req("action", "动作建议"),
+            req("risk", "风险级别"), opt("redline", "红线标识"), req("source", "来源依据")),
+        structural("PATHWAY", "路径", VersionedAssetType.PATHWAY,
+            req("admission", "准入标准"), req("branch", "分型分支"), req("stage", "阶段节点"),
+            req("exit", "退出条件"), opt("variance", "变异处理")),
+        structural("RECOMMENDATION", "推荐", VersionedAssetType.RECOMMENDATION,
+            req("scenario", "推荐场景"), req("trigger", "触发条件"), req("content", "推荐内容"),
+            opt("evidence", "证据强度"), req("source", "来源")),
+        structural("EVALUATION", "指标", VersionedAssetType.EVALUATION,
+            req("definition", "指标定义"), req("formula", "计算口径"), req("data_source", "数据来源"),
+            req("threshold", "阈值标准"), opt("cycle", "评价周期")),
+        structural("FOLLOWUP", "随访", VersionedAssetType.FOLLOWUP,
+            req("population", "随访人群"), req("cycle", "随访周期"), req("item", "随访项目"),
+            opt("alert", "异常预警"), opt("return_indication", "回院指针"))
+    );
+
+    public List<ProfessionalAssetTemplate> listAll() {
+        return TEMPLATES;
+    }
+
+    public Optional<ProfessionalAssetTemplate> findByAssetTypeAndDomain(VersionedAssetType assetType,
+            KnowledgeDomain domain) {
+        return TEMPLATES.stream()
+            .filter(t -> t.assetType() == assetType && t.knowledgeDomain() == domain)
+            .findFirst();
+    }
+
+    private static ProfessionalAssetTemplate knowledge(String code, String name, KnowledgeDomain domain,
+            TemplateSection... sections) {
+        return new ProfessionalAssetTemplate(code, name, VersionedAssetType.KNOWLEDGE, domain, List.of(sections));
+    }
+
+    private static ProfessionalAssetTemplate structural(String code, String name, VersionedAssetType type,
+            TemplateSection... sections) {
+        return new ProfessionalAssetTemplate(code, name, type, null, List.of(sections));
+    }
+
+    private static TemplateSection req(String key, String label) {
+        return new TemplateSection(key, label, true, label + "（必备结构）");
+    }
+
+    private static TemplateSection opt(String key, String label) {
+        return new TemplateSection(key, label, false, label + "（建议结构）");
+    }
+}

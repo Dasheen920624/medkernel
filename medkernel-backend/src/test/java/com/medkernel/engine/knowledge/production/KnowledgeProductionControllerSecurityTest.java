@@ -210,4 +210,19 @@ class KnowledgeProductionControllerSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{\"candidateRefs\":[]}"))
             .andExpect(status().isBadRequest());
     }
+
+    // ─── AIK-STD-12 PR3：全专业资产模板目录（FR-1）────────────────
+
+    @Test
+    void assetTemplatesReadableWithKnowledgeRead() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/asset-templates").with(governor()))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadAssetTemplates() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/asset-templates"))
+            .andExpect(status().isForbidden());
+    }
 }

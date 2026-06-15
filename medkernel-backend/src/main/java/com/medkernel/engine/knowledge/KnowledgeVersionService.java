@@ -446,6 +446,51 @@ public class KnowledgeVersionService {
                 "APPROVED",
                 "候选审核通过，已转交权威版本原子替换流程");
         }
+        if (request.decision() == KnowledgeCandidateReviewDecision.RETURN) {
+            if (request.reason() == null || request.reason().isBlank()) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "退修须填写修订意见");
+            }
+            KnowledgeAssetVersion returning = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
+                .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+            KnowledgeAssetVersion draft = new KnowledgeAssetVersion(
+                returning.id(), returning.tenantId(), returning.identityId(),
+                returning.versionNo(), returning.versionLabel(),
+                returning.sourceDocumentId(), returning.sourceVersionId(),
+                returning.contentHash(), returning.anchors(),
+                KnowledgeVersionStatus.DRAFT, returning.riskLevel(),
+                returning.authorityLevel(), returning.gradeQuality(), returning.gradeStrength(), returning.conflictArbitration(),
+                returning.effectiveOrganizationScope(), returning.effectiveApplicableScope(),
+                returning.scopeKeyForStatus(KnowledgeVersionStatus.DRAFT),
+                returning.effectiveFrom(), returning.effectiveTo(),
+                returning.reviewedBy(), returning.reviewedAt(),
+                returning.activatedAt(), returning.supersededAt(),
+                returning.withdrawnAt(), returning.withdrawnReason(),
+                returning.createdAt(), returning.createdBy(),
+                now, actor,
+                returning.reviewCycleMonths(), returning.nextReviewAt()
+            );
+            KnowledgeAssetVersion savedDraft = versionRepository.save(draft);
+            CandidateClassification returned = candidateClassificationRepository.save(classificationWithStatus(
+                classification,
+                CandidateReviewStatus.RETURNED,
+                appendReason(classification.basis(), request.reason()),
+                now,
+                actor));
+            reviewAssignmentRepository.save(reviewAssignment(
+                returned,
+                CandidateReviewStatus.RETURNED,
+                KnowledgeCandidateReviewDecision.RETURN,
+                request.reason(),
+                actor,
+                now));
+            return new KnowledgeCandidateResponse(
+                classification.identityId(),
+                List.of(savedDraft),
+                List.of(returned),
+                true,
+                "RETURNED",
+                "候选已退修，退回生产者修订重提");
+        }
         KnowledgeAssetVersion candidate = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
             .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
         KnowledgeAssetVersion rejected = new KnowledgeAssetVersion(
