@@ -13,7 +13,21 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-12 收尾 = 全专业资产模板(FR-1) + 候选退修(FR-3)（**全 FR 闭卡** · 已实现待合，分支 `claude/wave2-p2b-aikstd12-pr3-templates-return`）
+## 2026-06-15 第二阶段 P2-C 工厂流水线**入口** · AIK-STD-02 文档解析/引用锚点/版本存证（PR1 管线核心已实现待合，分支 `claude/wave2-p2c-aikstd02-doc-parse-pipeline`）
+
+> **接力须知**：AIK-STD-12 全闭卡（#625）后，按 wave2 _brief §7 路线转 **P2-C 工厂流水线**（源→安全候选内容管线，离首发包最关键硬骨头）。本卡 = 管线**入口**（文档→带真实锚点的受控来源片段），下游 AIK-STD-03/04/05/10 消费。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI：又一次「别建重复表」命中）**：卡片预设 `doc_anchor`，但 KNOW-01 `source_fragment`（`anchor_path`+`anchor_label`+`text_excerpt`+`content_hash` V32，UNIQUE 锚点/hash）+ `source_version`（`content_hash`+`file_uri`，V49 doc-hash 唯一）+ `citation`（V49 偏移）已成熟承载锚点与存证。故**不建 `doc_anchor`**，解析产物物化进既有 `source_*`；唯一新表 = `mk_doc_parse_job`。真正缺口 = **解析层本身**（无 PDFBox/POI 依赖、无解析代码）。
+- **架构（端口-适配器）**：`DocumentParser` 端口 → `ParsedDocument`（章节树+表格+锚点）→ `ParsedDocumentMaterializer` 落 source_version(存证)+source_fragment(锚点)；`DocumentParseOrchestrationService` job 生命周期；归 `engine-knowledge` 域新包 `engine.knowledge.parsing`，复用 `knowledge.write/read` 不新增权限码。
+- **PR 切片（依赖隔离，PR1 零新依赖）**：PR1 管线核心 + `StructuredTextDocumentParser`(B0) + `mk_doc_parse_job`(V133 五方言) + 物化 + 诚实失败（FR-1 文本章节/FR-3/4/5 + B0）；PR2 `PdfDocumentParser`(PDFBox，FR-1 PDF)；PR3 `WordDocumentParser`(POI) + 表格理解(FR-2)。
+- **P6 分寸**：只建机制 + B0 + 测试夹具验证，不连真实文献库、不进 P6；缺源诚实降级。
+- **PR1 已实现（管线核心，计划 [`plans/2026-06-15-aikstd02-pr1-parse-pipeline-core.md`](superpowers/plans/2026-06-15-aikstd02-pr1-parse-pipeline-core.md)）**：新包 `com.medkernel.engine.knowledge.parsing`——`DocumentParser` 端口 + `StructuredTextDocumentParser`（B0 确定性章节/段落解析，Markdown/编号标题，零依赖）+ `ParsedDocumentMaterializer`（物化进 `source_version` 存证 + `source_fragment` §章节/¶段锚点，幂等去重）+ `DocumentParseOrchestrationService`（job 生命周期 + 不支持格式/空文档诚实 FAILED）+ `DocumentParseController`（`POST documents:parse`=knowledge.write / `GET documents/parse-jobs`=knowledge.read）+ `Sha256ContentHash.sha256Bytes`（原文字节存证）。唯一新表 `mk_doc_parse_job` V133 五方言。域归属 engine-knowledge + 服务契约 `knowledge-doc-parse` + 产品目录（控制器 85→86）。
+- **PR1 验证全绿**：全量 `mvn test` **2557 通过**（基线 2534 + 新增 23：解析器 6 + 物化 2 + sha256Bytes 2 + 编排 4 + 控制器安全 7 + 集成 2）+ **五方言 Flyway smoke 真实容器 3/3**（V133 在 h2/postgres/oracle/dm/kingbase 干净建表）+ 四门禁 changed（真实性 18 / 配置 18 / 迁移 5 / 中文注释 0fail）全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（DocumentParseController KEEP，无漂移）。
+- **当前下一步（接力点，从最新 `origin/main` 起）**：① 推送本分支 + 开 PR（合并 main 逐 PR 授权，不自动合）；② **PR2** `PdfDocumentParser`（Apache PDFBox，FR-1 PDF + 页锚点，引入 PDFBox 依赖）；③ **PR3** `WordDocumentParser`（Apache POI）+ 表格理解（FR-2）。续 P2-C：AIK-STD-03 术语 / 04 候选生成（消费本卡产的带锚点片段）/ 05 11 项门禁 / 10 8 态去重。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1（锚点/hash 真实，禁伪造结构）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 收尾 = 全专业资产模板(FR-1) + 候选退修(FR-3)（**全 FR 闭卡** · 已合并入 main，[PR #625](https://github.com/Dasheen920624/medkernel/pull/625) `3d3ecb25`，分支已删）
 
 > **接力须知**：AIK-STD-12 PR1（#623）+ PR2（#624）已合并入 main。本段＝**本卡最后一刀**，补齐 FR-1 + FR-3 使全部 FR/AC 真实勾完。设计 [`docs/superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md`](superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md)，计划 [`docs/superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md`](superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md)。续接从最新 `origin/main` 起。
 
