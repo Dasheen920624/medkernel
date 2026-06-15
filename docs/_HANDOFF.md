@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 收尾 = 全专业资产模板(FR-1) + 候选退修(FR-3)（**全 FR 闭卡** · 已实现待合，分支 `claude/wave2-p2b-aikstd12-pr3-templates-return`）
+
+> **接力须知**：AIK-STD-12 PR1（#623）+ PR2（#624）已合并入 main。本段＝**本卡最后一刀**，补齐 FR-1 + FR-3 使全部 FR/AC 真实勾完。设计 [`docs/superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md`](superpowers/specs/2026-06-15-aikstd12-pr3-templates-return-design.md)，计划 [`docs/superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md`](superpowers/plans/2026-06-15-aikstd12-pr3-templates-return.md)。续接从最新 `origin/main` 起。
+
+- **已实现（PR3）**：
+  - **FR-1 全专业资产模板**：新包件 `com.medkernel.engine.factory` 加 `TemplateSection`/`ProfessionalAssetTemplate`/`ProfessionalAssetTemplateRegistry`（**代码态确定性目录、不建表、不做租户自定义**——守「非新表优先」+ YAGNI）覆盖 **13 专业**（术语/规则/路径/推荐/指标/随访 结构型 + 护理/报告/中医/医保政策/指南/药品/诊断 医学领域型，按 `VersionedAssetType` × `engine.knowledge.KnowledgeDomain` 定位，**不新建资产类型**）；**章节只编结构骨架不预填医学内容**（守铁律 #1）。端点 `GET /api/v1/engine/knowledge-production/asset-templates`（`knowledge.read`，**挂既有控制器零新治理面**——免新建控制器/契约/域登记）。前端 `useAssetTemplates` + 审核台详情抽屉按 `selectedIdentity.domain` 匹配 KNOWLEDGE 型模板展示结构清单（必备/建议 + hint），无匹配诚实标「该领域暂无标准模板」。
+  - **FR-3 退修**：`KnowledgeCandidateReviewDecision` +`RETURN`、`CandidateReviewStatus` +`RETURNED`；`reviewCandidate` RETURN 分支——**必填修订意见**（blank→400，医疗安全）+ 候选版本回 `DRAFT`（退出审核台队列待修订重提）+ classification `RETURNED` + `ReviewAssignment`(decision=RETURN, reason) 留痕（守铁律 #3 署名）。**V132 五方言**（V52 早已发布**不可原地改**，仿 V88 金标 `DROP+ADD CHECK`）放宽 `ck_review_assignment_decision` +`'RETURN'`、两处 `ck_*_review_status` +`'RETURNED'` + 中文 COMMENT；`LATEST_MIGRATION_VERSION` 131→132。前端审核动作区加「退修」按钮（复用 review 提交 decision=RETURN，必填理由）+ RETURNED 状态标签（已退修）。
+- **验证全绿**：后端全量 `mvn test` **2534 通过**（基线 2525 + 新增 9：registry 4 + 控制器安全 2 + 服务退修 2 + 迁移契约 1）+ **五方言 Flyway smoke 真实容器 3/3**（V132 在 h2/postgres/oracle/dm/kingbase 干净 DROP/ADD CHECK）+ 四门禁 changed（真实性 9 / 配置 7 / 迁移 5 / 中文注释 0fail）全过 + `git diff --check` 干净 + 前端 `npm run verify` **94 文件 / 700 通过**（基线 697 + 新增 3：模板区按领域渲染 + 退修提交 RETURN + 退修空理由拦截）+ tsc/eslint/prettier 干净 + `productCatalog.test.ts` 5/5（控制器端点 +1，重生成无漂移）。卡 [AIK-STD-12](cards/wave2/AIK-STD-12.md) **全 FR/AC 勾全 + 实现进度 PR1~PR3**。
+- **诚实分寸**：结构型模板（术语/规则/路径/推荐/指标/随访，非 KNOWLEDGE 型）登记入目录供编著/生产工作台，**知识审核台只审 KNOWLEDGE 型故仅医学领域型在此可见**（不臆造跨类型匹配）；门禁结果展示仍随 AIK-STD-01 校验闸结论落库后补（PR1 既定分寸，未虚勾）。
+- **当前下一步（接力点，从最新 `origin/main` 起）**：① 推送本分支 + 开 PR（合并 main 逐 PR 授权）；② AIK-STD-12 闭卡后转 **P2-C 工厂流水线**（AIK-STD-02 文档解析/03 术语/04 候选生成/05 11项门禁/06 评测/10 8态去重——「来源→安全候选」内容管线，离首发包最关键硬骨头）；③ 或 `AIK-STD-08` 反馈回流驱动新候选。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1/#3/#6 + 合并 main 逐 PR 授权。
+
+---
+
 ## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR2 前端 AI 标识/来源溯源 · 已合并入 main，[PR #624](https://github.com/Dasheen920624/medkernel/pull/624) `b95a9388`，分支已删）
 
 > **接力须知**：AIK-STD-12 PR1（#623）已合并入 main（provenance 端点就绪）。本段＝PR2——前端审核台接 PR1 端点展示 AI 来源。设计同 [PR1 spec §3 PR2](superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md)。续接从最新 `origin/main` 起。
