@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS mk_knowledge_production_candidate (
     asset_identity   VARCHAR(256)  NOT NULL,
     content_hash     VARCHAR(64)   NOT NULL,
     candidate_ref    VARCHAR(256)  NOT NULL,
+    risk_level       VARCHAR(16)   NOT NULL,
     created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    created_by       VARCHAR(64)   NULL
+    created_by       VARCHAR(64)   NULL,
+    CONSTRAINT ck_mk_knowledge_production_candidate_risk CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH'))
 );
 
 CREATE INDEX idx_mk_knowledge_production_candidate_job ON mk_knowledge_production_candidate (tenant_id, job_code);

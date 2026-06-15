@@ -278,6 +278,7 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(lineage.getValue().contentHash()).isEqualTo(candidate.contentHash());
         assertThat(lineage.getValue().candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
         assertThat(lineage.getValue().tenantId()).isEqualTo(CUSTOMER);
+        assertThat(lineage.getValue().riskLevel()).isEqualTo(KnowledgeRiskLevel.MEDIUM);
     }
 
     @Test
@@ -286,7 +287,8 @@ class KnowledgeProductionOrchestrationServiceTest {
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
         KnowledgeProductionCandidate row = new KnowledgeProductionCandidate(5L, CUSTOMER, "job-1",
-            "discovery:SRC:v1:a", "hash", "staged:x", java.time.Instant.now(), "user-001");
+            "discovery:SRC:v1:a", "hash", "staged:x", KnowledgeRiskLevel.MEDIUM, java.time.Instant.now(),
+            "user-001");
         when(candidateRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1")).thenReturn(List.of(row));
 
         List<KnowledgeProductionCandidate> rows = service.listCandidates("job-1");

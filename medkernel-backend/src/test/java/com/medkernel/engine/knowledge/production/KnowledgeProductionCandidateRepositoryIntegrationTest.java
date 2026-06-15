@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
+
 /**
  * 知识候选生产血缘仓储集成测试（AIK-STD-13 PR2）。
  *
@@ -26,7 +28,7 @@ class KnowledgeProductionCandidateRepositoryIntegrationTest {
 
     private KnowledgeProductionCandidate row(String jobCode, String identity) {
         return new KnowledgeProductionCandidate(null, TENANT, jobCode, identity, "0".repeat(64),
-            "staged:" + identity, Instant.now(), "user-001");
+            "staged:" + identity, KnowledgeRiskLevel.MEDIUM, Instant.now(), "user-001");
     }
 
     @Test
@@ -36,7 +38,8 @@ class KnowledgeProductionCandidateRepositoryIntegrationTest {
         repository.save(row("job-b", "discovery:SRC-3:v1:c"));
         // 跨租户须排除
         repository.save(new KnowledgeProductionCandidate(null, "tenant-prodcand-other", "job-a",
-            "discovery:SRC-X:v1:x", "0".repeat(64), "staged:x", Instant.now(), "u"));
+            "discovery:SRC-X:v1:x", "0".repeat(64), "staged:x", KnowledgeRiskLevel.MEDIUM, Instant.now(),
+            "u"));
 
         List<KnowledgeProductionCandidate> jobA = repository.findByTenantIdAndJobCode(TENANT, "job-a");
 

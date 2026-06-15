@@ -105,7 +105,8 @@ public class KnowledgeProductionOrchestrationService {
         String actor = currentActor();
         // FR-5 候选生产血缘：每条提交候选落一行回溯（job/身份/指纹/候选引用/时点）。
         candidateRepository.save(new KnowledgeProductionCandidate(null, tenantId, jobCode,
-            candidate.assetIdentity(), candidate.contentHash(), candidateRef, now, actor));
+            candidate.assetIdentity(), candidate.contentHash(), candidateRef, candidate.riskLevel(),
+            now, actor));
         jobRepository.save(new KnowledgeProductionJob(
             job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
             job.targetPipeline(), job.domain(), job.modelStrategy(), ProductionJobStatus.RUNNING,
