@@ -13,7 +13,22 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-C 工厂流水线**入口** · AIK-STD-02 文档解析/引用锚点/版本存证（PR1 管线核心已实现待合，分支 `claude/wave2-p2c-aikstd02-doc-parse-pipeline`）
+## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR2 PDF 解析适配器（PDFBox）+ 页锚点 + Base64 传输（**已实现待合**，[PR #627](https://github.com/Dasheen920624/medkernel/pull/627)，分支 `claude/wave2-p2c-aikstd02-pr2-pdf-parser`）
+
+> **接力须知**：PR1 管线核心（#626）已合并入 main。本段＝PR2，接入 PDF 解析适配器产带页锚点的受控来源片段。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md) §3.3/§4 · 计划 [`docs/superpowers/plans/2026-06-16-aikstd02-pr2-pdf-parser.md`](superpowers/plans/2026-06-16-aikstd02-pr2-pdf-parser.md)。续接从最新 `origin/main` 起。
+
+- **已实现（续 `com.medkernel.engine.knowledge.parsing`）**：
+  - **`PdfDocumentParser`（Apache PDFBox 3.0.3，`@Component` 自动并入 `List<DocumentParser>` 分派）**：逐页 `PDFTextStripper` 确定性提取文本层 → 每行携真实页号（1 基）；扫描件（无文本层，**不做 OCR**，受 P6+LLM 闸）与损坏 PDF 诚实 `FAILED`，绝不产伪结构（FR-5 / 铁律 #1）。
+  - **页锚点**：`ParsedSection.paragraphs` 由 `List<String>` 重构为 `List<ParsedParagraph>`（`text` + 可空 `page`）；物化锚点编码 `[p<页>/]§<节>/¶<段>`，**页号逐段归属**（单节跨页不误标），文本/Word 无版式页维度 `page=null` 锚点同 PR1。
+  - **共享分章器 `DocumentSectionizer`**：抽标题检测/编号路径/前言 §0/超长按句界切分/空输入诚实抛错，文本与 PDF（及 PR3 Word）复用，`StructuredTextDocumentParser` 瘦身委派。
+  - **二进制传输＝复用 `content` 承载 Base64**（不增字段）：`DocumentParseRequest.content` 按 `format`——文本为原文、PDF/WORD 为原文字节 Base64；非法 Base64 编排层结构化 **400**。`content` 仍 `@NotBlank`（不破 PR1 控制器契约/安全测试）。
+  - **无新表/端点/权限/迁移**：`ck_doc_parse_job_format` 已含 `'PDF'`，走既有 `documents:parse`；产品目录不漂移。
+- **验证全绿**：全量 `mvn test` **2564 通过**（解析包 28：+PdfParser 4 +页锚点物化 1 +编排 Base64 拒绝 1 +集成 PDF 端到端 1）+ 四门禁 changed（真实性 8/配置 8/迁移 0/中文注释 0fail）全过 + 五方言 Flyway smoke 真实容器 3/3（无迁移）+ `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5 无漂移。
+- **当前下一步（接力点，从最新 `origin/main` 起；#627 合并后清本分支）**：① **PR3** `WordDocumentParser`（Apache POI，FR-1 Word）+ **表格理解（FR-2，表→行/单元格片段，两格式通用）** + 测试夹具 DOCX——AIK-STD-02 最后一刀，补齐 AC-1 全部。② 续 P2-C 内容管线：AIK-STD-03 术语 / 04 候选生成（消费本卡带锚点片段→`KnowledgeAssetEnvelope`）/ 05 11 项门禁 / 10 8 态去重。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1（锚点/hash 真实，扫描件/损坏诚实 FAILED）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-15 第二阶段 P2-C 工厂流水线**入口** · AIK-STD-02 文档解析/引用锚点/版本存证（PR1 管线核心已合并入 main，[PR #626](https://github.com/Dasheen920624/medkernel/pull/626) `82bd82bf`，分支已删）
 
 > **接力须知**：AIK-STD-12 全闭卡（#625）后，按 wave2 _brief §7 路线转 **P2-C 工厂流水线**（源→安全候选内容管线，离首发包最关键硬骨头）。本卡 = 管线**入口**（文档→带真实锚点的受控来源片段），下游 AIK-STD-03/04/05/10 消费。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md)。续接从最新 `origin/main` 起。
 
