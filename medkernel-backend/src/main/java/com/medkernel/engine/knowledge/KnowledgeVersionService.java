@@ -254,6 +254,18 @@ public class KnowledgeVersionService {
      */
     @Transactional
     public KnowledgeCandidateResponse classifyCandidate(Long identityId, KnowledgeVersionCreateRequest request) {
+        return classifyCandidate(identityId, request, null);
+    }
+
+    /**
+     * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13 PR4）。
+     *
+     * <p>{@code assignmentPlan} 非空时据 PR3 会签路由建多角色 {@link ReviewAssignment}（归口 ∪ 领域）；
+     * 为 null 时沿用既有默认（{@code assignedTo}=提交人，单行），既有调用方零回归。
+     */
+    @Transactional
+    public KnowledgeCandidateResponse classifyCandidate(Long identityId, KnowledgeVersionCreateRequest request,
+                                                        ReviewAssignmentPlan assignmentPlan) {
         String tenantId = requireCurrentTenant();
         KnowledgeApiContext context = request.context();
         validateContext(context, tenantId);
@@ -375,23 +387,19 @@ public class KnowledgeVersionService {
             actor,
             now,
             actor));
-        reviewAssignmentRepository.save(new ReviewAssignment(
-            null,
-            tenantId,
-            orgPath,
-            classification.id(),
-            identityId,
-            candidate.id(),
-            actor,
-            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
-            null,
-            null,
-            null,
-            null,
-            now,
-            actor,
-            now,
-            actor));
+        if (assignmentPlan != null && !assignmentPlan.isEmpty()) {
+            for (String reviewerRole : assignmentPlan.reviewerRoleCodes()) {
+                reviewAssignmentRepository.save(new ReviewAssignment(
+                    null, tenantId, orgPath, classification.id(), identityId, candidate.id(),
+                    reviewerRole, CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
+                    null, null, null, null, now, actor, now, actor));
+            }
+        } else {
+            reviewAssignmentRepository.save(new ReviewAssignment(
+                null, tenantId, orgPath, classification.id(), identityId, candidate.id(),
+                actor, CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
+                null, null, null, null, now, actor, now, actor));
+        }
         return KnowledgeCandidateResponse.classified(
             identityId,
             List.of(candidate),

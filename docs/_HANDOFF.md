@@ -13,16 +13,31 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR3 候选会签路由（FR-6）+ 院内覆盖角色边界（FR-7）（已实现待合，分支 `claude/wave2-p2b-aikstd13-pr3-review-routing`）
+## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR4 候选真实物化入版本/审核链（已实现待合，分支 `claude/wave2-p2b-aikstd13-pr4-candidate-materialization`）
 
-> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）已合并入 main。本段＝PR3 续接（FR-6 会签路由 + FR-7 院内归口边界）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md`](superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md) §9。实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md`](superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md)。续接从最新 `origin/main` 起。
+> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）+ PR3（#621）已全部合并入 main。本段＝PR4——**候选真实物化**（替换 PR1 暂存桩，消费 PR3 路由决策）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md`](superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md)，实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md`](superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md)。续接从最新 `origin/main` 起。
+
+- **已实现（PR4，续 `com.medkernel.engine.knowledge.production`）**：
+  - **受控源引用解析器** `SourceReferenceResolver`（串引用 `源编码:版本:锚点` → 源 FK）→ `ResolvedSource`（sourceDocumentId/sourceVersionId/anchorPath，强租户隔离）；**B0 解析不出诚实拒收**（铁律 #1，不伪造源 FK）。
+  - **物化目标** `MaterializationTarget`（现有身份 `targetIdentityId` **异或** 新建身份壳 `NewIdentitySpec`，二选一 `validate`）；新建身份壳 find-or-create（ACTIVE 保守默认）。
+  - **`MaterializingCandidateIntake` 替换 `StagingCandidateIntake` 暂存桩**：信封 → 标准 `KnowledgeVersionCreateRequest` → `classifyCandidate` 真实落版本（`PENDING_REPLACEMENT_REVIEW` 待审）/ `CandidateClassification` / **据 PR3 路由建多角色 `ReviewAssignment`**（归口 ∪ 领域，`LinkedHashSet` 去重）；GRADE 缺省 `VERY_LOW` 保守。
+  - **服务端编排合成诚实 API-03 上下文**：编排无 HTTP 入参，`KnowledgeApiContext.validateTenant` 要求 request_id/trace_id/tenant_id/user_id/package_version 非空 + role_codes 非空 → 合成 request_id=`kpm:uuid`、trace=关联追踪 id、user_id=会话 actor、**package_version=job 编码（真实溯源）**、role_codes=PR3 归口治理角色。
+  - **`classifyCandidate` 接 `ReviewAssignmentPlan`**（plan→多角色分派 / null 零回归）；`submitCandidate`/控制器接入 `target`。仅覆盖可解析受控源（discovery-origin）；FR-2 外部模型生产器仍受 **P6 阻断**不实接。
+- **验证全绿**：全量 `mvn test` **2519 通过**（基线 2507 + PR4 新增 12：受控源解析/物化目标/intake 单元 + 控制器&编排测试增量 + 真实 H2 端到端集成 `CandidateMaterializationIntegrationTest` 1）+ **五方言 Flyway smoke 真实容器 3/3**（PR4 无新迁移，复用 V130/V131）+ 四门禁 changed（真实性 11 / 配置 11 / 迁移 0 / 中文注释 0fail）全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（控制器仅请求体扩展 target，端点数不变，无目录漂移）。卡 [AIK-STD-13](cards/wave2/AIK-STD-13.md) 补 PR4 实现进度（候选物化使能 FR-3 统一流水线 / FR-5 血缘，**未虚勾未竟 FR**）；backlog **仍 pending**（多 PR 大卡）。
+- **当前下一步（接力点）**：① 推送本分支 + 开 PR（**合并 main 须逐 PR 点名授权**）；② 续 `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费 PR3 路由 / PR4 物化）；③ `AIK-STD-08`（反馈回流驱动新候选）。FR-2 外部模型生产器实接受 **P6 阻断**（不得进入）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR3 候选会签路由（FR-6）+ 院内覆盖角色边界（FR-7）（已合并入 main，[PR #621](https://github.com/Dasheen920624/medkernel/pull/621) `89c60ac7`，分支已删）
+
+> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）+ PR3（#621）已全部合并入 main。本段＝PR3 闭环记录（FR-6 会签路由 + FR-7 院内归口边界）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md`](superpowers/specs/2026-06-15-aikstd13-production-orchestration-design.md) §9。实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md`](superpowers/plans/2026-06-15-aikstd13-pr3-review-routing.md)。续接从最新 `origin/main` 起。
 
 - **已实现（PR3，续 `com.medkernel.engine.knowledge.production`）**：
   - **FR-6 候选会签路由**：新 `KnowledgeDomain`（CLINICAL/PHARMACY/TERMINOLOGY_REPORT/EVALUATION_INSURANCE/GENERAL）+ `CandidateReviewRouter`（@Service，**纯确定性 B0** `resolve(管道,领域,风险)`）+ `ReviewRoutingDecision`（归口角色 + 领域会签角色 + 是否双签 + 领域）。归口按管道（PLATFORM_SOURCE→平台知识治理员 / TENANT_OVERLAY→机构知识治理员）；领域按 domain（临床→临床治理负责人、**药学→药事安全人员**、术语报告→医技协同、评估医保→质量与医保、通用→同归口）；HIGH→双签。`submitCandidate` 提交即返回 `CandidateSubmissionResponse(候选引用+路由)`；`listCandidates` 每条血缘附 `ProductionCandidateView(血缘+路由)`（只读 resolve，不存派生列）。
   - **药学＝领域非资产类型**：**原地改** V130 加 `domain VARCHAR(24) NOT NULL`+CHECK、V131 加 `risk_level VARCHAR(16) NOT NULL`+CHECK（各 5 方言，**不新建 V132，`LATEST_MIGRATION_VERSION` 保持 131**，靠新建库生效）；**不动 `VersionedAssetType`**（说明书走 KNOWLEDGE、DDI 走 RULE，经 domain 区分）；job `domain` 应用层 `@NotNull` 必填。
   - **FR-7 院内覆盖角色边界**：路由器保证 TENANT_OVERLAY 候选归口恒为机构知识治理员、永不平台归口（定向测试锁定）；叠加 PR1 `guardPipelineOwnership` 硬隔离，**不新增权限码、不建 `ReviewAssignment`**（物化前不伪装已分派，待 P2-C）。
 - **验证全绿**：全量 `mvn test` **2507 通过**（基线 2496 + 新增 11：路由 10 + createJobPersistsDeclaredDomain 1）+ **五方言 Flyway smoke 真实容器 3/3**（原地改 V130/V131 在 h2/postgres/oracle/dm/kingbase 干净建表，含 domain/risk_level 列 + 两 CHECK）+ 四门禁 changed（真实性/配置/迁移/中文注释）全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（端点数不变，仅响应体扩展，无目录漂移）。卡 [AIK-STD-13](cards/wave2/AIK-STD-13.md) FR-6/FR-7 勾「✅（PR3）」；backlog **仍 pending**（多 PR 大卡）。
-- **当前下一步（接力点）**：① 推送本分支 + 开 PR（**合并 main 须逐 PR 点名授权**）；② PR4+——FR-2 外部模型生产器实接（P6 闸）、候选真实物化入既有版本/审核链建真 `ReviewAssignment`（接 AIK-STD-04/10 解析管道，需身份+源 FK 解析）；或转 `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费本 PR 路由决策）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+- **当前下一步（接力点）**：PR3 已合并入 main。续 P2-B——① 候选真实物化入既有版本/审核链建真 `ReviewAssignment`（接 AIK-STD-04/10 解析管道，需身份+源 FK 解析，**消费 PR3 路由决策**）；② 转 `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费 PR3 路由决策）；③ `AIK-STD-08`（反馈回流驱动新候选）。FR-2 外部模型生产器实接受 **P6 阻断**（不得进入）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
 
 ---
 
