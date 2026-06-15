@@ -646,11 +646,7 @@ export default function KnowledgeGovernance() {
         }
         return (
           <Space direction="vertical" size={2}>
-            {provenance.aiGenerated ? (
-              <Tag color="purple">AI 生成</Tag>
-            ) : (
-              <Tag>人工生产</Tag>
-            )}
+            {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
             <Text>{producerLabel(provenance.producer)}</Text>
             <Text type="secondary">job：{provenance.jobCode}</Text>
           </Space>
@@ -1220,11 +1216,7 @@ export default function KnowledgeGovernance() {
             return (
               <Descriptions column={1} bordered size="small" title="AI 生产来源溯源">
                 <Descriptions.Item label="AI 标识">
-                  {provenance.aiGenerated ? (
-                    <Tag color="purple">AI 生成</Tag>
-                  ) : (
-                    <Tag>人工生产</Tag>
-                  )}
+                  {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
                 </Descriptions.Item>
                 <Descriptions.Item label="生产器">
                   {producerLabel(provenance.producer)}
