@@ -18,7 +18,7 @@
 ## 2. 范围（用户裁决）
 
 - **端到端最小闭环 · 仅 discovery-origin**：把已产出候选物化进版本/审核链 + 据 PR3 路由建 ReviewAssignment + 自动进现审核台可审/发。MANUAL/无受控源 FK 候选留下一刀。
-- **身份解析**：生产方显式声明 `MaterializationTarget`——`targetIdentityId`（现有→走 SAME_IDENTITY_NEW_VERSION/DUPLICATE/CONFLICT）**异或** `newIdentity{内容域 + 主题 + identityCode}`（不存→find-or-create **非权威身份壳**；身份壳无权威内容，版本仍 PENDING 走审核，核心 §6 审过才发）。
+- **身份解析**：生产方显式声明 `MaterializationTarget`——`targetIdentityId`（现有→走 SAME_IDENTITY_NEW_VERSION/DUPLICATE/CONFLICT）**异或** `newIdentity{内容域 + 主题 + identityCode}`（不存→find-or-create）。新建身份 `status=ACTIVE`（**身份壳＝有效主题容器**；`KnowledgeIdentityStatus` 无 DRAFT 态，ACTIVE 仅表「主题存在」）；**权威性在版本层把关**——版本恒 `PENDING_REPLACEMENT_REVIEW`、无 ACTIVE 版本即不参与临床（核心 §6 审过才发），故新身份壳零权威风险。
 - **源 FK**：`SourceReferenceResolver` 回查解析；解析不出**诚实结构化拒收**（铁律 #1，不伪造 FK、不半物化）。
 - **双签**：据 PR3 路由建 `{归口}∪{领域(异于归口时)}` 条 `ReviewAssignment`（谁该审）；**不做「必须两签才发」强制**（留下刀，不动现有 `reviewCandidate` 单决流）。
 - **接口形状**：改 `submitCandidate` 加 `target` 入参、删 `StagingCandidateIntake` 桩（greenfield 无兼容包袱，端口契约可改）。
@@ -44,9 +44,9 @@ newIdentity      : NewIdentitySpec{ domain: engine.knowledge.KnowledgeDomain, su
 - 编排：
   1. 解析身份：`targetIdentityId` 校验存在（租户内）；或 `newIdentity` 按 `(tenant, identityCode)` find，不存则 create 非权威身份壳（`KnowledgeIdentityStatus` 初始非 ACTIVE 权威态；用内容域+主题+identityCode）。
   2. 解析源 FK：对信封 `sources`（≥1，AIK-STD-01 已保证）取首条经 `SourceReferenceResolver`。
-  3. 构造 `KnowledgeVersionCreateRequest`：content=`payload`、`sourceDocumentId/sourceVersionId`=解析值、`versionNo`（从 `versionLabel` 或计算）、`riskLevel`、`gradeQuality`、`anchors`、`reviewCycleMonths`（默认）、12 字段 context（从 `RequestContext`）。
+  3. 构造 `KnowledgeVersionCreateRequest`：content=`payload`、`sourceDocumentId/sourceVersionId`=解析值、`versionNo`=`versionLabel`（空则生成）、`riskLevel`=信封值、`gradeQuality`=信封值**或 `VERY_LOW`**（信封无 GRADE 时取最保守值，诚实不夸大证据质量、不伪造高质量；铁律 #1）、`gradeStrength`=信封值（可空）、`anchors`=解析出的 anchorPath、`reviewCycleMonths`=默认 12、context（tenant/traceId/userId 从 `RequestContext`，余 null；`validateContext` 仅校租户一致）。
   4. 调 `KnowledgeVersionService.classifyCandidate(identityId, request, 路由分派计划)`（见 3.4）。
-  5. 返回 `MaterializationResult`（version + classification + assignments + 路由决策）。
+  5. 返回**真实物化版本引用串**（如 `kv:<versionId>`）作 candidateRef。
 
 ### 3.4 `KnowledgeVersionService.classifyCandidate` 聚焦扩展
 - 加可选「路由分派计划」入参 `ReviewAssignmentPlan`（来自 PR3 `ReviewRoutingDecision`：归口角色 + 领域角色 + 是否双签）。
@@ -56,9 +56,10 @@ newIdentity      : NewIdentitySpec{ domain: engine.knowledge.KnowledgeDomain, su
 
 ### 3.5 `submitCandidate` 升级（`KnowledgeProductionOrchestrationService` + 控制器）
 - signature：`submitCandidate(jobCode, KnowledgeAssetEnvelope candidate, MaterializationTarget target)`。
-- 校验隔离（PR1）+ 路由 resolve（PR3）不变；`intake` 改调物化实现；血缘行 `candidate_ref` 落**真实物化版本引用**（不再 `"staged:"`）。
-- 返回升级：`CandidateSubmissionResponse` 扩展含物化结果（version/classification id + assignments）+ 路由（PR3）。
-- 控制器 `POST /jobs/{jobCode}/candidates` body 加 `target`（`@Valid`）。
+- 校验隔离（PR1）+ 路由 resolve（PR3）不变；resolve 出 `ReviewRoutingDecision` 传入 `intake(job, candidate, target, routing)`；`intake` 改调物化实现；血缘行 `candidate_ref` 落**真实物化版本引用**（不再 `"staged:"`）。
+- 返回 `CandidateSubmissionResponse(candidateRef, routing)` **形状不变**（YAGNI，不扩展 DTO）——`candidateRef` 由 `"staged:"` 变为真实物化版本引用；version/classification/assignment 由现审核台既有端点查询，无需塞进本响应。
+- 控制器 `POST /jobs/{jobCode}/candidates` body 由 `KnowledgeAssetEnvelope` 改为 `CandidateSubmissionRequest(@Valid 信封, @Valid target)`。
+- `KnowledgeCandidateIntake` 端口签名升级为 `intake(job, candidate, target, routing) → String candidateRef`。
 
 ## 4. 数据流（端到端）
 ```
