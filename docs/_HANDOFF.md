@@ -13,14 +13,15 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR1 来源溯源 · 进行中，分支 `claude/wave2-p2b-aikstd12-aireview-ai-provenance`）
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR1 来源溯源 · 已实现待合，分支 `claude/wave2-p2b-aikstd12-aireview-ai-provenance`）
 
 > **接力须知**：AIK-STD-13 PR4（#622）已合并入 main，AI 候选已能真实落审核链。本段＝AIK-STD-12（7d 大卡，前端重）启动。设计 [`docs/superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md`](superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md)，PR1 计划 [`docs/superpowers/plans/2026-06-15-aikstd12-pr1-ai-provenance.md`](superpowers/plans/2026-06-15-aikstd12-pr1-ai-provenance.md)。续接从最新 `origin/main` 起。
 
 - **关键核查（写给下个 AI：审核台地基已成熟，勿重建）**：审核台后端全套 API 已在 `KnowledgeVersionController`（review-queue / candidates / diff / review / 版本生命周期）；前端审核台页**实为 `pages/quality/KnowledgeGovernance.tsx`**（卡称 AiReview，已改名，路由 `/aik/review`，消费 review hooks）；AIREVIEW-01 已 done 但**显式未含 AI 来源标识**（留 wave2）。AIK-STD-12 ＝在成熟台上补 ① AI 来源溯源+标识、② 前端标识/署名/退修、③ 全专业模板。
 - **数据链接点（已存在）**：审核候选版本 `kv:{identityId}:{versionNo}` ＝ PR4 写回的 `mk_knowledge_production_candidate.candidate_ref` → `job_code` → `mk_knowledge_production_job`(producer/pipeline/model_strategy/domain)。`aiGenerated = producer ≠ MANUAL`；手建版本无血缘行＝诚实「非工厂候选」不臆造。
 - **PR 切片**：**PR1（本分支，纯后端）**＝AI 生产来源溯源接审核台读模型（反查仓储 + `CandidateProvenanceService` + `CandidateProvenanceView` + 旁挂只读端点 `POST .../knowledge-production/candidates/provenance`，**不改既有候选响应=零前端破坏**）；PR2＝前端 AI 标识/署名/退修；PR3＝全专业资产模板（FR-1，复用 `VersionedAssetType`+domain 不新建类型）。
-- **当前下一步（接力点）**：PR1 TDD 实施中——按 [PR1 计划](superpowers/plans/2026-06-15-aikstd12-pr1-ai-provenance.md) 步骤 1→6（反查仓储→DTO→服务→端点→契约/目录→收口验证）。恒守：TDD 红绿 + B0（无血缘不阻断人工审）+ P6 阻断（不开生产）+ 铁律 #1（来源真实）+ 合并 main 逐 PR 授权。
+- **PR1 已实现（本分支）**：反查仓储 `findByTenantIdAndCandidateRefIn` + `CandidateProvenanceView`（`aiGenerated=producer≠MANUAL` + job/管道/模型策略/领域/风险/时点）+ `CandidateProvenanceService`（只读 resolve，无血缘/跨租户引用诚实不返回）+ 旁挂只读端点 `POST .../candidates/provenance`（`knowledge.read`，`@Valid @NotEmpty`，不改既有候选响应）+ 产品目录纳入。**验证全绿**：全量 `mvn test` **2525 通过**（基线 2519 + 新增 6：repo 1 + 服务 2 + 控制器安全 3）+ 五方言 Flyway smoke 3/3（无新迁移）+ 四门禁 changed 全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（端点 +1，KEEP 无漂移）。
+- **当前下一步（接力点）**：① 推送本分支 + 开 PR（合并 main 逐 PR 授权）；② **PR2（前端）**＝`KnowledgeGovernance.tsx` 接 PR1 provenance（AI 标识徽标 + 来源 job/producer/管道 + 审核人署名 + 退修动作），no-page-mock 真实性门禁；③ **PR3** 全专业资产模板（FR-1）。恒守：TDD 红绿 + B0（无血缘不阻断人工审）+ P6 阻断（不开生产）+ 铁律 #1（来源真实）+ 合并 main 逐 PR 授权。
 
 ---
 
