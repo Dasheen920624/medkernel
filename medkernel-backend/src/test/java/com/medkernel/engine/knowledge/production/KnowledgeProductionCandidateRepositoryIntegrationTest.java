@@ -48,4 +48,21 @@ class KnowledgeProductionCandidateRepositoryIntegrationTest {
             .containsExactly("discovery:SRC-1:v1:a", "discovery:SRC-2:v1:b");
         assertThat(jobA).allSatisfy(c -> assertThat(c.tenantId()).isEqualTo(TENANT));
     }
+
+    @Test
+    void reverseLooksUpByCandidateRefScopedToTenant() {
+        // candidate_ref = "staged:" + identity（见 row 工厂）；独立 job 编码避免污染其它测试的 job 聚合
+        repository.save(row("job-rev", "rev-1"));
+        repository.save(row("job-rev", "rev-2"));
+        // 跨租户同引用须排除（不泄漏跨租户存在性）
+        repository.save(new KnowledgeProductionCandidate(null, "tenant-prodcand-other", "job-rev",
+            "rev-3", "0".repeat(64), "staged:rev-1", KnowledgeRiskLevel.MEDIUM, Instant.now(), "u"));
+
+        List<KnowledgeProductionCandidate> hits = repository.findByTenantIdAndCandidateRefIn(
+            TENANT, List.of("staged:rev-1", "staged:rev-2", "staged:unknown"));
+
+        assertThat(hits).extracting(KnowledgeProductionCandidate::candidateRef)
+            .containsExactlyInAnyOrder("staged:rev-1", "staged:rev-2");
+        assertThat(hits).allSatisfy(c -> assertThat(c.tenantId()).isEqualTo(TENANT));
+    }
 }
