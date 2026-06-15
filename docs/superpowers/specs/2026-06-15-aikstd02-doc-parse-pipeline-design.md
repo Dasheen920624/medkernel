@@ -33,7 +33,7 @@ Java 侧已就绪：`SourceDocument`/`SourceVersion`/`SourceFragment`/`Citation`
 仿既有 `ModelProvider` 抽象 + 适配器、`KnowledgeCandidateIntake` 端口的成熟范式。
 
 ```
-上传文档(bytes + 文件名 + source_document) 
+上传文档(bytes + 文件名 + source_document)
    → DocumentParseOrchestrationService.submit() → mk_doc_parse_job(PENDING)
    → (异步) DocumentParser 端口按格式分派
         ├─ StructuredTextDocumentParser (B0, 确定性, PR1)

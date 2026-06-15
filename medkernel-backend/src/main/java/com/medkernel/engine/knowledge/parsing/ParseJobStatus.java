@@ -1,6 +1,8 @@
 package com.medkernel.engine.knowledge.parsing;
 
-/** 文档解析 job 状态（AIK-STD-02）。对应 mk_doc_parse_job.status CHECK 约束。 */
+/**
+ * 文档解析 job 状态（AIK-STD-02）。对应 mk_doc_parse_job.status CHECK 约束。
+ */
 public enum ParseJobStatus {
     /** 已建任务待解析。 */
     PENDING,

@@ -7,7 +7,9 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
-/** 文档解析 job 仓储（AIK-STD-02）。所有查询强制带 tenantId（强租户隔离）。 */
+/**
+ * 文档解析 job 仓储（AIK-STD-02）。所有查询强制带 tenantId（强租户隔离）。
+ */
 @Repository
 public interface DocParseJobRepository extends ListCrudRepository<DocParseJob, Long> {
 
