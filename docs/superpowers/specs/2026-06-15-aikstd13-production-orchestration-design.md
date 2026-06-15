@@ -108,5 +108,50 @@
 
 - 不另起资产/版本表，也不造平行候选表（候选物化走既有链，经 `KnowledgeCandidateIntake` 端口随解析管道 AIK-STD-04/10 接线）。
 - 不实接外部模型生产器（P6 闸；MANUAL/确定性先行）。
-- 不做 job 重放/中止、会签领域路由（PR2）。
+- 不做 job 重放/中止、会签领域路由（PR2/PR3）。
 - 不做生产者工作台前端（AIK-STD-12）。
+
+## 8. PR2 详细设计：job 生命周期 + 候选生产血缘（FR-1 中止/重放 · FR-5 血缘可回溯）
+
+> PR1（#619）已合并入 main。PR2 直续：补 job 生命周期闭环 + 候选生产血缘可回溯。仍 B0、不碰 P6/未建解析管道。
+
+### 8.1 数据（新表）`mk_knowledge_production_candidate`（V131 五方言 + 中文 COMMENT）
+
+候选**生产血缘**（非资产存储——不存正文/sources 内容，仅回溯元数据）：每条提交候选记一行。
+
+| 列 | 说明 |
+|---|---|
+| `id` / `tenant_id` | PK / 租户隔离 |
+| `job_code` | 归属生产 job（回溯 job→生产器/管道/模型策略） |
+| `asset_identity` | 候选资产身份键 |
+| `content_hash` | 候选内容真实 SHA-256 |
+| `candidate_ref` | intake 返回的候选引用标识 |
+| `created_at` / `created_by` | 时点 / 提交人 |
+
+- 约束：无唯一业务键（同 job 可多次提交同身份的修订）；索引 `idx_mk_knowledge_production_candidate_job (tenant_id, job_code)`。append-only（无 updated 列，非 mutable-audited）。
+
+### 8.2 服务扩展 `KnowledgeProductionOrchestrationService`
+
+- `submitCandidate`（改）：intake 后**持久化血缘行** + 计数（PR1 仅计数+审计，PR2 加血缘行落库）。
+- `listCandidates(jobCode)`：返回该 job 血缘行（**FR-5 可回溯**）。
+- `completeJob(jobCode)`：PENDING/RUNNING → COMPLETED。
+- `cancelJob(jobCode)`：PENDING/RUNNING → CANCELLED；终态（COMPLETED/FAILED/CANCELLED）→ 结构化 409 拒（非法生命周期跃迁）。
+- `replayJob(jobCode)`：复制 job 定义（source_scope/asset_type/producer/target_pipeline/model_strategy）建**新 PENDING job**，`lineage` JSON 记 `replayedFrom=<原 jobCode>`，返回新 job（**FR-5 可重放**；隔离守卫复用 createJob 路径，越界仍拒）。
+
+### 8.3 控制器扩展 `KnowledgeProductionController`
+
+- `GET /jobs/{jobCode}/candidates`（`knowledge.read`）→ 候选血缘列表。
+- `POST /jobs/{jobCode}/complete` / `cancel` / `replay`（`knowledge.write`）。
+
+### 8.4 配套
+
+- 域归属 engine-knowledge 加 `mk_knowledge_production_candidate`；契约 `knowledge-production` 补 `mk_knowledge_production_candidate` 审计点；迁移基线 V131 + 表/索引；两 `LATEST_MIGRATION_VERSION` 130→131；产品目录重生成（新端点）。
+
+### 8.5 PR2 验证
+
+- TDD：服务（提交落血缘 / 列候选 / complete / cancel 终态拒 / replay 建新 job 复用隔离守卫）+ 血缘 repo 集成 + 控制器安全（新端点权限）。
+- 全量 `mvn test` + 四门禁 + 五方言 smoke + 前端目录。
+
+### 8.6 PR3+ 仍待
+
+- FR-6 候选按归属+风险+领域路由会签（接审核分派）· FR-2 外部模型生产器实接（P6 闸）· 候选真实物化入既有版本/审核链（接 AIK-STD-04/10 解析管道）· FR-7 院内覆盖角色边界细化。

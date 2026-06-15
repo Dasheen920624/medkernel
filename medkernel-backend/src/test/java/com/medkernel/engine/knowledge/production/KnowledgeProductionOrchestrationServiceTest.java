@@ -46,6 +46,7 @@ class KnowledgeProductionOrchestrationServiceTest {
     private static final String CUSTOMER = "tenant-1";
 
     private KnowledgeProductionJobRepository jobRepository;
+    private KnowledgeProductionCandidateRepository candidateRepository;
     private KnowledgeCandidateIntake candidateIntake;
     private AuditRecorder auditRecorder;
     private KnowledgeProductionOrchestrationService service;
@@ -53,10 +54,12 @@ class KnowledgeProductionOrchestrationServiceTest {
     @BeforeEach
     void setUp() {
         jobRepository = mock(KnowledgeProductionJobRepository.class);
+        candidateRepository = mock(KnowledgeProductionCandidateRepository.class);
         candidateIntake = mock(KnowledgeCandidateIntake.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new KnowledgeProductionOrchestrationService(
-            jobRepository, candidateIntake, new KnowledgeAssetSchemaValidator(), auditRecorder);
+            jobRepository, candidateRepository, candidateIntake, new KnowledgeAssetSchemaValidator(),
+            auditRecorder);
         when(jobRepository.save(any())).thenAnswer(inv -> {
             KnowledgeProductionJob j = inv.getArgument(0);
             return j.id() == null
@@ -233,5 +236,96 @@ class KnowledgeProductionOrchestrationServiceTest {
 
         assertThat(jobs).containsExactly(job);
         verify(jobRepository).pageByTenantId(CUSTOMER, 0, 20);
+    }
+
+    // ─── PR2：候选生产血缘 + job 生命周期 ─────────────────────────
+
+    private KnowledgeProductionJob jobWith(String tenantId, ProductionJobStatus status, TargetPipeline pipeline) {
+        return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1",
+            VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, pipeline, "strat-1", status, 0,
+            "{\"producer\":\"MANUAL\"}", java.time.Instant.now(), "user-001", java.time.Instant.now(),
+            "user-001", "trace-1");
+    }
+
+    @Test
+    void submitCandidatePersistsProductionLineageRow() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
+        when(candidateIntake.intake(any(), any())).thenReturn("staged:discovery:SRC:v1:a");
+        KnowledgeAssetEnvelope candidate = envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE);
+
+        service.submitCandidate("job-1", candidate);
+
+        ArgumentCaptor<KnowledgeProductionCandidate> lineage =
+            ArgumentCaptor.forClass(KnowledgeProductionCandidate.class);
+        verify(candidateRepository).save(lineage.capture());
+        assertThat(lineage.getValue().jobCode()).isEqualTo("job-1");
+        assertThat(lineage.getValue().assetIdentity()).isEqualTo(candidate.assetIdentity());
+        assertThat(lineage.getValue().contentHash()).isEqualTo(candidate.contentHash());
+        assertThat(lineage.getValue().candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
+        assertThat(lineage.getValue().tenantId()).isEqualTo(CUSTOMER);
+    }
+
+    @Test
+    void listCandidatesReturnsJobLineage() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
+        KnowledgeProductionCandidate row = new KnowledgeProductionCandidate(5L, CUSTOMER, "job-1",
+            "discovery:SRC:v1:a", "hash", "staged:x", java.time.Instant.now(), "user-001");
+        when(candidateRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1")).thenReturn(List.of(row));
+
+        List<KnowledgeProductionCandidate> rows = service.listCandidates("job-1");
+
+        assertThat(rows).containsExactly(row);
+    }
+
+    @Test
+    void completeJobTransitionsToCompleted() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(jobWith(CUSTOMER, ProductionJobStatus.RUNNING, TargetPipeline.TENANT_OVERLAY)));
+
+        ProductionJobResponse response = service.completeJob("job-1");
+
+        assertThat(response.status()).isEqualTo(ProductionJobStatus.COMPLETED);
+    }
+
+    @Test
+    void cancelJobTransitionsToCancelled() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(jobWith(CUSTOMER, ProductionJobStatus.PENDING, TargetPipeline.TENANT_OVERLAY)));
+
+        ProductionJobResponse response = service.cancelJob("job-1");
+
+        assertThat(response.status()).isEqualTo(ProductionJobStatus.CANCELLED);
+    }
+
+    @Test
+    void cancelJobOnTerminalStateIsRejected() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(jobWith(CUSTOMER, ProductionJobStatus.COMPLETED, TargetPipeline.TENANT_OVERLAY)));
+
+        assertThatThrownBy(() -> service.cancelJob("job-1")).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void replayJobSpawnsNewPendingJobLinkedToOriginal() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(jobWith(CUSTOMER, ProductionJobStatus.COMPLETED, TargetPipeline.TENANT_OVERLAY)));
+
+        ProductionJobResponse response = service.replayJob("job-1");
+
+        ArgumentCaptor<KnowledgeProductionJob> saved = ArgumentCaptor.forClass(KnowledgeProductionJob.class);
+        verify(jobRepository).save(saved.capture());
+        assertThat(saved.getValue().status()).isEqualTo(ProductionJobStatus.PENDING);
+        assertThat(saved.getValue().jobCode()).isNotEqualTo("job-1");
+        assertThat(saved.getValue().targetPipeline()).isEqualTo(TargetPipeline.TENANT_OVERLAY);
+        assertThat(saved.getValue().lineage()).contains("replayedFrom").contains("job-1");
+        assertThat(response.status()).isEqualTo(ProductionJobStatus.PENDING);
     }
 }

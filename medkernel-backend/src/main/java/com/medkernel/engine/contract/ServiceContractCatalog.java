@@ -338,8 +338,11 @@ public final class ServiceContractCatalog {
             permissions("knowledge.read", "knowledge.write"),
             audits(
                 audit(AuditAction.CREATE, "mk_knowledge_production_job", "建知识生产编排 job"),
+                audit(AuditAction.UPDATE, "mk_knowledge_production_job", "job 生命周期流转（完成/中止）"),
                 audit(AuditAction.EXECUTE, "mk_knowledge_production_job",
-                    "提交候选并记双形态隔离血缘"))),
+                    "提交候选并记双形态隔离血缘"),
+                audit(AuditAction.EXECUTE, "mk_knowledge_production_candidate",
+                    "记录候选生产血缘"))),
         contract("large-list", "大规模列表服务",
             "com.medkernel.engine.list.LargeListController", "/api/v1/large-lists",
             permissions("audit.read", "list.export"),

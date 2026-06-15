@@ -23,7 +23,11 @@
 - `mk_knowledge_production_job` 表 V130 五方言（job/生产器/目标管道/状态/血缘/trace，mutable-audited）+ 枚举 `TargetPipeline`/`KnowledgeProducer`/`ProductionJobStatus`。
 - `KnowledgeCandidateIntake` 端口 + PR1 默认 `StagingCandidateIntake`（暂存桩，候选物化随解析管道 AIK-STD-04/10 接线，**不造平行候选表、不伪装已物化**）。
 - `KnowledgeProductionController`（建 job/列 job/查 job/提交候选，`knowledge.write`/`read`）。契约 `knowledge-production` + 域归属登记。
-- **PR2+ 待做**：FR-5 job 重放/中止、FR-6 候选按归属+风险+领域路由会签、FR-2 外部模型生产器实接（P6 闸）、FR-7 院内覆盖角色边界细化、候选真实物化入既有版本/审核链。
+
+**PR2（生命周期 + 候选血缘，分支 `claude/wave2-p2b-aikstd13-pr2-lifecycle-lineage`）**：
+- **FR-5 候选生产血缘**：新表 `mk_knowledge_production_candidate` V131 五方言（append-only，每条提交候选落一行回溯 job/身份/指纹/候选引用/时点）；`submitCandidate` 落血缘行；`GET /jobs/{code}/candidates` 列血缘（**非资产存储**，候选物化仍走既有链）。
+- **FR-1 job 生命周期 + FR-5 可重放**：`completeJob`（PENDING/RUNNING→COMPLETED）、`cancelJob`（→CANCELLED，终态结构化 409 拒）、`replayJob`（复制 job 定义建新 PENDING job，lineage 记 replayedFrom，隔离守卫复用建 job 路径）；控制器加 `complete`/`cancel`/`replay` 端点。
+- **PR3+ 待做**：FR-6 候选按归属+风险+领域路由会签、FR-2 外部模型生产器实接（P6 闸）、FR-7 院内覆盖角色边界细化、候选真实物化入既有版本/审核链（接 AIK-STD-04/10 解析管道）。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
