@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -55,10 +56,12 @@ public class MaterializingCandidateIntake implements KnowledgeCandidateIntake {
         String versionNo = candidate.versionLabel() == null || candidate.versionLabel().isBlank()
             ? "kv-" + candidate.contentHash().substring(0, 12) : candidate.versionLabel();
 
+        // 服务端编排物化：合成标准 API-03 上下文（request 关联 id / 归口治理角色 / package=job 编码真实溯源）。
         KnowledgeVersionCreateRequest request = new KnowledgeVersionCreateRequest(
-            null, RequestContext.currentTraceId(), tenantId, null, null, null, null, null, null, actor,
-            List.of(), null, versionNo, candidate.versionLabel(), source.sourceDocumentId(),
-            source.sourceVersionId(), candidate.payload(), source.anchorPath(), candidate.riskLevel(),
+            "kpm:" + UUID.randomUUID(), RequestContext.currentTraceId(), tenantId, null, null, null, null,
+            null, null, actor, List.of(routing.ownerReviewerRole().code()), job.jobCode(), versionNo,
+            candidate.versionLabel(), source.sourceDocumentId(), source.sourceVersionId(), candidate.payload(),
+            source.anchorPath(), candidate.riskLevel(),
             candidate.gradeQuality() == null ? GradeEvidenceQuality.VERY_LOW : candidate.gradeQuality(),
             candidate.gradeStrength(), DEFAULT_REVIEW_CYCLE_MONTHS);
 
