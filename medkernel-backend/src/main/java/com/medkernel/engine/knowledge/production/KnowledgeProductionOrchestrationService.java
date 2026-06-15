@@ -1,0 +1,157 @@
+package com.medkernel.engine.knowledge.production;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.factory.KnowledgeAssetSchemaValidator;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
+import com.medkernel.shared.context.RequestContext;
+
+/**
+ * 知识生产编排服务（AIK-STD-13）。
+ *
+ * <p>统一编排层：四生产器产物统一进候选池走同一流水线，落双形态物理隔离（§9 平台主源不可污染 / 客户覆盖不反写），
+ * 是「AI 只产候选不产事实」红线归口。PR1 落 job 生命周期 + 隔离守卫 + 候选血缘/审计；候选物化经
+ * {@link KnowledgeCandidateIntake} 端口走既有版本/审核链。
+ */
+@Service
+public class KnowledgeProductionOrchestrationService {
+
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 200;
+
+    private final KnowledgeProductionJobRepository jobRepository;
+    private final KnowledgeCandidateIntake candidateIntake;
+    private final KnowledgeAssetSchemaValidator schemaValidator;
+    private final AuditRecorder auditRecorder;
+
+    public KnowledgeProductionOrchestrationService(
+            KnowledgeProductionJobRepository jobRepository,
+            KnowledgeCandidateIntake candidateIntake,
+            KnowledgeAssetSchemaValidator schemaValidator,
+            AuditRecorder auditRecorder) {
+        this.jobRepository = jobRepository;
+        this.candidateIntake = candidateIntake;
+        this.schemaValidator = schemaValidator;
+        this.auditRecorder = auditRecorder;
+    }
+
+    /**
+     * 建生产 job（FR-1）。FR-4 双形态隔离：平台主源管道仅平台租户、院内覆盖管道仅客户租户，越界拒。
+     */
+    @Transactional
+    public ProductionJobResponse createJob(ProductionJobRequest request) {
+        String tenantId = requireCurrentTenant();
+        guardPipelineOwnership(request.targetPipeline(), tenantId);
+        String actor = currentActor();
+        Instant now = Instant.now();
+        String jobCode = UUID.randomUUID().toString();
+        String lineage = "{\"producer\":\"" + request.producer()
+            + "\",\"pipeline\":\"" + request.targetPipeline()
+            + "\",\"modelStrategy\":\"" + (request.modelStrategy() == null ? "" : request.modelStrategy())
+            + "\",\"createdAt\":\"" + now + "\"}";
+        KnowledgeProductionJob job = jobRepository.save(new KnowledgeProductionJob(
+            null, tenantId, jobCode, request.sourceScope(), request.assetType(), request.producer(),
+            request.targetPipeline(), request.modelStrategy(), ProductionJobStatus.PENDING, 0, lineage,
+            now, actor, now, actor, RequestContext.currentTraceId()));
+        auditRecorder.record(AuditAction.CREATE, "mk_knowledge_production_job", jobCode,
+            "建知识生产 job producer=" + request.producer() + " pipeline=" + request.targetPipeline()
+                + " assetType=" + request.assetType());
+        return ProductionJobResponse.from(job);
+    }
+
+    /**
+     * 提交候选（FR-3）：经 AIK-STD-01 校验闸 + §9 隔离守卫，记血缘审计 + 计数，候选物化经 intake 端口。
+     */
+    @Transactional
+    public String submitCandidate(String jobCode, KnowledgeAssetEnvelope candidate) {
+        String tenantId = requireCurrentTenant();
+        KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
+
+        schemaValidator.validate(candidate);
+
+        // FR-4 §9 红线：院内覆盖管道候选禁反写平台主源 t-1。
+        if (job.targetPipeline() == TargetPipeline.TENANT_OVERLAY
+            && PlatformTenant.isPlatformTenant(candidate.orgScope())) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "院内覆盖候选禁反写平台主源 t-1");
+        }
+        if (candidate.assetType() != job.assetType()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST,
+                "候选资产类型与 job 不一致：job=" + job.assetType() + " 候选=" + candidate.assetType());
+        }
+        if (!job.tenantId().equals(candidate.orgScope())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST,
+                "候选组织作用域与 job 租户不一致，禁跨租户入池");
+        }
+
+        String candidateRef = candidateIntake.intake(job, candidate);
+
+        Instant now = Instant.now();
+        String actor = currentActor();
+        jobRepository.save(new KnowledgeProductionJob(
+            job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
+            job.targetPipeline(), job.modelStrategy(), ProductionJobStatus.RUNNING, job.candidateCount() + 1,
+            job.lineage(), job.createdAt(), job.createdBy(), now, actor, job.traceId()));
+        auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_production_job", jobCode,
+            "提交候选 producer=" + job.producer() + " pipeline=" + job.targetPipeline()
+                + " 身份=" + candidate.assetIdentity() + " 指纹=" + candidate.contentHash()
+                + " 候选引用=" + candidateRef);
+        return candidateRef;
+    }
+
+    @Transactional(readOnly = true)
+    public ProductionJobResponse getJob(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        return jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .map(ProductionJobResponse::from)
+            .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
+    }
+
+    @Transactional(readOnly = true)
+    public List<KnowledgeProductionJob> listJobs(int page, int size) {
+        String tenantId = requireCurrentTenant();
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        if (size <= 0) {
+            safeSize = DEFAULT_PAGE_SIZE;
+        }
+        int safePage = Math.max(page, 0);
+        return jobRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
+    }
+
+    /** FR-4：平台主源管道仅平台租户 t-1 可产；院内覆盖管道仅客户租户可产（平台不产覆盖）。 */
+    private void guardPipelineOwnership(TargetPipeline pipeline, String tenantId) {
+        boolean platform = PlatformTenant.isPlatformTenant(tenantId);
+        if (pipeline == TargetPipeline.PLATFORM_SOURCE && !platform) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "客户租户禁产平台主源，平台主源管道仅平台租户 t-1");
+        }
+        if (pipeline == TargetPipeline.TENANT_OVERLAY && platform) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "平台租户不产院内覆盖，院内覆盖管道仅客户租户");
+        }
+    }
+
+    private String requireCurrentTenant() {
+        OrgScope scope = RequestContext.currentOrgScope();
+        if (scope == null || !scope.hasTenant()) {
+            throw ApiException.tenantMissing();
+        }
+        return scope.tenantId();
+    }
+
+    private String currentActor() {
+        return RequestContext.currentUserId().orElse(null);
+    }
+}
