@@ -32,6 +32,7 @@ import {
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useCandidateProvenance,
+  useAssetTemplates,
   useKnowledgeIdentities,
   usePublishKnowledgeCustomization,
   useRestorePlatformKnowledge,
@@ -81,6 +82,13 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
   DUPLICATE_SKIPPED: "重复已跳过",
   APPROVED: "已通过",
   REJECTED: "已驳回",
+  RETURNED: "已退修",
+};
+
+const REVIEW_DECISION_SUCCESS_MESSAGES: Record<KnowledgeCandidateReviewDecision, string> = {
+  APPROVE: "候选已通过审核并交由权威替换流程",
+  RETURN: "候选已退修，退回生产者修订重提",
+  REJECT: "候选已驳回并留档",
 };
 
 const VERSION_STATUS_LABELS: Record<string, string> = {
@@ -164,6 +172,7 @@ function classificationFor(
 function tagColorForReview(status?: string | null) {
   if (status === "APPROVED") return "success";
   if (status === "REJECTED") return "error";
+  if (status === "RETURNED") return "warning";
   if (status === "DUPLICATE_SKIPPED") return "default";
   return "processing";
 }
@@ -289,6 +298,18 @@ export default function KnowledgeGovernance() {
     [candidates],
   );
   const provenanceQuery = useCandidateProvenance(candidateRefs);
+
+  // AIK-STD-12 FR-1：按候选所属领域匹配全专业标准资产模板，供审核人对照核查完整性。
+  const templatesQuery = useAssetTemplates();
+  const domainTemplate = useMemo(
+    () =>
+      (templatesQuery.data ?? []).find(
+        (template) =>
+          template.assetType === "KNOWLEDGE" &&
+          template.knowledgeDomain === selectedIdentity?.domain,
+      ),
+    [templatesQuery.data, selectedIdentity?.domain],
+  );
   const provenanceByRef = useMemo(() => {
     const map = new Map<string, CandidateProvenanceView>();
     for (const view of provenanceQuery.data ?? []) {
@@ -397,9 +418,7 @@ export default function KnowledgeGovernance() {
         },
         idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
       });
-      message.success(
-        decision === "APPROVE" ? "候选已通过审核并交由权威替换流程" : "候选已驳回并留档",
-      );
+      message.success(REVIEW_DECISION_SUCCESS_MESSAGES[decision]);
       await Promise.all([identitiesQuery.refetch(), candidatesQuery.refetch()]);
     } catch (error) {
       message.error(getApiErrorMessage(error, "知识候选审核失败"));
@@ -1235,6 +1254,31 @@ export default function KnowledgeGovernance() {
             );
           })()}
 
+          {domainTemplate ? (
+            <Descriptions
+              column={1}
+              bordered
+              size="small"
+              title={`专业标准模板 · ${domainTemplate.displayName}`}
+            >
+              {domainTemplate.sections.map((section) => (
+                <Descriptions.Item key={section.key} label={section.label}>
+                  <Space size="small">
+                    {section.required ? <Tag color="red">必备</Tag> : <Tag>建议</Tag>}
+                    <span>{section.hint}</span>
+                  </Space>
+                </Descriptions.Item>
+              ))}
+            </Descriptions>
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="该领域暂无标准模板"
+              description="审核人按来源与现行版本对照核查，不臆造结构。"
+            />
+          )}
+
           <Form
             form={reviewForm}
             layout="vertical"
@@ -1343,6 +1387,12 @@ export default function KnowledgeGovernance() {
                 onClick={() => void reviewCandidate("APPROVE")}
               >
                 通过并发布
+              </Button>
+              <Button
+                loading={reviewMutation.isPending}
+                onClick={() => void reviewCandidate("RETURN")}
+              >
+                退修
               </Button>
               <Button
                 danger
