@@ -5,7 +5,7 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**；**PR2-g 异步导出后端已合并**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616) `905aca01`，SYS-06 审批闸控制的 D2 CSV 导出 + CLI `exports`）。**AI 工厂第一刀 = `AIK-STD-01` 统一资产信封 schema + 校验闸已实现待合**（新分支 `claude/wave2-p2b-aikstd01-asset-envelope`，下方最新段）：核查发现地基（`engine.versioning` + KNOW-01/OPT-07）已实质建成，故不新建表，落「统一信封 + 校验闸」，backlog 转 done。**DATASVC-01 剩余未做**：D3/D4 字段级加密 + 数据分级元数据表（YAGNI，无 D3/D4 落库消费者，待真实切片）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**；**PR2-g 异步导出后端已合并**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616) `905aca01`，SYS-06 审批闸控制的 D2 CSV 导出 + CLI `exports`）。**AI 工厂第一刀 = `AIK-STD-01` 统一资产信封 schema + 校验闸已合并入 main**（[PR #617](https://github.com/Dasheen920624/medkernel/pull/617) `feccae74`）：核查发现地基（`engine.versioning` + KNOW-01/OPT-07）已实质建成，故不新建表，落「统一信封 + 校验闸」，backlog done。**`LLM-06` 可信来源探索编排已实现待合**（新分支 `claude/wave2-p2b-llm06-trusted-source-discovery`，下方最新段）：核查发现受控源清单（KNOW-01 `source_document`/`source_version`/`source_fragment`）已是成熟受控源注册表，故**不建 `knowledge_discovery_source`**，仅新增编排服务 + `mk_knowledge_discovery_run` 时点存证表，产 DRAFT 候选交 AIK-STD-13，backlog done。**DATASVC-01 剩余未做**：D3/D4 字段级加密 + 数据分级元数据表（YAGNI，无 D3/D4 落库消费者，待真实切片）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
@@ -13,7 +13,19 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AI 工厂第一刀 AIK-STD-01 统一资产信封 schema + 校验闸（已实现待合，分支 `claude/wave2-p2b-aikstd01-asset-envelope`）
+## 2026-06-15 第二阶段 P2-B · LLM-06 可信来源探索编排（已实现待合，分支 `claude/wave2-p2b-llm06-trusted-source-discovery`）
+
+> **接力须知**：AIK-STD-01（#617）已合并入 main。本段＝LLM-06 可信来源探索编排。设计 [`docs/superpowers/specs/2026-06-15-llm06-trusted-source-discovery-design.md`](superpowers/specs/2026-06-15-llm06-trusted-source-discovery-design.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI：又一次「别建重复表」命中）**：卡片预设建 `knowledge_discovery_source`（受控源），但 **KNOW-01 `source_document`（受控源注册表：编码/类型〔指南/说明书/标准/政策/院内…〕/A–E 权威级/publisher/license）+ `source_version`（content_hash 真实核验）+ `source_fragment`（锚点 + 正文）已是成熟受控源注册表**；`knowledge.discovery` 能力码（V18 网关 + V127 增强矩阵 ACTIVE）+ `SourceAuthorityLevel` A–E + AIK-STD-01 `KnowledgeAssetEnvelope` 候选契约均已建。故**复用既有受控源不建新表**，仅新增编排服务 + `mk_knowledge_discovery_run` 检索时点存证表（FR-2「可复查当时看到什么」，现无）。
+- **已实现**：新包 `com.medkernel.engine.knowledge.discovery`（归 engine-knowledge 域）——`DiscoveryOrchestrationService`（**纯确定性 B0 检索**：仅检索受控 source_*〔FR-1，不开全网，强租户隔离〕→ 每命中产 1 条带真实来源锚点的 `KnowledgeAssetEnvelope` DRAFT 候选〔FR-3，sources≥1 + A–E + 真实 SHA-256，经 AIK-STD-01 `KnowledgeAssetSchemaValidator` 校验就绪〕→ 写 `discovery_run`〔FR-2，executed_at + source_snapshot 源版本快照 + result_hash 可复算〕；**无匹配诚实 EMPTY〔degraded=false〕/ 上游不可用诚实 DEGRADED**〔FR-5 铁律 #1，绝不臆造来源〕；候选返回交 **AIK-STD-13 落审核链，不写权威库**〔FR-4〕）+ `ControlledSourceSearchRepository`（JOIN source_fragment→version→document，关键词匹配正文 + 按权威 A→E 序）+ `DiscoveryRun`/`DiscoveryRunRepository` + DTO + `DiscoveryController`（`POST .../discovery:explore`=knowledge.write、`GET .../discovery/runs`=knowledge.read，**权限复用不新增码**）。表 `mk_knowledge_discovery_run` V129 五方言 + 中文 COMMENT。
+- **边界决策（与 AIK-STD-13 不重叠）**：LLM-06 **止于校验候选 + 运行存证**，落候选池/审核队列交 AIK-STD-13（统一生产编排，pending）。**模型介入留缝不实现**（B0 先于模型 + P6 阻断；外部源走 LLM-08/LLM-03）。
+- **验证全绿**：全量 `mvn test` **2465 通过**（基线 2448 + 新增 17：服务 8 + 检索 repo 2 + 存证 repo 2 + 控制器安全 5）+ 四门禁（changed）+ 五方言 Flyway smoke（含 Oracle/DM/Kingbase 真实容器）+ `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（控制器 83→84，DiscoveryController KEEP）。卡 [LLM-06](cards/wave2/LLM-06.md) FR-1~5 + AC-1/2 全勾；backlog LLM-06 转 done。
+- **当前下一步（接力点，从最新 `origin/main` 起新分支）**：LLM-06 合并后，P2-B AI 工厂链续——`AIK-STD-13`（知识生产编排：候选 job + 四生产器路由 + 双形态隔离 + 血缘，**消费 AIK-STD-01 信封 + LLM-06 候选**，依赖 `AIK-STD-12` 审核台 pending）或先 `AIK-STD-12`（审核台 + 标准资产模板）；`AIK-STD-08`（反馈回流驱动新候选）亦 P2-B pending。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-15 第二阶段 P2-B · AI 工厂第一刀 AIK-STD-01 统一资产信封 schema + 校验闸（已合并入 main，[PR #617](https://github.com/Dasheen920624/medkernel/pull/617) `feccae74`，分支 `claude/wave2-p2b-aikstd01-asset-envelope`）
 
 > **接力须知**：DATASVC-01 PR2-g（#616）已合并入 main。本段＝AI 工厂地基第一刀 AIK-STD-01。设计 [`docs/superpowers/specs/2026-06-15-aikstd01-asset-envelope-design.md`](superpowers/specs/2026-06-15-aikstd01-asset-envelope-design.md)。续接从最新 `origin/main` 起。
 

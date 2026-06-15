@@ -14,15 +14,15 @@
 ## 目标
 **可信来源探索编排**：受控检索 + 检索时点记录 + 来源核验——AI 探索新知识时只从受控来源检索、记录检索时点、产出必带可核验来源（非凭空生成）。
 
-## 现状（搬迁时核查 2026-05-31）
-**待建**：[LLM-01](LLM-01.md) 已留 `knowledge.discovery` 能力码（当前 B0 空候选）。本卡＝建检索编排（受控源清单 + 检索 + 来源核验 + 时点存证），产出候选交 AIK 流水线（批 2 `AIK-STD-08`，见 [域简报](_brief.md)）。
+## 现状（搬迁时核查 2026-05-31 → 实现核查 2026-06-15）
+**已实现**（分支 `claude/wave2-p2b-llm06-trusted-source-discovery`）。落卡前核查发现**受控源清单不需新建**：KNOW-01 `source_document`（受控源注册表：编码/类型/A–E 权威级/publisher/license）+ `source_version`（content_hash 真实核验）+ `source_fragment`（引用锚点 + 正文）已是成熟受控源注册表；`knowledge.discovery` 能力码（V18 网关 + V127 增强矩阵 ACTIVE，B0=确定性知识检索）+ `SourceAuthorityLevel` A–E + AIK-STD-01 `KnowledgeAssetEnvelope` 候选契约均已建。故**复用既有受控源，不建 `knowledge_discovery_source`**，仅新增编排服务 + `mk_knowledge_discovery_run` 检索时点存证表。设计 [`docs/superpowers/specs/2026-06-15-llm06-trusted-source-discovery-design.md`](../../superpowers/specs/2026-06-15-llm06-trusted-source-discovery-design.md)。产出候选交 AIK 流水线（AIK-STD-13）。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 受控源：仅从配置的受控来源（法规/指南/说明书库）检索，不开放全网。
-- [ ] FR-2 检索时点：每次探索记检索时点 + 源版本（可复查「当时看到什么」）。
-- [ ] FR-3 来源核验：产出每条带来源锚点 + 可信分级（[OPT-07](../D2/OPT-07.md)）；无源不出。
-- [ ] FR-4 候选交付：探索结果作**候选**交审核链，不直接入权威库。
-- [ ] FR-5 不臆造：无可信来源时诚实空态，禁模型臆造来源/引文。
+- [x] FR-1 受控源：仅从配置的受控来源（法规/指南/说明书库）检索，不开放全网。〔`ControlledSourceSearchRepository` 仅 JOIN 已登记 source_*，强租户隔离〕
+- [x] FR-2 检索时点：每次探索记检索时点 + 源版本（可复查「当时看到什么」）。〔`mk_knowledge_discovery_run`：executed_at + source_snapshot 源版本快照 + result_hash〕
+- [x] FR-3 来源核验：产出每条带来源锚点 + 可信分级（[OPT-07](../D2/OPT-07.md)）；无源不出。〔每候选带 `AssetSourceRef`（锚点+A–E），经 AIK-STD-01 校验闸无源拒收〕
+- [x] FR-4 候选交付：探索结果作**候选**交审核链，不直接入权威库。〔产 DRAFT 候选信封返回交 AIK-STD-13，不写权威〕
+- [x] FR-5 不臆造：无可信来源时诚实空态，禁模型臆造来源/引文。〔无匹配 EMPTY（degraded=false）/ 上游不可用 DEGRADED；来源恒为真实注册片段，纯确定性 B0 无模型臆造〕
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -49,12 +49,12 @@
 - 本卡落点：受控检索 + 时点存证 + 来源核验，候选入审核链不臆造。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：受控源检索 + 时点 + 来源核验。
-- [ ] AC-2（FR-4/5）：候选入审核链；无源诚实空态。
-- T-GATE：后端真实性门禁全绿。
-- B0 验收：★无模型/无外网时不臆造、诚实空。
+- [x] AC-1（FR-1~3）：受控源检索 + 时点 + 来源核验。
+- [x] AC-2（FR-4/5）：候选（DRAFT 信封）校验就绪交审核链；无源诚实空态。
+- [x] T-GATE：四门禁（真实性/配置/迁移/中文注释）changed 全绿。
+- [x] B0 验收：★无模型/无外网时不臆造、诚实空（纯确定性检索，无受控匹配诚实 EMPTY）。
 
 ## 完工证据
-- 代码 permalink：探索编排 + 受控源 + 时点存证。
-- 测试：受控检索/时点/来源核验/无源空态。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码：`com.medkernel.engine.knowledge.discovery`（`DiscoveryOrchestrationService` 编排 + `ControlledSourceSearchRepository` 受控检索 + `mk_knowledge_discovery_run` 时点存证 + `DiscoveryController`）+ V129 五方言迁移；复用 KNOW-01 受控源 + AIK-STD-01 校验闸。
+- 测试：`DiscoveryOrchestrationServiceTest`（8：产候选/归一/存证/EMPTY/DEGRADED/result_hash 确定性/空白拒收/台账）+ `ControlledSourceSearchRepositoryIntegrationTest`（2：权威序+租户隔离+limit）+ `DiscoveryRunRepositoryIntegrationTest`（2）+ `DiscoveryControllerSecurityTest`（5：权限矩阵）。
+- 审计员签字：@<reviewer>（owner ≠ reviewer，待派单）。
