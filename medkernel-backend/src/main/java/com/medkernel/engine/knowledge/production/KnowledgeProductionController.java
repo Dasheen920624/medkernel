@@ -57,7 +57,7 @@ public class KnowledgeProductionController {
 
     @PostMapping("/jobs/{jobCode}/candidates")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<String> submitCandidate(@PathVariable String jobCode,
+    public ApiResult<CandidateSubmissionResponse> submitCandidate(@PathVariable String jobCode,
                                              @Valid @RequestBody KnowledgeAssetEnvelope candidate) {
         return ApiResult.ok(service.submitCandidate(jobCode, candidate));
     }

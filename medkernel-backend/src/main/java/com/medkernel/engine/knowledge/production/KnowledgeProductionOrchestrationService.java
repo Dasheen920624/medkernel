@@ -35,18 +35,21 @@ public class KnowledgeProductionOrchestrationService {
     private final KnowledgeCandidateIntake candidateIntake;
     private final KnowledgeAssetSchemaValidator schemaValidator;
     private final AuditRecorder auditRecorder;
+    private final CandidateReviewRouter reviewRouter;
 
     public KnowledgeProductionOrchestrationService(
             KnowledgeProductionJobRepository jobRepository,
             KnowledgeProductionCandidateRepository candidateRepository,
             KnowledgeCandidateIntake candidateIntake,
             KnowledgeAssetSchemaValidator schemaValidator,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            CandidateReviewRouter reviewRouter) {
         this.jobRepository = jobRepository;
         this.candidateRepository = candidateRepository;
         this.candidateIntake = candidateIntake;
         this.schemaValidator = schemaValidator;
         this.auditRecorder = auditRecorder;
+        this.reviewRouter = reviewRouter;
     }
 
     /**
@@ -77,7 +80,7 @@ public class KnowledgeProductionOrchestrationService {
      * 提交候选（FR-3）：经 AIK-STD-01 校验闸 + §9 隔离守卫，记血缘审计 + 计数，候选物化经 intake 端口。
      */
     @Transactional
-    public String submitCandidate(String jobCode, KnowledgeAssetEnvelope candidate) {
+    public CandidateSubmissionResponse submitCandidate(String jobCode, KnowledgeAssetEnvelope candidate) {
         String tenantId = requireCurrentTenant();
         KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
@@ -116,7 +119,9 @@ public class KnowledgeProductionOrchestrationService {
             "提交候选 producer=" + job.producer() + " pipeline=" + job.targetPipeline()
                 + " 身份=" + candidate.assetIdentity() + " 指纹=" + candidate.contentHash()
                 + " 候选引用=" + candidateRef);
-        return candidateRef;
+        ReviewRoutingDecision routing = reviewRouter.resolve(
+            job.targetPipeline(), job.domain(), candidate.riskLevel());
+        return new CandidateSubmissionResponse(candidateRef, routing);
     }
 
     @Transactional(readOnly = true)

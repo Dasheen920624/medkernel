@@ -59,7 +59,7 @@ class KnowledgeProductionOrchestrationServiceTest {
         auditRecorder = mock(AuditRecorder.class);
         service = new KnowledgeProductionOrchestrationService(
             jobRepository, candidateRepository, candidateIntake, new KnowledgeAssetSchemaValidator(),
-            auditRecorder);
+            auditRecorder, new CandidateReviewRouter());
         when(jobRepository.save(any())).thenAnswer(inv -> {
             KnowledgeProductionJob j = inv.getArgument(0);
             return j.id() == null
@@ -164,9 +164,12 @@ class KnowledgeProductionOrchestrationServiceTest {
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
         when(candidateIntake.intake(any(), any())).thenReturn("staged:discovery:SRC:v1:a");
 
-        String ref = service.submitCandidate("job-1", envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE));
+        CandidateSubmissionResponse resp = service.submitCandidate("job-1",
+            envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE));
 
-        assertThat(ref).isEqualTo("staged:discovery:SRC:v1:a");
+        assertThat(resp.candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
+        assertThat(resp.routing().ownerReviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR); // overlay→机构归口
         verify(candidateIntake).intake(any(), any());
         ArgumentCaptor<KnowledgeProductionJob> saved = ArgumentCaptor.forClass(KnowledgeProductionJob.class);
         verify(jobRepository).save(saved.capture());
