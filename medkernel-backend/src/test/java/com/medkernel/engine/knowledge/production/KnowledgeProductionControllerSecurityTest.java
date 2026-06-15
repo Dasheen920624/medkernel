@@ -46,6 +46,9 @@ class KnowledgeProductionControllerSecurityTest {
     @MockBean
     private KnowledgeProductionOrchestrationService service;
 
+    @MockBean
+    private CandidateProvenanceService provenanceService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -175,5 +178,36 @@ class KnowledgeProductionControllerSecurityTest {
     void clinicalUserCannotCancelJob() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/cancel").with(csrf()))
             .andExpect(status().isForbidden());
+    }
+
+    // ─── AIK-STD-12 PR1：候选来源溯源端点（knowledge.read）─────────────
+
+    private static final String PROVENANCE_BODY = "{\"candidateRefs\":[\"kv:1:v1\"]}";
+
+    @Test
+    void knowledgeReaderCanQueryProvenance() throws Exception {
+        when(provenanceService.resolve(any())).thenReturn(List.of());
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/candidates/provenance")
+                .with(governor()).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(PROVENANCE_BODY))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotQueryProvenance() throws Exception {
+        // 临床决策用户有 knowledge.read（仅读），故无 read 权限的 GUEST 才是 403 守卫对象（对齐 guestCannotListJobs）
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/candidates/provenance")
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(PROVENANCE_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void emptyProvenanceRefsRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/candidates/provenance")
+                .with(governor()).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"candidateRefs\":[]}"))
+            .andExpect(status().isBadRequest());
     }
 }

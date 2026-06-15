@@ -29,9 +29,12 @@ import com.medkernel.shared.datascope.DataScope;
 public class KnowledgeProductionController {
 
     private final KnowledgeProductionOrchestrationService service;
+    private final CandidateProvenanceService provenanceService;
 
-    public KnowledgeProductionController(KnowledgeProductionOrchestrationService service) {
+    public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
+                                         CandidateProvenanceService provenanceService) {
         this.service = service;
+        this.provenanceService = provenanceService;
     }
 
     @PostMapping("/jobs")
@@ -66,6 +69,14 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<ProductionCandidateView>> listCandidates(@PathVariable String jobCode) {
         return ApiResult.ok(service.listCandidates(jobCode));
+    }
+
+    /** 候选来源溯源（AIK-STD-12 PR1）：审核台批量反查候选 AI 工厂来源，旁挂只读不改既有候选响应。 */
+    @PostMapping("/candidates/provenance")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<CandidateProvenanceView>> candidateProvenance(
+            @Valid @RequestBody CandidateProvenanceRequest request) {
+        return ApiResult.ok(provenanceService.resolve(request.candidateRefs()));
     }
 
     /** 完成 job（FR-1）。 */

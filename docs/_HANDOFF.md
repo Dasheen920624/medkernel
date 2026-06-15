@@ -13,9 +13,21 @@
 
 ---
 
-## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR4 候选真实物化入版本/审核链（已实现待合，分支 `claude/wave2-p2b-aikstd13-pr4-candidate-materialization`）
+## 2026-06-15 第二阶段 P2-B · AIK-STD-12 AiReview 审核台接 AI 候选（PR1 来源溯源 · 已实现待合，分支 `claude/wave2-p2b-aikstd12-aireview-ai-provenance`）
 
-> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）+ PR3（#621）已全部合并入 main。本段＝PR4——**候选真实物化**（替换 PR1 暂存桩，消费 PR3 路由决策）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md`](superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md)，实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md`](superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md)。续接从最新 `origin/main` 起。
+> **接力须知**：AIK-STD-13 PR4（#622）已合并入 main，AI 候选已能真实落审核链。本段＝AIK-STD-12（7d 大卡，前端重）启动。设计 [`docs/superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md`](superpowers/specs/2026-06-15-aikstd12-aireview-ai-provenance-design.md)，PR1 计划 [`docs/superpowers/plans/2026-06-15-aikstd12-pr1-ai-provenance.md`](superpowers/plans/2026-06-15-aikstd12-pr1-ai-provenance.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI：审核台地基已成熟，勿重建）**：审核台后端全套 API 已在 `KnowledgeVersionController`（review-queue / candidates / diff / review / 版本生命周期）；前端审核台页**实为 `pages/quality/KnowledgeGovernance.tsx`**（卡称 AiReview，已改名，路由 `/aik/review`，消费 review hooks）；AIREVIEW-01 已 done 但**显式未含 AI 来源标识**（留 wave2）。AIK-STD-12 ＝在成熟台上补 ① AI 来源溯源+标识、② 前端标识/署名/退修、③ 全专业模板。
+- **数据链接点（已存在）**：审核候选版本 `kv:{identityId}:{versionNo}` ＝ PR4 写回的 `mk_knowledge_production_candidate.candidate_ref` → `job_code` → `mk_knowledge_production_job`(producer/pipeline/model_strategy/domain)。`aiGenerated = producer ≠ MANUAL`；手建版本无血缘行＝诚实「非工厂候选」不臆造。
+- **PR 切片**：**PR1（本分支，纯后端）**＝AI 生产来源溯源接审核台读模型（反查仓储 + `CandidateProvenanceService` + `CandidateProvenanceView` + 旁挂只读端点 `POST .../knowledge-production/candidates/provenance`，**不改既有候选响应=零前端破坏**）；PR2＝前端 AI 标识/署名/退修；PR3＝全专业资产模板（FR-1，复用 `VersionedAssetType`+domain 不新建类型）。
+- **PR1 已实现（本分支）**：反查仓储 `findByTenantIdAndCandidateRefIn` + `CandidateProvenanceView`（`aiGenerated=producer≠MANUAL` + job/管道/模型策略/领域/风险/时点）+ `CandidateProvenanceService`（只读 resolve，无血缘/跨租户引用诚实不返回）+ 旁挂只读端点 `POST .../candidates/provenance`（`knowledge.read`，`@Valid @NotEmpty`，不改既有候选响应）+ 产品目录纳入。**验证全绿**：全量 `mvn test` **2525 通过**（基线 2519 + 新增 6：repo 1 + 服务 2 + 控制器安全 3）+ 五方言 Flyway smoke 3/3（无新迁移）+ 四门禁 changed 全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（端点 +1，KEEP 无漂移）。
+- **当前下一步（接力点）**：① 推送本分支 + 开 PR（合并 main 逐 PR 授权）；② **PR2（前端）**＝`KnowledgeGovernance.tsx` 接 PR1 provenance（AI 标识徽标 + 来源 job/producer/管道 + 审核人署名 + 退修动作），no-page-mock 真实性门禁；③ **PR3** 全专业资产模板（FR-1）。恒守：TDD 红绿 + B0（无血缘不阻断人工审）+ P6 阻断（不开生产）+ 铁律 #1（来源真实）+ 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-15 第二阶段 P2-B · AIK-STD-13 知识生产编排 PR4 候选真实物化入版本/审核链（已合并入 main，[PR #622](https://github.com/Dasheen920624/medkernel/pull/622) `5aec70ce`，分支已删）
+
+> **接力须知**：AIK-STD-13 PR1（#619）+ PR2（#620）+ PR3（#621）+ PR4（#622）已全部合并入 main。本段＝PR4 闭环记录——**候选真实物化**（替换 PR1 暂存桩，消费 PR3 路由决策）。设计 [`docs/superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md`](superpowers/specs/2026-06-15-aikstd13-pr4-candidate-materialization-design.md)，实施计划 [`docs/superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md`](superpowers/plans/2026-06-15-aikstd13-pr4-candidate-materialization.md)。续接从最新 `origin/main` 起。
 
 - **已实现（PR4，续 `com.medkernel.engine.knowledge.production`）**：
   - **受控源引用解析器** `SourceReferenceResolver`（串引用 `源编码:版本:锚点` → 源 FK）→ `ResolvedSource`（sourceDocumentId/sourceVersionId/anchorPath，强租户隔离）；**B0 解析不出诚实拒收**（铁律 #1，不伪造源 FK）。
@@ -24,7 +36,7 @@
   - **服务端编排合成诚实 API-03 上下文**：编排无 HTTP 入参，`KnowledgeApiContext.validateTenant` 要求 request_id/trace_id/tenant_id/user_id/package_version 非空 + role_codes 非空 → 合成 request_id=`kpm:uuid`、trace=关联追踪 id、user_id=会话 actor、**package_version=job 编码（真实溯源）**、role_codes=PR3 归口治理角色。
   - **`classifyCandidate` 接 `ReviewAssignmentPlan`**（plan→多角色分派 / null 零回归）；`submitCandidate`/控制器接入 `target`。仅覆盖可解析受控源（discovery-origin）；FR-2 外部模型生产器仍受 **P6 阻断**不实接。
 - **验证全绿**：全量 `mvn test` **2519 通过**（基线 2507 + PR4 新增 12：受控源解析/物化目标/intake 单元 + 控制器&编排测试增量 + 真实 H2 端到端集成 `CandidateMaterializationIntegrationTest` 1）+ **五方言 Flyway smoke 真实容器 3/3**（PR4 无新迁移，复用 V130/V131）+ 四门禁 changed（真实性 11 / 配置 11 / 迁移 0 / 中文注释 0fail）全过 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5（控制器仅请求体扩展 target，端点数不变，无目录漂移）。卡 [AIK-STD-13](cards/wave2/AIK-STD-13.md) 补 PR4 实现进度（候选物化使能 FR-3 统一流水线 / FR-5 血缘，**未虚勾未竟 FR**）；backlog **仍 pending**（多 PR 大卡）。
-- **当前下一步（接力点）**：① 推送本分支 + 开 PR（**合并 main 须逐 PR 点名授权**）；② 续 `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费 PR3 路由 / PR4 物化）；③ `AIK-STD-08`（反馈回流驱动新候选）。FR-2 外部模型生产器实接受 **P6 阻断**（不得进入）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
+- **当前下一步（接力点，从最新 `origin/main` `5aec70ce` 起新分支）**：PR4 已合并入 main，候选物化全链打通。续 P2-B——① `AIK-STD-12`（审核台 + 全专业资产模板，前端重，承载生产者工作台 + 消费 PR3 路由 / PR4 物化）；② `AIK-STD-08`（反馈回流驱动新候选）；③ AIK-STD-13 PR5+（非 discovery 源候选物化接更宽解析管道 AIK-STD-04/10）。FR-2 外部模型生产器实接受 **P6 阻断**（不得进入）。恒守：TDD 红绿 + B0 + P6 阻断 + 合并 main 逐 PR 授权。
 
 ---
 
