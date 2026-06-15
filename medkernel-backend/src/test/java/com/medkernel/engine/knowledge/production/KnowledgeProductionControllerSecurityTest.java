@@ -131,4 +131,45 @@ class KnowledgeProductionControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk());
     }
+
+    // ─── PR2：候选血缘列表 + 生命周期端点 ─────────────────────────
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor governor() {
+        return jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+            .claim("roles", List.of("knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+    }
+
+    @Test
+    void knowledgeGovernorCanListCandidates() throws Exception {
+        when(service.listCandidates(anyString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/candidates").with(governor()))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void knowledgeGovernorCanCompleteJob() throws Exception {
+        when(service.completeJob(anyString())).thenReturn(jobResponse());
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/complete")
+                .with(governor()).with(csrf()))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void knowledgeGovernorCanReplayJob() throws Exception {
+        when(service.replayJob(anyString())).thenReturn(jobResponse());
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/replay")
+                .with(governor()).with(csrf()))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    void clinicalUserCannotCancelJob() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/cancel").with(csrf()))
+            .andExpect(status().isForbidden());
+    }
 }

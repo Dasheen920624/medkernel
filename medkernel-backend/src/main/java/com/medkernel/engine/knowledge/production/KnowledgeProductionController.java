@@ -61,4 +61,32 @@ public class KnowledgeProductionController {
                                              @Valid @RequestBody KnowledgeAssetEnvelope candidate) {
         return ApiResult.ok(service.submitCandidate(jobCode, candidate));
     }
+
+    /** 候选生产血缘列表（FR-5 可回溯）。 */
+    @GetMapping("/jobs/{jobCode}/candidates")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<KnowledgeProductionCandidate>> listCandidates(@PathVariable String jobCode) {
+        return ApiResult.ok(service.listCandidates(jobCode));
+    }
+
+    /** 完成 job（FR-1）。 */
+    @PostMapping("/jobs/{jobCode}/complete")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ProductionJobResponse> completeJob(@PathVariable String jobCode) {
+        return ApiResult.ok(service.completeJob(jobCode));
+    }
+
+    /** 中止 job（FR-1）。 */
+    @PostMapping("/jobs/{jobCode}/cancel")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ProductionJobResponse> cancelJob(@PathVariable String jobCode) {
+        return ApiResult.ok(service.cancelJob(jobCode));
+    }
+
+    /** 重放 job（FR-5）。 */
+    @PostMapping("/jobs/{jobCode}/replay")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ProductionJobResponse> replayJob(@PathVariable String jobCode) {
+        return ApiResult.ok(service.replayJob(jobCode));
+    }
 }

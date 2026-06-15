@@ -31,16 +31,19 @@ public class KnowledgeProductionOrchestrationService {
     private static final int MAX_PAGE_SIZE = 200;
 
     private final KnowledgeProductionJobRepository jobRepository;
+    private final KnowledgeProductionCandidateRepository candidateRepository;
     private final KnowledgeCandidateIntake candidateIntake;
     private final KnowledgeAssetSchemaValidator schemaValidator;
     private final AuditRecorder auditRecorder;
 
     public KnowledgeProductionOrchestrationService(
             KnowledgeProductionJobRepository jobRepository,
+            KnowledgeProductionCandidateRepository candidateRepository,
             KnowledgeCandidateIntake candidateIntake,
             KnowledgeAssetSchemaValidator schemaValidator,
             AuditRecorder auditRecorder) {
         this.jobRepository = jobRepository;
+        this.candidateRepository = candidateRepository;
         this.candidateIntake = candidateIntake;
         this.schemaValidator = schemaValidator;
         this.auditRecorder = auditRecorder;
@@ -100,6 +103,9 @@ public class KnowledgeProductionOrchestrationService {
 
         Instant now = Instant.now();
         String actor = currentActor();
+        // FR-5 候选生产血缘：每条提交候选落一行回溯（job/身份/指纹/候选引用/时点）。
+        candidateRepository.save(new KnowledgeProductionCandidate(null, tenantId, jobCode,
+            candidate.assetIdentity(), candidate.contentHash(), candidateRef, now, actor));
         jobRepository.save(new KnowledgeProductionJob(
             job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
             job.targetPipeline(), job.modelStrategy(), ProductionJobStatus.RUNNING, job.candidateCount() + 1,
@@ -130,6 +136,72 @@ public class KnowledgeProductionOrchestrationService {
         return jobRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
     }
 
+    /** 列某 job 的候选生产血缘（FR-5 可回溯）。 */
+    @Transactional(readOnly = true)
+    public List<KnowledgeProductionCandidate> listCandidates(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        requireJob(tenantId, jobCode);
+        return candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode);
+    }
+
+    /** 完成 job（FR-1）：PENDING/RUNNING → COMPLETED。 */
+    @Transactional
+    public ProductionJobResponse completeJob(String jobCode) {
+        return transition(jobCode, ProductionJobStatus.COMPLETED, "完成知识生产 job");
+    }
+
+    /** 中止 job（FR-1）：PENDING/RUNNING → CANCELLED；终态拒。 */
+    @Transactional
+    public ProductionJobResponse cancelJob(String jobCode) {
+        return transition(jobCode, ProductionJobStatus.CANCELLED, "中止知识生产 job");
+    }
+
+    /** 重放 job（FR-5）：复制 job 定义建新 PENDING job，记 replayedFrom 血缘；隔离守卫复用建 job 路径。 */
+    @Transactional
+    public ProductionJobResponse replayJob(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        KnowledgeProductionJob original = requireJob(tenantId, jobCode);
+        guardPipelineOwnership(original.targetPipeline(), tenantId);
+        String actor = currentActor();
+        Instant now = Instant.now();
+        String newCode = UUID.randomUUID().toString();
+        String lineage = "{\"producer\":\"" + original.producer()
+            + "\",\"pipeline\":\"" + original.targetPipeline()
+            + "\",\"replayedFrom\":\"" + original.jobCode()
+            + "\",\"createdAt\":\"" + now + "\"}";
+        KnowledgeProductionJob replay = jobRepository.save(new KnowledgeProductionJob(
+            null, tenantId, newCode, original.sourceScope(), original.assetType(), original.producer(),
+            original.targetPipeline(), original.modelStrategy(), ProductionJobStatus.PENDING, 0, lineage,
+            now, actor, now, actor, RequestContext.currentTraceId()));
+        auditRecorder.record(AuditAction.CREATE, "mk_knowledge_production_job", newCode,
+            "重放知识生产 job replayedFrom=" + original.jobCode());
+        return ProductionJobResponse.from(replay);
+    }
+
+    /** job 状态跃迁：仅非终态（PENDING/RUNNING）可流转，终态拒（结构化 409）。 */
+    private ProductionJobResponse transition(String jobCode, ProductionJobStatus target, String summary) {
+        String tenantId = requireCurrentTenant();
+        KnowledgeProductionJob job = requireJob(tenantId, jobCode);
+        if (isTerminal(job.status())) {
+            throw new ApiException(ErrorCode.CONFLICT,
+                "job 当前状态 " + job.status() + " 为终态，不允许该生命周期操作");
+        }
+        Instant now = Instant.now();
+        String actor = currentActor();
+        KnowledgeProductionJob saved = jobRepository.save(new KnowledgeProductionJob(
+            job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
+            job.targetPipeline(), job.modelStrategy(), target, job.candidateCount(), job.lineage(),
+            job.createdAt(), job.createdBy(), now, actor, job.traceId()));
+        auditRecorder.record(AuditAction.UPDATE, "mk_knowledge_production_job", jobCode, summary);
+        return ProductionJobResponse.from(saved);
+    }
+
+    private boolean isTerminal(ProductionJobStatus status) {
+        return status == ProductionJobStatus.COMPLETED
+            || status == ProductionJobStatus.FAILED
+            || status == ProductionJobStatus.CANCELLED;
+    }
+
     /** FR-4：平台主源管道仅平台租户 t-1 可产；院内覆盖管道仅客户租户可产（平台不产覆盖）。 */
     private void guardPipelineOwnership(TargetPipeline pipeline, String tenantId) {
         boolean platform = PlatformTenant.isPlatformTenant(tenantId);
@@ -141,6 +213,11 @@ public class KnowledgeProductionOrchestrationService {
             throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
                 "平台租户不产院内覆盖，院内覆盖管道仅客户租户");
         }
+    }
+
+    private KnowledgeProductionJob requireJob(String tenantId, String jobCode) {
+        return jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
     }
 
     private String requireCurrentTenant() {
