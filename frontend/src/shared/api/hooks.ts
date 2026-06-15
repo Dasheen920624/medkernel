@@ -923,6 +923,7 @@ function compactParams<T extends object>(params: T): Partial<T> {
 // ──────────────────────────────────────────
 
 const KNOWLEDGE_API_ROOT = "/engine/knowledge";
+const KNOWLEDGE_PRODUCTION_API_ROOT = "/engine/knowledge-production";
 
 export type KnowledgeDomain =
   | "GUIDELINE"
@@ -1233,6 +1234,41 @@ export function useKnowledgeCandidates(identityId?: number) {
       if (!identityId) return EMPTY_KNOWLEDGE_CANDIDATES;
       const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
         `${KNOWLEDGE_API_ROOT}/identities/${identityId}/candidates`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export type KnowledgeProducer = "API_MODEL" | "AGENT_TOOL" | "LOCAL_MODEL" | "MANUAL" | string;
+
+/** AIK-STD-12：候选生产来源溯源（aiGenerated=producer≠MANUAL + 归属 job/管道/模型策略）。 */
+export interface CandidateProvenanceView {
+  candidateRef: string;
+  aiGenerated: boolean;
+  producer: KnowledgeProducer;
+  jobCode: string;
+  targetPipeline: "PLATFORM_SOURCE" | "TENANT_OVERLAY" | string;
+  domain: string;
+  modelStrategy?: string | null;
+  riskLevel?: string | null;
+  producedAt?: string | null;
+  producedBy?: string | null;
+}
+
+/**
+ * 审核台批量反查候选 AI 工厂生产来源（AIK-STD-12 PR1 端点）。
+ * 传候选版本引用 kv:{identityId}:{versionNo}；无血缘行的候选不返回（诚实「非工厂候选」）。
+ */
+export function useCandidateProvenance(candidateRefs: string[]) {
+  const refs = candidateRefs ?? [];
+  return useQuery({
+    queryKey: ["knowledge-production", "candidate-provenance", refs],
+    enabled: refs.length > 0,
+    queryFn: async () => {
+      const { data } = await apiClient.post<{ data: CandidateProvenanceView[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/candidates/provenance`,
+        { candidateRefs: refs },
       );
       return data.data;
     },
