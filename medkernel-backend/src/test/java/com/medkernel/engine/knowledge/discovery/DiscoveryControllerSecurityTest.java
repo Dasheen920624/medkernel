@@ -72,7 +72,7 @@ class DiscoveryControllerSecurityTest {
     @Test
     void knowledgeGovernorCanExplore() throws Exception {
         when(service.explore(any())).thenReturn(new DiscoveryResponse("run-x", Instant.now(),
-            DiscoveryRunStatus.EMPTY, false, 0, 0, "0".repeat(64), List.of()));
+            DiscoveryRunStatus.EMPTY, false, 0, 0, "0".repeat(64), List.of(), List.of()));
 
         mockMvc.perform(post("/api/v1/engine/knowledge/discovery:explore")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")

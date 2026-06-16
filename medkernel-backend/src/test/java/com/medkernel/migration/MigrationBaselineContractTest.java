@@ -187,7 +187,8 @@ class MigrationBaselineContractTest {
         "V136__aik_gate_result.sql",
         "V137__knowledge_generation_triage.sql",
         "V138__knowledge_shadow_run.sql",
-        "V139__mk_llm_model_version_bundle.sql"
+        "V139__mk_llm_model_version_bundle.sql",
+        "V140__knowledge_diff_expiry_task.sql"
     );
 
     @Test
@@ -240,6 +241,20 @@ class MigrationBaselineContractTest {
                 .contains("model_capability_task", "ck_mk_llm_model_version_bundle_status",
                     "idx_mk_llm_model_version_bundle_capability")
                 .contains("模型版本三元组版本包");
+        }
+    }
+
+    @Test
+    void knowledgeDiffAndExpiryTaskArePersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V140__knowledge_diff_expiry_task.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-08 差异检测与过期治理必须持久化", dialect)
+                .contains("knowledge_diff", "expiry_task", "candidate_content_hash", "diff_type",
+                    "task_type", "review_due_at")
+                .contains("ck_knowledge_diff_type", "ck_expiry_task_type", "ck_expiry_task_status",
+                    "idx_knowledge_diff_target", "idx_expiry_task_status")
+                .contains("AIK-STD-08 最新知识探索差异台账", "过期知识复核任务");
         }
     }
 
@@ -341,6 +356,7 @@ class MigrationBaselineContractTest {
         "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
+        "knowledge_diff", "expiry_task",
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
         "mk_knowledge_generation_triage", "mk_knowledge_shadow_run", "mk_llm_model_version_bundle",
@@ -440,6 +456,8 @@ class MigrationBaselineContractTest {
         "idx_supersession_successor", "idx_supersession_grace",
         "idx_mk_knowledge_invalidation_identity", "idx_mk_knowledge_invalidation_status",
         "idx_mk_knowledge_affected_task_status", "idx_mk_knowledge_affected_task_version",
+        "idx_knowledge_diff_target", "idx_knowledge_diff_run",
+        "idx_expiry_task_status", "idx_expiry_task_version",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
         "idx_candidate_classification_identity", "idx_candidate_classification_status",
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
@@ -638,6 +656,8 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_invalidation_review", "uk_mk_knowledge_affected_task_key",
         "ck_mk_knowledge_affected_task_type", "ck_mk_knowledge_affected_task_status",
         "ck_mk_knowledge_affected_target_type",
+        "uk_knowledge_diff_run_asset_hash", "ck_knowledge_diff_type",
+        "uk_expiry_task_key", "ck_expiry_task_type", "ck_expiry_task_status", "ck_expiry_task_risk",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
         "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
@@ -898,6 +918,7 @@ class MigrationBaselineContractTest {
         "mk_knowledge_material_object", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
+        "knowledge_diff", "expiry_task",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
         "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -955,6 +976,7 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
+        "expiry_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment", "mk_knowledge_production_job",
         "mk_doc_parse_job",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
@@ -1041,6 +1063,8 @@ class MigrationBaselineContractTest {
         Map.entry("mk_knowledge_material_object", Set.of("sha256", "storage_backend")),
         Map.entry("knowledge_identity", Set.of("status")),
         Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
+        Map.entry("knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
+        Map.entry("expiry_task", Set.of("task_type", "status", "review_due_at")),
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),

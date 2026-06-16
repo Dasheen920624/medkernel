@@ -44,6 +44,10 @@
   - `CLINICAL_REDLINE` 门禁现在识别候选 payload 中的 `clinicalSafety.redlineChecks` / `clinicalRedlineChecks`；每条结构化检查必须匹配 ACTIVE 红线并带证据，命中/越界/阻断即 FAIL。
   - `AUTHORITY_CONFLICT` 失败原因已带 `targetIdentityId`、`activeVersionId`、`scope`，用于审计和后续审核台逐条仲裁。
   - 仍不宣称 AIK-STD-05 全卡完成：去重和完整冲突分流待 AIK-STD-10/09。
+- 已完成 Phase 3 第二片「AIK-STD-08 差异检测与过期治理」：
+  - 新增 `knowledge_diff` + `expiry_task` 五方言 V140 基线；`DiscoveryRequest.targetIdentityId` 绑定现行知识身份后，响应 `diffs[]` 返回新增/修订/废止检测结果。
+  - `KnowledgeDiffDetectionService` 只做 B0 hash/结构化 payload 判断：无更新诚实空态；来源声明废止建 `SOURCE_DEPRECATED` 复核任务；复审超期建 `REVIEW_OVERDUE` 任务；不自动替换、不撤回权威版本。
+  - 已补同指纹但复审超期的回归：只建过期任务，不落伪 `REVISED` 差异。
 
 ## 仍不可宣称
 
@@ -54,7 +58,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：下一片推进 AIK-STD-08 差异检测 + 过期治理；先核现有 `DiscoveryOrchestrationService`、知识版本/退役任务与审计表，避免重复造表。
+1. 继续主计划 Phase 3：下一片推进 AIK-STD-07 知识包生成 + 院内同步；先核 `PKG-01`、`KnowledgeExportService`、`package_item/release_plan/sync_log` 与现有版本发布链，避免重复造表。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

@@ -7,9 +7,11 @@ import jakarta.validation.constraints.NotBlank;
  *
  * @param query 探索查询词（受控来源关键词），非空
  * @param limit 受控命中上限（可空，服务端默认 20 / 上限 50）
+ * @param targetIdentityId 待对照的现行知识身份；为空表示只探索候选，不做现行差异检测
  */
 public record DiscoveryRequest(
     @NotBlank String query,
-    Integer limit
+    Integer limit,
+    Long targetIdentityId
 ) {
 }

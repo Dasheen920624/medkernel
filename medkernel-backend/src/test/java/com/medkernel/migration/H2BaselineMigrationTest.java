@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 139;
+    private static final int LATEST_MIGRATION_VERSION = 140;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -108,6 +108,12 @@ class H2BaselineMigrationTest {
               AND COLUMN_NAME = 'TOOL_VERSION'
             """, Integer.class);
         assertThat(taskToolVersionColumn).as("模型任务记录 tool_version").isEqualTo(1);
+
+        Integer diffAndExpiryTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN ('KNOWLEDGE_DIFF', 'EXPIRY_TASK')
+            """, Integer.class);
+        assertThat(diffAndExpiryTables).as("AIK-STD-08 差异与过期治理表").isEqualTo(2);
 
         int nullableConfigInserted = jdbc.update("""
             INSERT INTO mk_config_item (

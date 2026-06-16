@@ -43,6 +43,7 @@ class DiscoveryOrchestrationServiceTest {
 
     private ControlledSourceSearchRepository searchRepository;
     private DiscoveryRunRepository runRepository;
+    private KnowledgeDiffDetectionService diffDetectionService;
     private AuditRecorder auditRecorder;
     private DiscoveryOrchestrationService service;
 
@@ -50,10 +51,14 @@ class DiscoveryOrchestrationServiceTest {
     void setUp() {
         searchRepository = mock(ControlledSourceSearchRepository.class);
         runRepository = mock(DiscoveryRunRepository.class);
+        diffDetectionService = mock(KnowledgeDiffDetectionService.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new DiscoveryOrchestrationService(
-            searchRepository, runRepository, new KnowledgeAssetSchemaValidator(), auditRecorder);
+            searchRepository, runRepository, new KnowledgeAssetSchemaValidator(), auditRecorder, diffDetectionService);
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(diffDetectionService.detect(any(), any())).thenReturn(
+            new KnowledgeDiffDetection(true, KnowledgeDiffType.REVISED, 10L, 5L, null,
+                null, "发现修订差异"));
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "user-001"));
     }
 
@@ -76,7 +81,7 @@ class DiscoveryOrchestrationServiceTest {
                 hit(1, "a", SourceAuthorityLevel.A_REGULATION),
                 hit(2, "b", SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
 
-        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null));
+        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null, null));
 
         assertThat(response.status()).isEqualTo(DiscoveryRunStatus.SUCCEEDED);
         assertThat(response.degraded()).isFalse();
@@ -102,7 +107,7 @@ class DiscoveryOrchestrationServiceTest {
         when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
             .thenReturn(List.of());
 
-        service.explore(new DiscoveryRequest("  Aspirin  ", 999));
+        service.explore(new DiscoveryRequest("  Aspirin  ", 999, null));
 
         ArgumentCaptor<String> keyword = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
@@ -116,7 +121,7 @@ class DiscoveryOrchestrationServiceTest {
         when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
             .thenReturn(List.of(hit(1, "a", SourceAuthorityLevel.A_REGULATION)));
 
-        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null));
+        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null, null));
 
         ArgumentCaptor<DiscoveryRun> saved = ArgumentCaptor.forClass(DiscoveryRun.class);
         verify(runRepository).save(saved.capture());
@@ -143,7 +148,7 @@ class DiscoveryOrchestrationServiceTest {
         when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
             .thenReturn(List.of());
 
-        DiscoveryResponse response = service.explore(new DiscoveryRequest("不存在的主题", null));
+        DiscoveryResponse response = service.explore(new DiscoveryRequest("不存在的主题", null, null));
 
         assertThat(response.status()).isEqualTo(DiscoveryRunStatus.EMPTY);
         assertThat(response.degraded()).isFalse();
@@ -161,7 +166,7 @@ class DiscoveryOrchestrationServiceTest {
         when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
             .thenThrow(new RuntimeException("source store down"));
 
-        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null));
+        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null, null));
 
         assertThat(response.status()).isEqualTo(DiscoveryRunStatus.DEGRADED);
         assertThat(response.degraded()).isTrue();
@@ -178,17 +183,32 @@ class DiscoveryOrchestrationServiceTest {
         when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
             .thenReturn(List.of(hit(1, "a", SourceAuthorityLevel.A_REGULATION)));
 
-        String first = service.explore(new DiscoveryRequest("阿司匹林", null)).resultHash();
-        String second = service.explore(new DiscoveryRequest("阿司匹林", null)).resultHash();
+        String first = service.explore(new DiscoveryRequest("阿司匹林", null, null)).resultHash();
+        String second = service.explore(new DiscoveryRequest("阿司匹林", null, null)).resultHash();
 
         assertThat(first).isEqualTo(second).matches("^[0-9a-f]{64}$");
     }
 
     @Test
     void exploreRejectsBlankQuery() {
-        assertThatThrownBy(() -> service.explore(new DiscoveryRequest("   ", null)))
+        assertThatThrownBy(() -> service.explore(new DiscoveryRequest("   ", null, null)))
             .isInstanceOf(ApiException.class);
         verify(searchRepository, times(0)).searchControlledFragments(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void exploreRunsDiffDetectionWhenTargetIdentityIsProvided() {
+        when(searchRepository.searchControlledFragments(anyString(), anyString(), anyInt()))
+            .thenReturn(List.of(hit(1, "a", SourceAuthorityLevel.A_REGULATION)));
+
+        DiscoveryResponse response = service.explore(new DiscoveryRequest("阿司匹林", null, 10L));
+
+        assertThat(response.diffs()).hasSize(1);
+        assertThat(response.diffs().get(0).diffType()).isEqualTo(KnowledgeDiffType.REVISED);
+        ArgumentCaptor<KnowledgeDiffContext> context = ArgumentCaptor.forClass(KnowledgeDiffContext.class);
+        verify(diffDetectionService).detect(any(KnowledgeAssetEnvelope.class), context.capture());
+        assertThat(context.getValue().runCode()).isNotBlank();
+        assertThat(context.getValue().targetIdentityId()).isEqualTo(10L);
     }
 
     @Test
