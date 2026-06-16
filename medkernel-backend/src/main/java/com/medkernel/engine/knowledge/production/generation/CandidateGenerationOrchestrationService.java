@@ -19,6 +19,9 @@ import com.medkernel.engine.knowledge.production.KnowledgeProductionOrchestratio
 import com.medkernel.engine.knowledge.production.MaterializationTarget;
 import com.medkernel.engine.knowledge.production.ProductionJobRequest;
 import com.medkernel.engine.knowledge.production.ProductionJobResponse;
+import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
+import com.medkernel.engine.knowledge.production.gate.GateContext;
+import com.medkernel.engine.knowledge.production.gate.GateOutcome;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -38,17 +41,20 @@ public class CandidateGenerationOrchestrationService {
     private final SourceFragmentRepository fragments;
     private final SourceCandidateGenerator generator;
     private final KnowledgeProductionOrchestrationService production;
+    private final CandidateSafetyGateService gateService;
 
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
                                                    SourceFragmentRepository fragments,
                                                    SourceCandidateGenerator generator,
-                                                   KnowledgeProductionOrchestrationService production) {
+                                                   KnowledgeProductionOrchestrationService production,
+                                                   CandidateSafetyGateService gateService) {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
         this.generator = generator;
         this.production = production;
+        this.gateService = gateService;
     }
 
     @Transactional
@@ -63,12 +69,13 @@ public class CandidateGenerationOrchestrationService {
 
         List<GeneratedCandidate> generated = new ArrayList<>();
         List<SkippedType> skipped = new ArrayList<>();
+        List<BlockedCandidate> blocked = new ArrayList<>();
 
         if (sourceFragments.isEmpty()) {
             for (GenerationItem item : request.items()) {
                 skipped.add(new SkippedType(item.assetType(), "来源无锚点片段，无源不生成"));
             }
-            return new GenerationSummary(generated, skipped);
+            return new GenerationSummary(generated, skipped, blocked);
         }
 
         for (GenerationItem item : request.items()) {
@@ -79,12 +86,18 @@ public class CandidateGenerationOrchestrationService {
             KnowledgeAssetEnvelope envelope = generator.generate(
                 tenantId, document, version, sourceFragments, item.assetType(),
                 deriveIdentity(item.target()));
+            // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
+            GateOutcome outcome = gateService.evaluate(envelope, new GateContext(tenantId, job.jobCode()));
+            if (!outcome.passed()) {
+                blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
+                continue;
+            }
             CandidateSubmissionResponse response =
                 production.submitCandidate(job.jobCode(), envelope, item.target());
             generated.add(new GeneratedCandidate(
                 item.assetType(), job.jobCode(), response.candidateRef(), response.routing()));
         }
-        return new GenerationSummary(generated, skipped);
+        return new GenerationSummary(generated, skipped, blocked);
     }
 
     private String deriveIdentity(MaterializationTarget target) {

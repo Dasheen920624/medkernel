@@ -14,7 +14,18 @@
 
 ---
 
-## 2026-06-16 第二阶段 P2-C · AIK-STD-04 候选生成 PR1（编排核心 + 类型无关生成器 + 全 5 类，**已实现待合**，分支 `claude/wave2-p2c-aikstd04-candidate-generation`）
+## 2026-06-16 第二阶段 P2-C · AIK-STD-05 候选安全门禁 PR1（门禁框架 + 6 项确定性门禁 + 接入 AIK-STD-04，**已实现待合**，分支 `claude/wave2-p2c-aikstd05-safety-gate`）
+
+> **接力须知**：AIK-STD-04 PR1（#630）已合并入 main。本段＝AIK-STD-05 第一刀——候选提审前过安全门禁，校验 [AIK-STD-04](cards/wave2/AIK-STD-04.md) 候选。设计 [`specs/2026-06-16-aikstd05-safety-gate-design.md`](superpowers/specs/2026-06-16-aikstd05-safety-gate-design.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（第 5 次防重复）**：OPT-04 红线库（`engine.safety.ClinicalRedlineService/Matcher`，DDI/危急值/剂量/抗菌/禁忌）+ OPT-07 仲裁（`ConflictArbitration` + 低阶覆盖门禁）均已建，PR2 复用；V108 是**发布期**质量闸（release_plan 摘要）非候选**提审前**逐项门禁，故 `mk_aik_gate_result` 新表确有必要。
+- **已实现（新包 `engine.knowledge.production.gate`）**：`CandidateGate` 接口 + 6 `@Component` 确定性信封门禁（`SOURCE_PRESENT`/`ANCHOR_COMPLETE`/`AUTHORITY_LEVEL`/`CONTENT_FORMAT`/`REVIEW_ELEMENTS`/`APPLICABLE_SCOPE`，纯函数无 I/O）+ `CandidateSafetyGateService`（按门禁码定序、逐项落 `mk_aik_gate_result`、任一不过即整体不过、单项异常诚实判不过不吞错）。**接入 AIK-STD-04**：生成 envelope → 过门禁才 `submitCandidate`，不过入 `GenerationSummary.blocked` 诚实报因（FR-4）。`GET .../jobs/{jobCode}/gate-results` 审计查询（FR-5）。`mk_aik_gate_result` V136 五方言（append-only）+ 迁移基线/域归属登记。纯确定性 B0 不依赖模型。
+- **验证全绿**：新增测试（门禁服务 7 + 编排增量 blocked 1 + 控制器安全 +2 + 门禁集成真实 H2 2）全过；迁移基线/H2/域归属 114 绿；治理/arch 14 绿；四门禁 changed（真实性/配置/迁移/中文注释 0fail0warn）全过；产品目录重生成 + 前端 `productCatalog.test.ts` 5/5（端点 +1 KEEP 无漂移）；`git diff --check` 干净。卡 [AIK-STD-05](cards/wave2/AIK-STD-05.md) FR-4/5 勾、FR-1 标 6/11 确定性项进度（红线/仲裁 PR2、去重待 AIK-STD-10），未虚勾。
+- **当前下一步（接力点，本 PR 合并后清分支）**：① **AIK-STD-05 PR2**：红线（FR-2，接 `ClinicalRedlineService`）+ 冲突仲裁（FR-3，接 `ConflictArbitration`）+ 剂量/高危/许可门禁；② **AIK-STD-10** 8 态去重分流（建成后补「去重」门禁）；③ AIK-STD-03 勾卡闭卡。恒守：TDD 红绿 + B0 + **P6 阻断（深层临床逻辑校验须逻辑在场，B0 留白诚实标待逻辑）** + 域归属 SYS-02 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-16 第二阶段 P2-C · AIK-STD-04 候选生成 PR1（编排核心 + 类型无关生成器 + 全 5 类，**已合并入 main** [#630](https://github.com/Dasheen920624/medkernel/pull/630) `f85309c9`，分支已删）
 
 > **接力须知**：用户 2026-06-16 指令恢复 P2-C。本段＝AIK-STD-04 第一刀——从 [AIK-STD-02](cards/wave2/AIK-STD-02.md) 解析后的带锚点 `source_fragment` **确定性（B0）生成规则/路径/推荐/指标/随访五类候选**，经既有 [AIK-STD-13](cards/wave2/AIK-STD-13.md) job+intake 落审核链。设计 [`specs/2026-06-16-aikstd04-candidate-generation-design.md`](superpowers/specs/2026-06-16-aikstd04-candidate-generation-design.md) · 计划 [`plans/2026-06-16-aikstd04-pr1-candidate-generation.md`](superpowers/plans/2026-06-16-aikstd04-pr1-candidate-generation.md)。续接从最新 `origin/main` 起。
 

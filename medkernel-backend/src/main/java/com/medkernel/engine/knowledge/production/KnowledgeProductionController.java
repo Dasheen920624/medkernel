@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.engine.factory.ProfessionalAssetTemplate;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
+import com.medkernel.engine.knowledge.production.gate.AikGateResult;
+import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
@@ -38,15 +40,18 @@ public class KnowledgeProductionController {
     private final CandidateProvenanceService provenanceService;
     private final ProfessionalAssetTemplateRegistry templateRegistry;
     private final CandidateGenerationOrchestrationService generationService;
+    private final CandidateSafetyGateService gateService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
                                          ProfessionalAssetTemplateRegistry templateRegistry,
-                                         CandidateGenerationOrchestrationService generationService) {
+                                         CandidateGenerationOrchestrationService generationService,
+                                         CandidateSafetyGateService gateService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
         this.generationService = generationService;
+        this.gateService = gateService;
     }
 
     @PostMapping("/jobs")
@@ -124,5 +129,12 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
         return ApiResult.ok(generationService.generate(request));
+    }
+
+    /** 候选安全门禁结果列表（AIK-STD-05 FR-5）：按 job 回溯逐项门禁判定与不过原因，可审计。 */
+    @GetMapping("/jobs/{jobCode}/gate-results")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<AikGateResult>> gateResults(@PathVariable String jobCode) {
+        return ApiResult.ok(gateService.listResults(jobCode));
     }
 }

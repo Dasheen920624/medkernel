@@ -35,6 +35,16 @@ import com.medkernel.engine.knowledge.production.ProductionJobResponse;
 import com.medkernel.engine.knowledge.production.ProductionJobStatus;
 import com.medkernel.engine.knowledge.production.ReviewRoutingDecision;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.knowledge.production.gate.AikGateResultRepository;
+import com.medkernel.engine.knowledge.production.gate.AnchorCompleteGate;
+import com.medkernel.engine.knowledge.production.gate.ApplicableScopeGate;
+import com.medkernel.engine.knowledge.production.gate.AuthorityLevelGate;
+import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
+import com.medkernel.engine.knowledge.production.gate.ContentFormatGate;
+import com.medkernel.engine.knowledge.production.gate.GateItemResult;
+import com.medkernel.engine.knowledge.production.gate.GateOutcome;
+import com.medkernel.engine.knowledge.production.gate.ReviewElementsGate;
+import com.medkernel.engine.knowledge.production.gate.SourcePresentGate;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
@@ -53,9 +63,15 @@ class CandidateGenerationOrchestrationServiceTest {
         mock(KnowledgeProductionOrchestrationService.class);
     private final SourceCandidateGenerator generator =
         new SourceCandidateGenerator(new ProfessionalAssetTemplateRegistry(), new ObjectMapper());
+    private final AikGateResultRepository gateResults = mock(AikGateResultRepository.class);
+    private final CandidateSafetyGateService gateService = new CandidateSafetyGateService(
+        List.of(new SourcePresentGate(), new AnchorCompleteGate(), new AuthorityLevelGate(),
+            new ContentFormatGate(), new ReviewElementsGate(), new ApplicableScopeGate()),
+        gateResults);
 
     private final CandidateGenerationOrchestrationService service =
-        new CandidateGenerationOrchestrationService(versions, documents, fragments, generator, production);
+        new CandidateGenerationOrchestrationService(
+            versions, documents, fragments, generator, production, gateService);
 
     @BeforeEach
     void bindTenant() {
@@ -123,5 +139,33 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.skipped()).hasSize(1);
         assertThat(summary.skipped().get(0).reason()).contains("无源");
         verify(production, never()).createJob(any());
+    }
+
+    @Test
+    void candidateFailingGateIsBlockedNotSubmitted() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
+                Instant.EPOCH)));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        CandidateSafetyGateService blockingGate = mock(CandidateSafetyGateService.class);
+        when(blockingGate.evaluate(any(), any())).thenReturn(new GateOutcome(false,
+            List.of(GateItemResult.fail("SOURCE_PRESENT", "无来源（无源资产拒收）"))));
+        CandidateGenerationOrchestrationService blockingService =
+            new CandidateGenerationOrchestrationService(
+                versions, documents, fragments, generator, production, blockingGate);
+
+        GenerationSummary summary = blockingService.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(item(VersionedAssetType.RULE))));
+
+        assertThat(summary.candidates()).isEmpty();
+        assertThat(summary.blocked()).hasSize(1);
+        assertThat(summary.blocked().get(0).failedGates()).isNotEmpty();
+        verify(production, never()).submitCandidate(any(), any(), any());
     }
 }

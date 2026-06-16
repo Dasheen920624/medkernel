@@ -183,7 +183,8 @@ class MigrationBaselineContractTest {
         "V132__knowledge_review_return.sql",
         "V133__doc_parse_job.sql",
         "V134__diagnosis_knowledge_menu_permission.sql",
-        "V135__terminology_candidate_generation_job.sql"
+        "V135__terminology_candidate_generation_job.sql",
+        "V136__aik_gate_result.sql"
     );
 
     @Test
@@ -298,7 +299,7 @@ class MigrationBaselineContractTest {
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
-        "mk_knowledge_production_candidate", "mk_doc_parse_job",
+        "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule", "mk_term_candidate_generation_job",
         "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
@@ -491,7 +492,7 @@ class MigrationBaselineContractTest {
         "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup", "idx_mk_llm_enhancement_matrix_status",
         "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
         "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
-        "idx_mk_doc_parse_job_lookup",
+        "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -844,6 +845,7 @@ class MigrationBaselineContractTest {
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
+        "mk_aik_gate_result",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "mk_knowledge_customization",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
