@@ -33,6 +33,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProducer;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionResult;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
+import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
@@ -65,6 +70,21 @@ class KnowledgeProductionControllerSecurityTest {
     @MockBean
     private CandidateSafetyGateService gateService;
 
+    @MockBean
+    private KnowledgeGenerationTriageService triageService;
+
+    @MockBean
+    private KnowledgeShadowEvaluationService shadowService;
+
+    @MockBean
+    private CandidateCoexistenceService coexistenceService;
+
+    @MockBean
+    private KnowledgeProductionReadinessService readinessService;
+
+    @MockBean
+    private ModelKnowledgeProducer modelKnowledgeProducer;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -73,6 +93,14 @@ class KnowledgeProductionControllerSecurityTest {
     private static final String GENERATE_BODY =
         "{\"sourceVersionId\":9,\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\","
         + "\"items\":[{\"assetType\":\"RULE\",\"target\":{\"targetIdentityId\":5}}]}";
+
+    private static final String MODEL_GENERATE_BODY =
+        "{\"capabilityCode\":\"rule.draft\",\"prompt\":\"请基于来源锚点生成候选规则\","
+        + "\"providerCode\":\"claude-prod\",\"timeoutSeconds\":60,"
+        + "\"assetIdentity\":\"rule:htn:model\",\"subject\":\"高血压 AI 候选规则\","
+        + "\"sources\":[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\",\"authorityLevel\":\"B_GUIDELINE\"}],"
+        + "\"trustLevel\":\"B_GUIDELINE\",\"riskLevel\":\"MEDIUM\","
+        + "\"target\":{\"targetIdentityId\":5}}";
 
     private static final String JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
@@ -149,6 +177,31 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    void clinicalUserCannotGenerateModelCandidates() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanGenerateModelCandidates() throws Exception {
+        when(modelKnowledgeProducer.generate(anyString(), any()))
+            .thenReturn(new ModelKnowledgeProductionResult(
+                "job-1", "task-model-1", "B2", "claude-opus-4",
+                "prompt:aikstd13-v1", "tool:submit-candidate-v1",
+                new GenerationSummary(List.of(), List.of(), List.of())));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.modelTaskId").value("task-model-1"));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadGateResults() throws Exception {
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/gate-results"))
@@ -160,6 +213,42 @@ class KnowledgeProductionControllerSecurityTest {
         when(gateService.listResults(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/gate-results")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadTriageResults() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/triage-results"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadTriageResults() throws Exception {
+        when(triageService.listResults(anyString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/triage-results")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadShadowRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/shadow-runs"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadShadowRuns() throws Exception {
+        when(shadowService.listResults(anyString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/shadow-runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
@@ -284,6 +373,64 @@ class KnowledgeProductionControllerSecurityTest {
                 .with(governor()).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"candidateRefs\":[]}"))
             .andExpect(status().isBadRequest());
+    }
+
+    // ─── AIK-STD-09/11：候选共存只读视图（knowledge.read）─────────────
+
+    @Test
+    void knowledgeReaderCanQueryCandidateCoexistence() throws Exception {
+        when(coexistenceService.resolve("kv:1:v2")).thenReturn(new CandidateCoexistenceView(
+            "kv:1:v2", 1L, null, null, null, null, null, null,
+            false, true, "APPROVE_REPLACE_ACTIVE", "审核通过后进入 SYS-08 原子替换", "候选不执行"));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/candidates/coexistence")
+                .queryParam("candidateRef", "kv:1:v2")
+                .with(governor()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.candidateExecutable").value(false))
+            .andExpect(jsonPath("$.data.approvalOutcome").value("APPROVE_REPLACE_ACTIVE"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotQueryCandidateCoexistence() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/candidates/coexistence")
+                .queryParam("candidateRef", "kv:1:v2"))
+            .andExpect(status().isForbidden());
+    }
+
+    // ─── 模型生成 readiness（knowledge.read）───────────────────────
+
+    @Test
+    void knowledgeReaderCanQueryReadiness() throws Exception {
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, "rule.draft", "claude-prod", "prompt:p;tool:t;model:m"))
+            .thenReturn(new KnowledgeProductionReadinessResponse(
+                "tenant-1",
+                KnowledgeProducer.API_MODEL,
+                "rule.draft",
+                "claude-prod",
+                DeploymentForm.PRODUCTION_CENTER,
+                true,
+                true,
+                List.of(KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://..."))));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/readiness")
+                .queryParam("producer", "API_MODEL")
+                .queryParam("capabilityCode", "rule.draft")
+                .queryParam("providerCode", "claude-prod")
+                .queryParam("modelStrategy", "prompt:p;tool:t;model:m")
+                .with(governor()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.ready").value(true))
+            .andExpect(jsonPath("$.data.modelInvocationAllowed").value(true))
+            .andExpect(jsonPath("$.data.items[0].code").value("LITERATURE_ROOT"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotQueryReadiness() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/readiness"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

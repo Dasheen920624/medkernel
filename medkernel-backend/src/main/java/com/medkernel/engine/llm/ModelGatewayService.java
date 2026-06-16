@@ -35,8 +35,8 @@ import com.medkernel.engine.llm.provider.ProviderRequest;
  * 模型能力网关核心领域服务实现类 (GA-ENG-API-12)。
  *
  * <p>统一管控模型能力调用：能力阻断、正则数据脱敏、期待结构 Schema 校验，并通过物理子事务强隔离记录审计日志。
- * 当前未接入真实模型 provider（B1/B2 由 GA-ENG-LLM-02 接入），provider 缺位时所有非 DISABLED 能力一律
- * 如实返回 B0（无模型确定性基线），禁止伪造 B2 模型名、置信度或来源引文。
+ * 当前经 provider 注册表解析 B1/B2；provider 缺位、出域阻断、结构化失败或调用失败时按 LLM-02
+ * 降级矩阵如实返回 B0（无模型确定性基线），禁止伪造 B2 模型名、置信度或来源引文。
  */
 @Service
 public class ModelGatewayService {
@@ -58,6 +58,8 @@ public class ModelGatewayService {
     private final IsolatedAuditPublisher isolatedAudit;
     private final ModelProviderRegistry providerRegistry;
     private final ModelEgressGuard egressGuard;
+    private final ModelVersionBundleRepository versionBundleRepository;
+    private final ModelFallbackMatrix fallbackMatrix = new ModelFallbackMatrix();
 
     public ModelGatewayService(ModelCapabilityTaskRepository taskRepo,
                                ModelCapabilityPolicyRepository policyRepo,
@@ -65,7 +67,8 @@ public class ModelGatewayService {
                                AuditRecorder auditRecorder,
                                IsolatedAuditPublisher isolatedAudit,
                                ModelProviderRegistry providerRegistry,
-                               ModelEgressGuard egressGuard) {
+                               ModelEgressGuard egressGuard,
+                               ModelVersionBundleRepository versionBundleRepository) {
         this.taskRepo = taskRepo;
         this.policyRepo = policyRepo;
         this.definitionRepo = definitionRepo;
@@ -73,6 +76,7 @@ public class ModelGatewayService {
         this.isolatedAudit = isolatedAudit;
         this.providerRegistry = providerRegistry;
         this.egressGuard = egressGuard;
+        this.versionBundleRepository = versionBundleRepository;
     }
 
     /**
@@ -248,32 +252,44 @@ public class ModelGatewayService {
         //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
         //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         String strategy = policy.routeStrategy();
-        RouteOutcome outcome = route(tenantId, capabilityCode, strategy, desensitizedInput, taskId);
+        ModelVersionTriple plannedTriple = activeTripleOrBaseline(tenantId, capabilityCode);
+        RouteOutcome outcome = route(tenantId, capabilityCode, strategy, desensitizedInput, taskId, plannedTriple);
+
+        // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
+        // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
+        String schemaConstraint = policy.expectedSchema();
+        if (schemaConstraint != null && !schemaConstraint.isBlank()) {
+            try {
+                validateSchema(outcome.outputContent(), schemaConstraint);
+            } catch (ApiException schemaError) {
+                if (!"B0".equalsIgnoreCase(outcome.modelMode())) {
+                    ModelFallbackDecision decision = fallbackMatrix.decide(
+                        strategy, ModelFallbackTrigger.STRUCTURED_OUTPUT_FAILED, schemaError.getMessage());
+                    log.warn("模型输出结构化失败，按 LLM-02 降级 B0 capabilityCode={}：{}",
+                        capabilityCode, schemaError.getMessage());
+                    outcome = b0Outcome(capabilityCode, decision.reason());
+                    validateSchema(outcome.outputContent(), schemaConstraint);
+                } else {
+                    log.warn("结构化输出 Schema 校验失败 capabilityCode={}：{}",
+                        capabilityCode, schemaError.getMessage());
+                    publishFailureAudit(schemaError.errorCode(),
+                        "结构化输出 Schema 校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
+                    throw schemaError;
+                }
+            }
+        }
+
         String outputContent = outcome.outputContent();
         String modelMode = outcome.modelMode();
         String modelVersion = outcome.modelVersion();
         String promptVersion = outcome.promptVersion();
+        String toolVersion = outcome.toolVersion();
         String sourceCitations = outcome.sourceCitations();
         Double confidence = outcome.confidence();
         String riskLevel = outcome.riskLevel();
         boolean fallbackUsed = outcome.fallbackUsed();
         String fallbackReason = outcome.fallbackReason();
         String taskStatus = outcome.taskStatus();
-
-        // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
-        // 校验对象为本次实际产出（当前恒为 B0 基线），未来接入 provider 后对模型输出复用同一校验。
-        String schemaConstraint = policy.expectedSchema();
-        if (schemaConstraint != null && !schemaConstraint.isBlank()) {
-            try {
-                validateSchema(outputContent, schemaConstraint);
-            } catch (ApiException schemaError) {
-                log.warn("结构化输出 Schema 校验失败 capabilityCode={}：{}",
-                    capabilityCode, schemaError.getMessage());
-                publishFailureAudit(schemaError.errorCode(),
-                    "结构化输出 Schema 校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
-                throw schemaError;
-            }
-        }
 
         long timeCost = System.currentTimeMillis() - startTime;
 
@@ -289,6 +305,7 @@ public class ModelGatewayService {
             modelMode,
             modelVersion,
             promptVersion,
+            toolVersion,
             sourceCitations,
             confidence,
             riskLevel,
@@ -321,6 +338,7 @@ public class ModelGatewayService {
             modelMode,
             modelVersion,
             promptVersion,
+            toolVersion,
             sourceCitations,
             confidence,
             riskLevel,
@@ -354,6 +372,7 @@ public class ModelGatewayService {
             task.modelMode(),
             task.modelVersion(),
             task.promptVersion(),
+            task.toolVersion(),
             task.sourceCitations(),
             task.confidence(),
             task.riskLevel(),
@@ -389,6 +408,88 @@ public class ModelGatewayService {
 
         auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", taskId, "触发失败任务重试");
         return submitTask(retryReq);
+    }
+
+    /**
+     * 按任务 ID 做审计重放复现。
+     *
+     * <p>LLM-04 的可复现重放只对 B0 确定性任务成立；B1/B2 provider 结果受外部模型状态影响，
+     * 不能伪装为可逐字复现，必须由真实评测/审计链另行举证。
+     *
+     * @param taskId 原任务 ID
+     * @return 新重放任务响应
+     */
+    @Transactional
+    public ModelTaskResponse replayTask(String taskId) {
+        String tenantId = requireCurrentTenant();
+        String actor = RequestContext.currentUserId().orElse("system");
+        String traceId = RequestContext.currentTraceId();
+        ModelCapabilityTask task = taskRepo.findByTaskId(taskId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_004, "任务不存在"));
+
+        if (!tenantId.equals(task.tenantId())) {
+            throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "无权访问此任务");
+        }
+        if (!"B0".equalsIgnoreCase(task.modelMode())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "仅支持 B0 确定性任务按 task_id 重放复现");
+        }
+
+        String promptVersion = requireReplayVersion(task.promptVersion(), "prompt_version");
+        String toolVersion = requireReplayVersion(task.toolVersion(), "tool_version");
+        String modelVersion = requireReplayVersion(task.modelVersion(), "model_version");
+        long startTime = System.currentTimeMillis();
+        String replayTaskId = "task-replay-" + UUID.randomUUID().toString().replace("-", "");
+        String outputContent = executeB0Fallback(task.capabilityCode());
+        long timeCost = System.currentTimeMillis() - startTime;
+        String fallbackReason = (task.fallbackReason() == null || task.fallbackReason().isBlank())
+            ? "[LLM-04_REPLAY_FROM=" + task.taskId() + "] B0 deterministic replay"
+            : task.fallbackReason() + "；[LLM-04_REPLAY_FROM=" + task.taskId() + "] B0 deterministic replay";
+
+        ModelCapabilityTask replay = new ModelCapabilityTask(
+            null,
+            replayTaskId,
+            tenantId,
+            task.capabilityCode(),
+            task.inputHash(),
+            task.inputSummary(),
+            outputContent,
+            "B0",
+            modelVersion,
+            promptVersion,
+            toolVersion,
+            task.sourceCitations() == null ? "[]" : task.sourceCitations(),
+            null,
+            task.riskLevel(),
+            true,
+            fallbackReason,
+            timeCost,
+            "REPLAYED",
+            traceId,
+            Instant.now(),
+            actor,
+            Instant.now(),
+            actor
+        );
+        taskRepo.save(replay);
+        auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", replayTaskId,
+            "按 task_id 重放模型版本三元组 " + task.taskId());
+
+        return new ModelTaskResponse(
+            replayTaskId,
+            "REPLAYED",
+            outputContent,
+            "B0",
+            modelVersion,
+            promptVersion,
+            toolVersion,
+            task.sourceCitations() == null ? "[]" : task.sourceCitations(),
+            null,
+            task.riskLevel(),
+            true,
+            fallbackReason,
+            timeCost,
+            traceId
+        );
     }
 
     /**
@@ -501,6 +602,13 @@ public class ModelGatewayService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private String requireReplayVersion(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "原任务缺少 " + fieldName + "，不能重放复现");
+        }
+        return value.trim();
+    }
+
     private String computeSha256(String data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -589,23 +697,9 @@ public class ModelGatewayService {
         return false;
     }
 
-    /** 根据路由策略给出诚实的 B0 基线归因说明（绝不伪造模型推理）。 */
-    private String baselineReason(String strategy) {
-        if ("BASELINE".equalsIgnoreCase(strategy)) {
-            return "组织安全策略显式指定 B0 确定性基线路径";
-        }
-        if ("LOCAL_MODEL".equalsIgnoreCase(strategy)) {
-            return "未接入本地微调模型(B1)，按 B0 确定性基线执行；模型接入由 GA-ENG-LLM-02 落地";
-        }
-        if ("EXTERNAL_MODEL".equalsIgnoreCase(strategy)) {
-            return "未接入外部大模型/Dify(B2)，按 B0 确定性基线执行；模型接入由 GA-ENG-LLM-02 落地";
-        }
-        return "未识别的路由策略 " + strategy + "，回退 B0 确定性基线";
-    }
-
     /** 单次任务的路由产出（真实增强或诚实 B0 降级）。 */
     private record RouteOutcome(
-        String outputContent, String modelMode, String modelVersion, String promptVersion,
+        String outputContent, String modelMode, String modelVersion, String promptVersion, String toolVersion,
         String sourceCitations, Double confidence, String riskLevel,
         boolean fallbackUsed, String fallbackReason, String taskStatus) {}
 
@@ -613,11 +707,15 @@ public class ModelGatewayService {
      * 按路由策略解析真实 provider 并产出；任一环节不可用一律诚实降级 B0（铁律 #1/#2/#4）。
      */
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
-                               String desensitizedInput, String taskId) {
+                               String desensitizedInput, String taskId, ModelVersionTriple plannedTriple) {
         var resolved = providerRegistry.resolve(tenantId, strategy);
         if (resolved.isEmpty()) {
             // 无配置 / 全不健康 / 运行侧内网形态禁外部 → 诚实 B0。
-            return b0Outcome(capabilityCode, baselineReason(strategy));
+            ModelFallbackTrigger trigger = "BASELINE".equalsIgnoreCase(strategy)
+                ? ModelFallbackTrigger.POLICY_BASELINE
+                : ModelFallbackTrigger.PROVIDER_UNAVAILABLE;
+            return b0Outcome(capabilityCode, fallbackMatrix.decide(
+                strategy, trigger, "未解析到健康 provider 或部署形态不允许").reason());
         }
         ModelProviderRegistry.ResolvedProvider provider = resolved.get();
 
@@ -633,7 +731,8 @@ public class ModelGatewayService {
                 log.warn("外调出域闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
                 publishFailureAudit(egressBlocked.errorCode(),
                     "外调出域闸阻断 capabilityCode=" + capabilityCode + "：" + egressBlocked.getMessage());
-                return b0Outcome(capabilityCode, "外调出域闸阻断，已降级 B0：" + egressBlocked.getMessage());
+                return b0Outcome(capabilityCode, fallbackMatrix.decide(
+                    strategy, ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage()).reason());
             }
         }
 
@@ -642,12 +741,31 @@ public class ModelGatewayService {
                 .complete(provider.config(), new ProviderRequest(capabilityCode, prompt));
             // 真实增强产出：真实 model_version；置信度/引文仅由 provider 真实返回，绝不伪造。
             return new RouteOutcome(
-                completion.content(), provider.modelMode(), completion.modelVersion(), "provider",
+                completion.content(), provider.modelMode(), completion.modelVersion(),
+                plannedTriple.promptVersion(), plannedTriple.toolVersion(),
                 completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED");
         } catch (ApiException providerFailed) {
             log.warn("provider 调用失败 capabilityCode={}：{}", capabilityCode, providerFailed.getMessage());
-            return b0Outcome(capabilityCode, "provider 调用失败，已降级 B0：" + providerFailed.getMessage());
+            return b0Outcome(capabilityCode, fallbackMatrix.decide(
+                strategy, fallbackTrigger(providerFailed), providerFailed.getMessage()).reason());
         }
+    }
+
+    private ModelFallbackTrigger fallbackTrigger(ApiException providerFailed) {
+        ErrorCode code = providerFailed.errorCode();
+        if (code == ErrorCode.ENG_LLM_003) {
+            return ModelFallbackTrigger.PROVIDER_TIMEOUT;
+        }
+        if (code == ErrorCode.TOO_MANY_REQUESTS) {
+            return ModelFallbackTrigger.PROVIDER_RATE_LIMITED;
+        }
+        if (code == ErrorCode.ENG_LLM_002) {
+            return ModelFallbackTrigger.STRUCTURED_OUTPUT_FAILED;
+        }
+        if (code == ErrorCode.DOWNSTREAM_UNAVAILABLE || code == ErrorCode.MODEL_DEGRADED) {
+            return ModelFallbackTrigger.PROVIDER_DISCONNECTED;
+        }
+        return ModelFallbackTrigger.PROVIDER_ERROR;
     }
 
     private String readPromptField(String json, String fallback) {
@@ -659,9 +777,18 @@ public class ModelGatewayService {
     }
 
     private RouteOutcome b0Outcome(String capabilityCode, String fallbackReason) {
+        ModelVersionTriple baseline = ModelVersionTriple.baseline();
         return new RouteOutcome(
-            executeB0Fallback(capabilityCode), "B0", "B0-Deterministic-Baseline", "baseline",
+            executeB0Fallback(capabilityCode), "B0", baseline.modelVersion(), baseline.promptVersion(),
+            baseline.toolVersion(),
             "[]", null, "LOW", true, fallbackReason, "DEGRADED");
+    }
+
+    private ModelVersionTriple activeTripleOrBaseline(String tenantId, String capabilityCode) {
+        return versionBundleRepository
+            .findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capabilityCode, "ACTIVE")
+            .map(bundle -> new ModelVersionTriple(bundle.promptVersion(), bundle.toolVersion(), bundle.modelVersion()))
+            .orElseGet(ModelVersionTriple::baseline);
     }
 
     /**

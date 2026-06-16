@@ -67,6 +67,49 @@ test('clinical-signals list 经只读统计端点取数', async () => {
   assert.equal(client.calls.get[0], '/api/v1/engine-data/clinical-signals');
 });
 
+test('agent submit-candidate 派发 submitProductionCandidate 受控工具并携带结构化候选载荷', async () => {
+  const client = fakeClient();
+  const payload = {
+    jobCode: 'job-agent',
+    idempotencyKey: 'idem-agent-1',
+    dataLevel: 'D1',
+    submission: {
+      candidate: {
+        assetType: 'RULE',
+        assetIdentity: 'rule:agent:1',
+        subject: 'Agent 回写规则候选',
+        versionLabel: 'agent-draft-v1',
+        sources: [{ sourceRef: 'GL-HTN-2024:v1:section-1', authorityLevel: 'B_GUIDELINE' }],
+        trustLevel: 'B_GUIDELINE',
+        riskLevel: 'MEDIUM',
+        orgScope: 'tenant-1',
+        contentHash: 'a'.repeat(64),
+        payload: '{"aiGenerated":true}',
+        lifecycleStatus: 'DRAFT',
+      },
+      target: { targetIdentityId: 77 },
+    },
+  };
+
+  await runCommand(client, 'agent', 'submit-candidate', [JSON.stringify(payload)], {
+    purpose: 'Agent 受控回写',
+  });
+
+  assert.deepEqual(client.calls.executeTool[0], {
+    name: 'submitProductionCandidate',
+    body: { purpose: 'Agent 受控回写', payload },
+  });
+});
+
+test('agent submit-candidate 候选载荷非 JSON 时结构化拒绝', async () => {
+  const client = fakeClient();
+  await assert.rejects(
+    () => runCommand(client, 'agent', 'submit-candidate', ['not-json'], {}),
+    (err) => err instanceof CliUsageError && /payloadJson/.test(err.message),
+  );
+  assert.equal(client.calls.executeTool.length, 0);
+});
+
 test('exports submit 经审批闸控制的导出端点，带审批ID与幂等键', async () => {
   const client = fakeClient();
   await runCommand(client, 'exports', 'submit', ['RULE_USAGE', 'exp-1', 'idem-1'], { windowDays: '90' });

@@ -184,7 +184,10 @@ class MigrationBaselineContractTest {
         "V133__doc_parse_job.sql",
         "V134__diagnosis_knowledge_menu_permission.sql",
         "V135__terminology_candidate_generation_job.sql",
-        "V136__aik_gate_result.sql"
+        "V136__aik_gate_result.sql",
+        "V137__knowledge_generation_triage.sql",
+        "V138__knowledge_shadow_run.sql",
+        "V139__mk_llm_model_version_bundle.sql"
     );
 
     @Test
@@ -197,6 +200,46 @@ class MigrationBaselineContractTest {
                     "generated_count", "candidate_page_uri", "generation_job_code")
                 .contains("ck_mk_term_candidate_generation_job_status")
                 .contains("idx_mapping_candidate_generation_job");
+        }
+    }
+
+    @Test
+    void knowledgeGenerationTriageIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V137__knowledge_generation_triage.sql");
+            assertThat(ddl)
+                .as("%s 生成期知识候选分流必须持久化 8 态、动作与审计依据", dialect)
+                .contains("mk_knowledge_generation_triage", "triage_state", "action", "basis")
+                .contains("NEW_ASSET", "DUPLICATE", "MINOR_REVISION", "MAJOR_UPGRADE",
+                    "CONFLICT", "DOWNGRADE", "DEPRECATION", "UNCERTAIN")
+                .contains("SKIP_DUPLICATE", "idx_mk_knowledge_generation_triage_job");
+        }
+    }
+
+    @Test
+    void knowledgeShadowRunIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V138__knowledge_shadow_run.sql");
+            assertThat(ddl)
+                .as("%s 生成期影子评测必须持久化指标、退化标记和达标裁决", dialect)
+                .contains("mk_knowledge_shadow_run", "capability_code", "total_cases",
+                    "hit_count", "false_positive_count", "miss_count", "ready_for_review", "basis")
+                .contains("NOT_READY", "FAILED", "PASSED", "PENDING_REVIEW")
+                .contains("idx_mk_knowledge_shadow_run_job", "ck_mk_knowledge_shadow_run_status");
+        }
+    }
+
+    @Test
+    void modelVersionBundleIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V139__mk_llm_model_version_bundle.sql");
+            assertThat(ddl)
+                .as("%s LLM-04 版本三元组必须持久化版本号、hash 与任务 tool_version", dialect)
+                .contains("mk_llm_model_version_bundle", "prompt_version", "prompt_hash",
+                    "tool_version", "tool_hash", "model_version", "model_hash")
+                .contains("model_capability_task", "ck_mk_llm_model_version_bundle_status",
+                    "idx_mk_llm_model_version_bundle_capability")
+                .contains("模型版本三元组版本包");
         }
     }
 
@@ -300,6 +343,7 @@ class MigrationBaselineContractTest {
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
+        "mk_knowledge_generation_triage", "mk_knowledge_shadow_run", "mk_llm_model_version_bundle",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule", "mk_term_candidate_generation_job",
         "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
@@ -493,6 +537,9 @@ class MigrationBaselineContractTest {
         "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
         "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
         "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
+        "idx_mk_knowledge_generation_triage_job", "idx_mk_knowledge_generation_triage_identity",
+        "idx_mk_knowledge_shadow_run_job", "idx_mk_knowledge_shadow_run_status",
+        "idx_mk_llm_model_version_bundle_capability",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -595,6 +642,9 @@ class MigrationBaselineContractTest {
         "uk_mk_knowledge_production_job_code", "ck_mk_knowledge_production_job_producer",
         "ck_mk_knowledge_production_job_pipeline", "ck_mk_knowledge_production_job_status",
         "ck_mk_knowledge_production_job_domain", "ck_mk_knowledge_production_candidate_risk",
+        "ck_mk_knowledge_generation_triage_state", "ck_mk_knowledge_generation_triage_action",
+        "ck_mk_knowledge_shadow_run_status", "ck_mk_knowledge_shadow_run_counts",
+        "ck_mk_llm_model_version_bundle_status",
         "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
@@ -845,7 +895,7 @@ class MigrationBaselineContractTest {
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
-        "mk_aik_gate_result",
+        "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "mk_knowledge_customization",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
@@ -991,6 +1041,8 @@ class MigrationBaselineContractTest {
         Map.entry("mk_engine_data_export_job", Set.of("status")),
         Map.entry("mk_knowledge_production_job", Set.of("status", "domain")),
         Map.entry("mk_knowledge_production_candidate", Set.of("risk_level")),
+        Map.entry("mk_knowledge_generation_triage", Set.of("triage_state", "action", "content_hash")),
+        Map.entry("mk_knowledge_shadow_run", Set.of("status", "capability_code", "content_hash")),
         Map.entry("mk_doc_parse_job", Set.of("status")),
         Map.entry("standard_term", Set.of("version_no", "status")),
         Map.entry("mk_term_high_risk_rule", Set.of("rule_type", "status")),

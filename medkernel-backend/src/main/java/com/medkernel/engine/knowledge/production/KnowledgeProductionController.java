@@ -20,6 +20,13 @@ import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProducer;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionRequest;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionResult;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRun;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
@@ -41,17 +48,32 @@ public class KnowledgeProductionController {
     private final ProfessionalAssetTemplateRegistry templateRegistry;
     private final CandidateGenerationOrchestrationService generationService;
     private final CandidateSafetyGateService gateService;
+    private final KnowledgeGenerationTriageService triageService;
+    private final KnowledgeShadowEvaluationService shadowService;
+    private final CandidateCoexistenceService coexistenceService;
+    private final KnowledgeProductionReadinessService readinessService;
+    private final ModelKnowledgeProducer modelKnowledgeProducer;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
                                          ProfessionalAssetTemplateRegistry templateRegistry,
                                          CandidateGenerationOrchestrationService generationService,
-                                         CandidateSafetyGateService gateService) {
+                                         CandidateSafetyGateService gateService,
+                                         KnowledgeGenerationTriageService triageService,
+                                         KnowledgeShadowEvaluationService shadowService,
+                                         CandidateCoexistenceService coexistenceService,
+                                         KnowledgeProductionReadinessService readinessService,
+                                         ModelKnowledgeProducer modelKnowledgeProducer) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
         this.generationService = generationService;
         this.gateService = gateService;
+        this.triageService = triageService;
+        this.shadowService = shadowService;
+        this.coexistenceService = coexistenceService;
+        this.readinessService = readinessService;
+        this.modelKnowledgeProducer = modelKnowledgeProducer;
     }
 
     @PostMapping("/jobs")
@@ -99,6 +121,24 @@ public class KnowledgeProductionController {
         return ApiResult.ok(provenanceService.resolve(request.candidateRefs()));
     }
 
+    /** 候选共存视图（AIK-STD-09/11）：待审候选不执行，现行 ACTIVE 仍是唯一执行版本。 */
+    @GetMapping("/candidates/coexistence")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<CandidateCoexistenceView> candidateCoexistence(@RequestParam String candidateRef) {
+        return ApiResult.ok(coexistenceService.resolve(candidateRef));
+    }
+
+    /** 正式模型生成知识 readiness 闸（AIK-STD-13/LLM-01/02/04）：只读返回阻断项，不调用模型。 */
+    @GetMapping("/readiness")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeProductionReadinessResponse> readiness(
+            @RequestParam(required = false, defaultValue = "API_MODEL") KnowledgeProducer producer,
+            @RequestParam(required = false) String capabilityCode,
+            @RequestParam(required = false) String providerCode,
+            @RequestParam(required = false) String modelStrategy) {
+        return ApiResult.ok(readinessService.evaluate(producer, capabilityCode, providerCode, modelStrategy));
+    }
+
     /** 完成 job（FR-1）。 */
     @PostMapping("/jobs/{jobCode}/complete")
     @PreAuthorize("@perm.has('knowledge.write')")
@@ -134,10 +174,33 @@ public class KnowledgeProductionController {
         return ApiResult.ok(generationService.generate(request));
     }
 
+    /** 模型生产器生成知识候选（AIK-STD-13 FR2）：readiness → 模型网关 → 同一候选流水线。 */
+    @PostMapping("/jobs/{jobCode}/model-candidates")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ModelKnowledgeProductionResult> generateModelCandidate(
+            @PathVariable String jobCode,
+            @Valid @RequestBody ModelKnowledgeProductionRequest request) {
+        return ApiResult.ok(modelKnowledgeProducer.generate(jobCode, request));
+    }
+
     /** 候选安全门禁结果列表（AIK-STD-05 FR-5）：按 job 回溯逐项门禁判定与不过原因，可审计。 */
     @GetMapping("/jobs/{jobCode}/gate-results")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<AikGateResult>> gateResults(@PathVariable String jobCode) {
         return ApiResult.ok(gateService.listResults(jobCode));
+    }
+
+    /** 生成期 8 态分流结果列表（AIK-STD-10 FR-5）：按 job 回溯身份识别、去重与处理去向。 */
+    @GetMapping("/jobs/{jobCode}/triage-results")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<GenerationTriage>> triageResults(@PathVariable String jobCode) {
+        return ApiResult.ok(triageService.listResults(jobCode));
+    }
+
+    /** 生成期影子评测结果列表（AIK-STD-06 FR-2/3/4）：只读回溯指标、退化和达标裁决。 */
+    @GetMapping("/jobs/{jobCode}/shadow-runs")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<KnowledgeShadowRun>> shadowRuns(@PathVariable String jobCode) {
+        return ApiResult.ok(shadowService.listResults(jobCode));
     }
 }

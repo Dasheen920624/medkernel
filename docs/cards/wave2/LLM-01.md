@@ -15,7 +15,12 @@
 模型能力网关**引擎**：provider 无关契约 + 路由策略持久化 + 组织继承 + B0 诚实空候选（不写死病种）——所有 AI 增强能力的统一入口与降级裁决中枢。
 
 ## 现状（搬迁时核查 2026-05-31，以 `medkernel-backend` 为准）
-**MVP 已建**：`engine/llm/ModelGatewayService`（470 行）实现能力状态、`submitTask`（脱敏→hash→路由→Schema 校验→B0 回退→审计）、`getTask`/`retryTask`/`validatePolicy`；`ModelCapabilityPolicy`(route_strategy/desensitize_strategy/expected_schema) + `ModelCapabilityTask` 实体；五方言 `V18`。当前 **provider 未接入，一律 B0 诚实回退**（注释明确 B1/B2 由 [LLM-08](LLM-08.md) 落地）。本卡＝**固化引擎契约**：路由策略组织继承（现仅租户级）、B0 候选去硬编码（现 `executeB0Fallback` 内置高血压样例，需改为引既有规则/字典/路径事实而非写死）、能力码目录化。
+**MVP 已建**：`engine/llm/ModelGatewayService` 实现能力状态、`submitTask`（脱敏→hash→路由→Schema 校验→B0 回退→审计）、`getTask`/`retryTask`/`validatePolicy`；`ModelCapabilityPolicy`(route_strategy/desensitize_strategy/expected_schema) + `ModelCapabilityTask` 实体；五方言 `V18`。**LLM-08 已落 provider 机制**：B1/B2 通过 `ModelProviderRegistry` 解析健康 provider，外部 provider 先过出域白名单/审批闸；缺 provider、部署形态禁外部、出域阻断或 provider 调用失败均诚实降级 B0。当前 B0 回退返回统一空候选信封，不写死医学事实。剩余：路由策略组织继承、版本仓绑定和完整故障矩阵仍待 [LLM-02](LLM-02.md)/[LLM-04](LLM-04.md) 收口。
+
+## 最新进度（2026-06-16 readiness 前置闸）
+- 知识生产侧已新增 `KnowledgeProductionReadinessService`，在真实模型生成知识前校验 provider 可用、评测通过、出域治理、能力策略、prompt/tool/model 三元组和 P6 独立验收；未通过时不进入模型调用。
+- 本卡的“网关可调用”不等于“知识生产可正式模型生成”：P6、文献资料库、真实基准集、凭据引用和独立验收仍是 readiness 的强阻断项。
+- LLM-02 降级矩阵已把 provider 缺位、限流、超时、结构化失败、断连、出域阻断归因到稳定 `fallbackReason`；LLM-04 版本包已让 provider 成功任务绑定 prompt/tool/model 三元组。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 路由裁决：按策略 `BASELINE/LOCAL_MODEL/EXTERNAL_MODEL/DISABLED` 选路；无 provider → B0。

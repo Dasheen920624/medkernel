@@ -22,6 +22,7 @@ public record ModelCapabilityTask(
     @Column("model_mode") String modelMode,
     @Column("model_version") String modelVersion,
     @Column("prompt_version") String promptVersion,
+    @Column("tool_version") String toolVersion,
     @Column("source_citations") String sourceCitations,
     Double confidence,
     @Column("risk_level") String riskLevel,

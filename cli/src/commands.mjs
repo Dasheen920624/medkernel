@@ -17,6 +17,7 @@ export const DOMAINS = {
   knowledge: '查询知识身份存在性、关键词检索、知识使用统计',
   rules: '检查规则解释、规则使用统计',
   'clinical-signals': '查看脱敏聚合后的临床信号与引擎降级情况',
+  agent: '通过受控工具回写 AI Agent 生产候选',
   privacy: '验证数据分级是否准入数据服务/CLI/MCP',
   exports: '提交与查看经审批闸控制的异步导出任务（submit/status/list/cancel/complete）',
   diagnostics: '检查服务连通、受控工具目录与状态',
@@ -32,6 +33,15 @@ function requireArgAt(positional, index, name) {
     throw new CliUsageError(`缺少参数 ${name}`);
   }
   return value;
+}
+
+function parseJsonArg(positional, index, name) {
+  const raw = requireArgAt(positional, index, name);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new CliUsageError(`${name} 必须是合法 JSON`);
+  }
 }
 
 export async function runCommand(client, domain, action, positional = [], options = {}) {
@@ -84,6 +94,20 @@ export async function runCommand(client, domain, action, positional = [], option
           return { domain, action, result: await client.executeTool('summarizeEngineSignals', { purpose }) };
         default:
           throw new CliUsageError(`clinical-signals 不支持的动作：${action || '(空)'}（可用：list|summary）`);
+      }
+    case 'agent':
+      switch (action) {
+        case 'submit-candidate':
+          return {
+            domain,
+            action,
+            result: await client.executeTool('submitProductionCandidate', {
+              purpose,
+              payload: parseJsonArg(positional, 0, 'payloadJson'),
+            }),
+          };
+        default:
+          throw new CliUsageError(`agent 不支持的动作：${action || '(空)'}（可用：submit-candidate）`);
       }
     case 'privacy':
       switch (action) {

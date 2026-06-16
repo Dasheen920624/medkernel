@@ -21,7 +21,14 @@ import com.medkernel.engine.knowledge.production.ProductionJobRequest;
 import com.medkernel.engine.knowledge.production.ProductionJobResponse;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.gate.GateContext;
+import com.medkernel.engine.knowledge.production.gate.GateItemResult;
 import com.medkernel.engine.knowledge.production.gate.GateOutcome;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowContext;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -42,19 +49,25 @@ public class CandidateGenerationOrchestrationService {
     private final SourceCandidateGenerator generator;
     private final KnowledgeProductionOrchestrationService production;
     private final CandidateSafetyGateService gateService;
+    private final KnowledgeGenerationTriageService triageService;
+    private final KnowledgeShadowEvaluationService shadowService;
 
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
                                                    SourceFragmentRepository fragments,
                                                    SourceCandidateGenerator generator,
                                                    KnowledgeProductionOrchestrationService production,
-                                                   CandidateSafetyGateService gateService) {
+                                                   CandidateSafetyGateService gateService,
+                                                   KnowledgeGenerationTriageService triageService,
+                                                   KnowledgeShadowEvaluationService shadowService) {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
         this.generator = generator;
         this.production = production;
         this.gateService = gateService;
+        this.triageService = triageService;
+        this.shadowService = shadowService;
     }
 
     @Transactional
@@ -87,9 +100,24 @@ public class CandidateGenerationOrchestrationService {
                 tenantId, document, version, sourceFragments, item.assetType(),
                 deriveIdentity(item.target()));
             // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
-            GateOutcome outcome = gateService.evaluate(envelope, new GateContext(tenantId, job.jobCode()));
+            GateOutcome outcome = gateService.evaluate(
+                envelope,
+                new GateContext(tenantId, job.jobCode(), item.target().targetIdentityId()));
             if (!outcome.passed()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
+                continue;
+            }
+            GenerationTriageDecision triage = triageService.evaluate(envelope, new GenerationTriageContext(
+                tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
+            if (!triage.shouldSubmit()) {
+                skipped.add(new SkippedType(item.assetType(), "生成期分流跳过：" + triage.basis()));
+                continue;
+            }
+            KnowledgeShadowDecision shadow = shadowService.evaluate(envelope, new KnowledgeShadowContext(
+                tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
+            if (!shadow.readyForReview()) {
+                blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(),
+                    List.of(GateItemResult.fail(KnowledgeShadowEvaluationService.SHADOW_GATE_CODE, shadow.basis()))));
                 continue;
             }
             CandidateSubmissionResponse response =

@@ -1,12 +1,27 @@
 package com.medkernel.engine.datasvc;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.factory.AssetSourceRef;
+import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.production.CandidateSubmissionRequest;
+import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
+import com.medkernel.engine.knowledge.production.KnowledgeProductionOrchestrationService;
+import com.medkernel.engine.knowledge.production.ProductionCandidateView;
+import com.medkernel.engine.security.PermissionEvaluator;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -36,8 +51,13 @@ public class ControlledToolService {
     static final String TOOL_SEARCH_KNOWLEDGE = "searchKnowledge";
     static final String TOOL_VALIDATE_PRIVACY_POLICY = "validatePrivacyPolicy";
     static final String TOOL_GET_CLINICAL_CONTEXT_EXPLANATION = "getClinicalContextExplanation";
+    static final String TOOL_SUBMIT_PRODUCTION_CANDIDATE = "submitProductionCandidate";
     private static final String REQUIRED_PERMISSION = "engine-data.read";
+    private static final String WRITE_PERMISSION = "knowledge.write";
     private static final String FINGERPRINT_BLANK_MESSAGE = "工具输出指纹不可为空";
+    private static final String SHA256_HEX = "^[0-9a-f]{64}$";
+    private static final Set<String> FORBIDDEN_PATIENT_FIELDS = Set.of(
+        "patientid", "patientname", "idcard", "phone", "encounterid", "medicalrecord");
 
     private final RuleUsageStatsService ruleUsageStatsService;
     private final KnowledgeUsageStatsService knowledgeUsageStatsService;
@@ -47,7 +67,10 @@ public class ControlledToolService {
     private final KnowledgeSearchService knowledgeSearchService;
     private final PrivacyPolicyService privacyPolicyService;
     private final ClinicalContextService clinicalContextService;
+    private final KnowledgeProductionOrchestrationService productionService;
+    private final PermissionEvaluator permissionEvaluator;
     private final AuditRecorder auditRecorder;
+    private final ObjectMapper objectMapper;
 
     public ControlledToolService(RuleUsageStatsService ruleUsageStatsService,
             KnowledgeUsageStatsService knowledgeUsageStatsService,
@@ -57,7 +80,10 @@ public class ControlledToolService {
             KnowledgeSearchService knowledgeSearchService,
             PrivacyPolicyService privacyPolicyService,
             ClinicalContextService clinicalContextService,
-            AuditRecorder auditRecorder) {
+            KnowledgeProductionOrchestrationService productionService,
+            PermissionEvaluator permissionEvaluator,
+            AuditRecorder auditRecorder,
+            ObjectMapper objectMapper) {
         this.ruleUsageStatsService = ruleUsageStatsService;
         this.knowledgeUsageStatsService = knowledgeUsageStatsService;
         this.clinicalSignalsService = clinicalSignalsService;
@@ -66,7 +92,10 @@ public class ControlledToolService {
         this.knowledgeSearchService = knowledgeSearchService;
         this.privacyPolicyService = privacyPolicyService;
         this.clinicalContextService = clinicalContextService;
+        this.productionService = productionService;
+        this.permissionEvaluator = permissionEvaluator;
         this.auditRecorder = auditRecorder;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -87,14 +116,17 @@ public class ControlledToolService {
             new ControlledToolDescriptor(TOOL_VALIDATE_PRIVACY_POLICY,
                 "判定数据分级是否准入数据服务/CLI/MCP", EngineDataLevel.D0, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_GET_CLINICAL_CONTEXT_EXPLANATION,
-                "解释临床 launch 令牌授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION));
+                "解释临床 launch 令牌授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION),
+            new ControlledToolDescriptor(TOOL_SUBMIT_PRODUCTION_CANDIDATE,
+                "Agent 受控回写候选到知识生产流水线", EngineDataLevel.D1, WRITE_PERMISSION));
     }
 
     /**
      * 执行受控工具，返回 FR-4 治理信封。未知工具结构化 404（不泄漏内部）。
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public ToolExecutionEnvelope execute(String toolName, ToolExecutionRequest request) {
+        requireToolPermission(toolName);
         return switch (toolName) {
             case TOOL_QUERY_RULE_USAGE -> executeQueryRuleUsage(request);
             case TOOL_SUMMARIZE_ENGINE_SIGNALS -> executeSummarizeEngineSignals(request);
@@ -103,8 +135,180 @@ public class ControlledToolService {
             case TOOL_SEARCH_KNOWLEDGE -> executeSearchKnowledge(request);
             case TOOL_VALIDATE_PRIVACY_POLICY -> executeValidatePrivacyPolicy(request);
             case TOOL_GET_CLINICAL_CONTEXT_EXPLANATION -> executeGetClinicalContextExplanation(request);
+            case TOOL_SUBMIT_PRODUCTION_CANDIDATE -> executeSubmitProductionCandidate(request);
             default -> throw ApiException.notFound("受控工具 " + toolName);
         };
+    }
+
+    private ToolExecutionEnvelope executeSubmitProductionCandidate(ToolExecutionRequest request) {
+        AgentProductionCandidatePayload payload = requireAgentPayload(request);
+        validateAgentPayload(payload);
+        CandidateSubmissionRequest submission = payload.submission();
+        CandidateSubmissionResponse response = findExistingByContentHash(payload.jobCode(), submission.candidate())
+            .map(existing -> new CandidateSubmissionResponse(existing.candidateRef(), existing.routing()))
+            .orElseGet(() -> productionService.submitCandidate(
+                payload.jobCode(), submission.candidate(), submission.target()));
+        String fingerprint = TOOL_SUBMIT_PRODUCTION_CANDIDATE + "|job=" + payload.jobCode()
+            + "|idem=" + payload.idempotencyKey() + "|asset=" + submission.candidate().assetIdentity()
+            + "|hash=" + submission.candidate().contentHash() + "|ref=" + response.candidateRef();
+        return envelope(TOOL_SUBMIT_PRODUCTION_CANDIDATE, EngineDataLevel.D1, Instant.now(),
+            false, null, fingerprint, response, request.purpose());
+    }
+
+    private AgentProductionCandidatePayload requireAgentPayload(ToolExecutionRequest request) {
+        Object raw = request.payload();
+        if (raw == null) {
+            throw schemaInvalid("submitProductionCandidate 必须携带 payload");
+        }
+        if (raw instanceof AgentProductionCandidatePayload payload) {
+            return payload;
+        }
+        try {
+            return objectMapper.convertValue(raw, AgentProductionCandidatePayload.class);
+        } catch (IllegalArgumentException invalidPayload) {
+            throw schemaInvalid("payload 不能转换为 Agent 候选回写协议");
+        }
+    }
+
+    private void validateAgentPayload(AgentProductionCandidatePayload payload) {
+        if (payload == null) {
+            throw schemaInvalid("payload 不能为空");
+        }
+        if (blank(payload.jobCode())) {
+            throw schemaInvalid("jobCode 不能为空");
+        }
+        if (blank(payload.idempotencyKey())) {
+            throw schemaInvalid("idempotencyKey 不能为空");
+        }
+        guardAgentDataLevel(payload.dataLevel());
+        CandidateSubmissionRequest submission = payload.submission();
+        if (submission == null || submission.candidate() == null || submission.target() == null) {
+            throw schemaInvalid("submission.candidate 与 submission.target 不能为空");
+        }
+        try {
+            submission.target().validate();
+        } catch (IllegalArgumentException invalidTarget) {
+            throw schemaInvalid(invalidTarget.getMessage());
+        }
+        validateCandidateEnvelope(submission.candidate());
+    }
+
+    private void guardAgentDataLevel(String dataLevel) {
+        String normalized = blank(dataLevel) ? "D1" : dataLevel.trim().toUpperCase(Locale.ROOT);
+        EngineDataLevel level;
+        try {
+            level = EngineDataLevel.valueOf(normalized);
+        } catch (IllegalArgumentException invalidLevel) {
+            throw schemaInvalid("dataLevel 取值无效：" + dataLevel);
+        }
+        if (level == EngineDataLevel.D3 || level == EngineDataLevel.D4 || level == EngineDataLevel.D5) {
+            throw new ApiException(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN,
+                "Agent 回写只能携带公开医学资料或受控来源元数据，禁止 " + level + " 患者相关数据");
+        }
+    }
+
+    private void validateCandidateEnvelope(KnowledgeAssetEnvelope candidate) {
+        if (candidate.sources() == null || candidate.sources().isEmpty()) {
+            throw schemaInvalid("候选必须携带至少一个来源锚点");
+        }
+        for (AssetSourceRef source : candidate.sources()) {
+            if (source == null || !anchoredSource(source.sourceRef())) {
+                throw schemaInvalid("来源引用必须为 sourceCode:versionNo:anchorPath 形式");
+            }
+        }
+        if (blank(candidate.payload())) {
+            throw schemaInvalid("候选 payload 不能为空");
+        }
+        if (blank(candidate.contentHash()) || !candidate.contentHash().matches(SHA256_HEX)) {
+            throw schemaInvalid("contentHash 必须为 64 位小写 SHA-256");
+        }
+        String realHash = Sha256ContentHash.sha256(candidate.payload(), "资产内容不能为空");
+        if (!realHash.equals(candidate.contentHash())) {
+            throw schemaInvalid("contentHash 与 payload 不一致");
+        }
+        JsonNode payload = parseCandidatePayload(candidate.payload());
+        if (!payload.path("aiGenerated").asBoolean(false)) {
+            throw schemaInvalid("Agent 回写候选必须显式 aiGenerated=true");
+        }
+        if (containsForbiddenPatientField(payload)) {
+            throw new ApiException(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN,
+                "Agent 回写 payload 含患者字段，禁止进入知识生产候选链");
+        }
+    }
+
+    private JsonNode parseCandidatePayload(String payload) {
+        try {
+            return objectMapper.readTree(payload);
+        } catch (JsonProcessingException invalidJson) {
+            throw schemaInvalid("候选 payload 必须为 JSON");
+        }
+    }
+
+    private boolean containsForbiddenPatientField(JsonNode node) {
+        if (node == null) {
+            return false;
+        }
+        if (node.isObject()) {
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                if (FORBIDDEN_PATIENT_FIELDS.contains(entry.getKey().toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+                if (containsForbiddenPatientField(entry.getValue())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (containsForbiddenPatientField(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<ProductionCandidateView> existingCandidates(String jobCode) {
+        // listCandidates 已改为分页（#632）；内容 hash 去重需全量候选，故按最大页逐页拉取至无下一页。
+        List<ProductionCandidateView> candidates = new ArrayList<>();
+        int page = PageRequest.DEFAULT_PAGE;
+        PageResponse<ProductionCandidateView> response;
+        do {
+            response = productionService.listCandidates(jobCode, page, PageRequest.MAX_SIZE);
+            candidates.addAll(response.items());
+            page++;
+        } while (response.hasNext());
+        return candidates;
+    }
+
+    private java.util.Optional<ProductionCandidateView> findExistingByContentHash(
+            String jobCode, KnowledgeAssetEnvelope candidate) {
+        return existingCandidates(jobCode).stream()
+            .filter(existing -> candidate.contentHash().equals(existing.contentHash()))
+            .findFirst();
+    }
+
+    private boolean anchoredSource(String sourceRef) {
+        if (blank(sourceRef)) {
+            return false;
+        }
+        String[] parts = sourceRef.split(":", 3);
+        return parts.length == 3 && !blank(parts[0]) && !blank(parts[1]) && !blank(parts[2]);
+    }
+
+    private ApiException schemaInvalid(String reason) {
+        return new ApiException(ErrorCode.AGENT_CANDIDATE_SCHEMA_INVALID,
+            "Agent 回写候选不合格：" + reason);
+    }
+
+    private void requireToolPermission(String toolName) {
+        String required = TOOL_SUBMIT_PRODUCTION_CANDIDATE.equals(toolName) ? WRITE_PERMISSION : REQUIRED_PERMISSION;
+        if (!permissionEvaluator.has(required)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "受控工具 " + toolName + " 需要权限 " + required);
+        }
     }
 
     private ToolExecutionEnvelope executeGetClinicalContextExplanation(ToolExecutionRequest request) {
@@ -221,5 +425,9 @@ public class ControlledToolService {
             case D4 -> "D4_MASKED_MINIMAL_CONTEXT";
             default -> "RESTRICTED_FIELD_ENCRYPTION_REQUIRED";
         };
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }

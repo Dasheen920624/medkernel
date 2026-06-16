@@ -15,14 +15,20 @@
 定义并实现 **B0（无模型确定性）/ B1（本地）/ B2（外部）三级策略**与**故障切换矩阵**：超时 / 限流 / 结构失败 / 断网任一发生即逐级回退到 B0，全程诚实标注。
 
 ## 现状（搬迁时核查 2026-05-31）
-**待建**（[LLM-01](LLM-01.md) 已有单点 B0 回退 + `baselineReason` 归因雏形，但无系统化切换矩阵、无 B1/B2 因 provider 未接）。本卡＝把切换规则**矩阵化 + 可配 + 可验收**。
+**部分已建**（[LLM-01](LLM-01.md) 已有 B0 回退 + `baselineReason` 归因；[LLM-08](LLM-08.md) 已接 provider 注册、健康解析和外部出域闸）：provider 缺位、部署形态禁外部、出域阻断、provider 调用失败均诚实降级 B0。尚缺系统化 4×3 故障切换矩阵、限流/超时专项归因、可配 fallback order 与全组合验收。本卡＝把切换规则**矩阵化 + 可配 + 可验收**。
+
+## 最新进度（2026-06-16 readiness 前置闸）
+- 知识生产 readiness 已把“生成知识前是否允许调用模型”前置化：provider、评测、出域、能力策略、版本三元组、P6 任一不满足即结构化阻断，避免进入运行时后才失败。
+- 已新增 `ModelFallbackMatrix` 与稳定触发码：`PROVIDER_TIMEOUT`、`PROVIDER_RATE_LIMITED`、`STRUCTURED_OUTPUT_FAILED`、`PROVIDER_DISCONNECTED`、`PROVIDER_UNAVAILABLE`、`EGRESS_BLOCKED` 等均归因到 B0；`ModelGatewayService` 已接 provider 缺位、出域阻断、provider 异常、429、结构化失败后 B0 降级，响应仍据实标 `mode/fallbackUsed/fallbackReason`。
+- 已补 `ModelFallbackMatrixTest` 完整 4×3 组合矩阵：`PROVIDER_TIMEOUT`/`PROVIDER_RATE_LIMITED`/`STRUCTURED_OUTPUT_FAILED`/`PROVIDER_DISCONNECTED` × `BASELINE`/`LOCAL_MODEL`/`EXTERNAL_MODEL` 均有稳定归因、B0 结果与 retryable 断言。
+- 仍未完成：可配置 fallback order、超时预算配置。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 三级策略：每能力码可配首选级别（B2→B1→B0 降级序）。
-- [ ] FR-2 切换触发：超时 / 限流 429 / 结构化校验失败 / 断网/连接错 → 自动降一级，最终 B0。
-- [ ] FR-3 诚实标注：响应据实标 `mode` + `fallbackUsed` + `fallbackReason`（归因到触发条件）。
-- [ ] FR-4 矩阵可验收：4 触发 × 3 级别组合有对应用例与期望降级结果。
-- [ ] FR-5 不伪造：降级后禁用上一级的模型名/置信度冒充。
+- [x] FR-2 切换触发：超时 / 限流 429 / 结构化校验失败 / 断网/连接错 → 自动降一级，最终 B0。
+- [x] FR-3 诚实标注：响应据实标 `mode` + `fallbackUsed` + `fallbackReason`（归因到触发条件）。
+- [x] FR-4 矩阵可验收：4 触发 × 3 级别组合有对应用例与期望降级结果。
+- [x] FR-5 不伪造：降级后禁用上一级的模型名/置信度冒充。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -51,8 +57,8 @@
 - 本卡落点：4 触发自动逐级回退 B0、全程诚实标注、可矩阵验收。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：4 触发条件分别触发正确降级 + 诚实归因。
-- [ ] AC-2（FR-4）：12 组合矩阵用例全过。
+- [ ] AC-1（FR-1~3）：4 触发条件分别触发正确降级 + 诚实归因。（FR-1 可配置 fallback order/预算仍未收口，暂不闭）
+- [x] AC-2（FR-4）：12 组合矩阵用例全过。
 - 关联 A1–A9 剧本：降级链相关剧本。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★断网/超时/限流/结构失败任一 → 主链路 B0 可运行。

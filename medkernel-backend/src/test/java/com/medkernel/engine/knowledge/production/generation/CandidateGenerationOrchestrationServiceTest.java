@@ -45,6 +45,14 @@ import com.medkernel.engine.knowledge.production.gate.GateItemResult;
 import com.medkernel.engine.knowledge.production.gate.GateOutcome;
 import com.medkernel.engine.knowledge.production.gate.ReviewElementsGate;
 import com.medkernel.engine.knowledge.production.gate.SourcePresentGate;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRunStatus;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageAction;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
@@ -68,14 +76,21 @@ class CandidateGenerationOrchestrationServiceTest {
         List.of(new SourcePresentGate(), new AnchorCompleteGate(), new AuthorityLevelGate(),
             new ContentFormatGate(), new ReviewElementsGate(), new ApplicableScopeGate()),
         gateResults);
+    private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
+    private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
 
     private final CandidateGenerationOrchestrationService service =
         new CandidateGenerationOrchestrationService(
-            versions, documents, fragments, generator, production, gateService);
+            versions, documents, fragments, generator, production, gateService, triageService, shadowService);
 
     @BeforeEach
     void bindTenant() {
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("t-1"), "u-1"));
+        when(triageService.evaluate(any(), any())).thenReturn(new GenerationTriageDecision(
+            1L, GenerationTriageState.MINOR_REVISION, GenerationTriageAction.MERGE_REVIEW,
+            null, null, "进入审核"));
+        when(shadowService.evaluate(any(), any())).thenReturn(new KnowledgeShadowDecision(
+            1L, KnowledgeShadowRunStatus.PASSED, true, "影子评测通过"));
     }
 
     @AfterEach
@@ -157,7 +172,7 @@ class CandidateGenerationOrchestrationServiceTest {
             List.of(GateItemResult.fail("SOURCE_PRESENT", "无来源（无源资产拒收）"))));
         CandidateGenerationOrchestrationService blockingService =
             new CandidateGenerationOrchestrationService(
-                versions, documents, fragments, generator, production, blockingGate);
+                versions, documents, fragments, generator, production, blockingGate, triageService, shadowService);
 
         GenerationSummary summary = blockingService.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
@@ -167,5 +182,60 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.blocked()).hasSize(1);
         assertThat(summary.blocked().get(0).failedGates()).isNotEmpty();
         verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void shadowNotReadyIsBlockedNotSubmitted() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
+                Instant.EPOCH)));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        when(shadowService.evaluate(any(), any())).thenReturn(new KnowledgeShadowDecision(
+            9L, KnowledgeShadowRunStatus.NOT_READY, false, "未配置真实影子评测基准集"));
+
+        GenerationSummary summary = service.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(item(VersionedAssetType.RULE))));
+
+        assertThat(summary.candidates()).isEmpty();
+        assertThat(summary.blocked()).singleElement()
+            .satisfies(blocked -> assertThat(blocked.failedGates()).singleElement()
+                .satisfies(gate -> {
+                    assertThat(gate.code()).isEqualTo("SHADOW_EVAL");
+                    assertThat(gate.reason()).contains("基准集");
+                }));
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void duplicateTriageIsSkippedAndNotSubmitted() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
+                Instant.EPOCH)));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        when(triageService.evaluate(any(), any())).thenReturn(new GenerationTriageDecision(
+            9L, GenerationTriageState.DUPLICATE, GenerationTriageAction.SKIP_DUPLICATE,
+            5L, 5L, "content_hash 与既有版本一致，重复候选跳过"));
+
+        GenerationSummary summary = service.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(new GenerationItem(VersionedAssetType.RULE, new MaterializationTarget(10L, null)))));
+
+        assertThat(summary.candidates()).isEmpty();
+        assertThat(summary.skipped()).singleElement()
+            .satisfies(skipped -> assertThat(skipped.reason()).contains("重复"));
+        verify(production, never()).submitCandidate(any(), any(), any());
+        verify(triageService).evaluate(any(), org.mockito.ArgumentMatchers.argThat(
+            (GenerationTriageContext context) -> context.targetIdentityId().equals(10L)));
     }
 }
