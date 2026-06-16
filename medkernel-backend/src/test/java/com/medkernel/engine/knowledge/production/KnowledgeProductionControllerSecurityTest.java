@@ -26,6 +26,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.engine.security.RoleCode;
@@ -56,6 +57,9 @@ class KnowledgeProductionControllerSecurityTest {
 
     @MockBean
     private CandidateGenerationOrchestrationService generationService;
+
+    @MockBean
+    private CandidateSafetyGateService gateService;
 
     @AfterEach
     void clearContext() {
@@ -129,13 +133,32 @@ class KnowledgeProductionControllerSecurityTest {
 
     @Test
     void knowledgeGovernorCanGenerateCandidates() throws Exception {
-        when(generationService.generate(any())).thenReturn(new GenerationSummary(List.of(), List.of()));
+        when(generationService.generate(any()))
+            .thenReturn(new GenerationSummary(List.of(), List.of(), List.of()));
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadGateResults() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/gate-results"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadGateResults() throws Exception {
+        when(gateService.listResults(anyString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/gate-results")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk());
     }
 
