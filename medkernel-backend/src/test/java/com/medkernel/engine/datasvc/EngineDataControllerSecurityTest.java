@@ -56,6 +56,33 @@ class EngineDataControllerSecurityTest {
     @MockBean
     private EngineDataExportService engineDataExportService;
 
+    private static final String AGENT_CANDIDATE_TOOL_BODY = """
+        {
+          "purpose":"AI Agent 回写生产候选",
+          "payload":{
+            "jobCode":"job-agent",
+            "idempotencyKey":"idem-agent-1",
+            "dataLevel":"D1",
+            "submission":{
+              "candidate":{
+                "assetType":"RULE",
+                "assetIdentity":"rule:agent:1",
+                "subject":"Agent 回写规则候选",
+                "versionLabel":"agent-draft-v1",
+                "sources":[{"sourceRef":"GL-HTN-2024:v1:section-1","authorityLevel":"B_GUIDELINE"}],
+                "trustLevel":"B_GUIDELINE",
+                "riskLevel":"MEDIUM",
+                "orgScope":"tenant-1",
+                "contentHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "payload":"{\\"aiGenerated\\":true}",
+                "lifecycleStatus":"DRAFT"
+              },
+              "target":{"targetIdentityId":77}
+            }
+          }
+        }
+        """;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -144,6 +171,24 @@ class EngineDataControllerSecurityTest {
                     .claim("roles", List.of("clinical-decision-user")))
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanExecuteSubmitProductionCandidateTool() throws Exception {
+        when(controlledToolService.execute(any(), any()))
+            .thenReturn(new ToolExecutionEnvelope("submitProductionCandidate", EngineDataLevel.D1,
+                "D1_PUBLISHED_ASSET_METADATA", "2026-06-14T00:00:00Z", true,
+                false, null, "trace-tool", "a".repeat(64), null));
+
+        mockMvc.perform(post("/api/v1/engine-data/tools/submitProductionCandidate:execute")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(AGENT_CANDIDATE_TOOL_BODY)
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                .andExpect(status().isOk());
     }
 
     @Test

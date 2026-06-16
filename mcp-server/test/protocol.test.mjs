@@ -12,6 +12,7 @@ function fakeClient(overrides = {}) {
       return [
         { name: 'queryRuleUsage', purpose: '查询规则使用聚合统计', dataLevel: 'D2', requiredPermission: 'engine-data.read' },
         { name: 'explainRule', purpose: '解释单条规则', dataLevel: 'D1', requiredPermission: 'engine-data.read' },
+        { name: 'submitProductionCandidate', purpose: 'Agent 受控回写候选', dataLevel: 'D1', requiredPermission: 'knowledge.write' },
       ];
     },
     executeTool: async (name, body) => {
@@ -36,11 +37,13 @@ test('tools/list 经后端 /tools 映射为 MCP 工具（含 inputSchema，purpo
   const res = await handleRequest({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { client });
 
   assert.equal(client.calls.get[0], '/api/v1/engine-data/tools');
-  assert.equal(res.result.tools.length, 2);
+  assert.equal(res.result.tools.length, 3);
   const explain = res.result.tools.find((t) => t.name === 'explainRule');
   assert.match(explain.description, /D1/);
   assert.equal(explain.inputSchema.type, 'object');
   assert.deepEqual(explain.inputSchema.required, ['purpose']);
+  const submit = res.result.tools.find((t) => t.name === 'submitProductionCandidate');
+  assert.equal(submit.inputSchema.properties.payload.type, 'object');
 });
 
 test('tools/call 派发后端受控工具执行并以 text content 返回信封', async () => {

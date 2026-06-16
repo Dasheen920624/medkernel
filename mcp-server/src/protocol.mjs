@@ -66,6 +66,7 @@ function toMcpTool(descriptor) {
         },
         page: { type: 'integer', description: '分页页码（读模型类工具用）' },
         size: { type: 'integer', description: '分页大小（读模型类工具用）' },
+        payload: { type: 'object', description: '结构化工具载荷（写回类工具用，如 submitProductionCandidate）' },
       },
       required: ['purpose'],
     },

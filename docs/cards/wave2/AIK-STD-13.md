@@ -38,7 +38,17 @@
 - 新增 `KnowledgeProductionReadinessService`：正式模型生成知识前只聚合真实前置事实，不调用模型、不造候选；缺文献资料库根地址、部署形态不符、provider 缺失/类型无效/不健康、医学回归基准集为空、provider/模型版本未通过评测、外部出域白名单缺失、能力策略不匹配、prompt/tool/model 三元组缺失或与 provider 模型版本不一致、P6 独立验收未放行时均结构化阻断。
 - `GET /api/v1/engine/knowledge-production/readiness`（`knowledge.read`）：供知识生产中心/运维只读查看 readiness 阻断项；`LOCAL_MODEL` 不要求外部部署形态和出域白名单，但仍要求受控文献根、健康本地 provider、回归评测、能力策略、版本三元组和 P6 放行。
 - 新配置中心项 `medkernel.knowledge.production.p6-independent-acceptance` 默认 `false`、高风险受保护，仅作为 readiness 阻断事实源，不能替代文献库、provider、评测、出域与审核证据。
-- **PR6+ 待做**：FR-2 外部/本地模型生产器实接仍受 readiness + **P6 阻断**；非 discovery 源候选物化（接更宽解析管道 AIK-STD-04/10）。
+**PR6（模型生产器后端接入，分支 `codex/wave2-knowledge-model-readiness`）**：
+- 新增 `ModelKnowledgeProducer`：仅经 `ModelGatewayService` 调用模型；先查 job + readiness，readiness 未齐直接返回结构化阻断项，不调用模型；provider 成功输出先转 `KnowledgeAssetEnvelope`，写入 AI 标识、模型任务 id、模型模式、prompt/tool/model 版本三元组和真实 payload hash，再走同一 `CandidateSafetyGateService → KnowledgeGenerationTriageService → KnowledgeShadowEvaluationService → submitCandidate` 候选流水线。
+- `POST /api/v1/engine/knowledge-production/jobs/{jobCode}/model-candidates`（`knowledge.write`）：API 大模型 / 本地模型 job 产出模型候选；模型输出非 JSON 对象、出域阻断/B0 降级时不产伪候选，分别返回 `MODEL_OUTPUT_SCHEMA` 阻断或跳过原因。
+**PR7（Agent 受控回写后端接入，分支 `codex/wave2-knowledge-model-readiness`）**：
+- DATASVC 受控工具新增 `submitProductionCandidate`，Agent 只能以 `knowledge.write` 经受控工具入口提交 `AgentProductionCandidatePayload`；候选必须带 `jobCode`、幂等键、D1/D2 数据级别、来源锚点、真实内容 hash 与 AI 标识，D3/D4/D5 或疑似患者字段拒绝。
+- 回写调用同一 `KnowledgeProductionOrchestrationService.submitCandidate`，相同 job + `contentHash` 幂等返回既有候选引用；CLI `agent submit-candidate` 与 MCP `payload` schema 完成接线。
+- **Task 22 工程验收已完成**：配置齐全路径可由模型生产器生成 AI 候选并进入同一候选池/门禁/分流/影子/审核链；缺模型、文献根、评测、白名单、三元组、P6 验收等缺口均结构化阻断，不调用模型、不造假候选。真实外部 provider 现场与 P6 独立放行仍按运行环境另验；Agent 任务中止/纠偏等协同控制继续按 AIK-STD-14 收口。
+**PR8（生产中心只读证据前端，分支 `codex/wave2-knowledge-model-readiness`）**：
+- `知识审核与发布` 页面新增 `知识生产` tab：展示模型生产 readiness、生产 job、候选血缘、AIK 门禁、8 态分流、影子评测和共存替换提醒；默认选中第一页首个 job，所有数据走 `/engine/knowledge-production/*` 真实只读接口和服务端分页 hook。
+- 页面只展示候选生产证据，不提供 AI 生成/创建候选按钮；readiness 未过时明确提示不得调用模型或伪造候选。
+- **Task 22 验证记录**：后端全量 `mvn test` 2722 通过、前端全量 95 文件/740 用例通过，CLI/MCP 与 changed 门禁均通过；卡片仍不勾 Agent 中止/纠偏等未完成协同控制。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
@@ -51,7 +61,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/knowledge-production/jobs`（建 job）、`GET /jobs[/{id}]`（进度）、`POST /jobs/{id}/{cancel,replay}`、`GET /jobs/{id}/candidates`（候选）、`GET /readiness`（模型生产前置闸只读查询）。
+- 端点：`POST /api/v1/engine/knowledge-production/jobs`（建 job）、`GET /jobs[/{id}]`（进度）、`POST /jobs/{id}/{cancel,replay}`、`GET /jobs/{id}/candidates`（候选）、`GET /readiness`（模型生产前置闸只读查询）、`POST /jobs/{jobCode}/model-candidates`（模型生产器生成候选）。
 - DTO：Record DTO + Bean Validation；job 必带 `targetPipeline`(PLATFORM_SOURCE/TENANT_OVERLAY) + `producer` + `assetType` + `tenantId`。
 - 响应信封：`ApiResult`/`ProblemDetail`；幂等键 `Idempotency-Key`；traceId 透传。
 - 状态机：变更类（job：待发布→进行→完成/失败/已取消）；候选入既有配置类版本状态机（[KNOW-02](../D2/KNOW-02.md)）。

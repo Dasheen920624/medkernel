@@ -18,5 +18,10 @@ public record ToolExecutionRequest(
     Instant from,
     Instant to,
     int page,
-    int size
-) {}
+    int size,
+    Object payload
+) {
+    public ToolExecutionRequest(String purpose, String target, Instant from, Instant to, int page, int size) {
+        this(purpose, target, from, to, page, size, null);
+    }
+}

@@ -120,7 +120,7 @@ public class EngineDataController {
      * （traceId/数据级别/脱敏策略/来源版本/权限结果/降级状态/输出 hash）。未知工具返回结构化 404。
      */
     @PostMapping("/tools/{toolName}:execute")
-    @PreAuthorize("@perm.has('engine-data.read')")
+    @PreAuthorize("@perm.hasAny('engine-data.read','knowledge.write')")
     public ApiResult<ToolExecutionEnvelope> executeTool(
             @PathVariable String toolName,
             @Valid @RequestBody ToolExecutionRequest request) {

@@ -20,6 +20,9 @@ import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProducer;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionRequest;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionResult;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRun;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
@@ -49,6 +52,7 @@ public class KnowledgeProductionController {
     private final KnowledgeShadowEvaluationService shadowService;
     private final CandidateCoexistenceService coexistenceService;
     private final KnowledgeProductionReadinessService readinessService;
+    private final ModelKnowledgeProducer modelKnowledgeProducer;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
@@ -58,7 +62,8 @@ public class KnowledgeProductionController {
                                          KnowledgeGenerationTriageService triageService,
                                          KnowledgeShadowEvaluationService shadowService,
                                          CandidateCoexistenceService coexistenceService,
-                                         KnowledgeProductionReadinessService readinessService) {
+                                         KnowledgeProductionReadinessService readinessService,
+                                         ModelKnowledgeProducer modelKnowledgeProducer) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
@@ -68,6 +73,7 @@ public class KnowledgeProductionController {
         this.shadowService = shadowService;
         this.coexistenceService = coexistenceService;
         this.readinessService = readinessService;
+        this.modelKnowledgeProducer = modelKnowledgeProducer;
     }
 
     @PostMapping("/jobs")
@@ -163,6 +169,15 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
         return ApiResult.ok(generationService.generate(request));
+    }
+
+    /** 模型生产器生成知识候选（AIK-STD-13 FR2）：readiness → 模型网关 → 同一候选流水线。 */
+    @PostMapping("/jobs/{jobCode}/model-candidates")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<ModelKnowledgeProductionResult> generateModelCandidate(
+            @PathVariable String jobCode,
+            @Valid @RequestBody ModelKnowledgeProductionRequest request) {
+        return ApiResult.ok(modelKnowledgeProducer.generate(jobCode, request));
     }
 
     /** 候选安全门禁结果列表（AIK-STD-05 FR-5）：按 job 回溯逐项门禁判定与不过原因，可审计。 */

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,25 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.factory.AssetSourceRef;
+import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
+import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.knowledge.production.CandidateSubmissionRequest;
+import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
+import com.medkernel.engine.knowledge.production.KnowledgeDomain;
+import com.medkernel.engine.knowledge.production.KnowledgeProductionOrchestrationService;
+import com.medkernel.engine.knowledge.production.MaterializationTarget;
+import com.medkernel.engine.knowledge.production.ProductionCandidateView;
+import com.medkernel.engine.knowledge.production.ReviewRoutingDecision;
+import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.security.PermissionEvaluator;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.hash.Sha256ContentHash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +61,8 @@ class ControlledToolServiceTest {
     private KnowledgeSearchService knowledgeSearchService;
     private PrivacyPolicyService privacyPolicyService;
     private ClinicalContextService clinicalContextService;
+    private KnowledgeProductionOrchestrationService productionService;
+    private PermissionEvaluator permissionEvaluator;
     private AuditRecorder auditRecorder;
     private ControlledToolService service;
 
@@ -54,10 +76,14 @@ class ControlledToolServiceTest {
         knowledgeSearchService = mock(KnowledgeSearchService.class);
         privacyPolicyService = mock(PrivacyPolicyService.class);
         clinicalContextService = mock(ClinicalContextService.class);
+        productionService = mock(KnowledgeProductionOrchestrationService.class);
+        permissionEvaluator = mock(PermissionEvaluator.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
             clinicalSignalsService, ruleExplanationService, knowledgeExistenceService,
-            knowledgeSearchService, privacyPolicyService, clinicalContextService, auditRecorder);
+            knowledgeSearchService, privacyPolicyService, clinicalContextService, productionService,
+            permissionEvaluator, auditRecorder, new ObjectMapper());
+        when(permissionEvaluator.has("engine-data.read")).thenReturn(true);
         RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
     }
 
@@ -79,19 +105,142 @@ class ControlledToolServiceTest {
             Instant.parse("2026-06-14T00:00:00Z"), degraded, degraded ? "上游不可用" : null);
     }
 
+    private ToolExecutionRequest agentReq(AgentProductionCandidatePayload payload) {
+        return new ToolExecutionRequest("AI Agent 回写生产候选", null, null, null, 0, 20, payload);
+    }
+
+    private AgentProductionCandidatePayload agentPayload(CandidateSubmissionRequest submission) {
+        return new AgentProductionCandidatePayload("job-agent", "idem-agent-1", "D1", submission);
+    }
+
+    private CandidateSubmissionRequest validSubmission() {
+        String payload = "{\"aiGenerated\":true,\"sections\":{\"summary\":\"仅作为待审候选\"}}";
+        KnowledgeAssetEnvelope envelope = new KnowledgeAssetEnvelope(
+            VersionedAssetType.RULE,
+            "rule:agent:1",
+            "Agent 回写规则候选",
+            "agent-draft-v1",
+            List.of(new AssetSourceRef("GL-HTN-2024:v1:section-1", SourceAuthorityLevel.B_GUIDELINE)),
+            SourceAuthorityLevel.B_GUIDELINE,
+            null,
+            null,
+            KnowledgeRiskLevel.MEDIUM,
+            "tenant-1",
+            Sha256ContentHash.sha256(payload, "资产内容不能为空"),
+            payload,
+            AssetVersionStatus.DRAFT);
+        return new CandidateSubmissionRequest(envelope, new MaterializationTarget(77L, null));
+    }
+
     @Test
     void listTools_registersControlledToolsUnderEngineDataRead() {
         List<ControlledToolDescriptor> tools = service.listTools();
 
         assertThat(tools).extracting(ControlledToolDescriptor::name)
             .contains("queryRuleUsage", "summarizeEngineSignals");
-        // 所有受控工具统一受 engine-data.read 管控（恒不变量）。
-        assertThat(tools).allSatisfy(t ->
+        // 读工具统一受 engine-data.read 管控；写候选工具单独受 knowledge.write 管控。
+        assertThat(tools).filteredOn(t -> !t.name().equals("submitProductionCandidate")).allSatisfy(t ->
             assertThat(t.requiredPermission()).isEqualTo("engine-data.read"));
         // D2 聚合类工具数据级别为 D2。
         assertThat(tools).filteredOn(t -> t.name().equals("queryRuleUsage"))
             .singleElement()
             .satisfies(t -> assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D2));
+    }
+
+    @Test
+    void listTools_registersSubmitProductionCandidateAsWriteTool() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).filteredOn(t -> t.name().equals("submitProductionCandidate"))
+            .singleElement()
+            .satisfies(t -> {
+                assertThat(t.requiredPermission()).isEqualTo("knowledge.write");
+                assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1);
+                assertThat(t.purpose()).contains("回写候选");
+            });
+    }
+
+    @Test
+    void execute_submitProductionCandidate_requiresKnowledgeWrite() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.execute("submitProductionCandidate", agentReq(agentPayload(validSubmission()))))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+        verify(productionService, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void execute_submitProductionCandidate_rejectsD5PatientDataBeforeSubmit() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        AgentProductionCandidatePayload payload =
+            new AgentProductionCandidatePayload("job-agent", "idem-agent-1", "D5", validSubmission());
+
+        assertThatThrownBy(() -> service.execute("submitProductionCandidate", agentReq(payload)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN);
+        verify(productionService, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void execute_submitProductionCandidate_requiresAnchoredSourceAndAiHash() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        CandidateSubmissionRequest invalid = new CandidateSubmissionRequest(
+            new KnowledgeAssetEnvelope(
+                VersionedAssetType.RULE, "rule:agent:1", "Agent 回写规则候选", "agent-draft-v1",
+                List.of(new AssetSourceRef("GL-HTN-2024", SourceAuthorityLevel.B_GUIDELINE)),
+                SourceAuthorityLevel.B_GUIDELINE, null, null, KnowledgeRiskLevel.MEDIUM, "tenant-1",
+                "bad-hash", "{\"aiGenerated\":false}", AssetVersionStatus.DRAFT),
+            new MaterializationTarget(77L, null));
+
+        assertThatThrownBy(() -> service.execute("submitProductionCandidate", agentReq(agentPayload(invalid))))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.AGENT_CANDIDATE_SCHEMA_INVALID);
+        verify(productionService, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void execute_submitProductionCandidate_submitsViaProductionServiceAndAuditsOutputHash() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        when(productionService.listCandidates("job-agent")).thenReturn(List.of());
+        when(productionService.submitCandidate(eq("job-agent"), any(), any())).thenReturn(
+            new CandidateSubmissionResponse("candidate:agent:1",
+                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
+                    false, KnowledgeDomain.CLINICAL)));
+
+        ToolExecutionEnvelope envelope =
+            service.execute("submitProductionCandidate", agentReq(agentPayload(validSubmission())));
+
+        assertThat(envelope.toolName()).isEqualTo("submitProductionCandidate");
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(CandidateSubmissionResponse.class);
+        assertThat(((CandidateSubmissionResponse) envelope.payload()).candidateRef()).isEqualTo("candidate:agent:1");
+        verify(productionService).submitCandidate(eq("job-agent"), any(), any());
+        verify(auditRecorder).record(eq(AuditAction.EXECUTE), eq("engine_data_tool"),
+            eq("submitProductionCandidate"), contains("输出hash="));
+    }
+
+    @Test
+    void execute_submitProductionCandidate_isIdempotentWhenContentHashAlreadySubmitted() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        CandidateSubmissionRequest submission = validSubmission();
+        when(productionService.listCandidates("job-agent")).thenReturn(List.of(new ProductionCandidateView(
+            "job-agent",
+            submission.candidate().assetIdentity(),
+            submission.candidate().contentHash(),
+            "candidate:existing",
+            KnowledgeRiskLevel.MEDIUM,
+            Instant.parse("2026-06-14T00:00:00Z"),
+            "agent",
+            new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
+                false, KnowledgeDomain.CLINICAL))));
+
+        ToolExecutionEnvelope envelope =
+            service.execute("submitProductionCandidate", agentReq(agentPayload(submission)));
+
+        assertThat(((CandidateSubmissionResponse) envelope.payload()).candidateRef()).isEqualTo("candidate:existing");
+        verify(productionService, never()).submitCandidate(any(), any(), any());
     }
 
     @Test

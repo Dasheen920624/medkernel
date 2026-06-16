@@ -87,8 +87,15 @@ import {
   useDeprecateKnowledgeIdentity,
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
+  useKnowledgeProductionCandidates,
+  useKnowledgeProductionGateResults,
+  useKnowledgeProductionJobs,
+  useKnowledgeProductionReadiness,
+  useKnowledgeProductionShadowRuns,
+  useKnowledgeProductionTriageResults,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
   useCreateMpiPatient,
@@ -3554,6 +3561,116 @@ describe("knowledge review api helpers", () => {
 
     await waitFor(() => expect(hook.result.current.data).toBe(provenance));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/provenance");
+  });
+
+  it("loads the knowledge production center readiness, job and pipeline evidence through governed roots", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      producer: "API_MODEL",
+      capabilityCode: "knowledge-generation",
+      providerCode: "provider-openai",
+      deploymentForm: "EXTERNAL",
+      ready: false,
+      modelInvocationAllowed: false,
+      items: [{ code: "P6_ACCEPTANCE", ready: false, required: true, message: "P6 未放行" }],
+    };
+    const jobPage = {
+      items: [{ jobCode: "job-ai-1", producer: "API_MODEL", status: "RUNNING", candidateCount: 1 }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    const candidates = [{ jobCode: "job-ai-1", candidateRef: "kv:42:2026.06" }];
+    const gateResults = [{ jobCode: "job-ai-1", gateCode: "SOURCE_ANCHOR", passed: true }];
+    const triageResults = [{ jobCode: "job-ai-1", triageState: "CONFLICT", action: "REVIEW" }];
+    const shadowRuns = [{ jobCode: "job-ai-1", status: "PASSED", readyForReview: true }];
+    const coexistence = {
+      candidateRef: "kv:42:2026.06",
+      candidateExecutable: false,
+      activeExecutable: true,
+      replacementReminder: "审核通过后将触发 SYS-08 原子替换",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: readiness } })
+      .mockResolvedValueOnce({ data: { data: jobPage } })
+      .mockResolvedValueOnce({ data: { data: candidates } })
+      .mockResolvedValueOnce({ data: { data: gateResults } })
+      .mockResolvedValueOnce({ data: { data: triageResults } })
+      .mockResolvedValueOnce({ data: { data: shadowRuns } })
+      .mockResolvedValueOnce({ data: { data: coexistence } });
+
+    const readinessHook = renderApiHook(() =>
+      useKnowledgeProductionReadiness({
+        producer: "API_MODEL",
+        capabilityCode: "knowledge-generation",
+        providerCode: "provider-openai",
+        modelStrategy: "gpt-pipeline",
+      }),
+    );
+    const jobsHook = renderApiHook(() => useKnowledgeProductionJobs({ page: 1, size: 20 }));
+    const candidatesHook = renderApiHook(() => useKnowledgeProductionCandidates("job-ai-1"));
+    const gatesHook = renderApiHook(() => useKnowledgeProductionGateResults("job-ai-1"));
+    const triageHook = renderApiHook(() => useKnowledgeProductionTriageResults("job-ai-1"));
+    const shadowHook = renderApiHook(() => useKnowledgeProductionShadowRuns("job-ai-1"));
+    const coexistenceHook = renderApiHook(() => useCandidateCoexistence("kv:42:2026.06"));
+
+    await waitFor(() => expect(readinessHook.result.current.data).toBe(readiness));
+    await waitFor(() => expect(jobsHook.result.current.data).toBe(jobPage));
+    await waitFor(() => expect(candidatesHook.result.current.data).toBe(candidates));
+    await waitFor(() => expect(gatesHook.result.current.data).toBe(gateResults));
+    await waitFor(() => expect(triageHook.result.current.data).toBe(triageResults));
+    await waitFor(() => expect(shadowHook.result.current.data).toBe(shadowRuns));
+    await waitFor(() => expect(coexistenceHook.result.current.data).toBe(coexistence));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/knowledge-production/readiness", {
+      params: {
+        producer: "API_MODEL",
+        capabilityCode: "knowledge-generation",
+        providerCode: "provider-openai",
+        modelStrategy: "gpt-pipeline",
+      },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge-production/jobs", {
+      params: { page: 1, size: 20 },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      3,
+      "/engine/knowledge-production/jobs/job-ai-1/candidates",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      4,
+      "/engine/knowledge-production/jobs/job-ai-1/gate-results",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      5,
+      "/engine/knowledge-production/jobs/job-ai-1/triage-results",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      6,
+      "/engine/knowledge-production/jobs/job-ai-1/shadow-runs",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      7,
+      "/engine/knowledge-production/candidates/coexistence",
+      { params: { candidateRef: "kv:42:2026.06" } },
+    );
+  });
+
+  it("keeps job-scoped production evidence hooks idle until a job or candidate is selected", () => {
+    const candidatesHook = renderApiHook(() => useKnowledgeProductionCandidates(undefined));
+    const gatesHook = renderApiHook(() => useKnowledgeProductionGateResults(""));
+    const triageHook = renderApiHook(() => useKnowledgeProductionTriageResults(undefined));
+    const shadowHook = renderApiHook(() => useKnowledgeProductionShadowRuns(undefined));
+    const coexistenceHook = renderApiHook(() => useCandidateCoexistence(undefined));
+
+    expect(candidatesHook.result.current.fetchStatus).toBe("idle");
+    expect(gatesHook.result.current.fetchStatus).toBe("idle");
+    expect(triageHook.result.current.fetchStatus).toBe("idle");
+    expect(shadowHook.result.current.fetchStatus).toBe("idle");
+    expect(coexistenceHook.result.current.fetchStatus).toBe("idle");
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 
   it("loads the review queue and schedules a governed successor migration", async () => {

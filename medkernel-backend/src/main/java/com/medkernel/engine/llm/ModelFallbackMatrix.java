@@ -17,7 +17,7 @@ public class ModelFallbackMatrix {
         String fallbackMode = "B0";
         boolean fallbackUsed = !"B0".equals(sourceMode);
         String reason = "[LLM-02:" + actualTrigger.name() + "] " + sourceMode + " -> "
-            + fallbackMode + "：" + actualTrigger.message();
+            + fallbackMode + "：使用 B0 确定性基线；" + actualTrigger.message();
         if (detail != null && !detail.isBlank()) {
             reason += "；" + detail.trim();
         }

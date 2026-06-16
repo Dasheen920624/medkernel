@@ -29,6 +29,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProducer;
+import com.medkernel.engine.knowledge.production.model.ModelKnowledgeProductionResult;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.llm.provider.DeploymentForm;
@@ -76,6 +78,9 @@ class KnowledgeProductionControllerSecurityTest {
     @MockBean
     private KnowledgeProductionReadinessService readinessService;
 
+    @MockBean
+    private ModelKnowledgeProducer modelKnowledgeProducer;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -84,6 +89,14 @@ class KnowledgeProductionControllerSecurityTest {
     private static final String GENERATE_BODY =
         "{\"sourceVersionId\":9,\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\","
         + "\"items\":[{\"assetType\":\"RULE\",\"target\":{\"targetIdentityId\":5}}]}";
+
+    private static final String MODEL_GENERATE_BODY =
+        "{\"capabilityCode\":\"rule.draft\",\"prompt\":\"请基于来源锚点生成候选规则\","
+        + "\"providerCode\":\"claude-prod\",\"timeoutSeconds\":60,"
+        + "\"assetIdentity\":\"rule:htn:model\",\"subject\":\"高血压 AI 候选规则\","
+        + "\"sources\":[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\",\"authorityLevel\":\"B_GUIDELINE\"}],"
+        + "\"trustLevel\":\"B_GUIDELINE\",\"riskLevel\":\"MEDIUM\","
+        + "\"target\":{\"targetIdentityId\":5}}";
 
     private static final String JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
@@ -157,6 +170,31 @@ class KnowledgeProductionControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    void clinicalUserCannotGenerateModelCandidates() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanGenerateModelCandidates() throws Exception {
+        when(modelKnowledgeProducer.generate(anyString(), any()))
+            .thenReturn(new ModelKnowledgeProductionResult(
+                "job-1", "task-model-1", "B2", "claude-opus-4",
+                "prompt:aikstd13-v1", "tool:submit-candidate-v1",
+                new GenerationSummary(List.of(), List.of(), List.of())));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.modelTaskId").value("task-model-1"));
     }
 
     @Test

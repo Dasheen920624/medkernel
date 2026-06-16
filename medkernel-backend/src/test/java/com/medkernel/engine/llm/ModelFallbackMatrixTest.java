@@ -71,6 +71,7 @@ class ModelFallbackMatrixTest {
             .contains("LLM-02")
             .contains(trigger.name())
             .contains(expectedSourceMode + " -> B0")
+            .contains("B0 确定性基线")
             .contains("matrix-proof");
         assertThat(decision.retryable()).isEqualTo(expectedRetryable);
         if ("B0".equals(expectedSourceMode)) {

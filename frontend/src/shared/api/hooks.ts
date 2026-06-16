@@ -1324,6 +1324,251 @@ export function useAssetTemplates() {
   });
 }
 
+export interface KnowledgeProductionReadinessItem {
+  code: string;
+  ready: boolean;
+  required: boolean;
+  message: string;
+  evidence?: string | null;
+}
+
+export interface KnowledgeProductionReadinessResponse {
+  tenantId: string;
+  producer: KnowledgeProducer;
+  capabilityCode?: string | null;
+  providerCode?: string | null;
+  deploymentForm?: string | null;
+  ready: boolean;
+  modelInvocationAllowed: boolean;
+  items: KnowledgeProductionReadinessItem[];
+}
+
+export interface KnowledgeProductionReadinessParams {
+  producer?: KnowledgeProducer;
+  capabilityCode?: string;
+  providerCode?: string;
+  modelStrategy?: string;
+}
+
+export type KnowledgeProductionJobStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | string;
+
+export interface KnowledgeProductionJob {
+  id?: number;
+  tenantId: string;
+  jobCode: string;
+  sourceScope?: string | null;
+  assetType: string;
+  producer: KnowledgeProducer;
+  targetPipeline: "PLATFORM_SOURCE" | "TENANT_OVERLAY" | string;
+  domain: string;
+  modelStrategy?: string | null;
+  status: KnowledgeProductionJobStatus;
+  candidateCount: number;
+  lineage?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+  traceId?: string | null;
+}
+
+export interface KnowledgeProductionJobsParams {
+  page?: number;
+  size?: number;
+}
+
+export interface ReviewRoutingDecision {
+  ownerReviewerRole?: string | null;
+  domainReviewerRole?: string | null;
+  requiresDualSign: boolean;
+  domain?: string | null;
+}
+
+export interface KnowledgeProductionCandidateView {
+  jobCode: string;
+  assetIdentity?: string | null;
+  contentHash?: string | null;
+  candidateRef: string;
+  riskLevel?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  routing?: ReviewRoutingDecision | null;
+}
+
+export interface AikGateResult {
+  id?: number;
+  tenantId?: string;
+  jobCode: string;
+  contentHash?: string | null;
+  gateCode: string;
+  passed: boolean;
+  reason?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+}
+
+export interface GenerationTriage {
+  id?: number;
+  tenantId?: string;
+  jobCode: string;
+  contentHash?: string | null;
+  assetType?: string | null;
+  targetIdentityId?: number | null;
+  activeVersionId?: number | null;
+  matchedVersionId?: number | null;
+  triageState: string;
+  action: string;
+  basis?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+}
+
+export interface KnowledgeShadowRun {
+  id?: number;
+  tenantId?: string;
+  jobCode: string;
+  assetType?: string | null;
+  targetIdentityId?: number | null;
+  contentHash?: string | null;
+  capabilityCode?: string | null;
+  status: string;
+  totalCases: number;
+  hitCount: number;
+  falsePositiveCount: number;
+  missCount: number;
+  degradationDetected: boolean;
+  readyForReview: boolean;
+  basis?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+}
+
+export interface CandidateCoexistenceView {
+  candidateRef: string;
+  identityId?: number | null;
+  candidateVersion?: Record<string, unknown> | null;
+  activeVersion?: Record<string, unknown> | null;
+  classification?: string | null;
+  reviewStatus?: string | null;
+  diffSummary?: string | null;
+  productionLineage?: Record<string, unknown> | null;
+  candidateExecutable: boolean;
+  activeExecutable: boolean;
+  approvalOutcome?: string | null;
+  replacementReminder: string;
+  safetyNotice?: string | null;
+}
+
+export function useKnowledgeProductionReadiness(
+  params: KnowledgeProductionReadinessParams = {},
+) {
+  const requestParams = compactParams({
+    producer: params.producer ?? "API_MODEL",
+    capabilityCode: params.capabilityCode,
+    providerCode: params.providerCode,
+    modelStrategy: params.modelStrategy,
+  });
+  return useQuery({
+    queryKey: ["knowledge-production", "readiness", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeProductionReadinessResponse }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/readiness`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams = {}) {
+  const requestParams = compactParams({
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  });
+  return useQuery({
+    queryKey: ["knowledge-production", "jobs", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeProductionJob> }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProductionCandidates(jobCode?: string | null) {
+  return useQuery({
+    queryKey: ["knowledge-production", "job-candidates", jobCode],
+    enabled: Boolean(jobCode),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeProductionCandidateView[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/candidates`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProductionGateResults(jobCode?: string | null) {
+  return useQuery({
+    queryKey: ["knowledge-production", "gate-results", jobCode],
+    enabled: Boolean(jobCode),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: AikGateResult[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/gate-results`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProductionTriageResults(jobCode?: string | null) {
+  return useQuery({
+    queryKey: ["knowledge-production", "triage-results", jobCode],
+    enabled: Boolean(jobCode),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: GenerationTriage[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/triage-results`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProductionShadowRuns(jobCode?: string | null) {
+  return useQuery({
+    queryKey: ["knowledge-production", "shadow-runs", jobCode],
+    enabled: Boolean(jobCode),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeShadowRun[] }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/shadow-runs`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCandidateCoexistence(candidateRef?: string | null) {
+  return useQuery({
+    queryKey: ["knowledge-production", "candidate-coexistence", candidateRef],
+    enabled: Boolean(candidateRef),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: CandidateCoexistenceView }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/candidates/coexistence`,
+        { params: { candidateRef } },
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useKnowledgeCandidateDiff(candidateId?: number) {
   return useQuery({
     queryKey: ["knowledge", "candidate-diff", candidateId],

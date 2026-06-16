@@ -104,17 +104,17 @@
 
 ### Chunk 6: 模型/Agent 生产器
 
-- [ ] Task 16: 写 `ModelKnowledgeProducer` 测试：readiness 阻断、provider 成功、schema 失败、出域阻断、B0 降级。
-- [ ] Task 17: 实现模型生产器并接 AIK-STD-13 FR2，输出同一候选信封。
-- [ ] Task 17a: 补功能验收：配置齐全后模型生产器能启动 AI 候选生产；缺模型、缺文献根、缺评测、缺白名单、缺三元组、缺 P6 验收时分别结构化阻断。
-- [ ] Task 18: 写 Agent 回写工具测试：患者数据禁触、锚点必填、幂等、审计。
-- [ ] Task 19: 实现 AIK-STD-14 受控回写协议与 MCP/CLI 接线，本地提交。
+- [x] Task 16: 写 `ModelKnowledgeProducer` 测试：readiness 阻断、provider 成功、schema 失败、出域阻断、B0 降级。
+- [x] Task 17: 实现模型生产器并接 AIK-STD-13 FR2，输出同一候选信封。
+- [x] Task 17a: 补功能验收：配置齐全后模型生产器能启动 AI 候选生产；缺模型、缺文献根、缺评测、缺白名单、缺三元组、缺 P6 验收时分别结构化阻断。工程验收已随 Task 22 完成；真实外部 provider 现场与 P6 独立放行仍按外部条件另验。
+- [x] Task 18: 写 Agent 回写工具测试：患者数据禁触、锚点必填、幂等、审计。
+- [x] Task 19: 实现 AIK-STD-14 受控回写协议与 MCP/CLI 接线，本地提交。后端受控工具、入口权限、CLI `agent submit-candidate` 与 MCP `payload` schema 已完成；任务进度/中止可视化留 Chunk 7。
 
 ### Chunk 7: 前端与收尾
 
-- [ ] Task 20: 前端生产中心补 readiness/job/gate/triage/shadow/coexistence 六态页面。
-- [ ] Task 21: 更新产品目录、卡片、backlog、`_HANDOFF`。
-- [ ] Task 22: 跑最终验证矩阵，修复失败。
+- [x] Task 20: 前端生产中心补 readiness/job/gate/triage/shadow/coexistence 六态页面。
+- [x] Task 21: 更新产品目录、卡片、backlog、`_HANDOFF`。backlog 仍保持 pending：AIK-STD-13/14 与 LLM-01/02/04 未完成最终验收/统一 PR 审计，不能提前 done。
+- [x] Task 22: 跑最终验证矩阵，修复失败。2026-06-16 完成：先修复 LLM-02 reason 丢失 `B0 确定性基线` 的全量回归失败，再通过后端全量、前端全量、CLI/MCP、四门禁、typecheck、diff check。
 - [ ] Task 23: 本地整理提交历史；全部完成后再统一开 PR。
 
 ## 外部前置（代码不能伪造）
