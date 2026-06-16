@@ -55,7 +55,7 @@ class ModelEvalServiceTest {
     private MedicalRegressionCase aCase() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new MedicalRegressionCase(1L, "tenant-1", "rule.draft", "输入", "期望",
-            null, "N", "v1", "Y", now, "s", now, "s");
+            null, "source-version:1", "N", "v1", "Y", now, "s", now, "s");
     }
 
     @Test

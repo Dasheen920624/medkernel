@@ -130,6 +130,7 @@ class KnowledgeShadowEvaluationServiceTest {
     private MedicalRegressionCase regressionCase(String capabilityCode, String expected,
                                                  String redLineType, String citationRequired) {
         return new MedicalRegressionCase(null, "tenant-a", capabilityCode, "输入", expected,
-            redLineType, citationRequired, "v1", "Y", Instant.EPOCH, "seed", Instant.EPOCH, "seed");
+            redLineType, "source-version:1", citationRequired, "v1", "Y",
+            Instant.EPOCH, "seed", Instant.EPOCH, "seed");
     }
 }

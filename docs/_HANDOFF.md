@@ -32,6 +32,10 @@
   - 新增 `RegressionBaselineSeeder` / `RegressionBaselineProjectionService`：启动期从 OPT-04 ACTIVE 已审红线投影 `rule.draft` 启用回归用例；题干、期望短语、红线类型、证据来源均来自红线库，不编医学题/答案。
   - 投影按 `tenant_id + capability + case_input` 去重；长 DSL 有界摘录，保留证据锚点，避免 `mk_llm_regression_case.case_input` 超长。
   - readiness 的 `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补“有真实基线”，不绕过模型评测闸。
+- 已完成 Phase 2 第二片「医学回归基准集维护后端」：
+  - `mk_llm_regression_case` 五方言基线新增 `source_reference`，用例来源引用结构化保存；创建/批量导入拒绝 TODO/mock/fake 等占位来源。
+  - `ModelEvalController` 新增 `GET/POST /regression-cases`、`POST /regression-cases:bulk-import`、`POST /regression-cases/{caseId}:enable|disable`，统一 `llm.eval.manage` 权限和租户隔离。
+  - 服务契约、产品功能目录、OpenAPI 和迁移一致性已同步。
 
 ## 仍不可宣称
 
@@ -42,7 +46,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 2：上线就绪地基；下一片优先核查/补齐 `ModelEvalController` 的基准集维护能力（新增、启停、版本、批量导入真实题），仍禁伪造题库。
+1. 继续主计划 Phase 2：上线就绪地基；下一片推进 T2.3/T2.4，将文献库根 URI、部署形态、P6、provider、出域白名单、能力策略纳入超管配置面，并补 readiness 前端 9 闸六态。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

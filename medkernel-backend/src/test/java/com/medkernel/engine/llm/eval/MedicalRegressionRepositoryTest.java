@@ -38,8 +38,8 @@ class MedicalRegressionRepositoryTest {
     void casesQueriedByCapabilityAndEnabled() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         caseRepo.save(new MedicalRegressionCase(null, "tenant-1", "knowledge.extract",
-            "阿司匹林禁忌", "活动性出血禁用", "CONTRAINDICATION", "Y", "v1", "Y",
-            now, "system", now, "system"));
+            "阿司匹林禁忌", "活动性出血禁用", "CONTRAINDICATION", "source-version:1", "Y",
+            "v1", "Y", now, "system", now, "system"));
 
         assertThat(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "knowledge.extract", "Y"))
             .hasSize(1)
@@ -55,8 +55,8 @@ class MedicalRegressionRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         caseRepo.save(new MedicalRegressionCase(null, "tenant-1", "rule.draft",
             "红线ID：redline-dose-limit\n证据引用：source-version:77#dose-limit",
-            "儿童用药剂量上限需双签", "DOSE_LIMIT", "Y", "2026.1", "Y",
-            now, "system", now, "system"));
+            "儿童用药剂量上限需双签", "DOSE_LIMIT", "source-version:77#dose-limit", "Y",
+            "2026.1", "Y", now, "system", now, "system"));
 
         assertThat(caseRepo.findByTenantIdAndCapabilityCodeAndCaseInput(
             "tenant-1", "rule.draft", "红线ID：redline-dose-limit\n证据引用：source-version:77#dose-limit"))

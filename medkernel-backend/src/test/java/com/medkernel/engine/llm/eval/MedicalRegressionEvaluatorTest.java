@@ -20,7 +20,8 @@ class MedicalRegressionEvaluatorTest {
     private MedicalRegressionCase regCase(String expected, String redLineType, boolean citationRequired) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new MedicalRegressionCase(1L, "tenant-1", "rule.draft", "用例输入", expected,
-            redLineType, citationRequired ? "Y" : "N", "v1", "Y", now, "s", now, "s");
+            redLineType, "source-version:1", citationRequired ? "Y" : "N", "v1", "Y",
+            now, "s", now, "s");
     }
 
     private Function<MedicalRegressionCase, ProviderCompletion> answer(String content, String citations) {

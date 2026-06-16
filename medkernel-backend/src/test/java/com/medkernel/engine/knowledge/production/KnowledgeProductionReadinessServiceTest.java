@@ -192,7 +192,8 @@ class KnowledgeProductionReadinessServiceTest {
     private MedicalRegressionCase regressionCase() {
         Instant now = Instant.now();
         return new MedicalRegressionCase(
-            1L, TENANT, CAPABILITY, "输入", "期望", null, "Y", "2026.06", "Y", now, "u", now, "u");
+            1L, TENANT, CAPABILITY, "输入", "期望", null, "source-version:1", "Y",
+            "2026.06", "Y", now, "u", now, "u");
     }
 
     private ModelEvalRun evalRun(ModelProviderConfig provider) {

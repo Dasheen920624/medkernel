@@ -17,4 +17,13 @@ public interface MedicalRegressionCaseRepository extends CrudRepository<MedicalR
 
     Optional<MedicalRegressionCase> findByTenantIdAndCapabilityCodeAndCaseInput(
         String tenantId, String capabilityCode, String caseInput);
+
+    List<MedicalRegressionCase> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
+
+    List<MedicalRegressionCase> findByTenantIdAndCapabilityCodeOrderByUpdatedAtDesc(
+        String tenantId, String capabilityCode);
+
+    List<MedicalRegressionCase> findByTenantIdAndEnabledFlagOrderByUpdatedAtDesc(String tenantId, String enabledFlag);
+
+    Optional<MedicalRegressionCase> findByIdAndTenantId(Long id, String tenantId);
 }

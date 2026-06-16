@@ -19,6 +19,7 @@ public record MedicalRegressionCase(
     @Column("case_input") String caseInput,
     @Column("expected_phrase") String expectedPhrase,
     @Column("red_line_type") String redLineType,
+    @Column("source_reference") String sourceReference,
     @Column("citation_required") String citationRequired,
     @Column("case_version") String caseVersion,
     @Column("enabled_flag") String enabledFlag,

@@ -8,6 +8,7 @@ CREATE TABLE mk_llm_regression_case (
     case_input        VARCHAR2(2000) NOT NULL,
     expected_phrase   VARCHAR2(512)  NOT NULL,
     red_line_type     VARCHAR2(32)   NULL,
+    source_reference  VARCHAR2(512)  NOT NULL,
     citation_required CHAR(1)        DEFAULT 'N' NOT NULL,
     case_version      VARCHAR2(32)   DEFAULT 'v1' NOT NULL,
     enabled_flag      CHAR(1)        DEFAULT 'Y' NOT NULL,

@@ -173,6 +173,7 @@ class CandidateGenerationIntegrationTest {
     private void seedRegressionCase(Instant now, VersionedAssetType assetType, String expectedPhrase) {
         regressionCases.save(new MedicalRegressionCase(null, TENANT,
             "knowledge.production." + assetType.name().toLowerCase(java.util.Locale.ROOT),
-            "候选影子评测", expectedPhrase, null, "Y", "v1", "Y", now, "tester", now, "tester"));
+            "候选影子评测", expectedPhrase, null, "source-version:1", "Y", "v1", "Y",
+            now, "tester", now, "tester"));
     }
 }

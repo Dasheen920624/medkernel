@@ -466,7 +466,7 @@
 <!-- capability:controller:controller@ModelEgressController decision=KEEP -->
 | `ModelEgressController` | PUT /api/v1/model-egress/whitelist/{capabilityCode}<br>POST /api/v1/model-egress/approvals | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@ModelEvalController decision=KEEP -->
-| `ModelEvalController` | POST /api/v1/model-evaluations<br>POST /api/v1/model-evaluations/{runId}/sign-off | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelEvalController` | POST /api/v1/model-evaluations<br>POST /api/v1/model-evaluations/{runId}/sign-off<br>GET /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases:bulk-import<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:enable<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@ModelProviderController decision=KEEP -->
 | `ModelProviderController` | PUT /api/v1/model-providers/{providerCode} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@MpiController decision=KEEP -->

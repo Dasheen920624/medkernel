@@ -75,6 +75,7 @@ public class RegressionBaselineProjectionService {
             caseInput,
             requireValue(redline.title(), "title"),
             redline.category().name(),
+            requireValue(redline.evidenceReference(), "evidenceReference"),
             "Y",
             caseVersion(redline),
             "Y",

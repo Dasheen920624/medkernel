@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS mk_llm_regression_case (
     case_input        VARCHAR(2000) NOT NULL,
     expected_phrase   VARCHAR(512)  NOT NULL,
     red_line_type     VARCHAR(32)   NULL,
+    source_reference  VARCHAR(512)  NOT NULL,
     citation_required CHAR(1)       NOT NULL DEFAULT 'N',
     case_version      VARCHAR(32)   NOT NULL DEFAULT 'v1',
     enabled_flag      CHAR(1)       NOT NULL DEFAULT 'Y',
@@ -43,5 +44,6 @@ CREATE TABLE IF NOT EXISTS mk_llm_eval_run (
 
 CREATE INDEX idx_mk_llm_eval_run_lookup ON mk_llm_eval_run (tenant_id, provider_code, model_version, status);
 
-COMMENT ON TABLE mk_llm_regression_case IS '医学回归评测基准用例：登记输入与期望短语及红线类型，不含真实患者数据';
+COMMENT ON TABLE mk_llm_regression_case IS '医学回归评测基准用例：登记输入、期望短语、红线类型和真实来源引用，不含真实患者数据';
+COMMENT ON COLUMN mk_llm_regression_case.source_reference IS '用例来源引用，必须指向已审红线、来源版本或真实评测资料锚点';
 COMMENT ON TABLE mk_llm_eval_run IS '模型版本医学回归评测运行结果：上线门禁依据，记录通过率与红线判定及复核签字';
