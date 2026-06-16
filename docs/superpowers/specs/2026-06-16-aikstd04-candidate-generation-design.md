@@ -27,55 +27,62 @@
 
 新增子包 `com.medkernel.engine.knowledge.production.generation`（归 engine-knowledge，复用 `knowledge.write/read`）。生成器为**纯确定性 B0**，归 `KnowledgeProducer.MANUAL` 路径（`aiGenerated=false` 诚实——B0 模板桩本非 AI）。
 
+> **读码救场修正**：`submitCandidate` 强约束 `candidate.assetType() == job.assetType()`——**一个 job 绑一个资产类型**。故「一次生成 5 类」**不挂单个 jobCode**，而由编排层**逐类各建一个生产 job**（producer=MANUAL）。端点为 `POST .../knowledge-production/generate`（**不带 jobCode**）。
+
 ```
-AIK-STD-02 parse → source_version + source_fragment(锚点)
-        │ sourceVersionId + [(assetType, target)…]   (jobCode 在路径)
+AIK-STD-02 parse → source_document + source_version + source_fragment(锚点)
+        │ POST /generate  body={ sourceVersionId, targetPipeline, domain, items:[(assetType,target)…] }
         ▼
-CandidateGenerationOrchestrationService.generate(jobCode, req)
-        │ 逐 (assetType, target):
-        ▼
-SourceCandidateGenerator.generate(sourceVersionId, assetType, orgScope)
-        │  取锚点片段 + 取 structural 模板骨架 → 组 payload(模板桩) + 绑 AssetSourceRef + 真 SHA-256
-        ▼ KnowledgeAssetEnvelope(DRAFT)
-        │  既有
-        ▼
-KnowledgeProductionOrchestrationService.submitCandidate(jobCode, envelope, target)
-        │  → AIK-STD-01 校验闸 → §9 双形态隔离守卫 → PR3 会签路由 → KnowledgeCandidateIntake 物化
+CandidateGenerationOrchestrationService.generate(req)
+        │ 一次性载 source_version + source_document + 全部 source_fragment
+        │ 若无片段 → 全类型诚实入 skipped（无源不生成），不建 job
+        │ 否则逐 item(assetType,target)：
+        │   ① createJob(assetType, producer=MANUAL, targetPipeline, domain) → jobCode
+        │   ② SourceCandidateGenerator.generate(tenantId, document, version, fragments, assetType, assetIdentity)
+        ▼      取 structural 模板骨架 → payload(模板桩 JSON) + 绑 AssetSourceRef + 真 SHA-256 → DRAFT 信封
+        │   ③ submitCandidate(jobCode, envelope, target)
+        ▼          → AIK-STD-01 校验闸 → §9 双形态隔离守卫 → PR3 会签路由 → KnowledgeCandidateIntake 物化
         ▼
 既有版本/审核链 (PENDING_REPLACEMENT_REVIEW) + ReviewAssignment + 血缘
 ```
 
 五类候选共用这一条路径（**类型无关**），差异只在「取哪张模板 + 枚举哪个 `VersionedAssetType`」。
 
+> **sourceRef 格式（读码救场）**：`KnowledgeCandidateIntake`（PR4 物化）拿 `candidate.sources().get(0).sourceRef()` 经 `SourceReferenceResolver` 反解为源 FK，格式**必须** `"sourceCode:versionNo:anchorPath"`。故生成器从 `source_document.source_code` + `source_version.version_no` + `fragment.anchor_path` 拼，绝不能用任意串。
+
 ## 4. 组件（单一职责）
 
-### 4.1 `SourceCandidateGenerator`（新，B0 核心，类型无关）
-- 入参：`sourceVersionId`、`VersionedAssetType assetType`、`String orgScope`。
-- 出参：`KnowledgeAssetEnvelope`（`DRAFT`）。
+### 4.1 `SourceCandidateGenerator`（新，B0 核心，类型无关，`@Component`）
+- 依赖：`ProfessionalAssetTemplateRegistry` + `ObjectMapper`（确定性 JSON）。
+- 入参：`String tenantId`、`SourceDocument document`、`SourceVersion version`、`List<SourceFragment> fragments`（非空，由编排载入）、`VersionedAssetType assetType`、`String assetIdentity`。
+- 出参：`KnowledgeAssetEnvelope`（`DRAFT`）。**纯转换、无 I/O**（易测）。
 - 逻辑：
-  1. `SourceFragmentRepository.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc` 取该源版本全部带锚点片段；**空→诚实抛 `DocumentParse`-风格结构化错误（无源不生成，铁律 #1）**。
-  2. `ProfessionalAssetTemplateRegistry.findByAssetTypeAndDomain(assetType, null)` 取 structural 模板骨架；缺模板诚实结构化报错（理论上 5 类皆有）。
-  3. 组 **payload（JSON）**：模板各 `TemplateSection` 落为 payload 字段；其中「来源依据」聚合真实锚点摘要（`anchor_path` + `text_excerpt`，逐片段）；**逻辑/触发/动作等内容字段填诚实占位 `待编著`**（标记为模型/人工待填的槽位——见 §6）。
-  4. 绑 `sources`：每锚点片段 → 1 条 `AssetSourceRef`（来源标识 + 权威级），`sources≥1`。
-  5. `contentHash = SHA-256(payload)`（真实，过 AIK-STD-01 hash 一致性校验）。
-  6. `lifecycleStatus = DRAFT`、`subject` 取源版本主题、`riskLevel` 保守默认、`trustLevel` 取来源权威级。
+  1. `templateRegistry.findByAssetTypeAndDomain(assetType, null)` 取 structural 模板骨架；缺模板诚实结构化抛错（理论上 5 类皆有）。
+  2. 组 **payload（JSON，`LinkedHashMap` 保序确定性）**：`{ "template": <professionCode>, "sections": { <每 TemplateSection.key>: "待编著（结构：<label>）" }, "sourceEvidence": [ {anchorPath, excerpt} … 逐 fragment ] }`——`sections` 为**诚实留白字段**（模型/人工待填的槽位），`sourceEvidence` 载真实锚点摘要（`anchor_path` + `text_excerpt`）。**逻辑字段绝不凭空填**。
+  3. 绑 `sources`：每 fragment → 1 条 `AssetSourceRef("<source_code>:<version_no>:<anchor_path>", document.authorityLevel())`，`sources≥1`，**第一条即 intake 反解用**。
+  4. `contentHash = Sha256ContentHash.sha256(payloadJson, "候选内容不能为空")`（真实，过 AIK-STD-01 hash 一致性）。
+  5. `lifecycleStatus=DRAFT`、`subject=document.title()`、`versionLabel="draft-from-"+version.versionNo()`、`riskLevel=MEDIUM`（保守中性默认，真实风险待 AIK-STD-05 门禁评定）、`trustLevel=document.authorityLevel()`、`gradeQuality/gradeStrength=null`（B0 不伪造 GRADE）、`orgScope=tenantId`。
 
-### 4.2 `CandidateGenerationOrchestrationService`（新，编排）
-- `GenerationSummary generate(String jobCode, CandidateGenerationRequest req)`：
-  - 对 `req.items()`（每项 = `assetType` + `MaterializationTarget target`）逐项调生成器 → 调既有 `submitCandidate(jobCode, envelope, target)`。
-  - 汇总每类候选引用 + PR3 路由 + 计数；**某类型源片段为空 → 该类计 0 并在 summary 标明，不整批失败、不伪造候选**。
-  - job 非法/终态 → 复用 AIK-STD-13 生命周期 409；跨租户/源不存在 → 既有 `notFound`。
+### 4.2 `CandidateGenerationOrchestrationService`（新，`@Service`，编排）
+- 依赖：`SourceVersionRepository` + `SourceDocumentRepository` + `SourceFragmentRepository` + `SourceCandidateGenerator` + `KnowledgeProductionOrchestrationService`。
+- `GenerationSummary generate(CandidateGenerationRequest req)`：
+  1. `requireCurrentTenant()`；`findByTenantIdAndId` 载 `source_version`（不存在→`notFound`）→ `source_document`；`findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc` 载全部 fragment。
+  2. **fragments 空 → 全 item 入 `skipped`（reason="源无锚点片段，无源不生成"），不建任何 job**（铁律 #1）。
+  3. 否则逐 `item(assetType,target)`：`target.validate()` → `assetIdentity=deriveIdentity(target)` → `createJob(new ProductionJobRequest("source-version:"+sourceVersionId, assetType, MANUAL, req.targetPipeline(), req.domain(), null))` 得 jobCode → `generator.generate(...)` → `submitCandidate(jobCode, envelope, target)` → 收 `(assetType, jobCode, candidateRef, routing)`。
+- `deriveIdentity(target)`：existing → `"identity:"+targetIdentityId`；new → `newIdentity.identityCode()`。
+- 错误：源不存在/跨租户→`notFound`；createJob 隔离越界→既有 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`/守卫 422；候选过不了校验闸→既有 4xx。
 
 ### 4.3 `KnowledgeProductionController` 加 1 端点
-- `POST /api/v1/engine/knowledge-production/jobs/{jobCode}/generate`（`knowledge.write`，`@Valid CandidateGenerationRequest`）→ `GenerationSummary`。挂既有控制器**零新治理面**（仿 AIK-STD-12）；产品功能目录重生成端点 +1。
+- `POST /api/v1/engine/knowledge-production/generate`（`knowledge.write`，`@Valid @RequestBody CandidateGenerationRequest`）→ `GenerationSummary`。挂既有控制器**零新治理面**（仿 AIK-STD-12，注入新编排服务）；产品功能目录重生成端点 +1。
 
 ### 4.4 DTO
-- `CandidateGenerationRequest(Long sourceVersionId, @NotEmpty List<GenerationItem> items)`；`GenerationItem(@NotNull VersionedAssetType assetType, @NotNull @Valid MaterializationTarget target)`。
-- `GenerationSummary(String jobCode, List<GeneratedCandidate> candidates, List<SkippedType> skipped)`；`GeneratedCandidate(VersionedAssetType, candidateRef, ReviewRoutingDecision)`；`SkippedType(VersionedAssetType, reason)`。
+- `CandidateGenerationRequest(@NotNull Long sourceVersionId, @NotNull TargetPipeline targetPipeline, @NotNull KnowledgeDomain domain, @NotEmpty @Valid List<GenerationItem> items)`（`KnowledgeDomain`=`production.KnowledgeDomain` 路由域）。
+- `GenerationItem(@NotNull VersionedAssetType assetType, @NotNull @Valid MaterializationTarget target)`。
+- `GenerationSummary(List<GeneratedCandidate> candidates, List<SkippedType> skipped)`；`GeneratedCandidate(VersionedAssetType assetType, String jobCode, String candidateRef, ReviewRoutingDecision routing)`；`SkippedType(VersionedAssetType assetType, String reason)`。
 
 ## 5. 数据契约
 - **零新表、零迁移**：复用 `mk_knowledge_production_job`、`mk_knowledge_production_candidate`（血缘）、`source_*`、审核链既有表。
-- domain 取自 job（AIK-STD-13 job 已带 `domain`），供 PR3 路由；structural 模板查找用 `domain=null`。
+- `production.KnowledgeDomain`（路由域）由请求显式申报 → 落每个 job → 供 PR3 会签路由；structural 模板查找用 `engine.knowledge.KnowledgeDomain=null`（两域不同，互不混）。
 
 ## 6. 诚实边界 / 铁律落点
 - **无源不生成**（FR-4/铁律 #1）：源版本无 `source_fragment` → 该类型不产候选、诚实计 0。
