@@ -97,7 +97,9 @@
 
 - [x] Task 13: 写 `KnowledgeProductionReadinessService` 测试覆盖所有 P6 前置缺口。
 - [x] Task 14: 实现 readiness 服务与只读端点。
-- [ ] Task 15: 补 LLM-01/02/04 测试和实现：降级矩阵、版本三元组、重放/回滚/导出，本地提交。
+- [x] Task 15a: 补 LLM-02 降级矩阵与网关结构化失败/限流等稳定归因测试。
+- [x] Task 15b: 补 LLM-04 prompt/tool/model 版本包、任务三元组绑定、回滚和导出。
+- [ ] Task 15c: 补 LLM-04 按 task_id 的三元组重放复现与完整 4×3 矩阵验收，本地提交。
 
 ### Chunk 6: 模型/Agent 生产器
 

@@ -20,6 +20,7 @@
 ## 最新进度（2026-06-16 readiness 前置闸）
 - 知识生产侧已新增 `KnowledgeProductionReadinessService`，在真实模型生成知识前校验 provider 可用、评测通过、出域治理、能力策略、prompt/tool/model 三元组和 P6 独立验收；未通过时不进入模型调用。
 - 本卡的“网关可调用”不等于“知识生产可正式模型生成”：P6、文献资料库、真实基准集、凭据引用和独立验收仍是 readiness 的强阻断项。
+- LLM-02 降级矩阵已把 provider 缺位、限流、超时、结构化失败、断连、出域阻断归因到稳定 `fallbackReason`；LLM-04 版本包已让 provider 成功任务绑定 prompt/tool/model 三元组。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 路由裁决：按策略 `BASELINE/LOCAL_MODEL/EXTERNAL_MODEL/DISABLED` 选路；无 provider → B0。

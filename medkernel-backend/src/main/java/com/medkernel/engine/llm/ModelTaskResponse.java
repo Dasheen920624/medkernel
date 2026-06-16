@@ -10,6 +10,7 @@ public record ModelTaskResponse(
     String modelMode,
     String modelVersion,
     String promptVersion,
+    String toolVersion,
     String sourceCitations,
     Double confidence,
     String riskLevel,

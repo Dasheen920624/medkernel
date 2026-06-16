@@ -19,14 +19,15 @@
 
 ## 最新进度（2026-06-16 readiness 前置闸）
 - 知识生产 readiness 已把“生成知识前是否允许调用模型”前置化：provider、评测、出域、能力策略、版本三元组、P6 任一不满足即结构化阻断，避免进入运行时后才失败。
-- 这不是完整 LLM-02 矩阵闭环；真实超时/429/结构失败 × B2/B1/B0 的组合测试仍待补齐。
+- 已新增 `ModelFallbackMatrix` 与稳定触发码：`PROVIDER_TIMEOUT`、`PROVIDER_RATE_LIMITED`、`STRUCTURED_OUTPUT_FAILED`、`PROVIDER_DISCONNECTED`、`PROVIDER_UNAVAILABLE`、`EGRESS_BLOCKED` 等均归因到 B0；`ModelGatewayService` 已接 provider 缺位、出域阻断、provider 异常、429、结构化失败后 B0 降级，响应仍据实标 `mode/fallbackUsed/fallbackReason`。
+- 仍未完成：可配置 fallback order、超时预算配置、完整 4×3 组合矩阵端到端验收。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 三级策略：每能力码可配首选级别（B2→B1→B0 降级序）。
-- [ ] FR-2 切换触发：超时 / 限流 429 / 结构化校验失败 / 断网/连接错 → 自动降一级，最终 B0。
-- [ ] FR-3 诚实标注：响应据实标 `mode` + `fallbackUsed` + `fallbackReason`（归因到触发条件）。
+- [x] FR-2 切换触发：超时 / 限流 429 / 结构化校验失败 / 断网/连接错 → 自动降一级，最终 B0。
+- [x] FR-3 诚实标注：响应据实标 `mode` + `fallbackUsed` + `fallbackReason`（归因到触发条件）。
 - [ ] FR-4 矩阵可验收：4 触发 × 3 级别组合有对应用例与期望降级结果。
-- [ ] FR-5 不伪造：降级后禁用上一级的模型名/置信度冒充。
+- [x] FR-5 不伪造：降级后禁用上一级的模型名/置信度冒充。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）

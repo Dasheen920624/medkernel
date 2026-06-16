@@ -163,7 +163,8 @@ class ModelGatewayControllerTest {
     @Test
     void submitTask_ReturnsOkWithResult() throws Exception {
         ModelTaskResponse response = new ModelTaskResponse(
-            "task-123456", "SUCCESS", "{\"entity\":\"高血压\"}", "B2", "Med-LLM", "p-1", "[]", 0.95, "LOW", false, null, 150L, "trace-123"
+            "task-123456", "SUCCESS", "{\"entity\":\"高血压\"}", "B2", "Med-LLM", "p-1", "tool-1",
+            "[]", 0.95, "LOW", false, null, 150L, "trace-123"
         );
         when(service.submitTask(any(ModelTaskRequest.class))).thenReturn(response);
 
@@ -186,7 +187,8 @@ class ModelGatewayControllerTest {
     @Test
     void getTask_ReturnsOkWithResult() throws Exception {
         ModelTaskResponse response = new ModelTaskResponse(
-            "task-123456", "SUCCESS", "{\"entity\":\"高血压\"}", "B2", "Med-LLM", "p-1", "[]", 0.95, "LOW", false, null, 150L, "trace-123"
+            "task-123456", "SUCCESS", "{\"entity\":\"高血压\"}", "B2", "Med-LLM", "p-1", "tool-1",
+            "[]", 0.95, "LOW", false, null, 150L, "trace-123"
         );
         when(service.getTask(eq("task-123456"))).thenReturn(response);
 

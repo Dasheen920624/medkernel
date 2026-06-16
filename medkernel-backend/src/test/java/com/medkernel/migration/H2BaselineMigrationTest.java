@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 138;
+    private static final int LATEST_MIGRATION_VERSION = 139;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -94,6 +94,20 @@ class H2BaselineMigrationTest {
             "SELECT COUNT(*) FROM model_capability_definition WHERE enabled_flag = 'Y'",
             Integer.class);
         assertThat(modelCapabilityCount).as("模型能力关系库目录种子").isEqualTo(8);
+
+        Integer modelVersionBundleColumns = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MK_LLM_MODEL_VERSION_BUNDLE'
+              AND COLUMN_NAME IN ('PROMPT_VERSION', 'TOOL_VERSION', 'MODEL_VERSION', 'PROMPT_HASH', 'TOOL_HASH', 'MODEL_HASH')
+            """, Integer.class);
+        assertThat(modelVersionBundleColumns).as("LLM-04 版本三元组版本包列").isEqualTo(6);
+
+        Integer taskToolVersionColumn = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MODEL_CAPABILITY_TASK'
+              AND COLUMN_NAME = 'TOOL_VERSION'
+            """, Integer.class);
+        assertThat(taskToolVersionColumn).as("模型任务记录 tool_version").isEqualTo(1);
 
         int nullableConfigInserted = jdbc.update("""
             INSERT INTO mk_config_item (

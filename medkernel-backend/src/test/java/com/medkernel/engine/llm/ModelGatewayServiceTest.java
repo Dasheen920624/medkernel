@@ -33,6 +33,7 @@ class ModelGatewayServiceTest {
     private IsolatedAuditPublisher isolatedAudit;
     private com.medkernel.engine.llm.provider.ModelProviderRegistry providerRegistry;
     private com.medkernel.engine.llm.egress.ModelEgressGuard egressGuard;
+    private ModelVersionBundleRepository versionBundleRepository;
     private ModelGatewayService service;
 
     @BeforeEach
@@ -44,9 +45,10 @@ class ModelGatewayServiceTest {
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         providerRegistry = mock(com.medkernel.engine.llm.provider.ModelProviderRegistry.class);
         egressGuard = mock(com.medkernel.engine.llm.egress.ModelEgressGuard.class);
+        versionBundleRepository = mock(ModelVersionBundleRepository.class);
         service = new ModelGatewayService(
             taskRepo, policyRepo, definitionRepo, auditRecorder, isolatedAudit,
-            providerRegistry, egressGuard);
+            providerRegistry, egressGuard, versionBundleRepository);
 
         List<ModelCapabilityDefinition> definitions = List.of(
             definition("knowledge.discovery", "临床知识关联发现", 10, true),
@@ -265,7 +267,8 @@ class ModelGatewayServiceTest {
         assertEquals("B0-Deterministic-Baseline", resp.modelVersion());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("未接入本地微调模型(B1)"));
+        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
+        assertTrue(resp.fallbackReason().contains("B1"));
         // 反例：杜绝旧实现伪造的本地模型版本与字段
         assertNotEquals("MedKernel-Local-Cognitive-v1", resp.modelVersion());
         assertFalse(resp.outputContent().contains("local_enhanced"));
@@ -291,7 +294,8 @@ class ModelGatewayServiceTest {
         assertTrue(resp.fallbackUsed());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("未接入外部大模型/Dify(B2)"));
+        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
+        assertTrue(resp.fallbackReason().contains("B2"));
 
         // 反例（医疗安全红线）：绝不出现伪造的外部模型版本 / 编造引文 / 编造患者
         assertNotEquals("MedKernel-Cognitive-LLM-v2", resp.modelVersion());
@@ -427,6 +431,27 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_withActiveVersionBundle_recordsPromptToolModelTriple() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE")).thenReturn(Optional.of(versionBundle()));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("结构化候选", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("prompt:extract-v2", resp.promptVersion());
+        assertEquals("tool:extract-schema-v3", resp.toolVersion());
+        assertEquals("qwen2.5:7b", resp.modelVersion());
+        verify(taskRepo).save(argThat(task ->
+            "prompt:extract-v2".equals(task.promptVersion())
+                && "tool:extract-schema-v3".equals(task.toolVersion())
+                && "qwen2.5:7b".equals(task.modelVersion())));
+    }
+
+    @Test
     void submitTask_withHealthyExternalProvider_passesEgressThenProducesRealB2Output() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -477,6 +502,50 @@ class ModelGatewayServiceTest {
         assertTrue(resp.fallbackUsed());
     }
 
+    @Test
+    void submitTask_providerRateLimited_degradesToB0WithMatrixReason() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-429"));
+        when(adapter.complete(any(), any()))
+            .thenThrow(new ApiException(ErrorCode.TOO_MANY_REQUESTS, "429"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", resp.status());
+        assertEquals("B0", resp.modelMode());
+        assertTrue(resp.fallbackUsed());
+        assertTrue(resp.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
+    }
+
+    @Test
+    void submitTask_providerStructuredOutputInvalid_degradesToB0AndPersistsMatrixReason() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+                "{\"required\":[\"status\",\"candidates\"]}",
+                Instant.now(), "system", Instant.now(), "system")));
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-schema"));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("{\"raw\":\"无结构\"}", "claude-opus-4", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", resp.status());
+        assertEquals("B0", resp.modelMode());
+        assertTrue(resp.fallbackUsed());
+        assertTrue(resp.fallbackReason().contains("STRUCTURED_OUTPUT_FAILED"));
+        verify(taskRepo).save(argThat(task -> task.fallbackReason().contains("STRUCTURED_OUTPUT_FAILED")));
+    }
+
     private static ModelCapabilityDefinition definition(
             String capabilityCode,
             String displayName,
@@ -495,5 +564,15 @@ class ModelGatewayServiceTest {
             now,
             "system"
         );
+    }
+
+    private static ModelVersionBundle versionBundle() {
+        Instant now = Instant.parse("2026-06-16T00:00:00Z");
+        return new ModelVersionBundle(
+            1L, "tenant-1", "knowledge.extract",
+            "prompt:extract-v2", "p-hash",
+            "tool:extract-schema-v3", "t-hash",
+            "model:qwen2.5:7b", "m-hash",
+            "ACTIVE", now, null, now, "ops", now, "ops");
     }
 }
