@@ -87,7 +87,9 @@ public class CandidateGenerationOrchestrationService {
                 tenantId, document, version, sourceFragments, item.assetType(),
                 deriveIdentity(item.target()));
             // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
-            GateOutcome outcome = gateService.evaluate(envelope, new GateContext(tenantId, job.jobCode()));
+            GateOutcome outcome = gateService.evaluate(
+                envelope,
+                new GateContext(tenantId, job.jobCode(), item.target().targetIdentityId()));
             if (!outcome.passed()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
                 continue;

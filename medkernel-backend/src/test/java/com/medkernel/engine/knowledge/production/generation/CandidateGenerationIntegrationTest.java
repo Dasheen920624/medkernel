@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
@@ -28,6 +29,11 @@ import com.medkernel.engine.knowledge.production.KnowledgeDomain;
 import com.medkernel.engine.knowledge.production.MaterializationTarget;
 import com.medkernel.engine.knowledge.production.NewIdentitySpec;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.recommendation.RecommendationRiskLevel;
+import com.medkernel.engine.safety.ClinicalRedlineCategory;
+import com.medkernel.engine.safety.ClinicalRedlineRepository;
+import com.medkernel.engine.safety.ClinicalRedlineRule;
+import com.medkernel.engine.safety.ClinicalRedlineStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -57,6 +63,8 @@ class CandidateGenerationIntegrationTest {
     private KnowledgeIdentityRepository identities;
     @Autowired
     private KnowledgeAssetVersionRepository versions;
+    @Autowired
+    private ClinicalRedlineRepository redlines;
 
     @AfterEach
     void tearDown() {
@@ -76,6 +84,7 @@ class CandidateGenerationIntegrationTest {
             "血压≥140/90 诊断高血压。", "b".repeat(64), now));
         sourceFragments.save(new SourceFragment(null, TENANT, version.id(), "section-2", "用药",
             "首选 CCB 或 ACEI。", "c".repeat(64), now));
+        seedRedlines(now);
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             version.id(), TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
@@ -100,5 +109,19 @@ class CandidateGenerationIntegrationTest {
         assertThat(ruleVersions).hasSize(1);
         assertThat(ruleVersions.get(0).status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
         assertThat(ruleVersions.get(0).sourceDocumentId()).isEqualTo(doc.id());
+    }
+
+    private void seedRedlines(Instant now) {
+        for (ClinicalRedlineCategory category : ClinicalRedlineCategory.requiredSafetyCategories()) {
+            String key = "RDL-" + category.name();
+            redlines.save(new ClinicalRedlineRule(null, "rl-gen-" + category.name(), TENANT, category,
+                "medication-prescribe", "TENANT", TENANT,
+                TENANT + "|" + category.name() + "|medication-prescribe|" + key,
+                key, "v1", ClinicalRedlineStatus.ACTIVE, RecommendationRiskLevel.CRITICAL,
+                "risk-matrix", "v1", CdssReviewRequirement.DUAL_REVIEW, 168,
+                "OPT04_REDLINE_SILENT_TRIAL", "红线 " + category.name(), "安全危害",
+                "{\"field\":\"medications[].code\",\"operator\":\"in\"}", "依据", "ref", 42L,
+                false, now, "tester", now, "tester", "trace"));
+        }
     }
 }

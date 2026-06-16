@@ -14,8 +14,8 @@
 | 门禁项 | 既有承载 | 结论 |
 |---|---|---|
 | 来源真实性/锚点/可信级/格式/审核要素 | [AIK-STD-01](../../cards/wave2/AIK-STD-01.md) `KnowledgeAssetSchemaValidator` + `SourceReferenceResolver` | 复用/拆为逐项门禁 |
-| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | 复用（PR2） |
-| 冲突仲裁/可信级仲裁 | [OPT-07](../../cards/D2/OPT-07.md) `engine.knowledge.ConflictArbitration` + 低阶覆盖门禁 | 复用（PR2） |
+| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | PR2 先接 ACTIVE 目录 readiness；逐条命中待候选 payload 具备结构化临床逻辑 |
+| 冲突仲裁/可信级仲裁 | [OPT-07](../../cards/D2/OPT-07.md) 来源 A–E 可信级 + 现行版本作用域 | PR2 已接低阶覆盖高阶现行版本阻断；完整分流待 AIK-STD-10/09 |
 | 去重 | [AIK-STD-10](../../cards/wave2/AIK-STD-10.md)（8 态，未建） | 待 AIK-STD-10 后接 |
 | 门禁结果存储 | **无**（V108 是发布期质量闸摘要，非候选提审前逐项结果） | **新建 `mk_aik_gate_result`（V136）** |
 
@@ -53,7 +53,7 @@ GateOutcome(passed = 全项通过, items)
 
 ### 4.3 `CandidateSafetyGateService`（@Service，编排）
 - `GateOutcome evaluate(KnowledgeAssetEnvelope candidate, GateContext context)`：注入 `List<CandidateGate>`，逐项跑 → 收集 `GateItemResult` → 持久化 `mk_aik_gate_result`（按候选 `contentHash` + job 关联）→ 返回 `GateOutcome(passed, items)`。**任一 FAIL → passed=false**。
-- `GateContext(jobCode, tenantId)`：门禁上下文（PR2 携源解析/红线租户）。
+- `GateContext(tenantId, jobCode, targetIdentityId)`：门禁上下文。`targetIdentityId` 供 PR2 权威冲突门禁定位现行版本；两参构造保留给无目标身份的测试/调用。
 
 ### 4.4 接入 AIK-STD-04（修改 `CandidateGenerationOrchestrationService`）
 - 生成 envelope 后、`submitCandidate` 前调 `gateService.evaluate`；**FAIL → 不提审**，入新 `GenerationSummary.blocked: List<BlockedCandidate(assetType, gateItems)>`，诚实报因；PASS → 照旧 submit。
@@ -79,8 +79,16 @@ GateOutcome(passed = 全项通过, items)
 | job 不存在/跨租户 | 既有 `notFound` |
 | 门禁项内部异常 | 该项判 FAIL（reason 含真实原因），不吞错放行 |
 
-## 8. 测试（TDD 红绿，PR1）
+### 4.6 PR2 增量门禁（本地分支）
+| 码 | 门禁 | 判定 |
+|---|---|---|
+| `SOURCE_LICENSE` | 来源许可 | `sourceRef` 必须可解析到受控来源，且来源登记 `license` 非空 |
+| `CLINICAL_REDLINE` | 红线 readiness | OPT-04 五类必需红线均有 ACTIVE 配置；空库/缺类目拒收 |
+| `AUTHORITY_CONFLICT` | 权威冲突第一刀 | 指向已有身份时，低阶来源候选不得覆盖高阶来源现行版本；裸租户 ID 归一为 `tenant:<id>` 查作用域 |
+
+## 8. 测试（TDD 红绿）
 - 各门禁单测：6 项 pass/fail 用例（无源/锚点缺段/可信级空/hash 不符/非候选态/orgScope 空）。
+- PR2 增量单测：来源许可缺失/不可解析、红线目录未配置/缺类目、低阶来源覆盖高阶现行版本。
 - `CandidateSafetyGateServiceTest`：全过 → passed；任一 FAIL → blocked + 结果持久化。
 - `CandidateGenerationOrchestrationServiceTest` 增量：FAIL 候选不 submit、入 blocked。
 - 控制器安全：gate-results 端点 `knowledge.read`。
@@ -89,11 +97,11 @@ GateOutcome(passed = 全项通过, items)
 - 门禁：真实性/配置/迁移/中文注释 changed + 产品目录重生成 + 前端 productCatalog。
 
 ## 9. 验收对齐（卡 AIK-STD-05）
-- **AC-1（FR-1/2）**：11 项门禁逐条 + 红线拦截 → PR1 6 项确定性 + PR2 红线/剂量/高危。
-- **AC-2（FR-3/4）**：冲突仲裁 + 不过拦截诚实报因 → PR2 仲裁 + PR1 拦截框架。
+- **AC-1（FR-1/2）**：11 项门禁逐条 + 红线拦截 → PR1 6 项确定性 + PR2 3 项增量（红线/剂量/高危 readiness、许可、权威冲突第一刀）；去重与结构化临床深判待后续卡。
+- **AC-2（FR-3/4）**：冲突仲裁 + 不过拦截诚实报因 → PR2 已覆盖低阶覆盖高阶阻断 + PR1 拦截框架。
 - **B0 验收**：门禁确定性、不依赖模型 → PR1 主链路。
 
 ## 10. 续接
-- **PR2**：OPT-04 红线（红线不冲突/剂量边界/高危近似）+ OPT-07 冲突仲裁 + 许可（源解析）门禁。
+- **PR2 已落本地分支**：OPT-04 红线目录 readiness + 权威冲突第一刀 + 许可（源解析）门禁。
 - **去重门禁**：AIK-STD-10（8 态）建成后接。
 - 升级态候选 → AIK-STD-09。

@@ -1,0 +1,85 @@
+package com.medkernel.engine.knowledge.production.gate;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
+import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.safety.ClinicalRedlineCatalogResponse;
+import com.medkernel.engine.safety.ClinicalRedlineCategory;
+import com.medkernel.engine.safety.ClinicalRedlineContentStatus;
+import com.medkernel.engine.safety.ClinicalRedlineResponse;
+import com.medkernel.engine.safety.ClinicalRedlineService;
+import com.medkernel.engine.safety.ClinicalRedlineStatus;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.hash.Sha256ContentHash;
+
+class ClinicalRedlineReadinessGateTest {
+
+    private static final String PAYLOAD = "{\"template\":\"RULE\",\"sections\":{}}";
+
+    private ClinicalRedlineService redlineService;
+    private ClinicalRedlineReadinessGate gate;
+
+    @BeforeEach
+    void setUp() {
+        redlineService = mock(ClinicalRedlineService.class);
+        gate = new ClinicalRedlineReadinessGate(redlineService);
+    }
+
+    private KnowledgeAssetEnvelope envelope() {
+        return new KnowledgeAssetEnvelope(VersionedAssetType.RULE, "identity:1", "主题", "v1",
+            List.of(), SourceAuthorityLevel.B_GUIDELINE, null, null, KnowledgeRiskLevel.MEDIUM, "t-1",
+            Sha256ContentHash.sha256(PAYLOAD, "x"), PAYLOAD, AssetVersionStatus.DRAFT);
+    }
+
+    private ClinicalRedlineResponse redline(ClinicalRedlineCategory category) {
+        return new ClinicalRedlineResponse("rl-" + category.name(), category, category.name(), "v1",
+            ClinicalRedlineStatus.ACTIVE, "标题", "危害", "{}", null, "matrix", "v1", null,
+            24, "release", "source", "ref", 1L, false);
+    }
+
+    @Test
+    void failsWhenRedlineCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+
+        GateItemResult result = gate.evaluate(envelope(), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains("未配置");
+    }
+
+    @Test
+    void failsWhenRequiredRedlineCategoryMissing() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(redline(ClinicalRedlineCategory.DRUG_INTERACTION)), "trace"));
+
+        GateItemResult result = gate.evaluate(envelope(), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains(ClinicalRedlineCategory.CRITICAL_VALUE.name());
+    }
+
+    @Test
+    void passesWhenAllRequiredRedlineCategoriesConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            ClinicalRedlineCategory.requiredSafetyCategories().stream().map(this::redline).toList(), "trace"));
+
+        GateItemResult result = gate.evaluate(envelope(), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isTrue();
+    }
+}

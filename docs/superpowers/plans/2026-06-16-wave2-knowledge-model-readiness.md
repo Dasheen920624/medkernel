@@ -71,9 +71,9 @@
 
 ### Chunk 1: 候选提审前安全闸
 
-- [ ] Task 1: 为 AIK-STD-05 PR2 写红线/剂量/高危/许可/冲突仲裁门禁测试。
-- [ ] Task 2: 实现对应 `CandidateGate`，接入 `CandidateSafetyGateService`。
-- [ ] Task 3: 更新 AIK-STD-05 卡与测试证据，本地提交。
+- [x] Task 1: 为 AIK-STD-05 PR2 写红线/剂量/高危 readiness、许可、权威冲突仲裁门禁测试。
+- [x] Task 2: 实现对应 `CandidateGate`，接入 `CandidateSafetyGateService`。
+- [x] Task 3: 更新 AIK-STD-05 卡与测试证据，本地提交。
 
 ### Chunk 2: 去重分流
 
