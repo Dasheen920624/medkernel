@@ -18,17 +18,17 @@
 承载＝[KNOW-01](../D2/KNOW-01.md) 来源登记 + hash 雏形。本卡＝**新建文档解析流水线 + 锚点 + 存证**（当前无 PDF/Word 章节解析与表格理解）。
 
 ## 功能要求（原子可测条目）
-- [~] FR-1 解析到章节：解析为结构化章节树（标题层级）。**PR1 ✅ 结构化文本（Markdown/编号标题）**；PDF（PR2 PDFBox）/ Word（PR3 POI）待接入。
-- [ ] FR-2 表格理解：表格解析为结构化行列（不丢语义）。**PR3 待做**（表→行/单元格片段）。
-- [x] FR-3 引用锚点：每抽取条目带原文锚点（§章节/¶段，PR2 追加页）。**PR1 ✅**（物化进 `source_fragment.anchor_path`）。
+- [x] FR-1 解析到章节：解析为结构化章节树（标题层级）。**PR1 ✅ 结构化文本（Markdown/编号标题）+ PR2 ✅ PDF（PDFBox 逐页）+ PR3 ✅ Word（POI 段落）**，三格式共用 `DocumentSectionizer`。
+- [x] FR-2 表格理解：表格解析为结构化行列（不丢语义）。**PR3 ✅**（Word `.docx` 表 → 行/单元格片段，物化为单元锚点 `§节/tbl<n>/r<行>c<列>`；模型 + 物化 + 锚点方案两格式通用，PDF 无可靠表结构则诚实不产表不伪造）。
+- [x] FR-3 引用锚点：每抽取条目带原文锚点（§章节/¶段，PR2 追加页 `p<页>/`，PR3 追加表格单元 `tbl<n>/r<行>c<列>`）。**PR1/2/3 ✅**（物化进 `source_fragment.anchor_path`）。
 - [x] FR-4 版本存证：原文 + 解析结果 hash 存证，可验未篡改。**PR1 ✅**（`source_version.content_hash` 原文 SHA-256 + `file_uri`；job `source_hash`）。
 - [x] FR-5 解析失败诚实：无法解析诚实标记，不产伪结构。**PR1 ✅**（空/不支持格式 → job FAILED + error，不物化）。
 
 ## 实现进度
 - **PR1（管线核心，本卡第一刀）**：端口-适配器架构 `DocumentParser` + B0 `StructuredTextDocumentParser`（确定性章节解析，零外部依赖）+ `ParsedDocumentMaterializer`（物化进既有 `source_version`/`source_fragment`，**复用 KNOW-01 不建 `doc_anchor` 重复表**）+ `DocumentParseOrchestrationService`（job 生命周期 + 诚实失败降级）+ `DocumentParseController`（`knowledge.write/read` 复用不新增权限码）+ 唯一新表 `mk_doc_parse_job`（V133 五方言）。归 `engine-knowledge` 域新包 `engine.knowledge.parsing`。
-- **PR2 待做**：`PdfDocumentParser`（Apache PDFBox，FR-1 PDF + 页锚点）。
-- **PR3 待做**：`WordDocumentParser`（Apache POI）+ 表格理解（FR-2）。
-- **P6 分寸**：仅建机制 + B0 + 测试夹具验证，不连真实文献库、不进 P6；模型增强解析受 LLM/P6 闸不实现。
+- **PR2 ✅**：`PdfDocumentParser`（Apache PDFBox 3.0.3，逐页确定性提取 + 逐段真实页号 `p<页>/§节/¶段` 锚点；扫描件/损坏诚实 FAILED 不做 OCR）+ 抽共享 `DocumentSectionizer` + `ParsedParagraph` 携页号 + 二进制经 `content` Base64 传输（不增字段/迁移）。
+- **PR3 ✅**：`WordDocumentParser`（Apache POI 5.3.0，遍历 `.docx` 正文段落 + 表格）+ **表格理解（FR-2）**——`DocumentSectionizer` 升级为元素流（`TextLine` | `TableBlock`），表格归属当前节并编节内表序 → `ParsedTable`；`ParsedDocumentMaterializer` 逐非空单元格落 `[p<页>/]§节/tbl<n>/r<行>c<列>` 锚点片段（真实 SHA-256 + 幂等 + 空单元格不产指纹）。无新表/端点/权限/迁移（`ck_*_format` 已含 `'WORD'`，`@Component` 自动并入分派）。
+- **P6 分寸**：仅建机制 + B0 + 测试夹具验证，不连真实文献库、不进 P6；模型增强解析（OCR/版面理解）受 LLM/P6 闸不实现。
 
 ## 接口 / 数据契约
 - `doc_parse_job`（源文件/状态/结果 ref/hash）+ `doc_anchor`（条目→页/章/段），五方言；大列表 [API-13](../D0/API-13.md)。
@@ -41,9 +41,9 @@
 - 本卡落点：解析到章节/表格 + 引用锚点 + 版本存证，抽取条目可回原文。
 
 ## 验收 + 验证
-- [~] AC-1（FR-1~3）：解析 + 表格 + 锚点正确。**PR1 ✅ 文本章节 + 锚点**；PDF/Word/表格 待 PR2/PR3。
-- [x] AC-2（FR-4/5）：hash 存证可验；失败诚实。**PR1 ✅**。
-- [x] T-GATE：后端真实性门禁全绿（PR1：authenticity/config/migration/comment-zh changed 全过）。
+- [x] AC-1（FR-1~3）：解析 + 表格 + 锚点正确。**PR1 ✅ 文本章节 + PR2 ✅ PDF + 页锚点 + PR3 ✅ Word + 表格 + 单元锚点**，AC-1 全格式闭合。
+- [x] AC-2（FR-4/5）：hash 存证可验；失败诚实。**PR1 ✅**（PDF/Word 扫描件/损坏亦诚实 FAILED）。
+- [x] T-GATE：后端真实性门禁全绿（PR1/2/3：authenticity/config/migration/comment-zh changed 全过）。
 - [x] B0 验收：★纯规则解析路径可用（不依赖模型）。**PR1 ✅** `StructuredTextDocumentParser` 确定性解析。
 
 ## 完工证据
