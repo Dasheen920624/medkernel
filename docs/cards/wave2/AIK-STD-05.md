@@ -18,11 +18,17 @@
 **待建**；红线＝D3 [OPT-04](../D3/OPT-04.md)，来源分级仲裁＝D2 [OPT-07](../D2/OPT-07.md)。本卡＝**新建 11 项门禁校验器 + 冲突仲裁**（详规 §8.9）。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 11 项门禁：逐条校验（来源真实性/锚点完整/红线不冲突/高危近似/剂量边界/适用域/可信级/去重/许可/格式/审核要素），列举可测。
-- [ ] FR-2 红线拦截：越 [OPT-04](../D3/OPT-04.md) 禁忌/剂量/危急值候选拦截。
-- [ ] FR-3 冲突仲裁：与现行权威冲突的候选标记 + 按 [OPT-07](../D2/OPT-07.md) 来源级仲裁。
-- [ ] FR-4 不过不提审：任一门禁 FAIL 即拦截、诚实报因，不静默放行。
-- [ ] FR-5 门禁可审计：每候选门禁结果留痕。
+- [ ] FR-1 11 项门禁：逐条校验（来源真实性/锚点完整/红线不冲突/高危近似/剂量边界/适用域/可信级/去重/许可/格式/审核要素），列举可测。**PR1 已落 6 项确定性信封门禁**（来源真实性/锚点完整/可信级/格式/审核要素/适用域）；红线/剂量/高危/许可 PR2（OPT-04/源解析）、去重待 [AIK-STD-10](AIK-STD-10.md)。
+- [ ] FR-2 红线拦截：越 [OPT-04](../D3/OPT-04.md) 禁忌/剂量/危急值候选拦截。（PR2 接 `engine.safety.ClinicalRedlineService`）
+- [ ] FR-3 冲突仲裁：与现行权威冲突的候选标记 + 按 [OPT-07](../D2/OPT-07.md) 来源级仲裁。（PR2 接 `ConflictArbitration`）
+- [x] FR-4 不过不提审：任一门禁 FAIL 即拦截、诚实报因，不静默放行（`CandidateSafetyGateService` + 接入 AIK-STD-04 `GenerationSummary.blocked`）。
+- [x] FR-5 门禁可审计：每候选门禁结果留痕（`mk_aik_gate_result` V136 + `GET .../jobs/{jobCode}/gate-results`）。
+
+## 实现进度（PR1，门禁框架 + 6 项确定性门禁）
+- 新包 `engine.knowledge.production.gate`：`CandidateGate` 接口 + 6 `@Component` 确定性门禁（`SOURCE_PRESENT`/`ANCHOR_COMPLETE`/`AUTHORITY_LEVEL`/`CONTENT_FORMAT`/`REVIEW_ELEMENTS`/`APPLICABLE_SCOPE`）+ `CandidateSafetyGateService`（按门禁码定序、逐项落 `mk_aik_gate_result`、任一不过即整体不过、单项异常诚实判不过不吞错）。
+- 接入 [AIK-STD-04](AIK-STD-04.md)：生成 envelope → 过门禁才 `submitCandidate`；不过入 `GenerationSummary.blocked` 诚实报因（FR-4）。
+- `mk_aik_gate_result` V136 五方言（append-only）+ 迁移基线/域归属登记；纯确定性 B0 不依赖模型。
+- **PR2 续**：红线（FR-2，OPT-04）+ 冲突仲裁（FR-3，OPT-07）+ 剂量/高危/许可门禁；去重门禁待 AIK-STD-10。
 
 ## 接口 / 数据契约
 - `aik_gate_result`（候选/门禁项/通过判定/原因），五方言；门禁前置于提审。
