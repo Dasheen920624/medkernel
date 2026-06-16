@@ -1,0 +1,294 @@
+# 自主公域知识生产 + AI 工厂收尾 + 整体上线 · 主计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL：本文件是**主计划（master plan）**，把"从当前到整体上线"的全部剩余工作分解为 12 个阶段、4 大执行块。**每个阶段是一个独立子计划**，执行时用 `superpowers:subagent-driven-development` 把该阶段展开为 bite-sized TDD 任务（写失败测试→验红→实现→验绿→提交）后实现。步骤用 checkbox（`- [ ]`）跟踪。
+>
+> **质量准绳（恒守）**：质量最高、体验最好；首发知识包目标 = **全医疗专业领域全量覆盖 + 全专科深度**（[_brief §10](../../cards/wave2/_brief.md)）。不降真实性标准、不交 B0 桩冒充完工。
+>
+> **开工先读**：[CONSTITUTION](../../CONSTITUTION.md) > [wave2 _brief](../../cards/wave2/_brief.md) > 本计划 > 对应卡 > 既有代码。
+
+**Goal:** 把第二阶段从"模型可接入但被阻断"推进到"整体上线、自主从公域+院内持续生产真实医学知识、专家审核上线"的完整产品状态。
+
+**Architecture:** 三条进料口（公域搜集 / 院内上传解析 / 人工维护）→ 共用「文档原件资料库存储层」→ 统一解析/候选/门禁/triage/影子/审核管线（单一候选池统一治理）→ 双形态物理隔离落库（平台主源 t-1 / 院内覆盖）→ 原子替换 → 知识包。全部建在既有地基上，禁重复造表/造控制器。
+
+**Tech Stack:** Spring Boot + Java records + Spring Data JDBC + Flyway 五方言（h2/postgres/oracle/dm/kingbase）+ JUnit5/AssertJ/Mockito + React/Vitest + 产品级 CLI（node:test）+ MCP（node:test）+ 真实性/配置/迁移/中文注释门禁 + T-GATE。
+
+---
+
+## 0. 核心顺序铁律（先读这条，别再排反）
+
+> **134 = 生产中心 = 生产知识的机器本身。** 首发知识包是这台机器**部署上线后"跑出来"的运营产物**，不是部署前的开发产物。
+
+正确顺序 = **建机器（代码）→ 部署 134 上线生产中心 → 在 134 上跑出知识 → 总验收 + 试点医院上线**。全程**两次上线**：
+- **第一次 = 生产中心(134)上线**（产出侧 / 外网）：部署机器 + 配真前置 + 超管翻 P6 → 134 具备自主生产能力。
+- **第二次 = 试点医院上线**（临床侧 / 内网）：134 跑出的知识包 v1.0 经总验收后同步到试点医院运行侧。
+
+KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、第二次上线之前的**运营产物**。
+
+---
+
+## 1. 约束分层（全程恒守 vs 本计划要消除）
+
+> 给所有执行 AI 的**绑定契约**。动任何代码前先认这张表。
+
+### 1.1 永久必控（不分上线前后，永远在，绝不让步）
+
+| 控制 | 落点 / 为何永久 |
+|---|---|
+| **真实性（铁律 #1）** | 禁伪造医学事实/引文/置信度/评测结果/基准答案；候选必来自真实来源锚点、可溯源；`authenticity --mode=changed` 永绿 |
+| **AI 只产候选不产事实（铁律 #5/#6）** | AI/抓取/模型全部只产 DRAFT 候选，入库走审核台 + 原子替换链（SYS-08），关系库唯一权威 |
+| **专家审核上线** | 任何候选（公域/院内/人工）激活前必经审核台人工审核署名；AI 永不自动发布权威知识 |
+| **临床安全红线** | OPT-04 红线（DDI/危急值/剂量/抗菌/特殊人群）生效；医师确认才进病历；高危近似禁批量自动确认 |
+| **凭据安全** | 密钥永不入仓库/对话/日志；只存 `credential_ref` 引用 |
+| **数据分级 D0–D5** | D5 禁入模型/CLI/MCP；D3/D4 字段级加密；出域最小化脱敏；公域生产中心**不接触任何患者数据** |
+| **双形态物理隔离（核心 §9）** | 公域→平台主源 t-1；院内→院内覆盖；**院内禁反写平台主源**；运行侧只本地模型/B0/不出网 |
+| **换模型/版本必重评** | provider 或 prompt/tool/model 三元组变更，必须重跑 PASSED 医学回归评测才放行 |
+| **降级路径（GA 门禁 6 / DEGRADE-01）** | 模型/Dify/图/外网/MCP 任一断，主链路仍以 B0/本地/NOT_CONNECTED 诚实运行——**永久产品功能，必须实现** |
+| **审计留痕** | 抓取/外调/生成/审核/替换/导出全留痕，合规审计独立只读可查 |
+
+### 1.2 临时开发期姿态（本计划要逐项消除）
+
+| 姿态 | 消除动作（哪阶段） |
+|---|---|
+| "B0 先跑、模型/外联后置"的**开发分期** | 取消分期，全部真实实现（模型增强 + 降级路径都建，见 1.3） |
+| 候选只产 **B0 模板桩 / 逻辑留白**（AIK-STD-04 现状） | P5 用真实来源 + 模型增强生成真实候选内容 |
+| **P6 = OFF（被阻断状态）** | P9 真前置备齐 → 超管在配置中心翻 `true` |
+| **医学回归基准集为空** | P2 默认自带真实基准集（OPT-04 投影）+ 可维护更新 |
+| **公域获取从没建** | P1+P4 建文档原件存储层 + 自主公域获取引擎 |
+| **KNOWGEN 首发资产未产出** | P10 在 134 上运营产出，专家审核上线 |
+| 前端 / AIK-STD-07/08 / X-DOMAIN 未做 | P3/P7/P8 收尾 |
+
+### 1.3 "不需要 B0 先跑"的准确含义
+
+- ✅ **取消** "先交 B0 桩、模型留到 P6" 的开发分期——一步到位实现真实功能。
+- ⚠️ **不取消** 降级/本地路径作为**永久功能**：医院内网运行侧按设计无外部模型，模型不可用时全链必须仍可跑（GA 门禁 6）。"全部实现" = 模型增强路径 + 降级/本地路径，两条都真实建。
+
+---
+
+## 2. 既有地基清单（建其上，禁重复造表/造控制器）
+
+> 落卡前核既有 infra，命中"别建重复表"已 ≥3 次。下列均已存在，**复用，不重建**。
+
+**来源与资料（KNOW-01 / AIK-STD-02）**：`engine.knowledge.{SourceDocument, SourceVersion(已有 file_uri + content_hash), SourceFragment, SourceAuthorityLevel(A–E), SourceRegisterRequest, SourceReferenceResolver}`；解析 `engine.knowledge.parsing.{DocumentParser, StructuredText/Pdf/WordDocumentParser, DocumentSectionizer, ParsedDocumentMaterializer, DocumentParseOrchestrationService, DocumentParseController(documents:parse)}` + `mk_doc_parse_job`。
+
+**探索（LLM-06，仅受控源、不开放全网）**：`engine.knowledge.discovery.{DiscoveryOrchestrationService, ControlledSourceSearchRepository, DiscoveryController}` + `mk_knowledge_discovery_run`。
+
+**生产编排与候选管线**：`engine.knowledge.production.{KnowledgeProductionOrchestrationService, CandidateGenerationOrchestrationService, SourceCandidateGenerator, MaterializingCandidateIntake, MaterializationTarget, CandidateCoexistenceService, KnowledgeProductionReadinessService, KnowledgeProductionController}`；门禁 `production.gate.{CandidateGate, CandidateSafetyGateService, SourcePresentGate, AnchorCompleteGate, AuthorityLevelGate, ContentFormatGate, ReviewElementsGate, ApplicableScopeGate, SourceLicenseGate, ClinicalRedlineReadinessGate, AuthorityConflictGate}` + `mk_aik_gate_result`；分流 `production.triage.KnowledgeGenerationTriageService` + `mk_knowledge_generation_triage`；影子 `production.shadow.KnowledgeShadowEvaluationService` + `mk_knowledge_shadow_run`；模型生产器 `production.model.ModelKnowledgeProducer`。
+
+**模型网关/评测/出域/provider/版本治理（X-LLM）**：`engine.llm.{ModelGatewayService, ModelGatewayController, ModelCapabilityPolicy, ModelFallbackMatrix, ModelVersionGovernanceService}` + `mk_llm_model_version_bundle`；评测 `engine.llm.eval.{MedicalRegressionCase, ModelEvalService, ModelEvalController, MedicalRegressionEvaluator}` + `mk_llm_regression_case`/`mk_llm_eval_run`；出域 `engine.llm.egress.{ModelEgressGovernanceService, ModelEgressGuard, ModelEgressWhitelist, ModelEgressController}`；provider `engine.llm.provider.{ModelProviderConfig, ModelProviderHttpClient, RestClientModelProviderHttpClient, DeploymentFormService, ProviderType, DeploymentForm}`。
+
+**知识版本/审核/替换（KNOW-02 / SYS-08 / MED-C3 / AIREVIEW-01）**：`KnowledgeVersionService`（reviewCandidate APPROVE/REJECT/RETURN、classifyCandidate、activate）+ SYS-08 原子替换 + MED-C3 旧版隔离；前端 `frontend/src/pages/quality/KnowledgeGovernance.tsx` + `shared/api/hooks.ts`。
+
+**配置/安全/包/接入底座**：`shared.config.{SystemConfigService, SystemConfigSeeder, SystemConfigController}`；`engine.safety.ClinicalRedlineService`（OPT-04）；PKG-01 包发布；DATASVC-01 MCP 7 工具 + CLI + 引擎数据服务层。
+**注意**：`shared.observability.{PayloadStoragePort, DbPayloadStorage}` 是 OBS-01 可观测性 payload（存进 DB）——**不是**文档原件存储，勿误用。
+
+---
+
+## 3. 目标架构（数据流）
+
+```
+[公域搜集]   [院内上传解析]   [人工维护]
+  ①②             ④/③            ④
+    \             |             /
+     v            v            v
+   ┌─────────────────────────────┐
+   │ 文档原件资料库存储层 (P1 新建) │  原件→对象存储(COS/OSS/S3/MinIO)→file_uri
+   └─────────────────────────────┘  (按 scope 隔离: t-1 / 各租户)
+                 |
+                 v
+   解析(AIK-STD-02) → 候选生成(AIK-STD-04) → 安全门禁(AIK-STD-05)
+                 → 8态分流(AIK-STD-10) → 影子评测(AIK-STD-06)
+                 → 审核台(AIREVIEW/AIK-STD-12) → 【专家审核署名】
+                 → 原子替换(SYS-08/AIK-STD-09/11) → 知识包(PKG-01/AIK-STD-07)
+                 |
+        ┌────────┴─────────┐
+        v                  v
+  平台主源 t-1        院内覆盖(本租户)   ← 双形态物理隔离(核心§9/AIK-STD-13)
+  (客户只读订阅)     (禁反写平台主源)
+```
+
+---
+
+## 4. 执行顺序（4 大块 · 两次上线）
+
+```
+■ 第一大块 · 建工厂机器（代码，部署前在本地/CI 验证）
+  P0 安全基线 → P1 原件存储层 → P2 上线就绪地基 → P3 工厂收尾
+  → P4 自主公域获取引擎 → P5 模型增强 → P6 院内管道
+  → P7 领域门面代码 + KNOWGEN 资产类型专用代码 → P8 前端体验
+     (机器层部署前用 fixtures 预验：无模型可运行组/审核台/降级 = GA门禁3机制 + DEGRADE-01)
+
+■ 第二大块 · 生产中心(134)上线 ← 第一次上线
+  P9 部署机器到 134 + 配真前置(文献库桶/provider/凭据/真跑PASSED评测/allowlist/版本三元组)
+     + 超管翻 P6 → 134 生产中心 live，具备自主生产能力
+
+■ 第三大块 · 在 134 上生产首发知识（运营，机器跑出来的）
+  P10 自主公域获取 + 模型增强 → KNOWGEN-01~25 候选 → 专家审核上线 → 打包知识包 v1.0
+     (持续批次：起步集 → 扩充 → 全量；每批同链不降标)
+
+■ 第四大块 · 总验收 + 试点医院上线 ← 第二次上线
+  P11 KNOWGEN-15 总验收 + GA门禁 3/8/10 实跑点亮 + 知识包同步到试点医院(运行侧/内网)
+```
+
+**依赖要点**：P1 是 P4/P6 文档进料的物理地基，必须最先；P2 基准集/配置是 P5/P9 前置；建机器块(P0–P8)全绿才 P9 部署；**P9 上线后才能 P10 产内容**（机器先就位）；P10 产出知识包后才能 P11 总验收 + 试点同步。
+
+---
+
+## 5. 各阶段方案（目标 / 复用 / 任务 / 验收）
+
+> 任务为 FR 级 + 文件落点 + 测试意图 + 验收；执行 AI 用 subagent-driven-development 展开成 bite-sized TDD。每个 PR 必过 §6 门禁。
+
+### 〈第一大块 · 建工厂机器〉
+
+#### Phase 0 · 安全基线锁定（doc，0.5d）
+- **目标**：把 §0 顺序铁律 + §1 约束分层固化为执行契约，写入 `_HANDOFF` 与 backlog，后续 PR 描述引用。
+- [ ] T0.1 `docs/_HANDOFF.md` 顶部新增"整体上线主计划"工作线段（活跃分支/状态/下一步/契约链接）。
+- [ ] T0.2 `docs/backlog.md` wave2 区标注各卡归属本计划哪个 Phase（不改 done/pending 口径）。
+
+#### Phase 1 · 文档原件资料库存储层（地基，3d）
+- **目标**：多进料口共用的原件对象存储——原件落资料库根 → `file_uri`，可取回/重解析/审计；按 scope 隔离；未配根诚实阻断不伪造本地路径。
+- **复用**：`SourceVersion.file_uri`、`SystemConfigService.runtimeKnowledgeLiteratureMaterialRootUri()`、根 URI 校验。
+- **新建包** `engine.knowledge.material`
+  - [ ] T1.1 `DocumentMaterialStoragePort`：`store(scope,bytes,contentType,sha256)->fileUri` / `fetch(fileUri)->bytes` / `exists/delete`；scope 决定路径前缀（t-1 / 租户 id）。
+  - [ ] T1.2 适配器 `ObjectStoreDocumentMaterialStorage`（S3 兼容 COS/OSS/OBS/MinIO；HTTPS 网关另适配）；凭据走 `credential_ref`；根未配/不可达→结构化阻断（不回退本机磁盘）。
+  - [ ] T1.3 `mk_knowledge_material_object` 账本（五方言 append-audited）：scope/file_uri/sha256/content_type/byte_size/stored_at/stored_by/source_channel。**先核无等价表再建**。
+  - [ ] T1.4 接 `DocumentParseOrchestrationService`：上传/抓取原件先 store→登记 `SourceVersion(file_uri,hash)`→解析；重解析从 fetch 取原件。
+  - [ ] T1.5 只读取回端点 `GET .../knowledge/materials/{ref}`（`knowledge.read`，审计下载）。
+- **验收**：原件存取 hash 一致 + scope 隔离 + 根未配阻断 + 解析接通。
+
+#### Phase 2 · 上线就绪地基（3d）
+- **目标**：默认自带**真实**医学回归基准集 + 可维护；门禁配置收编超管管理面；readiness 前端六态。
+- **复用**：`mk_llm_regression_case`、`ModelEvalController/Service`、`ClinicalRedlineService`、`SystemConfigController`、`/readiness`。
+  - [ ] T2.1 `RegressionBaselineSeeder`：从 OPT-04 **已审红线库**投影首发回归用例（capability+input+expected_phrase+red_line_type+引用+citation=Y）；**禁凭空编题/编答案**，只投影已审内容。
+  - [ ] T2.2 基准集维护：确认/补 `ModelEvalController` 新增/启停/版本/批量导入真实题。
+  - [ ] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。
+  - [ ] T2.4 readiness 前端：生产中心页展示 9 闸逐项 PASS/BLOCK + 阻断原因 + 去配置去处；六态齐。
+- **验收**：自带真实基准集且可维护 + 6 项配置超管默认关可管 + readiness 前端逐项可见（注：`MODEL_EVALUATION` 仍要求真跑 PASSED，不被种子绕过）。
+
+#### Phase 3 · AI 工厂收尾（5d）
+  - [ ] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；卡 FR-1 11 项补全。
+  - [ ] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`knowledge_diff` + `expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。
+  - [ ] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。
+  - [ ] T3.4 **AIK-STD-03 术语勾卡**（已实质建成 TERM-01+`TerminologyCandidateGenerationJob`，核实+勾卡不重建）。
+  - [ ] T3.5 **前端 Chunk7**：triage 8 态队列 + 影子展示 + 共存左右对照高亮 + Agent 进度可视/可中止 + 审后任务化提醒。
+- **验收**：各卡 FR 真实勾全（无虚勾）；差异/过期不自动替换、诚实空；包无通道 NOT_SYNCED。
+
+#### Phase 4 · 🌟 自主公域知识获取引擎（灵魂，6d）
+- **目标**：生产中心**自主从公域权威源持续获取资料→落资料库→进统一管线→专家审核上线**；补 AIK-STD-14 Agent 取数工具。原设计预留槽位（生产器①②）补全。
+- **复用**：P1 存储层、来源登记、解析管线、`ModelEgressGovernanceService`、`DeploymentFormService`（仅 PRODUCTION_CENTER 可外联）、`CandidateGenerationOrchestrationService`、DATASVC MCP/CLI。
+- **新建包** `engine.knowledge.acquisition`
+  - [ ] T4.1 公域源 allowlist 治理 `mk_knowledge_acquisition_source`（域名/A–E 权威(OPT-07)/license/robots 策略/enabled/审批人/时点）五方言；超管在配置中心管理；**新增域名超管审批才生效**（起步集见 §7）。**先核无等价表再建**。
+  - [ ] T4.2 合规抓取器 `WebContentFetcher` + `RestWebContentFetcher`：仅抓 allowlisted 域；遵守 robots/ToS/rate-limit；记真实 URL+时点；产真实字节→P1 store→真实 sha256；仅 PRODUCTION_CENTER 可运行，经出域治理留证。
+  - [ ] T4.3 获取编排 `AcquisitionOrchestrationService`：调度→抓取→落资料库→登记 `SourceVersion(file_uri,hash,authority,license)`→触发解析→触发候选生成（同 hash 去重；license 不许可接 `SourceLicenseGate` 拒收）。
+  - [ ] T4.4 抓取账本 `mk_knowledge_acquisition_run`（域名/url/fetched_at/sha256/bytes/license/status/触发方式）五方言；合规审计可查。
+  - [ ] T4.5 自主调度：接 SYS-05 异步/批量框架，定时探索 allowlisted 源更新（接 AIK-STD-08 差异）；失败补偿/死信（OBS-01）。
+  - [ ] T4.6 **AIK-STD-14 Agent 取数工具**：MCP/CLI 新增 `fetchPublicMaterial`（仅 allowlisted 公域、仅生产中心、留证、产候选不产事实），生产器②可自主取公开资料回写候选。
+  - [ ] T4.7 端点：`POST .../knowledge/acquisition/runs`（手动触发，write）+ `GET .../knowledge/acquisition/{sources,runs}`（read）。
+- **验收**：自主抓 allowlisted 公域→资料库→候选入审核链；形态/出域/license/robots 合规留证；Agent 工具越权（患者数据/D5/非公域）拒；全程 AI 只产候选、专家审核、不臆造来源。
+
+#### Phase 5 · 模型增强全实现（X-LLM 收口，5d）
+  - [ ] T5.1 **LLM-01** 固化 provider 无关网关契约，修正"未接 provider"陈旧口径；B0 空候选不写死医学事实。
+  - [ ] T5.2 **LLM-02** provider 缺位/断连/限流/结构化失败/出域阻断→B0 降级矩阵验收（接 `ModelFallbackMatrix`）。
+  - [ ] T5.3 **LLM-04** prompt/tool/model 版本包 + 三元组绑定 + 重放/回滚/导出（只出 hash）；模型候选必带真实三元组。
+  - [ ] T5.4 **OPT-06** AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。
+  - [ ] T5.5 **OPT-09** 数据最小化策略引擎（字段白名单+脱敏+审批）。
+  - [ ] T5.6 **API-12** 模型能力网关 API 收口勾卡。
+  - [ ] T5.7 **候选真实化**：`SourceCandidateGenerator`/`ModelKnowledgeProducer` 用真实锚点 + 模型增强填充逻辑字段（带 AI 标识+锚点+hash+三元组），替换 B0 留白；readiness 未过/provider 失败/schema 不合格→诚实降级不产伪候选。
+  - [ ] T5.8 **降级路径实现 + 验收**：模型 off→B0；运行侧只本地/B0；六态齐（DEGRADE-01 预验）。
+- **验收**：配齐前置后模型真产候选进统一链 + 缺任一前置结构化阻断 + 降级矩阵全绿 + 候选无伪造。
+
+#### Phase 6 · 院内覆盖管道全实现（4d）
+  - [ ] T6.1 院内上传增强：`DocumentParseController` 上传接 P1 存储层（原件落本租户 scope）；候选归院内覆盖。
+  - [ ] T6.2 本地模型生产器（生产器③）：`ModelKnowledgeProducer` 本地 provider 路径（Ollama/国产化不出网），归院内覆盖，运行侧可用。
+  - [ ] T6.3 双形态隔离强化测试：院内候选禁反写 t-1；客户对主源只读；复核 AIK-STD-13 FR-4/FR-7。
+  - [ ] T6.4 **DATASVC-01 剩余**：D3/D4 字段级加密落地 + AC 收口；MCP/CLI 不绕治理复核。
+- **验收**：院内上传→覆盖候选全链 + 本地模型不出网 + 隔离硬保证 + D3/D4 加密。
+
+#### Phase 7 · 领域门面代码 + KNOWGEN 资产类型专用代码（6d）
+- **目标**：建领域门面（代码组合）+ KNOWGEN 中需**代码支撑**的部分（计算器/模板/规则结构），为 P10 内容产出备好机器。**注意：这里只建代码，不产内容**。
+  - [ ] T7.1 **领域门面 X-DOMAIN 17 卡代码**（[NURSING-01](../../cards/wave2/NURSING-01.md)/REPORT/POC-KNOW/PHARMACY/CRITICAL/SPECIAL-POP/PERIOP/ONCO-RENAL/ALLIED-CARE/TCM-HEALTH/INFECTION-PH/PRIMARY-CARE/REGION-COLLAB/SPECIALTY-EXT/RWD + SVC-DOMAIN-01/02）：规则+路径+知识+CDSS+嵌入+评估+随访 领域组合，**复用同一引擎链路不另起业务实现**。
+  - [ ] T7.2 **KNOWGEN 资产类型专用代码**：KNOWGEN-16 评分量表/计算器**算法物理化可复算**、KNOWGEN-04/18/20 规则结构+测试病例骨架、KNOWGEN-19 PGx 剂量结构、各类专用模板（复用 AIK-STD-12 全专业模板，缺则补）。**不预填医学内容**（内容 P10 产）。
+- **验收**：各领域门面 B0 主链路 E2E（用 fixtures）；KNOWGEN 各资产类型有可运行的生成/校验/计算代码骨架。
+
+#### Phase 8 · 前端体验完美化（贯穿，定稿）
+- **目标**：体验契约 E1–E9 全过（[_brief §5](../../cards/wave2/_brief.md)）；生产中心全页齐。
+  - [ ] T8.1 菜单 IA 双产品面（生产侧"知识生产"一级域，临床客户不可见）。
+  - [ ] T8.2 生产者工作台（下任务→看进度→审候选→批处置；队列+左右对照+影响+结论）。
+  - [ ] T8.3 双形态一眼可辨（主源 vs 院内覆盖 颜色/徽标/分区）。
+  - [ ] T8.4 可信解释贯穿（每条 AI 产物标 AI生成/来源锚点/版本/模型模式/置信降级）。
+  - [ ] T8.5 反馈回流闭环（采纳/不采纳/误报/空白→新候选）。
+  - [ ] T8.6 降级六态 + 医院语言文案（不暴露黑话）+ 老年≥16pt + 5 主题 + 国产浏览器 + 移动端 + 技术对象专家模式默认折叠。
+- **验收**：体验门禁通过；INFRA-07 全页可打开 E2E（机器层，部署前）。
+
+### 〈第二大块 · 生产中心(134)上线〉
+
+#### Phase 9 · 生产中心(134)上线（第一次上线 · ops+治理，非纯代码）
+> 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。须用户/运维供给；碰 134 须本会话点名授权 + 备份 + 留痕 + 可回滚。
+  - [ ] T9.1 运维开对象存储桶（COS/OSS/MinIO）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。
+  - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 兼容/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。
+  - [ ] T9.3 质量医保治理员复核真实医学基准集 + 专家签字；**实跑一次 PASSED 医学回归评测**（覆盖启用题数）。
+  - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。
+  - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。
+  - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。
+  - [ ] T9.7 按发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；备份 dump 先 chown postgres；可回滚）。
+  - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。
+- **验收**：readiness 全绿 + 一条真实知识端到端上线留证 + 134 运行 manifest 哈希一致 + 可回滚。
+
+### 〈第三大块 · 在 134 上生产首发知识〉
+
+#### Phase 10 · 首发知识资产真产出（运营，在 live 的 134 上跑出来）
+- **目标**：用 P4 公域引擎 + P5 模型增强**自主获取并生产** KNOWGEN-01~25 候选 → 专家审核上线，达"全景分类全覆盖 + 全专科深度"。**起步集 v1.0 → 持续扩充 → 全量**，每批同链不降标。**这是运营产物，发生在 P9 之后**。
+  - [ ] T10.x 逐资产域跑产线：KNOWGEN-01 术语 / 02 药品说明书 / 03 指南 / 04 临床规则(带测试病例) / 05 专病路径 / 06 CDSS / 07 评估指标 / 08 随访 / 09 护理 / 10 医技报告 / 11 床旁 / 12 中医药 / 13 医保病案 / 14 公卫院感 / 16 评分量表 / 17 鉴别诊断 / 18 检查检验适当性 / 19 特殊人群剂量+PGx / 20 18项核心制度 / 21 罕见病 / 22 急救生命支持 / 23 围术期输血 / 24 患教知情同意 / 25 证据分级。
+- **铁律**：内容必来自真实抓取/权威来源 + 专家审核署名，**绝不 AI 编造医学事实**；高危（剂量/输血/配型）双签。
+- **验收**：各资产域候选真实产出 + 每条可溯源 + 专家审核上线 + 红线生效。
+
+### 〈第四大块 · 总验收 + 试点医院上线〉
+
+#### Phase 11 · 总验收 + GA 门禁 + 试点医院上线（第二次上线）
+  - [ ] T11.1 **KNOWGEN-15 总验收**：24 类合并"试点医院首发知识包 v1.0"；A1–A9 通过；OPT-04 红线生效；PKG-01 可同步。
+  - [ ] T11.2 **GA 总验收卡**：QA-01 引擎 E2E / QA-02 五方言+性能+备份 / QA-03 医疗安全 / QA-04 无模型/无Dify/无图 B0 / QA-05 上线评审 / QA-06 产品体验 / QA-07 代码净化 / QA-08 第三方对接 / DEGRADE-01 / SYS-07 / INFRA-07 / INFRA-10。
+  - [ ] T11.3 **GA 门禁 3/8/10 实跑点亮**：3（AI 工厂 AIK-STD-01~14 + DATASVC-01 通过、审核台真实可审可发、CLI/MCP 不绕治理）/ 8（15 领域门面）/ 10（KNOWGEN-15 首发包 A1–A9 + 同步试点）。
+  - [ ] T11.4 **试点医院上线**：知识包 v1.0 同步到试点医院运行侧（内网，PKG-01 灰度→全量）；运行侧只本地模型/B0；医师确认才进病历；反馈回流。
+- **验收**：GA 门禁 3/8/10 真实点亮 + 知识包同步试点留证 + 运行侧 B0 主链路真实可跑。
+
+---
+
+## 6. 每个 PR 必过门禁（执行 AI 推送前自检）
+
+- [ ] 后端全量 `cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`（0 fail 0 error）。
+- [ ] 新增迁移表/控制器：`MigrationBaselineContractTest`（REQUIRED_INDEXES=idx / COMMON_CONSTRAINTS=uk·ck **别混集** + 2 处 `LATEST_MIGRATION_VERSION`）+ `DomainOwnershipCatalog` 登记 + `ServiceContractCatalog` 登记新控制器。
+- [ ] `ModuleBoundaryArchTest`（engine/shared 不得依赖 compliance；跨域复用抽象放 shared）。
+- [ ] 五方言 Flyway smoke 真实容器（h2/postgres/oracle/dm/kingbase）。
+- [ ] 四门禁 `--mode=changed`：真实性 / 配置 / 迁移 / 中文注释（**多行 Javadoc，单行 fail**；禁 模拟/仿真/演示/占位/placeholder）。
+- [ ] 改控制器/route/menu：重生成 `product-function-catalog` + 前端 `productCatalog.test.ts`。
+- [ ] 改角色 MENU 白名单：同步 `PermissionDimensionModelTest` + `DefaultPermissionPolicyTest` 两处断言。
+- [ ] 前端 `cd frontend && npm run verify`（vitest + tsc + eslint + **Prettier format:check**）。
+- [ ] `git diff --check && git diff --cached --check` 干净。
+
+---
+
+## 7. 决策点（开工前需用户确认）
+
+1. **公域源 allowlist 起步集**：建议起步 = 国家级官方（卫健委/药监局 NMPA/疾控）+ 主要学会指南 + 标准术语机构 + 公开说明书库；国际源（PubMed/WHO）按合规口径。**新增域名一律超管审批**。
+2. **公域内容许可/版权口径**：建议保守——原件内部存供锚点抽取+审计，对外只呈现引用/锚点+溯源（不整文转载），每源记 license，`SourceLicenseGate` 强制。需用户/法务确认。
+3. **境外大模型数据出境合规**：生产中心只吃公开资料不碰患者数据（满足无个人数据出境）；生成式 AI 备案登记口径需合规审计员确认（O13）。
+
+---
+
+## 8. 执行交接
+
+- **分支**：每 Phase 独立分支（如 `codex/golive-p1-material-storage`），从最新 `origin/main` 起；Phase 内多 PR 增量；合并 main 逐 PR 授权。
+- **执行方式**：每 Phase 用 `superpowers:subagent-driven-development` 展开 bite-sized TDD + 每任务两段式 review。
+- **收尾**：每 Phase 完更新 `_HANDOFF` 对应工作线；过 §6 门禁 + owner≠reviewer 签字。
+- **防中断**：只用透明工程手段（本地分支/小提交/计划/接力/验证证据）。
+
+---
+
+## 9. Self-Review（spec 覆盖核对）
+
+- ✅ **顺序修正**：134 部署(P9) 在 KNOWGEN 内容产出(P10) **之前**；两次上线（P9 生产中心 / P11 试点医院）。
+- ✅ wave2 全 68 卡映射：X-LLM(P5)、X-AIK(P3/P4/P6)、DATASVC(P6)、X-DOMAIN(P7)、X-KNOWGEN 代码(P7)/内容(P10)、GA(P11)。
+- ✅ 灵魂三新地基：文档原件存储(P1)、公域获取引擎(P4)、AIK-STD-14 取数工具(P4.6)。
+- ✅ 三进料口 + 单一候选池 + 双形态隔离：架构 §3 + P1/P4/P6。
+- ✅ 永久必控全程恒守 + 临时姿态逐项消除：§1。
+- ✅ KNOWGEN 拆分：资产类型代码(P7，部署前) vs 内容产出(P10，部署后运营)。
+- ⏳ 决策点 3 项待用户确认（§7）后，各 Phase 由执行 AI 展开 bite-sized 实现。
