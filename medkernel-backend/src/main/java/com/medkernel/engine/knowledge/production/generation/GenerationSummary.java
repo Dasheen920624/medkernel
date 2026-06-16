@@ -2,7 +2,11 @@ package com.medkernel.engine.knowledge.production.generation;
 
 import java.util.List;
 
-/** 候选生成汇总（AIK-STD-04）：已生成候选 + 诚实跳过项。 */
+/**
+ * 候选生成汇总（AIK-STD-04）。
+ *
+ * <p>一次来源生成的结果聚合：已生成并提交的候选清单 + 因无源等诚实跳过的资产类型清单（铁律 #1 不伪造）。
+ */
 public record GenerationSummary(
     List<GeneratedCandidate> candidates,
     List<SkippedType> skipped
