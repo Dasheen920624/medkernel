@@ -5,11 +5,23 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603），但用户已明确要求**暂停 wave2 正式知识生产推进，先做第一阶段 B0 全系统深度核查与完美化整改**。第二波 AI 加深既有事实保留，最新 `origin/main` 已到 `7969f93f`（AIK-STD-02 PR1–PR3 已合并：#626 文本解析、#627 PDF、#628 Word/表格）。**当前不要继续领取 AIK/KNOWGEN 正式生产任务**；先在 `codex/b0-first-phase-perfect-remediation` 同一大 PR 内持续审计、修复、验证和复核 B0 全功能问题，尤其是诊断维护边界、路径字段运行、字段目录/第三方契约、版本选择、批量维护、角色体验、沙盘未评审场景、100k/资源证据、发布交付和医疗安全。
+- **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603）。B0 第一阶段全系统核查与完美化整改 **#629 已合并入 main `9cd3a4f4`**（下方该段「未提交未合并」为 PR 内旧文案，合并后未回刷，以此条为准）。**2026-06-16 用户已明确指令：恢复 wave2 P2-C 内容管线推进**（覆盖此前 B0 暂停）——续 `AIK-STD-03 术语`（核查＝TERM-01 + #629 `TerminologyCandidateGenerationJob` 已实质建成，第三次「别建重复表」命中）/ `AIK-STD-04 候选生成`（**PR1 进行：从 AIK-STD-02 带锚点片段确定性生成五类候选**，见下方段）/ 续 `AIK-STD-05` 11 项门禁 / `AIK-STD-10` 8 态去重。后续 B0 深查与 P2-C 并行推进，按卡 TDD。
+- **模型 key 边界（恒守）**：即便提供大模型 key，**也不等于解除 P6**——key 仅满足 P6 前置里「模型」一项，文献库受管根地址仍为空、IdP/独立验收未做；故正式知识生产仍阻断，AIK-STD-04 等只产 B0 模板桩候选（逻辑字段留白，模型填充受 P6 + LLM-03 出域闸 + LLM-07 评测闸闸控）。key 须走凭据通道（`mk_llm_provider.credential_ref` 只存引用，不入对话/仓库）。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
 - **P6 阻断（恒守）**：正式知识生产继续阻断——文献资料库受管根地址为空，未配置真实院方 IdP/短信/模型/图谱/外部 Provider；缺连接时按 B0 确定性主链路诚实降级。**不得进入 P6**，直到文献库根地址完成真实配置与独立验收。
+
+---
+
+## 2026-06-16 第二阶段 P2-C · AIK-STD-04 候选生成 PR1（编排核心 + 类型无关生成器 + 全 5 类，**已实现待合**，分支 `claude/wave2-p2c-aikstd04-candidate-generation`）
+
+> **接力须知**：用户 2026-06-16 指令恢复 P2-C。本段＝AIK-STD-04 第一刀——从 [AIK-STD-02](cards/wave2/AIK-STD-02.md) 解析后的带锚点 `source_fragment` **确定性（B0）生成规则/路径/推荐/指标/随访五类候选**，经既有 [AIK-STD-13](cards/wave2/AIK-STD-13.md) job+intake 落审核链。设计 [`specs/2026-06-16-aikstd04-candidate-generation-design.md`](superpowers/specs/2026-06-16-aikstd04-candidate-generation-design.md) · 计划 [`plans/2026-06-16-aikstd04-pr1-candidate-generation.md`](superpowers/plans/2026-06-16-aikstd04-pr1-candidate-generation.md)。续接从最新 `origin/main` 起。
+
+- **关键核查（写给下个 AI）**：① **AIK-STD-03 术语已实质建成**（TERM-01 + #629 `TerminologyCandidateGenerationJob`：批量异步候选 + `HighRiskTermDetector` 高危拦截 + `batchConfirmCandidates` 禁批量自动确认 + confirm/reject 审核链），仅差勾卡，**不重建**（第三次「别建重复表」）。② `submitCandidate` 强约束 `candidate.assetType()==job.assetType()`——一个 job 绑一个资产类型，故生成端点**逐类各建一个 MANUAL 生产 job**（非挂单 jobCode）。③ intake 拿 `sources[0].sourceRef` 经 `SourceReferenceResolver` 反解，sourceRef **必须** `"sourceCode:versionNo:anchorPath"`。
+- **已实现（新包 `engine.knowledge.production.generation`）**：`SourceCandidateGenerator`（类型无关 B0 模板桩——复用 [AIK-STD-12](cards/wave2/AIK-STD-12.md) `ProfessionalAssetTemplateRegistry` 取 structural 模板骨架，payload `sections` 逻辑字段留白「待编著」+ `sourceEvidence` 载真实锚点摘要，绑 `AssetSourceRef` + 真 `SHA-256`，恒 `DRAFT`；逻辑绝不凭空填——铁律 #1）+ `CandidateGenerationOrchestrationService`（载源版本/文档/片段，逐 `(assetType,target)` 建 MANUAL job → `submitCandidate`〔过 AIK-STD-01 校验闸 + §9 隔离 + PR3 路由 + intake〕；**源无片段诚实跳过不建 job**）+ `POST .../knowledge-production/generate`（`knowledge.write`，挂既有控制器零新治理面）。**复用 13 job+intake / 12 模板 / 01 信封，零新表零迁移零新权限码**；生产器归 `MANUAL`/B0 路径（`aiGenerated=false` 诚实）。
+- **验证全绿**：新增 9 测试（`SourceCandidateGeneratorTest` 3 + `CandidateGenerationOrchestrationServiceTest` 2 + 控制器安全 +3 + `CandidateGenerationIntegrationTest` 真实 H2 端到端 1）全过；治理/arch（ServiceContractGovernance/DomainOwnershipContract/ModuleBoundaryArch/ApiContractGovernance/ControllerProfileGate）14 绿；四门禁 changed（真实性 8 / 配置 8 / 迁移 0 / 中文注释 0fail0warn）全过；产品目录重生成 + 前端 `productCatalog.test.ts` 5/5（KnowledgeProductionController 端点 +1，KEEP 无漂移）；`git diff --check` 干净。卡 [AIK-STD-04](cards/wave2/AIK-STD-04.md) FR-1~5 + AC-1/2 全勾（B0 模板桩口径，逻辑填充 P6 闸）。
+- **当前下一步（接力点，从最新 `origin/main` 起；本 PR 合并后清分支）**：① **AIK-STD-05** 11 项安全门禁 + 冲突仲裁（前置于本卡候选提审，校验 AIK-STD-04 候选）；② **AIK-STD-10** 8 态身份识别/去重/分流；③ AIK-STD-03 术语仅需勾卡闭卡（已实质建成）。恒守：TDD 红绿 + B0 + **P6 阻断（不接真实模型、key 不解 P6）** + 铁律 #1（无源不生成、逻辑留白不伪造）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
 
 ---
 
