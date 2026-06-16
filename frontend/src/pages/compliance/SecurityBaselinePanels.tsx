@@ -216,8 +216,8 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
             <Space direction="vertical" size={2} className="mk-full-width">
               <Text code>{configValueLabel(knowledgeLiteratureConfig.value)}</Text>
               <Text type="secondary">
-                正式知识生产前必须通过配置中心维护对象存储或 HTTPS 网关等受管资料库，禁止 tmp
-                临时目录和代码内置厂商地址。
+                正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS
+                网关等资料库，禁止 tmp 临时目录和代码内置厂商地址。
               </Text>
             </Space>
           }

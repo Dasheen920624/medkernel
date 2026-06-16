@@ -5,8 +5,10 @@ import { useNavigate } from "react-router-dom";
 
 import { parseApiError } from "@/shared/api/errors";
 import {
+  useKnowledgeProductionReadiness,
   useRuntimeOperations,
   useSecurityProfile,
+  type KnowledgeProductionReadinessItem,
   type RuntimeDependencyStatus,
   type RuntimeFeatureFlag,
   type RuntimeOperationsSnapshot,
@@ -30,8 +32,8 @@ type SelfCheckItem = {
 const { Text } = Typography;
 
 const STATUS_LABEL: Record<ReadinessStatus, string> = {
-  blocked: "阻塞",
-  ready: "就绪",
+  blocked: "BLOCK",
+  ready: "PASS",
   disabled: "未启用",
 };
 
@@ -44,6 +46,30 @@ const STATUS_COLOR: Record<ReadinessStatus, string> = {
 const STATUS_FILTERS: ReadinessStatus[] = ["blocked", "ready", "disabled"];
 const READINESS_ROUTE = findRouteByPath("/workbench/readiness-validation");
 
+const KNOWLEDGE_READINESS_LABEL: Record<string, string> = {
+  LITERATURE_ROOT: "文献资料库根 URI",
+  DEPLOYMENT_FORM: "部署形态",
+  MODEL_PROVIDER: "模型 Provider",
+  REGRESSION_BASELINE: "医学回归基准集",
+  MODEL_EVALUATION: "医学回归评测",
+  EGRESS_GOVERNANCE: "出域白名单",
+  MODEL_POLICY: "能力策略",
+  VERSION_TRIPLE: "版本三元组",
+  P6_ACCEPTANCE: "P6 独立验收",
+};
+
+const KNOWLEDGE_READINESS_REPAIR_PATH: Record<string, string> = {
+  LITERATURE_ROOT: "/security/baseline",
+  DEPLOYMENT_FORM: "/security/baseline",
+  P6_ACCEPTANCE: "/security/baseline",
+  MODEL_PROVIDER: "/system/providers",
+  REGRESSION_BASELINE: "/advanced/ai-workflows",
+  MODEL_EVALUATION: "/advanced/ai-workflows",
+  EGRESS_GOVERNANCE: "/advanced/ai-workflows",
+  MODEL_POLICY: "/advanced/ai-workflows",
+  VERSION_TRIPLE: "/advanced/ai-workflows",
+};
+
 export default function ReadinessValidation() {
   const navigate = useNavigate();
   const [activeStatuses, setActiveStatuses] = useState<ReadinessStatus[]>(STATUS_FILTERS);
@@ -51,12 +77,22 @@ export default function ReadinessValidation() {
   const profile = security.data;
   const canQueryRuntime = Boolean(profile && canAccessRoute(READINESS_ROUTE, profile));
   const runtime = useRuntimeOperations(canQueryRuntime);
+  const knowledgeReadiness = useKnowledgeProductionReadiness(
+    {
+      producer: "API_MODEL",
+      capabilityCode: "rule.draft",
+    },
+    canQueryRuntime,
+  );
   const retryButton = canQueryRuntime ? (
     <Button
       type="primary"
       aria-label="重新自检"
       icon={<ReloadOutlined />}
-      onClick={() => runtime.refetch()}
+      onClick={() => {
+        void runtime.refetch();
+        void knowledgeReadiness.refetch();
+      }}
     >
       重新自检
     </Button>
@@ -104,11 +140,11 @@ export default function ReadinessValidation() {
     );
   }
 
-  if (runtime.isLoading) {
+  if (runtime.isLoading || knowledgeReadiness.isLoading) {
     return (
       <PageShell
         title="验收自检"
-        description="正在读取运行底座"
+        description="正在读取运行底座与知识生产闸"
         primary={retryButton}
         state="loading"
       >
@@ -137,7 +173,12 @@ export default function ReadinessValidation() {
   }
 
   const snapshot = runtime.data;
-  const items = snapshot ? buildSelfCheckItems(snapshot) : [];
+  const items = snapshot
+    ? buildSelfCheckItems(snapshot, knowledgeReadiness.data?.items ?? [])
+    : [];
+  if (knowledgeReadiness.isError) {
+    items.push(buildKnowledgeReadinessUnavailableItem(knowledgeReadiness.error));
+  }
   const filteredItems = items.filter((item) => activeStatuses.includes(item.status));
   const summary = summarize(items);
   const partialItems = items.filter((item) => item.partial);
@@ -167,7 +208,7 @@ export default function ReadinessValidation() {
           showIcon
           type={summary.blocked > 0 ? "warning" : "success"}
           message={summary.conclusion}
-          description={`${summary.ready} 就绪 / ${summary.blocked} 阻塞 / ${summary.disabled} 未启用`}
+          description={`${summary.ready} PASS / ${summary.blocked} BLOCK / ${summary.disabled} 未启用`}
         />
         {partialItems.length > 0 ? (
           <Alert
@@ -255,12 +296,16 @@ export default function ReadinessValidation() {
   );
 }
 
-function buildSelfCheckItems(snapshot: RuntimeOperationsSnapshot): SelfCheckItem[] {
+function buildSelfCheckItems(
+  snapshot: RuntimeOperationsSnapshot,
+  knowledgeReadinessItems: KnowledgeProductionReadinessItem[],
+): SelfCheckItem[] {
   return [
     buildRuntimeHealthItem(snapshot),
     ...snapshot.dependencies.map(buildDependencyItem),
     ...snapshot.featureFlags.map(buildFeatureFlagItem),
     buildBackupItem(snapshot),
+    ...knowledgeReadinessItems.map(buildKnowledgeReadinessItem),
   ];
 }
 
@@ -277,6 +322,32 @@ function buildRuntimeHealthItem(snapshot: RuntimeOperationsSnapshot): SelfCheckI
         : `整体健康状态为 ${snapshot.healthStatus}`,
     repairPath: "/system/providers",
     partial: status.partial,
+  };
+}
+
+function buildKnowledgeReadinessItem(item: KnowledgeProductionReadinessItem): SelfCheckItem {
+  const code = item.code;
+  return {
+    key: `knowledge-${code}`,
+    item: KNOWLEDGE_READINESS_LABEL[code] ?? code,
+    source: "知识生产 readiness",
+    status: item.ready ? "ready" : item.required ? "blocked" : "disabled",
+    reason: item.evidence ? `${item.message}（${item.evidence}）` : item.message,
+    repairPath: KNOWLEDGE_READINESS_REPAIR_PATH[code] ?? "/security/baseline",
+    partial: false,
+  };
+}
+
+function buildKnowledgeReadinessUnavailableItem(error: unknown): SelfCheckItem {
+  const parsed = parseApiError(error, "知识生产 readiness 暂时无法读取");
+  return {
+    key: "knowledge-readiness",
+    item: "知识生产 readiness",
+    source: "/engine/knowledge-production/readiness",
+    status: "blocked",
+    reason: parsed.traceId ? `${parsed.message}（traceId：${parsed.traceId}）` : parsed.message,
+    repairPath: "/security/baseline",
+    partial: true,
   };
 }
 

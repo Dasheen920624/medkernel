@@ -36,6 +36,10 @@
   - `mk_llm_regression_case` 五方言基线新增 `source_reference`，用例来源引用结构化保存；创建/批量导入拒绝 TODO/mock/fake 等占位来源。
   - `ModelEvalController` 新增 `GET/POST /regression-cases`、`POST /regression-cases:bulk-import`、`POST /regression-cases/{caseId}:enable|disable`，统一 `llm.eval.manage` 权限和租户隔离。
   - 服务契约、产品功能目录、OpenAPI 和迁移一致性已同步。
+- 已完成 Phase 2 第三片「配置与 readiness 前端」：
+  - `ReadinessValidation` 接入 `/engine/knowledge-production/readiness`，展示 9 闸 PASS/BLOCK、阻断原因和真实配置去处；无权限不查询 readiness，读取失败按部分状态未采集处理。
+  - `SecurityBaseline` 文献资料库根提示已改为受管本地磁盘、对象存储或 HTTPS 网关均可；现场 `file://` 受管本地根是正式后端，不得再写成对象存储唯一。
+  - 主计划已同步清理“文献库桶/原件→对象存储”单一路径口径。
 
 ## 仍不可宣称
 
@@ -46,7 +50,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 2：上线就绪地基；下一片推进 T2.3/T2.4，将文献库根 URI、部署形态、P6、provider、出域白名单、能力策略纳入超管配置面，并补 readiness 前端 9 闸六态。
+1. 继续主计划 Phase 3：AI 工厂收尾；优先推进 AIK-STD-05 深临床红线结构化 payload 与冲突仲裁留证，再进入差异/过期治理与知识包生成。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

@@ -91,7 +91,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
     \             |             /
      v            v            v
    ┌─────────────────────────────┐
-   │ 文档原件资料库存储层 (P1 新建) │  原件→对象存储(COS/OSS/S3/MinIO)→file_uri
+   │ 文档原件资料库存储层 (P1 新建) │  原件→受管资料库后端(file/COS/OSS/S3/MinIO/HTTPS)→file_uri
    └─────────────────────────────┘  (按 scope 隔离: t-1 / 各租户)
                  |
                  v
@@ -118,7 +118,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
      (机器层部署前用 fixtures 预验：无模型可运行组/审核台/降级 = GA门禁3机制 + DEGRADE-01)
 
 ■ 第二大块 · 生产中心(134)上线 ← 第一次上线
-  P9 部署机器到 134 + 配真前置(文献库桶/provider/凭据/真跑PASSED评测/allowlist/版本三元组)
+  P9 部署机器到 134 + 配真前置(受管文献资料库根/provider/凭据/真跑PASSED评测/allowlist/版本三元组)
      + 超管翻 P6 → 134 生产中心 live，具备自主生产能力
 
 ■ 第三大块 · 在 134 上生产首发知识（运营，机器跑出来的）
@@ -161,8 +161,8 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **复用**：`mk_llm_regression_case`、`ModelEvalController/Service`、`ClinicalRedlineService`、`SystemConfigController`、`/readiness`。
   - [x] T2.1 `RegressionBaselineSeeder`：从 OPT-04 **已审红线库**投影首发回归用例（capability+input+expected_phrase+red_line_type+引用+citation=Y）；**禁凭空编题/编答案**，只投影已审内容。已实现 `rule.draft` ACTIVE 红线投影、题干去重、长 DSL 有界摘录且保留证据锚点。
   - [x] T2.2 基准集维护：确认/补 `ModelEvalController` 新增/启停/版本/批量导入真实题。已新增结构化 `source_reference` 五方言基线、列表/新增/批量导入/启停端点，真实来源引用必填且占位来源拒收。
-  - [ ] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。
-  - [ ] T2.4 readiness 前端：生产中心页展示 9 闸逐项 PASS/BLOCK + 阻断原因 + 去配置去处；六态齐。
+  - [x] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。已修正资料库根配置提示，明确受管本地磁盘、对象存储和 HTTPS 网关均为正式后端，不再暗示对象存储唯一；系统配置变更仍要求高危确认与审计。
+  - [x] T2.4 readiness 前端：生产中心页展示 9 闸逐项 PASS/BLOCK + 阻断原因 + 去配置去处；六态齐。已接 `/engine/knowledge-production/readiness`，把 LITERATURE_ROOT / DEPLOYMENT_FORM / MODEL_PROVIDER / REGRESSION_BASELINE / MODEL_EVALUATION / EGRESS_GOVERNANCE / MODEL_POLICY / VERSION_TRIPLE / P6_ACCEPTANCE 并入验收自检表，保留 loading/error/empty/forbidden/partial/正常视图。
 - **验收**：自带真实基准集且可维护 + 6 项配置超管默认关可管 + readiness 前端逐项可见（注：`MODEL_EVALUATION` 仍要求真跑 PASSED，不被种子绕过）。
 
 #### Phase 3 · AI 工厂收尾（5d）

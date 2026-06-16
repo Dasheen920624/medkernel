@@ -1507,7 +1507,10 @@ export interface CandidateCoexistenceView {
   safetyNotice?: string | null;
 }
 
-export function useKnowledgeProductionReadiness(params: KnowledgeProductionReadinessParams = {}) {
+export function useKnowledgeProductionReadiness(
+  params: KnowledgeProductionReadinessParams = {},
+  enabled = true,
+) {
   const requestParams = compactParams({
     producer: params.producer ?? "API_MODEL",
     capabilityCode: params.capabilityCode,
@@ -1523,6 +1526,7 @@ export function useKnowledgeProductionReadiness(params: KnowledgeProductionReadi
       );
       return data.data;
     },
+    enabled,
   });
 }
 
