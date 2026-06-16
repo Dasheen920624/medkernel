@@ -413,8 +413,83 @@ class IntegrationServiceTest {
 
         assertEquals("HIGH", trusted.trustLevel());
         assertEquals("上级医院影像中心", trusted.sourceOrganizationName());
-        assertEquals(1, service.listRegionalSources(tenantId).size());
+        assertEquals(1, service.listRegionalSources(tenantId, PageRequest.defaults()).items().size());
         assertEquals(1, regionalSourceRepository.findAllByTenantId(tenantId).size());
+    }
+
+    @Test
+    void adapterHubMaintenanceListsUseTenantScopedPagesInsteadOfArraySnapshots() {
+        service.createAdapter(tenantId, new AdapterCreateDto("his-business", "一院 HIS 业务接口", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-first", "一号回调", "http://one.local/callback", "PATIENT_EVENT"));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-second", "二号回调", "http://two.local/callback", "LAB_RESULT"));
+        service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+            "onb-first",
+            "一号接入申请",
+            "ADAPTER",
+            "his-business",
+            null,
+            "HIS",
+            "S2 院内系统接入",
+            "/t-1/group-a/hospital-a",
+            "whk-first"
+        ));
+        service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+            "onb-second",
+            "二号接入申请",
+            "FHIR",
+            null,
+            "R4",
+            "REGIONAL_FHIR",
+            "S40 区域共享",
+            "/t-1/group-a/hospital-a",
+            null
+        ));
+        service.registerRegionalSource(tenantId, new RegionalSourceRegisterRequest(
+            "regional-first",
+            "医联体平台",
+            "org-region-1",
+            "上级医院影像中心",
+            "HIGH",
+            "OPT-07 已分级来源证据",
+            "his-business",
+            null,
+            "/t-1/group-a/hospital-a"
+        ));
+        service.registerRegionalSource(tenantId, new RegionalSourceRegisterRequest(
+            "regional-second",
+            "区域检验互认平台",
+            "org-region-2",
+            "市二院",
+            "MEDIUM",
+            "区域互认协议与接口验收单",
+            null,
+            null,
+            "/t-1/group-a/hospital-a"
+        ));
+        service.createWebhook("tenant-002",
+            new WebhookCreateDto("whk-other", "其他租户回调", "http://other.local/callback", "LAB_RESULT"));
+
+        PageResponse<IntegrationOnboardingResponse> onboardingPage =
+            service.listIntegrationOnboardings(tenantId, new PageRequest(2, 1, null));
+        PageResponse<WebhookConfigResponse> webhookPage =
+            service.getWebhooks(tenantId, new PageRequest(2, 1, null));
+        PageResponse<RegionalSourceResponse> regionalPage =
+            service.listRegionalSources(tenantId, new PageRequest(2, 1, null));
+
+        assertEquals(2, onboardingPage.total());
+        assertEquals(2, onboardingPage.page());
+        assertEquals(1, onboardingPage.items().size());
+        assertEquals(2, webhookPage.total());
+        assertEquals(2, webhookPage.page());
+        assertEquals(1, webhookPage.items().size());
+        assertTrue(webhookPage.items().stream().noneMatch(item -> "whk-other".equals(item.webhookId())));
+        assertEquals(2, regionalPage.total());
+        assertEquals(2, regionalPage.page());
+        assertEquals(1, regionalPage.items().size());
     }
 
     @Test
@@ -480,7 +555,7 @@ class IntegrationServiceTest {
         assertFalse(persisted.secretCipher().contains(created.sharedSecret()));
         assertEquals(created.sharedSecret(), webhookSecretCodec.decode(persisted.secretCipher()));
 
-        List<WebhookConfigResponse> webhooks = service.getWebhooks(tenantId);
+        List<WebhookConfigResponse> webhooks = service.getWebhooks(tenantId, PageRequest.defaults()).items();
         assertEquals(1, webhooks.size());
         String listJson = assertDoesNotThrow(() -> objectMapper.writeValueAsString(webhooks));
         assertFalse(listJson.contains("secret"));
@@ -506,8 +581,8 @@ class IntegrationServiceTest {
 
         assertEquals("whk-shared", tenantOne.webhookId());
         assertEquals("whk-shared", tenantTwo.webhookId());
-        assertEquals(1, service.getWebhooks(tenantId).size());
-        assertEquals(1, service.getWebhooks("tenant-002").size());
+        assertEquals(1, service.getWebhooks(tenantId, PageRequest.defaults()).items().size());
+        assertEquals(1, service.getWebhooks("tenant-002", PageRequest.defaults()).items().size());
 
         assertThrows(ApiException.class, () -> service.createWebhook(tenantId,
             new WebhookCreateDto("whk-shared", "重复 Webhook", "http://duplicate.local/callback", "LAB_RESULT")));

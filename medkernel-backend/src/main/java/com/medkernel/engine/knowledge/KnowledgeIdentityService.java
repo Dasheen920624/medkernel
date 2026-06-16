@@ -24,7 +24,7 @@ import com.medkernel.engine.versioning.AssetIdentityAllocator;
  *   <li>列表（分页 + 域/专科/状态/关键词筛选）</li>
  *   <li>详情（按 id / identity_code）</li>
  *   <li>活跃版本快捷查询</li>
- *   <li>历史 lineage（身份 + supersession 链 + 所有版本，按时间排序）</li>
+ *   <li>历史 lineage（身份 + 分页 supersession 链 + 分页版本，按时间排序）</li>
  * </ul>
  *
  * <p>所有方法不接受 tenantId 入参，统一从 {@link RequestContext} 抽取。
@@ -112,14 +112,19 @@ public class KnowledgeIdentityService {
     }
 
     public KnowledgeLineage getLineage(Long identityId) {
+        return getLineage(identityId, PageRequest.defaults());
+    }
+
+    public KnowledgeLineage getLineage(Long identityId, PageRequest request) {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
         KnowledgeIdentity identity = effective.identity();
-        List<KnowledgeAssetVersion> versions = versionRepository.listByIdentity(effective.sourceTenantId(), identity.id());
-        List<KnowledgeSupersession> supersessions =
-            supersessionRepository.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(
-                effective.sourceTenantId(), identity.id());
-        return new KnowledgeLineage(identity, versions, supersessions);
+        PageRequest safeRequest = request == null ? PageRequest.defaults() : request;
+        return new KnowledgeLineage(
+            identity,
+            versionHistoryPage(effective, safeRequest),
+            supersessionPage(effective, safeRequest)
+        );
     }
 
     /**
@@ -128,24 +133,60 @@ public class KnowledgeIdentityService {
      * <p>来源引用缺少片段、来源版本或来源文件时保留未解析计数，调用方据此展示部分成功。
      */
     public KnowledgeProvenanceResponse getProvenance(Long identityId) {
+        return getProvenance(identityId, PageRequest.defaults());
+    }
+
+    public KnowledgeProvenanceResponse getProvenance(Long identityId, PageRequest request) {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
         KnowledgeIdentity identity = effective.identity();
-        List<KnowledgeAssetVersion> versions =
-            versionRepository.listByIdentity(effective.sourceTenantId(), identity.id());
-        List<KnowledgeSupersession> supersessions =
-            supersessionRepository.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(
-                effective.sourceTenantId(), identity.id());
+        PageRequest safeRequest = request == null ? PageRequest.defaults() : request;
         SourceEvidenceResolution sourceEvidence = resolveSourceEvidence(effective);
         return new KnowledgeProvenanceResponse(
             identity,
             sourceEvidence.activeVersionId(),
-            versions,
-            supersessions,
+            versionHistoryPage(effective, safeRequest),
+            supersessionPage(effective, safeRequest),
             sourceEvidence.items(),
             sourceEvidence.unresolvedCitationCount(),
             sourceEvidence.unresolvedCitationCount() > 0
         );
+    }
+
+    private PageResponse<KnowledgeAssetVersion> versionHistoryPage(
+            EffectiveKnowledgeIdentity effective,
+            PageRequest request) {
+        long total = versionRepository.countByTenantIdAndIdentityId(
+            effective.sourceTenantId(), effective.identity().id());
+        if (total == 0L) {
+            return PageResponse.empty(request);
+        }
+        return PageResponse.of(
+            versionRepository.pageByTenantIdAndIdentityId(
+                effective.sourceTenantId(),
+                effective.identity().id(),
+                request.offset(),
+                request.safeSize()),
+            request,
+            total);
+    }
+
+    private PageResponse<KnowledgeSupersession> supersessionPage(
+            EffectiveKnowledgeIdentity effective,
+            PageRequest request) {
+        long total = supersessionRepository.countByTenantIdAndIdentityId(
+            effective.sourceTenantId(), effective.identity().id());
+        if (total == 0L) {
+            return PageResponse.empty(request);
+        }
+        return PageResponse.of(
+            supersessionRepository.pageByTenantIdAndIdentityId(
+                effective.sourceTenantId(),
+                effective.identity().id(),
+                request.offset(),
+                request.safeSize()),
+            request,
+            total);
     }
 
     private EffectiveKnowledgeIdentity findEffectiveIdentity(Long identityId, String tenantId) {

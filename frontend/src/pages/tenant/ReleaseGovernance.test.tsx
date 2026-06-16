@@ -12,6 +12,7 @@ const observeAsync = vi.fn();
 const rollbackRolloutAsync = vi.fn();
 const createTemplateAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
+const useOverrideTemplatesMock = vi.fn();
 
 vi.mock("@/shared/api/hooks", async () => {
   const actual = await vi.importActual<typeof ApiHooks>("@/shared/api/hooks");
@@ -47,7 +48,21 @@ vi.mock("@/shared/api/hooks", async () => {
     useStartReleaseRollout: () => ({ mutateAsync: startRolloutAsync, isPending: false }),
     useObserveReleaseRollout: () => ({ mutateAsync: observeAsync, isPending: false }),
     useRollbackRollout: () => ({ mutateAsync: rollbackRolloutAsync, isPending: false }),
-    useOverrideTemplates: () => ({ data: [], isLoading: false, isError: false }),
+    useOverrideTemplates: (params: unknown) => {
+      useOverrideTemplatesMock(params);
+      return {
+        data: {
+          items: [],
+          page: 1,
+          size: 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        isLoading: false,
+        isError: false,
+      };
+    },
     useCreateOverrideTemplate: () => ({ mutateAsync: createTemplateAsync, isPending: false }),
     usePreviewOverrideBatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useApplyOverrideBatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -75,6 +90,7 @@ describe("ReleaseGovernance", () => {
     rollbackRolloutAsync.mockReset();
     createTemplateAsync.mockReset();
     useOrgUnitsMock.mockReset();
+    useOverrideTemplatesMock.mockReset();
     simulateAsync.mockResolvedValue({
       simulationDigest: "digest-a",
       candidateVersionId: "version-a",
@@ -184,6 +200,14 @@ describe("ReleaseGovernance", () => {
         expect.objectContaining({ page: 1, size: 50, keyword: "中心", status: "ACTIVE" }),
       ),
     );
+  });
+
+  it("loads override templates through bounded server pagination", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("tab", { name: "覆盖模板与批量复用" }));
+
+    expect(useOverrideTemplatesMock).toHaveBeenLastCalledWith({ page: 1, size: 20 });
   });
 
   it("updates the visible rollout state from observation and rolls back to the recorded pin", async () => {

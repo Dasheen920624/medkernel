@@ -77,6 +77,32 @@ class KnowledgeAssetVersionRepositoryTest {
             .isEqualTo(upcoming.id());
     }
 
+    @Test
+    void pointLookupsSupportCandidateClassificationWithoutIdentityHistorySnapshot() {
+        Instant now = Instant.parse("2026-06-09T00:00:00Z");
+        KnowledgeIdentity identity =
+            identityRepo.save(identity("plat:drug:classification", KnowledgeDomain.DRUG, "候选分类知识"));
+        KnowledgeAssetVersion active =
+            versionRepo.save(version(identity.id(), "v1.0", "hash-active", KnowledgeVersionStatus.ACTIVE, now));
+        KnowledgeAssetVersion pending =
+            versionRepo.save(version(identity.id(), "v2.0", "hash-pending", KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW,
+                now.plusSeconds(60)));
+
+        assertThat(versionRepo.countByTenantIdAndIdentityIdAndVersionNoIgnoreCase("t-1", identity.id(), "V1.0"))
+            .isEqualTo(1L);
+        assertThat(versionRepo.existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase("t-1", identity.id(), "V1.0"))
+            .isTrue();
+        assertThat(versionRepo.findByTenantIdAndIdentityIdAndContentHash("t-1", identity.id(), "hash-pending"))
+            .get()
+            .extracting(KnowledgeAssetVersion::id)
+            .isEqualTo(pending.id());
+        assertThat(versionRepo.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", identity.id(), KnowledgeVersionStatus.ACTIVE))
+            .get()
+            .extracting(KnowledgeAssetVersion::id)
+            .isEqualTo(active.id());
+    }
+
     private KnowledgeIdentity identity(String code, KnowledgeDomain domain, String subject) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(null, "t-1", code, domain, subject, null, null,
@@ -94,6 +120,27 @@ class KnowledgeAssetVersionRepositoryTest {
             orgScope, appScope, KnowledgeAssetVersion.activeScopeKey(identityId, orgScope, appScope),
             null, null, null, null, now, null, null, null,
             now, "system", now, "system", 12, null);
+    }
+
+    private KnowledgeAssetVersion version(
+        Long identityId,
+        String versionNo,
+        String contentHash,
+        KnowledgeVersionStatus status,
+        Instant createdAt
+    ) {
+        String orgScope = "tenant:t-1";
+        String appScope = KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE;
+        String scopeKey = status == KnowledgeVersionStatus.ACTIVE
+            ? KnowledgeAssetVersion.activeScopeKey(identityId, orgScope, appScope)
+            : "version-pending:" + identityId + ":" + versionNo;
+        return new KnowledgeAssetVersion(
+            null, "t-1", identityId, versionNo, null, null, null, contentHash, "[]",
+            status, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
+            orgScope, appScope, scopeKey,
+            null, null, null, null, status == KnowledgeVersionStatus.ACTIVE ? createdAt : null, null, null, null,
+            createdAt, "system", createdAt, "system", 12, null);
     }
 
     private KnowledgeAssetVersion withReviewAt(KnowledgeAssetVersion source, Instant nextReviewAt) {

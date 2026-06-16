@@ -26,12 +26,23 @@ public interface MaskingRuleRepository extends ListCrudRepository<MaskingRule, L
         @Param("fieldName") String fieldName,
         @Param("scenarioCode") String scenarioCode);
 
-    @Query("SELECT * FROM mk_compliance_masking_rule WHERE tenant_id = :tenantId "
+    @Query("SELECT COUNT(*) FROM mk_compliance_masking_rule WHERE tenant_id = :tenantId "
         + "AND (:resourceType IS NULL OR resource_type = :resourceType) "
-        + "AND (:fieldName IS NULL OR field_name = :fieldName) "
-        + "ORDER BY resource_type ASC, field_name ASC, scenario_code ASC")
-    List<MaskingRule> findRules(
+        + "AND (:fieldName IS NULL OR field_name = :fieldName)")
+    long countRules(
         @Param("tenantId") String tenantId,
         @Param("resourceType") String resourceType,
         @Param("fieldName") String fieldName);
+
+    @Query("SELECT * FROM mk_compliance_masking_rule WHERE tenant_id = :tenantId "
+        + "AND (:resourceType IS NULL OR resource_type = :resourceType) "
+        + "AND (:fieldName IS NULL OR field_name = :fieldName) "
+        + "ORDER BY resource_type ASC, field_name ASC, scenario_code ASC, id ASC "
+        + "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY")
+    List<MaskingRule> pageRules(
+        @Param("tenantId") String tenantId,
+        @Param("resourceType") String resourceType,
+        @Param("fieldName") String fieldName,
+        @Param("offset") int offset,
+        @Param("limit") int limit);
 }

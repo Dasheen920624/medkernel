@@ -50,6 +50,26 @@ class KnowledgeProductionCandidateRepositoryIntegrationTest {
     }
 
     @Test
+    void pagesLineageByJobWithoutLoadingAllRows() {
+        repository.save(row("job-page", "page-1"));
+        repository.save(row("job-page", "page-2"));
+        repository.save(row("job-page", "page-3"));
+        repository.save(row("job-other", "page-other"));
+        repository.save(new KnowledgeProductionCandidate(null, "tenant-prodcand-other", "job-page",
+            "page-foreign", "0".repeat(64), "staged:page-foreign", KnowledgeRiskLevel.MEDIUM,
+            Instant.now(), "u"));
+
+        assertThat(repository.countByTenantIdAndJobCode(TENANT, "job-page")).isEqualTo(3);
+
+        List<KnowledgeProductionCandidate> page = repository.pageByTenantIdAndJobCode(
+            TENANT, "job-page", 1, 2);
+
+        assertThat(page).extracting(KnowledgeProductionCandidate::assetIdentity)
+            .containsExactly("page-2", "page-3");
+        assertThat(page).allSatisfy(c -> assertThat(c.tenantId()).isEqualTo(TENANT));
+    }
+
+    @Test
     void reverseLooksUpByCandidateRefScopedToTenant() {
         // candidate_ref = "staged:" + identity（见 row 工厂）；独立 job 编码避免污染其它测试的 job 聚合
         repository.save(row("job-rev", "rev-1"));

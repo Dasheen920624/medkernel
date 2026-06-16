@@ -1,8 +1,8 @@
 package com.medkernel.engine.authoring;
 
-import java.util.List;
-
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -28,12 +29,14 @@ public class AuthoringBatchJobController {
     }
 
     /**
-     * 查询最近批量任务。
+     * 分页查询批量任务台账。
      */
     @GetMapping
     @PreAuthorize("@perm.hasAny('rule.read','pathway.read','package.read')")
-    public ApiResult<List<AuthoringBatchJobResponse>> listRecent() {
-        return ApiResult.ok(service.listRecent());
+    public ApiResult<PageResponse<AuthoringBatchJobResponse>> listRecent(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "20") int size) {
+        return ApiResult.ok(service.listRecent(new PageRequest(page, size, null)));
     }
 
     /**

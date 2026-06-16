@@ -57,6 +57,15 @@ const query = (data: unknown) => ({
   refetch: vi.fn(),
 });
 
+const versionPage = (items: unknown[]) => ({
+  items,
+  page: 1,
+  size: 20,
+  total: items.length,
+  hasNext: false,
+  totalEstimated: false,
+});
+
 const mutation = () => ({
   mutateAsync: vi.fn(),
   isPending: false,
@@ -79,7 +88,7 @@ function fillField(label: string, value: string) {
 beforeEach(() => {
   Object.values(hooks).forEach((hook) => hook.mockReset());
   hooks.useKnowledgeIdentities.mockReturnValue(query({ items: [identity] }));
-  hooks.useKnowledgeVersions.mockReturnValue(query([activeVersion]));
+  hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([activeVersion])));
   hooks.useRuleDefinitions.mockReturnValue(query({ items: [] }));
   hooks.usePathwayTemplates.mockReturnValue(query({ items: [] }));
   hooks.useDiagnosisCriteria.mockReturnValue(query([]));
@@ -148,6 +157,15 @@ describe("DiagnosisKnowledgePanel", () => {
     );
   });
 
+  it("loads diagnosis versions through server pagination", () => {
+    renderPanel();
+
+    expect(hooks.useKnowledgeVersions).toHaveBeenCalledWith(7, {
+      page: 1,
+      size: 20,
+    });
+  });
+
   it("shows an honest loading state while diagnosis identities are being read", () => {
     hooks.useKnowledgeIdentities.mockReturnValue({
       ...query(undefined),
@@ -177,7 +195,7 @@ describe("DiagnosisKnowledgePanel", () => {
 
   it("blocks publishing an editable version until at least one regression case exists", async () => {
     const user = userEvent.setup();
-    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
 
     renderPanel();
 
@@ -189,7 +207,7 @@ describe("DiagnosisKnowledgePanel", () => {
 
   it("blocks publishing when criteria contain constraints the B0 matcher cannot evaluate", async () => {
     const user = userEvent.setup();
-    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
     hooks.useDiagnosisCriteria.mockReturnValue(
       query([
         {
@@ -224,7 +242,7 @@ describe("DiagnosisKnowledgePanel", () => {
   it("requires real electronic signature evidence for a high-risk diagnosis release", async () => {
     const user = userEvent.setup();
     const publish = mutation();
-    hooks.useKnowledgeVersions.mockReturnValue(query([{ ...editableVersion, riskLevel: "HIGH" }]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])));
     hooks.useDiagnosisTestCases.mockReturnValue(
       query([
         {
@@ -268,7 +286,7 @@ describe("DiagnosisKnowledgePanel", () => {
   });
 
   it("hides platform activation from a medical-affairs account without platform publish permission", async () => {
-    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
     hooks.useSecurityProfile.mockReturnValue(
       query({
         dataScope: { tenantId: "t-1" },
@@ -291,7 +309,7 @@ describe("DiagnosisKnowledgePanel", () => {
   it("requires all platform quality gates before activating diagnosis knowledge", async () => {
     const user = userEvent.setup();
     const publish = mutation();
-    hooks.useKnowledgeVersions.mockReturnValue(query([{ ...editableVersion, riskLevel: "HIGH" }]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])));
     hooks.useDiagnosisTestCases.mockReturnValue(
       query([
         {
@@ -404,7 +422,7 @@ describe("DiagnosisKnowledgePanel", () => {
 
   it("presents care pointers only as physician-confirmed suggestions", async () => {
     const user = userEvent.setup();
-    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
 
     renderPanel();
     await user.click(screen.getByRole("tab", { name: /诊疗建议/ }));
@@ -416,7 +434,7 @@ describe("DiagnosisKnowledgePanel", () => {
 
   it("selects the expected diagnosis from the identity directory instead of typing a database id", async () => {
     const user = userEvent.setup();
-    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
 
     renderPanel();
     await user.click(screen.getByRole("tab", { name: /回归病例/ }));

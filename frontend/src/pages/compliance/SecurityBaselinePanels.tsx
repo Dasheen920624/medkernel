@@ -435,9 +435,12 @@ const dataPermissionLevels = [
   { value: "GROUP", label: "当前集团或区域" },
 ] as const;
 
+const SECURITY_RULE_PAGE_SIZE = 20;
+
 export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
-  const policies = useDataPermissionPolicies();
+  const [policyPage, setPolicyPage] = useState(1);
+  const policies = useDataPermissionPolicies({ page: policyPage, size: SECURITY_RULE_PAGE_SIZE });
   const [orgSearch, setOrgSearch] = useState("");
   const orgUnits = useOrgUnits({
     page: 1,
@@ -486,7 +489,8 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
         ]),
     ).values(),
   );
-  const defaultPolicy = policies.data?.[0];
+  const policyItems = policies.data?.items ?? [];
+  const defaultPolicy = policyItems[0];
   const trialInitialValues: DataPermissionTrialForm = defaultPolicy
     ? {
         resourceType: defaultPolicy.resourceType,
@@ -721,8 +725,14 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
       </Space>
       <Table<DataPermissionPolicy>
         rowKey="policyId"
-        dataSource={policies.data ?? []}
-        pagination={false}
+        dataSource={policyItems}
+        pagination={{
+          current: policies.data?.page ?? policyPage,
+          pageSize: policies.data?.size ?? SECURITY_RULE_PAGE_SIZE,
+          total: policies.data?.total ?? 0,
+          showSizeChanger: false,
+          onChange: setPolicyPage,
+        }}
         scroll={{ x: "max-content" }}
         columns={[
           { title: "资源类型", dataIndex: "resourceType" },
@@ -853,14 +863,16 @@ type MaskingForm = MaskingRulePayload;
 
 export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
-  const rules = useMaskingRules();
+  const [rulePage, setRulePage] = useState(1);
+  const rules = useMaskingRules({ page: rulePage, size: SECURITY_RULE_PAGE_SIZE });
   const upsert = useUpsertMaskingRule();
   const preview = usePreviewMasking();
   const [selected, setSelected] = useState<MaskingRule | null>();
   const [previewResult, setPreviewResult] = useState<MaskingPreviewResult | null>(null);
   const [form] = Form.useForm<MaskingForm>();
   const modalOpen = selected !== undefined;
-  const defaultRule = rules.data?.[0];
+  const ruleItems = rules.data?.items ?? [];
+  const defaultRule = ruleItems[0];
   const previewInitialValues: MaskingPreviewForm = defaultRule
     ? {
         resourceType: defaultRule.resourceType,
@@ -1042,8 +1054,14 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
       </Space>
       <Table<MaskingRule>
         rowKey="ruleId"
-        dataSource={rules.data ?? []}
-        pagination={false}
+        dataSource={ruleItems}
+        pagination={{
+          current: rules.data?.page ?? rulePage,
+          pageSize: rules.data?.size ?? SECURITY_RULE_PAGE_SIZE,
+          total: rules.data?.total ?? 0,
+          showSizeChanger: false,
+          onChange: setRulePage,
+        }}
         scroll={{ x: "max-content" }}
         columns={[
           { title: "资源类型", dataIndex: "resourceType" },

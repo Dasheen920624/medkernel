@@ -28,6 +28,8 @@ import com.medkernel.engine.datasvc.export.EngineDataExportJob;
 import com.medkernel.engine.datasvc.export.EngineDataExportService;
 import com.medkernel.engine.datasvc.export.EngineDataExportType;
 import com.medkernel.engine.datasvc.export.ExportJobStatus;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -185,7 +187,26 @@ class EngineDataControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void qualityGovernorCanListExportsAsPage() throws Exception {
+        when(engineDataExportService.listRecent(any(PageRequest.class)))
+            .thenReturn(PageResponse.of(List.of(new EngineDataExportJob(1L, "tenant-1", "job-1", "u",
+                EngineDataExportType.RULE_USAGE, ExportJobStatus.PENDING, 0, null, null, null,
+                "exp-1", "idem-1", "{}", Instant.parse("2026-06-14T00:00:00Z"), null, null, null)),
+                new PageRequest(1, 20, null), 21L));
+
+        mockMvc.perform(get("/api/v1/engine-data/exports?page=1&size=20")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].jobCode").value("job-1"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.page").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.total").value(21));
     }
 }

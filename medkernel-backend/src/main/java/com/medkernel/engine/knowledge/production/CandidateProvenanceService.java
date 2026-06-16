@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -39,8 +40,20 @@ public class CandidateProvenanceService {
         if (candidateRefs == null || candidateRefs.isEmpty()) {
             return List.of();
         }
+        if (candidateRefs.size() > CandidateProvenanceRequest.MAX_CANDIDATE_REFS) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "候选来源溯源一次最多查询 " + CandidateProvenanceRequest.MAX_CANDIDATE_REFS + " 条");
+        }
+        if (candidateRefs.stream().anyMatch(ref -> ref == null || ref.isBlank())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "候选来源溯源引用不能为空");
+        }
+        List<String> normalizedRefs = candidateRefs.stream()
+            .map(String::trim)
+            .distinct()
+            .toList();
         List<KnowledgeProductionCandidate> rows =
-            candidateRepository.findByTenantIdAndCandidateRefIn(tenantId, candidateRefs);
+            candidateRepository.findByTenantIdAndCandidateRefIn(tenantId, normalizedRefs);
         Map<String, KnowledgeProductionJob> jobsByCode = new HashMap<>();
         List<CandidateProvenanceView> views = new ArrayList<>();
         for (KnowledgeProductionCandidate row : rows) {

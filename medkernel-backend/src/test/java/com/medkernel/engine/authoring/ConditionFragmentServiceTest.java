@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -30,6 +32,7 @@ import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -102,7 +105,9 @@ class ConditionFragmentServiceTest {
             """));
         when(fragments.findByFragmentIdAndTenantId("frag-renal", "tenant-A"))
             .thenReturn(Optional.of(renal));
-        when(ruleDefinitions.listByFilter("tenant-A", null, null, null, null))
+        when(ruleDefinitions.countActiveRuleImpactsByFragmentPattern("tenant-A", "%frag_renal%"))
+            .thenReturn(1L);
+        when(ruleDefinitions.pageActiveRuleImpactsByFragmentPattern("tenant-A", "%frag_renal%", 0, 20))
             .thenReturn(List.of(rule("rule-1", "RULE.RENAL", "rv-1")));
         when(ruleVersions.findByVersionIdAndTenantId("rv-1", "tenant-A"))
             .thenReturn(Optional.of(ruleVersion("rv-1", "rule-1", """
@@ -114,20 +119,25 @@ class ConditionFragmentServiceTest {
                   }
                 }
                 """)));
-        when(pathwayTemplates.listByFilter("tenant-A", null, null, null, null, null))
+        when(pathwayTemplates.countTemplateImpactsByFragmentPattern("tenant-A", "%frag_renal%"))
+            .thenReturn(1L);
+        when(pathwayTemplates.pageTemplateImpactsByFragmentPattern("tenant-A", "%frag_renal%", 0, 20))
             .thenReturn(List.of(pathway("pathway-1", "PATH.RENAL")));
         when(pathwayEdges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pathway-1", "tenant-A"))
             .thenReturn(List.of(edge("edge-1", "pathway-1", """
                 {"fragmentRef":"FRAG_RENAL","version":1,"packageVersion":"pkg-2026.06"}
                 """)));
 
-        ConditionFragmentImpactResponse impact = service.impact("frag-renal");
+        ConditionFragmentImpactResponse impact = service.impact("frag-renal", new PageRequest(1, 20, null));
 
         assertThat(impact.fragmentCode()).isEqualTo("FRAG_RENAL");
-        assertThat(impact.affectedAssets())
+        assertThat(impact.affectedAssets().items())
             .extracting(ConditionFragmentAffectedAsset::assetType)
             .containsExactly("RULE", "PATHWAY");
+        assertThat(impact.affectedAssets().total()).isEqualTo(2);
         assertThat(impact.impactDigest()).isNotBlank();
+        verify(ruleDefinitions, never()).listByFilter("tenant-A", null, null, null, null);
+        verify(pathwayTemplates, never()).listByFilter("tenant-A", null, null, null, null, null);
     }
 
     @Test

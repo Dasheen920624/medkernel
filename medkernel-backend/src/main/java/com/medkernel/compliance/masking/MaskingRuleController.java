@@ -1,7 +1,5 @@
 package com.medkernel.compliance.masking;
 
-import java.util.List;
-
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -13,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -35,11 +35,13 @@ public class MaskingRuleController {
 
     @GetMapping
     @PreAuthorize("@perm.has('audit.read')")
-    public ApiResult<List<MaskingRuleResponse>> listRules(
+    public ApiResult<PageResponse<MaskingRuleResponse>> listRules(
             @RequestParam(required = false) String resourceType,
-            @RequestParam(required = false) String fieldName) {
+            @RequestParam(required = false) String fieldName,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(service.listRules(tenantId, resourceType, fieldName));
+        return ApiResult.ok(service.listRules(tenantId, resourceType, fieldName, new PageRequest(page, size, null)));
     }
 
     @PutMapping

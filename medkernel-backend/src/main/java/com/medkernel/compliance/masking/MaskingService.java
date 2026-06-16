@@ -11,6 +11,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.security.DataAccessLevel;
 import com.medkernel.shared.security.ResolvedDataScope;
 import com.medkernel.shared.api.error.ApiException;
@@ -38,15 +40,23 @@ public class MaskingService {
         this.auditRecorder = auditRecorder;
     }
 
-    public List<MaskingRuleResponse> listRules(String tenantId, String resourceType, String fieldName) {
+    public PageResponse<MaskingRuleResponse> listRules(
+            String tenantId, String resourceType, String fieldName, PageRequest request) {
         String safeTenant = requireTenant(tenantId);
         String normalizedResource = resourceType == null || resourceType.isBlank()
             ? null : normalizeResourceType(resourceType);
         String normalizedField = fieldName == null || fieldName.isBlank()
             ? null : normalizeFieldName(fieldName);
-        return repository.findRules(safeTenant, normalizedResource, normalizedField).stream()
+        PageRequest page = request == null ? PageRequest.defaults() : request;
+        long total = repository.countRules(safeTenant, normalizedResource, normalizedField);
+        if (total == 0L) {
+            return PageResponse.empty(page);
+        }
+        List<MaskingRuleResponse> items = repository.pageRules(
+                safeTenant, normalizedResource, normalizedField, page.offset(), page.safeSize()).stream()
             .map(MaskingRuleResponse::from)
             .toList();
+        return PageResponse.of(items, page, total);
     }
 
     @Transactional

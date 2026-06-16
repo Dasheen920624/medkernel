@@ -387,8 +387,11 @@ public class PackageEngineController {
      */
     @GetMapping("/{packageId}/sync-logs")
     @PreAuthorize("@perm.has('package.read')")
-    public ApiResult<List<SyncLogResponse>> listSyncLogs(@PathVariable String packageId) {
-        return ApiResult.ok(service.listSyncLogs(packageId));
+    public ApiResult<PageResponse<SyncLogResponse>> listSyncLogs(
+            @PathVariable String packageId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResult.ok(service.listSyncLogs(packageId, new PageRequest(page, size, null)));
     }
 
     /**
@@ -422,8 +425,10 @@ public class PackageEngineController {
             'knowledge.publish',
             'evaluation.publish')
         """)
-    public ApiResult<List<PackageReleaseAdapterResponse>> listReleaseAdapters() {
-        return ApiResult.ok(service.listReleaseAdapters());
+    public ApiResult<PageResponse<PackageReleaseAdapterResponse>> listReleaseAdapters(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResult.ok(service.listReleaseAdapters(new PageRequest(page, size, null)));
     }
 
     private void validateContext(PackageContextRequest request) {

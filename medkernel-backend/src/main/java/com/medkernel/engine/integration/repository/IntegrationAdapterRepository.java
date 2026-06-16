@@ -36,5 +36,19 @@ public interface IntegrationAdapterRepository extends ListCrudRepository<Integra
 
     long countByTenantIdAndStatus(String tenantId, String status);
 
+    @Query("""
+        SELECT * FROM integration_adapter
+        WHERE tenant_id = :tenantId
+          AND status = :status
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<IntegrationAdapter> pageByTenantIdAndStatus(
+        @Param("tenantId") String tenantId,
+        @Param("status") String status,
+        @Param("offset") int offset,
+        @Param("limit") int limit
+    );
+
     Optional<IntegrationAdapter> findByAdapterIdAndTenantId(String adapterId, String tenantId);
 }

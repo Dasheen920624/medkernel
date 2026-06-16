@@ -1,10 +1,14 @@
 package com.medkernel.engine.integration;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -12,11 +16,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.integration.dto.IntegrationOnboardingResponse;
+import com.medkernel.engine.integration.dto.RegionalSourceResponse;
+import com.medkernel.engine.integration.dto.WebhookConfigResponse;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 @SpringBootTest
@@ -245,6 +255,49 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
+    void adapterHubMaintenanceListsReturnPagedContractsForTenantOperators() throws Exception {
+        when(service.listIntegrationOnboardings(eq("tenant-1"), any(PageRequest.class)))
+            .thenReturn(new PageResponse<IntegrationOnboardingResponse>(
+                List.of(), 2, 3, 7, true, false));
+        when(service.getWebhooks(eq("tenant-1"), any(PageRequest.class)))
+            .thenReturn(new PageResponse<WebhookConfigResponse>(
+                List.of(), 3, 4, 9, true, false));
+        when(service.listRegionalSources(eq("tenant-1"), any(PageRequest.class)))
+            .thenReturn(new PageResponse<RegionalSourceResponse>(
+                List.of(), 4, 5, 11, true, false));
+
+        mvc.perform(get("/api/v1/engine/integration/onboardings")
+                .param("page", "2")
+                .param("size", "3")
+                .with(ops("tenant-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.size").value(3))
+            .andExpect(jsonPath("$.data.total").value(7));
+
+        mvc.perform(get("/api/v1/engine/integration/webhooks")
+                .param("page", "3")
+                .param("size", "4")
+                .with(ops("tenant-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.page").value(3))
+            .andExpect(jsonPath("$.data.size").value(4))
+            .andExpect(jsonPath("$.data.total").value(9));
+
+        mvc.perform(get("/api/v1/engine/integration/regional-sources")
+                .param("page", "4")
+                .param("size", "5")
+                .with(ops("tenant-1")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.page").value(4))
+            .andExpect(jsonPath("$.data.size").value(5))
+            .andExpect(jsonPath("$.data.total").value(11));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
     void callbackDeadLetterReplayFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/callbacks/dead-letter/msg-9/replay"))
@@ -274,5 +327,13 @@ class IntegrationControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/integration/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor ops(String tenantId) {
+        return jwt().jwt(token -> token
+                .subject("integration-operator")
+                .claim("tenant_id", tenantId)
+                .claim("roles", List.of("integration-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
     }
 }

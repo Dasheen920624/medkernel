@@ -57,6 +57,7 @@ import styles from "./ReleaseGovernance.module.css";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
+const OVERRIDE_TEMPLATE_PAGE_SIZE = 20;
 
 const assetTypes: Array<{ value: EngineAssetType; label: string }> = [
   { value: "RULE", label: "规则" },
@@ -159,6 +160,7 @@ function checkTag(passed: boolean) {
 export default function ReleaseGovernance() {
   const { message } = AntdApp.useApp();
   const [orgKeyword, setOrgKeyword] = useState("");
+  const [templatePage, setTemplatePage] = useState(1);
   const orgUnitsQuery = useOrgUnits({
     page: 1,
     size: 50,
@@ -166,7 +168,10 @@ export default function ReleaseGovernance() {
     keyword: orgKeyword || undefined,
     status: "ACTIVE",
   });
-  const templatesQuery = useOverrideTemplates();
+  const templatesQuery = useOverrideTemplates({
+    page: templatePage,
+    size: OVERRIDE_TEMPLATE_PAGE_SIZE,
+  });
   const simulateMutation = useReleaseSimulation();
   const startMutation = useStartReleaseRollout();
   const observeMutation = useObserveReleaseRollout();
@@ -205,7 +210,8 @@ export default function ReleaseGovernance() {
         })),
     [orgUnits],
   );
-  const templateOptions = (templatesQuery.data ?? []).map((template) => ({
+  const templateItems = templatesQuery.data?.items ?? [];
+  const templateOptions = templateItems.map((template) => ({
     value: template.templateId,
     label: template.templateName,
   }));
@@ -638,8 +644,13 @@ export default function ReleaseGovernance() {
       <Table
         rowKey="templateId"
         loading={templatesQuery.isLoading}
-        dataSource={templatesQuery.data ?? []}
-        pagination={false}
+        dataSource={templateItems}
+        pagination={{
+          current: templatesQuery.data?.page ?? templatePage,
+          pageSize: templatesQuery.data?.size ?? OVERRIDE_TEMPLATE_PAGE_SIZE,
+          total: templatesQuery.data?.total ?? 0,
+          onChange: setTemplatePage,
+        }}
         columns={[
           { title: "模板", dataIndex: "templateName" },
           { title: "适用维度", dataIndex: "applicableScope" },

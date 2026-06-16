@@ -18,9 +18,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
@@ -149,8 +152,11 @@ public class ReleaseGovernanceController {
 
     @GetMapping("/override-templates")
     @PreAuthorize("@perm.has('package.read')")
-    public ApiResult<List<OverrideTemplate>> listTemplates() {
-        return ApiResult.ok(overrideTemplates.listTemplates(tenantId()));
+    public ApiResult<PageResponse<OverrideTemplate>> listTemplates(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false) String sort) {
+        return ApiResult.ok(overrideTemplates.listTemplates(tenantId(), new PageRequest(page, size, sort)));
     }
 
     @PostMapping("/override-templates")

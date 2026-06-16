@@ -404,13 +404,13 @@ describe("TerminologyMapping experience sample", () => {
     expect(useTerminologyMappings).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20, sort: "updatedAt,desc" }),
     );
-    expect(useStandardTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
-    expect(useLocalTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
+    expect(useStandardTerms).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
+    expect(useLocalTerms).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
     expect(useTerminologyCandidates).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "PENDING" }),
+      expect.objectContaining({ page: 1, size: 20, status: "PENDING" }),
     );
     expect(useTerminologyConflicts).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "OPEN" }),
+      expect.objectContaining({ page: 1, size: 10, status: "OPEN" }),
     );
     expect(usePackages).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20, assetType: "TERMINOLOGY" }),

@@ -89,23 +89,29 @@ class ConditionFragmentControllerTest {
 
     @Test
     void impactEndpointReturnsAffectedRulesAndPathways() throws Exception {
-        when(service.impact("cf-renal")).thenReturn(new ConditionFragmentImpactResponse(
+        when(service.impact(eq("cf-renal"), any(PageRequest.class))).thenReturn(new ConditionFragmentImpactResponse(
             "cf-renal",
             "FRAG_RENAL",
             1,
             "pkg-2026.06",
-            List.of(
+            PageResponse.of(List.of(
                 new ConditionFragmentAffectedAsset("RULE", "rule-1", "RULE.RENAL", "肾病规则", "规则当前版本 when 引用条件片段"),
                 new ConditionFragmentAffectedAsset("PATHWAY", "path-1", "PATH.RENAL", "肾病路径", "路径守卫引用条件片段")),
+                new PageRequest(2, 20, null),
+                22),
             "sha256:abc",
             "trace-fragment"));
 
         mvc.perform(get("/api/v1/engine/authoring/fragments/cf-renal/impact")
+                .param("page", "2")
+                .param("size", "20")
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.affectedAssets[0].assetType").value("RULE"))
-            .andExpect(jsonPath("$.data.affectedAssets[1].assetType").value("PATHWAY"));
+            .andExpect(jsonPath("$.data.affectedAssets.page").value(2))
+            .andExpect(jsonPath("$.data.affectedAssets.total").value(22))
+            .andExpect(jsonPath("$.data.affectedAssets.items[0].assetType").value("RULE"))
+            .andExpect(jsonPath("$.data.affectedAssets.items[1].assetType").value("PATHWAY"));
     }
 
     private ConditionFragmentResponse response() throws Exception {

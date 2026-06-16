@@ -12,6 +12,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
   Space,
@@ -80,6 +81,7 @@ const DIRECTION_LABEL: Record<string, string> = {
 };
 
 const DIAGNOSIS_REFERENCE_PAGE_SIZE = 20;
+const DIAGNOSIS_VERSION_PAGE_SIZE = 20;
 
 function can(profile: ReturnType<typeof useSecurityProfile>["data"], code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
@@ -170,8 +172,15 @@ export default function DiagnosisKnowledgePanel() {
     { enabled: can(security.data, "pathway.read") },
   );
   const [identityId, setIdentityId] = useState<number>();
-  const versionsQuery = useKnowledgeVersions(identityId);
-  const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
+  const [versionPage, setVersionPage] = useState(1);
+  const versionsQuery = useKnowledgeVersions(identityId, {
+    page: versionPage,
+    size: DIAGNOSIS_VERSION_PAGE_SIZE,
+  });
+  const versions = useMemo(
+    () => versionsQuery.data?.items ?? [],
+    [versionsQuery.data?.items],
+  );
   const [versionId, setVersionId] = useState<number>();
   const selectedIdentity = identities.find((item) => item.id === identityId);
   const selectedVersion = versions.find((item) => item.id === versionId);
@@ -848,6 +857,7 @@ export default function DiagnosisKnowledgePanel() {
               onSearch={setIdentitySearch}
               onChange={(value) => {
                 setIdentityId(value);
+                setVersionPage(1);
                 setIdentitySearch("");
               }}
             />
@@ -858,6 +868,16 @@ export default function DiagnosisKnowledgePanel() {
               options={versions.map((item) => ({ value: item.id, label: versionLabel(item) }))}
               onChange={setVersionId}
             />
+            {(versionsQuery.data?.total ?? 0) > 0 && (
+              <Pagination
+                size="small"
+                current={versionsQuery.data?.page ?? versionPage}
+                pageSize={versionsQuery.data?.size ?? DIAGNOSIS_VERSION_PAGE_SIZE}
+                total={versionsQuery.data?.total ?? 0}
+                showSizeChanger={false}
+                onChange={setVersionPage}
+              />
+            )}
           </div>
           <Space wrap>
             <Button

@@ -1,20 +1,27 @@
 package com.medkernel.engine.knowledge;
 
+import java.time.Instant;
+import java.util.List;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +76,25 @@ class KnowledgeIdentityControllerSecurityTest {
     void guestRoleIsForbiddenFromIdentitiesList() throws Exception {
         mvc.perform(get("/api/v1/engine/knowledge/identities"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void readRoleListsKnowledgeVersionsAsPagedContract() throws Exception {
+        when(versionService.listByIdentity(eq(1L), any()))
+            .thenReturn(new PageResponse<>(
+                List.of(version(10L, 1L, KnowledgeVersionStatus.ACTIVE)),
+                1, 20, 1, false, false));
+
+        mvc.perform(get("/api/v1/engine/knowledge/identities/1/versions")
+                .param("page", "1")
+                .param("size", "20")
+                .with(jwt()
+                    .jwt(token -> token.subject("doctor-1").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].id").value(10))
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(20));
     }
 
     @Test
@@ -144,5 +170,38 @@ class KnowledgeIdentityControllerSecurityTest {
                 .content("{\"type\":\"IDENTITIES\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void auditComplianceCanListExportsAsPage() throws Exception {
+        when(exportService.listRecent(any(PageRequest.class)))
+            .thenReturn(PageResponse.of(List.of(new KnowledgeExportJob(
+                1L, "tenant-1", "job-1", "u", ExportType.IDENTITIES, null,
+                ExportStatus.PENDING, 0, null, null, null,
+                Instant.parse("2026-06-14T00:00:00Z"), null, null, null
+            )), new PageRequest(1, 20, null), 21L));
+
+        mvc.perform(get("/api/v1/engine/knowledge/exports?page=1&size=20")
+                .with(jwt().jwt(token -> token
+                    .subject("u")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("compliance-auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].jobCode").value("job-1"))
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.total").value(21));
+    }
+
+    private KnowledgeAssetVersion version(Long id, Long identityId, KnowledgeVersionStatus status) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new KnowledgeAssetVersion(
+            id, "tenant-A", identityId, "2026", "2026 版",
+            null, null, "a".repeat(64), "[]",
+            status, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.B_GUIDELINE,
+            GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG,
+            null, "tenant:tenant-A", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            null, null, null, null, null, null, null, null, null,
+            now, "tester", now, "tester", 12, now.plusSeconds(86400));
     }
 }

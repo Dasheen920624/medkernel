@@ -22,6 +22,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceType;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -125,5 +126,29 @@ class DocumentParseOrchestrationServiceTest {
         when(sourceDocumentRepository.findByTenantIdAndId("tenant-1", 5L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.submit(req("# x\ny\n", DocumentFormat.STRUCTURED_TEXT)))
             .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void listJobsReturnsTenantScopedPageWithTotal() {
+        DocParseJob row = parseJob("dpj-page-2");
+        when(jobRepository.countByTenantId("tenant-1")).thenReturn(41L);
+        when(jobRepository.pageByTenantId("tenant-1", 20, 20)).thenReturn(List.of(row));
+
+        PageResponse<DocParseJob> page = service.listJobs(2, 20);
+
+        assertThat(page.items()).containsExactly(row);
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(41L);
+        assertThat(page.hasNext()).isTrue();
+        verify(jobRepository).countByTenantId("tenant-1");
+        verify(jobRepository).pageByTenantId("tenant-1", 20, 20);
+    }
+
+    private static DocParseJob parseJob(String jobCode) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new DocParseJob(1L, "tenant-1", jobCode, 5L, "g.txt", DocumentFormat.STRUCTURED_TEXT,
+            "a".repeat(64), ParseJobStatus.SUCCEEDED, 99L, 1, 1, null,
+            now, "u", now, "u");
     }
 }

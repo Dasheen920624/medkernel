@@ -567,7 +567,7 @@ class KnowledgeVersionServiceTest {
     @Test
     void listByIdentityRequiresIdentityExists() {
         when(identityRepo.findByTenantIdAndId("t-1", 99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.listByIdentity(99L))
+        assertThatThrownBy(() -> service.listByIdentity(99L, PageRequest.defaults()))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.NOT_FOUND);
@@ -619,7 +619,7 @@ class KnowledgeVersionServiceTest {
 
         KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequest("v2"));
 
-        KnowledgeAssetVersion created = response.candidates().get(0);
+        KnowledgeAssetVersion created = response.candidates().items().get(0);
         assertThat(created.identityId()).isEqualTo(1L);
         assertThat(created.versionNo()).isEqualTo("v2");
         assertThat(created.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
@@ -641,6 +641,31 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void classifyCandidateUsesPointLookupsInsteadOfLoadingAllIdentityVersions() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        String contentHash = sha256("国家法规更新后的真实内容");
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
+        when(versionRepo.existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase("t-1", 1L, "regulation-v2"))
+            .thenReturn(false);
+        when(versionRepo.findByTenantIdAndIdentityIdAndContentHash("t-1", 1L, contentHash))
+            .thenReturn(Optional.empty());
+        when(versionRepo.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", 1L, KnowledgeVersionStatus.ACTIVE)).thenReturn(Optional.of(active));
+
+        service.classifyCandidate(1L, versionCreateRequestWithContent(
+            "regulation-v2", "国家法规更新后的真实内容"));
+
+        verify(versionRepo).existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase("t-1", 1L, "regulation-v2");
+        verify(versionRepo).findByTenantIdAndIdentityIdAndContentHash("t-1", 1L, contentHash);
+        verify(versionRepo).findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", 1L, KnowledgeVersionStatus.ACTIVE);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
     void classifyCandidateStoresCanonicalSha256() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
@@ -649,7 +674,7 @@ class KnowledgeVersionServiceTest {
         when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
         KnowledgeAssetVersion created = service.classifyCandidate(1L,
-            versionCreateRequestWithTenant("t-1", 10L, 20L, "v2", "真实指南内容")).candidates().get(0);
+            versionCreateRequestWithTenant("t-1", 10L, 20L, "v2", "真实指南内容")).candidates().items().get(0);
 
         assertThat(created.contentHash()).isEqualTo(sha256("真实指南内容"));
         assertThat(created.contentHash()).matches("[0-9a-f]{64}");
@@ -754,13 +779,50 @@ class KnowledgeVersionServiceTest {
     void listCandidatesReturnsAvailableEmptyWorkflowWhenNoPendingCandidates() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
 
-        KnowledgeCandidateResponse response = service.listCandidates(1L);
+        KnowledgeCandidateResponse response = service.listCandidates(1L, new PageRequest(2, 5, null));
 
         assertThat(response.identityId()).isEqualTo(1L);
         assertThat(response.available()).isTrue();
         assertThat(response.reasonCode()).isEqualTo("OK");
-        assertThat(response.candidates()).isEmpty();
+        assertThat(response.candidates().items()).isEmpty();
+        assertThat(response.candidates().page()).isEqualTo(2);
+        assertThat(response.candidates().size()).isEqualTo(5);
         assertThat(response.classifications()).isEmpty();
+        verify(versionRepo).countPendingReplacementCandidatesByTenantIdAndIdentityId("t-1", 1L);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc(any(), any());
+        verify(candidateClassificationRepo, never())
+            .findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(any(), any());
+    }
+
+    @Test
+    void listCandidatesPagesPendingCandidatesAndLoadsOnlyCurrentPageClassifications() {
+        KnowledgeAssetVersion candidate =
+            version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
+        CandidateClassification classification = classification(
+            77L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.CONFLICT,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.countPendingReplacementCandidatesByTenantIdAndIdentityId("t-1", 1L))
+            .thenReturn(21L);
+        when(versionRepo.pagePendingReplacementCandidatesByTenantIdAndIdentityId("t-1", 1L, 5, 5))
+            .thenReturn(List.of(candidate));
+        when(candidateClassificationRepo.findByTenantIdAndCandidateVersionIdIn("t-1", List.of(22L)))
+            .thenReturn(List.of(classification));
+
+        KnowledgeCandidateResponse response = service.listCandidates(1L, new PageRequest(2, 5, null));
+
+        assertThat(response.candidates().items()).containsExactly(candidate);
+        assertThat(response.candidates().page()).isEqualTo(2);
+        assertThat(response.candidates().size()).isEqualTo(5);
+        assertThat(response.candidates().total()).isEqualTo(21L);
+        assertThat(response.classifications()).containsExactly(classification);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc(any(), any());
+        verify(candidateClassificationRepo, never())
+            .findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(any(), any());
     }
 
     @Test
@@ -771,13 +833,17 @@ class KnowledgeVersionServiceTest {
         when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L))
             .thenReturn(List.of(active));
+        when(versionRepo.findByTenantIdAndIdentityIdAndContentHash("t-1", 1L, active.contentHash()))
+            .thenReturn(Optional.of(active));
+        when(versionRepo.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", 1L, KnowledgeVersionStatus.ACTIVE)).thenReturn(Optional.of(active));
 
         KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequestWithContent(
             "duplicate-v2", "知识版本夹具内容-t-1-5"));
 
         assertThat(response.available()).isTrue();
         assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
-        assertThat(response.candidates()).isEmpty();
+        assertThat(response.candidates().items()).isEmpty();
         assertThat(response.classifications()).singleElement()
             .satisfies(item -> {
                 assertThat(item.classification()).isEqualTo(CandidateClassificationType.DUPLICATE);
@@ -798,6 +864,10 @@ class KnowledgeVersionServiceTest {
         when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L))
             .thenReturn(List.of(active));
+        when(versionRepo.findByTenantIdAndIdentityIdAndContentHash("t-1", 1L, sha256("国家法规更新后的真实内容")))
+            .thenReturn(Optional.empty());
+        when(versionRepo.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", 1L, KnowledgeVersionStatus.ACTIVE)).thenReturn(Optional.of(active));
         when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> {
             KnowledgeAssetVersion candidate = inv.getArgument(0);
             return new KnowledgeAssetVersion(
@@ -816,7 +886,7 @@ class KnowledgeVersionServiceTest {
             "regulation-v2", "国家法规更新后的真实内容"));
 
         assertThat(response.reasonCode()).isEqualTo("SAME_IDENTITY_NEW_VERSION");
-        assertThat(response.candidates()).singleElement()
+        assertThat(response.candidates().items()).singleElement()
             .satisfies(candidate -> {
                 assertThat(candidate.id()).isEqualTo(22L);
                 assertThat(candidate.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
@@ -839,7 +909,7 @@ class KnowledgeVersionServiceTest {
         assertThat(registered.getValue().assetIdentity()).isEqualTo(identity.identityCode());
         assertThat(registered.getValue().versionNo()).isEqualTo("regulation-v2");
         assertThat(registered.getValue().contentHash())
-            .isEqualTo(response.candidates().getFirst().contentHash());
+            .isEqualTo(response.candidates().items().getFirst().contentHash());
     }
 
     @Test
@@ -874,7 +944,7 @@ class KnowledgeVersionServiceTest {
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
 
         assertThat(response.reasonCode()).isEqualTo("APPROVED");
-        assertThat(response.candidates()).singleElement()
+        assertThat(response.candidates().items()).singleElement()
             .satisfies(approved -> assertThat(approved.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE));
         verify(supersessionRepo).save(any(KnowledgeSupersession.class));
         verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
@@ -902,7 +972,7 @@ class KnowledgeVersionServiceTest {
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, rejectRequest);
 
         assertThat(response.reasonCode()).isEqualTo("REJECTED");
-        assertThat(response.candidates()).singleElement()
+        assertThat(response.candidates().items()).singleElement()
             .satisfies(rejected -> assertThat(rejected.status()).isEqualTo(KnowledgeVersionStatus.REJECTED));
         ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
         verify(reviewAssignmentRepo).save(assignment.capture());
@@ -934,7 +1004,7 @@ class KnowledgeVersionServiceTest {
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, returnRequest);
 
         assertThat(response.reasonCode()).isEqualTo("RETURNED");
-        assertThat(response.candidates()).singleElement()
+        assertThat(response.candidates().items()).singleElement()
             .satisfies(returned -> assertThat(returned.status()).isEqualTo(KnowledgeVersionStatus.DRAFT));
         assertThat(response.classifications()).singleElement()
             .satisfies(item -> assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.RETURNED));
@@ -991,7 +1061,7 @@ class KnowledgeVersionServiceTest {
                 assertThat(item.classification()).isEqualTo(CandidateClassificationType.CONFLICT);
                 assertThat(item.diffSummary()).contains("当前 ACTIVE 与候选对照");
             });
-        assertThat(response.candidates()).singleElement()
+        assertThat(response.candidates().items()).singleElement()
             .satisfies(item -> assertThat(item.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW));
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
@@ -1010,7 +1080,7 @@ class KnowledgeVersionServiceTest {
         KnowledgeCandidateResponse response = service.diffCandidate(89L);
 
         assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
-        assertThat(response.candidates()).isEmpty();
+        assertThat(response.candidates().items()).isEmpty();
         assertThat(response.classifications()).singleElement()
             .satisfies(item -> assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.DUPLICATE_SKIPPED));
         verify(versionRepo, never()).findByTenantIdAndId(any(), any());
@@ -1060,6 +1130,7 @@ class KnowledgeVersionServiceTest {
         KnowledgeAssetVersion saved = service.classifyCandidate(1L,
             versionCreateRequestWithTenant("t-hospital", 10L, 20L, "hospital-v1", "医院本地定制内容"))
             .candidates()
+            .items()
             .get(0);
 
         assertThat(saved.tenantId()).isEqualTo("t-hospital");
@@ -1077,12 +1148,18 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
         when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platformIdentity));
         when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.empty());
-        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 100L))
+        PageRequest page = new PageRequest(2, 1, null);
+        when(versionRepo.countByTenantIdAndIdentityId("t-1", 100L))
+            .thenReturn(2L);
+        when(versionRepo.pageByTenantIdAndIdentityId("t-1", 100L, 1, 1))
             .thenReturn(List.of(platformVersion));
 
-        List<KnowledgeAssetVersion> versions = service.listByIdentity(100L);
+        PageResponse<KnowledgeAssetVersion> versions = service.listByIdentity(100L, page);
 
-        assertThat(versions).containsExactly(platformVersion);
+        assertThat(versions.page()).isEqualTo(2);
+        assertThat(versions.total()).isEqualTo(2L);
+        assertThat(versions.items()).containsExactly(platformVersion);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 100L);
     }
 
     @Test
@@ -1095,12 +1172,15 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
         when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platformIdentity));
         when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.of(localIdentity));
-        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-hospital", 200L))
+        PageRequest page = new PageRequest(1, 20, null);
+        when(versionRepo.countByTenantIdAndIdentityId("t-hospital", 200L))
+            .thenReturn(1L);
+        when(versionRepo.pageByTenantIdAndIdentityId("t-hospital", 200L, 0, 20))
             .thenReturn(List.of(localVersion));
 
-        List<KnowledgeAssetVersion> versions = service.listByIdentity(100L);
+        PageResponse<KnowledgeAssetVersion> versions = service.listByIdentity(100L, page);
 
-        assertThat(versions).containsExactly(localVersion);
+        assertThat(versions.items()).containsExactly(localVersion);
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 100L);
     }
 

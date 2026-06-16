@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.ids.Ulid;
@@ -131,10 +133,19 @@ public class OverrideTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<OverrideTemplate> listTemplates(String tenantId) {
-        return templates.findByTenantIdAndStatusOrderByUpdatedAtDesc(
-            required(tenantId, "租户"),
-            OverrideTemplateStatus.ACTIVE
+    public PageResponse<OverrideTemplate> listTemplates(String tenantId, PageRequest request) {
+        String requiredTenant = required(tenantId, "租户");
+        PageRequest safe = request == null ? PageRequest.defaults() : request;
+        long total = templates.countByTenantIdAndStatus(requiredTenant, OverrideTemplateStatus.ACTIVE);
+        return PageResponse.of(
+            templates.pageByTenantIdAndStatus(
+                requiredTenant,
+                OverrideTemplateStatus.ACTIVE,
+                safe.offset(),
+                safe.safeSize()
+            ),
+            safe,
+            total
         );
     }
 

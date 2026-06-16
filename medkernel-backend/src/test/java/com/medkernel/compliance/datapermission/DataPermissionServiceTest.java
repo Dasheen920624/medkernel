@@ -11,6 +11,8 @@ import org.mockito.ArgumentCaptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.security.DataAccessLevel;
 import com.medkernel.shared.security.ResolvedDataScope;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -119,6 +121,25 @@ class DataPermissionServiceTest {
         verify(orgAssignments).requireActiveScopeReferences(
             "t-1", "g-1", "h-1", null, null,
             "cardiology", "cardiology-ward-1", null);
+    }
+
+    @Test
+    void listPoliciesReturnsTenantScopedPageInsteadOfUnboundedList() {
+        DataPermissionPolicy row = activePolicy("[\"patientId\"]");
+        when(repository.countPolicies("t-1", "clinical_case", "READ")).thenReturn(41L);
+        when(repository.pagePolicies("t-1", "clinical_case", "READ", 20, 20)).thenReturn(List.of(row));
+
+        PageResponse<DataPermissionPolicyResponse> page = service.listPolicies(
+            "t-1", "Clinical Case", DataPermissionAction.READ, new PageRequest(2, 20, null));
+
+        assertThat(page.items()).extracting(DataPermissionPolicyResponse::policyId)
+            .containsExactly("dperm-clinical-case-read");
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(41);
+        assertThat(page.hasNext()).isTrue();
+        verify(repository).countPolicies("t-1", "clinical_case", "READ");
+        verify(repository).pagePolicies("t-1", "clinical_case", "READ", 20, 20);
     }
 
     @Test

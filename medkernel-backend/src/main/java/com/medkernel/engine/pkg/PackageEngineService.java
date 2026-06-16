@@ -4301,14 +4301,17 @@ public class PackageEngineService {
      * 查询包关联发布计划的真实同步日志。
      */
     @Transactional(readOnly = true)
-    public List<SyncLogResponse> listSyncLogs(String packageId) {
+    public PageResponse<SyncLogResponse> listSyncLogs(String packageId, PageRequest page) {
         String tenantId = currentTenantId();
         packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
-        return planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId).stream()
-            .flatMap(plan -> logRepository.findByTenantIdAndPlanId(tenantId, plan.planId()).stream())
+        PageRequest safePage = page == null ? PageRequest.defaults() : page;
+        long total = logRepository.countByTenantIdAndPackageId(tenantId, packageId);
+        List<SyncLogResponse> logs = logRepository
+            .pageByTenantIdAndPackageId(tenantId, packageId, safePage.offset(), safePage.safeSize()).stream()
             .map(SyncLogResponse::from)
             .toList();
+        return PageResponse.of(logs, safePage, total);
     }
 
     /**
@@ -4407,12 +4410,15 @@ public class PackageEngineService {
      * @return 发布适配器列表
      */
     @Transactional(readOnly = true)
-    public List<PackageReleaseAdapterResponse> listReleaseAdapters() {
+    public PageResponse<PackageReleaseAdapterResponse> listReleaseAdapters(PageRequest page) {
         String tenantId = currentTenantId();
-        return adapterRepository.findAllByTenantId(tenantId).stream()
-            .filter(adapter -> "ACTIVE".equalsIgnoreCase(adapter.status()))
+        PageRequest safePage = page == null ? PageRequest.defaults() : page;
+        long total = adapterRepository.countByTenantIdAndStatus(tenantId, "ACTIVE");
+        List<PackageReleaseAdapterResponse> adapters = adapterRepository
+            .pageByTenantIdAndStatus(tenantId, "ACTIVE", safePage.offset(), safePage.safeSize()).stream()
             .map(adapter -> PackageReleaseAdapterResponse.from(adapter, syncPort.supports(adapter)))
             .toList();
+        return PageResponse.of(adapters, safePage, total);
     }
 
     private EffectivePackageSnapshot buildEffectiveSnapshot(

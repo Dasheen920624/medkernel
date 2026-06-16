@@ -103,6 +103,7 @@ const VERSION_STATUS_LABELS: Record<string, string> = {
 };
 const KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 const KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE = 20;
+const KNOWLEDGE_CANDIDATE_PAGE_SIZE = 20;
 
 const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> = {
   LOW: "success",
@@ -191,6 +192,7 @@ export default function KnowledgeGovernance() {
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
   const [keyword, setKeyword] = useState("");
   const [identityPage, setIdentityPage] = useState(1);
+  const [candidatePage, setCandidatePage] = useState(1);
   const [customizationPage, setCustomizationPage] = useState(1);
   const [reviewPackageSearch, setReviewPackageSearch] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
@@ -299,9 +301,18 @@ export default function KnowledgeGovernance() {
   }, [identities, identitiesQuery.data?.total, identityPage, selectedIdentityId]);
 
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
-  const candidatesQuery = useKnowledgeCandidates(selectedIdentityId);
+  useEffect(() => {
+    setCandidatePage(1);
+    setSelectedCandidateId(undefined);
+  }, [selectedIdentityId]);
+
+  const candidatesQuery = useKnowledgeCandidates(selectedIdentityId, {
+    page: candidatePage,
+    size: KNOWLEDGE_CANDIDATE_PAGE_SIZE,
+  });
   const candidateResponse = candidatesQuery.data;
-  const candidates = useMemo(() => candidateResponse?.candidates ?? [], [candidateResponse]);
+  const candidatePageData = candidateResponse?.candidates;
+  const candidates = useMemo(() => candidatePageData?.items ?? [], [candidatePageData?.items]);
   const classifications = useMemo(
     () => candidateResponse?.classifications ?? [],
     [candidateResponse],
@@ -339,7 +350,7 @@ export default function KnowledgeGovernance() {
   const reviewMutation = useReviewKnowledgeCandidate();
   const retirementMutation = useDeprecateKnowledgeIdentity();
 
-  const diffCandidates = diffQuery.data?.candidates ?? [];
+  const diffCandidates = diffQuery.data?.candidates.items ?? [];
   const diffClassifications = diffQuery.data?.classifications ?? classifications;
   const selectedClassification = classificationFor(diffClassifications, selectedCandidateId);
   const activeVersion =
@@ -358,11 +369,7 @@ export default function KnowledgeGovernance() {
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
   const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
-  const pendingCount = useMemo(
-    () =>
-      classifications.filter((item) => item.reviewStatus === "PENDING_REPLACEMENT_REVIEW").length,
-    [classifications],
-  );
+  const pendingCount = candidatePageData?.total ?? 0;
   const conflictCount = useMemo(
     () => classifications.filter((item) => item.classification === "CONFLICT").length,
     [classifications],
@@ -784,13 +791,19 @@ export default function KnowledgeGovernance() {
     );
   } else {
     candidatePanel = (
-      <Table
-        rowKey="id"
-        columns={candidateColumns}
-        dataSource={candidates}
-        pagination={false}
-        size="middle"
-      />
+        <Table
+          rowKey="id"
+          columns={candidateColumns}
+          dataSource={candidates}
+          pagination={{
+            current: candidatePageData?.page ?? candidatePage,
+            pageSize: candidatePageData?.size ?? KNOWLEDGE_CANDIDATE_PAGE_SIZE,
+            total: candidatePageData?.total ?? 0,
+            showSizeChanger: false,
+            onChange: setCandidatePage,
+          }}
+          size="middle"
+        />
     );
   }
 

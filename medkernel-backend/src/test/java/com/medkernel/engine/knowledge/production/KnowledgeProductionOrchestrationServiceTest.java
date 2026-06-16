@@ -296,22 +296,29 @@ class KnowledgeProductionOrchestrationServiceTest {
     }
 
     @Test
-    void listCandidatesReturnsJobLineageWithRouting() {
+    void listCandidatesReturnsTenantScopedPageWithRouting() {
         asTenant(CUSTOMER);
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
             .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
         KnowledgeProductionCandidate row = new KnowledgeProductionCandidate(5L, CUSTOMER, "job-1",
             "discovery:SRC:v1:a", "hash", "staged:x",
             KnowledgeRiskLevel.HIGH, java.time.Instant.now(), "user-001");
-        when(candidateRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1")).thenReturn(List.of(row));
+        when(candidateRepository.countByTenantIdAndJobCode(CUSTOMER, "job-1")).thenReturn(21L);
+        when(candidateRepository.pageByTenantIdAndJobCode(CUSTOMER, "job-1", 0, 20)).thenReturn(List.of(row));
 
-        List<ProductionCandidateView> views = service.listCandidates("job-1");
+        PageResponse<ProductionCandidateView> views = service.listCandidates("job-1", 1, 20);
 
-        assertThat(views).hasSize(1);
-        assertThat(views.get(0).candidateRef()).isEqualTo("staged:x");
-        assertThat(views.get(0).routing().requiresDualSign()).isTrue(); // HIGH→双签
-        assertThat(views.get(0).routing().ownerReviewerRole())
+        assertThat(views.items()).hasSize(1);
+        assertThat(views.page()).isEqualTo(1);
+        assertThat(views.size()).isEqualTo(20);
+        assertThat(views.total()).isEqualTo(21);
+        assertThat(views.hasNext()).isTrue();
+        assertThat(views.items().get(0).candidateRef()).isEqualTo("staged:x");
+        assertThat(views.items().get(0).routing().requiresDualSign()).isTrue(); // HIGH→双签
+        assertThat(views.items().get(0).routing().ownerReviewerRole())
             .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR);
+        verify(candidateRepository).countByTenantIdAndJobCode(CUSTOMER, "job-1");
+        verify(candidateRepository).pageByTenantIdAndJobCode(CUSTOMER, "job-1", 0, 20);
     }
 
     @Test

@@ -8,6 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
@@ -25,6 +26,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -108,13 +111,17 @@ class DocumentParseControllerSecurityTest {
 
     @Test
     void knowledgeGovernorCanListJobs() throws Exception {
-        when(service.listJobs(anyInt(), anyInt())).thenReturn(List.of());
+        when(service.listJobs(anyInt(), anyInt()))
+            .thenReturn(PageResponse.of(List.of(stubJob()), new PageRequest(2, 20, null), 41L));
 
-        mockMvc.perform(get("/api/v1/engine/knowledge/documents/parse-jobs")
+        mockMvc.perform(get("/api/v1/engine/knowledge/documents/parse-jobs?page=2&size=20")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].jobCode").value("dpj:x"))
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.total").value(41));
     }
 
     @Test

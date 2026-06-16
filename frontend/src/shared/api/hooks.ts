@@ -915,6 +915,17 @@ export interface PageResponse<T> {
   };
 }
 
+function emptyPage<T>(): PageResponse<T> {
+  return {
+    items: [],
+    page: 1,
+    size: 20,
+    total: 0,
+    hasNext: false,
+    totalEstimated: false,
+  };
+}
+
 export interface TerminologyMappingsParams {
   page?: number;
   size?: number;
@@ -931,6 +942,10 @@ function compactParams<T extends object>(params: T): Partial<T> {
       ([, value]) => value !== undefined && value !== "",
     ),
   ) as Partial<T>;
+}
+
+function compactOneBasedPageParams<T extends { page?: number }>(params: T): Partial<T> {
+  return compactParams(params.page !== undefined && params.page < 1 ? { ...params, page: 1 } : params);
 }
 
 // ──────────────────────────────────────────
@@ -1111,11 +1126,17 @@ export interface KnowledgeSourceEvidence {
 export interface KnowledgeProvenanceResponse {
   identity: KnowledgeIdentity;
   currentVersionId?: number | null;
-  versions: KnowledgeAssetVersion[];
-  supersessions: KnowledgeSupersession[];
+  versions: PageResponse<KnowledgeAssetVersion>;
+  supersessions: PageResponse<KnowledgeSupersession>;
   sourceEvidence: KnowledgeSourceEvidence[];
   unresolvedCitationCount: number;
   partial: boolean;
+}
+
+export interface KnowledgeProvenanceParams {
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
 export interface CandidateClassification {
@@ -1138,11 +1159,17 @@ export interface CandidateClassification {
 
 export interface KnowledgeCandidateResponse {
   identityId: number;
-  candidates: KnowledgeAssetVersion[];
+  candidates: PageResponse<KnowledgeAssetVersion>;
   classifications: CandidateClassification[];
   available: boolean;
   reasonCode?: string | null;
   message?: string | null;
+}
+
+export interface KnowledgeCandidatesParams {
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
 export interface KnowledgeIdentityQueryParams {
@@ -1158,7 +1185,7 @@ export interface KnowledgeIdentityQueryParams {
 
 const EMPTY_KNOWLEDGE_CANDIDATES: KnowledgeCandidateResponse = {
   identityId: 0,
-  candidates: [],
+  candidates: emptyPage<KnowledgeAssetVersion>(),
   classifications: [],
   available: false,
   reasonCode: "NO_IDENTITY_SELECTED",
@@ -1188,9 +1215,12 @@ export function useKnowledgeIdentities(params: KnowledgeIdentityQueryParams = {}
   });
 }
 
-export function useKnowledgeProvenance(identityId?: number) {
+export function useKnowledgeProvenance(
+  identityId?: number,
+  params: KnowledgeProvenanceParams = {},
+) {
   return useQuery({
-    queryKey: ["knowledge", "provenance", identityId],
+    queryKey: ["knowledge", "provenance", identityId, params],
     enabled: Boolean(identityId),
     queryFn: async () => {
       if (!identityId) {
@@ -1198,6 +1228,7 @@ export function useKnowledgeProvenance(identityId?: number) {
       }
       const { data } = await apiClient.get<{ data: KnowledgeProvenanceResponse }>(
         `${KNOWLEDGE_API_ROOT}/identities/${identityId}/provenance`,
+        { params },
       );
       return data.data;
     },
@@ -1242,14 +1273,20 @@ export function useDeprecateKnowledgeIdentity() {
   });
 }
 
-export function useKnowledgeCandidates(identityId?: number) {
+export function useKnowledgeCandidates(identityId?: number, params: KnowledgeCandidatesParams = {}) {
+  const requestParams = compactParams({
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+    sort: params.sort,
+  });
   return useQuery({
-    queryKey: ["knowledge", "candidates", identityId],
+    queryKey: ["knowledge", "candidates", identityId, requestParams],
     enabled: Boolean(identityId),
     queryFn: async () => {
       if (!identityId) return EMPTY_KNOWLEDGE_CANDIDATES;
       const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
         `${KNOWLEDGE_API_ROOT}/identities/${identityId}/candidates`,
+        { params: requestParams },
       );
       return data.data;
     },
@@ -1582,15 +1619,23 @@ export interface DiagnosisAssetDraftResponse {
   version: KnowledgeAssetVersion;
 }
 
-export function useKnowledgeVersions(identityId?: number) {
+export interface KnowledgeVersionsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+export function useKnowledgeVersions(identityId?: number, params: KnowledgeVersionsParams = {}) {
   return useQuery({
-    queryKey: ["knowledge", "versions", identityId],
+    queryKey: ["knowledge", "versions", identityId, params],
     enabled: Boolean(identityId),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: KnowledgeAssetVersion[] }>(
+      if (!identityId) return emptyPage<KnowledgeAssetVersion>();
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeAssetVersion> }>(
         `${KNOWLEDGE_API_ROOT}/identities/${identityId}/versions`,
+        { params },
       );
-      return data.data;
+      return data.data ?? emptyPage<KnowledgeAssetVersion>();
     },
   });
 }
@@ -1750,12 +1795,13 @@ export function usePublishDiagnosis() {
 }
 
 export function useTerminologyMappings(params?: TerminologyMappingsParams) {
+  const requestParams = compactOneBasedPageParams(params ?? {});
   return useQuery({
-    queryKey: ["terminology", "mappings", params ?? {}],
+    queryKey: ["terminology", "mappings", requestParams],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<TermMapping> }>(
         "/engine/terminology/mappings",
-        { params },
+        { params: requestParams },
       );
       return data.data;
     },
@@ -1773,7 +1819,7 @@ export interface StandardTermsParams {
 }
 
 export function useStandardTerms(params: StandardTermsParams = {}) {
-  const requestParams = compactParams(params);
+  const requestParams = compactOneBasedPageParams(params);
   return useQuery({
     queryKey: ["terminology", "standard-terms", requestParams],
     queryFn: async () => {
@@ -1822,7 +1868,7 @@ export interface LocalTermsParams {
 }
 
 export function useLocalTerms(params: LocalTermsParams = {}) {
-  const requestParams = compactParams(params);
+  const requestParams = compactOneBasedPageParams(params);
   return useQuery({
     queryKey: ["terminology", "local-terms", requestParams],
     queryFn: async () => {
@@ -1846,7 +1892,7 @@ export interface TerminologyCandidatesParams {
 }
 
 export function useTerminologyCandidates(params: TerminologyCandidatesParams = {}) {
-  const requestParams = compactParams(params);
+  const requestParams = compactOneBasedPageParams(params);
   return useQuery({
     queryKey: ["terminology", "candidates", requestParams],
     queryFn: async () => {
@@ -1869,7 +1915,7 @@ export interface TerminologyConflictsParams {
 }
 
 export function useTerminologyConflicts(params: TerminologyConflictsParams = {}) {
-  const requestParams = compactParams(params);
+  const requestParams = compactOneBasedPageParams(params);
   return useQuery({
     queryKey: ["terminology", "conflicts", requestParams],
     queryFn: async () => {
@@ -2358,6 +2404,20 @@ export interface MaskingRulePayload {
   expectedVersion?: number;
 }
 
+export interface DataPermissionPoliciesParams {
+  resourceType?: string;
+  action?: DataPermissionAction;
+  page?: number;
+  size?: number;
+}
+
+export interface MaskingRulesParams {
+  resourceType?: string;
+  fieldName?: string;
+  page?: number;
+  size?: number;
+}
+
 export interface MaskingPreviewPayload {
   resourceType: string;
   scenarioCode?: string;
@@ -2508,13 +2568,13 @@ export async function updateTenantSystemConfig(
 }
 
 export async function fetchDataPermissionPolicies(
-  params: { resourceType?: string; action?: DataPermissionAction } = {},
-): Promise<DataPermissionPolicy[]> {
-  const { data } = await apiClient.get<{ data: DataPermissionPolicy[] }>(
+  params: DataPermissionPoliciesParams = {},
+): Promise<PageResponse<DataPermissionPolicy>> {
+  const { data } = await apiClient.get<{ data: PageResponse<DataPermissionPolicy> }>(
     "/compliance/data-permissions",
     { params },
   );
-  return data.data ?? [];
+  return data.data;
 }
 
 export async function checkDataPermission(
@@ -2538,12 +2598,15 @@ export async function upsertDataPermissionPolicy(
 }
 
 export async function fetchMaskingRules(
-  params: { resourceType?: string; fieldName?: string } = {},
-): Promise<MaskingRule[]> {
-  const { data } = await apiClient.get<{ data: MaskingRule[] }>("/compliance/masking-rules", {
-    params,
-  });
-  return data.data ?? [];
+  params: MaskingRulesParams = {},
+): Promise<PageResponse<MaskingRule>> {
+  const { data } = await apiClient.get<{ data: PageResponse<MaskingRule> }>(
+    "/compliance/masking-rules",
+    {
+      params,
+    },
+  );
+  return data.data;
 }
 
 export async function previewMasking(
@@ -2654,7 +2717,7 @@ export function useUpdateTenantSystemConfig() {
 }
 
 export function useDataPermissionPolicies(
-  params: { resourceType?: string; action?: DataPermissionAction } = {},
+  params: DataPermissionPoliciesParams = {},
 ) {
   return useQuery({
     queryKey: ["compliance", "data-permissions", params],
@@ -2675,7 +2738,7 @@ export function useUpsertDataPermissionPolicy() {
   });
 }
 
-export function useMaskingRules(params: { resourceType?: string; fieldName?: string } = {}) {
+export function useMaskingRules(params: MaskingRulesParams = {}) {
   return useQuery({
     queryKey: ["compliance", "masking-rules", params],
     queryFn: () => fetchMaskingRules(params),
@@ -3574,15 +3637,18 @@ export function useCloneAuthoringAsset() {
   });
 }
 
-export function useAuthoringBatchJobs(options?: { enabled?: boolean }) {
+export function useAuthoringBatchJobs(options?: { enabled?: boolean; page?: number; size?: number }) {
+  const page = options?.page ?? 1;
+  const size = options?.size ?? 20;
   return useQuery({
-    queryKey: ["authoring", "batch-jobs"],
+    queryKey: ["authoring", "batch-jobs", { page, size }],
     enabled: options?.enabled ?? true,
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: AuthoringBatchJobResponse[] }>(
+      const { data } = await apiClient.get<{ data: PageResponse<AuthoringBatchJobResponse> }>(
         AUTHORING_BATCH_API_ROOT,
+        { params: { page, size } },
       );
-      return data.data ?? [];
+      return data.data;
     },
   });
 }
@@ -3684,7 +3750,7 @@ export interface ConditionFragmentImpactResponse {
   fragmentCode: string;
   versionNo: number;
   packageVersion: string;
-  affectedAssets: ConditionFragmentAffectedAsset[];
+  affectedAssets: PageResponse<ConditionFragmentAffectedAsset>;
   impactDigest: string;
   traceId?: string | null;
 }
@@ -3747,16 +3813,22 @@ export function useUpdateConditionFragment() {
 
 export function useConditionFragmentImpact(
   fragmentId: string,
+  params?: {
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
   options?: {
     enabled?: boolean;
   },
 ) {
   return useQuery({
-    queryKey: ["authoring", "condition-fragment-impact", fragmentId],
+    queryKey: ["authoring", "condition-fragment-impact", fragmentId, params ?? {}],
     enabled: (options?.enabled ?? true) && !!fragmentId,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: ConditionFragmentImpactResponse }>(
         `/engine/authoring/fragments/${fragmentId}/impact`,
+        { params },
       );
       return data.data;
     },
@@ -6908,6 +6980,11 @@ export interface SyncLogResponse {
   syncEvidence: string | null;
 }
 
+export interface PackageSyncLogParams {
+  page?: number;
+  size?: number;
+}
+
 export interface PackageSyncResponse {
   planId: string;
   packageId: string;
@@ -7025,15 +7102,21 @@ export interface PackageInheritanceImpactQuery {
   upstreamVersionId?: string;
 }
 
+export interface PackageReleaseAdaptersParams {
+  page?: number;
+  size?: number;
+}
+
 // 1. 获取配置包发布可用的统一集成适配器
-export function usePackageReleaseAdapters(enabled = true) {
+export function usePackageReleaseAdapters(params: PackageReleaseAdaptersParams = {}, enabled = true) {
   return useQuery({
-    queryKey: ["packages", "release-adapters"],
+    queryKey: ["packages", "release-adapters", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PackageReleaseAdapter[] }>(
+      const { data } = await apiClient.get<{ data: PageResponse<PackageReleaseAdapter> }>(
         `${PACKAGE_API_ROOT}/release-adapters`,
+        { params },
       );
-      return data.data ?? [];
+      return data.data ?? emptyPage<PackageReleaseAdapter>();
     },
     enabled,
   });
@@ -7491,6 +7574,11 @@ export interface OverrideTemplate {
   updatedAt: string;
 }
 
+export interface OverrideTemplatesParams {
+  page?: number;
+  size?: number;
+}
+
 export interface OverrideBatchPreviewRequest {
   templateId?: string;
   sourceOrgUnitId?: string;
@@ -7587,14 +7675,24 @@ export function useRollbackRollout() {
   });
 }
 
-export function useOverrideTemplates() {
+export function useOverrideTemplates(params: OverrideTemplatesParams = {}) {
   return useQuery({
-    queryKey: ["release-governance", "override-templates"],
+    queryKey: ["release-governance", "override-templates", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: OverrideTemplate[] }>(
+      const { data } = await apiClient.get<{ data: PageResponse<OverrideTemplate> }>(
         `${RELEASE_GOVERNANCE_API_ROOT}/override-templates`,
+        { params },
       );
-      return data.data;
+      return (
+        data.data ?? {
+          items: [],
+          page: params.page ?? 1,
+          size: params.size ?? 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        }
+      );
     },
   });
 }
@@ -7670,15 +7768,16 @@ export function useValidatePackage() {
   });
 }
 
-export function usePackageSyncLogs(packageId: string) {
+export function usePackageSyncLogs(packageId: string, params: PackageSyncLogParams = {}) {
   return useQuery({
-    queryKey: ["packages", "sync-logs", packageId],
+    queryKey: ["packages", "sync-logs", packageId, params],
     queryFn: async () => {
-      if (!packageId) return [];
-      const { data } = await apiClient.get<{ data: SyncLogResponse[] }>(
+      if (!packageId) return emptyPage<SyncLogResponse>();
+      const { data } = await apiClient.get<{ data: PageResponse<SyncLogResponse> }>(
         `${PACKAGE_API_ROOT}/${packageId}/sync-logs`,
+        { params },
       );
-      return data.data ?? [];
+      return data.data ?? emptyPage<SyncLogResponse>();
     },
     enabled: !!packageId,
   });
@@ -8475,6 +8574,22 @@ export interface IntegrationAdaptersParams {
   size?: number;
 }
 
+export interface IntegrationMaintenancePageParams {
+  page?: number;
+  size?: number;
+}
+
+function emptyIntegrationPage<T>(params: IntegrationMaintenancePageParams): PageResponse<T> {
+  return {
+    items: [],
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+    total: 0,
+    hasNext: false,
+    totalEstimated: false,
+  };
+}
+
 // 1. 获取适配器目录
 export function useIntegrationAdapters(params: IntegrationAdaptersParams = {}) {
   return useQuery({
@@ -8595,14 +8710,15 @@ export function useGenerateDataQualityReport() {
   });
 }
 
-export function useIntegrationOnboardings() {
+export function useIntegrationOnboardings(params: IntegrationMaintenancePageParams = {}) {
   return useQuery({
-    queryKey: ["integration", "onboardings"],
+    queryKey: ["integration", "onboardings", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<IntegrationOnboarding[]>>(
+      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<IntegrationOnboarding>>>(
         "/engine/integration/onboardings",
+        { params },
       );
-      return data.data ?? [];
+      return data.data ?? emptyIntegrationPage<IntegrationOnboarding>(params);
     },
   });
 }
@@ -8648,14 +8764,15 @@ export function useCheckAdapterHealth() {
 }
 
 // 5. 获取 Webhook 订阅配置
-export function useWebhooks() {
+export function useWebhooks(params: IntegrationMaintenancePageParams = {}) {
   return useQuery({
-    queryKey: ["integration", "webhooks"],
+    queryKey: ["integration", "webhooks", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<IntegrationWebhookConfig[]>>(
+      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<IntegrationWebhookConfig>>>(
         "/engine/integration/webhooks",
+        { params },
       );
-      return data.data ?? [];
+      return data.data ?? emptyIntegrationPage<IntegrationWebhookConfig>(params);
     },
   });
 }
@@ -8686,14 +8803,15 @@ export function useTestWebhookSignature() {
   });
 }
 
-export function useRegionalSources() {
+export function useRegionalSources(params: IntegrationMaintenancePageParams = {}) {
   return useQuery({
-    queryKey: ["integration", "regional-sources"],
+    queryKey: ["integration", "regional-sources", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<RegionalSource[]>>(
+      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<RegionalSource>>>(
         "/engine/integration/regional-sources",
+        { params },
       );
-      return data.data ?? [];
+      return data.data ?? emptyIntegrationPage<RegionalSource>(params);
     },
   });
 }

@@ -1,7 +1,5 @@
 package com.medkernel.compliance.datapermission;
 
-import java.util.List;
-
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -13,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -35,11 +35,13 @@ public class DataPermissionController {
 
     @GetMapping
     @PreAuthorize("@perm.has('audit.read')")
-    public ApiResult<List<DataPermissionPolicyResponse>> listPolicies(
+    public ApiResult<PageResponse<DataPermissionPolicyResponse>> listPolicies(
             @RequestParam(required = false) String resourceType,
-            @RequestParam(required = false) DataPermissionAction action) {
+            @RequestParam(required = false) DataPermissionAction action,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(service.listPolicies(tenantId, resourceType, action));
+        return ApiResult.ok(service.listPolicies(tenantId, resourceType, action, new PageRequest(page, size, null)));
     }
 
     @PutMapping

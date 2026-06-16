@@ -1,7 +1,5 @@
 package com.medkernel.engine.knowledge.parsing;
 
-import java.util.List;
-
 import jakarta.validation.Valid;
 
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -49,8 +48,8 @@ public class DocumentParseController {
     /** 分页查询解析 job 台账。 */
     @GetMapping("/documents/parse-jobs")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<DocParseJob>> listJobs(
-            @RequestParam(required = false, defaultValue = "0") int page,
+    public ApiResult<PageResponse<DocParseJob>> listJobs(
+            @RequestParam(required = false, defaultValue = "1") int page,
             @RequestParam(required = false, defaultValue = "20") int size) {
         return ApiResult.ok(service.listJobs(page, size));
     }

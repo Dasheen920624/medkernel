@@ -12,7 +12,8 @@ const mockUseKnowledgeReviewQueue = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
-  useKnowledgeProvenance: (identityId?: number) => mockUseKnowledgeProvenance(identityId),
+  useKnowledgeProvenance: (identityId?: number, params?: unknown) =>
+    mockUseKnowledgeProvenance(identityId, params),
   useKnowledgeReviewQueue: () => mockUseKnowledgeReviewQueue(),
 }));
 
@@ -91,38 +92,52 @@ describe("Provenance", () => {
           currentVersionId: 22,
         },
         currentVersionId: 22,
-        versions: [
-          {
-            id: 22,
-            tenantId: "t-1",
-            identityId: 1,
-            versionNo: "v2026.1",
-            versionLabel: "2026 版",
-            status: "ACTIVE",
-            authorityLevel: "A_REGULATION",
-            gradeQuality: "HIGH",
-            reviewCycleMonths: 12,
-            reviewedAt: "2025-06-01T00:00:00Z",
-            nextReviewAt: "2026-06-01T00:00:00Z",
-          },
-          {
-            id: 20,
-            tenantId: "t-1",
-            identityId: 1,
-            versionNo: "v2024.1",
-            versionLabel: "2024 版",
-            status: "SUPERSEDED",
-          },
-        ],
-        supersessions: [
-          {
-            id: 30,
-            transitionType: "DEPRECATE",
-            successorIdentityId: 2,
-            gracePeriodEnd: "2026-07-01T00:00:00Z",
-            migrationGuidance: "请迁移到新版用药指南",
-          },
-        ],
+        versions: {
+          items: [
+            {
+              id: 22,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: "v2026.1",
+              versionLabel: "2026 版",
+              status: "ACTIVE",
+              authorityLevel: "A_REGULATION",
+              gradeQuality: "HIGH",
+              reviewCycleMonths: 12,
+              reviewedAt: "2025-06-01T00:00:00Z",
+              nextReviewAt: "2026-06-01T00:00:00Z",
+            },
+            {
+              id: 20,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: "v2024.1",
+              versionLabel: "2024 版",
+              status: "SUPERSEDED",
+            },
+          ],
+          page: 1,
+          size: 20,
+          total: 22,
+          hasNext: true,
+          totalEstimated: false,
+        },
+        supersessions: {
+          items: [
+            {
+              id: 30,
+              transitionType: "DEPRECATE",
+              successorIdentityId: 2,
+              gracePeriodEnd: "2026-07-01T00:00:00Z",
+              migrationGuidance: "请迁移到新版用药指南",
+            },
+          ],
+          page: 1,
+          size: 20,
+          total: 1,
+          hasNext: false,
+          totalEstimated: false,
+        },
         sourceEvidence: [
           {
             assetVersionId: 22,
@@ -178,6 +193,6 @@ describe("Provenance", () => {
     expect(screen.queryByText("DRUG")).not.toBeInTheDocument();
     expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
     expect(screen.queryByText("真实证据快照")).not.toBeInTheDocument();
-    expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1);
+    expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 });
   });
 });

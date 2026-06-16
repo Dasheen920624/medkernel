@@ -501,8 +501,7 @@ public class KnowledgeCustomizationService {
     }
 
     private String nextLocalVersionNo(String tenantId, Long identityId, String platformVersionNo) {
-        int next = versions.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId)
-            .size() + 1;
+        long next = versions.countByTenantIdAndIdentityId(tenantId, identityId) + 1L;
         return platformVersionNo + "-local-" + next;
     }
 

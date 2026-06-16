@@ -149,4 +149,112 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
           AND (:keyword IS NULL OR LOWER(rule_code) LIKE :keyword OR LOWER(name) LIKE :keyword)
         """)
     long countByFilter(String tenantId, String status, String ruleType, String riskLevel, String keyword);
+
+    /**
+     * 统一创作资产库按标签、收藏和关键字分页查询规则，避免全量租户快照。
+     */
+    @Query("""
+        SELECT r.*
+        FROM rule_definition r
+        LEFT JOIN mk_engine_authoring_asset_profile p
+          ON p.tenant_id = r.tenant_id
+         AND p.asset_type = 'RULE'
+         AND p.asset_id = r.rule_id
+        WHERE r.tenant_id = :tenantId
+          AND (
+              :keyword IS NULL
+              OR LOWER(r.rule_code) LIKE :keyword
+              OR LOWER(r.name) LIKE :keyword
+              OR LOWER(COALESCE(p.category, '')) LIKE :keyword
+              OR LOWER(p.tags_json) LIKE :keyword
+          )
+          AND (:tagPattern IS NULL OR LOWER(p.tags_json) LIKE :tagPattern)
+          AND (:favoriteUserId IS NULL OR EXISTS (
+              SELECT 1
+              FROM mk_engine_authoring_asset_favorite f
+              WHERE f.tenant_id = r.tenant_id
+                AND f.user_id = :favoriteUserId
+                AND f.asset_type = 'RULE'
+                AND f.asset_id = r.rule_id
+          ))
+        ORDER BY r.updated_at DESC, r.id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<RuleDefinition> pageForAuthoringLibrary(
+        String tenantId,
+        String keyword,
+        String tagPattern,
+        String favoriteUserId,
+        int offset,
+        int limit);
+
+    /**
+     * 与 {@link #pageForAuthoringLibrary} 同口径统计规则资产数。
+     */
+    @Query("""
+        SELECT COUNT(*)
+        FROM rule_definition r
+        LEFT JOIN mk_engine_authoring_asset_profile p
+          ON p.tenant_id = r.tenant_id
+         AND p.asset_type = 'RULE'
+         AND p.asset_id = r.rule_id
+        WHERE r.tenant_id = :tenantId
+          AND (
+              :keyword IS NULL
+              OR LOWER(r.rule_code) LIKE :keyword
+              OR LOWER(r.name) LIKE :keyword
+              OR LOWER(COALESCE(p.category, '')) LIKE :keyword
+              OR LOWER(p.tags_json) LIKE :keyword
+          )
+          AND (:tagPattern IS NULL OR LOWER(p.tags_json) LIKE :tagPattern)
+          AND (:favoriteUserId IS NULL OR EXISTS (
+              SELECT 1
+              FROM mk_engine_authoring_asset_favorite f
+              WHERE f.tenant_id = r.tenant_id
+                AND f.user_id = :favoriteUserId
+                AND f.asset_type = 'RULE'
+                AND f.asset_id = r.rule_id
+          ))
+        """)
+    long countForAuthoringLibrary(
+        String tenantId,
+        String keyword,
+        String tagPattern,
+        String favoriteUserId);
+
+    /**
+     * 条件片段影响分析按当前激活规则版本 DSL 预过滤候选规则，避免全量规则扫描。
+     */
+    @Query("""
+        SELECT r.*
+        FROM rule_definition r
+        JOIN rule_version rv
+          ON rv.tenant_id = r.tenant_id
+         AND rv.version_id = r.active_version_id
+        WHERE r.tenant_id = :tenantId
+          AND r.active_version_id IS NOT NULL
+          AND LOWER(rv.dsl_json) LIKE :fragmentPattern
+        ORDER BY r.updated_at DESC, r.id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<RuleDefinition> pageActiveRuleImpactsByFragmentPattern(
+        String tenantId,
+        String fragmentPattern,
+        int offset,
+        int limit);
+
+    /**
+     * 与 {@link #pageActiveRuleImpactsByFragmentPattern} 同口径统计规则影响候选数。
+     */
+    @Query("""
+        SELECT COUNT(*)
+        FROM rule_definition r
+        JOIN rule_version rv
+          ON rv.tenant_id = r.tenant_id
+         AND rv.version_id = r.active_version_id
+        WHERE r.tenant_id = :tenantId
+          AND r.active_version_id IS NOT NULL
+          AND LOWER(rv.dsl_json) LIKE :fragmentPattern
+        """)
+    long countActiveRuleImpactsByFragmentPattern(String tenantId, String fragmentPattern);
 }

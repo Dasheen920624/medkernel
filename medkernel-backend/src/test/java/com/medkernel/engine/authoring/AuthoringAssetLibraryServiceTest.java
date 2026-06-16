@@ -62,13 +62,22 @@ class AuthoringAssetLibraryServiceTest {
 
     @Test
     void listsRulesPathwaysAndFragmentsWithTagsAndFavorites() {
-        when(rules.listByFilter("tenant-A", null, null, null, null))
-            .thenReturn(List.of(rule("rule-1", "RULE.CKD", "CKD 阻断规则")));
-        when(pathways.listByFilter("tenant-A", null, null, null, null, null))
-            .thenReturn(List.of(pathway("pathway-1", "PATH.CKD", "CKD 临床路径")));
-        when(fragments.pageByFilter("tenant-A", null, null, null, 0, 200))
+        when(rules.countForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1"))
+            .thenReturn(0L);
+        when(rules.pageForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1", 0, 20))
+            .thenReturn(List.of());
+        when(pathways.countForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1"))
+            .thenReturn(0L);
+        when(pathways.pageForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1", 0, 20))
+            .thenReturn(List.of());
+        when(fragments.countForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1"))
+            .thenReturn(1L);
+        when(fragments.pageForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1", 0, 20))
             .thenReturn(List.of(fragment("frag-1", "FRAG_CKD", "CKD 条件片段")));
-        when(followupTemplates.findByTenantIdOrderByUpdatedAtDesc("tenant-A")).thenReturn(List.of());
+        when(followupTemplates.countForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1"))
+            .thenReturn(0L);
+        when(followupTemplates.pageForAuthoringLibrary("tenant-A", "%ckd%", "%\"复用\"%", "author-1", 0, 20))
+            .thenReturn(List.of());
         when(profiles.findByTenantIdAndAssetTypeAndAssetId(
             "tenant-A", VersionedAssetType.CONDITION_FRAGMENT, "frag-1"))
             .thenReturn(Optional.of(profile(VersionedAssetType.CONDITION_FRAGMENT, "frag-1", "[\"CKD\",\"复用\"]")));
@@ -86,6 +95,8 @@ class AuthoringAssetLibraryServiceTest {
         assertThat(item.tags()).containsExactly("CKD", "复用");
         assertThat(item.favorite()).isTrue();
         assertThat(item.cloneable()).isTrue();
+        verify(rules, never()).listByFilter("tenant-A", null, null, null, null);
+        verify(pathways, never()).listByFilter("tenant-A", null, null, null, null, null);
     }
 
     @Test

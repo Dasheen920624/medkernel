@@ -102,11 +102,22 @@ public class KnowledgeVersionService {
         this.releasePort = releasePort;
     }
 
-    public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
+    public PageResponse<KnowledgeAssetVersion> listByIdentity(Long identityId, PageRequest request) {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
-        return versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(
-            effective.sourceTenantId(), effective.identity().id());
+        PageRequest safeRequest = request == null ? PageRequest.defaults() : request;
+        long total = versionRepository.countByTenantIdAndIdentityId(
+            effective.sourceTenantId(),
+            effective.identity().id());
+        if (total == 0L) {
+            return PageResponse.empty(safeRequest);
+        }
+        List<KnowledgeAssetVersion> versions = versionRepository.pageByTenantIdAndIdentityId(
+            effective.sourceTenantId(),
+            effective.identity().id(),
+            safeRequest.offset(),
+            safeRequest.safeSize());
+        return PageResponse.of(versions, safeRequest, total);
     }
 
     public KnowledgeAssetVersion getVersion(Long versionId) {
@@ -228,20 +239,34 @@ public class KnowledgeVersionService {
      * 列出指定知识身份下的新旧识别结果与待替换审核候选。
      */
     public KnowledgeCandidateResponse listCandidates(Long identityId) {
+        return listCandidates(identityId, PageRequest.defaults());
+    }
+
+    /**
+     * 列出指定知识身份下的新旧识别结果与待替换审核候选；候选队列必须服务端分页。
+     */
+    public KnowledgeCandidateResponse listCandidates(Long identityId, PageRequest request) {
         String tenantId = requireCurrentTenant();
         identityRepository.findByTenantIdAndId(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        List<CandidateClassification> classifications =
-            candidateClassificationRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(tenantId, identityId);
-        List<KnowledgeAssetVersion> candidates = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(
+        PageRequest safeRequest = request == null ? PageRequest.defaults() : request;
+        long total = versionRepository.countPendingReplacementCandidatesByTenantIdAndIdentityId(tenantId, identityId);
+        List<KnowledgeAssetVersion> candidates = total == 0L
+            ? List.of()
+            : versionRepository.pagePendingReplacementCandidatesByTenantIdAndIdentityId(
                 tenantId,
-                identityId)
-            .stream()
-            .filter(version -> version.status() == KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW)
+                identityId,
+                safeRequest.offset(),
+                safeRequest.safeSize());
+        List<Long> candidateVersionIds = candidates.stream()
+            .map(KnowledgeAssetVersion::id)
             .toList();
+        List<CandidateClassification> classifications = candidateVersionIds.isEmpty()
+            ? List.of()
+            : candidateClassificationRepository.findByTenantIdAndCandidateVersionIdIn(tenantId, candidateVersionIds);
         return new KnowledgeCandidateResponse(
             identityId,
-            candidates,
+            total == 0L ? PageResponse.empty(safeRequest) : PageResponse.of(candidates, safeRequest, total),
             classifications,
             true,
             "OK",
@@ -278,23 +303,18 @@ public class KnowledgeVersionService {
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
         SourceDocument sourceDocument = sourceDocumentRepository.findByTenantIdAndId(tenantId, request.sourceDocumentId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_KNOW_001, "来源文献不存在 id=" + request.sourceDocumentId()));
-        List<KnowledgeAssetVersion> existingVersions =
-            versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId);
-        existingVersions.stream()
-            .filter(version -> version.versionNo().equalsIgnoreCase(request.versionNo()))
-            .findFirst()
-            .ifPresent(existing -> {
-                throw new ApiException(ErrorCode.CONFLICT,
-                    "知识身份 id=" + identityId + " 下的版本号 " + request.versionNo() + " 已存在");
-            });
+        if (versionRepository.existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase(
+            tenantId, identityId, request.versionNo())) {
+            throw new ApiException(ErrorCode.CONFLICT,
+                "知识身份 id=" + identityId + " 下的版本号 " + request.versionNo() + " 已存在");
+        }
 
         String contentHash = ContentHash.sha256(request.content());
-        Optional<KnowledgeAssetVersion> duplicate = existingVersions.stream()
-            .filter(version -> contentHash.equals(version.contentHash()))
-            .findFirst();
-        Optional<KnowledgeAssetVersion> active = existingVersions.stream()
-            .filter(KnowledgeAssetVersion::isAuthoritative)
-            .findFirst();
+        Optional<KnowledgeAssetVersion> duplicate =
+            versionRepository.findByTenantIdAndIdentityIdAndContentHash(tenantId, identityId, contentHash);
+        Optional<KnowledgeAssetVersion> active =
+            versionRepository.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+                tenantId, identityId, KnowledgeVersionStatus.ACTIVE);
         if (duplicate.isPresent()) {
             KnowledgeAssetVersion duplicateVersion = duplicate.get();
             CandidateClassification classification = candidateClassificationRepository.save(new CandidateClassification(
@@ -440,7 +460,7 @@ public class KnowledgeVersionService {
                 now));
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
-                List.of(activated),
+                candidatePage(List.of(activated)),
                 List.of(approved),
                 true,
                 "APPROVED",
@@ -485,7 +505,7 @@ public class KnowledgeVersionService {
                 now));
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
-                List.of(savedDraft),
+                candidatePage(List.of(savedDraft)),
                 List.of(returned),
                 true,
                 "RETURNED",
@@ -526,7 +546,7 @@ public class KnowledgeVersionService {
             now));
         return new KnowledgeCandidateResponse(
             classification.identityId(),
-            List.of(saved),
+            candidatePage(List.of(saved)),
             List.of(rejectedClassification),
             true,
             "REJECTED",
@@ -791,7 +811,7 @@ public class KnowledgeVersionService {
     }
 
     private CandidateClassificationType candidateClassificationType(Optional<KnowledgeAssetVersion> active,
-            SourceDocument sourceDocument) {
+                                                                    SourceDocument sourceDocument) {
         if (active.isEmpty()) {
             return CandidateClassificationType.NEW_ASSET;
         }
@@ -802,8 +822,13 @@ public class KnowledgeVersionService {
         return CandidateClassificationType.SAME_IDENTITY_NEW_VERSION;
     }
 
+    private PageResponse<KnowledgeAssetVersion> candidatePage(List<KnowledgeAssetVersion> candidates) {
+        List<KnowledgeAssetVersion> items = candidates == null ? List.of() : candidates;
+        return PageResponse.of(items, PageRequest.defaults(), items.size());
+    }
+
     private String basis(CandidateClassificationType type, KnowledgeAssetVersion active,
-            SourceDocument sourceDocument, String contentHash) {
+                         SourceDocument sourceDocument, String contentHash) {
         if (type == CandidateClassificationType.NEW_ASSET) {
             return "当前知识身份暂无 ACTIVE 版本，按新建候选分流；content_hash=" + contentHash;
         }

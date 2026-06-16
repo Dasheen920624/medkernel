@@ -25,12 +25,23 @@ public interface DataPermissionPolicyRepository extends ListCrudRepository<DataP
         @Param("resourceType") String resourceType,
         @Param("action") String action);
 
-    @Query("SELECT * FROM mk_compliance_data_permission WHERE tenant_id = :tenantId "
+    @Query("SELECT COUNT(*) FROM mk_compliance_data_permission WHERE tenant_id = :tenantId "
         + "AND (:resourceType IS NULL OR resource_type = :resourceType) "
-        + "AND (:action IS NULL OR action = :action) "
-        + "ORDER BY resource_type ASC, action ASC")
-    List<DataPermissionPolicy> findPolicies(
+        + "AND (:action IS NULL OR action = :action)")
+    long countPolicies(
         @Param("tenantId") String tenantId,
         @Param("resourceType") String resourceType,
         @Param("action") String action);
+
+    @Query("SELECT * FROM mk_compliance_data_permission WHERE tenant_id = :tenantId "
+        + "AND (:resourceType IS NULL OR resource_type = :resourceType) "
+        + "AND (:action IS NULL OR action = :action) "
+        + "ORDER BY resource_type ASC, action ASC, id ASC "
+        + "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY")
+    List<DataPermissionPolicy> pagePolicies(
+        @Param("tenantId") String tenantId,
+        @Param("resourceType") String resourceType,
+        @Param("action") String action,
+        @Param("offset") int offset,
+        @Param("limit") int limit);
 }

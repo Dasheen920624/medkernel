@@ -224,13 +224,17 @@ class KnowledgeAssetApiContractTest {
 
     @Test
     void provenanceRouteReturnsExactSourceChainInsteadOfAuditSnapshot() throws Exception {
-        when(identityService.getProvenance(1L)).thenReturn(provenance());
+        when(identityService.getProvenance(eq(1L), any())).thenReturn(provenance());
 
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance")
+                .param("page", "1")
+                .param("size", "20")
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.identity.identityCode").value("plat:drug:rosuvastatin-guide"))
             .andExpect(jsonPath("$.data.currentVersionId").value(22))
+            .andExpect(jsonPath("$.data.versions.items[0].id").value(22))
+            .andExpect(jsonPath("$.data.versions.page").value(1))
             .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionNo").value("2026.1"))
             .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionHash").value("source-version-hash"))
             .andExpect(jsonPath("$.data.sourceEvidence[0].anchorPath").value("section-3.2.1"))
@@ -245,7 +249,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void reviewQueueRouteReturnsDueStatusAndReviewMetadata() throws Exception {
         KnowledgeIdentity identity = identity(1L);
-        KnowledgeAssetVersion version = provenance().versions().getFirst();
+        KnowledgeAssetVersion version = provenance().versions().items().getFirst();
         PageRequest pageRequest = new PageRequest(1, 20, "nextReviewAt,asc");
         when(versionService.listReviewQueue(eq(45), any())).thenReturn(PageResponse.of(List.of(
             new KnowledgeReviewQueueItem(identity, version, KnowledgeReviewStatus.OVERDUE, -3)), pageRequest, 1L));
@@ -317,16 +321,25 @@ class KnowledgeAssetApiContractTest {
 
     @Test
     void candidatesRouteReturnsClassificationWorkflowContract() throws Exception {
-        when(versionService.listCandidates(1L))
+        when(versionService.listCandidates(eq(1L), any()))
             .thenReturn(candidateResponse(CandidateClassificationType.SAME_IDENTITY_NEW_VERSION));
 
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/candidates")
+                .queryParam("page", "2")
+                .queryParam("size", "10")
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.available").value(true))
             .andExpect(jsonPath("$.data.reasonCode").value("SAME_IDENTITY_NEW_VERSION"))
-            .andExpect(jsonPath("$.data.candidates").isArray())
+            .andExpect(jsonPath("$.data.candidates.items[0].id").value(22))
+            .andExpect(jsonPath("$.data.candidates.page").value(1))
+            .andExpect(jsonPath("$.data.candidates.size").value(20))
+            .andExpect(jsonPath("$.data.candidates.total").value(1))
             .andExpect(jsonPath("$.data.classifications[0].reviewStatus").value("PENDING_REPLACEMENT_REVIEW"));
+        ArgumentCaptor<PageRequest> pageCaptor = ArgumentCaptor.forClass(PageRequest.class);
+        verify(versionService).listCandidates(eq(1L), pageCaptor.capture());
+        assertThat(pageCaptor.getValue().page()).isEqualTo(2);
+        assertThat(pageCaptor.getValue().size()).isEqualTo(10);
     }
 
     @Test
@@ -508,8 +521,8 @@ class KnowledgeAssetApiContractTest {
         return new KnowledgeProvenanceResponse(
             identity,
             active.id(),
-            List.of(active),
-            List.of(),
+            PageResponse.of(List.of(active), PageRequest.defaults(), 1L),
+            PageResponse.empty(PageRequest.defaults()),
             List.of(sourceEvidence()),
             1,
             true
