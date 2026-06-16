@@ -21,7 +21,11 @@ import com.medkernel.engine.knowledge.production.ProductionJobRequest;
 import com.medkernel.engine.knowledge.production.ProductionJobResponse;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.gate.GateContext;
+import com.medkernel.engine.knowledge.production.gate.GateItemResult;
 import com.medkernel.engine.knowledge.production.gate.GateOutcome;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowContext;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
@@ -46,6 +50,7 @@ public class CandidateGenerationOrchestrationService {
     private final KnowledgeProductionOrchestrationService production;
     private final CandidateSafetyGateService gateService;
     private final KnowledgeGenerationTriageService triageService;
+    private final KnowledgeShadowEvaluationService shadowService;
 
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
@@ -53,7 +58,8 @@ public class CandidateGenerationOrchestrationService {
                                                    SourceCandidateGenerator generator,
                                                    KnowledgeProductionOrchestrationService production,
                                                    CandidateSafetyGateService gateService,
-                                                   KnowledgeGenerationTriageService triageService) {
+                                                   KnowledgeGenerationTriageService triageService,
+                                                   KnowledgeShadowEvaluationService shadowService) {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
@@ -61,6 +67,7 @@ public class CandidateGenerationOrchestrationService {
         this.production = production;
         this.gateService = gateService;
         this.triageService = triageService;
+        this.shadowService = shadowService;
     }
 
     @Transactional
@@ -104,6 +111,13 @@ public class CandidateGenerationOrchestrationService {
                 tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
             if (!triage.shouldSubmit()) {
                 skipped.add(new SkippedType(item.assetType(), "生成期分流跳过：" + triage.basis()));
+                continue;
+            }
+            KnowledgeShadowDecision shadow = shadowService.evaluate(envelope, new KnowledgeShadowContext(
+                tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
+            if (!shadow.readyForReview()) {
+                blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(),
+                    List.of(GateItemResult.fail(KnowledgeShadowEvaluationService.SHADOW_GATE_CODE, shadow.basis()))));
                 continue;
             }
             CandidateSubmissionResponse response =

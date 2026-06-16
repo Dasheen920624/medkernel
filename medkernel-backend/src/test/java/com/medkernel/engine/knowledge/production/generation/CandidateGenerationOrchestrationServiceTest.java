@@ -45,6 +45,9 @@ import com.medkernel.engine.knowledge.production.gate.GateItemResult;
 import com.medkernel.engine.knowledge.production.gate.GateOutcome;
 import com.medkernel.engine.knowledge.production.gate.ReviewElementsGate;
 import com.medkernel.engine.knowledge.production.gate.SourcePresentGate;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRunStatus;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageAction;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
@@ -74,10 +77,11 @@ class CandidateGenerationOrchestrationServiceTest {
             new ContentFormatGate(), new ReviewElementsGate(), new ApplicableScopeGate()),
         gateResults);
     private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
+    private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
 
     private final CandidateGenerationOrchestrationService service =
         new CandidateGenerationOrchestrationService(
-            versions, documents, fragments, generator, production, gateService, triageService);
+            versions, documents, fragments, generator, production, gateService, triageService, shadowService);
 
     @BeforeEach
     void bindTenant() {
@@ -85,6 +89,8 @@ class CandidateGenerationOrchestrationServiceTest {
         when(triageService.evaluate(any(), any())).thenReturn(new GenerationTriageDecision(
             1L, GenerationTriageState.MINOR_REVISION, GenerationTriageAction.MERGE_REVIEW,
             null, null, "进入审核"));
+        when(shadowService.evaluate(any(), any())).thenReturn(new KnowledgeShadowDecision(
+            1L, KnowledgeShadowRunStatus.PASSED, true, "影子评测通过"));
     }
 
     @AfterEach
@@ -166,7 +172,7 @@ class CandidateGenerationOrchestrationServiceTest {
             List.of(GateItemResult.fail("SOURCE_PRESENT", "无来源（无源资产拒收）"))));
         CandidateGenerationOrchestrationService blockingService =
             new CandidateGenerationOrchestrationService(
-                versions, documents, fragments, generator, production, blockingGate, triageService);
+                versions, documents, fragments, generator, production, blockingGate, triageService, shadowService);
 
         GenerationSummary summary = blockingService.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
@@ -175,6 +181,34 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.candidates()).isEmpty();
         assertThat(summary.blocked()).hasSize(1);
         assertThat(summary.blocked().get(0).failedGates()).isNotEmpty();
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void shadowNotReadyIsBlockedNotSubmitted() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
+                Instant.EPOCH)));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        when(shadowService.evaluate(any(), any())).thenReturn(new KnowledgeShadowDecision(
+            9L, KnowledgeShadowRunStatus.NOT_READY, false, "未配置真实影子评测基准集"));
+
+        GenerationSummary summary = service.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(item(VersionedAssetType.RULE))));
+
+        assertThat(summary.candidates()).isEmpty();
+        assertThat(summary.blocked()).singleElement()
+            .satisfies(blocked -> assertThat(blocked.failedGates()).singleElement()
+                .satisfies(gate -> {
+                    assertThat(gate.code()).isEqualTo("SHADOW_EVAL");
+                    assertThat(gate.reason()).contains("基准集");
+                }));
         verify(production, never()).submitCandidate(any(), any(), any());
     }
 

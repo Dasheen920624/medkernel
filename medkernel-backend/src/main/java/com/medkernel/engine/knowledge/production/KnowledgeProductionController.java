@@ -20,6 +20,8 @@ import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRun;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.shared.api.ApiResult;
@@ -44,19 +46,22 @@ public class KnowledgeProductionController {
     private final CandidateGenerationOrchestrationService generationService;
     private final CandidateSafetyGateService gateService;
     private final KnowledgeGenerationTriageService triageService;
+    private final KnowledgeShadowEvaluationService shadowService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
                                          ProfessionalAssetTemplateRegistry templateRegistry,
                                          CandidateGenerationOrchestrationService generationService,
                                          CandidateSafetyGateService gateService,
-                                         KnowledgeGenerationTriageService triageService) {
+                                         KnowledgeGenerationTriageService triageService,
+                                         KnowledgeShadowEvaluationService shadowService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
         this.generationService = generationService;
         this.gateService = gateService;
         this.triageService = triageService;
+        this.shadowService = shadowService;
     }
 
     @PostMapping("/jobs")
@@ -148,5 +153,12 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<GenerationTriage>> triageResults(@PathVariable String jobCode) {
         return ApiResult.ok(triageService.listResults(jobCode));
+    }
+
+    /** 生成期影子评测结果列表（AIK-STD-06 FR-2/3/4）：只读回溯指标、退化和达标裁决。 */
+    @GetMapping("/jobs/{jobCode}/shadow-runs")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<KnowledgeShadowRun>> shadowRuns(@PathVariable String jobCode) {
+        return ApiResult.ok(shadowService.listResults(jobCode));
     }
 }

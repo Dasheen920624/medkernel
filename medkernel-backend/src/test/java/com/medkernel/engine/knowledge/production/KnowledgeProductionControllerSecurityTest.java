@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -64,6 +65,9 @@ class KnowledgeProductionControllerSecurityTest {
 
     @MockBean
     private KnowledgeGenerationTriageService triageService;
+
+    @MockBean
+    private KnowledgeShadowEvaluationService shadowService;
 
     @AfterEach
     void clearContext() {
@@ -178,6 +182,24 @@ class KnowledgeProductionControllerSecurityTest {
         when(triageService.listResults(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/triage-results")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadShadowRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/shadow-runs"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadShadowRuns() throws Exception {
+        when(shadowService.listResults(anyString())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/shadow-runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
