@@ -148,11 +148,12 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **目标**：多进料口共用的原件资料库存储——原件落现场明确配置的受管资料库根 → `file_uri`，可取回/重解析/审计；按 scope 隔离；未配根诚实阻断，不偷偷回退到 tmp/工作目录。
 - **复用**：`SourceVersion.file_uri`、`SystemConfigService.runtimeKnowledgeLiteratureMaterialRootUri()`、根 URI 校验。
 - **新建包** `engine.knowledge.material`
-  - [ ] T1.1 `DocumentMaterialStoragePort`：`store(scope,bytes,contentType,sha256)->fileUri` / `fetch(fileUri)->bytes` / `exists/delete`；scope 决定路径前缀（t-1 / 租户 id）。
-  - [ ] T1.2 适配器 `ManagedDocumentMaterialStorage`（现场受管 `file://` 本地资料库、S3 兼容 COS/OSS/OBS/MinIO、HTTPS 网关均可接入）；凭据走 `credential_ref`；根未配/不可达→结构化阻断，不自动选择隐式本地路径。
-  - [ ] T1.3 `mk_knowledge_material_object` 账本（五方言 append-audited）：scope/file_uri/sha256/content_type/byte_size/stored_at/stored_by/source_channel。**先核无等价表再建**。
-  - [ ] T1.4 接 `DocumentParseOrchestrationService`：上传/抓取原件先 store→登记 `SourceVersion(file_uri,hash)`→解析；重解析从 fetch 取原件。
-  - [ ] T1.5 只读取回端点 `GET .../knowledge/materials/{ref}`（`knowledge.read`，审计下载）。
+  - [x] T1.1 `DocumentMaterialStoragePort`：`store(scope,bytes,contentType,sha256)->fileUri` / `fetch(fileUri)->bytes` / `exists/delete`；scope 决定路径前缀（t-1 / 租户 id）。
+  - [x] T1.2 `ManagedDocumentMaterialStorage` 当前支持现场受管 `file://` 本地资料库；根未配/不可达/协议未接入→结构化阻断，不自动选择隐式本地路径，不写死对象存储。
+  - [x] T1.3 `mk_knowledge_material_object` 账本（五方言 append-audited）：scope/file_uri/sha256/content_type/byte_size/stored_at/stored_by/source_channel。**已核无等价表并纳入 V3 基线**。
+  - [x] T1.4 接 `DocumentParseOrchestrationService`：上传原件先 store→登记 `SourceVersion(file_uri,hash)`→解析；成功 job 可从 fetch 取原件创建重解析 job。
+  - [x] T1.5 只读取回端点 `GET .../knowledge/materials/{ref}`（`knowledge.read`，审计下载）。
+  - [ ] T1.6 按现场配置接入 COS/OSS/OBS/MinIO/HTTPS 网关等其他受管资料库后端；凭据走 `credential_ref`，未接入时继续诚实阻断。
 - **验收**：原件存取 hash 一致 + scope 隔离 + 根未配阻断 + 解析接通。
 
 #### Phase 2 · 上线就绪地基（3d）

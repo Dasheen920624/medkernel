@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
+import com.medkernel.engine.knowledge.SourceVersion;
+import com.medkernel.engine.knowledge.SourceVersionRepository;
 import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
 import com.medkernel.engine.knowledge.material.DocumentMaterialStoreRequest;
 import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
@@ -39,6 +41,7 @@ public class DocumentParseOrchestrationService {
 
     private final DocParseJobRepository jobRepository;
     private final SourceDocumentRepository sourceDocumentRepository;
+    private final SourceVersionRepository sourceVersionRepository;
     private final List<DocumentParser> parsers;
     private final ParsedDocumentMaterializer materializer;
     private final DocumentMaterialStoragePort materialStorage;
@@ -46,12 +49,14 @@ public class DocumentParseOrchestrationService {
 
     public DocumentParseOrchestrationService(DocParseJobRepository jobRepository,
                                              SourceDocumentRepository sourceDocumentRepository,
+                                             SourceVersionRepository sourceVersionRepository,
                                              List<DocumentParser> parsers,
                                              ParsedDocumentMaterializer materializer,
                                              DocumentMaterialStoragePort materialStorage,
                                              AuditRecorder auditRecorder) {
         this.jobRepository = jobRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
+        this.sourceVersionRepository = sourceVersionRepository;
         this.parsers = parsers;
         this.materializer = materializer;
         this.materialStorage = materialStorage;
@@ -110,6 +115,59 @@ public class DocumentParseOrchestrationService {
             result.sectionCount(), result.fragmentCount(), null, pending.createdAt(), actor, Instant.now(), actor));
         auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", jobCode,
             "文档解析成功：章节 " + result.sectionCount() + " 片段 " + result.fragmentCount());
+        return done;
+    }
+
+    @Transactional
+    public DocParseJob reparse(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        String actor = RequestContext.currentUserId().orElse(null);
+        DocParseJob original = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("解析 job"));
+        if (original.status() != ParseJobStatus.SUCCEEDED || original.resultSourceVersionId() == null) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有已成功物化的解析 job 可以从资料库重解析");
+        }
+        SourceVersion version = sourceVersionRepository.findByTenantIdAndId(tenantId, original.resultSourceVersionId())
+            .orElseThrow(() -> ApiException.notFound("来源版本"));
+        byte[] rawBytes = materialStorage.fetch(tenantId, version.fileUri());
+        String sourceHash = Sha256ContentHash.sha256Bytes(rawBytes, EMPTY_MSG);
+        if (!sourceHash.equals(Sha256ContentHash.normalizeExternalSha256(original.sourceHash()))
+            || !sourceHash.equals(Sha256ContentHash.normalizeExternalSha256(version.contentHash()))) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "重解析原件指纹与来源版本不一致，禁止继续");
+        }
+
+        String newJobCode = "dpj:" + UUID.randomUUID();
+        Instant now = Instant.now();
+        DocParseJob pending = jobRepository.save(new DocParseJob(
+            null, tenantId, newJobCode, version.sourceDocumentId(), original.sourceFileName(),
+            original.documentFormat(), sourceHash, ParseJobStatus.PENDING, null, null, null, null,
+            now, actor, now, actor));
+
+        DocumentParser parser = parsers.stream()
+            .filter(p -> p.supports(original.documentFormat()))
+            .findFirst()
+            .orElse(null);
+        if (parser == null) {
+            return fail(pending, "暂不支持解析格式 " + original.documentFormat() + "，待对应适配器接入", actor);
+        }
+
+        ParsedDocument parsed;
+        try {
+            parsed = parser.parse(new ParseInput(version.sourceDocumentId(), version.versionNo(),
+                original.sourceFileName(), original.documentFormat(), rawBytes, actor));
+        } catch (DocumentParseException e) {
+            return fail(pending, e.getMessage(), actor);
+        }
+
+        MaterializationResult result = materializer.materialize(tenantId, version.sourceDocumentId(),
+            version.versionNo(), version.fileUri(), sourceHash, parsed, actor);
+
+        DocParseJob done = jobRepository.save(new DocParseJob(
+            pending.id(), tenantId, newJobCode, version.sourceDocumentId(), original.sourceFileName(),
+            original.documentFormat(), sourceHash, ParseJobStatus.SUCCEEDED, result.sourceVersionId(),
+            result.sectionCount(), result.fragmentCount(), null, pending.createdAt(), actor, Instant.now(), actor));
+        auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", newJobCode,
+            "文档从资料库重解析成功：章节 " + result.sectionCount() + " 片段 " + result.fragmentCount());
         return done;
     }
 

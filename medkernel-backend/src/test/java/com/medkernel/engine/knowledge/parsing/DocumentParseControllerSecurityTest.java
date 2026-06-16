@@ -26,11 +26,11 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.knowledge.material.DocumentMaterialResponse;
+import com.medkernel.engine.knowledge.material.DocumentMaterialService;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.knowledge.material.DocumentMaterialResponse;
-import com.medkernel.engine.knowledge.material.DocumentMaterialService;
 
 /**
  * 文档解析控制器权限安全测试（AIK-STD-02）。
@@ -92,6 +92,27 @@ class DocumentParseControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReparse() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x:reparse")
+                .with(csrf()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReparse() throws Exception {
+        when(service.reparse("dpj:x")).thenReturn(stubJob());
+
+        mockMvc.perform(post("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x:reparse")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.jobCode").value("dpj:x"));
     }
 
     @Test

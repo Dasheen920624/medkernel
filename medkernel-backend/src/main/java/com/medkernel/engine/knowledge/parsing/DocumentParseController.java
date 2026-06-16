@@ -42,6 +42,13 @@ public class DocumentParseController {
         return ApiResult.ok(service.submit(request));
     }
 
+    /** 从受管资料库取回原件并创建一次新的重解析 job。 */
+    @PostMapping("/documents/parse-jobs/{jobCode}:reparse")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<DocParseJob> reparse(@PathVariable String jobCode) {
+        return ApiResult.ok(service.reparse(jobCode));
+    }
+
     /** 查询单个解析 job 状态。 */
     @GetMapping("/documents/parse-jobs/{jobCode}")
     @PreAuthorize("@perm.has('knowledge.read')")
