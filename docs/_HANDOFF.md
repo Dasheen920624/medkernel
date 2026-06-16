@@ -5,6 +5,7 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
+- **2026-06-16 本地新线：第二阶段“可接模型生成知识”前置能力长任务**：用户要求梳理第二阶段到可开始接入模型生成知识还需开发哪些功能，并以本地分支推进、全部完成后统一 PR。已从最新 `origin/main=399ed29f` 新建本地分支 `codex/wave2-knowledge-model-readiness`，不混入 `codex/b0-post-629-continuation-audit` 的 2 个 B0 审计提交。计划文件：`docs/superpowers/plans/2026-06-16-wave2-knowledge-model-readiness.md`。下一步按计划从 **AIK-STD-05 PR2（红线/剂量/高危/许可/冲突仲裁门禁）→ AIK-STD-10 8 态去重分流 → AIK-STD-06 影子评测 → AIK-STD-09/11 替换共存 → readiness gate + LLM-01/02/04 → AIK-STD-13/14 模型/Agent 生产器** 逐块 TDD 实施。本线仍守 P6 阻断：readiness 未齐不得真实外调生成正式知识；只能用透明工程方式防中断（小提交、计划、接力、验证证据）。
 - **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603）。B0 第一阶段全系统核查与完美化整改 **#629 已合并入 main `9cd3a4f4`**（下方该段「未提交未合并」为 PR 内旧文案，合并后未回刷，以此条为准）。**2026-06-16 用户已明确指令：恢复 wave2 P2-C 内容管线推进**（覆盖此前 B0 暂停）——续 `AIK-STD-03 术语`（核查＝TERM-01 + #629 `TerminologyCandidateGenerationJob` 已实质建成，第三次「别建重复表」命中）/ `AIK-STD-04 候选生成`（**PR1 进行：从 AIK-STD-02 带锚点片段确定性生成五类候选**，见下方段）/ 续 `AIK-STD-05` 11 项门禁 / `AIK-STD-10` 8 态去重。后续 B0 深查与 P2-C 并行推进，按卡 TDD。
 - **模型 key 边界（恒守）**：即便提供大模型 key，**也不等于解除 P6**——key 仅满足 P6 前置里「模型」一项，文献库受管根地址仍为空、IdP/独立验收未做；故正式知识生产仍阻断，AIK-STD-04 等只产 B0 模板桩候选（逻辑字段留白，模型填充受 P6 + LLM-03 出域闸 + LLM-07 评测闸闸控）。key 须走凭据通道（`mk_llm_provider.credential_ref` 只存引用，不入对话/仓库）。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
