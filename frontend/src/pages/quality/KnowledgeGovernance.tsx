@@ -329,14 +329,11 @@ export default function KnowledgeGovernance() {
   const selectedProductionJob = productionJobs.find(
     (job) => job.jobCode === selectedProductionJobCode,
   );
-  const productionCandidatesQuery =
-    useKnowledgeProductionCandidates(selectedProductionJobCode);
-  const productionGateResultsQuery =
-    useKnowledgeProductionGateResults(selectedProductionJobCode);
+  const productionCandidatesQuery = useKnowledgeProductionCandidates(selectedProductionJobCode);
+  const productionGateResultsQuery = useKnowledgeProductionGateResults(selectedProductionJobCode);
   const productionTriageResultsQuery =
     useKnowledgeProductionTriageResults(selectedProductionJobCode);
-  const productionShadowRunsQuery =
-    useKnowledgeProductionShadowRuns(selectedProductionJobCode);
+  const productionShadowRunsQuery = useKnowledgeProductionShadowRuns(selectedProductionJobCode);
   const firstProductionCandidateRef = (productionCandidatesQuery.data ?? [])[0]?.candidateRef;
   const productionCoexistenceQuery = useCandidateCoexistence(firstProductionCandidateRef);
 
@@ -900,7 +897,9 @@ export default function KnowledgeGovernance() {
     {
       title: "8 态",
       dataIndex: "triageState",
-      render: (value: string) => <Tag color={value === "CONFLICT" ? "error" : "processing"}>{value}</Tag>,
+      render: (value: string) => (
+        <Tag color={value === "CONFLICT" ? "error" : "processing"}>{value}</Tag>
+      ),
     },
     {
       title: "动作",
@@ -1012,9 +1011,7 @@ export default function KnowledgeGovernance() {
 
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
-    productionCenterContent = (
-      <PageState state="loading" title="正在读取知识生产中心" />
-    );
+    productionCenterContent = <PageState state="loading" title="正在读取知识生产中心" />;
   } else if (productionReadinessQuery.isError || productionJobsQuery.isError) {
     productionCenterContent = (
       <PageState
@@ -1089,9 +1086,7 @@ export default function KnowledgeGovernance() {
                   title: "状态",
                   dataIndex: "ready",
                   render: (ready: boolean) => (
-                    <Tag color={ready ? "success" : "error"}>
-                      {ready ? "满足" : "阻断"}
-                    </Tag>
+                    <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
                   ),
                 },
                 { title: "说明", dataIndex: "message" },
@@ -1184,7 +1179,9 @@ export default function KnowledgeGovernance() {
         <Card title="共存替换提醒">
           {selectedProductionJob ? (
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="当前 job">{selectedProductionJob.jobCode}</Descriptions.Item>
+              <Descriptions.Item label="当前 job">
+                {selectedProductionJob.jobCode}
+              </Descriptions.Item>
               <Descriptions.Item label="候选执行状态">
                 <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
                   {coexistence?.candidateExecutable ? "候选可执行" : "候选不可执行"}

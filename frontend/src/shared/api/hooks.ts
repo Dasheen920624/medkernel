@@ -1507,9 +1507,7 @@ export interface CandidateCoexistenceView {
   safetyNotice?: string | null;
 }
 
-export function useKnowledgeProductionReadiness(
-  params: KnowledgeProductionReadinessParams = {},
-) {
+export function useKnowledgeProductionReadiness(params: KnowledgeProductionReadinessParams = {}) {
   const requestParams = compactParams({
     producer: params.producer ?? "API_MODEL",
     capabilityCode: params.capabilityCode,
