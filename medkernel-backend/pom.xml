@@ -34,6 +34,7 @@
         <opentelemetry.version>1.41.0</opentelemetry.version>
         <testcontainers.version>1.21.4</testcontainers.version>
         <pdfbox.version>3.0.3</pdfbox.version>
+        <poi.version>5.3.0</poi.version>
     </properties>
 
     <dependencies>
@@ -61,6 +62,12 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
+        </dependency>
+        <!-- 文档解析（AIK-STD-02 PR3）：Apache POI 纯 Java 确定性读取 docx 段落与表格（离线、无模型） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
         </dependency>
 
         <!-- AOP: 用于 @DataScope 切面、未来审计/限流切面 -->

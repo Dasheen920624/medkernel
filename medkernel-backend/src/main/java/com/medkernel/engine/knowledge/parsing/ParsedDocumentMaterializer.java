@@ -1,6 +1,7 @@
 package com.medkernel.engine.knowledge.parsing;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 
@@ -45,15 +46,41 @@ public class ParsedDocumentMaterializer {
                 paraIndex++;
                 String pagePrefix = paragraph.page() == null ? "" : "p" + paragraph.page() + "/";
                 String anchorPath = pagePrefix + "§" + section.numberPath() + "/¶" + paraIndex;
-                String contentHash = Sha256ContentHash.sha256(paragraph.text(), EMPTY_MSG);
-                if (fragmentRepository.findBySourceVersionIdAndContentHash(version.id(), contentHash).isPresent()) {
-                    continue;
+                fragmentCount += upsertFragment(tenantId, version.id(), anchorPath,
+                    section.title(), paragraph.text());
+            }
+        }
+        for (ParsedTable table : doc.tables()) {
+            String pagePrefix = table.page() == null ? "" : "p" + table.page() + "/";
+            String tableBase = pagePrefix + "§" + table.sectionNumberPath() + "/tbl" + table.indexInSection();
+            int rowNo = 0;
+            for (List<String> row : table.rows()) {
+                rowNo++;
+                int colNo = 0;
+                for (String cell : row) {
+                    colNo++;
+                    String text = cell == null ? "" : cell.strip();
+                    if (text.isEmpty()) {
+                        continue;
+                    }
+                    String anchorPath = tableBase + "/r" + rowNo + "c" + colNo;
+                    fragmentCount += upsertFragment(tenantId, version.id(), anchorPath,
+                        table.sectionTitle(), text);
                 }
-                fragmentRepository.save(new SourceFragment(
-                    null, tenantId, version.id(), anchorPath, section.title(), paragraph.text(), contentHash, Instant.now()));
-                fragmentCount++;
             }
         }
         return new MaterializationResult(version.id(), doc.sections().size(), fragmentCount);
+    }
+
+    /** upsert 单条来源片段：真实 SHA-256 + 幂等去重（同版本同 hash 已存在则跳过）；返回新增数（0 或 1）。 */
+    private int upsertFragment(String tenantId, Long sourceVersionId, String anchorPath,
+                               String anchorLabel, String text) {
+        String contentHash = Sha256ContentHash.sha256(text, EMPTY_MSG);
+        if (fragmentRepository.findBySourceVersionIdAndContentHash(sourceVersionId, contentHash).isPresent()) {
+            return 0;
+        }
+        fragmentRepository.save(new SourceFragment(
+            null, tenantId, sourceVersionId, anchorPath, anchorLabel, text, contentHash, Instant.now()));
+        return 1;
     }
 }
