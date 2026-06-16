@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.engine.factory.ProfessionalAssetTemplate;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
@@ -34,13 +37,16 @@ public class KnowledgeProductionController {
     private final KnowledgeProductionOrchestrationService service;
     private final CandidateProvenanceService provenanceService;
     private final ProfessionalAssetTemplateRegistry templateRegistry;
+    private final CandidateGenerationOrchestrationService generationService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
-                                         ProfessionalAssetTemplateRegistry templateRegistry) {
+                                         ProfessionalAssetTemplateRegistry templateRegistry,
+                                         CandidateGenerationOrchestrationService generationService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
+        this.generationService = generationService;
     }
 
     @PostMapping("/jobs")
@@ -111,5 +117,12 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<ProfessionalAssetTemplate>> assetTemplates() {
         return ApiResult.ok(templateRegistry.listAll());
+    }
+
+    /** 从受控来源生成知识候选（AIK-STD-04）：逐资产类型建 job → 模板桩候选 → 既有审核链。 */
+    @PostMapping("/generate")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
+        return ApiResult.ok(generationService.generate(request));
     }
 }
