@@ -27,6 +27,8 @@ public record MedicalRegressionCase(
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy
 ) {
+    public static final String DEFAULT_CAPABILITY_CODE = "rule.draft";
+
     public boolean redLine() {
         return redLineType != null && !redLineType.isBlank();
     }

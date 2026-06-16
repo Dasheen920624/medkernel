@@ -34,7 +34,7 @@ import com.medkernel.shared.config.SystemConfigService;
 @Service
 public class KnowledgeProductionReadinessService {
 
-    public static final String DEFAULT_CAPABILITY_CODE = "rule.draft";
+    public static final String DEFAULT_CAPABILITY_CODE = MedicalRegressionCase.DEFAULT_CAPABILITY_CODE;
 
     private final SystemConfigService configService;
     private final DeploymentFormService deploymentFormService;

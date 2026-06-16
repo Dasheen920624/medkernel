@@ -159,7 +159,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 #### Phase 2 · 上线就绪地基（3d）
 - **目标**：默认自带**真实**医学回归基准集 + 可维护；门禁配置收编超管管理面；readiness 前端六态。
 - **复用**：`mk_llm_regression_case`、`ModelEvalController/Service`、`ClinicalRedlineService`、`SystemConfigController`、`/readiness`。
-  - [ ] T2.1 `RegressionBaselineSeeder`：从 OPT-04 **已审红线库**投影首发回归用例（capability+input+expected_phrase+red_line_type+引用+citation=Y）；**禁凭空编题/编答案**，只投影已审内容。
+  - [x] T2.1 `RegressionBaselineSeeder`：从 OPT-04 **已审红线库**投影首发回归用例（capability+input+expected_phrase+red_line_type+引用+citation=Y）；**禁凭空编题/编答案**，只投影已审内容。已实现 `rule.draft` ACTIVE 红线投影、题干去重、长 DSL 有界摘录且保留证据锚点。
   - [ ] T2.2 基准集维护：确认/补 `ModelEvalController` 新增/启停/版本/批量导入真实题。
   - [ ] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。
   - [ ] T2.4 readiness 前端：生产中心页展示 9 闸逐项 PASS/BLOCK + 阻断原因 + 去配置去处；六态齐。

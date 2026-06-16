@@ -28,6 +28,10 @@
   - `ManagedDocumentMaterialStorage` 支持现场显式配置的受管 `file://` 本地资料库根；未配根/未接入协议结构化阻断，不回退 tmp/工作目录，也不写死对象存储。
   - `mk_knowledge_material_object` 已入五方言基线；解析成功后原件入账，`SourceVersion.file_uri` 指向受管 URI；新增 `GET /api/v1/engine/knowledge/materials/{materialId}` 审计读取。
   - 新增 `POST /api/v1/engine/knowledge/documents/parse-jobs/{jobCode}:reparse`：只允许成功 job 从 `SourceVersion.file_uri` 取回原件，复核 SHA-256 后创建新重解析 job，不要求重新上传同一文件。
+- 已完成 Phase 2 首片「真实医学回归基线投影」：
+  - 新增 `RegressionBaselineSeeder` / `RegressionBaselineProjectionService`：启动期从 OPT-04 ACTIVE 已审红线投影 `rule.draft` 启用回归用例；题干、期望短语、红线类型、证据来源均来自红线库，不编医学题/答案。
+  - 投影按 `tenant_id + capability + case_input` 去重；长 DSL 有界摘录，保留证据锚点，避免 `mk_llm_regression_case.case_input` 超长。
+  - readiness 的 `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补“有真实基线”，不绕过模型评测闸。
 
 ## 仍不可宣称
 
@@ -38,7 +42,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 2：上线就绪地基。其他受管资料库后端（COS/OSS/OBS/MinIO/HTTPS 网关等）按现场配置再接入；当前受管 `file://` 本地磁盘能力是正式后端，不是旧兼容兜底。
+1. 继续主计划 Phase 2：上线就绪地基；下一片优先核查/补齐 `ModelEvalController` 的基准集维护能力（新增、启停、版本、批量导入真实题），仍禁伪造题库。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

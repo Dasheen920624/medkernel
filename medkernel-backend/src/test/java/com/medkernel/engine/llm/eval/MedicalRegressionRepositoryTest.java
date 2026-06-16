@@ -51,6 +51,22 @@ class MedicalRegressionRepositoryTest {
     }
 
     @Test
+    void caseInputCanBeUsedAsProjectionDeduplicationKey() {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        caseRepo.save(new MedicalRegressionCase(null, "tenant-1", "rule.draft",
+            "红线ID：redline-dose-limit\n证据引用：source-version:77#dose-limit",
+            "儿童用药剂量上限需双签", "DOSE_LIMIT", "Y", "2026.1", "Y",
+            now, "system", now, "system"));
+
+        assertThat(caseRepo.findByTenantIdAndCapabilityCodeAndCaseInput(
+            "tenant-1", "rule.draft", "红线ID：redline-dose-limit\n证据引用：source-version:77#dose-limit"))
+            .isPresent();
+        assertThat(caseRepo.findByTenantIdAndCapabilityCodeAndCaseInput(
+            "tenant-1", "rule.draft", "红线ID：other"))
+            .isEmpty();
+    }
+
+    @Test
     void evalRunFoundByProviderVersionStatus() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         runRepo.save(new ModelEvalRun(null, "tenant-1", "claude-prod", "claude-opus-4-8",
