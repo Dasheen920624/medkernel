@@ -95,8 +95,8 @@
 
 ### Chunk 5: 模型 readiness 与网关治理
 
-- [ ] Task 13: 写 `KnowledgeProductionReadinessService` 测试覆盖所有 P6 前置缺口。
-- [ ] Task 14: 实现 readiness 服务与只读端点。
+- [x] Task 13: 写 `KnowledgeProductionReadinessService` 测试覆盖所有 P6 前置缺口。
+- [x] Task 14: 实现 readiness 服务与只读端点。
 - [ ] Task 15: 补 LLM-01/02/04 测试和实现：降级矩阵、版本三元组、重放/回滚/导出，本地提交。
 
 ### Chunk 6: 模型/Agent 生产器

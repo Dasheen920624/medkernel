@@ -17,6 +17,10 @@
 ## 现状（搬迁时核查 2026-05-31）
 **部分**：`model_capability_task` 已存 `prompt_version`/`model_version`（当前恒 `baseline`/`B0-Deterministic-Baseline`）。本卡＝建**版本仓**（prompt/tool/model 版本可发布/回滚/导出）+ 任务绑定真实版本三元组 + 重放。复用 [SYS-04](../D2/SYS-04.md) 版本框架而非另起。
 
+## 最新进度（2026-06-16 readiness 前置闸）
+- 知识生产 readiness 已要求模型生产任务传入 `modelStrategy`，并至少声明 `prompt`、`tool`、`model` 三元组；若指定 provider，三元组中的模型版本必须与 provider 当前 `modelVersion` 一致。
+- 这只是正式生产前置校验，不等于版本仓完成；prompt/tool/model 版本记录、生效区间、重放、回滚、导出仍待本卡后续实现。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 版本仓：prompt/tool/model 各有版本记录（内容 hash + 生效区间）。
 - [ ] FR-2 任务绑定：每任务记真实 prompt+tool+model 版本三元组。

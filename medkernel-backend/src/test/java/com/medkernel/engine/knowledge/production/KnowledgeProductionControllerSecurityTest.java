@@ -31,6 +31,7 @@ import com.medkernel.engine.knowledge.production.generation.CandidateGenerationO
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
+import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
@@ -71,6 +72,9 @@ class KnowledgeProductionControllerSecurityTest {
 
     @MockBean
     private CandidateCoexistenceService coexistenceService;
+
+    @MockBean
+    private KnowledgeProductionReadinessService readinessService;
 
     @AfterEach
     void clearContext() {
@@ -345,6 +349,40 @@ class KnowledgeProductionControllerSecurityTest {
     void guestCannotQueryCandidateCoexistence() throws Exception {
         mockMvc.perform(get("/api/v1/engine/knowledge-production/candidates/coexistence")
                 .queryParam("candidateRef", "kv:1:v2"))
+            .andExpect(status().isForbidden());
+    }
+
+    // ─── 模型生成 readiness（knowledge.read）───────────────────────
+
+    @Test
+    void knowledgeReaderCanQueryReadiness() throws Exception {
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, "rule.draft", "claude-prod", "prompt:p;tool:t;model:m"))
+            .thenReturn(new KnowledgeProductionReadinessResponse(
+                "tenant-1",
+                KnowledgeProducer.API_MODEL,
+                "rule.draft",
+                "claude-prod",
+                DeploymentForm.PRODUCTION_CENTER,
+                true,
+                true,
+                List.of(KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://..."))));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/readiness")
+                .queryParam("producer", "API_MODEL")
+                .queryParam("capabilityCode", "rule.draft")
+                .queryParam("providerCode", "claude-prod")
+                .queryParam("modelStrategy", "prompt:p;tool:t;model:m")
+                .with(governor()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.ready").value(true))
+            .andExpect(jsonPath("$.data.modelInvocationAllowed").value(true))
+            .andExpect(jsonPath("$.data.items[0].code").value("LITERATURE_ROOT"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotQueryReadiness() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/readiness"))
             .andExpect(status().isForbidden());
     }
 

@@ -48,6 +48,7 @@ public class KnowledgeProductionController {
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
     private final CandidateCoexistenceService coexistenceService;
+    private final KnowledgeProductionReadinessService readinessService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
@@ -56,7 +57,8 @@ public class KnowledgeProductionController {
                                          CandidateSafetyGateService gateService,
                                          KnowledgeGenerationTriageService triageService,
                                          KnowledgeShadowEvaluationService shadowService,
-                                         CandidateCoexistenceService coexistenceService) {
+                                         CandidateCoexistenceService coexistenceService,
+                                         KnowledgeProductionReadinessService readinessService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
@@ -65,6 +67,7 @@ public class KnowledgeProductionController {
         this.triageService = triageService;
         this.shadowService = shadowService;
         this.coexistenceService = coexistenceService;
+        this.readinessService = readinessService;
     }
 
     @PostMapping("/jobs")
@@ -114,6 +117,17 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<CandidateCoexistenceView> candidateCoexistence(@RequestParam String candidateRef) {
         return ApiResult.ok(coexistenceService.resolve(candidateRef));
+    }
+
+    /** 正式模型生成知识 readiness 闸（AIK-STD-13/LLM-01/02/04）：只读返回阻断项，不调用模型。 */
+    @GetMapping("/readiness")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeProductionReadinessResponse> readiness(
+            @RequestParam(required = false, defaultValue = "API_MODEL") KnowledgeProducer producer,
+            @RequestParam(required = false) String capabilityCode,
+            @RequestParam(required = false) String providerCode,
+            @RequestParam(required = false) String modelStrategy) {
+        return ApiResult.ok(readinessService.evaluate(producer, capabilityCode, providerCode, modelStrategy));
     }
 
     /** 完成 job（FR-1）。 */

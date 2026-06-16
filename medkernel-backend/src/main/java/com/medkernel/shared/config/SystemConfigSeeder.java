@@ -77,6 +77,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedLoggingPolicy(seededAt);
         seedRuntimeBoundaryPolicy(seededAt);
         seedKnowledgeLiteraturePolicy(seededAt);
+        seedKnowledgeProductionP6AcceptancePolicy(seededAt);
         seedDeploymentFormPolicy(seededAt);
         seedCdssPolicy(seededAt);
         service.applyRuntimeLogLevels();
@@ -248,6 +249,20 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "HIGH",
             "平台知识治理组 / 信息科",
             "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退服务器本地 tmp 或磁盘目录。",
+            true,
+            "PLATFORM_SEED",
+            seededAt);
+    }
+
+    private void seedKnowledgeProductionP6AcceptancePolicy(Instant seededAt) {
+        seedConfigValue(
+            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
+            String.valueOf(SystemConfigService.DEFAULT_KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE),
+            "BOOLEAN",
+            "P6 正式知识生产独立验收",
+            "HIGH",
+            "平台知识治理组 / 医务处 / 信息科",
+            "正式模型生成知识的独立验收放行标记；默认 false。该项仅作为 readiness 阻断事实源，不能替代文献库、provider、评测、出域与审核证据。",
             true,
             "PLATFORM_SEED",
             seededAt);
