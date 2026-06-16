@@ -2,18 +2,15 @@ package com.medkernel.engine.tenant;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.org.OrgUnitRepository;
-import com.medkernel.engine.pkg.KnowledgePackage;
 import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
 import com.medkernel.engine.pkg.ReleasePlanStatus;
 import com.medkernel.engine.pkg.ReleaseStrategy;
@@ -290,9 +287,8 @@ public class TenantPilotService {
             .filter(root -> root.level() == OrgLevel.TENANT)
             .filter(OrgUnit::isActive)
             .isPresent();
-        boolean hasFacility = orgUnitRepository.findByTenantIdAndLevelOrderByCodeAsc(tenantId, OrgLevel.FACILITY)
-            .stream()
-            .anyMatch(OrgUnit::isActive);
+        boolean hasFacility = orgUnitRepository.countByTenantIdAndLevelAndStatus(
+            tenantId, OrgLevel.FACILITY, OrgUnitStatus.ACTIVE) > 0;
         if (hasTenantRoot && hasFacility) {
             return done("ORGANIZATION", "组织树", "/tenant/onboarding", "已建立租户根与机构节点");
         }
@@ -300,9 +296,7 @@ public class TenantPilotService {
     }
 
     private ImplementationStep usersStep(String tenantId) {
-        boolean hasActiveUser = credentialRepository.findByTenantIdOrderByUsernameAsc(tenantId)
-            .stream()
-            .anyMatch(credential -> credential.active());
+        boolean hasActiveUser = credentialRepository.countByTenantIdAndStatus(tenantId, "ACTIVE") > 0;
         if (hasActiveUser) {
             return done("USERS", "用户", "/admin/users", "已存在启用的租户用户");
         }
@@ -310,9 +304,7 @@ public class TenantPilotService {
     }
 
     private ImplementationStep permissionsStep(String tenantId) {
-        boolean hasActiveAssignment = roleAssignmentRepository.findByTenantId(tenantId)
-            .stream()
-            .anyMatch(assignment -> assignment.active());
+        boolean hasActiveAssignment = roleAssignmentRepository.existsByTenantIdAndActiveFlag(tenantId, "Y");
         if (hasActiveAssignment) {
             return done("PERMISSIONS", "权限", "/admin/users", "已存在启用的角色分配");
         }
@@ -320,9 +312,7 @@ public class TenantPilotService {
     }
 
     private ImplementationStep adaptersStep(String tenantId) {
-        boolean hasActiveAdapter = adapterRepository.findAllByTenantId(tenantId)
-            .stream()
-            .anyMatch(this::activeAdapter);
+        boolean hasActiveAdapter = adapterRepository.countByTenantIdAndStatus(tenantId, "ACTIVE") > 0;
         if (hasActiveAdapter) {
             return done("ADAPTERS", "适配器", "/integration/adapters", "已登记启用适配器");
         }
@@ -330,14 +320,9 @@ public class TenantPilotService {
     }
 
     private ImplementationStep assetsStep(String tenantId) {
-        boolean hasActiveReference = packageReferenceRepository
-            .findByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, TenantPackageReferenceStatus.ACTIVE)
-            .stream()
-            .findAny()
-            .isPresent();
-        boolean hasReleasedAssets = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId)
-            .stream()
-            .anyMatch(this::releasedPackage);
+        boolean hasActiveReference = packageReferenceRepository.countByTenantIdAndStatus(
+            tenantId, TenantPackageReferenceStatus.ACTIVE) > 0;
+        boolean hasReleasedAssets = packageRepository.countReleasedByTenantId(tenantId) > 0;
         if (hasActiveReference) {
             return done("ASSETS", "资产", "/config/packages", "已引用平台配置资产包");
         }
@@ -348,10 +333,8 @@ public class TenantPilotService {
     }
 
     private ImplementationStep grayscaleStep(String tenantId) {
-        boolean hasSuccessfulGrayscale = releasePlanRepository.findByTenantIdOrderByCreatedAtDesc(tenantId)
-            .stream()
-            .anyMatch(plan -> plan.strategy() == ReleaseStrategy.GRAYSCALE
-                && plan.status() == ReleasePlanStatus.SUCCESS);
+        boolean hasSuccessfulGrayscale = releasePlanRepository.countByTenantIdAndStrategyAndStatus(
+            tenantId, ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS) > 0;
         if (hasSuccessfulGrayscale) {
             return done("GRAYSCALE", "灰度", "/config/packages", "已存在成功的灰度发布计划");
         }
@@ -364,16 +347,6 @@ public class TenantPilotService {
 
     private ImplementationStep blocked(String key, String title, String targetPath, String blocker) {
         return new ImplementationStep(key, title, "BLOCKED", List.of(blocker), targetPath, null);
-    }
-
-    private boolean activeAdapter(IntegrationAdapter adapter) {
-        return adapter != null && "ACTIVE".equalsIgnoreCase(adapter.status());
-    }
-
-    private boolean releasedPackage(KnowledgePackage knowledgePackage) {
-        return knowledgePackage != null
-            && Stream.of(KnowledgePackageStatus.PUBLISHED, KnowledgePackageStatus.ACTIVE)
-                .anyMatch(status -> status == knowledgePackage.status());
     }
 
     private String requireTenantId(String tenantId) {

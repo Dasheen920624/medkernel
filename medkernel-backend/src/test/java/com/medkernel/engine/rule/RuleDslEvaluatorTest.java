@@ -425,6 +425,37 @@ class RuleDslEvaluatorTest {
     }
 
     @Test
+    void canonicalArrayNumericFieldPathUsesAnyElementForScalarComparison() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "pathway-entry",
+              "when": {
+                "all": [
+                  {"fact": "observations[].valueNumeric", "operator": "lt", "value": 90}
+                ]
+              },
+              "then": [
+                {"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "低血红蛋白路径提示", "detail": "字段目录数组路径必须能驱动数值比较。", "source": {"label": "路径字段目录回归"}, "suggestions": [], "overrideReasons": []}
+              ],
+              "explain": {"title": "数组字段数值比较"}
+            }
+            """), read("""
+            {
+              "observations": [
+                {"code": "HB", "valueNumeric": 86, "eventTime": "2026-06-15T00:00:00Z"},
+                {"code": "K", "valueNumeric": 4.6, "eventTime": "2026-06-15T00:01:00Z"}
+              ]
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("fact").asText()).isEqualTo("observations[].valueNumeric");
+        assertThat(evidence.path("actual")).hasSize(2);
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
     void nestedAllAnyConditionKeepsDeterministicEvidenceChain() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {

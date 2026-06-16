@@ -90,6 +90,8 @@ import styles from "./ConfigPackages.module.css";
 const { TextArea } = Input;
 const { Option } = Select;
 const { Text } = Typography;
+const PACKAGE_ITEM_ASSET_REFERENCE_PAGE_SIZE = 20;
+const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
 
 type PackageStatusFilter = "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE";
 type InheritancePerspective = "PLATFORM" | "TENANT" | "ORG";
@@ -181,6 +183,19 @@ type AuthoringPackageAssetType = (typeof authoringAssetTypes)[number];
 
 function isAuthoringPackageAssetType(value: string): value is AuthoringPackageAssetType {
   return authoringAssetTypes.includes(value as AuthoringPackageAssetType);
+}
+
+function canReadAuthoringAssetType(
+  profile: ReturnType<typeof useSecurityProfile>["data"] | undefined,
+  assetType: AuthoringPackageAssetType,
+) {
+  if (assetType === "RULE" || assetType === "CONDITION_FRAGMENT") {
+    return hasPermission(profile, "rule.read");
+  }
+  if (assetType === "PATHWAY") {
+    return hasPermission(profile, "pathway.read");
+  }
+  return hasPermission(profile, "followup.read");
 }
 
 function hasOrganizationAdminRole(roles: Array<{ code?: string }> | undefined) {
@@ -418,10 +433,6 @@ export default function ConfigPackages() {
   const tenantNameById = new Map(
     (tenantDirectoryQuery.data ?? []).map((tenant) => [tenant.tenantId, tenant.name]),
   );
-  const canReadAuthoringAssets =
-    hasPermission(securityProfile, "rule.read") ||
-    hasPermission(securityProfile, "pathway.read") ||
-    hasPermission(securityProfile, "followup.read");
   const canReadEvaluations = hasPermission(securityProfile, "evaluation.read");
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -452,6 +463,8 @@ export default function ConfigPackages() {
   );
   const [overrideModeInput, setOverrideModeInput] = useState<string>("REPLACE");
   const [selectedAssetType, setSelectedAssetType] = useState<EngineAssetType>("RULE");
+  const [packageItemAssetSearch, setPackageItemAssetSearch] = useState("");
+  const [orgUnitSearch, setOrgUnitSearch] = useState("");
   const [rollbackReason, setRollbackReason] = useState("");
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
@@ -477,6 +490,14 @@ export default function ConfigPackages() {
 
   const effectivePackageId = selectedPackageId ?? apiPackages[0]?.packageId ?? null;
   const selectedPackage = apiPackages.find((p) => p.packageId === effectivePackageId);
+  const requireSelectedPackageVersion = (errorMessage: string) => {
+    const packageVersion = selectedPackage?.packageVersion?.trim();
+    if (!packageVersion) {
+      message.error(errorMessage);
+      return null;
+    }
+    return packageVersion;
+  };
   const selectedPilotTemplate =
     pilotTemplates.find((template) => template.templateCode === selectedPilotTemplateCode) ??
     pilotTemplates[0];
@@ -498,25 +519,42 @@ export default function ConfigPackages() {
     });
 
   const selectedAssetIsAuthoring = isAuthoringPackageAssetType(selectedAssetType);
+  const canReadSelectedAuthoringAssets =
+    selectedAssetIsAuthoring && canReadAuthoringAssetType(securityProfile, selectedAssetType);
+  const packageItemAssetKeyword = packageItemAssetSearch.trim();
   const { data: authoringAssets } = useAuthoringAssets(
     {
       assetType: selectedAssetIsAuthoring ? selectedAssetType : undefined,
-      size: 100,
+      page: 1,
+      size: PACKAGE_ITEM_ASSET_REFERENCE_PAGE_SIZE,
+      ...(packageItemAssetKeyword ? { keyword: packageItemAssetKeyword } : {}),
     },
-    { enabled: canReadAuthoringAssets && selectedAssetIsAuthoring },
+    { enabled: canReadSelectedAuthoringAssets },
   );
   const { data: activeEvaluations } = useEvaluationIndicators(
-    { size: 100 },
-    { enabled: canReadEvaluations },
+    {
+      status: "ACTIVE",
+      page: 1,
+      size: PACKAGE_ITEM_ASSET_REFERENCE_PAGE_SIZE,
+      ...(packageItemAssetKeyword ? { indicatorCode: packageItemAssetKeyword } : {}),
+    },
+    { enabled: canReadEvaluations && selectedAssetType === "EVALUATION" },
   );
   const { data: terminologyPackagesData } = usePackages({
-    size: 100,
+    page: 1,
+    size: PACKAGE_ITEM_ASSET_REFERENCE_PAGE_SIZE,
     assetType: "TERMINOLOGY",
+    ...(selectedAssetType === "TERMINOLOGY" && packageItemAssetKeyword
+      ? { keyword: packageItemAssetKeyword }
+      : {}),
   });
+  const orgUnitKeyword = orgUnitSearch.trim();
   const { data: orgUnitsData, isLoading: orgUnitsLoading } = useOrgUnits({
     page: 1,
-    size: 100,
+    size: ORG_UNIT_REFERENCE_PAGE_SIZE,
+    status: "ACTIVE",
     sort: "level,asc",
+    ...(orgUnitKeyword ? { keyword: orgUnitKeyword } : {}),
   });
   const orgUnitOptions = (orgUnitsData?.items ?? [])
     .filter((unit) => unit.status === "ACTIVE" && Boolean(unit.id))
@@ -720,7 +758,6 @@ export default function ConfigPackages() {
     setSelectedPackageId(nextPackageId);
     setSyncLogs([]);
     setSyncProgress(0);
-    syncForm.setFieldsValue({ strategy: "GRAYSCALE" });
     setSyncModalVisible(true);
   };
 
@@ -826,9 +863,14 @@ export default function ConfigPackages() {
     try {
       const values = await pilotTemplateForm.validateFields();
       const template = pilotTemplates.find((item) => item.templateCode === values.templateCode);
+      const packageVersion = template?.defaultPackageVersion?.trim();
+      if (!template || !packageVersion) {
+        message.error("首发模板缺少默认配置包版本，暂不能应用平台引用。");
+        return;
+      }
       const applied = await applyPilotTemplateReferencesMutation.mutateAsync({
         templateCode: values.templateCode,
-        packageVersion: template?.defaultPackageVersion ?? "ONBOARDING",
+        packageVersion,
         request: {
           target_org_unit_id: values.targetOrgUnitId,
           initial_overrides: initialOverrides,
@@ -847,6 +889,9 @@ export default function ConfigPackages() {
     if (!effectivePackageId) return;
     try {
       const values = await itemForm.validateFields();
+      const packageVersion =
+        requireSelectedPackageVersion("当前配置包缺少版本，暂不能添加资产条目。");
+      if (!packageVersion) return;
       const assetType = values.assetType as EngineAssetType;
       await addPackageItemMutation.mutateAsync({
         packageId: effectivePackageId,
@@ -854,7 +899,7 @@ export default function ConfigPackages() {
           assetType,
           assetId: values.assetId,
           assetVersion: values.assetVersion,
-          packageVersion: selectedPackage?.packageVersion || values.assetVersion,
+          packageVersion,
         },
       });
 
@@ -877,6 +922,8 @@ export default function ConfigPackages() {
         message.error("只有院级管理员可直接全量发布，请先走默认 10% 灰度。");
         return;
       }
+      const packageVersion = requireSelectedPackageVersion("当前配置包缺少版本，暂不能同步发布。");
+      if (!packageVersion) return;
       setSyncExecuting(true);
       setSyncProgress(20);
 
@@ -889,7 +936,7 @@ export default function ConfigPackages() {
           scopeType: strategy === "GRAYSCALE" ? values.scopeType || "ALL" : "ALL",
           scopeValue: strategy === "GRAYSCALE" ? values.scopeValue || "" : "",
           adapterIds: values.adapterIds,
-          packageVersion: selectedPackage?.packageVersion || "",
+          packageVersion,
         },
       });
 
@@ -1262,6 +1309,7 @@ export default function ConfigPackages() {
             type="link"
             onClick={() => {
               setSelectedPackageId(record.packageId);
+              setPackageItemAssetSearch("");
               setDetailDrawerVisible(true);
             }}
           >
@@ -1712,7 +1760,9 @@ export default function ConfigPackages() {
           >
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
+              onSearch={setOrgUnitSearch}
+              onClear={() => setOrgUnitSearch("")}
               placeholder="选择引用生效组织"
               options={orgUnitOptions}
               loading={orgUnitsLoading}
@@ -2332,7 +2382,9 @@ export default function ConfigPackages() {
             >
               <Select
                 showSearch
-                optionFilterProp="label"
+                filterOption={false}
+                onSearch={setOrgUnitSearch}
+                onClear={() => setOrgUnitSearch("")}
                 placeholder="选择接收组织"
                 options={orgUnitOptions}
                 loading={orgUnitsLoading}
@@ -2353,6 +2405,7 @@ export default function ConfigPackages() {
           setDetailDrawerVisible(false);
           setSelectedPackageId(null);
           setSelectedAssetType("RULE");
+          setPackageItemAssetSearch("");
           itemForm.resetFields(["assetType", "assetId", "assetVersion"]);
         }}
         open={detailDrawerVisible}
@@ -2401,6 +2454,7 @@ export default function ConfigPackages() {
                     <Select
                       onChange={(value) => {
                         setSelectedAssetType(value as EngineAssetType);
+                        setPackageItemAssetSearch("");
                         itemForm.setFieldsValue({ assetType: value });
                         itemForm.resetFields(["assetId", "assetVersion"]);
                       }}
@@ -2422,7 +2476,9 @@ export default function ConfigPackages() {
                       placeholder="请选择已发布资产"
                       showSearch
                       allowClear
-                      optionFilterProp="label"
+                      filterOption={false}
+                      onSearch={setPackageItemAssetSearch}
+                      onClear={() => setPackageItemAssetSearch("")}
                       onChange={fillAssetVersion}
                     >
                       {selectedAssetIsAuthoring &&
@@ -2698,7 +2754,9 @@ export default function ConfigPackages() {
           >
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
+              onSearch={setOrgUnitSearch}
+              onClear={() => setOrgUnitSearch("")}
               placeholder="选择接收组织"
               options={orgUnitOptions}
               loading={orgUnitsLoading}

@@ -32,6 +32,8 @@ import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -172,6 +174,25 @@ class KnowledgeCustomizationServiceTest {
             "trace-platform", OrgScope.tenant(PlatformTenant.ID), "platform-governance-admin"));
         assertThatThrownBy(() -> service.create(request))
             .hasMessageContaining("平台主租户");
+    }
+
+    @Test
+    void listsLocalDerivativesThroughRepositoryPaginationInsteadOfTenantSnapshot() {
+        KnowledgeCustomizationResponse created = service.create(
+            new KnowledgeCustomizationCreateRequest(
+                platformIdentityId, "hospital-a", "ALL", "适配本院诊疗流程"));
+
+        PageResponse<KnowledgeCustomizationResponse> page = service.list(
+            new PageRequest(1, 20, null));
+
+        assertThat(page.items())
+            .extracting(KnowledgeCustomizationResponse::customizationId)
+            .containsExactly(created.customizationId());
+        assertThat(page.page()).isEqualTo(1);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.hasNext()).isFalse();
+        assertThat(page.totalEstimated()).isFalse();
     }
 
     @Test

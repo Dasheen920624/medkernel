@@ -63,10 +63,10 @@ describe("menu config", () => {
     );
   });
 
-  it("locks the exact 29 customer primary entries", () => {
+  it("locks the exact 30 customer primary entries", () => {
     const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
 
-    expect(visibleTotal).toBe(29);
+    expect(visibleTotal).toBe(30);
     expect(
       menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
     ).toEqual([
@@ -76,6 +76,7 @@ describe("menu config", () => {
         "knowledge-governance",
         [
           "knowledge-governance",
+          "diagnosis-knowledge",
           "config-packages",
           "terminology-mapping",
           "rule-definitions",

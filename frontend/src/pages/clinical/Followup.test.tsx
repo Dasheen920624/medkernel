@@ -244,6 +244,124 @@ describe("Followup", () => {
     ).toBeInTheDocument();
   });
 
+  it("loads follow-up plans through server-side table pagination", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.useFollowupPlans.mockReturnValue({
+      data: {
+        items: [
+          {
+            planId: "plan-real-1",
+            tenantId: "tenant-A",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            diseaseCode: "COPD",
+            templateId: "ftpl-1",
+            templateVersion: 1,
+            status: "ACTIVE",
+            tasks: [],
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 41,
+        hasNext: true,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: followupHookMocks.refetchPlans,
+    });
+
+    renderFollowup();
+
+    expect(followupHookMocks.useFollowupPlans).toHaveBeenCalledWith({
+      patientId: undefined,
+      page: 1,
+      size: 20,
+    });
+
+    await user.click(screen.getByTitle("2"));
+
+    await waitFor(() => {
+      expect(followupHookMocks.useFollowupPlans).toHaveBeenLastCalledWith({
+        patientId: undefined,
+        page: 2,
+        size: 20,
+      });
+    });
+  });
+
+  it("loads follow-up templates through server-side pagination and published-template search", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.useFollowupTemplates.mockReturnValue({
+      data: {
+        items: [
+          {
+            templateId: "ftpl-1",
+            templateCode: "FUP.COPD",
+            versionNo: 1,
+            name: "慢阻肺出院随访",
+            description: "出院后问卷与复诊随访",
+            organizationScope: "p5-hospital",
+            applicableScope: "COPD",
+            questionnaireDefinition: "{}",
+            abnormalActionDefinition: "{}",
+            assetStatus: "PUBLISHED",
+            contentHash: "sm3:published-template",
+            tasks: [],
+            traceId: "trace-template-1",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 41,
+        hasNext: true,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderFollowup();
+
+    expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      sort: "updatedAt,desc",
+    });
+    expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
+      assetStatus: "PUBLISHED",
+      page: 1,
+      size: 20,
+      sort: "updatedAt,desc",
+    });
+
+    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByTitle("2"));
+
+    await waitFor(() => {
+      expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
+        page: 2,
+        size: 20,
+        sort: "updatedAt,desc",
+      });
+    });
+
+    await user.click(screen.getByRole("tab", { name: "计划执行" }));
+    await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
+    await user.click(screen.getByLabelText("随访模板"));
+    await user.type(screen.getByLabelText("随访模板"), "FUP.COPD.2026");
+
+    await waitFor(() => {
+      expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
+        assetStatus: "PUBLISHED",
+        keyword: "FUP.COPD.2026",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      });
+    });
+  });
+
   it("shows abnormal return task and notification evidence returned by the API", async () => {
     const user = userEvent.setup();
     renderFollowup();

@@ -55,7 +55,7 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 29,
+      primary: 30,
       header: 1,
       profile: 1,
     });
@@ -358,6 +358,28 @@ describe("route metadata", () => {
       "menu.rule-definitions",
       "rule.read",
     ]);
+  });
+
+  it("separates knowledge review from manual diagnosis knowledge maintenance", () => {
+    expect(findRouteByPath("/knowledge/governance")).toMatchObject({
+      title: "知识审核与发布",
+      menuLabel: "知识审核与发布",
+      pageType: "review",
+    });
+    expect(findRouteByPath("/knowledge/governance")?.experience?.goal).toBe(
+      "审核知识候选并完成发布、驳回、替换或恢复",
+    );
+
+    expect(findRouteByPath("/knowledge/diagnosis")).toMatchObject({
+      title: "诊断知识维护",
+      breadcrumb: ["知识治理", "诊断知识维护"],
+      sectionKey: "knowledge-governance",
+      menuKey: "diagnosis-knowledge",
+      menuLabel: "诊断知识维护",
+      placement: "primary",
+      requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
+      pageType: "configuration",
+    });
   });
 
   it("keeps unified authoring assets as a governed knowledge route without adding a second-level menu", () => {

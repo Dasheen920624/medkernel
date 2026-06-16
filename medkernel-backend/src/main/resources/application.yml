@@ -65,6 +65,7 @@ medkernel:
     sync-timeout: ${MEDKERNEL_EVENTS_SYNC_TIMEOUT:3s}
     worker-batch-size: ${MEDKERNEL_EVENTS_WORKER_BATCH_SIZE:50}
     max-retries: ${MEDKERNEL_EVENTS_MAX_RETRIES:5}
+    worker-enabled: ${MEDKERNEL_EVENTS_WORKER_ENABLED:true}
     backoff-seconds:
       - 5
       - 30

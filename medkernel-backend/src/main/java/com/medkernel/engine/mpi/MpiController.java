@@ -113,9 +113,12 @@ public class MpiController {
      */
     @GetMapping("/merge-reviews")
     @PreAuthorize("@perm.has('mpi.read')")
-    public ApiResult<java.util.List<MpiMergeReview>> getMergeReviews(
-            @RequestParam(required = false) String status) {
-        return ApiResult.ok(service.getMergeReviews(status));
+    public ApiResult<PageResponse<MpiMergeReview>> getMergeReviews(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.getMergeReviews(status, new PageRequest(page, size, sort)));
     }
 
     /**

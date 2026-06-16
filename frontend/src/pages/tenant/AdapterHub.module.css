@@ -21,6 +21,10 @@
   gap: calc(var(--mk-unit) * 16);
 }
 
+.contractVersionSelect {
+  min-width: calc(var(--mk-unit) * 260);
+}
+
 .requiredSourceGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 190), 1fr));

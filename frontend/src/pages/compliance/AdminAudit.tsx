@@ -61,6 +61,7 @@ import { buildAuditEventQuery } from "./auditQuery";
 
 const { Text } = Typography;
 const PAGE_SIZE = 20;
+const APPROVAL_PAGE_SIZE = 20;
 const VIEW_KEY = "compliance.audit";
 const route = findRouteByPath("/admin/audit");
 
@@ -201,6 +202,7 @@ export default function AdminAudit() {
   const [verifyTargetId, setVerifyTargetId] = useState<string>();
   const [verifyResult, setVerifyResult] = useState<EvidenceVerifyResult>();
   const [verifyError, setVerifyError] = useState<string>();
+  const [approvalPage, setApprovalPage] = useState(1);
   const [requestForm] = Form.useForm<{ reason: string }>();
   const [reviewForm] = Form.useForm<{ comment: string }>();
 
@@ -217,7 +219,10 @@ export default function AdminAudit() {
   });
   const submitExport = useSubmitLargeListExport();
   const pollExport = useLargeListExportJob();
-  const approvals = useExportApprovals({ resourceType: "AUDIT_EVENT" }, canApproveExport);
+  const approvals = useExportApprovals(
+    { resourceType: "AUDIT_EVENT", page: approvalPage, size: APPROVAL_PAGE_SIZE },
+    canApproveExport,
+  );
   const requestApproval = useRequestExportApproval();
   const reviewApproval = useReviewExportApproval();
   const completeApproval = useCompleteApprovedExportJob();
@@ -641,9 +646,16 @@ export default function AdminAudit() {
     return (
       <Table<ExportApproval>
         rowKey="approvalId"
-        dataSource={approvals.data ?? []}
+        dataSource={approvals.data?.items ?? []}
         columns={approvalColumns}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        pagination={{
+          current: approvals.data?.page ?? approvalPage,
+          pageSize: APPROVAL_PAGE_SIZE,
+          total: approvals.data?.total ?? 0,
+          hideOnSinglePage: true,
+          showSizeChanger: false,
+          onChange: (nextPage) => setApprovalPage(nextPage),
+        }}
         scroll={{ x: "max-content" }}
       />
     );

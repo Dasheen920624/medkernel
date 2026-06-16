@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>确定性、可复现（同输入同标准同策略结果一致）；按 finding_term_code 命中。
  * value_constraint / temporal_constraint 的求值是<b>后续阶段挂点</b>（接 RuleDslEvaluator 的 between/unit_compare/temporal）；
- * Spec 1（Plan A+B）命中到编码级，这两个约束字段已落库但暂不求值。
+ * B0 发布门禁会阻断含这些约束的版本，确保进入运行时的知识都能被当前命中核心真实求值。
  */
 @Component
 public class DiagnosisMatcher {

@@ -147,7 +147,7 @@ class KnowledgeExportServiceTest {
         KnowledgeExportJob pending = job("job-r", ExportStatus.PENDING);
         when(jobRepo.findByTenantIdAndJobCode("t-1", "job-r")).thenReturn(Optional.of(pending));
         when(identityRepo.countByTenantId("t-1")).thenReturn(42L);
-        when(identityRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of(
+        when(identityRepo.pageByFilter("t-1", null, null, null, null, 0, 500)).thenReturn(List.of(
             identity(1L, "DRUG.A"),
             identity(2L, "GUIDE.B")
         ));
@@ -170,10 +170,32 @@ class KnowledgeExportServiceTest {
     }
 
     @Test
+    void identityExportUsesFilterJsonForPagedRepository() throws Exception {
+        KnowledgeExportJob pending = job(
+            "job-filter",
+            ExportType.IDENTITIES,
+            ExportStatus.PENDING,
+            """
+                {"domain":"DRUG","specialtyId":"SP-1","status":"ACTIVE","keyword":"他汀"}
+                """
+        );
+        when(jobRepo.findByTenantIdAndJobCode("t-1", "job-filter")).thenReturn(Optional.of(pending));
+        when(identityRepo.pageByFilter("t-1", "DRUG", "SP-1", "ACTIVE", "%他汀%", 0, 500))
+            .thenReturn(List.of(identity(1L, "DRUG.STATIN")));
+
+        service.executeJob("job-filter");
+
+        Mockito.verify(identityRepo).pageByFilter("t-1", "DRUG", "SP-1", "ACTIVE", "%他汀%", 0, 500);
+        Mockito.verify(identityRepo, Mockito.never()).pageByTenantId(Mockito.anyString(), Mockito.anyInt(), Mockito.anyInt());
+        assertThat(Files.readString(service.physicalExportPathForTest("job-filter")))
+            .contains("\"identityCode\":\"DRUG.STATIN\"");
+    }
+
+    @Test
     void lineageExportIncludesInvalidationAndAffectedCaseTaskEvidence() throws Exception {
         KnowledgeExportJob pending = job("job-lineage", ExportType.LINEAGE, ExportStatus.PENDING);
         when(jobRepo.findByTenantIdAndJobCode("t-1", "job-lineage")).thenReturn(Optional.of(pending));
-        when(identityRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
+        when(identityRepo.pageByFilter("t-1", null, null, null, null, 0, 500)).thenReturn(List.of());
         when(versionRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
         when(supersessionRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
         when(invalidationRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of(invalidation()));
@@ -207,9 +229,13 @@ class KnowledgeExportServiceTest {
     }
 
     private KnowledgeExportJob job(String code, ExportType type, ExportStatus status) {
+        return job(code, type, status, null);
+    }
+
+    private KnowledgeExportJob job(String code, ExportType type, ExportStatus status, String filterJson) {
         Instant now = Instant.now();
         return new KnowledgeExportJob(
-            1L, "t-1", code, "u-99", type, null,
+            1L, "t-1", code, "u-99", type, filterJson,
             status, 0, null, null, null,
             now, null, null, null
         );

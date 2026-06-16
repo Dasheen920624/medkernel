@@ -3,14 +3,17 @@ package com.medkernel.engine.authoring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.followup.FollowupTemplate;
 import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
@@ -59,9 +62,9 @@ class AuthoringAssetLibraryServiceTest {
 
     @Test
     void listsRulesPathwaysAndFragmentsWithTagsAndFavorites() {
-        when(rules.listByFilter("tenant-A", null, null, null))
+        when(rules.listByFilter("tenant-A", null, null, null, null))
             .thenReturn(List.of(rule("rule-1", "RULE.CKD", "CKD 阻断规则")));
-        when(pathways.listByFilter("tenant-A", null, null, null, null))
+        when(pathways.listByFilter("tenant-A", null, null, null, null, null))
             .thenReturn(List.of(pathway("pathway-1", "PATH.CKD", "CKD 临床路径")));
         when(fragments.pageByFilter("tenant-A", null, null, null, 0, 200))
             .thenReturn(List.of(fragment("frag-1", "FRAG_CKD", "CKD 条件片段")));
@@ -87,11 +90,14 @@ class AuthoringAssetLibraryServiceTest {
 
     @Test
     void exposesCloneEntryOnlyForImplementedDraftCloneAssets() {
-        when(rules.listByFilter("tenant-A", null, null, null))
+        when(rules.countByFilter("tenant-A", null, null, null, null)).thenReturn(1L);
+        when(rules.pageByFilter("tenant-A", null, null, null, null, 0, 20))
             .thenReturn(List.of(rule("rule-1", "RULE.CKD", "CKD 阻断规则")));
-        when(pathways.listByFilter("tenant-A", null, null, null, null))
+        when(pathways.countByFilter("tenant-A", null, null, null, null, null)).thenReturn(1L);
+        when(pathways.pageByFilter("tenant-A", null, null, null, null, null, 0, 20))
             .thenReturn(List.of(pathway("pathway-1", "PATH.CKD", "CKD 临床路径")));
-        when(fragments.pageByFilter("tenant-A", null, null, null, 0, 200))
+        when(fragments.countByFilter("tenant-A", null, null, null)).thenReturn(1L);
+        when(fragments.pageByFilter("tenant-A", null, null, null, 0, 20))
             .thenReturn(List.of(fragment("frag-1", "FRAG_CKD", "CKD 条件片段")));
 
         PageResponse<AuthoringAssetLibraryItem> response = service.list(
@@ -103,6 +109,53 @@ class AuthoringAssetLibraryServiceTest {
                 org.assertj.core.groups.Tuple.tuple(VersionedAssetType.RULE, false),
                 org.assertj.core.groups.Tuple.tuple(VersionedAssetType.PATHWAY, false),
                 org.assertj.core.groups.Tuple.tuple(VersionedAssetType.CONDITION_FRAGMENT, true));
+    }
+
+    @Test
+    void allAssetsQueryOnlyReadsAllowedAssetTypes() {
+        when(rules.countByFilter("tenant-A", null, null, null, null)).thenReturn(1L);
+        when(rules.pageByFilter("tenant-A", null, null, null, null, 0, 20))
+            .thenReturn(List.of(rule("rule-1", "RULE.CKD", "CKD 阻断规则")));
+        when(fragments.countByFilter("tenant-A", null, null, null)).thenReturn(1L);
+        when(fragments.pageByFilter("tenant-A", null, null, null, 0, 20))
+            .thenReturn(List.of(fragment("frag-1", "FRAG_CKD", "CKD 条件片段")));
+
+        PageResponse<AuthoringAssetLibraryItem> response = service.list(
+            new AuthoringAssetLibraryQuery(
+                null,
+                null,
+                null,
+                false,
+                new PageRequest(0, 20, null),
+                Set.of(VersionedAssetType.RULE, VersionedAssetType.CONDITION_FRAGMENT)
+            ));
+
+        assertThat(response.items())
+            .extracting(AuthoringAssetLibraryItem::assetType)
+            .containsExactlyInAnyOrder(VersionedAssetType.RULE, VersionedAssetType.CONDITION_FRAGMENT);
+    }
+
+    @Test
+    void listsTypedFollowupAssetsThroughRepositoryPagination() {
+        when(followupTemplates.countByFilter("tenant-A", "%copd%", null)).thenReturn(1L);
+        when(followupTemplates.pageByFilter("tenant-A", "%copd%", null, 20, 20))
+            .thenReturn(List.of(followupTemplate("ftpl-1", "av-followup-1")));
+
+        PageResponse<AuthoringAssetLibraryItem> response = service.list(
+            new AuthoringAssetLibraryQuery(
+                VersionedAssetType.FOLLOWUP,
+                " COPD ",
+                null,
+                false,
+                new PageRequest(2, 20, null)
+            ));
+
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(1);
+        assertThat(response.items()).extracting(AuthoringAssetLibraryItem::assetId)
+            .containsExactly("ftpl-1");
+        verify(followupTemplates, never()).findByTenantIdOrderByUpdatedAtDesc("tenant-A");
     }
 
     @Test
@@ -226,6 +279,30 @@ class AuthoringAssetLibraryServiceTest {
             "{\"all\":[{\"fact\":\"patient.age\",\"operator\":\"gte\",\"value\":65}]}",
             1, ConditionFragmentStatus.ACTIVE, "pkg-2026.06",
             now, "tester", now, "tester", "trace-fragment");
+    }
+
+    private FollowupTemplate followupTemplate(String templateId, String versionId) {
+        Instant now = Instant.parse("2026-06-08T00:00:00Z");
+        return new FollowupTemplate(
+            1L,
+            templateId,
+            "tenant-A",
+            "FUP.COPD",
+            1,
+            "慢阻肺随访",
+            "按院内规范生成随访任务",
+            "tenant:tenant-A",
+            "riskLevel in [MEDIUM,HIGH]",
+            "[]",
+            "{}",
+            "{}",
+            "hospital://followup/copd",
+            versionId,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-followup");
     }
 
     private AuthoringAssetProfile profile(VersionedAssetType type, String assetId, String tagsJson) {

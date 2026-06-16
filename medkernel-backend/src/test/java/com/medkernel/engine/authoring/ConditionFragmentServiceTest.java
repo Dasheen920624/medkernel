@@ -102,7 +102,7 @@ class ConditionFragmentServiceTest {
             """));
         when(fragments.findByFragmentIdAndTenantId("frag-renal", "tenant-A"))
             .thenReturn(Optional.of(renal));
-        when(ruleDefinitions.listByFilter("tenant-A", null, null, null))
+        when(ruleDefinitions.listByFilter("tenant-A", null, null, null, null))
             .thenReturn(List.of(rule("rule-1", "RULE.RENAL", "rv-1")));
         when(ruleVersions.findByVersionIdAndTenantId("rv-1", "tenant-A"))
             .thenReturn(Optional.of(ruleVersion("rv-1", "rule-1", """
@@ -114,7 +114,7 @@ class ConditionFragmentServiceTest {
                   }
                 }
                 """)));
-        when(pathwayTemplates.listByFilter("tenant-A", null, null, null, null))
+        when(pathwayTemplates.listByFilter("tenant-A", null, null, null, null, null))
             .thenReturn(List.of(pathway("pathway-1", "PATH.RENAL")));
         when(pathwayEdges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pathway-1", "tenant-A"))
             .thenReturn(List.of(edge("edge-1", "pathway-1", """

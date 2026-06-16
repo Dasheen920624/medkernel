@@ -473,6 +473,26 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void listPackagesKeepsTotalWhenRequestedPageIsBeyondLastPage() {
+        when(packageRepository.pageByFilter("tenant-A", null, null, "RULE", 20, 20))
+            .thenReturn(List.of());
+        when(packageRepository.countByFilter("tenant-A", null, null, "RULE"))
+            .thenReturn(21L);
+
+        PageResponse<PackageSummaryResponse> response = service.listPackages(
+            new PageRequest(2, 20, null),
+            new PackageListFilter(null, null, VersionedAssetType.RULE)
+        );
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(21L);
+        assertThat(response.hasNext()).isFalse();
+        verify(itemRepository, never()).findByTenantIdAndPackageIdIn(any(), any());
+    }
+
+    @Test
     void validatePackageReturnsBlockingIssueWhenPackageHasNoItems() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-empty", "tenant-A", "PKG.EMPTY", "1.0.0", "空配置包", null,
@@ -1164,20 +1184,18 @@ class PackageEngineServiceTest {
         when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
                 "t-1", PilotPackageTemplateStatus.ACTIVE))
             .thenReturn(List.of(activePilotTemplate("t-1", "tpl-platform", "TPL.PLATFORM", "平台模板")));
-        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
-            .thenReturn(List.of(
-                packageVersion("pkg-active", "2.0.0", KnowledgePackageStatus.ACTIVE),
-                packageVersion("pkg-draft", "3.0.0", KnowledgePackageStatus.DRAFT),
-                packageVersion("pkg-published", "1.9.0", KnowledgePackageStatus.PUBLISHED)
-            ));
-        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
-            .thenReturn(List.of(new ReleasePlan(
-                1L, "plan-gray", "tenant-A", "pkg-published", "hospital-1",
-                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
-                "{\"rolloutStrategy\":\"CANARY_BED_PERCENT\",\"percentage\":10}",
-                ReleasePlanStatus.SUCCESS,
-                Instant.now(), "tester", Instant.now(), "tester", "trace"
-            )));
+        when(packageRepository.countByFilter("tenant-A", null, "DRAFT", null)).thenReturn(1L);
+        when(packageRepository.countByFilter("tenant-A", null, "PUBLISHED", null)).thenReturn(1L);
+        when(packageRepository.countByFilter("tenant-A", null, "ACTIVE", null)).thenReturn(1L);
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.ACTIVE))
+            .thenReturn(Optional.of(packageVersion("pkg-active", "2.0.0", KnowledgePackageStatus.ACTIVE)));
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.PUBLISHED))
+            .thenReturn(Optional.of(packageVersion("pkg-published", "1.9.0", KnowledgePackageStatus.PUBLISHED)));
+        when(planRepository.countByTenantIdAndStrategyAndStatus(
+                "tenant-A", ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS))
+            .thenReturn(1L);
 
         PackageAssetReadinessResponse readiness = service.getAssetReadiness();
 
@@ -1207,8 +1225,15 @@ class PackageEngineServiceTest {
         when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
                 "t-1", PilotPackageTemplateStatus.ACTIVE))
             .thenReturn(List.of(activePilotTemplate("t-1", "tpl-platform", "TPL.PLATFORM", "平台模板")));
-        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
-            .thenReturn(List.of());
+        when(packageRepository.countByFilter("tenant-A", null, "DRAFT", null)).thenReturn(0L);
+        when(packageRepository.countByFilter("tenant-A", null, "PUBLISHED", null)).thenReturn(0L);
+        when(packageRepository.countByFilter("tenant-A", null, "ACTIVE", null)).thenReturn(0L);
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.PUBLISHED))
+            .thenReturn(Optional.empty());
         when(packageReferenceRepository.findByTenantIdAndStatusOrderByUpdatedAtDesc(
                 "tenant-A", TenantPackageReferenceStatus.ACTIVE))
             .thenReturn(List.of(new TenantPackageReference(
@@ -1233,14 +1258,9 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(platformPackage));
         when(entitlementService.usablePackageIds("tenant-A", List.of(platformPackage)))
             .thenReturn(Set.of("pkg-platform-ckd"));
-        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
-            .thenReturn(List.of(new ReleasePlan(
-                1L, "plan-gray", "tenant-A", "pkg-platform-ckd", "facility-1",
-                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
-                "facility-1",
-                ReleasePlanStatus.SUCCESS,
-                Instant.now(), "tester", Instant.now(), "tester", "trace"
-            )));
+        when(planRepository.countByTenantIdAndStrategyAndStatus(
+                "tenant-A", ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS))
+            .thenReturn(1L);
 
         PackageAssetReadinessResponse readiness = service.getAssetReadiness();
 
@@ -1260,8 +1280,15 @@ class PackageEngineServiceTest {
                 PlatformTenant.ID, PilotPackageTemplateStatus.ACTIVE))
             .thenReturn(List.of(activePilotTemplate(
                 PlatformTenant.ID, "tpl-platform", "TPL.PLATFORM", "平台模板")));
-        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
-            .thenReturn(List.of());
+        when(packageRepository.countByFilter("tenant-A", null, "DRAFT", null)).thenReturn(0L);
+        when(packageRepository.countByFilter("tenant-A", null, "PUBLISHED", null)).thenReturn(0L);
+        when(packageRepository.countByFilter("tenant-A", null, "ACTIVE", null)).thenReturn(0L);
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                "tenant-A", KnowledgePackageStatus.PUBLISHED))
+            .thenReturn(Optional.empty());
         when(packageReferenceRepository.findByTenantIdAndStatusOrderByUpdatedAtDesc(
                 "tenant-A", TenantPackageReferenceStatus.ACTIVE))
             .thenReturn(List.of(new TenantPackageReference(
@@ -1286,14 +1313,9 @@ class PackageEngineServiceTest {
             .thenReturn(List.of());
         when(entitlementService.usablePackageIds("tenant-A", List.of()))
             .thenReturn(Set.of());
-        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
-            .thenReturn(List.of(new ReleasePlan(
-                1L, "plan-gray", "tenant-A", "pkg-platform-commercial", "facility-1",
-                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
-                "facility-1",
-                ReleasePlanStatus.SUCCESS,
-                Instant.now(), "tester", Instant.now(), "tester", "trace"
-            )));
+        when(planRepository.countByTenantIdAndStrategyAndStatus(
+                "tenant-A", ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS))
+            .thenReturn(1L);
 
         PackageAssetReadinessResponse readiness = service.getAssetReadiness();
 
@@ -3314,8 +3336,9 @@ class PackageEngineServiceTest {
             KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
 
-        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
-            .thenReturn(List.of(oldCopd, stroke));
+        when(packageRepository.findByTenantIdAndPackageCodeAndStatus(
+                "tenant-A", "PKG.COPD", KnowledgePackageStatus.ACTIVE))
+            .thenReturn(List.of(oldCopd));
 
         IntegrationAdapter target = integrationAdapter(
             1L, "target-1", "tenant-A", "同步目标", "REST", "config",

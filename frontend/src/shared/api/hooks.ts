@@ -848,6 +848,7 @@ export interface TermMappingCandidate {
   source: "RULE" | "AI" | "MANUAL" | "IMPORT";
   status: "PENDING" | "CONFIRMED" | "REJECTED" | "EXPIRED";
   evidenceText?: string | null;
+  generationJobCode?: string | null;
 }
 
 export interface MappingConflict {
@@ -875,9 +876,23 @@ export interface MappingConflict {
   updatedBy?: string;
 }
 
-export interface TerminologyCandidateGenerationResponse {
+export interface TerminologyCandidateGenerationJob {
+  id?: number;
+  tenantId?: string;
+  jobCode: string;
+  sourceSystem: string;
+  minimumScore?: number | null;
+  semanticAssistEnabled: boolean;
+  packageVersion: string;
+  requestedBy: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+  progress: number;
   generatedCount: number;
-  candidates: TermMappingCandidate[];
+  candidatePageUri?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export interface TerminologyBatchConfirmResponse {
@@ -1387,13 +1402,26 @@ export interface CreateKnowledgeCustomizationPayload {
   reason: string;
 }
 
-export function useKnowledgeCustomizations(enabled = true) {
+export interface KnowledgeCustomizationsParams {
+  page?: number;
+  size?: number;
+}
+
+export function useKnowledgeCustomizations(
+  params: KnowledgeCustomizationsParams = {},
+  enabled = true,
+) {
+  const queryParams = {
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  };
   return useQuery({
-    queryKey: ["knowledge", "customizations"],
+    queryKey: ["knowledge", "customizations", queryParams],
     enabled,
     queryFn: async () => {
-      const response = await apiClient.get<{ data: KnowledgeCustomization[] }>(
+      const response = await apiClient.get<{ data: PageResponse<KnowledgeCustomization> }>(
         `${KNOWLEDGE_API_ROOT}/customizations`,
+        { params: queryParams },
       );
       return response.data.data;
     },
@@ -1814,6 +1842,7 @@ export interface TerminologyCandidatesParams {
   status?: TermMappingCandidate["status"];
   riskLevel?: TermMappingCandidate["riskLevel"];
   conflictFlag?: boolean;
+  generationJobCode?: string;
 }
 
 export function useTerminologyCandidates(params: TerminologyCandidatesParams = {}) {
@@ -1847,6 +1876,19 @@ export function useTerminologyConflicts(params: TerminologyConflictsParams = {})
       const { data } = await apiClient.get<{ data: PageResponse<MappingConflict> }>(
         `${TERMINOLOGY_API_ROOT}/mappings/conflicts`,
         { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useTerminologyCandidateGenerationJob(jobCode?: string) {
+  return useQuery({
+    queryKey: ["terminology", "candidate-generation-job", jobCode],
+    enabled: Boolean(jobCode),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: TerminologyCandidateGenerationJob }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/candidate-generation-jobs/${jobCode}`,
       );
       return data.data;
     },
@@ -1887,7 +1929,7 @@ export function useGenerateTerminologyCandidates() {
       semanticAssistEnabled?: boolean;
     }) => {
       const { packageVersion, ...requestPayload } = payload;
-      const { data } = await apiClient.post<{ data: TerminologyCandidateGenerationResponse }>(
+      const { data } = await apiClient.post<{ data: TerminologyCandidateGenerationJob }>(
         `${TERMINOLOGY_API_ROOT}/mappings/candidates`,
         withStandardApiContext(requestPayload, security.data, packageVersion),
       );
@@ -2393,6 +2435,14 @@ export interface ExportApproval {
   reviewedAt?: string | null;
 }
 
+export interface ExportApprovalsParams {
+  resourceType?: string;
+  status?: ExportApprovalStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
 export interface ExportApprovalRequestPayload {
   resourceType: string;
   exportScope: Record<string, unknown>;
@@ -2520,12 +2570,15 @@ export async function fetchInteropAssessment(standardVersion: string): Promise<I
 }
 
 export async function fetchExportApprovals(
-  params: { resourceType?: string; status?: ExportApprovalStatus } = {},
-): Promise<ExportApproval[]> {
-  const { data } = await apiClient.get<{ data: ExportApproval[] }>("/compliance/exports", {
-    params,
-  });
-  return data.data ?? [];
+  params: ExportApprovalsParams = {},
+): Promise<PageResponse<ExportApproval>> {
+  const { data } = await apiClient.get<{ data: PageResponse<ExportApproval> }>(
+    "/compliance/exports",
+    {
+      params,
+    },
+  );
+  return data.data;
 }
 
 export async function requestExportApproval(
@@ -2649,10 +2702,7 @@ export function useInteropAssessment(standardVersion: string) {
   });
 }
 
-export function useExportApprovals(
-  params: { resourceType?: string; status?: ExportApprovalStatus } = {},
-  enabled = true,
-) {
+export function useExportApprovals(params: ExportApprovalsParams = {}, enabled = true) {
   return useQuery({
     queryKey: ["compliance", "export-approvals", params],
     queryFn: () => fetchExportApprovals(params),
@@ -3080,6 +3130,7 @@ export interface RuleFilterParams {
   status?: string;
   ruleType?: string;
   riskLevel?: string;
+  keyword?: string;
   page?: number;
   size?: number;
   sort?: string;
@@ -4438,6 +4489,7 @@ export function usePathwayTemplates(
     diseaseCode?: string;
     packageId?: string;
     templateCode?: string;
+    keyword?: string;
     page?: number;
     size?: number;
     sort?: string;
@@ -5986,6 +6038,10 @@ export interface ContextFieldDescriptor {
   fieldId?: string | null;
   /** 是否为求值期计算的派生字段（如 patient.age 由出生日期算得），而非原始存储字段。 */
   derived?: boolean;
+  payloadKey?: string | null;
+  propertyName?: string | null;
+  jsonSchemaType?: string | null;
+  externalWritable?: boolean;
 }
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
@@ -6254,7 +6310,15 @@ export function useFollowupStats(params?: FollowupStatsParams) {
   });
 }
 
-export function useFollowupTemplates(params: { page?: number; size?: number; sort?: string } = {}) {
+export function useFollowupTemplates(
+  params: {
+    page?: number;
+    size?: number;
+    sort?: string;
+    assetStatus?: FollowupTemplateAssetStatus;
+    keyword?: string;
+  } = {},
+) {
   return useQuery({
     queryKey: ["followup", "templates", params],
     queryFn: async () => {
@@ -7034,8 +7098,8 @@ export interface PackageListParams {
 
 export function usePackages(params: PackageListParams = {}) {
   const requestParams = {
-    page: params.page ?? 0,
-    size: params.size ?? 10,
+    page: Math.max(params.page ?? 1, 1),
+    size: Math.max(params.size ?? 10, 1),
     ...(params.keyword ? { keyword: params.keyword } : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.assetType ? { assetType: params.assetType } : {}),
@@ -8198,6 +8262,7 @@ export interface IntegrationDataContractFieldSchema {
   codeSystem?: string | null;
   required?: boolean;
   derived?: boolean;
+  externalWritable?: boolean;
 }
 
 export interface IntegrationDataContractJsonSchema {
@@ -8226,6 +8291,7 @@ export interface IntegrationDataContractField {
   codeSystem: string | null;
   required: boolean;
   derived: boolean;
+  externalWritable: boolean;
   description: string;
 }
 
@@ -8404,15 +8470,30 @@ interface IntegrationEnvelope<T> {
   data: T;
 }
 
+export interface IntegrationAdaptersParams {
+  page?: number;
+  size?: number;
+}
+
 // 1. 获取适配器目录
-export function useIntegrationAdapters() {
+export function useIntegrationAdapters(params: IntegrationAdaptersParams = {}) {
   return useQuery({
-    queryKey: ["integration", "adapters"],
+    queryKey: ["integration", "adapters", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<IntegrationAdapter[]>>(
+      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<IntegrationAdapter>>>(
         "/engine/integration/adapters",
+        { params },
       );
-      return data.data ?? [];
+      return (
+        data.data ?? {
+          items: [],
+          page: params.page ?? 1,
+          size: params.size ?? 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        }
+      );
     },
   });
 }
@@ -9530,9 +9611,21 @@ export interface UnbindIdentityBindingPayload {
   expectedVersion: number;
 }
 
-export async function fetchIdentityBindings(): Promise<IdentityBinding[]> {
-  const response = await apiClient.get<{ data: IdentityBinding[] }>(
+export interface IdentityBindingsParams {
+  page?: number;
+  size?: number;
+}
+
+export async function fetchIdentityBindings(
+  params: IdentityBindingsParams = {},
+): Promise<PageResponse<IdentityBinding>> {
+  const requestParams = {
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  };
+  const response = await apiClient.get<{ data: PageResponse<IdentityBinding> }>(
     "/compliance/identity-bindings",
+    { params: requestParams },
   );
   return response.data.data;
 }
@@ -9560,10 +9653,14 @@ export async function unbindIdentityBinding(
   return response.data.data;
 }
 
-export function useIdentityBindings() {
+export function useIdentityBindings(params: IdentityBindingsParams = {}) {
+  const queryParams = {
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  };
   return useQuery({
-    queryKey: ["compliance", "identity-bindings"],
-    queryFn: fetchIdentityBindings,
+    queryKey: ["compliance", "identity-bindings", queryParams],
+    queryFn: () => fetchIdentityBindings(queryParams),
   });
 }
 

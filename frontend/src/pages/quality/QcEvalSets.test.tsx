@@ -15,6 +15,7 @@ const mockUseActivateEvaluationIndicator = vi.fn();
 const mockUseEvaluateSnapshot = vi.fn();
 const mockUseContextSnapshots = vi.fn();
 const mockUseOrgUnits = vi.fn();
+const mockUsePackages = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown) => mockUseEvaluationIndicators(params),
@@ -27,6 +28,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useContextSnapshots: (params: unknown, options: unknown) =>
     mockUseContextSnapshots(params, options),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
+  usePackages: (params: unknown) => mockUsePackages(params),
 }));
 
 const realIndicator = {
@@ -111,6 +113,26 @@ beforeEach(() => {
     },
     isLoading: false,
   });
+  mockUsePackages.mockReset();
+  mockUsePackages.mockReturnValue({
+    data: {
+      items: [
+        {
+          packageId: "pkg-eval-2026",
+          packageCode: "PKG.EVAL",
+          packageVersion: "PKG.EVAL.2026.06",
+          name: "质控评估配置包",
+          status: "ACTIVE",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+    },
+    isLoading: false,
+    isError: false,
+  });
   mockUseCreateEvaluationIndicator.mockReset();
   mockUseSubmitEvaluationIndicator.mockReset();
   mockUsePublishEvaluationIndicator.mockReset();
@@ -178,6 +200,12 @@ describe("QcEvalSets", () => {
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20 }),
     );
+    expect(mockUsePackages).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      assetType: "EVALUATION",
+      keyword: undefined,
+    });
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
     expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
     expect(screen.getAllByText("IND.VTE.REAL").length).toBeGreaterThan(0);
@@ -200,6 +228,29 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
+  it("loads evaluation package selectors through small server-side search pages", () => {
+    renderPage();
+
+    expect(mockUseOrgUnits).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      sort: "name,asc",
+      level: "DEPARTMENT",
+      status: "ACTIVE",
+    });
+    expect(mockUsePackages).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      assetType: "EVALUATION",
+      keyword: undefined,
+    });
+    expect(mockUsePackages).not.toHaveBeenCalledWith({
+      page: 1,
+      size: 100,
+      assetType: "EVALUATION",
+    });
+  });
+
   it("creates a draft indicator from condition-tree DSL instead of raw hard-coded JSON text", async () => {
     renderPage();
 
@@ -209,6 +260,7 @@ describe("QcEvalSets", () => {
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("骨科 · ORTHO"));
+    expect(screen.getByText("PKG.EVAL.2026.06 · 质控评估配置包")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
     const factInputs = screen.getAllByRole("combobox", { name: "上下文字段路径" });
@@ -226,6 +278,7 @@ describe("QcEvalSets", () => {
       expect.objectContaining({
         indicatorCode: "IND.NEW.VTE",
         name: "新 VTE 指标",
+        packageVersion: "PKG.EVAL.2026.06",
         responsibleDepartmentId: "dept-ortho",
       }),
     );
@@ -313,14 +366,15 @@ describe("QcEvalSets", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "选择 snapshot-real-1" }));
-    fireEvent.change(screen.getByLabelText("配置包版本"), { target: { value: "2026.06" } });
+    await userEvent.click(screen.getByRole("combobox", { name: "配置包版本" }));
+    await userEvent.click(await screen.findByText("PKG.EVAL.2026.06 · 质控评估配置包"));
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>
       expect(evaluateSnapshot).toHaveBeenCalledWith({
         contextSnapshotId: "snapshot-real-1",
         scenarioCode: "DISCHARGE",
-        packageVersion: "2026.06",
+        packageVersion: "PKG.EVAL.2026.06",
       }),
     );
     expect(await screen.findByText("run-real-1")).toBeInTheDocument();

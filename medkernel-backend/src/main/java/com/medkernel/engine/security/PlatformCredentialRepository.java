@@ -26,4 +26,6 @@ public interface PlatformCredentialRepository extends ListCrudRepository<Platfor
     List<PlatformCredential> findByTenantIdOrderByUsernameAsc(String tenantId, Pageable pageable);
 
     long countByTenantId(String tenantId);
+
+    long countByTenantIdAndStatus(String tenantId, String status);
 }

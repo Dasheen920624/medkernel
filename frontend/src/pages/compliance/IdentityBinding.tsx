@@ -50,6 +50,8 @@ import { PageState } from "@/shared/ui/PageState";
 const { Text } = Typography;
 const { TextArea } = Input;
 const { Dragger } = Upload;
+const IDENTITY_BINDING_PAGE_SIZE = 20;
+const PERSONNEL_REFERENCE_PAGE_SIZE = 20;
 
 type CreateBindingForm = {
   userId: string;
@@ -92,13 +94,14 @@ export default function IdentityBinding() {
   const { message } = App.useApp();
   const security = useSecurityProfile();
   const delegated = useDelegatedAuthStatus();
-  const bindings = useIdentityBindings();
+  const [bindingPage, setBindingPage] = useState(1);
+  const bindings = useIdentityBindings({ page: bindingPage, size: IDENTITY_BINDING_PAGE_SIZE });
   const [userSearch, setUserSearch] = useState("");
   const hasPersonnelRole = hasPersonnelGovernanceRole(security.data);
   const canReadPersonnel = hasPersonnelRole && hasPermission(security.data, "org.read");
   const canManage = hasPersonnelRole && hasPermission(security.data, "org.write");
   const personnel = usePersonnel(
-    { page: 1, size: 100, keyword: userSearch || undefined },
+    { page: 1, size: PERSONNEL_REFERENCE_PAGE_SIZE, keyword: userSearch || undefined },
     { enabled: canReadPersonnel },
   );
   const createMutation = useCreateIdentityBinding();
@@ -234,9 +237,10 @@ export default function IdentityBinding() {
     );
   }
 
-  const activeCount = bindings.data.filter((item) => item.status === "ACTIVE").length;
+  const bindingItems = bindings.data.items;
+  const activeCount = bindingItems.filter((item) => item.status === "ACTIVE").length;
   const providerCount = new Set(
-    bindings.data.filter((item) => item.status === "ACTIVE").map((item) => item.providerType),
+    bindingItems.filter((item) => item.status === "ACTIVE").map((item) => item.providerType),
   ).size;
   const isReady = delegated.data.status === "READY";
   let delegatedAlertType: "success" | "warning" | "info" = "info";
@@ -303,8 +307,15 @@ export default function IdentityBinding() {
           <Card title="人员身份关系">
             <Table<IdentityBindingRecord>
               rowKey="bindingId"
-              dataSource={bindings.data}
-              pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
+              dataSource={bindingItems}
+              pagination={{
+                current: bindings.data.page,
+                pageSize: bindings.data.size,
+                total: bindings.data.total,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (page) => setBindingPage(page),
+              }}
               locale={{ emptyText: "当前机构尚未绑定身份来源" }}
               scroll={{ x: 820 }}
               columns={[

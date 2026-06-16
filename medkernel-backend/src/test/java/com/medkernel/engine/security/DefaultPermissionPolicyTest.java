@@ -17,6 +17,7 @@ class DefaultPermissionPolicyTest {
             "admin-users",
             "identity-bindings",
             "knowledge-governance",
+            "diagnosis-knowledge",
             "config-packages",
             "provenance",
             "ai-workflows",
@@ -30,6 +31,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "diagnosis-knowledge",
             "config-packages",
             "terminology-mapping",
             "rule-definitions",
@@ -64,6 +66,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.KNOWLEDGE_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "diagnosis-knowledge",
             "config-packages",
             "terminology-mapping",
             "rule-definitions",
@@ -75,6 +78,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.CLINICAL_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "diagnosis-knowledge",
             "rule-definitions",
             "pathway-templates",
             "provenance",
@@ -106,6 +110,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.MEDICATION_SAFETY_USER, List.of(
             "workbench",
             "knowledge-governance",
+            "diagnosis-knowledge",
             "rule-definitions",
             "provenance",
             "patient-pathways",
@@ -214,6 +219,44 @@ class DefaultPermissionPolicyTest {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
             .as("机构管理员作为红线规则发布人必须持 rule.publish")
             .contains(PermissionCode.RULE_PUBLISH);
+    }
+
+    @Test
+    void packageVersionDependentMenuRolesUseOwningReadPermissionForControlledVersionSelection() {
+        List<RoleCode> domainOnlyFrontendRoles = List.of(
+            RoleCode.CLINICAL_GOVERNOR,
+            RoleCode.CLINICAL_DECISION_USER,
+            RoleCode.NURSING_COLLABORATOR,
+            RoleCode.MEDICATION_SAFETY_USER,
+            RoleCode.DIAGNOSTIC_SERVICE_USER,
+            RoleCode.QUALITY_GOVERNOR);
+        CUSTOMER_MENU_SNAPSHOTS.forEach((role, expectedMenuKeys) -> {
+            var permissions = DefaultPermissionPolicy.permissionsOf(role);
+            if (expectedMenuKeys.contains("config-packages")) {
+                assertThat(permissions)
+                    .as("%s 能进入配置包中心时必须能读取通用配置包列表", role.code())
+                    .contains(PermissionCode.PACKAGE_READ);
+            } else if (domainOnlyFrontendRoles.contains(role)) {
+                assertThat(permissions)
+                    .as("%s 未持配置包中心菜单时不得借通用 package.read 越权读全包", role.code())
+                    .doesNotContain(PermissionCode.PACKAGE_READ);
+            }
+            if (expectedMenuKeys.contains("rule-definitions")) {
+                assertThat(permissions)
+                    .as("%s 能进入规则页时必须持规则读权限", role.code())
+                    .contains(PermissionCode.RULE_READ);
+            }
+            if (expectedMenuKeys.contains("pathway-templates") || expectedMenuKeys.contains("patient-pathways")) {
+                assertThat(permissions)
+                    .as("%s 能进入路径页时必须持路径读权限", role.code())
+                    .contains(PermissionCode.PATHWAY_READ);
+            }
+            if (expectedMenuKeys.contains("terminology-mapping")) {
+                assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                    .as("%s 能进入术语映射页时必须持术语读权限", role.code())
+                    .contains(PermissionCode.TERM_READ);
+            }
+        });
     }
 
     @Test

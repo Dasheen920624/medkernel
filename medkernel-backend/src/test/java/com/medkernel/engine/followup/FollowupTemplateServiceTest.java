@@ -2,6 +2,8 @@ package com.medkernel.engine.followup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +23,8 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -126,6 +130,31 @@ class FollowupTemplateServiceTest {
         verify(releasePort).publish(any(VersionReleaseCommand.class));
         assertThat(commandCaptor.getValue().assetType()).isEqualTo(VersionedAssetType.FOLLOWUP);
         assertThat(response.assetStatus()).isEqualTo(AssetVersionStatus.PUBLISHED);
+    }
+
+    @Test
+    void listTemplatesUsesRepositoryFilterPaginationInsteadOfTenantSnapshot() {
+        FollowupTemplate template = template("ftpl-1", "av-followup-1");
+        when(templates.countByFilter("tenant-1", "%copd%", "PUBLISHED"))
+            .thenReturn(1L);
+        when(templates.pageByFilter("tenant-1", "%copd%", "PUBLISHED", 20, 20))
+            .thenReturn(List.of(template));
+        when(assetVersions.findByVersionIdAndTenantId("av-followup-1", "tenant-1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-followup-1", "ftpl-1", "1", AssetVersionStatus.PUBLISHED
+            )));
+
+        PageResponse<FollowupTemplateResponse> response = service.list(
+            new FollowupTemplateFilter(AssetVersionStatus.PUBLISHED, " COPD "),
+            new PageRequest(2, 20, "updatedAt,desc")
+        );
+
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(1);
+        assertThat(response.items()).extracting(FollowupTemplateResponse::templateId)
+            .containsExactly("ftpl-1");
+        verify(templates, never()).findByTenantIdOrderByUpdatedAtDesc(anyString());
     }
 
     private FollowupTemplate template(String templateId, String versionId) {

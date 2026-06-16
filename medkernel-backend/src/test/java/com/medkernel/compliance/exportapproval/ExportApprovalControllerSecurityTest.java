@@ -16,6 +16,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -91,12 +93,15 @@ class ExportApprovalControllerSecurityTest {
     @Test
     @DisplayName("审计合规角色带租户上下文可查询本租户导出审批")
     void listExports_auditRoleWithTenant_returns200() throws Exception {
-        when(service.listApprovals("t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED))
-            .thenReturn(List.of(response(ExportApprovalStatus.REQUESTED)));
+        PageRequest page = new PageRequest(2, 10, null);
+        when(service.listApprovals("t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED, page))
+            .thenReturn(PageResponse.of(List.of(response(ExportApprovalStatus.REQUESTED)), page, 11L));
 
         mvc.perform(get("/api/v1/compliance/exports")
                 .param("resourceType", "AUDIT_EVENT")
                 .param("status", "REQUESTED")
+                .param("page", "2")
+                .param("size", "10")
                 .with(jwt().jwt(token -> token
                     .subject("auditor-1")
                     .claim("tenant_id", "t-1")
@@ -106,7 +111,10 @@ class ExportApprovalControllerSecurityTest {
                     .claim("roles", List.of("audit_compliance")))
                     .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].status").value("REQUESTED"));
+            .andExpect(jsonPath("$.data.items[0].status").value("REQUESTED"))
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.size").value(10))
+            .andExpect(jsonPath("$.data.total").value(11));
     }
 
     @Test

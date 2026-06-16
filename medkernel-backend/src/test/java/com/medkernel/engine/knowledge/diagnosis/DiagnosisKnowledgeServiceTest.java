@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -98,10 +99,12 @@ class DiagnosisKnowledgeServiceTest {
 
     @Test
     void addCriterionPersistsWithContextAndAudits() {
-        service.addCriterion(10L, new DiagnosisCriterionRequest(
-            "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR, null, null, null));
+        DiagnosisCriterionRequest request = new DiagnosisCriterionRequest(
+            "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR, null, null, 33L);
+        service.addCriterion(10L, request);
 
         ArgumentCaptor<DiagnosisCriterion> cap = ArgumentCaptor.forClass(DiagnosisCriterion.class);
+        verify(references).validateCriterion(any(KnowledgeAssetVersion.class), eq("FEVER"), eq(33L));
         verify(criteria).save(cap.capture());
         DiagnosisCriterion saved = cap.getValue();
         assertThat(saved.tenantId()).isEqualTo("t-dept");
@@ -112,6 +115,20 @@ class DiagnosisKnowledgeServiceTest {
         assertThat(saved.createdBy()).isEqualTo("doctor-1");
         assertThat(saved.traceId()).isEqualTo("trace-dx");
         verify(audit).record(eq(AuditAction.CREATE), eq("mk_diagnosis_criterion"), any(), any());
+    }
+
+    @Test
+    void addCriterionRejectsInvalidFindingOrCitationBeforePersisting() {
+        doThrow(new ApiException(ErrorCode.VALIDATION_FAILED, "诊断标准发现项未绑定有效术语"))
+            .when(references).validateCriterion(any(KnowledgeAssetVersion.class), eq("UNKNOWN"), eq(99L));
+
+        assertThatThrownBy(() -> service.addCriterion(10L, new DiagnosisCriterionRequest(
+            "UNKNOWN", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR, null, null, 99L)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        verify(criteria, never()).save(any());
     }
 
     @Test
@@ -270,6 +287,32 @@ class DiagnosisKnowledgeServiceTest {
     }
 
     @Test
+    void publishGateRejectsCriteriaWithUnevaluatedValueOrTemporalConstraint() {
+        when(criteria.findByTenantIdAndDiagnosisVersionId("t-dept", 10L)).thenReturn(List.of(
+            criterion("EGFR_LOW", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR,
+                "{\"operator\":\"lt\",\"value\":60}", null),
+            criterion("CKD_DURATION", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR,
+                null, "{\"operator\":\"gte\",\"unit\":\"month\",\"value\":3}")));
+        when(testCases.findByTenantIdAndDiagnosisVersionId("t-dept", 10L))
+            .thenReturn(List.of(testCase("CASE-STRUCTURED", "EGFR_LOW,CKD_DURATION", DiagnosisConfidence.STRONG)));
+
+        assertThatThrownBy(() -> service.publishGate(10L))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("暂不可发布")
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_DX_006);
+    }
+
+    @Test
+    void publishGateParsesThirdPartyFindingListsWithoutDuplicateOrBlankNoise() {
+        stubVersionCriteria();
+        when(testCases.findByTenantIdAndDiagnosisVersionId("t-dept", 10L))
+            .thenReturn(List.of(testCase("CASE-THIRD-PARTY", " FEVER\\nCOUGH; FEVER, ,", DiagnosisConfidence.STRONG)));
+
+        assertThatCode(() -> service.publishGate(10L)).doesNotThrowAnyException();
+    }
+
+    @Test
     void publishGateThrowsDx006WhenExpectedMismatchesRecomputed() {
         stubVersionCriteria();
         // 命中实得 STRONG，但期望写成 WEAK → 门禁必须阻断发布。
@@ -344,8 +387,14 @@ class DiagnosisKnowledgeServiceTest {
     }
 
     private DiagnosisCriterion criterion(String code, DiagnosisDirection dir, DiagnosisWeight w) {
+        return criterion(code, dir, w, null, null);
+    }
+
+    private DiagnosisCriterion criterion(String code, DiagnosisDirection dir, DiagnosisWeight w,
+            String valueConstraint, String temporalConstraint) {
         Instant now = Instant.now();
-        return new DiagnosisCriterion(null, "t-dept", 10L, code, dir, w, null, null, null,
+        return new DiagnosisCriterion(null, "t-dept", 10L, code, dir, w,
+            valueConstraint, temporalConstraint, null,
             now, "doctor-1", now, "doctor-1", "trace-dx");
     }
 

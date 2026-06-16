@@ -148,6 +148,12 @@ describe("Notifications", () => {
     const user = userEvent.setup();
     renderNotifications();
 
+    expect(notificationHookMocks.useOrgUnits).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      status: "ACTIVE",
+    });
+
     await user.click(screen.getByLabelText("组织范围"));
     await user.click(await screen.findByText("A 科室"));
 

@@ -57,6 +57,8 @@ import { customerDisplayText, customerEnumLabel } from "@/shared/config/customer
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
+const FOLLOWUP_PLAN_PAGE_SIZE = 20;
+const FOLLOWUP_TEMPLATE_PAGE_SIZE = 20;
 
 const planStatusConfig: Record<FollowupPlanStatus, { status: BadgeProps["status"]; text: string }> =
   {
@@ -79,6 +81,10 @@ export default function Followup() {
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
   const [patientFilter, setPatientFilter] = useState("");
+  const [planPage, setPlanPage] = useState(1);
+  const [templatePage, setTemplatePage] = useState(1);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [publishedTemplateSearch, setPublishedTemplateSearch] = useState("");
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
@@ -99,8 +105,8 @@ export default function Followup() {
     isError,
   } = useFollowupPlans({
     patientId: patientFilter.trim() || undefined,
-    page: 1,
-    size: 100,
+    page: planPage,
+    size: FOLLOWUP_PLAN_PAGE_SIZE,
   });
   const {
     data: statsData,
@@ -116,7 +122,21 @@ export default function Followup() {
   const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
-  const templatesQuery = useFollowupTemplates({ page: 1, size: 100, sort: "updatedAt,desc" });
+  const templateKeyword = templateSearch.trim();
+  const publishedTemplateKeyword = publishedTemplateSearch.trim();
+  const templatesQuery = useFollowupTemplates({
+    ...(templateKeyword ? { keyword: templateKeyword } : {}),
+    page: templatePage,
+    size: FOLLOWUP_TEMPLATE_PAGE_SIZE,
+    sort: "updatedAt,desc",
+  });
+  const publishedTemplatesQuery = useFollowupTemplates({
+    assetStatus: "PUBLISHED",
+    ...(publishedTemplateKeyword ? { keyword: publishedTemplateKeyword } : {}),
+    page: 1,
+    size: FOLLOWUP_TEMPLATE_PAGE_SIZE,
+    sort: "updatedAt,desc",
+  });
   const hasSnapshotFilter = Boolean(snapshotPatientId.trim() || snapshotEncounterId.trim());
   const snapshotsQuery = useContextSnapshots(
     {
@@ -136,8 +156,11 @@ export default function Followup() {
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
   const templates = useMemo(() => templatesQuery.data?.items ?? [], [templatesQuery.data?.items]);
   const publishedTemplates = useMemo(
-    () => templates.filter((template) => template.assetStatus === "PUBLISHED"),
-    [templates],
+    () =>
+      (publishedTemplatesQuery.data?.items ?? []).filter(
+        (template) => template.assetStatus === "PUBLISHED",
+      ),
+    [publishedTemplatesQuery.data?.items],
   );
   const templateOptions = useMemo(
     () =>
@@ -236,6 +259,7 @@ export default function Followup() {
       message.success("随访模板已创建，请发布后用于计划生成");
       setTemplateModalVisible(false);
       templateForm.resetFields();
+      setTemplatePage(1);
       await templatesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(templateForm, error)) return;
@@ -255,7 +279,7 @@ export default function Followup() {
         },
       });
       message.success("随访模板已发布，可用于新随访计划");
-      await templatesQuery.refetch();
+      await Promise.all([templatesQuery.refetch(), publishedTemplatesQuery.refetch()]);
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "随访模板发布失败"));
     }
@@ -537,17 +561,28 @@ export default function Followup() {
                   placeholder="按患者 ID 检索"
                   allowClear
                   value={patientFilter}
-                  onChange={(event) => setPatientFilter(event.target.value)}
+                  onChange={(event) => {
+                    setPatientFilter(event.target.value);
+                    setPlanPage(1);
+                  }}
                   onPressEnter={() => void refreshFollowupData()}
                   className={styles.searchInput}
                 />
-                <Button onClick={() => void refreshFollowupData()}>查询</Button>
+                <Button
+                  onClick={() => {
+                    setPlanPage(1);
+                    void refreshFollowupData();
+                  }}
+                >
+                  查询
+                </Button>
               </Space>
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={() => {
                   setSelectedSnapshotId("");
+                  setPublishedTemplateSearch("");
                   setGenerateModalVisible(true);
                 }}
               >
@@ -584,7 +619,11 @@ export default function Followup() {
               loading={isLoading}
               locale={{ emptyText: "当前暂无随访计划" }}
               pagination={{
-                pageSize: 10,
+                current: apiPlansData?.page ?? planPage,
+                pageSize: apiPlansData?.size ?? FOLLOWUP_PLAN_PAGE_SIZE,
+                total: apiPlansData?.total ?? displayPlans.length,
+                showSizeChanger: false,
+                onChange: (page) => setPlanPage(page),
                 showTotal: (total) => `共 ${total} 个随访计划`,
               }}
             />
@@ -622,6 +661,16 @@ export default function Followup() {
                   模板发布后才能绑定随访计划，运行期只记录计划和任务实例。
                 </span>
               </Space>
+              <Input
+                placeholder="按模板编码、名称或适用范围检索"
+                allowClear
+                value={templateSearch}
+                onChange={(event) => {
+                  setTemplateSearch(event.target.value);
+                  setTemplatePage(1);
+                }}
+                className={styles.searchInput}
+              />
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -638,7 +687,14 @@ export default function Followup() {
               rowKey="templateId"
               loading={templatesQuery.isLoading}
               locale={{ emptyText: "当前暂无随访模板" }}
-              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 个随访模板` }}
+              pagination={{
+                current: templatesQuery.data?.page ?? templatePage,
+                pageSize: templatesQuery.data?.size ?? FOLLOWUP_TEMPLATE_PAGE_SIZE,
+                total: templatesQuery.data?.total ?? templates.length,
+                showSizeChanger: false,
+                onChange: (page) => setTemplatePage(page),
+                showTotal: (total) => `共 ${total} 个随访模板`,
+              }}
             />
           </Card>
         </Space>
@@ -653,6 +709,7 @@ export default function Followup() {
           setSnapshotPatientId("");
           setSnapshotEncounterId("");
           setSelectedSnapshotId("");
+          setPublishedTemplateSearch("");
           generateForm.resetFields();
         }}
         confirmLoading={generatePlanMutation.isPending}
@@ -738,7 +795,12 @@ export default function Followup() {
             rules={[{ required: true, message: "请选择已发布随访模板" }]}
           >
             <Select
-              loading={templatesQuery.isLoading}
+              showSearch
+              allowClear
+              filterOption={false}
+              onSearch={setPublishedTemplateSearch}
+              onClear={() => setPublishedTemplateSearch("")}
+              loading={publishedTemplatesQuery.isLoading}
               options={templateOptions}
               placeholder="选择已发布随访模板"
               notFoundContent="当前暂无已发布随访模板"

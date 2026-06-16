@@ -24,6 +24,9 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
     Optional<KnowledgePackage> findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
         String tenantId, KnowledgePackageStatus status);
 
+    List<KnowledgePackage> findByTenantIdAndPackageCodeAndStatus(
+        String tenantId, String packageCode, KnowledgePackageStatus status);
+
     List<KnowledgePackage> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
 
     List<KnowledgePackage> findByTenantIdAndPackageIdIn(String tenantId, Set<String> packageIds);
@@ -43,11 +46,19 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
     long countByTenantId(String tenantId);
 
     @Query("""
+        SELECT COUNT(*) FROM knowledge_package
+        WHERE tenant_id = :tenantId
+          AND status IN ('PUBLISHED', 'ACTIVE')
+        """)
+    long countReleasedByTenantId(String tenantId);
+
+    @Query("""
         SELECT kp.* FROM knowledge_package kp
         WHERE kp.tenant_id = :tenantId
           AND (:status IS NULL OR kp.status = :status)
           AND (
                :keyword IS NULL
+            OR LOWER(kp.package_id) LIKE :keyword
             OR LOWER(kp.package_code) LIKE :keyword
             OR LOWER(kp.package_version) LIKE :keyword
             OR LOWER(kp.name) LIKE :keyword
@@ -79,6 +90,7 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
           AND (:status IS NULL OR kp.status = :status)
           AND (
                :keyword IS NULL
+            OR LOWER(kp.package_id) LIKE :keyword
             OR LOWER(kp.package_code) LIKE :keyword
             OR LOWER(kp.package_version) LIKE :keyword
             OR LOWER(kp.name) LIKE :keyword

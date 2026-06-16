@@ -12,6 +12,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_CONFIG_PACKAGES;
 import static com.medkernel.engine.security.PermissionCode.MENU_DEV_CONSOLE;
+import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
 import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
 import static com.medkernel.engine.security.PermissionCode.MENU_IDENTITY_BINDINGS;
@@ -38,7 +39,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 29 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>入口权限只承认 30 个按业务域分类的主导航、1 个页头和 1 个个人入口。
  */
 public final class MenuPermissionCatalog {
 
@@ -52,6 +53,8 @@ public final class MenuPermissionCatalog {
             MENU_IDENTITY_BINDINGS, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "knowledge-governance", "知识审核与发布",
             MENU_KNOWLEDGE_GOVERNANCE, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "diagnosis-knowledge", "诊断知识维护",
+            MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "config-packages", "配置包与发布",
             MENU_CONFIG_PACKAGES, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "terminology-mapping", "术语与字典",

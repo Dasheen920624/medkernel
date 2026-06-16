@@ -18,6 +18,8 @@ import com.medkernel.engine.factory.KnowledgeAssetSchemaValidator;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -40,8 +42,6 @@ public class DiscoveryOrchestrationService {
     private static final String CAPABILITY_CODE = "knowledge.discovery";
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 50;
-    private static final int DEFAULT_PAGE_SIZE = 20;
-    private static final int MAX_PAGE_SIZE = 200;
     private static final String EMPTY_CONTENT_MSG = "探索内容不能为空，禁止为空内容生成候选指纹";
 
     private final ControlledSourceSearchRepository searchRepository;
@@ -111,14 +111,18 @@ public class DiscoveryOrchestrationService {
      * 分页查询探索运行台账（FR-2 复查「当时看到什么」）。
      */
     @Transactional(readOnly = true)
-    public List<DiscoveryRun> listRuns(int page, int size) {
+    public PageResponse<DiscoveryRun> listRuns(int page, int size) {
         String tenantId = requireCurrentTenant();
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        if (size <= 0) {
-            safeSize = DEFAULT_PAGE_SIZE;
+        PageRequest pageRequest = new PageRequest(page, size, null);
+        long total = runRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(pageRequest);
         }
-        int safePage = Math.max(page, 0);
-        return runRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
+        return PageResponse.of(
+            runRepository.pageByTenantId(tenantId, pageRequest.offset(), pageRequest.safeSize()),
+            pageRequest,
+            total
+        );
     }
 
     private KnowledgeAssetEnvelope toCandidate(

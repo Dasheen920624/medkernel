@@ -24,8 +24,10 @@ public interface MappingCandidateRepository extends ListCrudRepository<MappingCa
           AND (:status IS NULL OR status = :status)
           AND (:riskLevel IS NULL OR risk_level = :riskLevel)
           AND (:conflictFlag IS NULL OR conflict_flag = :conflictFlag)
+          AND (:generationJobCode IS NULL OR generation_job_code = :generationJobCode)
         """)
-    long countByFilter(String tenantId, String status, String riskLevel, Boolean conflictFlag);
+    long countByFilter(String tenantId, String status, String riskLevel, Boolean conflictFlag,
+                       String generationJobCode);
 
     /**
      * 按租户 + 可选过滤条件分页查询候选（更新时间倒序），用于审核工作台。
@@ -36,11 +38,12 @@ public interface MappingCandidateRepository extends ListCrudRepository<MappingCa
           AND (:status IS NULL OR status = :status)
           AND (:riskLevel IS NULL OR risk_level = :riskLevel)
           AND (:conflictFlag IS NULL OR conflict_flag = :conflictFlag)
+          AND (:generationJobCode IS NULL OR generation_job_code = :generationJobCode)
         ORDER BY updated_at DESC, id DESC
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<MappingCandidate> pageByFilter(String tenantId, String status, String riskLevel, Boolean conflictFlag,
-                                        int offset, int limit);
+                                        String generationJobCode, int offset, int limit);
 
     Optional<MappingCandidate> findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
         String tenantId, Long localTermId, Long standardTermId, MappingCandidateStatus status);

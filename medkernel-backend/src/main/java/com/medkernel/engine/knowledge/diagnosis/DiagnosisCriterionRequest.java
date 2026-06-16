@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 新增诊断标准请求：发现项标准编码 + 方向 + 权重（value/temporal 约束 Spec 1 落库不求值）。
+ * 新增诊断标准请求：发现项标准编码 + 方向 + 权重；数值/时序约束可登记但 B0 发布前会被门禁阻断。
  */
 public record DiagnosisCriterionRequest(
     @NotBlank String findingTermCode,

@@ -1,8 +1,10 @@
 package com.medkernel.engine.terminology;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +18,8 @@ import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.PageRequest;
@@ -43,6 +47,8 @@ class TerminologyServiceTest {
     private MappingCandidateRepository candidateRepository;
     private MappingConflictRepository conflictRepository;
     private HighRiskRuleRepository highRiskRuleRepository;
+    private TerminologyCandidateGenerationJobRepository generationJobRepository;
+    private List<Runnable> dispatchedGenerationJobs;
     private TerminologyService service;
 
     @BeforeEach
@@ -54,6 +60,8 @@ class TerminologyServiceTest {
         candidateRepository = Mockito.mock(MappingCandidateRepository.class);
         conflictRepository = Mockito.mock(MappingConflictRepository.class);
         highRiskRuleRepository = Mockito.mock(HighRiskRuleRepository.class);
+        generationJobRepository = Mockito.mock(TerminologyCandidateGenerationJobRepository.class);
+        dispatchedGenerationJobs = new ArrayList<>();
         service = new TerminologyService(
             standardTermRepository,
             localTermRepository,
@@ -61,8 +69,34 @@ class TerminologyServiceTest {
             effectiveMappings,
             candidateRepository,
             conflictRepository,
-            highRiskRuleRepository
+            highRiskRuleRepository,
+            generationJobRepository,
+            dispatchedGenerationJobs::add
         );
+        when(generationJobRepository.save(any(TerminologyCandidateGenerationJob.class))).thenAnswer(inv -> {
+            TerminologyCandidateGenerationJob job = inv.getArgument(0);
+            if (job.id() != null) {
+                return job;
+            }
+            return new TerminologyCandidateGenerationJob(
+                99L,
+                job.tenantId(),
+                job.jobCode(),
+                job.sourceSystem(),
+                job.minimumScore(),
+                job.semanticAssistEnabled(),
+                job.packageVersion(),
+                job.requestedBy(),
+                job.status(),
+                job.progress(),
+                job.generatedCount(),
+                job.candidatePageUri(),
+                job.errorMessage(),
+                job.createdAt(),
+                job.startedAt(),
+                job.completedAt()
+            );
+        });
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory(any(), any())).thenReturn(List.of());
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
         authenticate(RoleCode.ORGANIZATION_ADMIN);
@@ -70,6 +104,9 @@ class TerminologyServiceTest {
 
     @AfterEach
     void clear() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
         RequestContext.clear();
         SecurityContextHolder.clearContext();
     }
@@ -554,7 +591,30 @@ class TerminologyServiceTest {
         return new MappingCandidate(
             id, "t-1", 1L, 2L, 0.96, MappingCandidateSource.RULE,
             TermRiskLevel.HIGH, "同义词 + 单位一致", false, status, null,
-            null, null, now, "system", now, "system"
+            null, null, now, "system", now, "system", null
+        );
+    }
+
+    private TerminologyCandidateGenerationJob generationJob(
+            String jobCode, TerminologyCandidateGenerationJobStatus status) {
+        Instant now = Instant.now();
+        return new TerminologyCandidateGenerationJob(
+            1L,
+            "t-1",
+            jobCode,
+            "LIS",
+            null,
+            true,
+            "pkg-2026.06",
+            "u-99",
+            status,
+            0,
+            0,
+            null,
+            null,
+            now,
+            null,
+            null
         );
     }
 
@@ -647,6 +707,66 @@ class TerminologyServiceTest {
     }
 
     @Test
+    void generateCandidatesSubmitsAsyncJobAndDoesNotReturnCandidateRows() {
+        TerminologyCandidateGenerationJob job = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(job.status()).isEqualTo(TerminologyCandidateGenerationJobStatus.PENDING);
+        assertThat(job.generatedCount()).isZero();
+        assertThat(job.candidatePageUri()).isNull();
+        assertThat(job.jobCode()).matches("[0-9a-f-]{36}");
+        verify(localTermRepository, Mockito.never())
+            .pageByTenantIdAndSourceSystemAndStatus(any(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void generateCandidatesDefersWorkerDispatchUntilCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.generateCandidates(candidateGenerationRequest("t-1"));
+        assertThat(dispatchedGenerationJobs).isEmpty();
+
+        TransactionSynchronizationManager.getSynchronizations()
+            .forEach(TransactionSynchronization::afterCommit);
+        assertThat(dispatchedGenerationJobs).hasSize(1);
+    }
+
+    @Test
+    void executeCandidateGenerationJobMarksSucceededAndLinksPagedCandidates() {
+        TerminologyCandidateGenerationJob pending = generationJob(
+            "term-gen-job-1", TerminologyCandidateGenerationJobStatus.PENDING);
+        when(generationJobRepository.findByTenantIdAndJobCode("t-1", "term-gen-job-1"))
+            .thenReturn(Optional.of(pending));
+        LocalTerm local = localTerm(1L);
+        StandardTerm standardMatch = new StandardTerm(
+            2L, "t-1", "LOINC", "6598-7", TermCategory.LAB, "Cardiac troponin T",
+            "ctnt|cardiac troponin t|肌钙蛋白t", "2.78", StandardTermStatus.ACTIVE,
+            null, "LOINC 来源别名：cTnT；中文同义词：肌钙蛋白T",
+            Instant.now(), "system", Instant.now(), "system"
+        );
+        stubCandidateGenerationPages(List.of(local), List.of(standardMatch));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.executeCandidateGenerationJob("term-gen-job-1");
+
+        ArgumentCaptor<TerminologyCandidateGenerationJob> savedJobs =
+            ArgumentCaptor.forClass(TerminologyCandidateGenerationJob.class);
+        verify(generationJobRepository, Mockito.atLeast(2)).save(savedJobs.capture());
+        TerminologyCandidateGenerationJob succeeded = savedJobs.getAllValues().getLast();
+        assertThat(succeeded.status()).isEqualTo(TerminologyCandidateGenerationJobStatus.SUCCEEDED);
+        assertThat(succeeded.progress()).isEqualTo(100);
+        assertThat(succeeded.generatedCount()).isEqualTo(1);
+        assertThat(succeeded.candidatePageUri())
+            .isEqualTo("/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-gen-job-1");
+
+        ArgumentCaptor<MappingCandidate> savedCandidate = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(savedCandidate.capture());
+        assertThat(savedCandidate.getValue().generationJobCode()).isEqualTo("term-gen-job-1");
+    }
+
+    @Test
     void generateCandidatesCreatesRuleCandidatesFromSemanticAlias() {
         LocalTerm local = localTerm(1L); // "肌钙蛋白T" / normalizedName = "肌钙蛋白t"
         StandardTerm standardMatch = new StandardTerm(
@@ -660,10 +780,7 @@ class TerminologyServiceTest {
             "2.78", StandardTermStatus.ACTIVE, null, "LOINC", Instant.now(), "system", Instant.now(), "system"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(standardMatch, standardMismatchCategory));
+        stubCandidateGenerationPages(List.of(local), List.of(standardMatch, standardMismatchCategory));
 
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
@@ -671,15 +788,8 @@ class TerminologyServiceTest {
 
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
-        assertThat(response.generatedCount()).isEqualTo(1); // MismatchCategory 虽名字匹配，但因分类(DRUG)不同被过滤
-        assertThat(response.candidates())
-            .singleElement()
-            .satisfies(candidate -> {
-                assertThat(candidate.semanticMatchScore()).isEqualTo(0.96);
-                assertThat(candidate.highRiskFlag()).isFalse();
-                assertThat(candidate.source()).isEqualTo(MappingCandidateSource.RULE);
-            });
+        int generated = runCandidateGeneration("term-gen-alias");
+        assertThat(generated).isEqualTo(1); // MismatchCategory 虽名字匹配，但因分类(DRUG)不同被过滤
 
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(candidateCaptor.capture());
@@ -690,8 +800,66 @@ class TerminologyServiceTest {
         assertThat(created.confidence()).isEqualTo(0.96);
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.LOW);
         assertThat(created.candidateSource()).isEqualTo(MappingCandidateSource.RULE);
+        assertThat(created.generationJobCode()).isEqualTo("term-gen-alias");
         assertThat(created.evidenceText()).contains("确定性语义匹配", "同义词/缩写");
         assertThat(created.evidenceText()).doesNotContain("LCS");
+    }
+
+    @Test
+    void generateCandidatesReadsSourceTermsInPagesInsteadOfFullLists() {
+        LocalTerm firstLocal = localTerm(
+            1L, "LIS", "718-7", TermCategory.LAB, "院内血色素", "yuanneixuesesu"
+        );
+        LocalTerm secondLocal = localTerm(
+            3L, "LIS", "6598-7", TermCategory.LAB, "肌钙蛋白T", "肌钙蛋白t"
+        );
+        StandardTerm firstStandard = standardTerm(
+            2L, "LOINC", "718-7", TermCategory.LAB, "血红蛋白", "hgb|hemoglobin"
+        );
+        StandardTerm secondStandard = new StandardTerm(
+            4L, "t-1", "LOINC", "6598-7", TermCategory.LAB, "Cardiac troponin T",
+            "ctnt|cardiac troponin t|肌钙蛋白t", "2.78", StandardTermStatus.ACTIVE,
+            null, "LOINC 来源别名：cTnT；中文同义词：肌钙蛋白T",
+            Instant.now(), "system", Instant.now(), "system"
+        );
+        List<LocalTerm> firstLocalPage = Stream.concat(
+            Stream.of(firstLocal),
+            IntStream.range(100, 599)
+                .mapToObj(index -> localTerm(
+                    (long) index, "LIS", "NO-MATCH-" + index,
+                    TermCategory.LAB, "未命中院内词 " + index, "no-match-" + index))
+        ).toList();
+
+        when(localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+            "t-1", "LIS", LocalTermStatus.UNMAPPED, 0, 500
+        )).thenReturn(firstLocalPage);
+        when(localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+            "t-1", "LIS", LocalTermStatus.UNMAPPED, 500, 500
+        )).thenReturn(List.of(secondLocal));
+        when(localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+            "t-1", "LIS", LocalTermStatus.UNMAPPED, 1000, 500
+        )).thenReturn(List.of());
+        when(standardTermRepository.pageByTenantIdsAndStatus(
+            standardSources(), "t-1", StandardTermStatus.ACTIVE, 0, 500
+        )).thenReturn(List.of(firstStandard, secondStandard));
+        when(standardTermRepository.pageByTenantIdsAndStatus(
+            standardSources(), "t-1", StandardTermStatus.ACTIVE, 500, 500
+        )).thenReturn(List.of());
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(3L), eq(4L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        int generated = runCandidateGeneration("term-gen-paged");
+
+        assertThat(generated).isEqualTo(2);
+        verify(localTermRepository, Mockito.never())
+            .findByTenantIdAndSourceSystemAndStatus(any(), any(), any());
+        verify(standardTermRepository, Mockito.never())
+            .findByTenantIdsAndStatus(any(), any(), any());
     }
 
     @Test
@@ -710,29 +878,22 @@ class TerminologyServiceTest {
             Instant.now(), "system", Instant.now(), "system"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(exactLocal, aliasLocal));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(exactStandard, aliasStandard));
+        stubCandidateGenerationPages(List.of(exactLocal, aliasLocal), List.of(exactStandard, aliasStandard));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
         )).thenReturn(Optional.empty());
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(
-            candidateGenerationRequest("t-1", false)
-        );
+        int generated = runCandidateGeneration("term-gen-exact-only", false);
 
-        assertThat(response.generatedCount()).isEqualTo(1);
-        assertThat(response.candidates())
-            .singleElement()
-            .satisfies(candidate -> {
-                assertThat(candidate.localTermId()).isEqualTo(1L);
-                assertThat(candidate.standardTermId()).isEqualTo(2L);
-                assertThat(candidate.semanticMatchScore()).isEqualTo(1.0);
-                assertThat(candidate.evidenceText()).contains("精确编码");
-            });
-        verify(candidateRepository).save(any(MappingCandidate.class));
+        assertThat(generated).isEqualTo(1);
+        ArgumentCaptor<MappingCandidate> exactCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(exactCaptor.capture());
+        assertThat(exactCaptor.getValue().localTermId()).isEqualTo(1L);
+        assertThat(exactCaptor.getValue().standardTermId()).isEqualTo(2L);
+        assertThat(exactCaptor.getValue().confidence()).isEqualTo(1.0);
+        assertThat(exactCaptor.getValue().evidenceText()).contains("精确编码");
+        assertThat(exactCaptor.getValue().generationJobCode()).isEqualTo("term-gen-exact-only");
         verify(highRiskRuleRepository, Mockito.never()).findActiveByTenantIdAndCategory(any(), any());
     }
 
@@ -745,23 +906,21 @@ class TerminologyServiceTest {
             2L, "LOINC", "718-7", TermCategory.LAB, "血红蛋白", "hgb|hemoglobin"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(standardMatch));
+        stubCandidateGenerationPages(List.of(local), List.of(standardMatch));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
         )).thenReturn(Optional.empty());
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-exact-priority");
 
-        assertThat(response.generatedCount()).isEqualTo(1);
+        assertThat(generated).isEqualTo(1);
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(candidateCaptor.capture());
         MappingCandidate created = candidateCaptor.getValue();
         assertThat(created.confidence()).isEqualTo(1.0);
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.LOW);
+        assertThat(created.generationJobCode()).isEqualTo("term-gen-exact-priority");
         assertThat(created.evidenceText()).contains("确定性语义匹配", "精确编码");
         assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
     }
@@ -775,23 +934,21 @@ class TerminologyServiceTest {
             2L, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "naogengsi"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(standardMatch));
+        stubCandidateGenerationPages(List.of(local), List.of(standardMatch));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
         )).thenReturn(Optional.empty());
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-code-family");
 
-        assertThat(response.generatedCount()).isEqualTo(1);
+        assertThat(generated).isEqualTo(1);
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(candidateCaptor.capture());
         MappingCandidate created = candidateCaptor.getValue();
         assertThat(created.confidence()).isEqualTo(0.82);
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.MEDIUM);
+        assertThat(created.generationJobCode()).isEqualTo("term-gen-code-family");
         assertThat(created.evidenceText()).contains("确定性语义匹配", "编码族");
         assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
     }
@@ -808,10 +965,7 @@ class TerminologyServiceTest {
             3L, "ICD-10", "I63.901", TermCategory.DIAGNOSIS, "脑梗死急性期", "急性脑梗死|脑梗死急性期"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(icdA, icdB));
+        stubCandidateGenerationPages(List.of(local), List.of(icdA, icdB));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
         )).thenReturn(Optional.empty());
@@ -821,15 +975,16 @@ class TerminologyServiceTest {
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
         when(conflictRepository.save(any(MappingConflict.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-conflict");
 
-        assertThat(response.generatedCount()).isEqualTo(2);
+        assertThat(generated).isEqualTo(2);
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository, Mockito.times(2)).save(candidateCaptor.capture());
         assertThat(candidateCaptor.getAllValues())
             .allSatisfy(saved -> {
                 assertThat(saved.conflictFlag()).isTrue();
                 assertThat(saved.status()).isEqualTo(MappingCandidateStatus.PENDING);
+                assertThat(saved.generationJobCode()).isEqualTo("term-gen-conflict");
             });
 
         ArgumentCaptor<MappingConflict> conflictCaptor = ArgumentCaptor.forClass(MappingConflict.class);
@@ -849,10 +1004,7 @@ class TerminologyServiceTest {
             StandardTerm standard,
             HighRiskRule rule,
             String expectedEvidence) {
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(standard));
+        stubCandidateGenerationPages(List.of(local), List.of(standard));
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory("t-1", local.category()))
             .thenReturn(List.of(rule));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
@@ -860,22 +1012,17 @@ class TerminologyServiceTest {
         )).thenReturn(Optional.empty());
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-high-risk-" + caseName.hashCode());
 
-        assertThat(response.generatedCount()).isEqualTo(1);
-        assertThat(response.candidates())
-            .singleElement()
-            .satisfies(candidate -> {
-                assertThat(candidate.highRiskFlag()).isTrue();
-                assertThat(candidate.riskLevel()).isEqualTo(TermRiskLevel.HIGH);
-                assertThat(candidate.evidenceText()).contains(expectedEvidence, "禁止批量确认", "二次确认");
-            });
+        assertThat(generated).isEqualTo(1);
 
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(candidateCaptor.capture());
         MappingCandidate created = candidateCaptor.getValue();
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.HIGH);
+        assertThat(created.generationJobCode()).startsWith("term-gen-high-risk-");
         assertThat(created.evidenceText()).contains("高危近似判别", expectedEvidence);
+        assertThat(created.evidenceText()).contains("禁止批量确认", "二次确认");
         assertThat(created.evidenceText()).doesNotContain("LCS");
     }
 
@@ -888,10 +1035,7 @@ class TerminologyServiceTest {
             2L, "YPBM", "NAPROXEN", TermCategory.DRUG, "萘普生片", "naproxen"
         );
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(standard));
+        stubCandidateGenerationPages(List.of(local), List.of(standard));
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory("t-1", TermCategory.DRUG))
             .thenReturn(List.of(highRiskRule(
                 2L, "MED-C1-K-NA", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, TermCategory.DRUG,
@@ -899,10 +1043,9 @@ class TerminologyServiceTest {
                 "钾/钠高危近似"
             )));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-no-short-risk");
 
-        assertThat(response.generatedCount()).isZero();
-        assertThat(response.candidates()).isEmpty();
+        assertThat(generated).isZero();
         verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
     }
 
@@ -911,19 +1054,15 @@ class TerminologyServiceTest {
         LocalTerm local = localTerm(1L); // 与“血红蛋白”有“蛋白”字符重合，但医学语义不同
         StandardTerm hemoglobin = standardTerm(2L, TermCategory.LAB);
 
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-        when(standardTermRepository.findByTenantIdsAndStatus(standardSources(), "t-1", StandardTermStatus.ACTIVE))
-            .thenReturn(List.of(hemoglobin));
+        stubCandidateGenerationPages(List.of(local), List.of(hemoglobin));
         when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
             eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
         )).thenReturn(Optional.empty());
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        int generated = runCandidateGeneration("term-gen-no-overlap");
 
-        assertThat(response.generatedCount()).isZero();
-        assertThat(response.candidates()).isEmpty();
+        assertThat(generated).isZero();
         verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
     }
 
@@ -1000,6 +1139,31 @@ class TerminologyServiceTest {
         return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
     }
 
+    private void stubCandidateGenerationPages(List<LocalTerm> localTerms, List<StandardTerm> standardTerms) {
+        when(localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+            "t-1", "LIS", LocalTermStatus.UNMAPPED, 0, 500
+        )).thenReturn(localTerms);
+        when(localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+            "t-1", "LIS", LocalTermStatus.UNMAPPED, 500, 500
+        )).thenReturn(List.of());
+        when(standardTermRepository.pageByTenantIdsAndStatus(
+            standardSources(), "t-1", StandardTermStatus.ACTIVE, 0, 500
+        )).thenReturn(standardTerms);
+        when(standardTermRepository.pageByTenantIdsAndStatus(
+            standardSources(), "t-1", StandardTermStatus.ACTIVE, 500, 500
+        )).thenReturn(List.of());
+    }
+
+    private int runCandidateGeneration(String jobCode) {
+        return runCandidateGeneration(jobCode, true);
+    }
+
+    private int runCandidateGeneration(String jobCode, Boolean semanticAssistEnabled) {
+        return service.generateCandidateRowsForJob(
+            "t-1", "u-99", "LIS", null, semanticAssistEnabled, jobCode, Instant.now()
+        );
+    }
+
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId) {
         return candidateGenerationRequest(tenantId, null);
     }
@@ -1049,7 +1213,7 @@ class TerminologyServiceTest {
         return new MappingCandidate(
             id, "t-1", 1L, 2L, 0.96, MappingCandidateSource.RULE,
             riskLevel, "同义词 + 单位一致", false, status, null,
-            null, null, now, "system", now, "system"
+            null, null, now, "system", now, "system", null
         );
     }
 }

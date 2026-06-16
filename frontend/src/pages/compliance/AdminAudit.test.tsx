@@ -201,7 +201,16 @@ describe("AdminAudit", () => {
         menuKeys: ["admin-audit"],
       }) as never,
     );
-    vi.mocked(useExportApprovals).mockReturnValue(query(approvals) as never);
+    vi.mocked(useExportApprovals).mockReturnValue(
+      query({
+        items: approvals,
+        page: 1,
+        size: 20,
+        total: approvals.length,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
     vi.mocked(useRequestExportApproval).mockReturnValue({
       mutateAsync: requestApproval,
       isPending: false,
@@ -275,7 +284,10 @@ describe("AdminAudit", () => {
     render(<AdminAudit />);
 
     expect(screen.getByText("auditor-1")).toBeInTheDocument();
-    expect(useExportApprovals).toHaveBeenCalledWith({ resourceType: "AUDIT_EVENT" }, false);
+    expect(useExportApprovals).toHaveBeenCalledWith(
+      { resourceType: "AUDIT_EVENT", page: 1, size: 20 },
+      false,
+    );
     expect(screen.queryByRole("button", { name: "申请导出" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "导出审批" })).not.toBeInTheDocument();
   });

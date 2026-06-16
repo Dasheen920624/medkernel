@@ -10,5 +10,6 @@ public record IntegrationDataContractFieldSchema(
     String unit,
     String codeSystem,
     boolean required,
-    boolean derived) {
+    boolean derived,
+    boolean externalWritable) {
 }

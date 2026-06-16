@@ -222,6 +222,23 @@ class TenantPilotServiceTest {
         service.assertOnboardingReady(tenantId);
     }
 
+    @Test
+    void onboardingReadinessAllowsOpeningWhenTenantReleasedPackageExistsWithoutTenantSnapshot() {
+        seedReadinessPrerequisitesWithTenantReleasedPackage();
+
+        OnboardingReadiness readiness = service.getOnboardingReadiness(tenantId);
+
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.blockers()).isEmpty();
+        assertThat(readiness.steps())
+            .filteredOn(step -> "ASSETS".equals(step.key()))
+            .singleElement()
+            .satisfies(step -> {
+                assertThat(step.status()).isEqualTo("DONE");
+                assertThat(step.evidence()).contains("租户配置资产包");
+            });
+    }
+
     private void seedAllReadinessPrerequisites() {
         Instant now = Instant.now();
         OrgUnit tenant = orgUnitRepo.save(org(null, OrgLevel.TENANT, "TENANT-PILOT", "/TENANT-PILOT"));
@@ -255,6 +272,38 @@ class TenantPilotServiceTest {
         ));
         releasePlanRepo.save(new ReleasePlan(
             null, "plan-gray-01", tenantId, "pkg-platform-readiness-01", hospital.id(),
+            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
+            now, actor, now, actor, traceId
+        ));
+    }
+
+    private void seedReadinessPrerequisitesWithTenantReleasedPackage() {
+        Instant now = Instant.now();
+        OrgUnit tenant = orgUnitRepo.save(org(null, OrgLevel.TENANT, "TENANT-PILOT", "/TENANT-PILOT"));
+        OrgUnit group = orgUnitRepo.save(org(tenant.id(), OrgLevel.REGION, "GROUP-PILOT", "/TENANT-PILOT/GROUP-PILOT"));
+        OrgUnit hospital = orgUnitRepo.save(org(group.id(), OrgLevel.FACILITY, "HOSP-PILOT", "/TENANT-PILOT/GROUP-PILOT/HOSP-PILOT"));
+
+        credentialRepo.save(new PlatformCredential(
+            null, "cred-pilot-tenant-package", tenantId, "doctor-tenant-package", "doctor-tenant-package",
+            "bcrypt:test", "ACTIVE", "N", null,
+            now, actor, now, actor, traceId
+        ));
+        roleAssignmentRepo.save(new UserRoleAssignment(
+            null, tenantId, "doctor-tenant-package", RoleCode.CLINICAL_DECISION_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
+            "Y", now, actor, now, actor
+        ));
+        adapterRepo.save(new IntegrationAdapter(
+            null, "adapter-his-tenant-package", tenantId, "HIS 主数据接入", "HTTP",
+            "ACTIVE", "{\"endpoint\":\"https://his.example.invalid\"}", "NOT_CONNECTED", 0L,
+            null, now, actor, now, actor
+        ));
+        packageRepo.save(new KnowledgePackage(
+            null, "pkg-tenant-readiness-01", tenantId, "PKG.TENANT", "1.0.0",
+            "租户自有配置资产包", "租户配置资产", KnowledgePackageStatus.ACTIVE,
+            now, actor, now, actor, traceId
+        ));
+        releasePlanRepo.save(new ReleasePlan(
+            null, "plan-gray-tenant-package", tenantId, "pkg-tenant-readiness-01", hospital.id(),
             ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
             now, actor, now, actor, traceId
         ));

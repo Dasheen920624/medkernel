@@ -21,6 +21,8 @@ import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.InheritancePropagation;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -239,16 +241,20 @@ public class KnowledgeCustomizationService {
     }
 
     /**
-     * 查询当前租户的全部知识派生血缘。
+     * 分页查询当前租户的知识派生血缘。
      */
     @Transactional(readOnly = true)
-    public List<KnowledgeCustomizationResponse> list() {
+    public PageResponse<KnowledgeCustomizationResponse> list(PageRequest pageRequest) {
+        PageRequest page = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String tenantId = tenantId();
-        return customizations.findByTenantIdOrderByUpdatedAtDesc(tenantId).stream()
+        List<KnowledgeCustomizationResponse> items = customizations
+            .pageByTenantId(tenantId, page.offset(), page.safeSize())
+            .stream()
             .map(item -> organizations.findByTenantIdAndId(tenantId, item.targetOrgUnitId())
                 .map(org -> response(item, org))
                 .orElseGet(() -> response(item, null)))
             .toList();
+        return PageResponse.of(items, page, customizations.countByTenantId(tenantId));
     }
 
     /**

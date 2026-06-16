@@ -10,8 +10,24 @@ const apiMocks = vi.hoisted(() => ({
   ruleListData: { items: [], total: 0 } as unknown,
   ruleDetailData: null as unknown,
   conditionFragmentsData: { items: [], total: 0 } as unknown,
+  conditionFragmentRequests: [] as Array<Record<string, unknown> | undefined>,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
+  packagesData: {
+    items: [
+      {
+        packageId: "package-rule",
+        packageCode: "PKG.RULE",
+        packageVersion: "pkg-2026.06",
+        name: "临床规则包",
+        status: "DRAFT",
+        assetTypes: ["RULE"],
+        itemCount: 0,
+      },
+    ],
+    total: 1,
+  } as unknown,
+  packageRequests: [] as Array<Record<string, unknown> | undefined>,
   impactData: null as unknown,
   shadowStatsData: null as unknown,
   backtestData: null as unknown,
@@ -172,12 +188,19 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
-  useConditionFragments: () => ({
-    data: apiMocks.conditionFragmentsData,
-    isLoading: false,
-    isError: false,
-    error: null,
-  }),
+  usePackages: (params?: Record<string, unknown>) => {
+    apiMocks.packageRequests.push(params);
+    return { data: apiMocks.packagesData, isLoading: false, isError: false };
+  },
+  useConditionFragments: (params?: Record<string, unknown>) => {
+    apiMocks.conditionFragmentRequests.push(params);
+    return {
+      data: apiMocks.conditionFragmentsData,
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+  },
   useCreateConditionFragment: () => ({
     mutateAsync: apiMocks.createConditionFragment,
     isPending: false,
@@ -432,6 +455,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.driftData = null;
     apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
+    apiMocks.packageRequests = [];
+    apiMocks.conditionFragmentRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
     apiMocks.refetchBacktest.mockReset();
@@ -458,6 +483,94 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     expect(dialog.closest(".ant-modal")).toHaveStyle({
       width: "min(920px, calc(100vw - 32px))",
     });
+  });
+
+  it("创建规则时从已存在配置包选择标准上下文包版本", async () => {
+    renderRuleDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+    fireEvent.focus(within(dialog).getByLabelText("标准上下文包版本"));
+    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+      target: { value: "pkg" },
+    });
+
+    expect(await screen.findByText("临床规则包（pkg-2026.06）")).toBeInTheDocument();
+  });
+
+  it("规则包版本选择器通过小页服务端搜索加载", async () => {
+    renderRuleDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+    expect(apiMocks.packageRequests).toContainEqual({
+      page: 1,
+      size: 20,
+      assetType: "RULE",
+      keyword: undefined,
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+      target: { value: "pkg" },
+    });
+
+    await waitFor(() =>
+      expect(apiMocks.packageRequests).toContainEqual({
+        page: 1,
+        size: 20,
+        assetType: "RULE",
+        keyword: "pkg",
+      }),
+    );
+    expect(apiMocks.packageRequests).not.toContainEqual({
+      page: 1,
+      size: 100,
+      assetType: "RULE",
+    });
+  });
+
+  it("条件片段库通过小页服务端搜索加载", async () => {
+    const user = userEvent.setup();
+    renderRuleDefinitions();
+
+    await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+      target: { value: "pkg-2026.06" },
+    });
+    await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+    await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
+
+    const fragmentLibraryTitle = await screen.findByText("条件片段库");
+    const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
+    expect(fragmentLibraryDrawer).not.toBeNull();
+    expect(apiMocks.conditionFragmentRequests).toContainEqual({
+      packageVersion: "pkg-2026.06",
+      page: 1,
+      size: 20,
+      sort: "fragmentCode,asc",
+    });
+
+    const fragmentLibrary = within(fragmentLibraryDrawer as HTMLElement);
+    fireEvent.change(fragmentLibrary.getByLabelText("检索条件片段"), {
+      target: { value: "renal" },
+    });
+
+    await waitFor(() =>
+      expect(apiMocks.conditionFragmentRequests).toContainEqual({
+        packageVersion: "pkg-2026.06",
+        keyword: "renal",
+        page: 1,
+        size: 20,
+        sort: "fragmentCode,asc",
+      }),
+    );
+    expect(apiMocks.conditionFragmentRequests).not.toContainEqual(
+      expect.objectContaining({ size: 100 }),
+    );
   });
 
   it(
@@ -880,7 +993,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         target: { value: "院内已审核心血管诊疗规范 2026" },
       });
       fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "1.0.0" },
+        target: { value: "pkg-2026.06" },
       });
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       fireEvent.click(within(dialog).getByText("适用域与生效"));
@@ -932,7 +1045,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             priority: 100,
             suppressedBy: undefined,
             dedupeWindowSeconds: 0,
-            packageVersion: "1.0.0",
+            packageVersion: "pkg-2026.06",
             dslJson: expect.objectContaining({
               trigger: "result-review",
               applicability: {

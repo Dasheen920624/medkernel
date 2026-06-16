@@ -34,6 +34,8 @@ import com.medkernel.engine.terminology.TermMapping;
 import com.medkernel.engine.terminology.TermMappingRepository;
 import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.mpi.MpiPatientRepository;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.RequestContext;
@@ -131,8 +133,17 @@ public class IntegrationService {
      * @return 适配器实体列表
      */
     @Transactional(readOnly = true)
-    public List<IntegrationAdapter> getAdapters(String tenantId) {
-        return adapterRepository.findAllByTenantId(tenantId);
+    public PageResponse<IntegrationAdapter> getAdapters(String tenantId, PageRequest pageReq) {
+        PageRequest req = pageReq != null ? pageReq : PageRequest.defaults();
+        long total = adapterRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(req);
+        }
+        return PageResponse.of(
+            adapterRepository.pageByTenantId(tenantId, req.offset(), req.safeSize()),
+            req,
+            total
+        );
     }
 
     /**

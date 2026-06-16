@@ -373,6 +373,30 @@ describe("PatientPathways", () => {
     expect(screen.queryByText("暂无患者路径实例")).not.toBeInTheDocument();
   });
 
+  it("loads published pathway references through small server-side search pages", () => {
+    renderPatientPathways();
+
+    expect(mockUsePathwayTemplates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "PUBLISHED",
+        keyword: undefined,
+        page: 1,
+        size: 20,
+      }),
+    );
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assetType: "PATHWAY",
+        status: "PUBLISHED",
+        keyword: "sp-1",
+        page: 1,
+        size: 20,
+      }),
+    );
+    expect(mockUsePathwayTemplates.mock.calls.some(([params]) => params?.size === 100)).toBe(false);
+    expect(mockUsePackages.mock.calls.some(([params]) => params?.size === 100)).toBe(false);
+  });
+
   it("enters a pathway from an ACTIVE context snapshot without manual patient identifiers", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
@@ -462,6 +486,22 @@ describe("PatientPathways", () => {
     expect(refetchClocks).toHaveBeenCalled();
     expect(refetchVariances).toHaveBeenCalled();
     expect(refetchPathways).toHaveBeenCalled();
+  });
+
+  it("blocks pathway advancement when the template package version cannot be resolved", async () => {
+    const user = userEvent.setup();
+    mockUsePackages.mockReturnValue({
+      data: { items: [], total: 0 },
+    } as unknown as ReturnType<typeof usePackages>);
+
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
+    await user.click(screen.getByRole("combobox", { name: "指定流转目标节点" }));
+    await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
+    await user.click(screen.getByRole("button", { name: /完成当前节点并推进/ }));
+
+    expect(advancePathway).not.toHaveBeenCalled();
   });
 
   it("records a variance reason through the backend mutation", async () => {

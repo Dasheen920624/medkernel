@@ -44,6 +44,8 @@ import { customerDisplayText, customerEnumLabel } from "@/shared/config/customer
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { Text } = Typography;
+const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
+const AUDIT_INDICATOR_REFERENCE_PAGE_SIZE = 20;
 
 type TimeScope = "THIS_MONTH" | "LAST_7_DAYS" | "ALL";
 
@@ -82,6 +84,8 @@ export default function InsuranceAudit() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [departmentSearch, setDepartmentSearch] = useState("");
+  const [indicatorSearch, setIndicatorSearch] = useState("");
   const [form] = Form.useForm<AuditFormValues>();
 
   const issueParams = useMemo<InsuranceIssuesQueryParams>(() => {
@@ -96,9 +100,24 @@ export default function InsuranceAudit() {
   }, [severity, status, timeScope]);
 
   const issuesQuery = useInsuranceIssues(issueParams);
-  const departmentsQuery = useOrgUnits({ page: 1, size: 100, sort: "name,asc" });
+  const departmentKeyword = departmentSearch.trim();
+  const departmentsQuery = useOrgUnits({
+    page: 1,
+    size: DEPARTMENT_REFERENCE_PAGE_SIZE,
+    sort: "name,asc",
+    level: "DEPARTMENT",
+    status: "ACTIVE",
+    ...(departmentKeyword ? { keyword: departmentKeyword } : {}),
+  });
+  const indicatorKeyword = indicatorSearch.trim();
   const indicatorsQuery = useEvaluationIndicators(
-    { status: "ACTIVE", page: 1, size: 100, sort: "name,asc" },
+    {
+      status: "ACTIVE",
+      ...(indicatorKeyword ? { indicatorCode: indicatorKeyword } : {}),
+      page: 1,
+      size: AUDIT_INDICATOR_REFERENCE_PAGE_SIZE,
+      sort: "name,asc",
+    },
     { enabled: true },
   );
   const departmentOptions = (departmentsQuery.data?.items ?? [])
@@ -355,7 +374,9 @@ export default function InsuranceAudit() {
                 >
                   <Select
                     showSearch
-                    optionFilterProp="label"
+                    filterOption={false}
+                    onSearch={setDepartmentSearch}
+                    onClear={() => setDepartmentSearch("")}
                     placeholder="选择责任科室"
                     options={departmentOptions}
                     loading={departmentsQuery.isLoading}
@@ -369,7 +390,10 @@ export default function InsuranceAudit() {
                 >
                   <Select
                     showSearch
-                    optionFilterProp="label"
+                    allowClear
+                    filterOption={false}
+                    onSearch={setIndicatorSearch}
+                    onClear={() => setIndicatorSearch("")}
                     placeholder="选择已生效指标"
                     options={indicatorOptions}
                     loading={indicatorsQuery.isLoading}

@@ -135,6 +135,32 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
       render: (cs?: string | null) => (cs ? <Tag color="cyan">{cs}</Tag> : "—"),
     },
     {
+      title: "接入字段",
+      key: "contract",
+      width: 150,
+      render: (_v: unknown, record: ContextFieldDescriptor) =>
+        record.payloadKey && record.propertyName
+          ? `${record.payloadKey}.${record.propertyName}`
+          : "—",
+    },
+    {
+      title: "Schema",
+      dataIndex: "jsonSchemaType",
+      width: 90,
+      render: (type?: string | null) => type || "—",
+    },
+    {
+      title: "接入",
+      dataIndex: "externalWritable",
+      width: 90,
+      render: (externalWritable?: boolean | null) =>
+        externalWritable === false ? (
+          <Tag color="orange">派生</Tag>
+        ) : (
+          <Tag color="green">可接入</Tag>
+        ),
+    },
+    {
       title: "来源",
       dataIndex: "source",
       width: 90,

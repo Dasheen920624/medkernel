@@ -65,6 +65,37 @@ class AuthoringAssetLibraryControllerTest {
     }
 
     @Test
+    void listEndpointAllowsFollowupReadersForFollowupAssets() throws Exception {
+        when(service.list(any(AuthoringAssetLibraryQuery.class)))
+            .thenReturn(PageResponse.of(List.of(item()), new PageRequest(0, 20, null), 1));
+
+        mvc.perform(get("/api/v1/engine/authoring/assets")
+                .queryParam("assetType", "FOLLOWUP")
+                .with(followupReadJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void listEndpointAllowsRulePathwayReadersToQueryAllPermittedAssets() throws Exception {
+        when(service.list(any(AuthoringAssetLibraryQuery.class)))
+            .thenReturn(PageResponse.of(List.of(item()), new PageRequest(0, 20, null), 1));
+
+        mvc.perform(get("/api/v1/engine/authoring/assets")
+                .with(platformKnowledgeReadJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void listEndpointRejectsFollowupOnlyReaderForRuleAssets() throws Exception {
+        mvc.perform(get("/api/v1/engine/authoring/assets")
+                .queryParam("assetType", "RULE")
+                .with(followupReadJwt()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void profileEndpointSavesCategoryAndTags() throws Exception {
         when(service.updateProfile(
                 eq(VersionedAssetType.CONDITION_FRAGMENT),
@@ -187,5 +218,21 @@ class AuthoringAssetLibraryControllerTest {
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("medical_affairs")))
             .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"));
+    }
+
+    private static RequestPostProcessor followupReadJwt() {
+        return jwt().jwt(token -> token
+                .subject("implementation-operator")
+                .claim("tenant_id", "tenant-A")
+                .claim("roles", List.of("implementation-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
+    }
+
+    private static RequestPostProcessor platformKnowledgeReadJwt() {
+        return jwt().jwt(token -> token
+                .subject("platform-knowledge-governor")
+                .claim("tenant_id", "tenant-A")
+                .claim("roles", List.of("platform-knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_KNOWLEDGE_GOVERNOR"));
     }
 }

@@ -2,9 +2,13 @@ package com.medkernel.engine.knowledge.diagnosis;
 
 import java.util.List;
 
+import com.medkernel.engine.knowledge.Citation;
+import com.medkernel.engine.knowledge.CitationRepository;
 import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
 import com.medkernel.engine.knowledge.KnowledgeIdentityService;
+import com.medkernel.engine.terminology.StandardTermRepository;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionStatus;
@@ -22,14 +26,34 @@ import org.springframework.stereotype.Service;
 @Service
 public class DiagnosisReferenceValidator {
 
+    private static final List<String> FINDING_DICTIONARIES = List.of(
+        "TERM.DIAGNOSIS",
+        "TERM.LAB",
+        "TERM.DRUG",
+        "TERM.PROCEDURE");
+
     private final KnowledgeIdentityService identities;
     private final AssetVersionRepository assetVersions;
+    private final StandardTermRepository standardTerms;
+    private final CitationRepository citations;
 
     public DiagnosisReferenceValidator(
             KnowledgeIdentityService identities,
-            AssetVersionRepository assetVersions) {
+            AssetVersionRepository assetVersions,
+            StandardTermRepository standardTerms,
+            CitationRepository citations) {
         this.identities = identities;
         this.assetVersions = assetVersions;
+        this.standardTerms = standardTerms;
+        this.citations = citations;
+    }
+
+    public void validateCriterion(KnowledgeAssetVersion diagnosisVersion, String findingTermCode, Long citationId) {
+        String tenantId = currentTenant();
+        validateFindingTerm(tenantId, findingTermCode);
+        if (citationId != null) {
+            validateCitation(tenantId, diagnosisVersion, citationId);
+        }
     }
 
     public void validateDifferential(Long sourceIdentityId, Long targetIdentityId) {
@@ -64,6 +88,33 @@ public class DiagnosisReferenceValidator {
         }
     }
 
+    private void validateFindingTerm(String tenantId, String rawFindingTermCode) {
+        String findingTermCode = rawFindingTermCode == null ? "" : rawFindingTermCode.trim();
+        if (findingTermCode.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "诊断标准发现项必须填写 TERM-01 标准术语编码");
+        }
+        List<String> tenantIds = standardTermSources(tenantId);
+        for (String dictionary : FINDING_DICTIONARIES) {
+            if (standardTerms.findFirstActiveByTenantIdsAndStandardSystemAndTermCode(
+                    tenantIds, tenantId, dictionary, findingTermCode).isPresent()) {
+                return;
+            }
+        }
+        throw new ApiException(
+            ErrorCode.VALIDATION_FAILED,
+            "诊断标准发现项 " + findingTermCode + " 未绑定可运行的 TERM-01 标准术语");
+    }
+
+    private void validateCitation(String tenantId, KnowledgeAssetVersion diagnosisVersion, Long citationId) {
+        Citation citation = citations.findByTenantIdAndId(tenantId, citationId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "诊断标准证据引用不存在 id=" + citationId));
+        if (!diagnosisVersion.id().equals(citation.assetVersionId())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "诊断标准证据引用不属于当前诊断版本");
+        }
+    }
+
     private void validateActiveKnowledge(String targetRef) {
         try {
             KnowledgeIdentity target = identities.getByCode(targetRef);
@@ -82,6 +133,13 @@ public class DiagnosisReferenceValidator {
         List<AssetVersion> active = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             tenantId, assetType, targetRef, AssetVersionStatus.PUBLISHED);
         return active != null && !active.isEmpty();
+    }
+
+    private static List<String> standardTermSources(String tenantId) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return List.of(PlatformTenant.ID);
+        }
+        return List.of(PlatformTenant.ID, tenantId);
     }
 
     private String currentTenant() {

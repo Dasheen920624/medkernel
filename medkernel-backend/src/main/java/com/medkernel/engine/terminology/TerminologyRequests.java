@@ -337,7 +337,8 @@ record TerminologyCandidateResponse(
     TermRiskLevel riskLevel,
     MappingCandidateSource source,
     MappingCandidateStatus status,
-    String evidenceText
+    String evidenceText,
+    String generationJobCode
 ) {
     static TerminologyCandidateResponse from(MappingCandidate candidate) {
         return new TerminologyCandidateResponse(
@@ -349,17 +350,9 @@ record TerminologyCandidateResponse(
             candidate.riskLevel(),
             candidate.candidateSource(),
             candidate.status(),
-            candidate.evidenceText()
+            candidate.evidenceText(),
+            candidate.generationJobCode()
         );
-    }
-}
-
-record TerminologyCandidateGenerationResponse(
-    int generatedCount,
-    List<TerminologyCandidateResponse> candidates
-) {
-    TerminologyCandidateGenerationResponse {
-        candidates = candidates == null ? List.of() : List.copyOf(candidates);
     }
 }
 

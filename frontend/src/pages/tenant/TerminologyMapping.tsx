@@ -79,6 +79,7 @@ const { Text } = Typography;
 
 const VIEW_KEY = "terminology.mapping";
 const PAGE_SIZE = 20;
+const TERMINOLOGY_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 const AUTHORING_CONTEXT_VERSION = "AUTHORING";
 const route = findRouteByPath("/terminology/mapping");
 
@@ -310,6 +311,8 @@ export default function TerminologyMapping() {
     rowCount: number;
   }>();
   const [selectedMapping, setSelectedMapping] = useState<TermMapping>();
+  const [packageSearch, setPackageSearch] = useState("");
+  const [selectedPackageId, setSelectedPackageId] = useState<string>();
   const [activeCandidate, setActiveCandidate] = useState<TermMappingCandidate>();
   const [activeConflict, setActiveConflict] = useState<MappingConflict>();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -350,7 +353,12 @@ export default function TerminologyMapping() {
     status: "PENDING",
   });
   const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
-  const packages = usePackages({ page: 0, size: 10, assetType: "TERMINOLOGY" });
+  const packages = usePackages({
+    page: 1,
+    size: TERMINOLOGY_PACKAGE_REFERENCE_PAGE_SIZE,
+    assetType: "TERMINOLOGY",
+    keyword: packageSearch || undefined,
+  });
   const releaseAdapters = usePackageReleaseAdapters(canPublish);
   const confirmCandidate = useConfirmTerminologyCandidate();
   const rejectCandidate = useRejectTerminologyCandidate();
@@ -430,7 +438,8 @@ export default function TerminologyMapping() {
     candidateItems.find((candidate) => candidate.id === activeCandidate?.id) ??
     highRiskCandidates[0] ??
     candidateItems[0];
-  const selectedPackage = packageItems[0];
+  const selectedPackage =
+    packageItems.find((item) => item.packageId === selectedPackageId) ?? packageItems[0];
   const currentPackageVersion = selectedPackage?.packageVersion;
   const requestPackageVersion = currentPackageVersion ?? AUTHORING_CONTEXT_VERSION;
   const scopeOptions = packageScopeOptions(security.data);
@@ -936,26 +945,42 @@ export default function TerminologyMapping() {
 
             <Card title="映射包发布" className={styles.sectionCard}>
               {selectedPackage ? (
-                <div className={styles.descriptionScroll}>
-                  <Descriptions column={3} size="small" bordered>
-                    <Descriptions.Item label="名称">{selectedPackage.name}</Descriptions.Item>
-                    <Descriptions.Item label="版本">
-                      {selectedPackage.packageVersion}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      <Tag>{PACKAGE_STATUS_LABEL[selectedPackage.status]}</Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="范围">
-                      {selectedPackage.primaryAssetId?.split("|").slice(1).join(":") ?? "未声明"}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="资产数">
-                      {selectedPackage.itemCount}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="包编码">
-                      <Text code>{selectedPackage.packageCode}</Text>
-                    </Descriptions.Item>
-                  </Descriptions>
-                </div>
+                <Space direction="vertical" size="middle" className="mk-full-width">
+                  <Select
+                    aria-label="选择映射包"
+                    value={selectedPackage.packageId}
+                    showSearch
+                    filterOption={false}
+                    onSearch={setPackageSearch}
+                    onChange={setSelectedPackageId}
+                    loading={packages.isLoading}
+                    options={packageItems.map((item) => ({
+                      value: item.packageId,
+                      label: `${item.name} · ${item.packageVersion}`,
+                    }))}
+                    className="mk-full-width"
+                  />
+                  <div className={styles.descriptionScroll}>
+                    <Descriptions column={3} size="small" bordered>
+                      <Descriptions.Item label="名称">{selectedPackage.name}</Descriptions.Item>
+                      <Descriptions.Item label="版本">
+                        {selectedPackage.packageVersion}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        <Tag>{PACKAGE_STATUS_LABEL[selectedPackage.status]}</Tag>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="范围">
+                        {selectedPackage.primaryAssetId?.split("|").slice(1).join(":") ?? "未声明"}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="资产数">
+                        {selectedPackage.itemCount}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="包编码">
+                        <Text code>{selectedPackage.packageCode}</Text>
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                </Space>
               ) : (
                 <Text type="secondary">暂无可发布映射包。</Text>
               )}

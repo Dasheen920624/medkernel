@@ -130,27 +130,50 @@ class TerminologyApiContractTest {
     }
 
     @Test
-    void generateCandidatesReturnsSemanticScoreAndHighRiskFlag() throws Exception {
+    void generateCandidatesReturnsAsyncJobInsteadOfCandidateRows() throws Exception {
         when(terminologyService.generateCandidates(any(TerminologyCandidateGenerationRequest.class)))
-            .thenReturn(new TerminologyCandidateGenerationResponse(
-                1,
-                List.of(new TerminologyCandidateResponse(
-                    10L, 1L, 2L, 0.44, true, TermRiskLevel.HIGH,
-                    MappingCandidateSource.RULE, MappingCandidateStatus.PENDING,
-                    "确定性相似度 0.44，需人工复核"
-                ))
+            .thenReturn(new TerminologyCandidateGenerationJob(
+                1L, "t-1", "term-job-1", "LIS", 0.6, false, "pkg-2026.06", "u-99",
+                TerminologyCandidateGenerationJobStatus.PENDING, 0, 0, null, null,
+                java.time.Instant.parse("2026-06-15T08:00:00Z"), null, null
             ));
 
         mvc.perform(post("/api/v1/engine/terminology/mappings/candidates")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(standardContextJson("""
-                    ,"sourceSystem": "LIS"
+                    ,"sourceSystem": "LIS",
+                      "minimumScore": 0.6,
+                      "semanticAssistEnabled": false
                     """)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.generatedCount").value(1))
-            .andExpect(jsonPath("$.data.candidates[0].semanticMatchScore").value(0.44))
-            .andExpect(jsonPath("$.data.candidates[0].highRiskFlag").value(true));
+            .andExpect(jsonPath("$.data.jobCode").value("term-job-1"))
+            .andExpect(jsonPath("$.data.status").value("PENDING"))
+            .andExpect(jsonPath("$.data.progress").value(0))
+            .andExpect(jsonPath("$.data.generatedCount").value(0))
+            .andExpect(jsonPath("$.data.candidates").doesNotExist());
+    }
+
+    @Test
+    void candidateGenerationJobStatusUsesDedicatedApi04Route() throws Exception {
+        when(terminologyService.getCandidateGenerationJob("term-job-1"))
+            .thenReturn(new TerminologyCandidateGenerationJob(
+                1L, "t-1", "term-job-1", "LIS", null, true, "pkg-2026.06", "u-99",
+                TerminologyCandidateGenerationJobStatus.SUCCEEDED, 100, 42,
+                "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
+                null, java.time.Instant.parse("2026-06-15T08:00:00Z"),
+                java.time.Instant.parse("2026-06-15T08:00:01Z"),
+                java.time.Instant.parse("2026-06-15T08:00:03Z")
+            ));
+
+        mvc.perform(get("/api/v1/engine/terminology/mappings/candidate-generation-jobs/term-job-1")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
+            .andExpect(jsonPath("$.data.generatedCount").value(42))
+            .andExpect(jsonPath("$.data.candidatePageUri").value(
+                "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1"
+            ));
     }
 
     @Test

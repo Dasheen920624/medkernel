@@ -24,6 +24,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -195,11 +196,17 @@ class DiscoveryOrchestrationServiceTest {
         DiscoveryRun row = new DiscoveryRun(7L, "tenant-1", "run-x", "阿司匹林", "knowledge.discovery",
             java.time.Instant.now(), "[]", 0, 0, "h", DiscoveryRunStatus.EMPTY, false, "user-001",
             java.time.Instant.now());
+        when(runRepository.countByTenantId("tenant-1")).thenReturn(21L);
         when(runRepository.pageByTenantId(eq("tenant-1"), anyInt(), anyInt())).thenReturn(List.of(row));
 
-        List<DiscoveryRun> runs = service.listRuns(0, 20);
+        PageResponse<DiscoveryRun> runs = service.listRuns(1, 20);
 
-        assertThat(runs).containsExactly(row);
+        assertThat(runs.items()).containsExactly(row);
+        assertThat(runs.page()).isEqualTo(1);
+        assertThat(runs.size()).isEqualTo(20);
+        assertThat(runs.total()).isEqualTo(21);
+        assertThat(runs.hasNext()).isTrue();
+        verify(runRepository).countByTenantId("tenant-1");
         verify(runRepository).pageByTenantId("tenant-1", 0, 20);
     }
 }

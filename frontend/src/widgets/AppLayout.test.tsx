@@ -235,6 +235,7 @@ const allMenuKeys = [
   "insurance-audit",
   "qc-eval-sets",
   "knowledge-governance",
+  "diagnosis-knowledge",
   "admin-users",
   "identity-bindings",
   "admin-audit",

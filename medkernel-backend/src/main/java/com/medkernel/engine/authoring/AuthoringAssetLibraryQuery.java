@@ -1,5 +1,7 @@
 package com.medkernel.engine.authoring;
 
+import java.util.Set;
+
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 
@@ -11,5 +13,15 @@ public record AuthoringAssetLibraryQuery(
     String keyword,
     String tag,
     boolean favoriteOnly,
-    PageRequest page
-) {}
+    PageRequest page,
+    Set<VersionedAssetType> allowedAssetTypes
+) {
+    public AuthoringAssetLibraryQuery(
+            VersionedAssetType assetType,
+            String keyword,
+            String tag,
+            boolean favoriteOnly,
+            PageRequest page) {
+        this(assetType, keyword, tag, favoriteOnly, page, null);
+    }
+}

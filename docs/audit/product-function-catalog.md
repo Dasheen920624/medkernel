@@ -6,9 +6,9 @@
 
 ## 1. 库存结论
 
-- 前端路由：41 项。
-- 后端菜单：31 项。
-- 页面与页内组件：45 项。
+- 前端路由：42 项。
+- 后端菜单：32 项。
+- 页面与页内组件：46 项。
 - 后端控制器：86 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
@@ -18,10 +18,11 @@
 |---|---:|
 | API_ONLY | 7 |
 | KEEP | 79 |
-| MERGE | 45 |
+| MERGE | 46 |
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
+| SPLIT | 2 |
 
 ## 2. 前端路由与客户任务裁决
 
@@ -111,6 +112,9 @@
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
 | `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
+<!-- capability:route:route@%2Fknowledge%2Fdiagnosis decision=SPLIT -->
+<!-- route:/knowledge/diagnosis -->
+| `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -170,6 +174,9 @@
 <!-- capability:menu:menu@knowledge-governance decision=MOVE -->
 <!-- menu:knowledge-governance -->
 | `knowledge-governance` | 知识审核与发布 | `knowledge-governance` | primary | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识治理 | 知识审核与发布 |
+<!-- capability:menu:menu@diagnosis-knowledge decision=SPLIT -->
+<!-- menu:diagnosis-knowledge -->
+| `diagnosis-knowledge` | 诊断知识维护 | `knowledge-governance` | primary | `MENU_DIAGNOSIS_KNOWLEDGE` | SPLIT | 知识治理 | 诊断知识维护 |
 <!-- capability:menu:menu@config-packages decision=MOVE -->
 <!-- menu:config-packages -->
 | `config-packages` | 配置包与发布 | `knowledge-governance` | primary | `MENU_CONFIG_PACKAGES` | MOVE | 知识治理 | 配置包与发布 |
@@ -303,6 +310,8 @@
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
 | `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgeMaintenance.tsx decision=MERGE -->
+| `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgePanel.tsx decision=MERGE -->
 | `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInsuranceAudit.tsx decision=RENAME -->
@@ -501,7 +510,7 @@
 <!-- capability:controller:controller@TenantEngineController decision=KEEP -->
 | `TenantEngineController` | GET /api/v1/engine/tenant/branding<br>POST /api/v1/engine/tenant/branding<br>GET /api/v1/engine/tenant/success-plan<br>POST /api/v1/engine/tenant/success-plan/transition<br>GET /api/v1/engine/tenant/implementation-steps<br>GET /api/v1/engine/tenant/onboarding-readiness | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@TerminologyController decision=MERGE -->
-| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>其余 5 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
+| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>其余 6 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ReleaseGovernanceController decision=MERGE -->
 | `ReleaseGovernanceController` | POST /api/v1/engine/versioning/releases/simulations<br>POST /api/v1/engine/versioning/releases/rollouts<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}/observations<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}:rollback<br>GET /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-batches:preview<br>POST /api/v1/engine/versioning/releases/override-batches:apply<br>其余 1 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@WorkflowNotificationController decision=KEEP -->

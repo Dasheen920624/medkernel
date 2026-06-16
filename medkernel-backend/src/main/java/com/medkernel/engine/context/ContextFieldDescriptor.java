@@ -20,6 +20,10 @@ package com.medkernel.engine.context;
  * @param unit         数值单位（无则为 {@code null}）
  * @param codeSystem   编码类字段绑定的标准字典/编码系统（如 ICD-10/LOINC/ATC；非编码字段为 {@code null}）
  * @param description  业务说明
+ * @param payloadKey   第三方接入 payload 顶层键（如 {@code observations} / {@code patient}）
+ * @param propertyName 第三方接入资源内字段名（如 {@code valueNumeric} / {@code age}）
+ * @param jsonSchemaType JSON Schema 数据类型
+ * @param externalWritable 第三方是否可直接传入；派生字段由引擎计算，必须为 {@code false}
  */
 public record ContextFieldDescriptor(
     String category,
@@ -36,5 +40,50 @@ public record ContextFieldDescriptor(
     /** 租户自定义字段的业务主键（仅 TENANT 字段有值，供前台删除）；平台字段为 {@code null}。 */
     String fieldId,
     /** 是否为求值期计算的派生字段（如 {@code patient.age} 由出生日期算得），而非原始存储字段。 */
-    boolean derived) {
+    boolean derived,
+    String payloadKey,
+    String propertyName,
+    String jsonSchemaType,
+    boolean externalWritable) {
+
+    public ContextFieldDescriptor(
+        String category,
+        String group,
+        String resourceType,
+        String fieldPath,
+        String displayName,
+        String dataType,
+        String unit,
+        String codeSystem,
+        String description,
+        String source,
+        String fieldId,
+        boolean derived) {
+        this(category, group, resourceType, fieldPath, displayName, dataType, unit, codeSystem,
+            description, source, fieldId, derived, payloadKey(fieldPath), propertyName(fieldPath),
+            jsonSchemaType(dataType), !derived);
+    }
+
+    private static String payloadKey(String fieldPath) {
+        String normalized = fieldPath == null ? "" : fieldPath.trim();
+        int dot = normalized.indexOf('.');
+        String head = dot < 0 ? normalized : normalized.substring(0, dot);
+        return head.replace("[]", "");
+    }
+
+    private static String propertyName(String fieldPath) {
+        String normalized = fieldPath == null ? "" : fieldPath.trim();
+        int dot = normalized.lastIndexOf('.');
+        String tail = dot < 0 ? normalized : normalized.substring(dot + 1);
+        return tail.replace("[]", "");
+    }
+
+    private static String jsonSchemaType(String dataType) {
+        return switch (dataType) {
+            case "number" -> "number";
+            case "boolean" -> "boolean";
+            case "list" -> "array";
+            default -> "string";
+        };
+    }
 }

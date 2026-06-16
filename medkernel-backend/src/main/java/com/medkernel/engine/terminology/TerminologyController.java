@@ -137,11 +137,12 @@ public class TerminologyController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) MappingCandidateStatus status,
             @RequestParam(required = false) TermRiskLevel riskLevel,
-            @RequestParam(required = false) Boolean conflictFlag) {
+            @RequestParam(required = false) Boolean conflictFlag,
+            @RequestParam(required = false) String generationJobCode) {
         PageRequest request = new PageRequest(page, size, sort);
         PageResponse<MappingCandidate> pageResult = service.pageCandidates(
             request,
-            new CandidateFilter(status, riskLevel, conflictFlag)
+            new CandidateFilter(status, riskLevel, conflictFlag, generationJobCode)
         );
         return ApiResult.ok(new PageResponse<>(
             pageResult.items().stream().map(TerminologyCandidateResponse::from).toList(),
@@ -154,10 +155,19 @@ public class TerminologyController {
      */
     @PostMapping("/mappings/candidates")
     @PreAuthorize("@perm.has('term.write')")
-    public ApiResult<TerminologyCandidateGenerationResponse> generateCandidates(
+    public ApiResult<TerminologyCandidateGenerationJob> generateCandidates(
             @Valid @RequestBody TerminologyCandidateGenerationRequest request) {
         validateContext(request);
         return ApiResult.ok(service.generateCandidates(request));
+    }
+
+    /**
+     * 查询候选生成任务状态；候选明细通过 candidatePageUri 指向的分页接口查看。
+     */
+    @GetMapping("/mappings/candidate-generation-jobs/{jobCode}")
+    @PreAuthorize("@perm.has('term.read')")
+    public ApiResult<TerminologyCandidateGenerationJob> candidateGenerationJob(@PathVariable String jobCode) {
+        return ApiResult.ok(service.getCandidateGenerationJob(jobCode));
     }
 
     /**

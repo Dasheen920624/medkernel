@@ -63,6 +63,7 @@ import {
   useEnterPatientPathway,
   useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
+  useTerminologyCandidateGenerationJob,
   useGrantPlugin,
   useGrayEvaluationIndicator,
   useFollowupStats,
@@ -70,6 +71,7 @@ import {
   useCreateFollowupTemplate,
   usePublishFollowupTemplate,
   useIntegrationDataContract,
+  useIntegrationAdapters,
   useIntegrationOnboardings,
   useInsuranceIssues,
   useReplayDeadLetter,
@@ -83,6 +85,7 @@ import {
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useDeprecateKnowledgeIdentity,
+  useKnowledgeCustomizations,
   useKnowledgeIdentities,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
@@ -956,6 +959,54 @@ describe("package export api helpers", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("passes server-side keywords to rule and pathway reference lists", async () => {
+    const emptyPage = { items: [], page: 1, size: 20, total: 0 };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: emptyPage } })
+      .mockResolvedValueOnce({ data: { data: emptyPage } });
+
+    const ruleHook = renderApiHook(() =>
+      useRuleDefinitions({
+        status: "PUBLISHED",
+        keyword: "CKD",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      }),
+    );
+    await waitFor(() => expect(ruleHook.result.current.data).toBe(emptyPage));
+
+    const pathwayHook = renderApiHook(() =>
+      usePathwayTemplates({
+        status: "PUBLISHED",
+        keyword: "CKD",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      }),
+    );
+    await waitFor(() => expect(pathwayHook.result.current.data).toBe(emptyPage));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/rule/rules", {
+      params: {
+        status: "PUBLISHED",
+        keyword: "CKD",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/pathway/pathway-templates", {
+      params: {
+        status: "PUBLISHED",
+        keyword: "CKD",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      },
+    });
   });
 
   it("renders rule and pathway authoring preview through the unified authoring endpoint", async () => {
@@ -2075,7 +2126,7 @@ describe("package export api helpers", () => {
 
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages", {
-      params: { page: 0, size: 10, keyword: "COPD", status: "DRAFT" },
+      params: { page: 1, size: 10, keyword: "COPD", status: "DRAFT" },
     });
   });
 
@@ -2714,13 +2765,27 @@ describe("terminology mapping api helpers", () => {
       params: { page: 0, size: 10, status: "OPEN" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/pkg/packages", {
-      params: { page: 0, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" },
+      params: { page: 1, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" },
     });
   });
 
   it("submits terminology candidate generation and confirmation with standard context fields", async () => {
     vi.mocked(apiClient.post)
-      .mockResolvedValueOnce({ data: { data: { generatedCount: 1, candidates: [] } } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            jobCode: "term-job-1",
+            sourceSystem: "LIS",
+            semanticAssistEnabled: false,
+            packageVersion: "2026.06",
+            requestedBy: "u-1",
+            status: "PENDING",
+            progress: 0,
+            generatedCount: 0,
+            candidatePageUri: null,
+          },
+        },
+      })
       .mockResolvedValueOnce({ data: { data: { id: 10, status: "CONFIRMED" } } })
       .mockResolvedValueOnce({
         data: { data: { confirmedCount: 1, confirmedCandidateIds: [11] } },
@@ -2730,12 +2795,14 @@ describe("terminology mapping api helpers", () => {
     const confirm = renderApiHook(() => useConfirmTerminologyCandidate());
     const batchConfirm = renderApiHook(() => useBatchConfirmTerminologyCandidates());
 
-    await generate.result.current.mutateAsync({
+    const generationJob = await generate.result.current.mutateAsync({
       packageVersion: "2026.06",
       sourceSystem: "LIS",
       minimumScore: 0.6,
       semanticAssistEnabled: false,
     });
+    expect(generationJob.jobCode).toBe("term-job-1");
+    expect(generationJob.status).toBe("PENDING");
     await confirm.result.current.mutateAsync({
       candidateId: 10,
       request: {
@@ -2779,6 +2846,33 @@ describe("terminology mapping api helpers", () => {
         package_version: "2026.06",
         candidateIds: [11],
       }),
+    );
+  });
+
+  it("polls terminology candidate generation job status through the API-04 route", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          jobCode: "term-job-1",
+          sourceSystem: "LIS",
+          semanticAssistEnabled: true,
+          packageVersion: "2026.06",
+          requestedBy: "u-1",
+          status: "SUCCEEDED",
+          progress: 100,
+          generatedCount: 42,
+          candidatePageUri:
+            "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
+        },
+      },
+    });
+
+    const job = renderApiHook(() => useTerminologyCandidateGenerationJob("term-job-1"));
+
+    await waitFor(() => expect(job.result.current.data?.status).toBe("SUCCEEDED"));
+    expect(job.result.current.data?.candidatePageUri).toContain("generationJobCode=term-job-1");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/terminology/mappings/candidate-generation-jobs/term-job-1",
     );
   });
 
@@ -3015,6 +3109,41 @@ describe("integration adapter api helpers", () => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
     vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("loads integration adapters through server pagination", async () => {
+    const page = {
+      items: [
+        {
+          id: 1,
+          adapterId: "his-main",
+          tenantId: "tenant-1",
+          name: "HIS 主数据接入",
+          protocolType: "REST",
+          status: "ACTIVE",
+          configJson: "{}",
+          healthStatus: "NOT_CONNECTED",
+          rttMs: 0,
+          lastHeartbeatAt: null,
+          createdAt: "2026-06-03T08:00:00Z",
+          updatedAt: "2026-06-03T08:00:00Z",
+        },
+      ],
+      page: 2,
+      size: 20,
+      total: 41,
+      hasNext: true,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useIntegrationAdapters({ page: 2, size: 20 }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(page);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/adapters", {
+      params: { page: 2, size: 20 },
+    });
   });
 
   it("loads integration onboarding lifecycle records from the SVC-INTEGRATION-01 endpoint", async () => {
@@ -3377,6 +3506,31 @@ describe("knowledge review api helpers", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it("loads institution knowledge customizations through server pagination", async () => {
+    const customizationPage = {
+      items: [
+        {
+          customizationId: "kc-1",
+          localIdentityId: 43,
+          status: "DRAFT",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: customizationPage } });
+
+    const hook = renderApiHook(() => useKnowledgeCustomizations({ page: 1, size: 20 }, true));
+
+    await waitFor(() => expect(hook.result.current.data).toBe(customizationPage));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/customizations", {
+      params: { page: 1, size: 20 },
+    });
+  });
+
   it("loads the exact provenance chain for one knowledge identity", async () => {
     const provenance = {
       identity: {
@@ -3619,7 +3773,14 @@ describe("experience foundation api helpers", () => {
     const policies = [{ policyId: "policy-1", resourceType: "clinical_case" }];
     const maskingRules = [{ ruleId: "mask-1", fieldName: "patientName" }];
     const assessment = { standardVersion: "IOT-2026", totalItems: 1, items: [] };
-    const approvals = [{ approvalId: "exp-audit-1", status: "REQUESTED" }];
+    const approvals = {
+      items: [{ approvalId: "exp-audit-1", status: "REQUESTED" }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ data: { data: systemConfigs } })
       .mockResolvedValueOnce({ data: { data: systemConfigs } })
@@ -3635,9 +3796,14 @@ describe("experience foundation api helpers", () => {
     ).toBe(policies);
     expect(await fetchMaskingRules({ resourceType: "clinical_case" })).toBe(maskingRules);
     expect(await fetchInteropAssessment("IOT-2026")).toBe(assessment);
-    expect(await fetchExportApprovals({ resourceType: "AUDIT_EVENT", status: "REQUESTED" })).toBe(
-      approvals,
-    );
+    expect(
+      await fetchExportApprovals({
+        resourceType: "AUDIT_EVENT",
+        status: "REQUESTED",
+        page: 1,
+        size: 20,
+      }),
+    ).toBe(approvals);
 
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/configs", {
       params: { prefix: "medkernel.auth." },
@@ -3655,7 +3821,32 @@ describe("experience foundation api helpers", () => {
       params: { standardVersion: "IOT-2026" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(6, "/compliance/exports", {
-      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED" },
+      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED", page: 1, size: 20 },
+    });
+  });
+
+  it("loads export approvals through server pagination", async () => {
+    const approvals = {
+      items: [{ approvalId: "exp-audit-1", status: "REQUESTED" }],
+      page: 2,
+      size: 20,
+      total: 21,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: approvals } });
+
+    await expect(
+      fetchExportApprovals({
+        resourceType: "AUDIT_EVENT",
+        status: "REQUESTED",
+        page: 2,
+        size: 20,
+      }),
+    ).resolves.toBe(approvals);
+
+    expect(apiClient.get).toHaveBeenCalledWith("/compliance/exports", {
+      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED", page: 2, size: 20 },
     });
   });
 
@@ -4060,14 +4251,22 @@ describe("auth identity api helpers", () => {
       createdAt: "2026-06-06T00:00:00Z",
       updatedAt: "2026-06-06T00:00:00Z",
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [binding] } });
+    const bindingPage = {
+      items: [binding],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: bindingPage } });
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({ data: { data: binding } })
       .mockResolvedValueOnce({
         data: { data: { ...binding, status: "UNBOUND", version: 2 } },
       });
 
-    await expect(fetchIdentityBindings()).resolves.toEqual([binding]);
+    await expect(fetchIdentityBindings({ page: 1, size: 20 })).resolves.toEqual(bindingPage);
     await expect(
       createIdentityBinding({
         userId: "doctor-1",
@@ -4084,7 +4283,9 @@ describe("auth identity api helpers", () => {
       }),
     ).resolves.toMatchObject({ status: "UNBOUND", version: 2 });
 
-    expect(apiClient.get).toHaveBeenCalledWith("/compliance/identity-bindings");
+    expect(apiClient.get).toHaveBeenCalledWith("/compliance/identity-bindings", {
+      params: { page: 1, size: 20 },
+    });
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/compliance/identity-bindings", {
       userId: "doctor-1",
       providerType: "EMPLOYEE_NO",

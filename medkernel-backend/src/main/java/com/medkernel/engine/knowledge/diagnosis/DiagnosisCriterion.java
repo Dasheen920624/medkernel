@@ -9,8 +9,9 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 诊断标准：支持 / 反对 / 必需 / 排除某诊断的发现项（引用标准术语编码）及权重。
  *
- * <p>{@code findingTermCode} 为发现项标准术语编码（TERM-01），不写死中文；
- * {@code valueConstraint} / {@code temporalConstraint} 落库但 Spec 1 暂不求值（命中到编码级，求值挂点留后续接 RuleDslEvaluator）。
+ * <p>{@code findingTermCode} 为发现项标准术语编码（TERM-01），不写死中文。
+ * {@code valueConstraint} / {@code temporalConstraint} 可在草稿期登记；B0 发布门禁会阻断含这些约束的版本，
+ * 避免运行时仍按编码级匹配而误用知识。后续接 RuleDslEvaluator 后再放开发布。
  */
 @Table("mk_diagnosis_criterion")
 public record DiagnosisCriterion(

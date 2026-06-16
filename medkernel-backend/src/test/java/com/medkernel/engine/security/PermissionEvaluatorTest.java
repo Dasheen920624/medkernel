@@ -67,6 +67,7 @@ class PermissionEvaluatorTest {
             PermissionCode.MENU_IDENTITY_BINDINGS,
             PermissionCode.MENU_IMPLEMENTATION_GUIDE,
             PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+            PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE,
             PermissionCode.MENU_CONFIG_PACKAGES,
             PermissionCode.MENU_QC_DASHBOARD,
             PermissionCode.MENU_ADMIN_AUDIT,

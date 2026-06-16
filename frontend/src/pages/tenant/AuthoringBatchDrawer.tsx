@@ -34,6 +34,7 @@ import {
   useExportAuthoringBatchPackages,
   useGenerateAuthoringBatchRules,
   useImportAuthoringBatchPackages,
+  usePackages,
   usePublishAuthoringBatchRules,
 } from "@/shared/api/hooks";
 import type {
@@ -41,6 +42,7 @@ import type {
   AuthoringBatchJobResponse,
   AuthoringBatchRuleGenerateRow,
   AuthoringBatchRuleImpactItem,
+  KnowledgePackage,
   ReleaseScopeType,
   RuleGovernanceState,
   RuleRiskLevel,
@@ -49,6 +51,8 @@ import styles from "./AuthoringBatchDrawer.module.css";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
+
+const RULE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 interface AuthoringBatchDrawerProps {
   open: boolean;
@@ -154,6 +158,8 @@ export default function AuthoringBatchDrawer({
   const { message } = AntdApp.useApp();
   const [activeTab, setActiveTab] = useState("generate");
   const [lastJob, setLastJob] = useState<AuthoringBatchJobResponse | null>(null);
+  const [rulePackageVersion, setRulePackageVersion] = useState("");
+  const [rulePackageSearch, setRulePackageSearch] = useState("");
   const [templateRuleId, setTemplateRuleId] = useState("");
   const [parameterTable, setParameterTable] = useState("");
   const [publishRuleIds, setPublishRuleIds] = useState("");
@@ -172,6 +178,13 @@ export default function AuthoringBatchDrawer({
   const [distributionScope, setDistributionScope] = useState<ReleaseScopeType>("FACILITY");
 
   const jobsQuery = useAuthoringBatchJobs({ enabled: open });
+  const normalizedRulePackageSearch = rulePackageSearch.trim();
+  const rulePackagesQuery = usePackages({
+    page: 1,
+    size: RULE_PACKAGE_REFERENCE_PAGE_SIZE,
+    assetType: "RULE",
+    ...(normalizedRulePackageSearch ? { keyword: normalizedRulePackageSearch } : {}),
+  });
   const generateMutation = useGenerateAuthoringBatchRules();
   const analyzeMutation = useAnalyzeAuthoringBatchRuleImpacts();
   const publishMutation = usePublishAuthoringBatchRules();
@@ -184,6 +197,14 @@ export default function AuthoringBatchDrawer({
       impactItems.length > 0 &&
       impactItems.filter(isHighRisk).every((item) => confirmedHighRisk.has(item.ruleId)),
     [confirmedHighRisk, impactItems],
+  );
+  const rulePackageOptions = useMemo(
+    () =>
+      (rulePackagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({
+        value: pkg.packageVersion,
+        label: `${pkg.name}（${pkg.packageVersion}）`,
+      })),
+    [rulePackagesQuery.data?.items],
   );
 
   const run = async (operation: () => Promise<AuthoringBatchJobResponse>, fallback: string) => {
@@ -201,6 +222,8 @@ export default function AuthoringBatchDrawer({
   const generateRules = async () => {
     try {
       if (!templateRuleId.trim()) throw new Error("请输入模板规则 ID");
+      const selectedPackageVersion = rulePackageVersion.trim();
+      if (!selectedPackageVersion) throw new Error("请选择规则包版本");
       const reserved = new Set([
         "ruleCode",
         "name",
@@ -210,16 +233,19 @@ export default function AuthoringBatchDrawer({
       ]);
       const rows: AuthoringBatchRuleGenerateRow[] = parseTable(parameterTable).map((row, index) => {
         if (!row.ruleCode || !row.name) throw new Error(`第 ${index + 2} 行缺少 ruleCode 或 name`);
+        if (row.packageVersion && row.packageVersion !== selectedPackageVersion) {
+          throw new Error(`第 ${index + 2} 行 packageVersion 与统一规则包版本不一致`);
+        }
         return {
           rowId: `row-${index + 1}`,
           ruleCode: row.ruleCode,
           name: row.name,
+          packageVersion: selectedPackageVersion,
           parameterBindings: Object.fromEntries(
             Object.entries(row)
               .filter(([key]) => !reserved.has(key))
               .map(([key, value]) => [key, parseValue(value)]),
           ),
-          ...(row.packageVersion ? { packageVersion: row.packageVersion } : {}),
           ...(row.applicableOrgUnitId ? { applicableOrgUnitId: row.applicableOrgUnitId } : {}),
           ...(row.changeSummary ? { changeSummary: row.changeSummary } : {}),
         };
@@ -435,6 +461,23 @@ export default function AuthoringBatchDrawer({
 
   const generatePanel = (
     <Form layout="vertical" className={styles.form}>
+      <Form.Item
+        label="规则包版本"
+        required
+        extra="批量生成的所有规则草稿会绑定同一个已存在配置包版本。"
+      >
+        <Select
+          aria-label="规则包版本"
+          showSearch
+          filterOption={false}
+          onSearch={setRulePackageSearch}
+          value={rulePackageVersion || undefined}
+          loading={rulePackagesQuery.isLoading}
+          placeholder="选择规则配置包版本"
+          options={rulePackageOptions}
+          onChange={setRulePackageVersion}
+        />
+      </Form.Item>
       <Form.Item label="模板规则 ID" required>
         <Input
           aria-label="模板规则 ID"

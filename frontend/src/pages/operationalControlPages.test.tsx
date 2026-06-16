@@ -377,7 +377,16 @@ function renderPage(page: React.ReactElement) {
 describe("operational control pages", () => {
   beforeEach(() => {
     vi.mocked(useDelegatedAuthStatus).mockReturnValue(query(delegatedAuth) as never);
-    vi.mocked(useIdentityBindings).mockReturnValue(query(identityBindings) as never);
+    vi.mocked(useIdentityBindings).mockReturnValue(
+      query({
+        items: identityBindings,
+        page: 1,
+        size: 20,
+        total: identityBindings.length,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
     vi.mocked(useLoginTenantDirectory).mockReturnValue(query(tenantDirectory) as never);
     vi.mocked(useOrgUsers).mockReturnValue(
       query({
@@ -501,6 +510,20 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
     expect(contextWarnings).toEqual([]);
   }, 15_000);
+
+  it("loads identity binding personnel selector through small server-side pages", () => {
+    renderPage(<IdentityBinding />);
+
+    expect(useIdentityBindings).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(usePersonnel).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, size: 20 }),
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(usePersonnel).not.toHaveBeenCalledWith(
+      expect.objectContaining({ size: 100 }),
+      expect.anything(),
+    );
+  });
 
   it("uses the Ant Design app context for identity binding feedback", () => {
     const source = readFileSync(

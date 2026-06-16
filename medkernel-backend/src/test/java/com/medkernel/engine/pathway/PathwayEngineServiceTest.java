@@ -487,16 +487,43 @@ class PathwayEngineServiceTest {
     void listTemplatesCanFilterRollbackHistoryByTemplateCode() {
         PathwayTemplate history = template(
             "pt-history", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.OFFLINE);
-        when(templates.listByFilter(
-                "tenant-A", PathwayTemplateStatus.OFFLINE.name(), null, null, "TPL.COPD"))
+        when(templates.countByFilter(
+                "tenant-A", PathwayTemplateStatus.OFFLINE.name(), null, null, "TPL.COPD", null))
+            .thenReturn(1L);
+        when(templates.pageByFilter(
+                "tenant-A", PathwayTemplateStatus.OFFLINE.name(), null, null, "TPL.COPD", null, 0, 20))
             .thenReturn(List.of(history));
 
         PageResponse<PathwayTemplate> response = service.listTemplates(
-            new PathwayTemplateFilter(PathwayTemplateStatus.OFFLINE, null, null, "TPL.COPD"),
+            new PathwayTemplateFilter(PathwayTemplateStatus.OFFLINE, null, null, "TPL.COPD", null),
             PageRequest.defaults());
 
         assertThat(response.items()).extracting(PathwayTemplate::templateId)
             .containsExactly("pt-history");
+        verify(templates, never()).listByFilter(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void listTemplatesUsesEffectiveRepositoryPagingForCustomerTenantWithoutLoadingSnapshots() {
+        PathwayTemplate localOverride = template(
+            "pt-local", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayTemplate platformOnly = template(
+            "pt-platform-stroke", "t-1", "TPL.STROKE", 1, PathwayTemplateStatus.PUBLISHED);
+        when(templates.countEffectiveByFilter(
+            "tenant-A", PlatformTenant.ID, null, PathwayTemplateStatus.PUBLISHED.name(), null, null, null, "%路径%"))
+            .thenReturn(2L);
+        when(templates.pageEffectiveByFilter(
+            "tenant-A", PlatformTenant.ID, null, PathwayTemplateStatus.PUBLISHED.name(), null, null, null, "%路径%", 0, 20))
+            .thenReturn(List.of(localOverride, platformOnly));
+
+        PageResponse<PathwayTemplate> response = service.listTemplates(
+            new PathwayTemplateFilter(null, null, null, null, "路径"),
+            PageRequest.defaults());
+
+        assertThat(response.total()).isEqualTo(2L);
+        assertThat(response.items()).extracting(PathwayTemplate::templateId)
+            .containsExactly("pt-local", "pt-platform-stroke");
+        verify(templates, never()).listByFilter(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1338,6 +1365,48 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void enterPatientPathwayUsesCanonicalObservationPathForEntryIncludeCriteria() {
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithEntryCriteria(PathwayEntryMode.AUTO_SUGGEST,
+                "{\"include\":{\"all\":[{\"fact\":\"observations[].valueNumeric\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node("ASSESS", 10, false)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "ctx-active-1", "pt-1", null, "pkg-2026.06"));
+
+        assertThat(response.patientPathway().patientPathwayId()).startsWith("pp-");
+        verify(patientPathways).save(any());
+        verify(clocks).save(any());
+    }
+
+    @Test
+    void enterPatientPathwayUsesCanonicalObservationPathForEntryExcludeCriteria() {
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithEntryCriteria(PathwayEntryMode.AUTO_SUGGEST,
+                "{\"include\":{\"all\":[{\"fact\":\"patient.mpi\",\"operator\":\"equals\",\"value\":\"patient-1\"}]},"
+                    + "\"exclude\":{\"any\":[{\"fact\":\"observations[].valueNumeric\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node("ASSESS", 10, false)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
+
+        assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
+                "ctx-active-1", "pt-1", null, "pkg-2026.06")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("排除")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
     void enterPatientPathwayAllowsManualConfirmationWhenIncludeCriteriaDoesNotMatch() {
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
@@ -1939,6 +2008,59 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void exitAllowsCanonicalObservationPathForExitIncludeCriteria() {
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithExitCriteria(
+                "{\"include\":{\"all\":[{\"fact\":\"observations[].valueNumeric\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.EXIT, null, null, null,
+            null, null, "达到出径标准", "evt-exit", "ctx-active-1"));
+
+        assertThat(response.status()).isEqualTo(PatientPathwayStatus.EXITED);
+        verify(patientPathways).save(any());
+        verify(clocks).save(any());
+    }
+
+    @Test
+    void exitRejectsCanonicalObservationPathForExitExcludeCriteria() {
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithExitCriteria(
+                "{\"exclude\":{\"any\":[{\"fact\":\"observations[].valueNumeric\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+
+        assertThatThrownBy(() -> service.advance(new PathwayAdvanceRequest(
+                "pp-1", PathwayAdvanceEventType.EXIT, null, null, null,
+                null, null, "达到出径标准", "evt-exit", "ctx-active-1")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("出径排除")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
     void simulateAllowsClinicalContextPackageDifferentFromPathwayPackageAndReturnsContextEvidence() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
@@ -2016,6 +2138,31 @@ class PathwayEngineServiceTest {
 
         assertThat(response.nodeTrajectory()).containsExactly("ASSESS", "TRANSFUSION_REVIEW");
         assertThat(response.finalStatus()).isEqualTo(PatientPathwayStatus.COMPLETED);
+    }
+
+    @Test
+    void simulateRejectsSnapshotWhenEntryExclusionCriteriaMatches() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithEntryCriteria(PathwayEntryMode.AUTO_SUGGEST,
+                "{\"include\":{\"all\":[{\"fact\":\"patient.mpi\",\"operator\":\"equals\",\"value\":\"patient-1\"}]},"
+                    + "\"exclude\":{\"any\":[{\"fact\":\"observation.HB.value\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+
+        assertThatThrownBy(() -> service.simulate(
+                "pt-1",
+                new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("排除")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
     }
 
     @Test

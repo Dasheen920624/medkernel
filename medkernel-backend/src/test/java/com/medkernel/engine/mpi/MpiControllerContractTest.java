@@ -26,6 +26,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
@@ -64,10 +66,14 @@ class MpiControllerContractTest {
             .thenReturn(new MpiMergeResult("MERGED", "mpi-source", "mpi-target", null, null, "患者主索引已合并"));
         when(service.splitMergedPatient(eq("mpi-source"), any(MpiSplitRequest.class)))
             .thenReturn(new MpiSplitResult("SPLIT", "mpi-source", "mpi-target", "患者主索引合并关系已拆分"));
-        when(service.getMergeReviews("PENDING")).thenReturn(List.of(MpiMergeReview.pending(
-            "mrv-1", "tenant-A", "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致",
-            "doctor-a", Instant.now(), "trace-mpi"
-        )));
+        when(service.getMergeReviews(eq("PENDING"), any(PageRequest.class))).thenReturn(PageResponse.of(
+            List.of(MpiMergeReview.pending(
+                "mrv-1", "tenant-A", "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致",
+                "doctor-a", Instant.now(), "trace-mpi"
+            )),
+            new PageRequest(2, 10, null),
+            21L
+        ));
         when(service.confirmMergeReview(eq("mrv-1"), any(MpiMergeReviewConfirmRequest.class)))
             .thenReturn(new MpiMergeResult("MERGED", "mpi-source", "mpi-target", "mrv-1", "HIGH", "患者主索引已合并"));
 
@@ -108,10 +114,15 @@ class MpiControllerContractTest {
 
         mvc.perform(get("/api/v1/engine/mpi/merge-reviews")
                 .queryParam("status", "PENDING")
+                .queryParam("page", "2")
+                .queryParam("size", "10")
                 .with(readJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].reviewId").value("mrv-1"))
-            .andExpect(jsonPath("$.data[0].status").value("PENDING"));
+            .andExpect(jsonPath("$.data.items[0].reviewId").value("mrv-1"))
+            .andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.size").value(10))
+            .andExpect(jsonPath("$.data.total").value(21));
 
         mvc.perform(post("/api/v1/engine/mpi/merge-reviews/mrv-1/confirm")
                 .with(writeJwt())

@@ -106,6 +106,48 @@ beforeEach(() => {
 });
 
 describe("DiagnosisKnowledgePanel", () => {
+  it("loads diagnosis reference selectors through small server-side search pages", () => {
+    renderPanel();
+
+    const identityCalls = hooks.useKnowledgeIdentities.mock.calls.map(([params]) => params);
+    expect(identityCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          domain: "DIAGNOSIS",
+          status: "ACTIVE",
+          keyword: undefined,
+          page: 1,
+          size: 20,
+        }),
+        expect.objectContaining({
+          status: "ACTIVE",
+          keyword: undefined,
+          page: 1,
+          size: 20,
+        }),
+      ]),
+    );
+    expect(identityCalls.some((params) => params?.size === 100)).toBe(false);
+    expect(hooks.useRuleDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "PUBLISHED",
+        keyword: undefined,
+        page: 1,
+        size: 20,
+      }),
+      expect.any(Object),
+    );
+    expect(hooks.usePathwayTemplates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "PUBLISHED",
+        keyword: undefined,
+        page: 1,
+        size: 20,
+      }),
+      expect.any(Object),
+    );
+  });
+
   it("shows an honest loading state while diagnosis identities are being read", () => {
     hooks.useKnowledgeIdentities.mockReturnValue({
       ...query(undefined),
@@ -142,6 +184,40 @@ describe("DiagnosisKnowledgePanel", () => {
     await user.type(screen.getByLabelText("发布说明"), "已核对来源和结构化标准");
 
     expect(screen.getByText(/至少需要一个回归病例/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /通过门禁并发布/ })).toBeDisabled();
+  });
+
+  it("blocks publishing when criteria contain constraints the B0 matcher cannot evaluate", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query([editableVersion]));
+    hooks.useDiagnosisCriteria.mockReturnValue(
+      query([
+        {
+          id: 1,
+          findingTermCode: "EGFR_LOW",
+          direction: "REQUIRED",
+          weight: "MAJOR",
+          valueConstraint: '{"operator":"lt","value":60}',
+          temporalConstraint: null,
+        },
+      ]),
+    );
+    hooks.useDiagnosisTestCases.mockReturnValue(
+      query([
+        {
+          id: 1,
+          caseCode: "CASE-1",
+          findings: "EGFR_LOW",
+          expectedIdentityId: 7,
+          expectedConfidence: "STRONG",
+        },
+      ]),
+    );
+
+    renderPanel();
+    await user.type(screen.getByLabelText("发布说明"), "已核对来源和结构化标准");
+
+    expect(screen.getByText(/包含数值或时序约束/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /通过门禁并发布/ })).toBeDisabled();
   });
 

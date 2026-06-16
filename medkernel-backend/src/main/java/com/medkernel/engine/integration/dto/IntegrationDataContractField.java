@@ -15,5 +15,6 @@ public record IntegrationDataContractField(
     String codeSystem,
     boolean required,
     boolean derived,
+    boolean externalWritable,
     String description) {
 }

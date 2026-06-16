@@ -112,6 +112,25 @@ class MpiServiceTest {
     }
 
     @Test
+    void shouldReturnMergeReviewsPageWithoutMaterializingTenantStatusSnapshot() {
+        MpiMergeReview review = MpiMergeReview.pending(
+            "mrv-1", TENANT_ID, "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致",
+            ACTOR, Instant.now(), "trace-mpi-test"
+        );
+        PageRequest request = new PageRequest(2, 10, null);
+        when(reviewRepository.countByTenantIdAndStatus(TENANT_ID, "PENDING")).thenReturn(21L);
+        when(reviewRepository.pageByTenantIdAndStatus(TENANT_ID, "PENDING", 10, 10)).thenReturn(List.of(review));
+
+        PageResponse<MpiMergeReview> page = service.getMergeReviews(" pending ", request);
+
+        assertThat(page.items()).containsExactly(review);
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(10);
+        assertThat(page.total()).isEqualTo(21L);
+        verify(reviewRepository, never()).findAllByTenantIdAndStatus(anyString(), anyString());
+    }
+
+    @Test
     void shouldGenerateActivePatientIdWithTenantScopeAndAudit() {
         when(repository.save(any(MpiPatient.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

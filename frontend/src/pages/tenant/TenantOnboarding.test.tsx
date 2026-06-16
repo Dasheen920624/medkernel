@@ -204,6 +204,11 @@ describe("TenantOnboarding", () => {
   it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
+    expect(useOrgUnits).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      status: "ACTIVE",
+    });
     expect(screen.getByRole("heading", { name: "服务机构" })).toBeInTheDocument();
     expect(screen.getByText("实施就绪检查未通过")).toBeInTheDocument();
     expect(screen.getByText("组织树缺少服务机构根节点或医院节点")).toBeInTheDocument();

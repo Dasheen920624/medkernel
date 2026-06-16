@@ -32,6 +32,7 @@ class MenuPermissionCatalogTest {
         "insurance-audit",
         "qc-eval-sets",
         "knowledge-governance",
+        "diagnosis-knowledge",
         "admin-users",
         "identity-bindings",
         "admin-audit",
@@ -53,7 +54,7 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(31)
+            .hasSize(32)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -65,7 +66,7 @@ class MenuPermissionCatalogTest {
     void catalogLocksPrimaryHeaderAndProfilePlacements() {
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(29);
+            .hasSize(30);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
@@ -88,7 +89,7 @@ class MenuPermissionCatalogTest {
             "workbench", Set.of("workbench"),
             "organization-people", Set.of("tenant-onboarding", "admin-users", "identity-bindings"),
             "knowledge-governance", Set.of(
-                "knowledge-governance", "config-packages", "terminology-mapping",
+                "knowledge-governance", "diagnosis-knowledge", "config-packages", "terminology-mapping",
                 "rule-definitions", "pathway-templates", "provenance", "graph-explore", "ai-workflows"),
             "clinical-collaboration", Set.of(
                 "mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup",

@@ -26,22 +26,6 @@ public class IntegrationDataContractService {
 
     private static final String SCHEMA_VERSION = "medkernel.context-field-contract.v1";
 
-    private static final Map<String, String> PAYLOAD_KEYS = Map.ofEntries(
-        Map.entry("Patient", "patient"),
-        Map.entry("AllergyIntolerance", "allergyIntolerances"),
-        Map.entry("Encounter", "encounters"),
-        Map.entry("Condition", "conditions"),
-        Map.entry("NursingAssessment", "nursingAssessments"),
-        Map.entry("Observation", "observations"),
-        Map.entry("DiagnosticReport", "diagnosticReports"),
-        Map.entry("Medication", "medications"),
-        Map.entry("Procedure", "procedures"),
-        Map.entry("Document", "documents"),
-        Map.entry("CarePlan", "carePlans"),
-        Map.entry("FollowUp", "followUps"),
-        Map.entry("Claim", "claims")
-    );
-
     private final ContextFieldCatalogService fieldCatalogService;
 
     public IntegrationDataContractService(ContextFieldCatalogService fieldCatalogService) {
@@ -71,21 +55,20 @@ public class IntegrationDataContractService {
     }
 
     private IntegrationDataContractField toContractField(ContextFieldDescriptor field) {
-        String payloadKey = PAYLOAD_KEYS.getOrDefault(field.resourceType(), field.resourceType());
-        String propertyName = propertyName(field.fieldPath());
         boolean required = false;
         return new IntegrationDataContractField(
             field.resourceType(),
             field.fieldPath(),
-            payloadKey,
-            propertyName,
+            field.payloadKey(),
+            field.propertyName(),
             field.displayName(),
             field.dataType(),
-            jsonSchemaType(field.dataType()),
+            field.jsonSchemaType(),
             field.unit(),
             field.codeSystem(),
             required,
             field.derived(),
+            field.externalWritable(),
             field.description());
     }
 
@@ -110,7 +93,8 @@ public class IntegrationDataContractService {
                     field.unit(),
                     field.codeSystem(),
                     field.required(),
-                    field.derived()));
+                    field.derived(),
+                    field.externalWritable()));
                 if (field.required()) {
                     required.add(field.propertyName());
                 }
@@ -127,20 +111,6 @@ public class IntegrationDataContractService {
                     List.copyOf(required))));
         }
         return Map.copyOf(result);
-    }
-
-    private static String propertyName(String fieldPath) {
-        String tail = fieldPath.substring(fieldPath.lastIndexOf('.') + 1);
-        return tail.replace("[]", "");
-    }
-
-    private static String jsonSchemaType(String dataType) {
-        return switch (dataType) {
-            case "number" -> "number";
-            case "boolean" -> "boolean";
-            case "list" -> "array";
-            default -> "string";
-        };
     }
 
     private static List<String> accessGuide(String packageVersion) {

@@ -1,11 +1,16 @@
 package com.medkernel.engine.authoring;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,16 +31,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthoringAssetLibraryController {
 
     private final AuthoringAssetLibraryService service;
+    private final PermissionEvaluator permissions;
 
-    public AuthoringAssetLibraryController(AuthoringAssetLibraryService service) {
+    public AuthoringAssetLibraryController(
+            AuthoringAssetLibraryService service,
+            PermissionEvaluator permissions) {
         this.service = service;
+        this.permissions = permissions;
     }
 
     /**
      * 查询统一资产库。
      */
     @GetMapping
-    @PreAuthorize("@perm.hasAny('rule.read','pathway.read')")
+    @PreAuthorize("@perm.hasAny('rule.read','pathway.read','followup.read')")
     public ApiResult<PageResponse<AuthoringAssetLibraryItem>> list(
             @RequestParam(required = false) VersionedAssetType assetType,
             @RequestParam(required = false) String keyword,
@@ -44,13 +53,40 @@ public class AuthoringAssetLibraryController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
+        Set<VersionedAssetType> allowedAssetTypes = allowedAssetTypes(assetType);
         return ApiResult.ok(service.list(new AuthoringAssetLibraryQuery(
             assetType,
             keyword,
             tag,
             Boolean.TRUE.equals(favoriteOnly),
-            new PageRequest(page, size, sort)
+            new PageRequest(page, size, sort),
+            allowedAssetTypes
         )));
+    }
+
+    private Set<VersionedAssetType> allowedAssetTypes(VersionedAssetType requestedType) {
+        Set<VersionedAssetType> allowedTypes = new LinkedHashSet<>();
+        if (permissions.has("rule.read")) {
+            allowedTypes.add(VersionedAssetType.RULE);
+            allowedTypes.add(VersionedAssetType.CONDITION_FRAGMENT);
+        }
+        if (permissions.has("pathway.read")) {
+            allowedTypes.add(VersionedAssetType.PATHWAY);
+            allowedTypes.add(VersionedAssetType.SUBPATHWAY);
+        }
+        if (permissions.has("followup.read")) {
+            allowedTypes.add(VersionedAssetType.FOLLOWUP);
+        }
+        if (allowedTypes.isEmpty()) {
+            throw new AccessDeniedException("统一资产库查询需要至少一种创作资产读权限");
+        }
+        if (requestedType == null) {
+            return allowedTypes;
+        }
+        if (!allowedTypes.contains(requestedType)) {
+            throw new AccessDeniedException("读取 " + requestedType + " 资产需要对应读权限");
+        }
+        return Set.of(requestedType);
     }
 
     /**

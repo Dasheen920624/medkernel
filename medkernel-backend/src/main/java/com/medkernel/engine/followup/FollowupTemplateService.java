@@ -137,18 +137,27 @@ public class FollowupTemplateService {
     }
 
     /**
-     * 分页读取当前租户的随访模板。
+     * 按发布状态与关键词分页读取当前租户的随访模板。
      */
     @Transactional(readOnly = true)
-    public PageResponse<FollowupTemplateResponse> list(PageRequest pageRequest) {
+    public PageResponse<FollowupTemplateResponse> list(
+            FollowupTemplateFilter filter,
+            PageRequest pageRequest) {
         PageRequest page = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        List<FollowupTemplate> all = templates.findByTenantIdOrderByUpdatedAtDesc(tenantId());
-        int from = Math.min(page.offset(), all.size());
-        int to = Math.min(from + page.safeSize(), all.size());
-        List<FollowupTemplateResponse> rows = all.subList(from, to).stream()
+        FollowupTemplateFilter f = filter == null
+            ? new FollowupTemplateFilter(null, null)
+            : filter;
+        String keyword = normalizeKeyword(f.keyword());
+        String assetStatus = f.assetStatus() == null ? null : f.assetStatus().name();
+        String tenantId = tenantId();
+        long total = templates.countByFilter(tenantId, keyword, assetStatus);
+        List<FollowupTemplate> pageRows = templates.pageByFilter(
+            tenantId, keyword, assetStatus, page.offset(), page.safeSize());
+        List<FollowupTemplateResponse> rows = pageRows
+            .stream()
             .map(template -> response(template, requireAssetVersion(template)))
             .toList();
-        return PageResponse.of(rows, page, all.size());
+        return PageResponse.of(rows, page, total);
     }
 
     /**
@@ -255,6 +264,13 @@ public class FollowupTemplateService {
     private FollowupTemplate requireTemplate(String templateId) {
         return templates.findByTemplateIdAndTenantId(required(templateId, "模板 ID"), tenantId())
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板不存在: " + templateId));
+    }
+
+    private static String normalizeKeyword(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return "%" + value.trim().toLowerCase() + "%";
     }
 
     private AssetVersion requireAssetVersion(FollowupTemplate template) {

@@ -5,7 +5,7 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段已收官**（PR #600 + 复核 #603）；**第二波 AI 加深 = 第二阶段（wave2 · 知识生产工厂）进行中**。**P2-A 模型底座已合并**（[PR #605](https://github.com/Dasheen920624/medkernel/pull/605) `34d19cbe`，LLM-03+08+07）；**P2-B 接入底座&编排&生产器进行中**——LLM-05 增强接入矩阵已合并（[PR #607](https://github.com/Dasheen920624/medkernel/pull/607) `84c49d10`），`DATASVC-01`（12d 大卡分期）**PR1（#608/609/610）+ PR2 接入底座全部合并入 main**——PR2-a 受控工具入口（#611）、PR2-b/c/d MCP 受控工具 7/7（#612 `dcb0b4d1`）、PR2-e 产品级 CLI 6 命令域（#613 `496ee09e`，新 `cli/`）、PR2-f MCP 服务传输层（#614 `d5f096ba`，新 `mcp-server/`）。**AC-2「四入口同治理」机制达成**；**PR2-g 异步导出后端已合并**（[PR #616](https://github.com/Dasheen920624/medkernel/pull/616) `905aca01`，SYS-06 审批闸控制的 D2 CSV 导出 + CLI `exports`）。**AI 工厂第一刀 = `AIK-STD-01` 统一资产信封 schema + 校验闸已合并入 main**（[PR #617](https://github.com/Dasheen920624/medkernel/pull/617) `feccae74`）：核查发现地基（`engine.versioning` + KNOW-01/OPT-07）已实质建成，故不新建表，落「统一信封 + 校验闸」，backlog done。**`LLM-06` 可信来源探索编排已合并入 main**（[PR #618](https://github.com/Dasheen920624/medkernel/pull/618) `758293aa`）：复用 KNOW-01 受控源不建 `knowledge_discovery_source`，仅新增编排服务 + `mk_knowledge_discovery_run` 时点存证表，产 DRAFT 候选交 AIK-STD-13，backlog done。**`AIK-STD-13` 知识生产编排（6d 大卡分期）PR1 编排核心已合并入 main**（[PR #619](https://github.com/Dasheen920624/medkernel/pull/619) `98928a18`，job 骨架 + 双形态 §9 隔离守卫 + 候选校验隔离 + `mk_knowledge_production_job` 表）；**PR2（job 生命周期 + 候选生产血缘）已合并入 main**（[PR #620](https://github.com/Dasheen920624/medkernel/pull/620) `1cfd3d2d`）：新表 `mk_knowledge_production_candidate`（候选血缘 FR-5）+ complete/cancel/replay 生命周期（FR-1/可重放）。候选物化经 `KnowledgeCandidateIntake` 端口随解析管道（AIK-STD-04/10）接线、外部模型生产器 P6 闸控（PR3+）；backlog 仍 pending（多 PR 大卡）。**DATASVC-01 剩余未做**：D3/D4 字段级加密 + 数据分级元数据表（YAGNI，无 D3/D4 落库消费者，待真实切片）。续接一律从最新 `origin/main` 起，不把历史合并提交冒认为当前主线指针。
+- **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603），但用户已明确要求**暂停 wave2 正式知识生产推进，先做第一阶段 B0 全系统深度核查与完美化整改**。第二波 AI 加深既有事实保留，最新 `origin/main` 已到 `7969f93f`（AIK-STD-02 PR1–PR3 已合并：#626 文本解析、#627 PDF、#628 Word/表格）。**当前不要继续领取 AIK/KNOWGEN 正式生产任务**；先在 `codex/b0-first-phase-perfect-remediation` 同一大 PR 内持续审计、修复、验证和复核 B0 全功能问题，尤其是诊断维护边界、路径字段运行、字段目录/第三方契约、版本选择、批量维护、角色体验、沙盘未评审场景、100k/资源证据、发布交付和医疗安全。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
@@ -13,7 +13,16 @@
 
 ---
 
-## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR3 Word 解析适配器（POI）+ 表格理解（FR-2）+ 单元锚点（**已实现待合**，[PR #628](https://github.com/Dasheen920624/medkernel/pull/628)，分支 `claude/wave2-p2c-aikstd02-pr3-word-table`）
+## 2026-06-16 B0 第一阶段全功能核查与完美化 · 长任务继续（当前分支 `codex/b0-first-phase-perfect-remediation`，单一大 PR 未提交未合并）
+
+- **最新状态**：已按用户要求登记长任务，并已获取最新 `origin/main` `7969f93f`。B0 既有整改已安全重放到 #628 之后；主线新增 `V133__doc_parse_job` 后，B0 本分支迁移后移为 `V134__diagnosis_knowledge_menu_permission` 与 `V135__terminology_candidate_generation_job`，避免 Flyway 版本冲突。用户已明确本轮改为**当前所有改动合成一个 PR，合入 main 后再继续后续深查**。
+- **已落地的 B0 整改范围**：诊断知识维护已从审核页拆到 `/knowledge/diagnosis`；诊断 value/time 不可求值约束发布阻断、findings 去重、TERM-01 ACTIVE 发现项校验和 citation 当前版本归属校验已纳入门禁；路径运行已通过 `ContextFactBridge` 同时支持字段目录 canonical arrays 与历史 dotted fact；第三方数据契约、知识审核、规则维护、质控评估、统一资产克隆、术语映射、配置包包内资产、患者路径和路径模板等关键入口已改为 20 条小页 + 服务端搜索/过滤或缺真实 `packageVersion` 阻断；10 万级 H2 合同与 PG/Oracle opt-in 烟测、B0 Playwright 截图链和 `scripts/b0-perfect-check.mjs` 已作为本地证据链。
+- **本轮本地验证**：`node --test scripts/b0-perfect-check.test.mjs && node scripts/b0-perfect-check.mjs` 66/66 通过、B0 阻断 0；`git diff --check && git diff --cached --check` 通过；`cd medkernel-backend && mvn -q clean -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过并验证 135 版迁移；`cd medkernel-backend && mvn -q -Dtest=DiscoveryRunRepositoryIntegrationTest,KnowledgeProductionJobRepositoryIntegrationTest,DiscoveryOrchestrationServiceTest,KnowledgeProductionOrchestrationServiceTest,DiscoveryControllerSecurityTest,KnowledgeProductionControllerSecurityTest test` 通过；`cd frontend && npm run verify` 通过（95 files / 737 tests，保留 1 个 no-nested-ternary warning）；`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 退出 0（含 Oracle Testcontainers 迁移到 v135 与 10 万级导出合同）。
+- **仍不可宣称完成**：134 尚未按本分支重发部署（触碰远端需用户本会话点名授权）；真实院方 IdP 未接；9 个未评审沙盘场景仍只能保持临床门禁；真实 API-03 异步导出、API-04 候选/冲突专项资源占用与 CI/交付验收证据仍未关闭；国产化真实环境本轮暂不处理，不属于本轮完成口径。整改完成并最终验收前，不恢复 wave2 正式知识生产；本轮 PR 合并后再继续后续 B0 深查。
+
+---
+
+## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR3 Word 解析适配器（POI）+ 表格理解（FR-2）+ 单元锚点（已合并入 main，[PR #628](https://github.com/Dasheen920624/medkernel/pull/628) `7969f93f`）
 
 > **接力须知**：PR1 管线核心（#626）+ PR2 PDF 适配器（#627，已 squash 合入 main `e0a31a6d`）已落 main。本段＝**AIK-STD-02 最后一刀**，补齐 AC-1 全格式（FR-1 Word + FR-2 表格理解）。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md) §3.1/§3.3/§4 · 计划 [`docs/superpowers/plans/2026-06-16-aikstd02-pr3-word-table.md`](superpowers/plans/2026-06-16-aikstd02-pr3-word-table.md)。续接从最新 `origin/main` 起。
 
@@ -23,7 +32,7 @@
   - **单元锚点物化**：`ParsedDocumentMaterializer` 在段落物化后追加表格物化，逐**非空**单元格落 `[p<页>/]§<节>/tbl<n>/r<行>c<列>` 锚点片段（真实 SHA-256 + 幂等去重 + 空单元格不产指纹，守「片段正文不能为空」红线）；`anchor_label`=节标题，计入 job `parsed_fragment_count`。`page` 维度使锚点方案对 PDF（`p<页>/…`）与 Word（无页前缀）两格式统一可表达。
   - **无新表/端点/权限/迁移**：`ck_mk_doc_parse_job_format` 建表即含 `'WORD'`，编排对非文本格式走 Base64 解码——WORD job 零编排/迁移改动；`LATEST_MIGRATION_VERSION` 保持 133；走既有 `documents:parse`，产品目录不漂移。
 - **验证全绿**：全量 `mvn test` **2571 通过**（基线 2564 + 新增 7：`WordDocumentParserTest` 4 + 物化表格单元 2 + 集成 WORD 端到端 1）+ 四门禁 changed（真实性 7 / 配置 7 / 迁移 0 / 中文注释 0fail0warn）全过 + 五方言 Flyway smoke 真实容器 3/3（无迁移）+ `MigrationBaselineContractTest` 107 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5 无漂移。卡 [AIK-STD-02](cards/wave2/AIK-STD-02.md) FR-1/2/3/4/5 + AC-1/2 全勾（PR1/2/3 全格式闭合）。
-- **当前下一步（接力点，从最新 `origin/main` 起；#628 合并后清本分支）**：AIK-STD-02 全闭，续 P2-C 内容管线——① **AIK-STD-03 术语**映射 / ② **AIK-STD-04 候选生成**（消费本卡带锚点的受控来源片段 → `KnowledgeAssetEnvelope` 候选，接 AIK-STD-13 落审核链）/ ③ **AIK-STD-05** 11 项门禁 / ④ **AIK-STD-10** 8 态去重分流。恒守：TDD 红绿 + B0 + P6 阻断（不连真实文献库、不进 P6）+ 铁律 #1（锚点/hash 真实，扫描件/损坏诚实 FAILED）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
+- **当前分寸**：AIK-STD-02 PR1–PR3 已合并入 main，wave2 事实保留；但用户当前要求暂停正式知识生产，执行线已切回 B0 第一阶段全功能核查与完美化。整改完成并重新留证前，不领取 P2-C/AIK/KNOWGEN 新生产任务。
 
 ---
 
@@ -38,7 +47,7 @@
   - **二进制传输＝复用 `content` 承载 Base64**（不增字段）：`DocumentParseRequest.content` 按 `format`——文本为原文、PDF/WORD 为原文字节 Base64；非法 Base64 编排层结构化 **400**。`content` 仍 `@NotBlank`（不破 PR1 控制器契约/安全测试）。
   - **无新表/端点/权限/迁移**：`ck_doc_parse_job_format` 已含 `'PDF'`，走既有 `documents:parse`；产品目录不漂移。
 - **验证全绿**：全量 `mvn test` **2564 通过**（解析包 28：+PdfParser 4 +页锚点物化 1 +编排 Base64 拒绝 1 +集成 PDF 端到端 1）+ 四门禁 changed（真实性 8/配置 8/迁移 0/中文注释 0fail）全过 + 五方言 Flyway smoke 真实容器 3/3（无迁移）+ `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5 无漂移。
-- **当前下一步（接力点，从最新 `origin/main` 起；#627 合并后清本分支）**：① **PR3** `WordDocumentParser`（Apache POI，FR-1 Word）+ **表格理解（FR-2，表→行/单元格片段，两格式通用）** + 测试夹具 DOCX——AIK-STD-02 最后一刀，补齐 AC-1 全部。② 续 P2-C 内容管线：AIK-STD-03 术语 / 04 候选生成（消费本卡带锚点片段→`KnowledgeAssetEnvelope`）/ 05 11 项门禁 / 10 8 态去重。恒守：TDD 红绿 + B0 + P6 阻断 + 铁律 #1（锚点/hash 真实，扫描件/损坏诚实 FAILED）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
+- **当前分寸**：PR2 已合并入 main，且 AIK-STD-02 PR3 已在上段闭合；本段仅作历史证据保留。用户当前要求暂停正式知识生产，继续 B0 第一阶段全功能核查与完美化。
 
 ---
 

@@ -15,6 +15,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetIdentityAllocator;
 import com.medkernel.engine.versioning.AssetVersion;
@@ -70,7 +71,8 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageNormalizesKeywordToLowercaseAndWrapsPercent() {
-        when(identityRepo.listByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%")))
+        when(identityRepo.countByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%"))).thenReturn(2L);
+        when(identityRepo.pageByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%"), eq(0), eq(20)))
             .thenReturn(List.of(identityRow(1L), identityRow(2L, "t-1", "DRUG.Y")));
 
         PageResponse<KnowledgeIdentity> page = service.page(
@@ -83,7 +85,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageFilterEmptyKeywordBecomesNull() {
-        when(identityRepo.listByFilter(eq("t-1"), any(), any(), any(), eq(null))).thenReturn(List.of());
+        when(identityRepo.countByFilter(eq("t-1"), any(), any(), any(), eq(null))).thenReturn(0L);
         PageResponse<KnowledgeIdentity> page = service.page(
             PageRequest.defaults(),
             new KnowledgeIdentityFilter(null, null, null, "   ")
@@ -92,17 +94,34 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
+    void pageUsesRepositoryPagingForPlatformTenantWithoutLoadingFullList() {
+        when(identityRepo.countByFilter("t-1", null, null, null, "%他汀%")).thenReturn(100_000L);
+        when(identityRepo.pageByFilter("t-1", null, null, null, "%他汀%", 50, 50))
+            .thenReturn(List.of(identityRow(2L)));
+
+        PageResponse<KnowledgeIdentity> page = service.page(
+            new PageRequest(2, 50, null),
+            new KnowledgeIdentityFilter(null, null, null, "他汀")
+        );
+
+        assertThat(page.total()).isEqualTo(100_000L);
+        assertThat(page.items()).extracting(KnowledgeIdentity::id).containsExactly(2L);
+        Mockito.verify(identityRepo, Mockito.never()).listByFilter(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void pageEnumFiltersAreMappedToStringName() {
-        when(identityRepo.listByFilter(eq("t-1"), eq("DRUG"), any(), eq("ACTIVE"), any()))
+        when(identityRepo.countByFilter(eq("t-1"), eq("DRUG"), any(), eq("ACTIVE"), any())).thenReturn(1L);
+        when(identityRepo.pageByFilter(eq("t-1"), eq("DRUG"), any(), eq("ACTIVE"), any(), eq(0), eq(20)))
             .thenReturn(List.of(identityRow(1L)));
 
         service.page(
             PageRequest.defaults(),
             new KnowledgeIdentityFilter(KnowledgeDomain.DRUG, null, KnowledgeIdentityStatus.ACTIVE, null)
         );
-        // 校验 enum→String 转换确实发生：count 被调到，且 specialty 为 null
+        // 校验 enum→String 转换确实发生：count 被调到，且 specialty 为 null。
         ArgumentCaptor<String> domainCap = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(identityRepo).listByFilter(eq("t-1"), domainCap.capture(), any(), any(), any());
+        Mockito.verify(identityRepo).countByFilter(eq("t-1"), domainCap.capture(), any(), any(), any());
         assertThat(domainCap.getValue()).isEqualTo("DRUG");
     }
 
@@ -110,11 +129,13 @@ class KnowledgeIdentityServiceTest {
     void pageMergesCustomerLocalOverridesWithPlatformActiveIdentities() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity localOverride = identityRow(200L, "t-hospital", "DRUG.X");
-        KnowledgeIdentity platformShadowed = identityRow(100L, "t-1", "DRUG.X");
         KnowledgeIdentity platformOnly = identityRow(101L, "t-1", "DRUG.Y");
-        when(identityRepo.listByFilter("t-hospital", null, null, null, null)).thenReturn(List.of(localOverride));
-        when(identityRepo.listByFilter("t-1", null, null, "ACTIVE", null))
-            .thenReturn(List.of(platformShadowed, platformOnly));
+        when(identityRepo.countEffectiveByFilter(
+            "t-hospital", PlatformTenant.ID, null, null, null, null, null))
+            .thenReturn(2L);
+        when(identityRepo.pageEffectiveByFilter(
+            "t-hospital", PlatformTenant.ID, null, null, null, null, null, 0, 20))
+            .thenReturn(List.of(localOverride, platformOnly));
 
         PageResponse<KnowledgeIdentity> page = service.page(
             PageRequest.defaults(), new KnowledgeIdentityFilter(null, null, null, null));
@@ -122,6 +143,7 @@ class KnowledgeIdentityServiceTest {
         assertThat(page.items()).extracting(KnowledgeIdentity::id)
             .containsExactly(200L, 101L);
         assertThat(page.total()).isEqualTo(2);
+        Mockito.verify(identityRepo, Mockito.never()).listByFilter(any(), any(), any(), any(), any());
     }
 
     @Test

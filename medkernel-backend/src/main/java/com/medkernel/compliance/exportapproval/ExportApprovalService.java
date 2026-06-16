@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -61,28 +63,25 @@ public class ExportApprovalService {
     }
 
     @Transactional(readOnly = true)
-    public List<ExportApprovalResponse> listApprovals(
-            String tenantId, String resourceType, ExportApprovalStatus status) {
+    public PageResponse<ExportApprovalResponse> listApprovals(
+            String tenantId, String resourceType, ExportApprovalStatus status, PageRequest pageRequest) {
         String safeTenant = requireTenant(tenantId);
+        PageRequest safePage = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String normalizedResource = resourceType == null || resourceType.isBlank()
             ? null
             : normalizeResourceType(resourceType);
         String normalizedStatus = status == null ? null : status.name();
 
-        List<ExportApproval> approvals;
-        if (normalizedResource != null && normalizedStatus != null) {
-            approvals = repository.findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
-                safeTenant, normalizedResource, normalizedStatus);
-        } else if (normalizedResource != null) {
-            approvals = repository.findByTenantIdAndResourceTypeOrderByRequestedAtDesc(
-                safeTenant, normalizedResource);
-        } else if (normalizedStatus != null) {
-            approvals = repository.findByTenantIdAndStatusOrderByRequestedAtDesc(
-                safeTenant, normalizedStatus);
-        } else {
-            approvals = repository.findByTenantIdOrderByRequestedAtDesc(safeTenant);
+        long total = repository.countByFilter(safeTenant, normalizedResource, normalizedStatus);
+        if (total == 0) {
+            return PageResponse.empty(safePage);
         }
-        return approvals.stream().map(ExportApprovalResponse::from).toList();
+        List<ExportApprovalResponse> approvals = repository.pageByFilter(
+                safeTenant, normalizedResource, normalizedStatus, safePage.offset(), safePage.safeSize())
+            .stream()
+            .map(ExportApprovalResponse::from)
+            .toList();
+        return PageResponse.of(approvals, safePage, total);
     }
 
     @Transactional

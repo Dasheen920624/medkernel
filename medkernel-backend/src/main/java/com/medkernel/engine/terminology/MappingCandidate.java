@@ -31,14 +31,15 @@ public record MappingCandidate(
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
-    @Column("updated_by") String updatedBy
+    @Column("updated_by") String updatedBy,
+    @Column("generation_job_code") String generationJobCode
 ) {
 
     MappingCandidate confirmed(String note, String userId, Instant now) {
         return new MappingCandidate(
             id, tenantId, localTermId, standardTermId, confidence, candidateSource,
             riskLevel, evidenceText, conflictFlag, MappingCandidateStatus.CONFIRMED,
-            note, userId, now, createdAt, createdBy, now, userId
+            note, userId, now, createdAt, createdBy, now, userId, generationJobCode
         );
     }
 
@@ -46,7 +47,7 @@ public record MappingCandidate(
         return new MappingCandidate(
             id, tenantId, localTermId, standardTermId, confidence, candidateSource,
             riskLevel, evidenceText, conflictFlag, MappingCandidateStatus.REJECTED,
-            note, userId, now, createdAt, createdBy, now, userId
+            note, userId, now, createdAt, createdBy, now, userId, generationJobCode
         );
     }
 
@@ -54,7 +55,7 @@ public record MappingCandidate(
         return new MappingCandidate(
             id, tenantId, localTermId, standardTermId, confidence, candidateSource,
             riskLevel, evidenceText, nextConflictFlag, status,
-            reviewNote, reviewedBy, reviewedAt, createdAt, createdBy, now, userId
+            reviewNote, reviewedBy, reviewedAt, createdAt, createdBy, now, userId, generationJobCode
         );
     }
 }

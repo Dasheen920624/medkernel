@@ -119,6 +119,10 @@ const { TextArea } = Input;
 const { Option } = Select;
 const { Text } = Typography;
 
+const PATHWAY_PACKAGE_REFERENCE_PAGE_SIZE = 20;
+const PATHWAY_ROLLBACK_TARGET_PAGE_SIZE = 20;
+const PATHWAY_OUTCOME_REFERENCE_PAGE_SIZE = 20;
+
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
 const PATHWAY_CONTENT_STATUS: Record<
@@ -1317,6 +1321,9 @@ export default function PathwayTemplates() {
   const [statusFilter, setStatusFilter] = useState<PathwayTemplateStatus | undefined>(undefined);
   const [diseaseFilter, setDiseaseFilter] = useState<string>("");
   const [packageFilter, setPackageFilter] = useState<string>("");
+  const [packageSearch, setPackageSearch] = useState<string>("");
+  const [outcomeIndicatorSearch, setOutcomeIndicatorSearch] = useState<string>("");
+  const [outcomePackageSearch, setOutcomePackageSearch] = useState<string>("");
 
   const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
@@ -1377,23 +1384,39 @@ export default function PathwayTemplates() {
       status: "OFFLINE",
       templateCode: detailData?.template.templateCode,
       page: 1,
-      size: 100,
+      size: PATHWAY_ROLLBACK_TARGET_PAGE_SIZE,
     },
     {
       enabled: detailData?.template.status === "PUBLISHED" && !!detailData.template.templateCode,
     },
   );
 
+  const packageSearchKeyword =
+    cleanText(packageSearch) ?? cleanText(detailData?.template.packageId) ?? undefined;
   const { data: packagesData, refetch: refetchPackages } = usePackages({
     page: 1,
-    size: 100,
+    size: PATHWAY_PACKAGE_REFERENCE_PAGE_SIZE,
     assetType: "PATHWAY",
+    ...(packageSearchKeyword ? { keyword: packageSearchKeyword } : {}),
   });
+  const outcomePackageKeyword = cleanText(outcomePackageSearch);
+  const {
+    data: evaluationPackagesData,
+    isLoading: evaluationPackagesLoading,
+    isError: evaluationPackagesError,
+  } = usePackages({
+    page: 1,
+    size: PATHWAY_OUTCOME_REFERENCE_PAGE_SIZE,
+    assetType: "EVALUATION",
+    ...(outcomePackageKeyword ? { keyword: outcomePackageKeyword } : {}),
+  });
+  const outcomeIndicatorKeyword = cleanText(outcomeIndicatorSearch);
   const { data: evaluationIndicatorsData } = useEvaluationIndicators(
     {
       status: "ACTIVE",
       page: 1,
-      size: 100,
+      size: PATHWAY_OUTCOME_REFERENCE_PAGE_SIZE,
+      ...(outcomeIndicatorKeyword ? { indicatorCode: outcomeIndicatorKeyword } : {}),
     },
     { enabled: createTemplateVisible || !!selectedTemplateId },
   );
@@ -1443,7 +1466,6 @@ export default function PathwayTemplates() {
   const watchedOutcomeBindings = Form.useWatch("outcomeBindings", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
   const watchedPackageId = Form.useWatch("packageId", templateForm);
-  const watchedTemplateVersion = Form.useWatch("templateVersion", templateForm);
 
   const canvasNodes = useMemo(
     () => normalizeNodes(watchedNodes).filter((node) => !node.disabled),
@@ -1578,13 +1600,46 @@ export default function PathwayTemplates() {
       })),
     [evaluationIndicatorsData?.items],
   );
+  const outcomeIndicatorByCode = useMemo(
+    () =>
+      new Map(
+        (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => [
+          indicator.indicatorCode,
+          indicator,
+        ]),
+      ),
+    [evaluationIndicatorsData?.items],
+  );
+  const outcomeIndicatorPackageOptions = useMemo(() => {
+    const byVersion = new Map<string, string>();
+    for (const item of evaluationPackagesData?.items ?? []) {
+      if (item.status === "OFFLINE" || item.status === "ARCHIVED") continue;
+      byVersion.set(item.packageVersion, `${item.packageVersion} · ${item.name}`);
+    }
+    for (const indicator of evaluationIndicatorsData?.items ?? []) {
+      if (indicator.packageVersion && !byVersion.has(indicator.packageVersion)) {
+        byVersion.set(indicator.packageVersion, `${indicator.packageVersion} · 指标来源包`);
+      }
+    }
+    return [...byVersion.entries()].map(([value, label]) => ({ value, label }));
+  }, [evaluationIndicatorsData?.items, evaluationPackagesData?.items]);
   const packageVersionFor = (packageId?: string | null) =>
-    packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
+    cleanText(packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion);
   const selectedTemplatePackageVersion =
     typeof watchedPackageId === "string" ? packageVersionFor(watchedPackageId) : undefined;
-  const createTemplatePackageVersion =
-    selectedTemplatePackageVersion ?? String(watchedTemplateVersion ?? "");
+  const createTemplatePackageVersion = selectedTemplatePackageVersion ?? "";
   const conditionFragmentPackageVersion = selectedTemplatePackageVersion ?? "";
+  const requirePathwayPackageVersion = (
+    packageId: string | null | undefined,
+    errorMessage: string,
+  ) => {
+    const packageVersion = packageVersionFor(packageId);
+    if (!packageVersion) {
+      messageApi.error(errorMessage);
+      return undefined;
+    }
+    return packageVersion;
+  };
   const activeConditionFragmentsQuery = useConditionFragments(
     {
       status: "ACTIVE",
@@ -1922,12 +1977,18 @@ export default function PathwayTemplates() {
       const entryCriteria = normalizePathwayCriteria(values.entryCriteria, "入径");
       const exitCriteria = normalizePathwayCriteria(values.exitCriteria, "出径");
 
+      const packageVersion = requirePathwayPackageVersion(
+        values.packageId,
+        "无法确认路径模板所属的配置包版本，暂不能创建或复制路径。",
+      );
+      if (!packageVersion) return;
+
       await createTemplateMutation.mutateAsync({
         packageId: values.packageId,
         templateCode: values.templateCode,
         name: values.name,
         diseaseCode: values.diseaseCode,
-        packageVersion: packageVersionFor(values.packageId) ?? String(values.templateVersion),
+        packageVersion,
         templateLevel: values.templateLevel,
         parentTemplateId: cleanText(values.parentTemplateId),
         templateVersion: Number(values.templateVersion),
@@ -1962,6 +2023,10 @@ export default function PathwayTemplates() {
   };
 
   const syncCanvasToDsl = () => {
+    if (fieldCatalogQuery.isError) {
+      messageApi.error("字段目录暂不可用，路径条件不能同步到 DSL。");
+      return;
+    }
     try {
       const values = templateForm.getFieldsValue(true);
       setPathwayDslJson(
@@ -2006,12 +2071,15 @@ export default function PathwayTemplates() {
       messageApi.error("请填写发布审核说明。");
       return;
     }
+    const packageVersion = requirePathwayPackageVersion(
+      detailData?.template.packageId,
+      "无法确认当前路径模板所属的配置包版本，暂不能发布路径。",
+    );
+    if (!packageVersion) return;
     try {
       await publishTemplateMutation.mutateAsync({
         templateId: selectedTemplateId,
-        packageVersion:
-          packageVersionFor(detailData?.template.packageId) ??
-          String(detailData?.template.templateVersion ?? ""),
+        packageVersion,
         impactDigest,
         reason,
       });
@@ -2027,9 +2095,7 @@ export default function PathwayTemplates() {
     }
   };
 
-  const releasePackageVersion = () =>
-    packageVersionFor(detailData?.template.packageId) ??
-    String(detailData?.template.templateVersion ?? "");
+  const releasePackageVersion = () => packageVersionFor(detailData?.template.packageId) ?? "";
 
   const handleFullRolloutTemplate = async () => {
     if (!selectedTemplateId) return;
@@ -2043,10 +2109,15 @@ export default function PathwayTemplates() {
       messageApi.error("请填写全量确认说明。");
       return;
     }
+    const packageVersion = requirePathwayPackageVersion(
+      detailData?.template.packageId,
+      "无法确认当前路径模板所属的配置包版本，暂不能发布路径。",
+    );
+    if (!packageVersion) return;
     try {
       await fullRolloutMutation.mutateAsync({
         templateId: selectedTemplateId,
-        packageVersion: releasePackageVersion(),
+        packageVersion,
         impactDigest,
         reason,
       });
@@ -2078,10 +2149,15 @@ export default function PathwayTemplates() {
       messageApi.error("请选择回滚目标模板版本。");
       return;
     }
+    const packageVersion = requirePathwayPackageVersion(
+      detailData?.template.packageId,
+      "无法确认当前路径模板所属的配置包版本，暂不能回滚路径。",
+    );
+    if (!packageVersion) return;
     try {
       await rollbackMutation.mutateAsync({
         templateId: selectedTemplateId,
-        packageVersion: releasePackageVersion(),
+        packageVersion,
         rollbackTargetTemplateId,
         impactDigest,
         reason,
@@ -2121,7 +2197,7 @@ export default function PathwayTemplates() {
   const handleRunCreatePreview = async () => {
     const packageVersion = cleanText(createTemplatePackageVersion);
     if (!packageVersion) {
-      messageApi.error("请先选择路径知识包或填写模板版本。");
+      messageApi.error("请先选择可解析配置包版本的路径知识包。");
       return;
     }
     if (!selectedSnapshotId) {
@@ -2193,12 +2269,16 @@ export default function PathwayTemplates() {
       messageApi.error("请先选择路径试运行起点节点");
       return;
     }
+    const simulationPackageVersion =
+      cleanText(selectedSnapshotDetail?.packageVersion) ??
+      packageVersionFor(detailData?.template.packageId);
+    if (!simulationPackageVersion) {
+      messageApi.error("无法确认当前路径模板所属的配置包版本，暂不能试运行路径。");
+      return;
+    }
     try {
       const result = await simulateMutation.mutateAsync({
-        packageVersion:
-          selectedSnapshotDetail?.packageVersion ??
-          packageVersionFor(detailData?.template.packageId) ??
-          String(detailData?.template.templateVersion ?? ""),
+        packageVersion: simulationPackageVersion,
         ...(simulationMode === "SINGLE_SNAPSHOT" ? {} : { simulationMode }),
         ...(simulationMode === "QUEUE_REPLAY"
           ? { replaySnapshotIds: replayIds }
@@ -2571,7 +2651,12 @@ export default function PathwayTemplates() {
           <Row gutter={16}>
             <Col xs={24} md={12}>
               <Form.Item name="packageId" label="归属路径知识包" rules={[{ required: true }]}>
-                <Select placeholder="选择路径知识包">
+                <Select
+                  showSearch
+                  filterOption={false}
+                  onSearch={setPackageSearch}
+                  placeholder="选择路径知识包"
+                >
                   {packagesData?.items?.map((pkg: KnowledgePackage) => (
                     <Option key={pkg.packageId} value={pkg.packageId}>
                       {pkg.name} (v{pkg.packageVersion})
@@ -2690,7 +2775,11 @@ export default function PathwayTemplates() {
                 结构化节点画布
               </div>
               <div className={styles.graphToolbarActions}>
-                <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
+                <Button
+                  icon={<SwapOutlined />}
+                  disabled={fieldCatalogQuery.isError}
+                  onClick={syncCanvasToDsl}
+                >
                   同步到 DSL
                 </Button>
                 <Button
@@ -2702,6 +2791,14 @@ export default function PathwayTemplates() {
                 </Button>
               </div>
             </div>
+            {fieldCatalogQuery.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                message="字段目录暂不可用，路径条件不能同步到 DSL。"
+                description="路径纳入、排除和流转条件必须绑定 canonical 字段目录；恢复字段目录接口后再同步或保存。"
+              />
+            ) : null}
             <Row gutter={[16, 16]} className="mk-full-width">
               <Col xs={24} lg={12}>
                 {renderPathwayCriteriaEditor(["entryCriteria", "includeTree"], "入径纳入条件")}
@@ -2920,9 +3017,21 @@ export default function PathwayTemplates() {
                           >
                             <Select
                               showSearch
-                              optionFilterProp="label"
+                              allowClear
+                              filterOption={false}
                               placeholder="选择 ACTIVE 评估指标"
                               options={outcomeIndicatorOptions}
+                              onSearch={setOutcomeIndicatorSearch}
+                              onClear={() => setOutcomeIndicatorSearch("")}
+                              onChange={(indicatorCode) => {
+                                const indicator = outcomeIndicatorByCode.get(indicatorCode);
+                                if (indicator?.packageVersion) {
+                                  templateForm.setFieldValue(
+                                    ["outcomeBindings", field.name, "packageVersion"],
+                                    indicator.packageVersion,
+                                  );
+                                }
+                              }}
                               notFoundContent="暂无 ACTIVE 评估指标"
                             />
                           </Form.Item>
@@ -2932,8 +3041,23 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "packageVersion"]}
                             label="指标包版本"
+                            rules={[{ required: true, message: "请选择评估指标所属包版本" }]}
                           >
-                            <Input placeholder="默认使用路径知识包版本" />
+                            <Select
+                              showSearch
+                              allowClear
+                              loading={evaluationPackagesLoading}
+                              filterOption={false}
+                              options={outcomeIndicatorPackageOptions}
+                              onSearch={setOutcomePackageSearch}
+                              onClear={() => setOutcomePackageSearch("")}
+                              placeholder="选择评估指标所属配置包版本"
+                              notFoundContent={
+                                evaluationPackagesError
+                                  ? "评估指标包版本读取失败"
+                                  : "暂无评估指标包版本"
+                              }
+                            />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -4428,6 +4552,9 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Form.Item label="归属路径知识包">
             <Select
+              showSearch
+              filterOption={false}
+              onSearch={setPackageSearch}
               placeholder="全部路径知识包"
               allowClear
               value={packageFilter}

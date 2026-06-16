@@ -75,25 +75,72 @@ public class AuthoringAssetLibraryService {
         String userId = RequestContext.currentUserId().orElse("system");
         PageRequest page = query == null || query.page() == null ? PageRequest.defaults() : query.page();
         VersionedAssetType requestedType = query == null ? null : query.assetType();
+        Set<VersionedAssetType> allowedTypes = query == null ? null : query.allowedAssetTypes();
         String keyword = normalize(query == null ? null : query.keyword());
         String tag = normalize(query == null ? null : query.tag());
         boolean favoriteOnly = query != null && query.favoriteOnly();
 
+        if (tag == null && !favoriteOnly) {
+            return listRepositoryPage(tenantId, userId, requestedType, allowedTypes, keyword, page);
+        }
+        return listWithProfileFilters(tenantId, userId, requestedType, allowedTypes, keyword, tag, favoriteOnly, page);
+    }
+
+    private PageResponse<AuthoringAssetLibraryItem> listRepositoryPage(
+            String tenantId,
+            String userId,
+            VersionedAssetType requestedType,
+            Set<VersionedAssetType> allowedTypes,
+            String keyword,
+            PageRequest page) {
+        if (requestedType != null) {
+            RepositoryAssetPage source =
+                loadRepositoryPage(tenantId, userId, requestedType, keyword, page.offset(), page.safeSize());
+            return PageResponse.of(source.items(), page, source.total());
+        }
+
+        int sourceLimit = page.offset() + page.safeSize();
         List<AuthoringAssetLibraryItem> rows = new ArrayList<>();
-        if (requestedType == null || requestedType == VersionedAssetType.RULE) {
-            rules.listByFilter(tenantId, null, null, null).forEach(rule ->
+        long total = 0L;
+        for (VersionedAssetType type : repositoryBackedTypes()) {
+            if (!shouldInclude(null, allowedTypes, type)) {
+                continue;
+            }
+            RepositoryAssetPage source = loadRepositoryPage(tenantId, userId, type, keyword, 0, sourceLimit);
+            rows.addAll(source.items());
+            total += source.total();
+        }
+        List<AuthoringAssetLibraryItem> items = sorted(rows).stream()
+            .skip(page.offset())
+            .limit(page.safeSize())
+            .toList();
+        return PageResponse.of(items, page, total);
+    }
+
+    private PageResponse<AuthoringAssetLibraryItem> listWithProfileFilters(
+            String tenantId,
+            String userId,
+            VersionedAssetType requestedType,
+            Set<VersionedAssetType> allowedTypes,
+            String keyword,
+            String tag,
+            boolean favoriteOnly,
+            PageRequest page) {
+        List<AuthoringAssetLibraryItem> rows = new ArrayList<>();
+        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.RULE)) {
+            rules.listByFilter(tenantId, null, null, null, null).forEach(rule ->
                 rows.add(ruleItem(tenantId, userId, rule)));
         }
-        if (requestedType == null || requestedType == VersionedAssetType.PATHWAY) {
-            pathways.listByFilter(tenantId, null, null, null, null).forEach(pathway ->
+        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.PATHWAY)) {
+            pathways.listByFilter(tenantId, null, null, null, null, null).forEach(pathway ->
                 rows.add(pathwayItem(tenantId, userId, pathway)));
         }
-        if (requestedType == null || requestedType == VersionedAssetType.CONDITION_FRAGMENT) {
+        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.CONDITION_FRAGMENT)) {
             fragments.pageByFilter(tenantId, null, null, null, 0, SOURCE_SCAN_LIMIT).forEach(fragment ->
                 rows.add(fragmentItem(tenantId, userId, fragment)));
         }
-        if (requestedType == null || requestedType == VersionedAssetType.FOLLOWUP) {
-            followupTemplates.findByTenantIdOrderByUpdatedAtDesc(tenantId).forEach(template ->
+        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.FOLLOWUP)) {
+            followupTemplates.pageByFilter(tenantId, null, null, 0, SOURCE_SCAN_LIMIT).forEach(template ->
                 rows.add(followupItem(tenantId, userId, template)));
         }
 
@@ -101,17 +148,89 @@ public class AuthoringAssetLibraryService {
             .filter(item -> matchesKeyword(item, keyword))
             .filter(item -> tag == null || item.tags().stream().anyMatch(value -> value.equalsIgnoreCase(tag)))
             .filter(item -> !favoriteOnly || item.favorite())
-            .sorted(Comparator
-                .comparing(AuthoringAssetLibraryItem::updatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(item -> item.assetType().name())
-                .thenComparing(AuthoringAssetLibraryItem::assetCode))
+            .sorted(assetOrdering())
             .toList();
 
-        int offset = page.offset();
-        int toIndex = Math.min(filtered.size(), offset + page.safeSize());
-        List<AuthoringAssetLibraryItem> items =
-            offset >= filtered.size() ? List.of() : filtered.subList(offset, toIndex);
+        List<AuthoringAssetLibraryItem> items = filtered.stream()
+            .skip(page.offset())
+            .limit(page.safeSize())
+            .toList();
         return PageResponse.of(items, page, filtered.size());
+    }
+
+    private List<VersionedAssetType> repositoryBackedTypes() {
+        return List.of(
+            VersionedAssetType.RULE,
+            VersionedAssetType.PATHWAY,
+            VersionedAssetType.CONDITION_FRAGMENT,
+            VersionedAssetType.FOLLOWUP
+        );
+    }
+
+    private RepositoryAssetPage loadRepositoryPage(
+            String tenantId,
+            String userId,
+            VersionedAssetType type,
+            String keyword,
+            int offset,
+            int limit) {
+        String likeKeyword = likeKeyword(keyword);
+        return switch (type) {
+            case RULE -> new RepositoryAssetPage(
+                rules.pageByFilter(tenantId, null, null, null, likeKeyword, offset, limit).stream()
+                    .map(rule -> ruleItem(tenantId, userId, rule))
+                    .toList(),
+                rules.countByFilter(tenantId, null, null, null, likeKeyword)
+            );
+            case PATHWAY -> new RepositoryAssetPage(
+                pathways.pageByFilter(tenantId, null, null, null, null, likeKeyword, offset, limit).stream()
+                    .map(pathway -> pathwayItem(tenantId, userId, pathway))
+                    .toList(),
+                pathways.countByFilter(tenantId, null, null, null, null, likeKeyword)
+            );
+            case CONDITION_FRAGMENT -> new RepositoryAssetPage(
+                fragments.pageByFilter(tenantId, null, null, keyword, offset, limit).stream()
+                    .map(fragment -> fragmentItem(tenantId, userId, fragment))
+                    .toList(),
+                fragments.countByFilter(tenantId, null, null, keyword)
+            );
+            case FOLLOWUP -> new RepositoryAssetPage(
+                followupTemplates.pageByFilter(tenantId, likeKeyword, null, offset, limit).stream()
+                    .map(template -> followupItem(tenantId, userId, template))
+                    .toList(),
+                followupTemplates.countByFilter(tenantId, likeKeyword, null)
+            );
+            default -> new RepositoryAssetPage(List.of(), 0L);
+        };
+    }
+
+    private List<AuthoringAssetLibraryItem> sorted(List<AuthoringAssetLibraryItem> rows) {
+        return rows.stream()
+            .sorted(assetOrdering())
+            .toList();
+    }
+
+    private Comparator<AuthoringAssetLibraryItem> assetOrdering() {
+        return Comparator
+            .comparing(AuthoringAssetLibraryItem::updatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(item -> item.assetType().name())
+            .thenComparing(AuthoringAssetLibraryItem::assetCode);
+    }
+
+    private String likeKeyword(String keyword) {
+        return keyword == null ? null : "%" + keyword.toLowerCase(Locale.ROOT) + "%";
+    }
+
+    private record RepositoryAssetPage(List<AuthoringAssetLibraryItem> items, long total) {
+    }
+
+    private boolean shouldInclude(
+            VersionedAssetType requestedType,
+            Set<VersionedAssetType> allowedTypes,
+            VersionedAssetType candidateType) {
+        boolean requested = requestedType == null || requestedType == candidateType;
+        boolean allowed = allowedTypes == null || allowedTypes.contains(candidateType);
+        return requested && allowed;
     }
 
     /**
