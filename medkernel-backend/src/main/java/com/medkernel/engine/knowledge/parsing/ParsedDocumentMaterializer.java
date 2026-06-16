@@ -13,7 +13,8 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 /**
  * 解析产物物化器（AIK-STD-02 FR-3/4）。把 {@link ParsedDocument} 落入既有受控来源：
  * 注册/复用 {@code source_version}（原文 SHA-256 + file_uri = 存证）+ 逐段 upsert {@code source_fragment}
- * （anchor_path 编码 §章节/¶段 = 锚点）。强租户隔离 + 幂等（同 hash 复用版本、跳过重复片段不重复插入）。
+ * （anchor_path 编码 {@code [p<页>/]§<章节>/¶<段>} = 锚点，PDF 等版式来源附真实页号前缀）。
+ * 强租户隔离 + 幂等（同 hash 复用版本、跳过重复片段不重复插入）。
  */
 @Service
 public class ParsedDocumentMaterializer {
@@ -40,15 +41,16 @@ public class ParsedDocumentMaterializer {
         int fragmentCount = 0;
         for (ParsedSection section : doc.sections()) {
             int paraIndex = 0;
-            for (String paragraph : section.paragraphs()) {
+            for (ParsedParagraph paragraph : section.paragraphs()) {
                 paraIndex++;
-                String anchorPath = "§" + section.numberPath() + "/¶" + paraIndex;
-                String contentHash = Sha256ContentHash.sha256(paragraph, EMPTY_MSG);
+                String pagePrefix = paragraph.page() == null ? "" : "p" + paragraph.page() + "/";
+                String anchorPath = pagePrefix + "§" + section.numberPath() + "/¶" + paraIndex;
+                String contentHash = Sha256ContentHash.sha256(paragraph.text(), EMPTY_MSG);
                 if (fragmentRepository.findBySourceVersionIdAndContentHash(version.id(), contentHash).isPresent()) {
                     continue;
                 }
                 fragmentRepository.save(new SourceFragment(
-                    null, tenantId, version.id(), anchorPath, section.title(), paragraph, contentHash, Instant.now()));
+                    null, tenantId, version.id(), anchorPath, section.title(), paragraph.text(), contentHash, Instant.now()));
                 fragmentCount++;
             }
         }

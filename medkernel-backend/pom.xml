@@ -33,6 +33,7 @@
         <ojdbc.version>23.5.0.24.07</ojdbc.version>
         <opentelemetry.version>1.41.0</opentelemetry.version>
         <testcontainers.version>1.21.4</testcontainers.version>
+        <pdfbox.version>3.0.3</pdfbox.version>
     </properties>
 
     <dependencies>
@@ -53,6 +54,13 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
             <version>1.14.1</version>
+        </dependency>
+
+        <!-- 文档解析（AIK-STD-02）：PDFBox 纯 Java 确定性 PDF 文本提取（离线、无模型） -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <!-- AOP: 用于 @DataScope 切面、未来审计/限流切面 -->

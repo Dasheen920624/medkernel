@@ -34,8 +34,10 @@ class ParsedDocumentMaterializerTest {
 
     private ParsedDocument doc() {
         return new ParsedDocument(List.of(
-            new ParsedSection("1", 1, "总则", List.of("成人适用。", "禁用于孕妇。")),
-            new ParsedSection("1.1", 2, "适应证", List.of("确诊后使用。"))));
+            new ParsedSection("1", 1, "总则", List.of(
+                new ParsedParagraph("成人适用。", null), new ParsedParagraph("禁用于孕妇。", null))),
+            new ParsedSection("1.1", 2, "适应证", List.of(
+                new ParsedParagraph("确诊后使用。", null)))));
     }
 
     @Test
@@ -69,6 +71,31 @@ class ParsedDocumentMaterializerTest {
         });
         assertThat(cap.getAllValues().get(0).anchorLabel()).isEqualTo("总则");
         assertThat(cap.getAllValues().get(0).textExcerpt()).isEqualTo("成人适用。");
+    }
+
+    @Test
+    void encodesPagePrefixInAnchorWhenParagraphCarriesPage() {
+        when(versionRepository.findBySourceDocumentIdAndContentHash(anyLong(), anyString()))
+            .thenReturn(Optional.empty());
+        when(versionRepository.save(any())).thenAnswer(i -> {
+            SourceVersion v = i.getArgument(0);
+            return new SourceVersion(77L, v.tenantId(), v.sourceDocumentId(), v.versionNo(),
+                v.publishedAt(), v.contentHash(), v.fileUri(), v.language(), v.createdAt(), v.createdBy());
+        });
+        when(fragmentRepository.findBySourceVersionIdAndContentHash(anyLong(), anyString()))
+            .thenReturn(Optional.empty());
+        when(fragmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        ParsedDocument paged = new ParsedDocument(List.of(
+            new ParsedSection("2", 1, "治疗", List.of(
+                new ParsedParagraph("一线用药。", 3), new ParsedParagraph("二线用药。", 4)))));
+
+        materializer.materialize("t-1", 5L, "v1", "file:/g.pdf", "b".repeat(64), paged, "tester");
+
+        ArgumentCaptor<SourceFragment> cap = ArgumentCaptor.forClass(SourceFragment.class);
+        verify(fragmentRepository, times(2)).save(cap.capture());
+        assertThat(cap.getAllValues()).extracting(SourceFragment::anchorPath)
+            .containsExactly("p3/§2/¶1", "p4/§2/¶2");
     }
 
     @Test

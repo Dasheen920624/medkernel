@@ -2,9 +2,18 @@ package com.medkernel.engine.knowledge.parsing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +85,63 @@ class DocumentParseIntegrationTest {
         assertThat(fragments).allSatisfy(f -> assertThat(f.contentHash()).hasSize(64));
         assertThat(fragments).anySatisfy(f ->
             assertThat(f.textExcerpt()).isEqualTo("本指南适用于成人高血压患者。"));
+    }
+
+    @Test
+    void parsesPdfViaBase64AndMaterializesPageAnchoredFragments() throws IOException {
+        RequestContext.restore(new RequestContext.Snapshot("trace-pdf", OrgScope.tenant(TENANT), "user-it"));
+        Instant now = Instant.now();
+        SourceDocument doc = sourceDocuments.save(new SourceDocument(null, TENANT, "SRC-PARSE-PDF",
+            SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE, "国家卫健委发布", "高血压指南(PDF)",
+            "卫健委", "lic", "zh-CN", now, "u", now, "u"));
+
+        String base64 = Base64.getEncoder().encodeToString(twoPageGuidelinePdf());
+
+        DocParseJob job = service.submit(new DocumentParseRequest(
+            doc.id(), "v1", "guide.pdf", DocumentFormat.PDF, base64));
+
+        assertThat(job.status()).isEqualTo(ParseJobStatus.SUCCEEDED);
+        assertThat(job.sourceHash()).hasSize(64);
+        assertThat(job.parsedFragmentCount()).isGreaterThanOrEqualTo(2);
+
+        List<SourceFragment> fragments = sourceFragments
+            .findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc(TENANT, job.resultSourceVersionId());
+        assertThat(fragments).extracting(SourceFragment::anchorPath)
+            .anySatisfy(a -> assertThat(a).startsWith("p1/§"))
+            .anySatisfy(a -> assertThat(a).startsWith("p2/§"));
+        assertThat(fragments).allSatisfy(f -> assertThat(f.contentHash()).hasSize(64));
+    }
+
+    /** 由 PDFBox 确定性构造的 2 页夹具 PDF（ASCII 编号标题 + 段落，避免 CJK 字体内嵌）。 */
+    private byte[] twoPageGuidelinePdf() throws IOException {
+        List<List<String>> pages = List.of(
+            List.of("1 Scope", "This guideline applies to adult patients.",
+                "1.1 Population", "Confirmed primary hypertension."),
+            List.of("2 Treatment", "First line therapy is drug A."));
+        try (PDDocument pdf = new PDDocument()) {
+            for (List<String> lines : pages) {
+                PDPage page = new PDPage(PDRectangle.A4);
+                pdf.addPage(page);
+                try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                    cs.beginText();
+                    cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                    cs.setLeading(18f);
+                    cs.newLineAtOffset(60, 760);
+                    boolean first = true;
+                    for (String line : lines) {
+                        if (!first) {
+                            cs.newLine();
+                        }
+                        cs.showText(line);
+                        first = false;
+                    }
+                    cs.endText();
+                }
+            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            pdf.save(baos);
+            return baos.toByteArray();
+        }
     }
 
     @Test
