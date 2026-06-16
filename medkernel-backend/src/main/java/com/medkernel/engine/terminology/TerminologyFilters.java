@@ -33,10 +33,19 @@ record MappingFilter(String sourceSystem, TermCategory category, TermMappingStat
     }
 }
 
-/** 候选映射分页过滤：状态 / 风险等级 / 是否冲突。 */
-record CandidateFilter(MappingCandidateStatus status, TermRiskLevel riskLevel, Boolean conflictFlag) {
+/** 候选映射分页过滤：状态 / 风险等级 / 是否冲突 / 生成任务。 */
+record CandidateFilter(
+    MappingCandidateStatus status,
+    TermRiskLevel riskLevel,
+    Boolean conflictFlag,
+    String generationJobCode
+) {
+    CandidateFilter(MappingCandidateStatus status, TermRiskLevel riskLevel, Boolean conflictFlag) {
+        this(status, riskLevel, conflictFlag, null);
+    }
+
     static CandidateFilter empty() {
-        return new CandidateFilter(null, null, null);
+        return new CandidateFilter(null, null, null, null);
     }
 }
 

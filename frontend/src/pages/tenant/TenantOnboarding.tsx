@@ -85,6 +85,8 @@ const facilityTypeOptions: Array<{
   })),
 ];
 
+const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+
 const themeOptions = [
   { name: "深蓝", color: "var(--mk-theme-navy)", className: styles.themeNavy },
   { name: "青色", color: "var(--mk-theme-cyan)", className: styles.themeCyan },
@@ -339,7 +341,7 @@ function CustomerTenantImplementation() {
     isLoading: orgLoading,
     isError: orgError,
     refetch: refetchOrgs,
-  } = useOrgUnits({ size: 100 });
+  } = useOrgUnits({ page: 1, size: ORG_UNIT_REFERENCE_PAGE_SIZE, status: "ACTIVE" });
   const createOrgMutation = useCreateOrgUnit();
 
   const {

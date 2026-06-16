@@ -1,7 +1,5 @@
 package com.medkernel.compliance.exportapproval;
 
-import java.util.List;
-
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -14,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -36,11 +36,15 @@ public class ExportApprovalController {
 
     @GetMapping("/exports")
     @PreAuthorize("@perm.has('audit.export')")
-    public ApiResult<List<ExportApprovalResponse>> listExports(
+    public ApiResult<PageResponse<ExportApprovalResponse>> listExports(
             @RequestParam(required = false) String resourceType,
-            @RequestParam(required = false) ExportApprovalStatus status) {
+            @RequestParam(required = false) ExportApprovalStatus status,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(service.listApprovals(tenantId, resourceType, status));
+        return ApiResult.ok(service.listApprovals(
+            tenantId, resourceType, status, new PageRequest(page, size, sort)));
     }
 
     @PostMapping("/exports:request")

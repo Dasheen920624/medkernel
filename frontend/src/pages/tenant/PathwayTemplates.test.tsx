@@ -19,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
   templateInheritanceDiffData: null as unknown,
   evaluationIndicatorsData: { items: [], total: 0 } as unknown,
   packagesData: { items: [], total: 0 } as unknown,
+  evaluationPackagesData: { items: [], total: 0 } as unknown,
   conditionFragmentsData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
@@ -33,6 +34,8 @@ const apiMocks = vi.hoisted(() => ({
   simulatePathway: vi.fn(),
   previewRun: vi.fn(),
   templateListParams: [] as unknown[],
+  packageListParams: [] as unknown[],
+  evaluationIndicatorParams: [] as unknown[],
   authoringPreviewData: {
     previewText: "路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH。",
     lines: ["路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH"],
@@ -40,6 +43,8 @@ const apiMocks = vi.hoisted(() => ({
     warnings: [],
     traceId: "trace-pathway-preview",
   } as unknown,
+  contextFieldCatalogData: [] as unknown[],
+  contextFieldCatalogError: false,
 }));
 
 const PATHWAY_INTERACTION_TIMEOUT_MS = 90_000;
@@ -79,15 +84,29 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: false,
     isError: false,
   }),
-  useEvaluationIndicators: () => ({
-    data: apiMocks.evaluationIndicatorsData,
-    isLoading: false,
-    isError: false,
-  }),
-  usePackages: () => ({
-    data: apiMocks.packagesData,
-    refetch: apiMocks.refetchPackages,
-  }),
+  useEvaluationIndicators: (params?: unknown) => {
+    apiMocks.evaluationIndicatorParams.push(params ?? {});
+    return {
+      data: apiMocks.evaluationIndicatorsData,
+      isLoading: false,
+      isError: false,
+    };
+  },
+  usePackages: (params?: {
+    assetType?: string;
+    keyword?: string;
+    page?: number;
+    size?: number;
+  }) => {
+    apiMocks.packageListParams.push(params ?? {});
+    return {
+      data:
+        params?.assetType === "EVALUATION"
+          ? apiMocks.evaluationPackagesData
+          : apiMocks.packagesData,
+      refetch: apiMocks.refetchPackages,
+    };
+  },
   useConditionFragments: () => ({
     data: apiMocks.conditionFragmentsData,
     isLoading: false,
@@ -118,7 +137,11 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.simulatePathway,
     isPending: false,
   }),
-  useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
+  useContextFieldCatalog: () => ({
+    data: apiMocks.contextFieldCatalogData,
+    isLoading: false,
+    isError: apiMocks.contextFieldCatalogError,
+  }),
   useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
   useMappingCoverage: () => ({ data: [], isLoading: false, isError: false }),
   useCreateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -168,6 +191,18 @@ const pathwayPackage: KnowledgePackage = {
   organizationScope: "tenant:tenant-hospital",
   applicableScope: "disease:CARDIO",
   sourceRef: "院内已审核路径制度",
+};
+
+const evaluationPackage: KnowledgePackage = {
+  ...pathwayPackage,
+  id: 2,
+  packageId: "sp-eval-1",
+  packageCode: "PKG.EVAL.PATHWAY",
+  name: "路径评估指标包",
+  packageVersion: "pkg-eval-2026.06",
+  assetTypes: ["EVALUATION"],
+  primaryAssetId: "PKG.EVAL.PATHWAY",
+  primaryAssetVersion: "pkg-eval-2026.06",
 };
 
 const losOutcomeIndicator: EvaluationIndicator = {
@@ -322,9 +357,12 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.templateInheritanceDiffData = null;
     apiMocks.evaluationIndicatorsData = { items: [], total: 0 };
     apiMocks.packagesData = { items: [], total: 0 };
+    apiMocks.evaluationPackagesData = { items: [], total: 0 };
     apiMocks.conditionFragmentsData = { items: [], total: 0 };
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
+    apiMocks.contextFieldCatalogData = [];
+    apiMocks.contextFieldCatalogError = false;
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
     apiMocks.refetchPackages.mockReset();
@@ -336,6 +374,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.simulatePathway.mockReset();
     apiMocks.previewRun.mockReset();
     apiMocks.templateListParams = [];
+    apiMocks.packageListParams = [];
+    apiMocks.evaluationIndicatorParams = [];
   });
 
   it("路径知识包表单使用统一知识包说明文案", async () => {
@@ -372,6 +412,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         within(dialog).queryByLabelText("拓扑流转连线配置 (JSON 列表)"),
       ).not.toBeInTheDocument();
 
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属路径知识包"));
+      await user.click(await screen.findByText(/心血管路径知识包/));
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       fireEvent.change(within(dialog).getByLabelText("节点编码"), {
@@ -522,6 +564,26 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(await within(dialog).findByText("草稿路径推进到 DISPOSITION")).toBeInTheDocument();
       expect(within(dialog).getByText("E-ASSESS-DISPOSITION")).toBeInTheDocument();
       expect(within(dialog).getByText("路径边条件命中")).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "创建路径草稿缺少真实配置包版本时阻断提交，不能用模板版本冒充包版本",
+    async () => {
+      apiMocks.packagesData = { items: [{ ...pathwayPackage, packageVersion: "" }], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByRole("button", { name: "OK" }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).not.toHaveBeenCalled());
+      expect(
+        await screen.findByText("无法确认路径模板所属的配置包版本，暂不能创建或复制路径。"),
+      ).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
@@ -762,7 +824,11 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     "新建路径模板提交阶段里程碑、天序与节点里程碑绑定",
     async () => {
       apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
-      apiMocks.evaluationIndicatorsData = { items: [losOutcomeIndicator], total: 1 };
+      apiMocks.evaluationIndicatorsData = {
+        items: [{ ...losOutcomeIndicator, packageVersion: evaluationPackage.packageVersion }],
+        total: 1,
+      };
+      apiMocks.evaluationPackagesData = { items: [evaluationPackage], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
       renderPathwayTemplates();
@@ -838,9 +904,10 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       await user.click(within(dialog).getByRole("button", { name: /添加结局指标/ }));
       fireEvent.mouseDown(within(dialog).getByLabelText("评估指标"));
       await user.click(await screen.findByText("平均住院日（PATH.OUTCOME.LOS）"));
-      fireEvent.change(within(dialog).getByLabelText("指标包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
+      expect(within(dialog).getByText("pkg-eval-2026.06 · 路径评估指标包")).toBeInTheDocument();
+      expect(
+        within(dialog).queryByPlaceholderText("默认使用路径知识包版本"),
+      ).not.toBeInTheDocument();
 
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 
@@ -912,7 +979,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         {
           scope: "TEMPLATE",
           indicatorCode: "PATH.OUTCOME.LOS",
-          packageVersion: "pkg-2026.06",
+          packageVersion: "pkg-eval-2026.06",
         },
       ]);
     },
@@ -1299,6 +1366,55 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
 
+  it("路径模板配置包引用使用小页服务端搜索，不能加载 100 条快照", () => {
+    renderPathwayTemplates();
+
+    expect(apiMocks.packageListParams).toContainEqual({
+      page: 1,
+      size: 20,
+      assetType: "PATHWAY",
+    });
+    expect(apiMocks.packageListParams).not.toContainEqual(
+      expect.objectContaining({ assetType: "PATHWAY", size: 100 }),
+    );
+  });
+
+  it("路径结局指标和回滚目标使用小页服务端查询，不能加载 100 条快照", () => {
+    apiMocks.templateDetailData = {
+      ...createTemplateDetail(),
+      template: publishedTemplate,
+      deploymentStatus: "PUBLISHED",
+    };
+
+    renderPathwayTemplates();
+
+    expect(apiMocks.templateListParams).toContainEqual({
+      status: "OFFLINE",
+      templateCode: "PATH.CARDIO.REVIEW",
+      page: 1,
+      size: 20,
+    });
+    expect(apiMocks.packageListParams).toContainEqual({
+      page: 1,
+      size: 20,
+      assetType: "EVALUATION",
+    });
+    expect(apiMocks.evaluationIndicatorParams).toContainEqual({
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+    });
+    expect(apiMocks.templateListParams).not.toContainEqual(
+      expect.objectContaining({ templateCode: "PATH.CARDIO.REVIEW", size: 100 }),
+    );
+    expect(apiMocks.packageListParams).not.toContainEqual(
+      expect.objectContaining({ assetType: "EVALUATION", size: 100 }),
+    );
+    expect(apiMocks.evaluationIndicatorParams).not.toContainEqual(
+      expect.objectContaining({ size: 100 }),
+    );
+  });
+
   it(
     "从真实 API-01 快照选择试运行路径，并展示后端返回的质量与决策证据",
     async () => {
@@ -1361,6 +1477,53 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(screen.getByText("OBSERVATION:obs-1:code:HB")).toBeInTheDocument();
       expect(screen.getAllByText("ASSESS").length).toBeGreaterThan(0);
       expect(screen.getAllByText("FOLLOWUP").length).toBeGreaterThan(0);
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径试运行缺少真实配置包版本时阻断，不能用模板版本冒充包版本",
+    async () => {
+      apiMocks.templateListData = { items: [draftTemplate], total: 1 };
+      apiMocks.templateDetailData = createTemplateDetail();
+      apiMocks.packagesData = { items: [], total: 0 };
+      apiMocks.snapshotsData = {
+        items: [
+          {
+            snapshotId: "ctx-path-001",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "COMPLETE",
+            createdAt: "2026-06-02T08:00:00Z",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.snapshotDetailData = {
+        snapshotId: "ctx-path-001",
+        status: "ACTIVE",
+        packageVersion: "",
+        qualityStatus: "COMPLETE",
+        missingFields: [],
+        mappingStatus: {},
+        resources: { patient: { patientId: "P-001" } },
+        createdAt: "2026-06-02T08:00:00Z",
+        traceId: "trace-ctx",
+      };
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
+      await user.type(screen.getByLabelText("患者 ID"), "P-001");
+      await user.type(screen.getByLabelText("就诊 ID"), "E-001");
+      await user.click(screen.getByRole("button", { name: /读取真实快照/ }));
+      await user.click(await screen.findByRole("button", { name: /ctx-path-001/ }));
+      await user.click(screen.getByRole("button", { name: /使用该快照试运行/ }));
+
+      await waitFor(() => expect(apiMocks.simulatePathway).not.toHaveBeenCalled());
+      expect(
+        await screen.findByText("无法确认当前路径模板所属的配置包版本，暂不能试运行路径。"),
+      ).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
@@ -1455,6 +1618,39 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "路径发布缺少真实配置包版本时阻断灰度发布，不能用模板版本冒充包版本",
+    async () => {
+      apiMocks.templateListData = { items: [draftTemplate], total: 1 };
+      apiMocks.templateDetailData = createTemplateDetail();
+      apiMocks.templateImpactData = {
+        templateId: "pt-path-1",
+        analysisStatus: "COMPLETE",
+        affectedPatientPathways: 2,
+        nodeCount: 2,
+        edgeCount: 1,
+        timedNodeCount: 2,
+        terminalNodeCount: 1,
+        canaryPercent: 10,
+        impactDigest: "sha256:path-impact",
+        releaseEvidence: ["灰度发布默认 10%"],
+        traceId: "trace-impact",
+      };
+      apiMocks.packagesData = { items: [], total: 0 };
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      await user.type(screen.getByLabelText("发布审核说明"), "已核查影响摘要。");
+      await user.click(screen.getByRole("button", { name: /提交审核并进入灰度发布/ }));
+
+      await waitFor(() => expect(apiMocks.publishTemplate).not.toHaveBeenCalled());
+      expect(
+        await screen.findByText("无法确认当前路径模板所属的配置包版本，暂不能发布路径。"),
+      ).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径发布使用 7 步流展示影响摘要，并携带 impactDigest 与审核理由进入灰度发布",
     async () => {
       apiMocks.templateListData = { items: [draftTemplate], total: 1 };
@@ -1506,6 +1702,43 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           reason: "已核查影响摘要和随访交接，先灰度 10%。",
         }),
       );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "全量激活缺少真实配置包版本时阻断，不能用模板版本冒充包版本",
+    async () => {
+      apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        template: publishedTemplate,
+        deploymentStatus: "APPROVED",
+      };
+      apiMocks.templateImpactData = {
+        templateId: "pt-path-published",
+        analysisStatus: "COMPLETE",
+        affectedPatientPathways: 1,
+        nodeCount: 2,
+        edgeCount: 1,
+        timedNodeCount: 2,
+        terminalNodeCount: 1,
+        canaryPercent: 10,
+        impactDigest: "sha256:path-full",
+        releaseEvidence: ["GRAY 灰度发布"],
+        traceId: "trace-impact",
+      };
+      apiMocks.packagesData = { items: [], total: 0 };
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      await user.type(screen.getByLabelText("发布审核说明"), "院级管理员确认全量激活");
+      await user.click(screen.getByRole("button", { name: /院级确认全量激活/ }));
+
+      await waitFor(() => expect(apiMocks.fullRolloutTemplate).not.toHaveBeenCalled());
+      expect(
+        await screen.findByText("无法确认当前路径模板所属的配置包版本，暂不能发布路径。"),
+      ).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
@@ -1709,7 +1942,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         status: "OFFLINE",
         templateCode: "PATH.CARDIO.REVIEW",
         page: 1,
-        size: 100,
+        size: 20,
       });
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
@@ -1766,6 +1999,26 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         nodes: Array<{ config?: { authoringLayout?: { x: number; y: number } } }>;
       };
       expect(dsl.nodes[0].config?.authoringLayout).toEqual({ x: 16, y: 0 });
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "字段目录不可用时阻断路径条件同步到 DSL",
+    async () => {
+      apiMocks.packagesData = { items: [pathwayPackage], total: 1 };
+      apiMocks.contextFieldCatalogError = true;
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
+
+      expect(
+        within(dialog).getByText("字段目录暂不可用，路径条件不能同步到 DSL。"),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: /同步到 DSL/ })).toBeDisabled();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

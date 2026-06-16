@@ -7,6 +7,7 @@ import AuthoringAssets from "./AuthoringAssets";
 
 const apiMocks = vi.hoisted(() => ({
   useAuthoringAssets: vi.fn(),
+  usePackages: vi.fn(),
   updateProfile: vi.fn(),
   favorite: vi.fn(),
   unfavorite: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/shared/api/hooks", () => ({
     },
   }),
   useAuthoringAssets: (...args: unknown[]) => apiMocks.useAuthoringAssets(...args),
+  usePackages: (...args: unknown[]) => apiMocks.usePackages(...args),
   useUpdateAuthoringAssetProfile: () => ({
     mutateAsync: apiMocks.updateProfile,
     isPending: false,
@@ -56,6 +58,7 @@ describe("AuthoringAssets", () => {
     apiMocks.unfavorite.mockReset();
     apiMocks.clone.mockReset();
     apiMocks.useAuthoringAssets.mockReset();
+    apiMocks.usePackages.mockReset();
     apiMocks.useAuthoringAssets.mockReturnValue({
       data: {
         items: [
@@ -92,6 +95,31 @@ describe("AuthoringAssets", () => {
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
+    });
+    apiMocks.usePackages.mockReturnValue({
+      data: {
+        items: [
+          {
+            packageId: "pkg-rule-1",
+            tenantId: "t-1",
+            packageCode: "PKG.RULE",
+            packageVersion: "pkg-2026.06",
+            name: "规则配置包",
+            description: "",
+            accessPolicy: "OPEN",
+            status: "ACTIVE",
+            createdAt: "2026-06-01T00:00:00Z",
+            createdBy: "tester",
+            updatedAt: "2026-06-01T00:00:00Z",
+            updatedBy: "tester",
+            traceId: "trace-pkg",
+            assetTypes: ["CONDITION_FRAGMENT", "RULE"],
+            itemCount: 2,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
     });
   });
 
@@ -154,12 +182,21 @@ describe("AuthoringAssets", () => {
       target: { value: "CKD 条件片段副本" },
     });
     fireEvent.change(screen.getByLabelText("新版本"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("包版本"), {
-      target: { value: "pkg-2026.06" },
-    });
+    expect(screen.getByText("pkg-2026.06 · 规则配置包")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "另存为草稿" }));
 
     await waitFor(() => {
+      expect(apiMocks.usePackages).toHaveBeenCalledWith({
+        page: 1,
+        size: 20,
+        assetType: "CONDITION_FRAGMENT",
+        keyword: "pkg-2026.06",
+      });
+      expect(apiMocks.usePackages).not.toHaveBeenCalledWith({
+        page: 1,
+        size: 100,
+        assetType: "CONDITION_FRAGMENT",
+      });
       expect(apiMocks.clone).toHaveBeenCalledWith({
         assetType: "CONDITION_FRAGMENT",
         assetId: "frag-ckd",
@@ -171,5 +208,28 @@ describe("AuthoringAssets", () => {
         },
       });
     });
+  });
+
+  it("blocks cloning when the selected package version is not loaded from package selector", async () => {
+    apiMocks.usePackages.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "克隆" }));
+    fireEvent.change(screen.getByLabelText("新编码"), {
+      target: { value: "FRAG.CKD.COPY" },
+    });
+    fireEvent.change(screen.getByLabelText("新名称"), {
+      target: { value: "CKD 条件片段副本" },
+    });
+    fireEvent.change(screen.getByLabelText("新版本"), { target: { value: "1" } });
+    await userEvent.click(screen.getByRole("button", { name: "另存为草稿" }));
+
+    expect(await screen.findByText("请选择已存在的配置包版本。")).toBeInTheDocument();
+    expect(apiMocks.clone).not.toHaveBeenCalled();
   });
 });

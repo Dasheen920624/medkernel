@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   App as AntdApp,
   Button,
@@ -25,6 +25,7 @@ import {
   useAuthoringAssets,
   useCloneAuthoringAsset,
   useFavoriteAuthoringAsset,
+  usePackages,
   useSecurityProfile,
   useUnfavoriteAuthoringAsset,
   useUpdateAuthoringAssetProfile,
@@ -37,6 +38,7 @@ import styles from "./AuthoringAssets.module.css";
 
 const { Option } = Select;
 const { Text } = Typography;
+const CLONE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 const assetTypeOptions: Array<{ value: EngineAssetType | "ALL"; label: string }> = [
   { value: "ALL", label: "全部资产" },
@@ -92,6 +94,7 @@ export default function AuthoringAssets() {
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [profileAsset, setProfileAsset] = useState<AuthoringAssetLibraryItem | null>(null);
   const [cloneAsset, setCloneAsset] = useState<AuthoringAssetLibraryItem | null>(null);
+  const [clonePackageSearch, setClonePackageSearch] = useState("");
   const [batchOpen, setBatchOpen] = useState(false);
   const [profileForm] = Form.useForm<{ category: string; tags: string }>();
   const [cloneForm] = Form.useForm<{
@@ -115,7 +118,60 @@ export default function AuthoringAssets() {
   const favoriteMutation = useFavoriteAuthoringAsset();
   const unfavoriteMutation = useUnfavoriteAuthoringAsset();
   const cloneMutation = useCloneAuthoringAsset();
+  const clonePackagesQuery = usePackages({
+    page: 1,
+    size: CLONE_PACKAGE_REFERENCE_PAGE_SIZE,
+    keyword: clonePackageSearch || cloneAsset?.packageVersion || undefined,
+    ...(cloneAsset ? { assetType: cloneAsset.assetType } : {}),
+  });
+  const clonePackageOptions = useMemo(
+    () =>
+      (clonePackagesQuery.data?.items ?? [])
+        .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
+        .map((item) => ({
+          value: item.packageVersion,
+          label: `${item.packageVersion} · ${item.name}`,
+        })),
+    [clonePackagesQuery.data?.items],
+  );
+  const knownClonePackageVersions = useMemo(
+    () => new Set(clonePackageOptions.map((option) => option.value.trim())),
+    [clonePackageOptions],
+  );
+  const clonePackageVersionRules = [
+    { required: true, message: "请选择克隆草稿所属配置包版本" },
+    {
+      validator: async (_: unknown, value: unknown) => {
+        const packageVersion = typeof value === "string" ? value.trim() : "";
+        if (!packageVersion) return;
+        if (clonePackagesQuery.isLoading) {
+          throw new Error("配置包版本仍在加载，请稍后再试。");
+        }
+        if (clonePackagesQuery.isError) {
+          throw new Error("配置包列表不可用，暂不能克隆资产。");
+        }
+        if (knownClonePackageVersions.size === 0) {
+          throw new Error("请选择已存在的配置包版本。");
+        }
+        if (!knownClonePackageVersions.has(packageVersion)) {
+          throw new Error("请选择已存在的配置包版本。");
+        }
+      },
+    },
+  ];
   const assets = assetsQuery.data?.items ?? [];
+
+  useEffect(() => {
+    if (!cloneAsset || clonePackageOptions.length !== 1) return;
+    const currentPackageVersion = cloneForm.getFieldValue("packageVersion")?.trim();
+    if (
+      currentPackageVersion &&
+      clonePackageOptions.some((option) => option.value === currentPackageVersion)
+    ) {
+      return;
+    }
+    cloneForm.setFieldValue("packageVersion", clonePackageOptions[0].value);
+  }, [cloneAsset, cloneForm, clonePackageOptions]);
 
   const openProfileModal = (asset: AuthoringAssetLibraryItem) => {
     setProfileAsset(asset);
@@ -152,6 +208,7 @@ export default function AuthoringAssets() {
 
   const openCloneModal = (asset: AuthoringAssetLibraryItem) => {
     setCloneAsset(asset);
+    setClonePackageSearch("");
     cloneForm.setFieldsValue({
       newCode: `${asset.assetCode}.COPY`,
       newName: `${asset.name}副本`,
@@ -162,19 +219,24 @@ export default function AuthoringAssets() {
 
   const saveClone = async () => {
     if (!cloneAsset) return;
-    const values = await cloneForm.validateFields();
-    await cloneMutation.mutateAsync({
-      assetType: cloneAsset.assetType,
-      assetId: cloneAsset.assetId,
-      request: {
-        newCode: values.newCode.trim(),
-        newName: values.newName.trim(),
-        newVersion: Number(values.newVersion),
-        packageVersion: values.packageVersion.trim(),
-      },
-    });
-    message.success("资产副本已保存为草稿");
-    setCloneAsset(null);
+    try {
+      const values = await cloneForm.validateFields();
+      await cloneMutation.mutateAsync({
+        assetType: cloneAsset.assetType,
+        assetId: cloneAsset.assetId,
+        request: {
+          newCode: values.newCode.trim(),
+          newName: values.newName.trim(),
+          newVersion: Number(values.newVersion),
+          packageVersion: values.packageVersion.trim(),
+        },
+      });
+      message.success("资产副本已保存为草稿");
+      setCloneAsset(null);
+    } catch (error: unknown) {
+      if (Array.isArray((error as { errorFields?: unknown[] }).errorFields)) return;
+      message.error("资产副本保存失败，请稍后重试。");
+    }
   };
 
   const columns: ColumnsType<AuthoringAssetLibraryItem> = [
@@ -384,8 +446,16 @@ export default function AuthoringAssets() {
           <Form.Item name="newVersion" label="新版本" rules={[{ required: true }]}>
             <Input type="number" min={1} />
           </Form.Item>
-          <Form.Item name="packageVersion" label="包版本" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="packageVersion" label="包版本" rules={clonePackageVersionRules}>
+            <Select
+              showSearch
+              loading={clonePackagesQuery.isLoading}
+              options={clonePackageOptions}
+              filterOption={false}
+              onSearch={setClonePackageSearch}
+              placeholder="选择克隆草稿所属配置包版本"
+              notFoundContent={clonePackagesQuery.isError ? "包版本读取失败" : "暂无可用包版本"}
+            />
           </Form.Item>
         </Form>
       </Modal>

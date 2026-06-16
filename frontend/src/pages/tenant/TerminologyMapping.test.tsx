@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -413,7 +413,7 @@ describe("TerminologyMapping experience sample", () => {
       expect.objectContaining({ status: "OPEN" }),
     );
     expect(usePackages).toHaveBeenCalledWith(
-      expect.objectContaining({ size: 10, assetType: "TERMINOLOGY" }),
+      expect.objectContaining({ page: 1, size: 20, assetType: "TERMINOLOGY" }),
     );
     expect(usePackageReleaseAdapters).toHaveBeenCalledWith(true);
 
@@ -432,6 +432,51 @@ describe("TerminologyMapping experience sample", () => {
       expect.objectContaining({ page: 2, size: 20, sort: "updatedAt,desc" }),
     );
   });
+
+  it(
+    "loads terminology release packages through small server-side search pages and publishes the selected package",
+    async () => {
+      const user = userEvent.setup();
+      const releasePackage = vi.fn().mockResolvedValue({});
+      const selectedPackage = {
+        ...mappingPackage,
+        packageId: "term-pkg-31",
+        packageVersion: "2026.07",
+        name: "检验字典映射包二",
+      };
+      vi.mocked(usePackages).mockReturnValue({
+        data: pageData([mappingPackage, selectedPackage]),
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as never);
+      vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: releasePackage } as never);
+
+      renderPage();
+
+      expect(usePackages).toHaveBeenCalledWith({
+        page: 1,
+        size: 20,
+        assetType: "TERMINOLOGY",
+        keyword: undefined,
+      });
+      await user.click(screen.getByRole("combobox", { name: "选择映射包" }));
+      await user.click(await screen.findByText("检验字典映射包二 · 2026.07"));
+      await user.click(screen.getByRole("button", { name: "发布映射包" }));
+      await user.type(screen.getByLabelText("发布原因"), "发布选中映射包");
+      await user.click(screen.getByRole("button", { name: "提交发布" }));
+
+      await waitFor(() =>
+        expect(releasePackage).toHaveBeenCalledWith({
+          packageId: "term-pkg-31",
+          request: expect.objectContaining({
+            packageVersion: "2026.07",
+          }),
+        }),
+      );
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
 
   it("loads the full pending candidate queue instead of only high-risk entries", () => {
     renderPage();

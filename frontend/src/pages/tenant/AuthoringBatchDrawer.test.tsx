@@ -12,10 +12,27 @@ const apiMocks = vi.hoisted(() => ({
   importPackages: vi.fn(),
   exportPackages: vi.fn(),
   distribute: vi.fn(),
+  packagesData: {
+    items: [
+      {
+        packageId: "package-rule",
+        packageCode: "PKG.RULE",
+        packageVersion: "pkg-2026.06",
+        name: "临床规则包",
+        status: "DRAFT",
+      },
+    ],
+    total: 1,
+  },
+  packageListParams: [] as unknown[],
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useAuthoringBatchJobs: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
+  usePackages: (params?: unknown) => {
+    apiMocks.packageListParams.push(params ?? {});
+    return { data: apiMocks.packagesData, isLoading: false, isError: false };
+  },
   useGenerateAuthoringBatchRules: () => ({
     mutateAsync: apiMocks.generate,
     isPending: false,
@@ -54,7 +71,25 @@ function renderDrawer() {
 
 describe("AuthoringBatchDrawer", () => {
   beforeEach(() => {
-    Object.values(apiMocks).forEach((mockFn) => mockFn.mockReset());
+    Object.values(apiMocks).forEach((mockFn) => {
+      if (typeof mockFn === "function" && "mockReset" in mockFn) {
+        mockFn.mockReset();
+      }
+    });
+    apiMocks.packageListParams = [];
+  });
+
+  it("loads rule package selector through small server-side pages", () => {
+    renderDrawer();
+
+    expect(apiMocks.packageListParams).toContainEqual({
+      page: 1,
+      size: 20,
+      assetType: "RULE",
+    });
+    expect(apiMocks.packageListParams).not.toContainEqual(
+      expect.objectContaining({ assetType: "RULE", size: 100 }),
+    );
   });
 
   it("generates one rule draft per pasted parameter row", async () => {
@@ -71,6 +106,8 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
 
+    await userEvent.click(screen.getByRole("combobox", { name: "规则包版本" }));
+    await userEvent.click(await screen.findByText("临床规则包（pkg-2026.06）"));
     fireEvent.change(screen.getByLabelText("模板规则 ID"), {
       target: { value: "rule-template" },
     });
@@ -90,12 +127,14 @@ describe("AuthoringBatchDrawer", () => {
             rowId: "row-1",
             ruleCode: "RULE.CKD.1",
             name: "CKD 阈值 1",
+            packageVersion: "pkg-2026.06",
             parameterBindings: { threshold: 45, enabled: true },
           },
           {
             rowId: "row-2",
             ruleCode: "RULE.CKD.2",
             name: "CKD 阈值 2",
+            packageVersion: "pkg-2026.06",
             parameterBindings: { threshold: 30, enabled: false },
           },
         ],
@@ -103,6 +142,27 @@ describe("AuthoringBatchDrawer", () => {
     });
     expect(screen.getByText("批量任务 abj-generate 执行结束")).toBeInTheDocument();
     expect(screen.getByText("成功")).toBeInTheDocument();
+  });
+
+  it("rejects mixed package versions in batch rule generation", async () => {
+    renderDrawer();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "规则包版本" }));
+    await userEvent.click(await screen.findByText("临床规则包（pkg-2026.06）"));
+    fireEvent.change(screen.getByLabelText("模板规则 ID"), {
+      target: { value: "rule-template" },
+    });
+    fireEvent.change(screen.getByLabelText("参数表"), {
+      target: {
+        value: "ruleCode,name,packageVersion\nRULE.CKD.1,CKD 阈值 1,pkg-other",
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "生成草稿" }));
+
+    await waitFor(() => {
+      expect(apiMocks.generate).not.toHaveBeenCalled();
+      expect(screen.getByText("第 2 行 packageVersion 与统一规则包版本不一致")).toBeInTheDocument();
+    });
   });
 
   it("requires explicit confirmation for every high-risk rule before publish", async () => {

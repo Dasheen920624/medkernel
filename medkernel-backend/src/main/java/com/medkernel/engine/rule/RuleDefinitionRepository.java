@@ -46,11 +46,12 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
           AND (:status IS NULL OR status = :status)
           AND (:ruleType IS NULL OR rule_type = :ruleType)
           AND (:riskLevel IS NULL OR risk_level = :riskLevel)
+          AND (:keyword IS NULL OR LOWER(rule_code) LIKE :keyword OR LOWER(name) LIKE :keyword)
         ORDER BY updated_at DESC, id DESC
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<RuleDefinition> pageByFilter(String tenantId, String status, String ruleType,
-                                      String riskLevel, int offset, int limit);
+                                      String riskLevel, String keyword, int offset, int limit);
 
     /**
      * 与分页查询同口径的完整列表，用于平台主源与当前租户覆盖层的有效资产合并。
@@ -61,9 +62,80 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
           AND (:status IS NULL OR status = :status)
           AND (:ruleType IS NULL OR rule_type = :ruleType)
           AND (:riskLevel IS NULL OR risk_level = :riskLevel)
+          AND (:keyword IS NULL OR LOWER(rule_code) LIKE :keyword OR LOWER(name) LIKE :keyword)
         ORDER BY updated_at DESC, id DESC
         """)
-    List<RuleDefinition> listByFilter(String tenantId, String status, String ruleType, String riskLevel);
+    List<RuleDefinition> listByFilter(String tenantId, String status, String ruleType,
+                                      String riskLevel, String keyword);
+
+    @Query("""
+        SELECT COUNT(*) FROM (
+            SELECT local.rule_code
+            FROM rule_definition local
+            WHERE local.tenant_id = :tenantId
+              AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
+              AND (:ruleType IS NULL OR local.rule_type = :ruleType)
+              AND (:riskLevel IS NULL OR local.risk_level = :riskLevel)
+              AND (:keyword IS NULL OR LOWER(local.rule_code) LIKE :keyword OR LOWER(local.name) LIKE :keyword)
+            UNION ALL
+            SELECT platform.rule_code
+            FROM rule_definition platform
+            WHERE platform.tenant_id = :platformTenantId
+              AND platform.status = :platformStatus
+              AND (:ruleType IS NULL OR platform.rule_type = :ruleType)
+              AND (:riskLevel IS NULL OR platform.risk_level = :riskLevel)
+              AND (:keyword IS NULL OR LOWER(platform.rule_code) LIKE :keyword OR LOWER(platform.name) LIKE :keyword)
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM rule_definition local_shadow
+                    WHERE local_shadow.tenant_id = :tenantId
+                      AND local_shadow.rule_code = platform.rule_code
+                      AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
+                      AND (:ruleType IS NULL OR local_shadow.rule_type = :ruleType)
+                      AND (:riskLevel IS NULL OR local_shadow.risk_level = :riskLevel)
+                      AND (:keyword IS NULL OR LOWER(local_shadow.rule_code) LIKE :keyword OR LOWER(local_shadow.name) LIKE :keyword)
+                  )
+        ) effective_rows
+        """)
+    long countEffectiveByFilter(String tenantId, String platformTenantId,
+                                String tenantStatus, String platformStatus,
+                                String ruleType, String riskLevel, String keyword);
+
+    @Query("""
+        SELECT * FROM (
+            SELECT local.*
+            FROM rule_definition local
+            WHERE local.tenant_id = :tenantId
+              AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
+              AND (:ruleType IS NULL OR local.rule_type = :ruleType)
+              AND (:riskLevel IS NULL OR local.risk_level = :riskLevel)
+              AND (:keyword IS NULL OR LOWER(local.rule_code) LIKE :keyword OR LOWER(local.name) LIKE :keyword)
+            UNION ALL
+            SELECT platform.*
+            FROM rule_definition platform
+            WHERE platform.tenant_id = :platformTenantId
+              AND platform.status = :platformStatus
+              AND (:ruleType IS NULL OR platform.rule_type = :ruleType)
+              AND (:riskLevel IS NULL OR platform.risk_level = :riskLevel)
+              AND (:keyword IS NULL OR LOWER(platform.rule_code) LIKE :keyword OR LOWER(platform.name) LIKE :keyword)
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM rule_definition local_shadow
+                    WHERE local_shadow.tenant_id = :tenantId
+                      AND local_shadow.rule_code = platform.rule_code
+                      AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
+                      AND (:ruleType IS NULL OR local_shadow.rule_type = :ruleType)
+                      AND (:riskLevel IS NULL OR local_shadow.risk_level = :riskLevel)
+                      AND (:keyword IS NULL OR LOWER(local_shadow.rule_code) LIKE :keyword OR LOWER(local_shadow.name) LIKE :keyword)
+                  )
+        ) effective_rows
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<RuleDefinition> pageEffectiveByFilter(String tenantId, String platformTenantId,
+                                               String tenantStatus, String platformStatus,
+                                               String ruleType, String riskLevel, String keyword,
+                                               int offset, int limit);
 
     /**
      * 与 {@link #pageByFilter} 同口径的总数查询，用于分页响应的 total 字段。
@@ -74,6 +146,7 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
           AND (:status IS NULL OR status = :status)
           AND (:ruleType IS NULL OR rule_type = :ruleType)
           AND (:riskLevel IS NULL OR risk_level = :riskLevel)
+          AND (:keyword IS NULL OR LOWER(rule_code) LIKE :keyword OR LOWER(name) LIKE :keyword)
         """)
-    long countByFilter(String tenantId, String status, String ruleType, String riskLevel);
+    long countByFilter(String tenantId, String status, String ruleType, String riskLevel, String keyword);
 }

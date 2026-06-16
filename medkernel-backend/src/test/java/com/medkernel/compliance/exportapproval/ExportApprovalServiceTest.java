@@ -14,6 +14,8 @@ import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
 import com.medkernel.engine.list.LargeListEngineService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -86,19 +88,22 @@ class ExportApprovalServiceTest {
     @Test
     void listApprovalsReturnsTenantScopedRowsFilteredByStatusAndResource() {
         ExportApproval requested = requestedApproval("exp-audit-event-idem-001", "auditor-1");
-        when(repository.findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
-            "t-1", "audit_event", "REQUESTED"))
+        when(repository.countByFilter("t-1", "audit_event", "REQUESTED"))
+            .thenReturn(1L);
+        when(repository.pageByFilter(
+            "t-1", "audit_event", "REQUESTED", 0, 20))
             .thenReturn(List.of(requested));
 
-        List<ExportApprovalResponse> responses = service.listApprovals(
-            "t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED);
+        PageResponse<ExportApprovalResponse> responses = service.listApprovals(
+            "t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED, PageRequest.defaults());
 
-        assertThat(responses).extracting(ExportApprovalResponse::approvalId)
+        assertThat(responses.total()).isEqualTo(1L);
+        assertThat(responses.items()).extracting(ExportApprovalResponse::approvalId)
             .containsExactly("exp-audit-event-idem-001");
-        assertThat(responses.getFirst().requestReason())
+        assertThat(responses.items().getFirst().requestReason())
             .isEqualTo("合规审计需要导出当前患者证据包");
-        verify(repository).findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
-            "t-1", "audit_event", "REQUESTED");
+        verify(repository).countByFilter("t-1", "audit_event", "REQUESTED");
+        verify(repository).pageByFilter("t-1", "audit_event", "REQUESTED", 0, 20);
     }
 
     @Test

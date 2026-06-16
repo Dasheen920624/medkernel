@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -23,12 +24,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.authoring.AuthoringFeatureFlag;
 import com.medkernel.engine.authoring.AuthoringFeatureGate;
 import com.medkernel.engine.context.ClinicalEventContext;
+import com.medkernel.engine.context.ContextFactBridge;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.canonical.CanonicalEncounter;
-import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.event.ClockSlaBreachedEvent;
@@ -936,10 +937,28 @@ public class PathwayEngineService {
         String diseaseCode = filter == null ? null : filter.diseaseCode();
         String packageId = filter == null ? null : filter.packageId();
         String templateCode = filter == null ? null : filter.templateCode();
-        List<PathwayTemplate> effectiveRows = effectiveTemplatesByFilter(
-            tenantId, status, diseaseCode, packageId, templateCode);
-        long total = effectiveRows.size();
-        List<PathwayTemplate> rows = slice(effectiveRows, safePage.offset(), safePage.safeSize());
+        String keyword = filter == null ? null : keywordLike(filter.keyword());
+        if (requiresEffectiveTemplateMerge(tenantId, status)) {
+            String platformStatus = PathwayTemplateStatus.PUBLISHED.name();
+            long total = templates.countEffectiveByFilter(
+                tenantId, PlatformTenant.ID, status, platformStatus,
+                diseaseCode, packageId, templateCode, keyword);
+            if (total == 0) {
+                return PageResponse.empty(safePage);
+            }
+            List<PathwayTemplate> rows = templates.pageEffectiveByFilter(
+                tenantId, PlatformTenant.ID, status, platformStatus,
+                diseaseCode, packageId, templateCode, keyword,
+                safePage.offset(), safePage.safeSize());
+            return PageResponse.of(rows, safePage, total);
+        }
+        long total = templates.countByFilter(tenantId, status, diseaseCode, packageId, templateCode, keyword);
+        if (total == 0) {
+            return PageResponse.empty(safePage);
+        }
+        List<PathwayTemplate> rows = templates.pageByFilter(
+            tenantId, status, diseaseCode, packageId, templateCode, keyword,
+            safePage.offset(), safePage.safeSize());
         return PageResponse.of(rows, safePage, total);
     }
 
@@ -1230,33 +1249,7 @@ public class PathwayEngineService {
     }
 
     private JsonNode criteriaContext(ContextSnapshotResources resources) {
-        ObjectNode root = json.createObjectNode();
-        contextFacts(resources).forEach((path, value) -> putDottedPath(root, path, value));
-        return root;
-    }
-
-    private void putDottedPath(ObjectNode root, String path, Object value) {
-        if (isBlank(path)) {
-            return;
-        }
-        String[] segments = path.split("\\.");
-        ObjectNode current = root;
-        for (int index = 0; index < segments.length; index += 1) {
-            String segment = segments[index];
-            if (isBlank(segment)) {
-                continue;
-            }
-            if (index == segments.length - 1) {
-                current.set(segment, value == null ? json.nullNode() : json.valueToTree(value));
-                return;
-            }
-            JsonNode child = current.get(segment);
-            if (child == null || !child.isObject()) {
-                child = json.createObjectNode();
-                current.set(segment, child);
-            }
-            current = (ObjectNode) child;
-        }
+        return ContextFactBridge.conditionContext(json, resources);
     }
 
     /**
@@ -1358,9 +1351,12 @@ public class PathwayEngineService {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_001, "路径队列回放必须提供至少一个上下文快照");
             }
             List<PathwaySimulationReplayStep> replaySteps = replayIds.stream()
-                .map(snapshotId -> simulateStep(
-                    graph, startNodeCode, requestedTargets,
-                    simulationSnapshot(template, effective.sourceTenantId(), snapshotId, request.packageVersion())))
+                .map(snapshotId -> {
+                    ContextSnapshotResponse snapshot = simulationSnapshot(
+                        template, effective.sourceTenantId(), snapshotId, request.packageVersion());
+                    validateEntryCriteria(template, snapshot.resources());
+                    return simulateStep(graph, startNodeCode, requestedTargets, snapshot);
+                })
                 .toList();
             PathwaySimulationReplayStep first = replaySteps.getFirst();
             return new PathwaySimulationResponse(
@@ -1380,6 +1376,9 @@ public class PathwayEngineService {
         ContextSnapshotResponse snapshot = request == null || isBlank(request.snapshotId())
             ? null : simulationSnapshot(
                 template, effective.sourceTenantId(), request.snapshotId(), request.packageVersion());
+        if (snapshot != null) {
+            validateEntryCriteria(template, snapshot.resources());
+        }
         PathwaySimulationReplayStep step = simulateStep(graph, startNodeCode, requestedTargets, snapshot);
         return new PathwaySimulationResponse(
             templateId,
@@ -2764,26 +2763,7 @@ public class PathwayEngineService {
     }
 
     private Map<String, Object> contextFacts(ContextSnapshotResources resources) {
-        if (resources == null) {
-            return Map.of();
-        }
-        LinkedHashMap<String, Object> facts = new LinkedHashMap<>();
-        if (resources.patient() != null) {
-            facts.put("context.patient.mpi", resources.patient().mpi());
-            facts.put("patient.mpi", resources.patient().mpi());
-        }
-        for (CanonicalObservation observation : resources.observations()) {
-            Object value = observation.valueNumeric() == null
-                ? observation.valueString()
-                : observation.valueNumeric();
-            String code = observation.code();
-            facts.put("observation." + code + ".value", value);
-            facts.put("observation." + code + ".valueNumeric", observation.valueNumeric());
-            facts.put("observation." + code + ".criticalFlag", observation.criticalFlag());
-            facts.put("context.observations." + code + ".value", value);
-            facts.put("context.observations." + code + ".criticalFlag", observation.criticalFlag());
-        }
-        return facts;
+        return ContextFactBridge.facts(resources);
     }
 
     private Map<String, Integer> contextResourceCounts(ContextSnapshotResources resources) {
@@ -3191,32 +3171,11 @@ public class PathwayEngineService {
             .map(template -> new EffectivePathwayTemplate(template, assetVersion.tenantId()));
     }
 
-    private List<PathwayTemplate> effectiveTemplatesByFilter(String tenantId, String status,
-                                                             String diseaseCode, String packageId,
-                                                             String templateCode) {
-        LinkedHashMap<String, PathwayTemplate> byCodeAndVersion = new LinkedHashMap<>();
-        templates.listByFilter(tenantId, status, diseaseCode, packageId, templateCode)
-            .forEach(template -> byCodeAndVersion.put(templateKey(template), template));
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            String platformStatus = status == null ? PathwayTemplateStatus.PUBLISHED.name() : status;
-            if (PathwayTemplateStatus.PUBLISHED.name().equals(platformStatus)) {
-                templates.listByFilter(PlatformTenant.ID, platformStatus, diseaseCode, null, templateCode)
-                    .forEach(template -> byCodeAndVersion.putIfAbsent(templateKey(template), template));
-            }
+    private boolean requiresEffectiveTemplateMerge(String tenantId, String status) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return false;
         }
-        return List.copyOf(byCodeAndVersion.values());
-    }
-
-    private String templateKey(PathwayTemplate template) {
-        return template.templateCode() + "#" + template.templateVersion();
-    }
-
-    private <T> List<T> slice(List<T> rows, int offset, int limit) {
-        if (rows.isEmpty() || offset >= rows.size()) {
-            return List.of();
-        }
-        int end = Math.min(rows.size(), offset + limit);
-        return rows.subList(offset, end);
+        return status == null || PathwayTemplateStatus.PUBLISHED.name().equals(status);
     }
 
     private PatientPathway findPatientPathway(String patientPathwayId, String tenantId) {
@@ -3381,6 +3340,11 @@ public class PathwayEngineService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String keywordLike(String value) {
+        String normalized = blankToNull(value);
+        return normalized == null ? null : "%" + normalized.toLowerCase(Locale.ROOT) + "%";
     }
 
     private String normalizedOutcomeRefCode(PathwayOutcomeScope scope, String refCode) {

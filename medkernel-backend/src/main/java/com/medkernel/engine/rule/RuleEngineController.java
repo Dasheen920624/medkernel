@@ -66,11 +66,12 @@ public class RuleEngineController {
             @RequestParam(required = false) RuleDefinitionStatus status,
             @RequestParam(required = false) RuleType ruleType,
             @RequestParam(required = false) RuleRiskLevel riskLevel,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.list(
-            new RuleFilter(status, ruleType, riskLevel),
+            new RuleFilter(status, ruleType, riskLevel, keyword),
             new PageRequest(page, size, sort)));
     }
 

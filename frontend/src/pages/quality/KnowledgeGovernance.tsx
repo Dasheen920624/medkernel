@@ -34,6 +34,7 @@ import {
   useCandidateProvenance,
   useAssetTemplates,
   useKnowledgeIdentities,
+  usePackages,
   usePublishKnowledgeCustomization,
   useRestorePlatformKnowledge,
   useReviewKnowledgeCandidate,
@@ -66,7 +67,6 @@ import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
-import DiagnosisKnowledgePanel from "./DiagnosisKnowledgePanel";
 
 const { Text } = Typography;
 
@@ -101,6 +101,8 @@ const VERSION_STATUS_LABELS: Record<string, string> = {
   WITHDRAWN: "已撤回",
   REJECTED: "已驳回",
 };
+const KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE = 20;
+const KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE = 20;
 
 const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> = {
   LOW: "success",
@@ -189,6 +191,8 @@ export default function KnowledgeGovernance() {
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
   const [keyword, setKeyword] = useState("");
   const [identityPage, setIdentityPage] = useState(1);
+  const [customizationPage, setCustomizationPage] = useState(1);
+  const [reviewPackageSearch, setReviewPackageSearch] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
   const [retirementIdentity, setRetirementIdentity] = useState<KnowledgeIdentity>();
@@ -215,6 +219,12 @@ export default function KnowledgeGovernance() {
     signatureHash?: string;
   }>();
   const security = useSecurityProfile();
+  const knowledgePackagesQuery = usePackages({
+    page: 1,
+    size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
+    assetType: "KNOWLEDGE",
+    keyword: reviewPackageSearch || undefined,
+  });
 
   const identitiesQuery = useKnowledgeIdentities({
     domain,
@@ -255,7 +265,12 @@ export default function KnowledgeGovernance() {
   const currentTenantId = security.data?.dataScope.tenantId;
   const isPlatformTenant = currentTenantId === platformTenantId;
   const customizationsQuery = useKnowledgeCustomizations(
+    { page: customizationPage, size: KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE },
     Boolean(currentTenantId && !isPlatformTenant),
+  );
+  const customizationItems = useMemo(
+    () => customizationsQuery.data?.items ?? [],
+    [customizationsQuery.data?.items],
   );
   const createCustomization = useCreateKnowledgeCustomization();
   const publishCustomization = usePublishKnowledgeCustomization();
@@ -332,6 +347,14 @@ export default function KnowledgeGovernance() {
     diffCandidates.find((version) => version.status === "ACTIVE");
   const candidateVersion =
     diffCandidates.find((version) => version.id === selectedCandidateId) ?? selectedCandidate;
+  const reviewPackageOptions = (knowledgePackagesQuery.data?.items ?? [])
+    .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
+    .map((item) => ({
+      value: item.packageVersion,
+      label: `${item.packageVersion} · ${item.name}`,
+    }));
+  const defaultReviewPackageVersion =
+    reviewPackageOptions.length === 1 ? reviewPackageOptions[0].value : undefined;
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
   const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
@@ -352,7 +375,7 @@ export default function KnowledgeGovernance() {
   function openCandidate(candidate: KnowledgeAssetVersion) {
     setSelectedCandidateId(candidate.id);
     reviewForm.setFieldsValue({
-      packageVersion: candidate.versionLabel || candidate.versionNo,
+      packageVersion: defaultReviewPackageVersion,
       reason: "",
       qualityGates: [],
     });
@@ -543,11 +566,7 @@ export default function KnowledgeGovernance() {
 
   function sourceTypeFor(identity: KnowledgeIdentity) {
     if (identity.tenantId === platformTenantId) return "PLATFORM_STANDARD";
-    if (
-      customizationsQuery.data?.some(
-        (customization) => customization.localIdentityId === identity.id,
-      )
-    ) {
+    if (customizationItems.some((customization) => customization.localIdentityId === identity.id)) {
       return "LOCAL_CUSTOMIZATION";
     }
     return "LOCAL_ORIGINAL";
@@ -859,9 +878,16 @@ export default function KnowledgeGovernance() {
         <Table
           rowKey="customizationId"
           columns={customizationColumns}
-          dataSource={customizationsQuery.data ?? []}
+          dataSource={customizationItems}
           locale={{ emptyText: "当前机构全部使用平台标准" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          pagination={{
+            current: customizationsQuery.data?.page ?? customizationPage,
+            pageSize: customizationsQuery.data?.size ?? KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE,
+            total: customizationsQuery.data?.total ?? 0,
+            showSizeChanger: false,
+            hideOnSinglePage: true,
+            onChange: (page) => setCustomizationPage(page),
+          }}
         />
       </Card>
     );
@@ -903,7 +929,7 @@ export default function KnowledgeGovernance() {
     <>
       <PageShell
         title="知识审核与发布"
-        description="统一审核知识候选并维护结构化诊断知识"
+        description="统一审核知识候选、发布结论和替换恢复"
         extras={
           <Button
             aria-label="刷新知识审核与发布"
@@ -1007,11 +1033,6 @@ export default function KnowledgeGovernance() {
                   )}
                 </Space>
               ),
-            },
-            {
-              key: "diagnosis",
-              label: "诊断知识",
-              children: <DiagnosisKnowledgePanel />,
             },
             {
               key: "institution",
@@ -1283,7 +1304,7 @@ export default function KnowledgeGovernance() {
             form={reviewForm}
             layout="vertical"
             initialValues={{
-              packageVersion: candidateVersion?.versionLabel || candidateVersion?.versionNo,
+              packageVersion: defaultReviewPackageVersion,
               reason: "",
               qualityGates: [],
             }}
@@ -1291,9 +1312,19 @@ export default function KnowledgeGovernance() {
             <Form.Item
               name="packageVersion"
               label="审核上下文包版本"
-              rules={[{ required: true, message: "请填写审核上下文包版本" }]}
+              rules={[{ required: true, message: "请选择审核上下文包版本" }]}
             >
-              <Input />
+              <Select
+                showSearch
+                filterOption={false}
+                onSearch={setReviewPackageSearch}
+                placeholder="选择已存在的知识配置包版本"
+                options={reviewPackageOptions}
+                loading={knowledgePackagesQuery.isLoading}
+                notFoundContent={
+                  knowledgePackagesQuery.isError ? "配置包版本读取失败" : "暂无知识配置包版本"
+                }
+              />
             </Form.Item>
             <Form.Item
               name="reason"

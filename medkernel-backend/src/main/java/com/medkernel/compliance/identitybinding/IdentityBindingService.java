@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -46,10 +48,15 @@ public class IdentityBindingService {
      * 查询当前租户全部绑定状态，包含已解绑记录，便于管理员核查当前关系。
      */
     @Transactional(readOnly = true)
-    public List<IdentityBindingResponse> list(String tenantId) {
-        return repository.findByTenantIdOrderByUpdatedAtDesc(requireTenant(tenantId)).stream()
+    public PageResponse<IdentityBindingResponse> list(String tenantId, PageRequest pageRequest) {
+        PageRequest page = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        String safeTenant = requireTenant(tenantId);
+        List<IdentityBindingResponse> items = repository
+            .pageByTenantId(safeTenant, page.offset(), page.safeSize())
+            .stream()
             .map(IdentityBindingResponse::from)
             .toList();
+        return PageResponse.of(items, page, repository.countByTenantId(safeTenant));
     }
 
     /**

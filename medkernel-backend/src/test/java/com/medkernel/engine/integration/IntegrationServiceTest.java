@@ -27,6 +27,8 @@ import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.engine.integration.service.WebhookSecretCodec;
 import com.medkernel.engine.mpi.MpiPatient;
 import com.medkernel.engine.mpi.MpiPatientRepository;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 
 @SpringBootTest
@@ -88,8 +90,9 @@ class IntegrationServiceTest {
         assertNull(created.lastHeartbeatAt(), "新建适配器尚未健康检查，不应伪造心跳时间");
 
         // 获取列表
-        List<IntegrationAdapter> list = service.getAdapters(tenantId);
-        assertEquals(1, list.size());
+        PageResponse<IntegrationAdapter> page = service.getAdapters(tenantId, PageRequest.defaults());
+        assertEquals(1, page.total());
+        assertEquals(1, page.items().size());
 
         // 更新适配器
         AdapterUpdateDto updateDto = new AdapterUpdateDto("HIS集成系统大版本", "REST", "{}", "SUSPENDED");
@@ -115,8 +118,8 @@ class IntegrationServiceTest {
 
         assertEquals("tenant-001", tenantOne.tenantId());
         assertEquals("tenant-002", tenantTwo.tenantId());
-        assertEquals(1, service.getAdapters(tenantId).size());
-        assertEquals(1, service.getAdapters("tenant-002").size());
+        assertEquals(1, service.getAdapters(tenantId, PageRequest.defaults()).total());
+        assertEquals(1, service.getAdapters("tenant-002", PageRequest.defaults()).total());
 
         assertThrows(ApiException.class, () ->
             service.createAdapter(tenantId, new AdapterCreateDto("his-core", "重复 HIS", "REST", "{}")));

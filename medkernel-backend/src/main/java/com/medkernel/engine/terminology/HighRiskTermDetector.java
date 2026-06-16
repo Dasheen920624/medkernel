@@ -113,7 +113,7 @@ final class HighRiskTermDetector {
         return stripped;
     }
 
-    private static boolean containsAny(ClinicalText text, String terms) {
+    static boolean containsAny(ClinicalText text, String terms) {
         if (text == null || text.compact().isBlank()) {
             return false;
         }
@@ -132,7 +132,7 @@ final class HighRiskTermDetector {
         return false;
     }
 
-    private static List<RuleTerm> splitTerms(String terms) {
+    static List<RuleTerm> splitTerms(String terms) {
         List<RuleTerm> values = new ArrayList<>();
         if (terms == null || terms.isBlank()) {
             return values;
@@ -162,7 +162,7 @@ final class HighRiskTermDetector {
         return values;
     }
 
-    private static ClinicalText clinicalText(LocalTerm local) {
+    static ClinicalText clinicalText(LocalTerm local) {
         return clinicalText(List.of(
             value(local.localCode()),
             value(local.localName()),
@@ -170,7 +170,7 @@ final class HighRiskTermDetector {
         ));
     }
 
-    private static ClinicalText clinicalText(StandardTerm standard) {
+    static ClinicalText clinicalText(StandardTerm standard) {
         return clinicalText(List.of(
             value(standard.standardSystem()),
             value(standard.termCode()),

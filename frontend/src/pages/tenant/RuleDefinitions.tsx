@@ -68,9 +68,11 @@ import {
   useRuleDriftLatest,
   useCaptureRuleDriftSnapshot,
   useOrgUnits,
+  usePackages,
 } from "@/shared/api/hooks";
 import type {
   OrgUnit,
+  KnowledgePackage,
   RuleDefinition,
   RuleEvaluationItem,
   RuleImpactObject,
@@ -183,6 +185,8 @@ type ConditionFragmentFormValue = {
 };
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
+const RULE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
+const RULE_FRAGMENT_LIBRARY_PAGE_SIZE = 20;
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
 const CLINICAL_SETTING_LABELS: Record<RuleClinicalSetting, string> = {
   INPATIENT: "住院",
@@ -749,6 +753,7 @@ export default function RuleDefinitions() {
   const [populationExcludeTree, setPopulationExcludeTree] =
     useState<PopulationConditionTree | null>(null);
   const [orgSearch, setOrgSearch] = useState<Record<RuleOrgLevel, string>>(EMPTY_ORG_SEARCH);
+  const [rulePackageSearch, setRulePackageSearch] = useState("");
   const [selectedOrgOptions, setSelectedOrgOptions] =
     useState<Record<RuleOrgLevel, OrgSelectOption[]>>(EMPTY_ORG_OPTION_CACHE);
   const [dslEditorValue, setDslEditorValue] = useState(createDefaultDslText);
@@ -758,6 +763,8 @@ export default function RuleDefinitions() {
     typeof createPackageVersion === "string" ? createPackageVersion.trim() : "";
   const [selectedFragmentId, setSelectedFragmentId] = useState<string | undefined>();
   const [fragmentLibraryOpen, setFragmentLibraryOpen] = useState(false);
+  const [fragmentLibraryPage, setFragmentLibraryPage] = useState(1);
+  const [fragmentLibrarySearch, setFragmentLibrarySearch] = useState("");
   const [editingFragmentId, setEditingFragmentId] = useState<string | null>(null);
   const [fragmentBodyJson, setFragmentBodyJson] = useState<unknown | null>(null);
   const [impactFragmentId, setImpactFragmentId] = useState("");
@@ -818,6 +825,44 @@ export default function RuleDefinitions() {
     level: "DEPARTMENT",
     status: "ACTIVE",
   });
+  const rulePackagesQuery = usePackages({
+    page: 1,
+    size: RULE_PACKAGE_REFERENCE_PAGE_SIZE,
+    assetType: "RULE",
+    keyword: rulePackageSearch || undefined,
+  });
+  const packageVersionOptions = useMemo(
+    () =>
+      (rulePackagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({
+        value: pkg.packageVersion,
+        label: `${pkg.name}（${pkg.packageVersion}）`,
+      })),
+    [rulePackagesQuery.data?.items],
+  );
+  const knownPackageVersions = useMemo(
+    () => new Set(packageVersionOptions.map((option) => option.value)),
+    [packageVersionOptions],
+  );
+  const isKnownPackageVersion = (packageVersion: string) =>
+    knownPackageVersions.has(packageVersion.trim());
+  const packageVersionRules = [
+    { required: true, message: "请选择本规则绑定的配置包版本" },
+    {
+      validator: async (_: unknown, value: unknown) => {
+        const version = typeof value === "string" ? value.trim() : "";
+        if (!version) return;
+        if (rulePackagesQuery.isError) {
+          throw new Error("配置包列表不可用，暂不能绑定包版本。");
+        }
+        if (knownPackageVersions.size === 0) {
+          throw new Error("当前暂无可绑定的规则配置包版本。");
+        }
+        if (!knownPackageVersions.has(version)) {
+          throw new Error("请选择已存在的规则配置包版本。");
+        }
+      },
+    },
+  ];
   const activeConditionFragmentsQuery = useConditionFragments(
     {
       status: "ACTIVE",
@@ -846,11 +891,13 @@ export default function RuleDefinitions() {
   const selectedConditionFragment = selectedFragmentId
     ? fragmentById.get(selectedFragmentId)
     : undefined;
+  const fragmentLibraryKeyword = fragmentLibrarySearch.trim();
   const fragmentLibraryQuery = useConditionFragments(
     {
       packageVersion: currentCreatePackageVersion || undefined,
-      page: 1,
-      size: 100,
+      ...(fragmentLibraryKeyword ? { keyword: fragmentLibraryKeyword } : {}),
+      page: fragmentLibraryPage,
+      size: RULE_FRAGMENT_LIBRARY_PAGE_SIZE,
       sort: "fragmentCode,asc",
     },
     { enabled: fragmentLibraryOpen },
@@ -1148,6 +1195,8 @@ export default function RuleDefinitions() {
   const openFragmentLibrary = () => {
     setEditingFragmentId(null);
     setFragmentBodyJson(currentFragmentBodyJson);
+    setFragmentLibraryPage(1);
+    setFragmentLibrarySearch("");
     setFragmentLibraryOpen(true);
   };
 
@@ -1178,6 +1227,10 @@ export default function RuleDefinitions() {
       String(createForm.getFieldValue("packageVersion") ?? currentCreatePackageVersion).trim();
     if (!fragmentCode || !name || !packageVersion) {
       message.error("请填写片段编码、名称和包版本。");
+      return;
+    }
+    if (!isKnownPackageVersion(packageVersion)) {
+      message.error("请选择已存在的规则配置包版本后再保存片段。");
       return;
     }
     const payload = {
@@ -2635,7 +2688,11 @@ export default function RuleDefinitions() {
   const handleRunCreatePreview = async () => {
     const packageVersion = String(createForm.getFieldValue("packageVersion") ?? "").trim();
     if (!packageVersion) {
-      message.warning("请先填写标准上下文包版本。");
+      message.warning("请先选择标准上下文包版本。");
+      return;
+    }
+    if (!isKnownPackageVersion(packageVersion)) {
+      message.warning("请选择已存在的标准上下文包版本。");
       return;
     }
     if (!selectedSnapshotId) {
@@ -5101,12 +5158,13 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item
-                name="packageVersion"
-                label="标准上下文包版本"
-                rules={[{ required: true, message: "请输入本规则绑定的配置包版本" }]}
-              >
-                <Input placeholder="输入当前已审核的标准上下文包版本" />
+              <Form.Item name="packageVersion" label="标准上下文包版本" rules={packageVersionRules}>
+                <AutoComplete
+                  options={packageVersionOptions}
+                  placeholder="选择当前已审核的标准上下文包版本"
+                  filterOption={false}
+                  onSearch={setRulePackageSearch}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -5235,9 +5293,14 @@ export default function RuleDefinitions() {
                       name="packageVersion"
                       label="包版本"
                       initialValue={currentCreatePackageVersion}
-                      rules={[{ required: true, message: "请输入包版本" }]}
+                      rules={packageVersionRules}
                     >
-                      <Input placeholder="pkg-2026.06" />
+                      <AutoComplete
+                        options={packageVersionOptions}
+                        placeholder="选择规则配置包版本"
+                        filterOption={false}
+                        onSearch={setRulePackageSearch}
+                      />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
@@ -5282,15 +5345,33 @@ export default function RuleDefinitions() {
             </div>
           </Col>
           <Col xs={24} lg={14}>
-            <Table
-              rowKey="fragmentId"
-              size="small"
-              loading={fragmentLibraryQuery.isLoading}
-              dataSource={fragmentLibraryItems}
-              columns={conditionFragmentColumns}
-              pagination={false}
-              locale={{ emptyText: "当前包版本暂无条件片段" }}
-            />
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <Input
+                allowClear
+                aria-label="检索条件片段"
+                placeholder="按片段编码、名称或分类检索"
+                value={fragmentLibrarySearch}
+                onChange={(event) => {
+                  setFragmentLibrarySearch(event.target.value);
+                  setFragmentLibraryPage(1);
+                }}
+              />
+              <Table
+                rowKey="fragmentId"
+                size="small"
+                loading={fragmentLibraryQuery.isLoading}
+                dataSource={fragmentLibraryItems}
+                columns={conditionFragmentColumns}
+                pagination={{
+                  current: fragmentLibraryQuery.data?.page ?? fragmentLibraryPage,
+                  pageSize: fragmentLibraryQuery.data?.size ?? RULE_FRAGMENT_LIBRARY_PAGE_SIZE,
+                  total: fragmentLibraryQuery.data?.total ?? fragmentLibraryItems.length,
+                  showSizeChanger: false,
+                  onChange: (page) => setFragmentLibraryPage(page),
+                }}
+                locale={{ emptyText: "当前包版本暂无条件片段" }}
+              />
+            </Space>
           </Col>
         </Row>
       </Drawer>

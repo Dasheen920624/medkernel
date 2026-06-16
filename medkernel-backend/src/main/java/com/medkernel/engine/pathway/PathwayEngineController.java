@@ -66,11 +66,12 @@ public class PathwayEngineController {
             @RequestParam(required = false) String diseaseCode,
             @RequestParam(required = false) String packageId,
             @RequestParam(required = false) String templateCode,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.listTemplates(
-            new PathwayTemplateFilter(status, diseaseCode, packageId, templateCode),
+            new PathwayTemplateFilter(status, diseaseCode, packageId, templateCode, keyword),
             new PageRequest(page, size, sort)));
     }
 

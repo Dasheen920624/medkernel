@@ -1,14 +1,25 @@
 package com.medkernel.engine.terminology;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.RolloutStrategy;
@@ -28,6 +39,9 @@ import com.medkernel.shared.context.RequestContext;
  */
 @Service
 public class TerminologyService {
+    private static final Logger log = LoggerFactory.getLogger(TerminologyService.class);
+    private static final int CANDIDATE_GENERATION_BATCH_SIZE = 500;
+    private static final String CANDIDATE_PAGE_PREFIX = "/api/v1/engine/terminology/mappings/candidates";
 
     private final StandardTermRepository standardTermRepository;
     private final LocalTermRepository localTermRepository;
@@ -36,6 +50,8 @@ public class TerminologyService {
     private final MappingCandidateRepository candidateRepository;
     private final MappingConflictRepository conflictRepository;
     private final HighRiskRuleRepository highRiskRuleRepository;
+    private final TerminologyCandidateGenerationJobRepository generationJobRepository;
+    private final Executor terminologyCandidateGenerationExecutor;
 
     public TerminologyService(StandardTermRepository standardTermRepository,
                               LocalTermRepository localTermRepository,
@@ -43,7 +59,10 @@ public class TerminologyService {
                               EffectiveTermMappingResolver effectiveMappings,
                               MappingCandidateRepository candidateRepository,
                               MappingConflictRepository conflictRepository,
-                              HighRiskRuleRepository highRiskRuleRepository) {
+                              HighRiskRuleRepository highRiskRuleRepository,
+                              TerminologyCandidateGenerationJobRepository generationJobRepository,
+                              @Qualifier("terminologyCandidateGenerationExecutor")
+                              Executor terminologyCandidateGenerationExecutor) {
         this.standardTermRepository = standardTermRepository;
         this.localTermRepository = localTermRepository;
         this.mappingRepository = mappingRepository;
@@ -51,6 +70,8 @@ public class TerminologyService {
         this.candidateRepository = candidateRepository;
         this.conflictRepository = conflictRepository;
         this.highRiskRuleRepository = highRiskRuleRepository;
+        this.generationJobRepository = generationJobRepository;
+        this.terminologyCandidateGenerationExecutor = terminologyCandidateGenerationExecutor;
     }
 
     /**
@@ -252,12 +273,15 @@ public class TerminologyService {
         String tenantId = requireCurrentTenant();
         String status = name(filter.status());
         String riskLevel = name(filter.riskLevel());
-        long total = candidateRepository.countByFilter(tenantId, status, riskLevel, filter.conflictFlag());
+        String generationJobCode = blankToNull(filter.generationJobCode());
+        long total = candidateRepository.countByFilter(
+            tenantId, status, riskLevel, filter.conflictFlag(), generationJobCode);
         if (total == 0) {
             return PageResponse.empty(request);
         }
         return PageResponse.of(candidateRepository.pageByFilter(
-            tenantId, status, riskLevel, filter.conflictFlag(), request.offset(), request.safeSize()
+            tenantId, status, riskLevel, filter.conflictFlag(), generationJobCode,
+            request.offset(), request.safeSize()
         ), request, total);
     }
 
@@ -571,102 +595,290 @@ public class TerminologyService {
     }
 
     /**
+     * 提交确定性 B0 候选生成任务。接口立即返回 PENDING，不同步返回候选明细。
+     */
+    @Transactional
+    public TerminologyCandidateGenerationJob generateCandidates(TerminologyCandidateGenerationRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
+        String userId = currentUserId();
+        Instant now = Instant.now();
+        TerminologyCandidateGenerationJob job = new TerminologyCandidateGenerationJob(
+            null,
+            tenantId,
+            UUID.randomUUID().toString(),
+            request.sourceSystem().trim(),
+            request.minimumScore(),
+            !Boolean.FALSE.equals(request.semanticAssistEnabled()),
+            request.packageVersion(),
+            userId,
+            TerminologyCandidateGenerationJobStatus.PENDING,
+            0,
+            0,
+            null,
+            null,
+            now,
+            null,
+            null
+        );
+        TerminologyCandidateGenerationJob saved = generationJobRepository.save(job);
+        RequestContext.Snapshot snapshot = RequestContext.snapshot();
+        dispatchCandidateGenerationAfterCommit(saved.jobCode(), snapshot);
+        return saved;
+    }
+
+    public TerminologyCandidateGenerationJob getCandidateGenerationJob(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        return generationJobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("术语候选生成任务 jobCode=" + jobCode));
+    }
+
+    public List<TerminologyCandidateGenerationJob> listCandidateGenerationJobs() {
+        return generationJobRepository.findTop100ByTenantIdOrderByCreatedAtDesc(requireCurrentTenant());
+    }
+
+    private void dispatchCandidateGenerationAfterCommit(String jobCode, RequestContext.Snapshot snapshot) {
+        Runnable worker = () -> RequestContext.runWith(snapshot, () -> {
+            try {
+                executeCandidateGenerationJob(jobCode);
+            } catch (Exception exception) {
+                log.error("Terminology candidate generation job {} failed", jobCode, exception);
+                markCandidateGenerationFailed(jobCode, exception.getMessage());
+            }
+        });
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    terminologyCandidateGenerationExecutor.execute(worker);
+                }
+            });
+        } else {
+            terminologyCandidateGenerationExecutor.execute(worker);
+        }
+    }
+
+    void executeCandidateGenerationJob(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        TerminologyCandidateGenerationJob job = generationJobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("术语候选生成任务 jobCode=" + jobCode));
+        if (job.status() != TerminologyCandidateGenerationJobStatus.PENDING) {
+            log.warn("Skip terminology candidate generation job {} in status {}", jobCode, job.status());
+            return;
+        }
+        Instant startedAt = Instant.now();
+        generationJobRepository.save(rebuildGenerationJob(job, b -> {
+            b.status = TerminologyCandidateGenerationJobStatus.RUNNING;
+            b.progress = 10;
+            b.startedAt = startedAt;
+        }));
+
+        int generated = generateCandidateRowsForJob(
+            tenantId,
+            job.requestedBy(),
+            job.sourceSystem(),
+            job.minimumScore(),
+            job.semanticAssistEnabled(),
+            job.jobCode(),
+            Instant.now()
+        );
+
+        TerminologyCandidateGenerationJob refreshed =
+            generationJobRepository.findByTenantIdAndJobCode(tenantId, jobCode).orElse(job);
+        generationJobRepository.save(rebuildGenerationJob(refreshed, b -> {
+            b.status = TerminologyCandidateGenerationJobStatus.SUCCEEDED;
+            b.progress = 100;
+            b.generatedCount = generated;
+            b.candidatePageUri = candidatePageUri(jobCode);
+            b.startedAt = startedAt;
+            b.completedAt = Instant.now();
+        }));
+    }
+
+    void markCandidateGenerationFailed(String jobCode, String errorMessage) {
+        String tenantId = requireCurrentTenant();
+        generationJobRepository.findByTenantIdAndJobCode(tenantId, jobCode).ifPresent(job ->
+            generationJobRepository.save(rebuildGenerationJob(job, b -> {
+                b.status = TerminologyCandidateGenerationJobStatus.FAILED;
+                b.errorMessage = errorMessage;
+                if (b.startedAt == null) {
+                    b.startedAt = Instant.now();
+                }
+                b.completedAt = Instant.now();
+            }))
+        );
+    }
+
+    /**
      * 确定性语义候选生成。
      *
      * <p>扫描指定来源系统下的所有未映射院内词条，只基于真实字典字段中的精确编码、
      * 同义词/缩写别名和编码族生成候选，并幂等写入 PENDING 候选列表。
      */
-    @Transactional
-    public TerminologyCandidateGenerationResponse generateCandidates(TerminologyCandidateGenerationRequest request) {
-        String tenantId = requireValidatedTenant(request.context());
-        String userId = currentUserId();
-        Instant now = Instant.now();
+    int generateCandidateRowsForJob(String tenantId,
+                                    String userId,
+                                    String sourceSystem,
+                                    Double minimumScore,
+                                    Boolean semanticAssistEnabled,
+                                    String generationJobCode,
+                                    Instant now) {
 
-        List<LocalTerm> unmapped = localTermRepository.findByTenantIdAndSourceSystemAndStatus(
-            tenantId, request.sourceSystem(), LocalTermStatus.UNMAPPED);
-        if (unmapped.isEmpty()) {
-            return new TerminologyCandidateGenerationResponse(0, List.of());
+        StandardTermGenerationIndex standardIndex = loadStandardTermGenerationIndex(tenantId);
+        if (standardIndex.isEmpty()) {
+            return 0;
         }
 
-        List<StandardTerm> standardTerms = standardTermRepository.findByTenantIdsAndStatus(
-            standardTermSources(tenantId), tenantId, StandardTermStatus.ACTIVE);
-        if (standardTerms.isEmpty()) {
-            return new TerminologyCandidateGenerationResponse(0, List.of());
-        }
-
-        double threshold = request.minimumScore() == null ? 0.2 : request.minimumScore();
-        boolean semanticAssistEnabled = !Boolean.FALSE.equals(request.semanticAssistEnabled());
-        List<TerminologyCandidateResponse> generated = new java.util.ArrayList<>();
+        double threshold = minimumScore == null ? 0.2 : minimumScore;
+        boolean useSemanticAssist = !Boolean.FALSE.equals(semanticAssistEnabled);
+        int generated = 0;
         Map<TermCategory, List<HighRiskRule>> highRiskRulesByCategory = new HashMap<>();
-        for (LocalTerm local : unmapped) {
-            List<CandidateMatch> matches = new java.util.ArrayList<>();
-            List<HighRiskRule> highRiskRules = semanticAssistEnabled
-                ? highRiskRulesByCategory.computeIfAbsent(
-                    local.category(),
-                    category -> highRiskRuleRepository.findActiveByTenantIdAndCategory(tenantId, category)
-                )
-                : List.of();
-            for (StandardTerm standard : standardTerms) {
-                if (local.category() != null && standard.category() != null && local.category() != standard.category()) {
-                    continue;
+        int offset = 0;
+        while (true) {
+            List<LocalTerm> localBatch = localTermRepository.pageByTenantIdAndSourceSystemAndStatus(
+                tenantId, sourceSystem, LocalTermStatus.UNMAPPED,
+                offset, CANDIDATE_GENERATION_BATCH_SIZE);
+            if (localBatch == null || localBatch.isEmpty()) {
+                break;
+            }
+            for (LocalTerm local : localBatch) {
+                List<CandidateMatch> matches = new ArrayList<>();
+                List<HighRiskRule> highRiskRules = useSemanticAssist
+                    ? highRiskRulesByCategory.computeIfAbsent(
+                        local.category(),
+                        category -> highRiskRuleRepository.findActiveByTenantIdAndCategory(tenantId, category)
+                    )
+                    : List.of();
+                for (StandardTerm standard : standardIndex.candidatesFor(local, useSemanticAssist, highRiskRules)) {
+                    if (!categoriesCompatible(local, standard)) {
+                        continue;
+                    }
+
+                    Optional<HighRiskTermMatch> highRisk = useSemanticAssist
+                        ? HighRiskTermDetector.detect(local, standard, highRiskRules)
+                        : Optional.empty();
+                    Optional<SemanticTermMatch> match = useSemanticAssist
+                        ? SemanticTermMatcher.match(local, standard)
+                        : SemanticTermMatcher.matchExactCode(local, standard);
+                    if (highRisk.isPresent() || (match.isPresent() && match.get().score() >= threshold)) {
+                        CandidateDecision decision = candidateDecision(highRisk, match);
+                        matches.add(new CandidateMatch(standard, decision));
+                    }
                 }
 
-                Optional<HighRiskTermMatch> highRisk = semanticAssistEnabled
-                    ? HighRiskTermDetector.detect(local, standard, highRiskRules)
-                    : Optional.empty();
-                Optional<SemanticTermMatch> match = semanticAssistEnabled
-                    ? SemanticTermMatcher.match(local, standard)
-                    : SemanticTermMatcher.matchExactCode(local, standard);
-                if (highRisk.isPresent() || (match.isPresent() && match.get().score() >= threshold)) {
-                    CandidateDecision decision = candidateDecision(highRisk, match);
-                    matches.add(new CandidateMatch(standard, decision));
+                boolean conflictFlag = matches.size() > 1;
+                if (conflictFlag) {
+                    ensureOpenConflict(
+                        tenantId,
+                        MappingConflictType.ONE_TO_MANY,
+                        local.id(),
+                        null,
+                        null,
+                        highestRisk(matches),
+                        "院内术语 id=" + local.id() + " 命中 " + matches.size()
+                            + " 个标准候选 " + candidateStandardIds(matches)
+                            + "，待人工裁决",
+                        userId,
+                        now
+                    );
+                }
+
+                for (CandidateMatch candidateMatch : matches) {
+                    StandardTerm standard = candidateMatch.standard();
+                    CandidateDecision decision = candidateMatch.decision();
+                    Optional<MappingCandidate> existingOpt = candidateRepository
+                        .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+                            tenantId, local.id(), standard.id(), MappingCandidateStatus.PENDING);
+
+                    MappingCandidate saved;
+                    if (existingOpt.isPresent()) {
+                        MappingCandidate existing = existingOpt.get();
+                        saved = candidateRepository.save(new MappingCandidate(
+                            existing.id(), tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                            decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
+                            existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
+                            existing.createdAt(), existing.createdBy(), now, userId, generationJobCode
+                        ));
+                    } else {
+                        saved = candidateRepository.save(new MappingCandidate(
+                            null, tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                            decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
+                            null, null, null, now, userId, now, userId, generationJobCode
+                        ));
+                    }
+                    if (saved != null) {
+                        generated++;
+                    }
                 }
             }
-
-            boolean conflictFlag = matches.size() > 1;
-            if (conflictFlag) {
-                ensureOpenConflict(
-                    tenantId,
-                    MappingConflictType.ONE_TO_MANY,
-                    local.id(),
-                    null,
-                    null,
-                    highestRisk(matches),
-                    "院内术语 id=" + local.id() + " 命中 " + matches.size()
-                        + " 个标准候选 " + candidateStandardIds(matches)
-                        + "，待人工裁决",
-                    userId,
-                    now
-                );
+            if (localBatch.size() < CANDIDATE_GENERATION_BATCH_SIZE) {
+                break;
             }
-
-            for (CandidateMatch candidateMatch : matches) {
-                StandardTerm standard = candidateMatch.standard();
-                CandidateDecision decision = candidateMatch.decision();
-                Optional<MappingCandidate> existingOpt = candidateRepository
-                    .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
-                        tenantId, local.id(), standard.id(), MappingCandidateStatus.PENDING);
-
-                MappingCandidate saved;
-                if (existingOpt.isPresent()) {
-                    MappingCandidate existing = existingOpt.get();
-                    saved = candidateRepository.save(new MappingCandidate(
-                        existing.id(), tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
-                        decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
-                        existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
-                        existing.createdAt(), existing.createdBy(), now, userId
-                    ));
-                } else {
-                    saved = candidateRepository.save(new MappingCandidate(
-                        null, tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
-                        decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
-                        null, null, null, now, userId, now, userId
-                    ));
-                }
-                generated.add(TerminologyCandidateResponse.from(saved));
-            }
+            offset += CANDIDATE_GENERATION_BATCH_SIZE;
         }
-        return new TerminologyCandidateGenerationResponse(generated.size(), generated);
+        return generated;
+    }
+
+    private String candidatePageUri(String jobCode) {
+        return CANDIDATE_PAGE_PREFIX + "?status=PENDING&generationJobCode=" + jobCode;
+    }
+
+    private TerminologyCandidateGenerationJob rebuildGenerationJob(
+            TerminologyCandidateGenerationJob src,
+            java.util.function.Consumer<CandidateGenerationJobBuilder> mutator) {
+        CandidateGenerationJobBuilder builder = new CandidateGenerationJobBuilder(src);
+        mutator.accept(builder);
+        return new TerminologyCandidateGenerationJob(
+            src.id(), src.tenantId(), src.jobCode(), src.sourceSystem(), src.minimumScore(),
+            src.semanticAssistEnabled(), src.packageVersion(), src.requestedBy(),
+            builder.status, builder.progress, builder.generatedCount, builder.candidatePageUri,
+            builder.errorMessage, src.createdAt(), builder.startedAt, builder.completedAt
+        );
+    }
+
+    private static final class CandidateGenerationJobBuilder {
+        TerminologyCandidateGenerationJobStatus status;
+        Integer progress;
+        Integer generatedCount;
+        String candidatePageUri;
+        String errorMessage;
+        Instant startedAt;
+        Instant completedAt;
+
+        CandidateGenerationJobBuilder(TerminologyCandidateGenerationJob job) {
+            this.status = job.status();
+            this.progress = job.progress();
+            this.generatedCount = job.generatedCount();
+            this.candidatePageUri = job.candidatePageUri();
+            this.errorMessage = job.errorMessage();
+            this.startedAt = job.startedAt();
+            this.completedAt = job.completedAt();
+        }
+    }
+
+    private StandardTermGenerationIndex loadStandardTermGenerationIndex(String tenantId) {
+        StandardTermGenerationIndex index = new StandardTermGenerationIndex();
+        List<String> tenantIds = standardTermSources(tenantId);
+        int offset = 0;
+        while (true) {
+            List<StandardTerm> batch = standardTermRepository.pageByTenantIdsAndStatus(
+                tenantIds, tenantId, StandardTermStatus.ACTIVE,
+                offset, CANDIDATE_GENERATION_BATCH_SIZE);
+            if (batch == null || batch.isEmpty()) {
+                break;
+            }
+            for (StandardTerm standard : batch) {
+                index.add(standard);
+            }
+            if (batch.size() < CANDIDATE_GENERATION_BATCH_SIZE) {
+                break;
+            }
+            offset += CANDIDATE_GENERATION_BATCH_SIZE;
+        }
+        return index;
+    }
+
+    private boolean categoriesCompatible(LocalTerm local, StandardTerm standard) {
+        return local.category() == null || standard.category() == null || local.category() == standard.category();
     }
 
     private CandidateDecision candidateDecision(Optional<HighRiskTermMatch> highRisk,
@@ -742,5 +954,141 @@ public class TerminologyService {
         TermRiskLevel riskLevel,
         String evidence
     ) {
+    }
+
+    private static final class StandardTermGenerationIndex {
+        private final Map<String, LinkedHashMap<Long, StandardTerm>> exactCodeIndex = new HashMap<>();
+        private final Map<String, LinkedHashMap<Long, StandardTerm>> aliasIndex = new HashMap<>();
+        private final Map<String, LinkedHashMap<Long, StandardTerm>> codePrefixIndex = new HashMap<>();
+        private final List<IndexedStandardTerm> standards = new ArrayList<>();
+        private final Map<String, List<StandardTerm>> highRiskTermCache = new HashMap<>();
+
+        void add(StandardTerm standard) {
+            standards.add(new IndexedStandardTerm(standard, HighRiskTermDetector.clinicalText(standard)));
+            String code = SemanticTermMatcher.canonical(standard.termCode());
+            if (!code.isBlank()) {
+                put(exactCodeIndex, code, standard);
+                for (int length = 4; length <= code.length(); length++) {
+                    put(codePrefixIndex, code.substring(0, length), standard);
+                }
+            }
+            for (String alias : SemanticTermMatcher.aliases(
+                    standard.displayName(), standard.normalizedName(), standard.termCode())) {
+                put(aliasIndex, alias, standard);
+            }
+        }
+
+        boolean isEmpty() {
+            return standards.isEmpty();
+        }
+
+        List<StandardTerm> candidatesFor(LocalTerm local,
+                                         boolean semanticAssistEnabled,
+                                         List<HighRiskRule> highRiskRules) {
+            LinkedHashMap<Long, StandardTerm> candidates = new LinkedHashMap<>();
+            if (semanticAssistEnabled) {
+                addAll(candidates, semanticCandidates(local));
+                addAll(candidates, highRiskCandidates(local, highRiskRules));
+            } else {
+                addAll(candidates, lookup(exactCodeIndex, SemanticTermMatcher.canonical(local.localCode())));
+            }
+            return List.copyOf(candidates.values());
+        }
+
+        private List<StandardTerm> semanticCandidates(LocalTerm local) {
+            LinkedHashMap<Long, StandardTerm> candidates = new LinkedHashMap<>();
+            for (String alias : SemanticTermMatcher.aliases(
+                    local.localName(), local.normalizedName(), local.localCode())) {
+                addAll(candidates, lookup(aliasIndex, alias));
+            }
+            String localCode = SemanticTermMatcher.canonical(local.localCode());
+            if (localCode.length() >= 4) {
+                for (int length = 4; length <= localCode.length(); length++) {
+                    addAll(candidates, lookup(codePrefixIndex, localCode.substring(0, length)));
+                }
+            }
+            return List.copyOf(candidates.values());
+        }
+
+        private List<StandardTerm> highRiskCandidates(LocalTerm local, List<HighRiskRule> rules) {
+            if (rules == null || rules.isEmpty()) {
+                return List.of();
+            }
+            LinkedHashMap<Long, StandardTerm> candidates = new LinkedHashMap<>();
+            ClinicalText localText = HighRiskTermDetector.clinicalText(local);
+            for (HighRiskRule rule : rules) {
+                if (rule.status() != HighRiskRuleStatus.ACTIVE) {
+                    continue;
+                }
+                switch (rule.ruleType()) {
+                    case MUTUALLY_EXCLUSIVE_TERMS -> {
+                        if (HighRiskTermDetector.containsAny(localText, rule.leftTerms())) {
+                            addAll(candidates, standardsContaining(rule.rightTerms()));
+                        }
+                        if (HighRiskTermDetector.containsAny(localText, rule.rightTerms())) {
+                            addAll(candidates, standardsContaining(rule.leftTerms()));
+                        }
+                    }
+                    case DOSE_MAGNITUDE -> {
+                        if (HighRiskTermDetector.containsAny(localText, rule.unitTerms())) {
+                            addAll(candidates, standardsContaining(rule.unitTerms()));
+                        }
+                    }
+                    case UNIT_STRENGTH -> {
+                        if (HighRiskTermDetector.containsAny(localText, rule.leftTerms())) {
+                            addAll(candidates, standardsContaining(rule.leftTerms()));
+                        }
+                    }
+                }
+            }
+            return List.copyOf(candidates.values());
+        }
+
+        private List<StandardTerm> standardsContaining(String terms) {
+            LinkedHashMap<Long, StandardTerm> result = new LinkedHashMap<>();
+            for (RuleTerm term : HighRiskTermDetector.splitTerms(terms)) {
+                addAll(result, highRiskTermCache.computeIfAbsent(
+                    term.normalized() + "|" + term.tokenOnly(),
+                    ignored -> standards.stream()
+                        .filter(indexed -> contains(indexed.clinicalText(), term))
+                        .map(IndexedStandardTerm::standard)
+                        .toList()
+                ));
+            }
+            return List.copyOf(result.values());
+        }
+
+        private static boolean contains(ClinicalText text, RuleTerm term) {
+            if (term.tokenOnly()) {
+                return text.tokens().contains(term.normalized());
+            }
+            return text.tokens().contains(term.normalized()) || text.compact().contains(term.normalized());
+        }
+
+        private static void put(Map<String, LinkedHashMap<Long, StandardTerm>> index,
+                                String key,
+                                StandardTerm standard) {
+            if (key == null || key.isBlank()) {
+                return;
+            }
+            index.computeIfAbsent(key, ignored -> new LinkedHashMap<>()).put(standard.id(), standard);
+        }
+
+        private static List<StandardTerm> lookup(Map<String, LinkedHashMap<Long, StandardTerm>> index, String key) {
+            if (key == null || key.isBlank()) {
+                return List.of();
+            }
+            LinkedHashMap<Long, StandardTerm> values = index.get(key);
+            return values == null ? List.of() : List.copyOf(values.values());
+        }
+
+        private static void addAll(LinkedHashMap<Long, StandardTerm> target, List<StandardTerm> standards) {
+            for (StandardTerm standard : standards) {
+                target.put(standard.id(), standard);
+            }
+        }
+
+        private record IndexedStandardTerm(StandardTerm standard, ClinicalText clinicalText) {
+        }
     }
 }

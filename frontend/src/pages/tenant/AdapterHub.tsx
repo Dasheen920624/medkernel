@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
@@ -45,6 +45,7 @@ import {
   useIntegrationLogs,
   useIntegrationOnboardings,
   useMasterDataReconciliation,
+  usePackages,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -62,6 +63,7 @@ import {
   type IntegrationMessageLog,
   type IntegrationOnboarding,
   type IntegrationWebhookConfig,
+  type KnowledgePackage,
   type MasterDataReconciliation,
   type RegionalSource,
   type SecurityProfile,
@@ -95,6 +97,8 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 };
 
 const LOG_PAGE_SIZE = 10;
+const ADAPTER_PAGE_SIZE = 20;
+const INTEGRATION_CONTRACT_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
@@ -140,6 +144,8 @@ const HEALTH_ALERT_MESSAGE: Record<string, string> = {
   UNHEALTHY: "外部系统当前不可达",
   ERROR: "外部系统当前不可达",
 };
+
+const TERMINOLOGY_MAPPING_REFERENCE_PAGE_SIZE = 20;
 
 const ADAPTER_STATUS_COLOR: Record<string, string> = {
   ACTIVE: "green",
@@ -238,6 +244,7 @@ function pageStateFor({
 }
 
 export default function AdapterHub() {
+  const [adapterPage, setAdapterPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
   const [adapterModalOpen, setAdapterModalOpen] = useState(false);
   const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
@@ -245,6 +252,7 @@ export default function AdapterHub() {
   const [regionalSourceModalOpen, setRegionalSourceModalOpen] = useState(false);
   const [expertMode, setExpertMode] = useState(false);
   const [contractVersionInput, setContractVersionInput] = useState("");
+  const [contractPackageSearch, setContractPackageSearch] = useState("");
   const [contractVersion, setContractVersion] = useState("");
   const [masterDataSourceInput, setMasterDataSourceInput] = useState("");
   const [masterDataSource, setMasterDataSource] = useState("");
@@ -259,14 +267,20 @@ export default function AdapterHub() {
   const [webhookForm] = Form.useForm();
   const [signatureForm] = Form.useForm();
   const [regionalSourceForm] = Form.useForm();
+  const [terminologyMappingSearch, setTerminologyMappingSearch] = useState("");
   const selectedAdapterProtocol = Form.useWatch("protocolType", adapterForm);
   const usesHttpConnector = HTTP_PROTOCOLS.has(
     String(selectedAdapterProtocol ?? "REST").toUpperCase(),
   );
 
   const security = useSecurityProfile();
-  const adaptersQuery = useIntegrationAdapters();
+  const adaptersQuery = useIntegrationAdapters({ page: adapterPage, size: ADAPTER_PAGE_SIZE });
   const statusQuery = useAdapterHubStatus();
+  const packagesQuery = usePackages({
+    page: 1,
+    size: INTEGRATION_CONTRACT_PACKAGE_REFERENCE_PAGE_SIZE,
+    keyword: contractPackageSearch || undefined,
+  });
   const dataContractQuery = useIntegrationDataContract(contractVersion, contractVersion.length > 0);
   const masterDataQuery = useMasterDataReconciliation(
     masterDataSource,
@@ -279,8 +293,9 @@ export default function AdapterHub() {
   const terminologyMappingsQuery = useTerminologyMappings({
     status: "CONFIRMED",
     page: 1,
-    size: 100,
+    size: TERMINOLOGY_MAPPING_REFERENCE_PAGE_SIZE,
     sort: "updatedAt,desc",
+    ...(terminologyMappingSearch ? { keyword: terminologyMappingSearch } : {}),
   });
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
@@ -293,13 +308,25 @@ export default function AdapterHub() {
   const createWebhookMutation = useCreateWebhook();
   const testWebhookSignatureMutation = useTestWebhookSignature();
   const registerRegionalSourceMutation = useRegisterRegionalSource();
+  const contractPackageOptions = useMemo(
+    () =>
+      (packagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({
+        value: pkg.packageVersion,
+        label: `${pkg.name}（${pkg.packageVersion}）`,
+      })),
+    [packagesQuery.data?.items],
+  );
+  const knownContractVersions = useMemo(
+    () => new Set(contractPackageOptions.map((option) => option.value)),
+    [contractPackageOptions],
+  );
 
   const profile = security.data;
   const canAccess = !!profile && canAccessRoute(route, profile);
   const canWrite = hasPermission(profile, "integration.write");
   const canExecute = hasPermission(profile, "integration.execute");
 
-  const adapters = adaptersQuery.data ?? [];
+  const adapters = adaptersQuery.data?.items ?? [];
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
   const onboardings = onboardingsQuery.data ?? [];
@@ -533,7 +560,19 @@ export default function AdapterHub() {
   function handleLoadDataContract() {
     const nextVersion = contractVersionInput.trim();
     if (!nextVersion) {
-      message.warning("请输入 packageVersion。");
+      message.warning("请选择配置包版本。");
+      return;
+    }
+    if (packagesQuery.isLoading) {
+      message.warning("配置包版本列表加载中，请稍后再读取契约。");
+      return;
+    }
+    if (packagesQuery.isError) {
+      message.warning("配置包版本列表暂不可用，不能按手写版本读取契约。");
+      return;
+    }
+    if (!knownContractVersions.has(nextVersion)) {
+      message.warning("请选择已存在的配置包版本。");
       return;
     }
     setContractVersion(nextVersion);
@@ -903,6 +942,10 @@ export default function AdapterHub() {
             <DataContractPanel
               versionInput={contractVersionInput}
               onVersionInputChange={setContractVersionInput}
+              onPackageSearch={setContractPackageSearch}
+              packageOptions={contractPackageOptions}
+              packageOptionsLoading={packagesQuery.isLoading}
+              packageOptionsError={packagesQuery.isError}
               onLoad={handleLoadDataContract}
               loading={dataContractQuery.isFetching}
               contract={contractVersion ? dataContractQuery.data : undefined}
@@ -959,7 +1002,13 @@ export default function AdapterHub() {
                       rowKey="adapterId"
                       columns={adapterColumns}
                       dataSource={adapters}
-                      pagination={false}
+                      loading={adaptersQuery.isLoading}
+                      pagination={{
+                        current: adapterPage,
+                        pageSize: ADAPTER_PAGE_SIZE,
+                        total: adaptersQuery.data?.total ?? 0,
+                        onChange: setAdapterPage,
+                      }}
                       scroll={{ x: 900 }}
                     />
                     <FieldMappingPanel items={fieldMappingItems} />
@@ -1471,7 +1520,7 @@ export default function AdapterHub() {
                           <Select
                             allowClear
                             showSearch
-                            optionFilterProp="label"
+                            filterOption={false}
                             placeholder="可选，选择已确认映射"
                             options={(terminologyMappingsQuery.data?.items ?? []).map(
                               (mapping) => ({
@@ -1479,6 +1528,8 @@ export default function AdapterHub() {
                                 label: `${mapping.sourceSystem} · ${mapping.category} · 映射 ${mapping.id}`,
                               }),
                             )}
+                            onSearch={setTerminologyMappingSearch}
+                            onClear={() => setTerminologyMappingSearch("")}
                             notFoundContent="暂无已确认术语映射"
                           />
                         </Form.Item>
@@ -1656,6 +1707,10 @@ function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus
 function DataContractPanel({
   versionInput,
   onVersionInputChange,
+  onPackageSearch,
+  packageOptions,
+  packageOptionsLoading,
+  packageOptionsError,
   onLoad,
   loading,
   contract,
@@ -1663,29 +1718,68 @@ function DataContractPanel({
 }: {
   versionInput: string;
   onVersionInputChange: (value: string) => void;
+  onPackageSearch: (value: string) => void;
+  packageOptions: Array<{ value: string; label: string }>;
+  packageOptionsLoading: boolean;
+  packageOptionsError: boolean;
   onLoad: () => void;
   loading: boolean;
   contract?: IntegrationDataContractResponse;
   error: boolean;
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
+  const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
+    { title: "canonical 字段", dataIndex: "fieldPath", key: "fieldPath", width: 180 },
+    {
+      title: "接入字段",
+      key: "payload",
+      width: 160,
+      render: (_value, field) => `${field.payloadKey}.${field.propertyName}`,
+    },
+    { title: "Schema", dataIndex: "jsonSchemaType", key: "jsonSchemaType", width: 96 },
+    { title: "类型", dataIndex: "dataType", key: "dataType", width: 96 },
+    {
+      title: "接入",
+      dataIndex: "externalWritable",
+      key: "externalWritable",
+      width: 112,
+      render: (externalWritable: boolean, field) =>
+        externalWritable ? (
+          <Tag color={field.required ? "red" : "green"}>{field.required ? "必传" : "可接入"}</Tag>
+        ) : (
+          <Tag color="orange">派生不可写</Tag>
+        ),
+    },
+    { title: "说明", dataIndex: "description", key: "description" },
+  ];
   return (
     <Card title="数据接入契约" className={styles.sectionCard}>
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Space align="end" wrap>
           <Space direction="vertical" size={4}>
             <label htmlFor="integration-contract-version">版本号</label>
-            <Input
+            <Select
               id="integration-contract-version"
+              aria-label="版本号"
               value={versionInput}
-              onChange={(event) => onVersionInputChange(event.target.value)}
-              placeholder="pkg-2026.06"
+              onChange={onVersionInputChange}
+              options={packageOptions}
+              loading={packageOptionsLoading}
+              placeholder="选择已存在配置包版本"
+              showSearch
+              filterOption={false}
+              onSearch={onPackageSearch}
+              status={packageOptionsError ? "warning" : undefined}
+              className={styles.contractVersionSelect}
             />
           </Space>
           <Button loading={loading} onClick={onLoad}>
             读取契约
           </Button>
         </Space>
+        {packageOptionsError && (
+          <Alert type="warning" showIcon message="配置包版本列表暂时不可用，契约读取已阻断" />
+        )}
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">
@@ -1696,9 +1790,17 @@ function DataContractPanel({
               <Text>字段 {contract.fields.length} 项</Text>
             </Space>
             <Text type="secondary">{contract.accessGuide[0]}</Text>
+            <Table
+              rowKey="fieldPath"
+              dataSource={contract.fields}
+              columns={fieldColumns}
+              pagination={{ pageSize: 6, hideOnSinglePage: true }}
+              size="small"
+              scroll={{ x: 860 }}
+            />
           </Space>
         ) : (
-          <Text type="secondary">输入 packageVersion 后读取字段目录派生的外部接入契约。</Text>
+          <Text type="secondary">选择已存在配置包版本后读取字段目录派生的外部接入契约。</Text>
         )}
       </Space>
     </Card>

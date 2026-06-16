@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -228,7 +229,7 @@ public class KnowledgeExportService {
         Path path = physicalExportPath(job.jobCode());
         try (BufferedWriter writer = Files.newBufferedWriter(path)) {
             long itemCount = switch (job.exportType()) {
-                case IDENTITIES -> writeIdentities(writer, tenantId);
+                case IDENTITIES -> writeIdentities(writer, tenantId, job.filterJson());
                 case VERSIONS -> writeVersions(writer, tenantId);
                 case LINEAGE -> writeLineage(writer, tenantId);
                 case CITATIONS -> writeCitations(writer, tenantId);
@@ -238,9 +239,11 @@ public class KnowledgeExportService {
         }
     }
 
-    private long writeIdentities(BufferedWriter writer, String tenantId) throws IOException {
+    private long writeIdentities(BufferedWriter writer, String tenantId, String filterJson) throws IOException {
+        IdentityExportFilter filter = parseIdentityExportFilter(filterJson);
         return writePaged(writer, "knowledge_identity",
-            (offset, limit) -> identityRepository.pageByTenantId(tenantId, offset, limit));
+            (offset, limit) -> identityRepository.pageByFilter(
+                tenantId, filter.domain(), filter.specialtyId(), filter.status(), filter.keyword(), offset, limit));
     }
 
     private long writeVersions(BufferedWriter writer, String tenantId) throws IOException {
@@ -249,7 +252,7 @@ public class KnowledgeExportService {
     }
 
     private long writeLineage(BufferedWriter writer, String tenantId) throws IOException {
-        long count = writeIdentities(writer, tenantId);
+        long count = writeIdentities(writer, tenantId, null);
         count += writeVersions(writer, tenantId);
         count += writePaged(writer, "knowledge_supersession",
             (offset, limit) -> supersessionRepository.pageByTenantId(tenantId, offset, limit));
@@ -265,6 +268,52 @@ public class KnowledgeExportService {
 
     private long writeFullTenant(BufferedWriter writer, String tenantId) throws IOException {
         return writeLineage(writer, tenantId) + writeCitations(writer, tenantId);
+    }
+
+    private IdentityExportFilter parseIdentityExportFilter(String filterJson) {
+        if (filterJson == null || filterJson.isBlank()) {
+            return IdentityExportFilter.empty();
+        }
+        try {
+            JsonNode root = json.readTree(filterJson);
+            if (root == null || root.isNull()) {
+                return IdentityExportFilter.empty();
+            }
+            if (!root.isObject()) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "知识身份导出过滤条件必须是 JSON 对象");
+            }
+            return new IdentityExportFilter(
+                textOrNull(root, "domain"),
+                textOrNull(root, "specialtyId"),
+                textOrNull(root, "status"),
+                normalizeKeyword(textOrNull(root, "keyword"))
+            );
+        } catch (IOException ex) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "知识身份导出过滤条件不是合法 JSON");
+        }
+    }
+
+    private String textOrNull(JsonNode root, String fieldName) {
+        JsonNode value = root.get(fieldName);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        String text = value.asText(null);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        return text.trim();
+    }
+
+    private String normalizeKeyword(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim().toLowerCase();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return "%" + trimmed + "%";
     }
 
     private long writeInvalidations(BufferedWriter writer, String tenantId) throws IOException {
@@ -365,6 +414,12 @@ public class KnowledgeExportService {
     }
 
     private record ExportFile(Path path, String downloadUri, long itemCount) {
+    }
+
+    private record IdentityExportFilter(String domain, String specialtyId, String status, String keyword) {
+        static IdentityExportFilter empty() {
+            return new IdentityExportFilter(null, null, null, null);
+        }
     }
 
     @FunctionalInterface

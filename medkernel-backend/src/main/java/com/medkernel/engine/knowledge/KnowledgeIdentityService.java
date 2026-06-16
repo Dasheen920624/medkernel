@@ -3,7 +3,6 @@ package com.medkernel.engine.knowledge;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -72,10 +71,23 @@ public class KnowledgeIdentityService {
         String status = filter.status() == null ? null : filter.status().name();
         String keyword = normalizeKeyword(filter.keyword());
 
-        List<KnowledgeIdentity> effectiveRows =
-            effectiveIdentitiesByFilter(tenantId, domain, filter.specialtyId(), status, keyword);
-        long total = effectiveRows.size();
-        List<KnowledgeIdentity> items = slice(effectiveRows, offset, size);
+        if (!requiresEffectiveTenantMerge(tenantId, status)) {
+            long total = identityRepository.countByFilter(tenantId, domain, filter.specialtyId(), status, keyword);
+            if (total == 0) {
+                return PageResponse.empty(request);
+            }
+            return PageResponse.of(identityRepository.pageByFilter(
+                tenantId, domain, filter.specialtyId(), status, keyword, offset, size), request, total);
+        }
+
+        String platformStatus = platformStatusForEffectiveMerge(status);
+        long total = identityRepository.countEffectiveByFilter(
+            tenantId, PlatformTenant.ID, domain, filter.specialtyId(), status, platformStatus, keyword);
+        if (total == 0) {
+            return PageResponse.empty(request);
+        }
+        List<KnowledgeIdentity> items = identityRepository.pageEffectiveByFilter(
+            tenantId, PlatformTenant.ID, domain, filter.specialtyId(), status, platformStatus, keyword, offset, size);
         return PageResponse.of(items, request, total);
     }
 
@@ -158,34 +170,17 @@ public class KnowledgeIdentityService {
         return identityRepository.findByTenantIdAndIdentityCode(PlatformTenant.ID, identityCode);
     }
 
-    private List<KnowledgeIdentity> effectiveIdentitiesByFilter(String tenantId, String domain,
-                                                                String specialtyId, String status, String keyword) {
-        LinkedHashMap<String, KnowledgeIdentity> byCode = new LinkedHashMap<>();
-        identityRepository.listByFilter(tenantId, domain, specialtyId, status, keyword)
-            .forEach(identity -> byCode.put(identity.identityCode(), identity));
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            if (status == null) {
-                identityRepository.listByFilter(
-                        PlatformTenant.ID, domain, specialtyId, KnowledgeIdentityStatus.ACTIVE.name(), keyword)
-                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
-                identityRepository.listByFilter(
-                        PlatformTenant.ID, domain, specialtyId, KnowledgeIdentityStatus.DEPRECATED.name(), keyword)
-                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
-            } else if (KnowledgeIdentityStatus.ACTIVE.name().equals(status)
-                    || KnowledgeIdentityStatus.DEPRECATED.name().equals(status)) {
-                identityRepository.listByFilter(PlatformTenant.ID, domain, specialtyId, status, keyword)
-                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
-            }
+    private boolean requiresEffectiveTenantMerge(String tenantId, String status) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return false;
         }
-        return List.copyOf(byCode.values());
+        return status == null
+            || KnowledgeIdentityStatus.ACTIVE.name().equals(status)
+            || KnowledgeIdentityStatus.DEPRECATED.name().equals(status);
     }
 
-    private List<KnowledgeIdentity> slice(List<KnowledgeIdentity> rows, int offset, int limit) {
-        if (rows.isEmpty() || offset >= rows.size()) {
-            return List.of();
-        }
-        int end = Math.min(rows.size(), offset + limit);
-        return rows.subList(offset, end);
+    private String platformStatusForEffectiveMerge(String status) {
+        return status == null ? null : status;
     }
 
     private record EffectiveKnowledgeIdentity(KnowledgeIdentity identity, String sourceTenantId) {

@@ -62,9 +62,12 @@ public class IntegrationController {
      */
     @GetMapping("/adapters")
     @PreAuthorize("@perm.has('integration.read')")
-    public ApiResult<List<IntegrationAdapter>> getAdapters() {
+    public ApiResult<PageResponse<IntegrationAdapter>> getAdapters(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false) String sort) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(integrationService.getAdapters(tenantId));
+        return ApiResult.ok(integrationService.getAdapters(tenantId, new PageRequest(page, size, sort)));
     }
 
     /**

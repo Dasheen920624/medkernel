@@ -49,6 +49,7 @@ public final class DefaultPermissionPolicy {
             MENU_IDENTITY_BINDINGS,
             MENU_IMPLEMENTATION_GUIDE,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_CONFIG_PACKAGES,
             MENU_QC_DASHBOARD,
             MENU_ADMIN_AUDIT,
@@ -84,6 +85,7 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_DEFINITIONS,
             MENU_TERMINOLOGY_MAPPING,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
@@ -159,6 +161,7 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_DEFINITIONS,
             MENU_TERMINOLOGY_MAPPING,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
@@ -200,6 +203,7 @@ public final class DefaultPermissionPolicy {
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_PROVENANCE);
     }
 
@@ -273,6 +277,7 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_DEFINITIONS,
             MENU_CDSS_FATIGUE,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_PROVENANCE,
             MENU_PATIENT_PATHWAYS,
             MENU_WORKFLOW_TODOS,

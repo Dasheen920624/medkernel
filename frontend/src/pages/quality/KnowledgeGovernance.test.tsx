@@ -21,6 +21,7 @@ const mockUseCreateKnowledgeCustomization = vi.fn();
 const mockUsePublishKnowledgeCustomization = vi.fn();
 const mockUseRestorePlatformKnowledge = vi.fn();
 const mockUseAssetTemplates = vi.fn();
+const mockUsePackages = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -31,11 +32,13 @@ vi.mock("@/shared/api/hooks", () => ({
   useReviewKnowledgeCandidate: () => mockUseReviewKnowledgeCandidate(),
   useDeprecateKnowledgeIdentity: () => mockUseDeprecateKnowledgeIdentity(),
   useSecurityProfile: () => mockUseSecurityProfile(),
-  useKnowledgeCustomizations: (enabled?: boolean) => mockUseKnowledgeCustomizations(enabled),
+  useKnowledgeCustomizations: (params: unknown, enabled?: boolean) =>
+    mockUseKnowledgeCustomizations(params, enabled),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
   useCreateKnowledgeCustomization: () => mockUseCreateKnowledgeCustomization(),
   usePublishKnowledgeCustomization: () => mockUsePublishKnowledgeCustomization(),
   useRestorePlatformKnowledge: () => mockUseRestorePlatformKnowledge(),
+  usePackages: (params: unknown) => mockUsePackages(params),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -180,6 +183,17 @@ let deprecateIdentity: ReturnType<typeof vi.fn>;
 let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
 
+function customizationPage(items: Array<Record<string, unknown>> = []) {
+  return {
+    items,
+    page: 1,
+    size: 20,
+    total: items.length,
+    hasNext: false,
+    totalEstimated: false,
+  };
+}
+
 beforeEach(() => {
   refetchIdentities = vi.fn();
   refetchCandidates = vi.fn();
@@ -218,6 +232,7 @@ beforeEach(() => {
   mockUsePublishKnowledgeCustomization.mockReset();
   mockUseRestorePlatformKnowledge.mockReset();
   mockUseAssetTemplates.mockReset();
+  mockUsePackages.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
     data: assetTemplates,
@@ -232,6 +247,25 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
     error: undefined,
+  });
+  mockUsePackages.mockReturnValue({
+    data: {
+      items: [
+        {
+          packageId: "pkg-knowledge-2026",
+          packageCode: "PKG.KNOW",
+          packageVersion: "PKG.KNOW.2026.06",
+          name: "知识审核上下文包",
+          status: "ACTIVE",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+    },
+    isLoading: false,
+    isError: false,
   });
   mockUseKnowledgeCandidates.mockReturnValue({
     data: {
@@ -281,7 +315,7 @@ beforeEach(() => {
     },
   });
   mockUseKnowledgeCustomizations.mockReturnValue({
-    data: [],
+    data: customizationPage(),
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -356,6 +390,7 @@ describe("KnowledgeGovernance", () => {
       });
 
       renderPage();
+      expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
       await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
       expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
       await user.click(screen.getByRole("combobox", { name: "生效机构" }));
@@ -390,7 +425,7 @@ describe("KnowledgeGovernance", () => {
         },
       });
       mockUseKnowledgeCustomizations.mockReturnValue({
-        data: [
+        data: customizationPage([
           {
             customizationId: "kc-high-risk",
             sourceType: "LOCAL_CUSTOMIZATION",
@@ -410,7 +445,7 @@ describe("KnowledgeGovernance", () => {
             platformUpdateAvailable: false,
             updatedAt: "2026-06-11T01:00:00Z",
           },
-        ],
+        ]),
         isLoading: false,
         isError: false,
         refetch: vi.fn(),
@@ -450,8 +485,7 @@ describe("KnowledgeGovernance", () => {
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
 
-  it("keeps diagnosis governance available while the candidate queue is loading", async () => {
-    const user = userEvent.setup();
+  it("keeps diagnosis maintenance out of the review workspace while the candidate queue is loading", () => {
     mockUseKnowledgeIdentities.mockReturnValue({
       data: undefined,
       refetch: refetchIdentities,
@@ -462,9 +496,8 @@ describe("KnowledgeGovernance", () => {
 
     renderPage();
     expect(screen.getByText("正在加载知识候选审核")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "诊断知识" }));
-    expect(screen.getByText("诊断知识工作台")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "诊断知识" })).not.toBeInTheDocument();
+    expect(screen.queryByText("诊断知识工作台")).not.toBeInTheDocument();
   });
 
   it("keeps the retirement successor query disabled until the dialog opens", () => {
@@ -668,6 +701,25 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("证据等级")).toBeInTheDocument();
   });
 
+  it("loads knowledge review package selector through small server-side search pages", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    expect(mockUsePackages).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      assetType: "KNOWLEDGE",
+      keyword: undefined,
+    });
+    expect(mockUsePackages).not.toHaveBeenCalledWith({
+      page: 1,
+      size: 100,
+      assetType: "KNOWLEDGE",
+    });
+  });
+
   it("returns a candidate for revision through the RETURN review decision with a mandatory reason", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -717,9 +769,7 @@ describe("KnowledgeGovernance", () => {
       renderPage();
 
       await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-      fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
-        target: { value: "PKG.KNOW.2026.06" },
-      });
+      expect(screen.getByText("PKG.KNOW.2026.06 · 知识审核上下文包")).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText("审核理由"), {
         target: { value: "已核对来源锚点和现行版差异，允许替换。" },
       });

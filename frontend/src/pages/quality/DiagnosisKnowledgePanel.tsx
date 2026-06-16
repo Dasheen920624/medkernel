@@ -79,6 +79,8 @@ const DIRECTION_LABEL: Record<string, string> = {
   EXCLUSION: "排除",
 };
 
+const DIAGNOSIS_REFERENCE_PAGE_SIZE = 20;
+
 function can(profile: ReturnType<typeof useSecurityProfile>["data"], code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
@@ -87,6 +89,10 @@ function versionLabel(version: KnowledgeAssetVersion) {
   return `${version.versionLabel || version.versionNo} · ${
     VERSION_STATUS_LABEL[version.status] ?? customerEnumLabel(version.status)
   }`;
+}
+
+function searchKeyword(value: string) {
+  return value.trim() || undefined;
 }
 
 type DiagnosisPublishFormValues = {
@@ -103,21 +109,40 @@ type DiagnosisPublishFormValues = {
 export default function DiagnosisKnowledgePanel() {
   const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
+  const [identitySearch, setIdentitySearch] = useState("");
+  const [diagnosisReferenceSearch, setDiagnosisReferenceSearch] = useState("");
+  const [referenceKnowledgeSearch, setReferenceKnowledgeSearch] = useState("");
+  const [ruleSearch, setRuleSearch] = useState("");
+  const [pathwaySearch, setPathwaySearch] = useState("");
   const identitiesQuery = useKnowledgeIdentities({
     domain: "DIAGNOSIS",
     status: "ACTIVE",
+    keyword: searchKeyword(identitySearch),
     page: 1,
-    size: 100,
+    size: DIAGNOSIS_REFERENCE_PAGE_SIZE,
     sort: "updatedAt,desc",
   });
   const identities = useMemo(
     () => identitiesQuery.data?.items ?? [],
     [identitiesQuery.data?.items],
   );
+  const diagnosisReferenceQuery = useKnowledgeIdentities({
+    domain: "DIAGNOSIS",
+    status: "ACTIVE",
+    keyword: searchKeyword(diagnosisReferenceSearch),
+    page: 1,
+    size: DIAGNOSIS_REFERENCE_PAGE_SIZE,
+    sort: "updatedAt,desc",
+  });
+  const diagnosisReferences = useMemo(
+    () => diagnosisReferenceQuery.data?.items ?? [],
+    [diagnosisReferenceQuery.data?.items],
+  );
   const referenceKnowledgeQuery = useKnowledgeIdentities({
     status: "ACTIVE",
+    keyword: searchKeyword(referenceKnowledgeSearch),
     page: 1,
-    size: 100,
+    size: DIAGNOSIS_REFERENCE_PAGE_SIZE,
     sort: "updatedAt,desc",
   });
   const referenceKnowledge = useMemo(
@@ -125,11 +150,23 @@ export default function DiagnosisKnowledgePanel() {
     [referenceKnowledgeQuery.data?.items],
   );
   const rulesQuery = useRuleDefinitions(
-    { status: "PUBLISHED", page: 1, size: 100, sort: "updatedAt,desc" },
+    {
+      status: "PUBLISHED",
+      keyword: searchKeyword(ruleSearch),
+      page: 1,
+      size: DIAGNOSIS_REFERENCE_PAGE_SIZE,
+      sort: "updatedAt,desc",
+    },
     { enabled: can(security.data, "rule.read") },
   );
   const pathwaysQuery = usePathwayTemplates(
-    { status: "PUBLISHED", page: 1, size: 100, sort: "updatedAt,desc" },
+    {
+      status: "PUBLISHED",
+      keyword: searchKeyword(pathwaySearch),
+      page: 1,
+      size: DIAGNOSIS_REFERENCE_PAGE_SIZE,
+      sort: "updatedAt,desc",
+    },
     { enabled: can(security.data, "pathway.read") },
   );
   const [identityId, setIdentityId] = useState<number>();
@@ -139,16 +176,27 @@ export default function DiagnosisKnowledgePanel() {
   const selectedIdentity = identities.find((item) => item.id === identityId);
   const selectedVersion = versions.find((item) => item.id === versionId);
   const editable = Boolean(selectedVersion && EDITABLE_STATUSES.has(selectedVersion.status));
+  const diagnosisReferenceOptions = useMemo(() => {
+    if (!selectedIdentity || diagnosisReferences.some((item) => item.id === selectedIdentity.id)) {
+      return diagnosisReferences;
+    }
+    return [selectedIdentity, ...diagnosisReferences];
+  }, [diagnosisReferences, selectedIdentity]);
 
   useEffect(() => {
     if (identities.length === 0) {
-      setIdentityId(undefined);
+      if (!searchKeyword(identitySearch)) {
+        setIdentityId(undefined);
+      }
       return;
     }
-    if (!identityId || !identities.some((item) => item.id === identityId)) {
+    if (
+      !identityId ||
+      (!searchKeyword(identitySearch) && !identities.some((item) => item.id === identityId))
+    ) {
       setIdentityId(identities[0].id);
     }
-  }, [identities, identityId]);
+  }, [identities, identityId, identitySearch]);
 
   useEffect(() => {
     if (versions.length === 0) {
@@ -170,6 +218,10 @@ export default function DiagnosisKnowledgePanel() {
   const differentials = differentialsQuery.data ?? [];
   const pointers = pointersQuery.data ?? [];
   const testCases = casesQuery.data ?? [];
+  const hasUnsupportedCriterionConstraints = criteria.some(
+    (criterion) =>
+      Boolean(criterion.valueConstraint?.trim()) || Boolean(criterion.temporalConstraint?.trim()),
+  );
 
   const createAsset = useCreateDiagnosisAsset();
   const createVersion = useCreateDiagnosisVersion();
@@ -217,6 +269,7 @@ export default function DiagnosisKnowledgePanel() {
     );
   const publishDisabled =
     testCases.length === 0 ||
+    hasUnsupportedCriterionConstraints ||
     !publishReason?.trim() ||
     !publishEvidenceComplete ||
     !publishQualityGateComplete;
@@ -242,6 +295,24 @@ export default function DiagnosisKnowledgePanel() {
       label: `${item.subject} · ${item.identityCode}`,
     }));
   }, [pathwaysQuery.data?.items, pointerTargetType, referenceKnowledge, rulesQuery.data?.items]);
+
+  function resetCareTargetSearch() {
+    setReferenceKnowledgeSearch("");
+    setRuleSearch("");
+    setPathwaySearch("");
+  }
+
+  function searchCareTarget(value: string) {
+    if (pointerTargetType === "RULE") {
+      setRuleSearch(value);
+      return;
+    }
+    if (pointerTargetType === "PATHWAY") {
+      setPathwaySearch(value);
+      return;
+    }
+    setReferenceKnowledgeSearch(value);
+  }
 
   function openDraft(mode: "asset" | "version") {
     assetForm.resetFields();
@@ -634,12 +705,16 @@ export default function DiagnosisKnowledgePanel() {
           <Card title="发布诊断知识">
             <Form form={publishForm} layout="vertical" initialValues={{ qualityGates: [] }}>
               <Alert
-                type={testCases.length === 0 ? "error" : "warning"}
+                type={
+                  testCases.length === 0 || hasUnsupportedCriterionConstraints ? "error" : "warning"
+                }
                 showIcon
                 message={
                   testCases.length === 0
                     ? "至少需要一个回归病例，当前版本不可发布。"
-                    : "发布前将复算全部回归病例；任一置信分级不一致都会阻断。"
+                    : hasUnsupportedCriterionConstraints
+                      ? "当前版本包含数值或时序约束，B0 运行门禁尚未求值，暂不可发布。"
+                      : "发布前将复算全部回归病例；任一置信分级不一致都会阻断。"
                 }
               />
               <Form.Item
@@ -762,13 +837,19 @@ export default function DiagnosisKnowledgePanel() {
           <div className={styles.selectors}>
             <Select
               aria-label="诊断知识身份"
+              showSearch
+              filterOption={false}
               placeholder="选择诊断知识"
               value={identityId}
               options={identities.map((item) => ({
                 value: item.id,
                 label: `${item.subject} · ${item.identityCode}`,
               }))}
-              onChange={setIdentityId}
+              onSearch={setIdentitySearch}
+              onChange={(value) => {
+                setIdentityId(value);
+                setIdentitySearch("");
+              }}
             />
             <Select
               aria-label="诊断知识版本"
@@ -1091,14 +1172,16 @@ export default function DiagnosisKnowledgePanel() {
           <Form.Item name="differentialIdentityId" label="鉴别诊断" rules={[{ required: true }]}>
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
               placeholder="选择需要鉴别的诊断"
-              options={identities
+              options={diagnosisReferenceOptions
                 .filter((item) => item.id !== identityId)
                 .map((item) => ({
                   value: item.id,
                   label: `${item.subject} · ${item.identityCode}`,
                 }))}
+              onSearch={setDiagnosisReferenceSearch}
+              onChange={() => setDiagnosisReferenceSearch("")}
             />
           </Form.Item>
           <Form.Item name="keyPoint" label="鉴别要点">
@@ -1139,6 +1222,7 @@ export default function DiagnosisKnowledgePanel() {
                 { value: "PATHWAY", label: "路径建议" },
               ]}
               onChange={(value) => {
+                resetCareTargetSearch();
                 pointerForm.setFieldsValue({
                   pointerType: value,
                   targetType: value === "PATHWAY" ? "PATHWAY" : "RULE",
@@ -1157,15 +1241,20 @@ export default function DiagnosisKnowledgePanel() {
                       { value: "KNOWLEDGE", label: "知识资产" },
                     ]
               }
-              onChange={() => pointerForm.setFieldValue("targetRef", undefined)}
+              onChange={() => {
+                resetCareTargetSearch();
+                pointerForm.setFieldValue("targetRef", undefined);
+              }}
             />
           </Form.Item>
           <Form.Item name="targetRef" label="目标资产" rules={[{ required: true }]}>
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
               placeholder="选择当前有效的目标资产"
               options={careTargetOptions}
+              onSearch={searchCareTarget}
+              onChange={resetCareTargetSearch}
               notFoundContent="暂无可引用的有效资产"
             />
           </Form.Item>
@@ -1208,12 +1297,14 @@ export default function DiagnosisKnowledgePanel() {
           <Form.Item name="expectedIdentityId" label="期望诊断" rules={[{ required: true }]}>
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
               placeholder="选择 ACTIVE 诊断身份"
-              options={identities.map((item) => ({
+              options={diagnosisReferenceOptions.map((item) => ({
                 value: item.id,
                 label: `${item.subject} · ${item.identityCode}`,
               }))}
+              onSearch={setDiagnosisReferenceSearch}
+              onChange={() => setDiagnosisReferenceSearch("")}
               notFoundContent="暂无 ACTIVE 诊断身份"
             />
           </Form.Item>

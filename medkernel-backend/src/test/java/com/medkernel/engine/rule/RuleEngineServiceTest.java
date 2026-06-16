@@ -1475,6 +1475,32 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void listUsesEffectiveRepositoryPagingForCustomerTenantWithoutLoadingSnapshots() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("tenant-A"), "rule-admin"));
+        RuleDefinition localOverride = existingRule(
+            "rule-local", "tenant-A", "RULE.ANTICOAG", "院内抗凝风险提示",
+            "version-local", RuleDefinitionStatus.PUBLISHED);
+        RuleDefinition platformOnly = existingRule(
+            "rule-platform-dvt", "t-1", "RULE.DVT", "平台 DVT 风险提示",
+            "version-platform-dvt", RuleDefinitionStatus.PUBLISHED);
+        when(definitions.countEffectiveByFilter(
+            "tenant-A", PlatformTenant.ID, null, RuleDefinitionStatus.PUBLISHED.name(), null, null, "%抗凝%"))
+            .thenReturn(2L);
+        when(definitions.pageEffectiveByFilter(
+            "tenant-A", PlatformTenant.ID, null, RuleDefinitionStatus.PUBLISHED.name(), null, null, "%抗凝%", 0, 20))
+            .thenReturn(List.of(localOverride, platformOnly));
+
+        PageResponse<RuleDefinition> response = service.list(
+            new RuleFilter(null, null, null, "抗凝"),
+            PageRequest.defaults());
+
+        assertThat(response.total()).isEqualTo(2L);
+        assertThat(response.items()).extracting(RuleDefinition::ruleId)
+            .containsExactly("rule-local", "rule-platform-dvt");
+        verify(definitions, never()).listByFilter(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void evaluateSpecifiedPlatformRuleKeepsPlatformActiveUntilLocalOverrideIsActivated() {
         RuleDefinition platformActive = existingRule(
             "rule-platform", "t-1", "RULE.ANTICOAG", "平台抗凝风险提示",

@@ -16,6 +16,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CitationRepository extends ListCrudRepository<Citation, Long> {
 
+    Optional<Citation> findByTenantIdAndId(String tenantId, Long id);
+
     List<Citation> findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(String tenantId, Long assetVersionId);
 
     Optional<Citation> findByTenantIdAndAssetVersionIdAndSourceFragmentIdAndRelation(

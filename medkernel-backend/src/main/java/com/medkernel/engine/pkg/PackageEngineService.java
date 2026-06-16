@@ -292,7 +292,7 @@ public class PackageEngineService {
             tenantId, keyword, status, assetType, offset, limit);
         long total = packageRepository.countByFilter(tenantId, keyword, status, assetType);
         if (packages.isEmpty()) {
-            return PageResponse.empty(page);
+            return PageResponse.of(List.of(), page, total);
         }
         Set<String> packageIds = packages.stream()
             .map(KnowledgePackage::packageId)
@@ -474,16 +474,13 @@ public class PackageEngineService {
             .map(template -> visiblePilotTemplate(tenantId, template))
             .flatMap(Optional::stream)
             .count();
-        List<KnowledgePackage> packages = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId);
-        long draftCount = packages.stream()
-            .filter(pack -> pack.status() == KnowledgePackageStatus.DRAFT)
-            .count();
-        long releasedCount = packages.stream()
-            .filter(this::releasedPackage)
-            .count();
-        long activeCount = packages.stream()
-            .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
-            .count();
+        long draftCount = packageRepository.countByFilter(
+            tenantId, null, KnowledgePackageStatus.DRAFT.name(), null);
+        long publishedCount = packageRepository.countByFilter(
+            tenantId, null, KnowledgePackageStatus.PUBLISHED.name(), null);
+        long activeCount = packageRepository.countByFilter(
+            tenantId, null, KnowledgePackageStatus.ACTIVE.name(), null);
+        long releasedCount = publishedCount + activeCount;
         List<TenantPackageReference> activeReferenceCandidates = packageReferenceRepository
             .findByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, TenantPackageReferenceStatus.ACTIVE);
         Set<String> referencedPackageIds = activeReferenceCandidates.stream()
@@ -500,18 +497,17 @@ public class PackageEngineService {
             .filter(reference -> usableReferencedPackageIds.contains(reference.platformPackageId()))
             .toList();
         long activeReferenceCount = activeReferences.size();
-        String readyPackageId = packages.stream()
-            .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
-            .findFirst()
-            .or(() -> packages.stream().filter(pack -> pack.status() == KnowledgePackageStatus.PUBLISHED).findFirst())
+        String readyPackageId = packageRepository
+            .findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, KnowledgePackageStatus.ACTIVE)
+            .or(() -> packageRepository.findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+                tenantId, KnowledgePackageStatus.PUBLISHED))
             .map(KnowledgePackage::packageId)
             .or(() -> activeReferences.stream()
                 .findFirst()
                 .map(TenantPackageReference::platformPackageId))
             .orElse(null);
-        boolean grayscaleReady = planRepository.findByTenantIdOrderByCreatedAtDesc(tenantId).stream()
-            .anyMatch(plan -> plan.strategy() == ReleaseStrategy.GRAYSCALE
-                && plan.status() == ReleasePlanStatus.SUCCESS);
+        boolean grayscaleReady = planRepository.countByTenantIdAndStrategyAndStatus(
+            tenantId, ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS) > 0;
 
         List<String> blockers = new ArrayList<>();
         if (templateCount == 0) {
@@ -3925,9 +3921,8 @@ public class PackageEngineService {
             }
             if (releaseRequest.strategy() == ReleaseStrategy.FULL && finalAllSuccess) {
                 // 原子切换：仅失效相同 packageCode 的 ACTIVE 知识包，不污染其他病种包
-                List<KnowledgePackage> activePacks = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId).stream()
-                    .filter(p -> p.status() == KnowledgePackageStatus.ACTIVE && p.packageCode().equals(pack.packageCode()))
-                    .toList();
+                List<KnowledgePackage> activePacks = packageRepository.findByTenantIdAndPackageCodeAndStatus(
+                    tenantId, pack.packageCode(), KnowledgePackageStatus.ACTIVE);
                 for (KnowledgePackage active : activePacks) {
                     packageRepository.save(active.withStatus(KnowledgePackageStatus.OFFLINE));
                 }

@@ -17,6 +17,7 @@ import {
   useIntegrationOnboardings,
   useMasterDataReconciliation,
   useOrgUnits,
+  usePackages,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
@@ -56,6 +57,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useIntegrationOnboardings: vi.fn(),
   useMasterDataReconciliation: vi.fn(),
   useOrgUnits: vi.fn(),
+  usePackages: vi.fn(),
   useRegionalSources: vi.fn(),
   useRegisterRegionalSource: vi.fn(),
   useReplayDeadLetter: vi.fn(),
@@ -300,9 +302,38 @@ const dataContract: IntegrationDataContractResponse = {
       codeSystem: null,
       required: true,
       derived: false,
+      externalWritable: true,
       description: "患者主索引标识",
     },
+    {
+      resourceType: "Patient",
+      fieldPath: "patient.age",
+      payloadKey: "patient",
+      propertyName: "age",
+      displayName: "年龄",
+      dataType: "number",
+      jsonSchemaType: "number",
+      unit: "岁",
+      codeSystem: null,
+      required: false,
+      derived: true,
+      externalWritable: false,
+      description: "由出生日期计算",
+    },
   ],
+};
+
+const packagesData = {
+  items: [
+    {
+      packageId: "package-rule",
+      packageCode: "PKG.RULE",
+      packageVersion: "pkg-2026.06",
+      name: "临床规则包",
+      status: "ACTIVE",
+    },
+  ],
+  total: 1,
 };
 
 const webhook: IntegrationWebhookConfig = {
@@ -342,6 +373,17 @@ function query<T>(data: T, overrides: Record<string, unknown> = {}) {
   };
 }
 
+function adapterPage(items: IntegrationAdapter[], total = items.length) {
+  return {
+    items,
+    page: 1,
+    size: 20,
+    total,
+    hasNext: total > items.length,
+    totalEstimated: false,
+  };
+}
+
 function mutation<T>(result: T) {
   return {
     mutateAsync: vi.fn().mockResolvedValue(result),
@@ -373,8 +415,9 @@ function setupMocks() {
       totalEstimated: false,
     }) as never,
   );
-  vi.mocked(useIntegrationAdapters).mockReturnValue(query([hisAdapter]) as never);
+  vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([hisAdapter])) as never);
   vi.mocked(useAdapterHubStatus).mockReturnValue(query(status) as never);
+  vi.mocked(usePackages).mockReturnValue(query(packagesData) as never);
   vi.mocked(useIntegrationDataContract).mockReturnValue(query(undefined) as never);
   vi.mocked(useIntegrationLogs).mockReturnValue(
     query({ items: [failedLog, deadLetterLog], total: 2 }) as never,
@@ -399,7 +442,7 @@ function setupMocks() {
         },
       ],
       page: 1,
-      size: 100,
+      size: 20,
       total: 1,
       hasNext: false,
       totalEstimated: false,
@@ -464,6 +507,7 @@ describe("AdapterHub", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "系统接入" })).toBeInTheDocument();
+    expect(useIntegrationAdapters).toHaveBeenCalledWith({ page: 1, size: 20 });
     expect(screen.getAllByRole("button", { name: "新增适配器" })).toHaveLength(1);
     expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("缺少检查报告时间映射")).toBeInTheDocument();
@@ -496,25 +540,48 @@ describe("AdapterHub", () => {
     expect(screen.getByText("860")).toBeInTheDocument();
   });
 
+  it("loads data contract package selector through small server-side pages", () => {
+    renderPage();
+
+    expect(usePackages).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
+    expect(usePackages).not.toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
+  });
+
+  it("loads terminology mapping selector through small server-side pages", () => {
+    renderPage();
+
+    expect(useTerminologyMappings).toHaveBeenCalledWith({
+      status: "CONFIRMED",
+      page: 1,
+      size: 20,
+      sort: "updatedAt,desc",
+    });
+    expect(useTerminologyMappings).not.toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
+  });
+
   it("loads the data contract summary with an explicit package version", async () => {
     const user = userEvent.setup();
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
 
     renderPage();
 
-    fireEvent.change(screen.getByLabelText("版本号"), {
-      target: { value: "pkg-2026.06" },
-    });
+    await user.click(screen.getByRole("combobox", { name: "版本号" }));
+    await user.click(await screen.findByText("临床规则包（pkg-2026.06）"));
     await user.click(screen.getByRole("button", { name: "读取契约" }));
 
+    expect(usePackages).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
     expect(useIntegrationDataContract).toHaveBeenCalledWith("pkg-2026.06", true);
     expect(screen.getByText("context-field-contract:pkg-2026.06")).toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
-    expect(screen.getByText("字段 1 项")).toBeInTheDocument();
+    expect(screen.getByText("字段 2 项")).toBeInTheDocument();
+    expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("patient.age").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("必传")).toBeInTheDocument();
+    expect(screen.getByText("派生不可写")).toBeInTheDocument();
   });
 
   it("keeps required source and data contract configuration visible before any adapter is created", () => {
-    vi.mocked(useIntegrationAdapters).mockReturnValue(query([]) as never);
+    vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([])) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(
       query({
         ...status,
@@ -764,11 +831,13 @@ describe("AdapterHub", () => {
   });
 
   it("renders guarded page states from real query status while keeping zero-record setup actionable", () => {
-    vi.mocked(useIntegrationAdapters).mockReturnValue(query([], { isLoading: true }) as never);
+    vi.mocked(useIntegrationAdapters).mockReturnValue(
+      query(adapterPage([]), { isLoading: true }) as never,
+    );
     const { rerender } = renderPage();
     expect(screen.getByText("正在加载系统接入")).toBeInTheDocument();
 
-    vi.mocked(useIntegrationAdapters).mockReturnValue(query([]) as never);
+    vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([])) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(query({ ...status, totalAdapters: 0 }) as never);
     vi.mocked(useIntegrationLogs).mockReturnValue(query({ items: [], total: 0 }) as never);
     vi.mocked(useIntegrationOnboardings).mockReturnValue(query([]) as never);
@@ -782,7 +851,7 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
 
     vi.mocked(useIntegrationAdapters).mockReturnValue(
-      query([], { isError: true, error: new Error("boom") }) as never,
+      query(adapterPage([]), { isError: true, error: new Error("boom") }) as never,
     );
     rerender(
       <ConfigProvider>
@@ -791,7 +860,7 @@ describe("AdapterHub", () => {
     );
     expect(screen.getByText("系统接入暂时不可用")).toBeInTheDocument();
 
-    vi.mocked(useIntegrationAdapters).mockReturnValue(query([hisAdapter]) as never);
+    vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([hisAdapter])) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(
       query(undefined, { isError: true, error: new Error("status") }) as never,
     );

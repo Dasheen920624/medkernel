@@ -50,5 +50,22 @@ public interface LocalTermRepository extends ListCrudRepository<LocalTerm, Long>
     List<LocalTerm> pageByFilter(String tenantId, String sourceSystem, String category, String status,
                                  String keyword, int offset, int limit);
 
+    /**
+     * 分页扫描指定来源系统的未映射术语，供候选生成使用，避免 10 万级数据一次性全量读入。
+     */
+    @Query("""
+        SELECT * FROM local_term
+        WHERE tenant_id = :tenantId
+          AND source_system = :sourceSystem
+          AND status = :status
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<LocalTerm> pageByTenantIdAndSourceSystemAndStatus(String tenantId,
+                                                           String sourceSystem,
+                                                           LocalTermStatus status,
+                                                           int offset,
+                                                           int limit);
+
     List<LocalTerm> findByTenantIdAndSourceSystemAndStatus(String tenantId, String sourceSystem, LocalTermStatus status);
 }

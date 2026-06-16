@@ -53,6 +53,14 @@ class IntegrationDataContractServiceTest {
             .isEqualTo("LOINC");
         assertThat(contract.resources().get("Patient").jsonSchema().properties().get("age").derived())
             .isTrue();
+        assertThat(contract.resources().get("Patient").jsonSchema().properties().get("age").externalWritable())
+            .isFalse();
+        assertThat(contract.fields()).filteredOn(field -> field.fieldPath().equals("observations[].valueNumeric"))
+            .singleElement()
+            .satisfies(field -> assertThat(field.externalWritable()).isTrue());
+        assertThat(contract.fields()).filteredOn(field -> field.fieldPath().equals("patient.age"))
+            .singleElement()
+            .satisfies(field -> assertThat(field.externalWritable()).isFalse());
         verify(catalog).query(null, null, "pkg-2026.06");
     }
 

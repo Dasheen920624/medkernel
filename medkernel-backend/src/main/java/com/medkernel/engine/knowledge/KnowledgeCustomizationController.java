@@ -1,16 +1,17 @@
 package com.medkernel.engine.knowledge;
 
-import java.util.List;
-
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 
@@ -34,8 +35,11 @@ public class KnowledgeCustomizationController {
 
     @GetMapping
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<KnowledgeCustomizationResponse>> list() {
-        return ApiResult.ok(service.list());
+    public ApiResult<PageResponse<KnowledgeCustomizationResponse>> list(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.list(new PageRequest(page, size, sort)));
     }
 
     @PostMapping

@@ -4,6 +4,7 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
+import com.medkernel.engine.versioning.AssetVersionStatus;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,10 +32,14 @@ public class FollowupTemplateController {
     @GetMapping
     @PreAuthorize("@perm.has('followup.read')")
     public ApiResult<PageResponse<FollowupTemplateResponse>> list(
+            @RequestParam(required = false) AssetVersionStatus assetStatus,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort) {
-        return ApiResult.ok(service.list(new PageRequest(page, size, sort)));
+        return ApiResult.ok(service.list(
+            new FollowupTemplateFilter(assetStatus, keyword),
+            new PageRequest(page, size, sort)));
     }
 
     @PostMapping

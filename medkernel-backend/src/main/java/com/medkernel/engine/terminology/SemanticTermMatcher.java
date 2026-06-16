@@ -63,7 +63,7 @@ final class SemanticTermMatcher {
         return Optional.empty();
     }
 
-    private static Set<String> aliases(String... values) {
+    static Set<String> aliases(String... values) {
         Set<String> aliases = new LinkedHashSet<>();
         for (String value : values) {
             if (value == null || value.isBlank()) {
@@ -88,7 +88,7 @@ final class SemanticTermMatcher {
         return value.length() >= 2;
     }
 
-    private static String canonical(String value) {
+    static String canonical(String value) {
         if (value == null) {
             return "";
         }
@@ -97,7 +97,7 @@ final class SemanticTermMatcher {
             .replaceAll("[^\\p{IsHan}\\p{Alnum}]+", "");
     }
 
-    private static boolean sameCodeFamily(String localCode, String standardCode) {
+    static boolean sameCodeFamily(String localCode, String standardCode) {
         if (localCode.length() < 4 || standardCode.length() < 4) {
             return false;
         }

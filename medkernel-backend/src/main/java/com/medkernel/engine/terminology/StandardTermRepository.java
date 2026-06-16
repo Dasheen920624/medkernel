@@ -143,4 +143,22 @@ public interface StandardTermRepository extends ListCrudRepository<StandardTerm,
         String tenantId,
         StandardTermStatus status
     );
+
+    /**
+     * 分页扫描平台标准 + 租户覆盖的有效标准术语，供候选生成构建本地索引。
+     */
+    @Query("""
+        SELECT * FROM standard_term
+        WHERE tenant_id IN (:tenantIds)
+          AND status = :status
+        ORDER BY CASE WHEN tenant_id = :tenantId THEN 0 ELSE 1 END, updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<StandardTerm> pageByTenantIdsAndStatus(
+        List<String> tenantIds,
+        String tenantId,
+        StandardTermStatus status,
+        int offset,
+        int limit
+    );
 }

@@ -166,6 +166,50 @@ describe("InsuranceAudit", () => {
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
   });
 
+  it("loads audit indicator selector through small server-side search pages", async () => {
+    mockUseInsuranceIssues.mockReturnValue({
+      data: insuranceIssuesPage,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    expect(mockUseOrgUnits).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      sort: "name,asc",
+      level: "DEPARTMENT",
+      status: "ACTIVE",
+    });
+    expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
+      { status: "ACTIVE", page: 1, size: 20, sort: "name,asc" },
+      { enabled: true },
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await user.type(screen.getByRole("combobox", { name: "质控指标" }), "INS.FEE.2026");
+
+    await waitFor(() => {
+      expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
+        {
+          status: "ACTIVE",
+          indicatorCode: "INS.FEE.2026",
+          page: 1,
+          size: 20,
+          sort: "name,asc",
+        },
+        { enabled: true },
+      );
+    });
+  });
+
   it("runs case review, DRG grouping and insurance audit through the real B0 endpoints", async () => {
     const refetch = vi.fn();
     const caseReview = vi.fn().mockResolvedValue({

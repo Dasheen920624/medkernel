@@ -61,7 +61,7 @@ class MenuPermissionControllerTest {
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.menus", hasSize(31)))
+            .andExpect(jsonPath("$.data.menus", hasSize(32)))
             .andExpect(jsonPath("$.data.menus[*].menuKey", hasItem("terminology-mapping")))
             .andExpect(jsonPath("$.data.menus[*].placement", hasItem("PRIMARY")))
             .andExpect(jsonPath("$.data.menus[*].permissionCode")

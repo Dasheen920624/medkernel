@@ -292,23 +292,65 @@ class RuleRepositoryTest {
 
     @Test
     void pagesRulesByStatusTypeAndRisk() {
-        definitions.save(sampleRule("rule-low", "tenant-A", "RULE.LOW"));
-        definitions.save(sampleRule("rule-high", "tenant-A", "RULE.HIGH"));
+        definitions.save(sampleRule("rule-low", "tenant-A", "RULE.LOW", "低风险提示"));
+        definitions.save(sampleRule("rule-high", "tenant-A", "RULE.HIGH", "抗凝高危提醒"));
         definitions.save(sampleRule("rule-other", "tenant-B", "RULE.HIGH"));
 
-        long total = definitions.countByFilter("tenant-A", "DRAFT", "ORDER", null);
-        List<RuleDefinition> rows = definitions.pageByFilter("tenant-A", "DRAFT", "ORDER", null, 0, 10);
+        long total = definitions.countByFilter("tenant-A", "DRAFT", "ORDER", null, null);
+        List<RuleDefinition> rows = definitions.pageByFilter("tenant-A", "DRAFT", "ORDER", null, null, 0, 10);
+        long keywordTotal = definitions.countByFilter("tenant-A", "DRAFT", "ORDER", null, "%抗凝%");
+        List<RuleDefinition> keywordRows = definitions.pageByFilter(
+            "tenant-A", "DRAFT", "ORDER", null, "%抗凝%", 0, 10);
 
         assertThat(total).isEqualTo(2);
         assertThat(rows).extracting(RuleDefinition::tenantId).containsOnly("tenant-A");
         assertThat(rows).extracting(RuleDefinition::ruleType).containsOnly(RuleType.ORDER);
+        assertThat(keywordTotal).isEqualTo(1);
+        assertThat(keywordRows).extracting(RuleDefinition::ruleCode).containsExactly("RULE.HIGH");
+    }
+
+    @Test
+    void pagesEffectiveRulesWithoutMaterializingTenantAndPlatformSnapshots() {
+        RuleDefinition platformShadowed = definitions.save(sampleRule(
+            "rule-platform-shadowed", "t-1", "RULE.ANTICOAG",
+            "平台抗凝风险提示", RuleDefinitionStatus.PUBLISHED));
+        RuleDefinition platformOnly = definitions.save(sampleRule(
+            "rule-platform-dvt", "t-1", "RULE.DVT",
+            "平台 DVT 风险提示", RuleDefinitionStatus.PUBLISHED));
+        RuleDefinition localOverride = definitions.save(sampleRule(
+            "rule-local", "tenant-A", "RULE.ANTICOAG",
+            "院内抗凝风险提示", RuleDefinitionStatus.PUBLISHED));
+
+        long total = definitions.countEffectiveByFilter(
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null);
+        List<RuleDefinition> rows = definitions.pageEffectiveByFilter(
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, 0, 20);
+
+        assertThat(total).isEqualTo(2L);
+        assertThat(rows).extracting(RuleDefinition::ruleId)
+            .containsExactlyInAnyOrder(localOverride.ruleId(), platformOnly.ruleId());
+        assertThat(rows).extracting(RuleDefinition::ruleId)
+            .doesNotContain(platformShadowed.ruleId());
     }
 
     private RuleDefinition sampleRule(String ruleId, String tenantId, String ruleCode) {
+        return sampleRule(ruleId, tenantId, ruleCode, "抗凝风险提示");
+    }
+
+    private RuleDefinition sampleRule(String ruleId, String tenantId, String ruleCode, String name) {
+        return sampleRule(ruleId, tenantId, ruleCode, name, RuleDefinitionStatus.DRAFT);
+    }
+
+    private RuleDefinition sampleRule(
+            String ruleId,
+            String tenantId,
+            String ruleCode,
+            String name,
+            RuleDefinitionStatus status) {
         Instant now = Instant.now();
         return new RuleDefinition(
-            null, ruleId, tenantId, ruleCode, "抗凝风险提示", RuleType.ORDER,
-            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, RuleDefinitionStatus.DRAFT,
+            null, ruleId, tenantId, ruleCode, name, RuleType.ORDER,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, status,
             null, "rpv-1", "dept-1", now, "tester", now, "tester", "trace-rule");
     }
 

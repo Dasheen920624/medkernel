@@ -32,6 +32,9 @@ class ContextFieldCatalogTest {
             assertThat(field.fieldPath()).isNotBlank();
             assertThat(field.displayName()).isNotBlank();
             assertThat(field.dataType()).isIn("number", "string", "boolean", "date", "code", "list");
+            assertThat(field.payloadKey()).isNotBlank();
+            assertThat(field.propertyName()).isNotBlank();
+            assertThat(field.jsonSchemaType()).isIn("number", "string", "boolean", "array");
         });
         // 业务一级域齐全
         assertThat(all).extracting(ContextFieldDescriptor::category)
@@ -76,6 +79,27 @@ class ContextFieldCatalogTest {
             .findFirst()
             .orElseThrow();
         assertThat(birthDate.derived()).isFalse();
+    }
+
+    @Test
+    void exposesThirdPartyPayloadContractMetadata() {
+        ContextFieldDescriptor observationValue = catalog.query("Observation", null).stream()
+            .filter(f -> "observations[].valueNumeric".equals(f.fieldPath()))
+            .findFirst()
+            .orElseThrow();
+
+        assertThat(observationValue.payloadKey()).isEqualTo("observations");
+        assertThat(observationValue.propertyName()).isEqualTo("valueNumeric");
+        assertThat(observationValue.jsonSchemaType()).isEqualTo("number");
+        assertThat(observationValue.externalWritable()).isTrue();
+
+        ContextFieldDescriptor age = catalog.query("Patient", null).stream()
+            .filter(f -> "patient.age".equals(f.fieldPath()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(age.payloadKey()).isEqualTo("patient");
+        assertThat(age.propertyName()).isEqualTo("age");
+        assertThat(age.externalWritable()).isFalse();
     }
 
     @Test

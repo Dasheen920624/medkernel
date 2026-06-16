@@ -25,6 +25,7 @@ import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -250,11 +251,17 @@ class KnowledgeProductionOrchestrationServiceTest {
     void listJobsReturnsTenantScopedPage() {
         asTenant(CUSTOMER);
         KnowledgeProductionJob job = overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE);
+        when(jobRepository.countByTenantId(CUSTOMER)).thenReturn(21L);
         when(jobRepository.pageByTenantId(eq(CUSTOMER), eq(0), eq(20))).thenReturn(List.of(job));
 
-        List<KnowledgeProductionJob> jobs = service.listJobs(0, 20);
+        PageResponse<KnowledgeProductionJob> jobs = service.listJobs(1, 20);
 
-        assertThat(jobs).containsExactly(job);
+        assertThat(jobs.items()).containsExactly(job);
+        assertThat(jobs.page()).isEqualTo(1);
+        assertThat(jobs.size()).isEqualTo(20);
+        assertThat(jobs.total()).isEqualTo(21);
+        assertThat(jobs.hasNext()).isTrue();
+        verify(jobRepository).countByTenantId(CUSTOMER);
         verify(jobRepository).pageByTenantId(CUSTOMER, 0, 20);
     }
 

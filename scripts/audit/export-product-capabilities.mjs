@@ -203,6 +203,12 @@ const routeDecisions = {
     targetEntry: "知识审核与发布",
     task: "审核平台主源或机构派生差异并发布、换基线或恢复标准",
   },
+  "/knowledge/diagnosis": {
+    decision: "SPLIT",
+    targetDomain: "知识治理",
+    targetEntry: "诊断知识维护",
+    task: "维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据",
+  },
   "/admin/users": {
     decision: "MOVE",
     targetDomain: "机构与人员",

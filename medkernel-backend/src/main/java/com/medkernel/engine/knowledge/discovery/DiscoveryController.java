@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -47,8 +48,8 @@ public class DiscoveryController {
      */
     @GetMapping("/discovery/runs")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<DiscoveryRun>> listRuns(
-            @RequestParam(required = false, defaultValue = "0") int page,
+    public ApiResult<PageResponse<DiscoveryRun>> listRuns(
+            @RequestParam(required = false, defaultValue = "1") int page,
             @RequestParam(required = false, defaultValue = "20") int size) {
         return ApiResult.ok(service.listRuns(page, size));
     }

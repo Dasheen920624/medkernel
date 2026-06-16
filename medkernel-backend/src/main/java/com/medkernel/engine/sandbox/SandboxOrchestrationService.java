@@ -237,7 +237,7 @@ public class SandboxOrchestrationService {
         String patientPathwayId;
         try {
             PathwayTemplateFilter filter = new PathwayTemplateFilter(
-                PathwayTemplateStatus.PUBLISHED, null, null, scenario.expectedAssetCode());
+                PathwayTemplateStatus.PUBLISHED, null, null, scenario.expectedAssetCode(), null);
             PathwayTemplate template = pathways.listTemplates(filter, PageRequest.defaults())
                 .items()
                 .stream()

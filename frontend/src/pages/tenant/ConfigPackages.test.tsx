@@ -48,6 +48,7 @@ const apiMocks = vi.hoisted(() => ({
   refetchAssetReadiness: vi.fn(),
   useAuthoringAssets: vi.fn(),
   useEvaluationIndicators: vi.fn(),
+  useOrgUnits: vi.fn(),
   useTenants: vi.fn(),
   permissions: [] as Array<{ code: string }>,
   tenantId: "tenant-A",
@@ -109,28 +110,7 @@ vi.mock("@/shared/api/hooks", () => ({
   usePackageReleaseAdapters: () => ({
     data: apiMocks.releaseAdapters,
   }),
-  useOrgUnits: () => ({
-    data: {
-      items: [
-        {
-          id: "hospital-1",
-          tenantId: "tenant-A",
-          orgPath: "tenant-A/hospital-1",
-          level: "FACILITY",
-          facilityType: "HOSPITAL",
-          code: "HOSPITAL-1",
-          name: "总院",
-          status: "ACTIVE",
-        },
-      ],
-      page: 1,
-      size: 100,
-      total: 1,
-      hasNext: false,
-      totalEstimated: false,
-    },
-    isLoading: false,
-  }),
+  useOrgUnits: (...args: unknown[]) => apiMocks.useOrgUnits(...args),
   useTenants: (...args: unknown[]) => apiMocks.useTenants(...args),
   useCreatePackage: () => ({ mutateAsync: apiMocks.createPackage, isPending: false }),
   usePackages: (params?: { assetType?: string }) => ({
@@ -261,6 +241,29 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.useAuthoringAssets.mockReturnValue({ data: { items: [] } });
     apiMocks.useEvaluationIndicators.mockReset();
     apiMocks.useEvaluationIndicators.mockReturnValue({ data: { items: [] } });
+    apiMocks.useOrgUnits.mockReset();
+    apiMocks.useOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "hospital-1",
+            tenantId: "tenant-A",
+            orgPath: "tenant-A/hospital-1",
+            level: "FACILITY",
+            facilityType: "HOSPITAL",
+            code: "HOSPITAL-1",
+            name: "总院",
+            status: "ACTIVE",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+    });
     apiMocks.useTenants.mockReset();
     apiMocks.useTenants.mockReturnValue({
       data: apiMocks.tenants,
@@ -627,6 +630,12 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
+    expect(apiMocks.useOrgUnits).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+      status: "ACTIVE",
+      sort: "level,asc",
+    });
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
     expect(screen.getAllByText("自动校验").length).toBeGreaterThan(0);
     expect(screen.getAllByText("看影响").length).toBeGreaterThan(0);
@@ -705,11 +714,28 @@ describe("ConfigPackages offline package export", () => {
     );
 
     expect(apiMocks.useAuthoringAssets).toHaveBeenCalledWith(
-      { assetType: "RULE", size: 100 },
+      { assetType: "RULE", page: 1, size: 20 },
       { enabled: false },
     );
     expect(apiMocks.useEvaluationIndicators).toHaveBeenCalledWith(
-      { size: 100 },
+      { status: "ACTIVE", page: 1, size: 20 },
+      { enabled: false },
+    );
+  });
+
+  it("does not query rule assets when the package operator only has followup read permission", () => {
+    apiMocks.permissions = [{ code: "followup.read" }];
+
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(apiMocks.useAuthoringAssets).toHaveBeenCalledWith(
+      { assetType: "RULE", page: 1, size: 20 },
       { enabled: false },
     );
   });
@@ -823,6 +849,33 @@ describe("ConfigPackages offline package export", () => {
           },
         });
       });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "blocks first-run template references when the template lacks a default package version",
+    async () => {
+      apiMocks.pilotTemplates = apiMocks.pilotTemplates.map((template) => ({
+        ...template,
+        defaultPackageVersion: "",
+      }));
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "应用首发引用" }));
+      await userEvent.click(screen.getByRole("button", { name: "应用平台引用" }));
+
+      expect(
+        await screen.findByText("首发模板缺少默认配置包版本，暂不能应用平台引用。"),
+      ).toBeInTheDocument();
+      expect(apiMocks.applyPilotTemplateReferences).not.toHaveBeenCalled();
     },
     PAGE_INTERACTION_TIMEOUT_MS,
   );
@@ -1078,6 +1131,56 @@ describe("ConfigPackages offline package export", () => {
   );
 
   it(
+    "blocks release when the selected package version is missing",
+    async () => {
+      apiMocks.packagesData = {
+        items: [
+          {
+            packageId: "pkg-missing-version",
+            tenantId: "tenant-A",
+            packageCode: "PKG.MISSING.VERSION",
+            packageVersion: "",
+            name: "缺少版本配置包",
+            description: "后端未返回包版本时不得发布",
+            accessPolicy: "OPEN",
+            status: "DRAFT",
+            createdAt: "2026-06-01T00:00:00Z",
+            createdBy: "tester",
+            updatedAt: "2026-06-01T00:00:00Z",
+            updatedBy: "tester",
+            traceId: "trace-missing-version",
+          },
+        ],
+        page: 1,
+        size: 10,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      };
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+      fireEvent.mouseDown(screen.getByLabelText("选择发布适配器"));
+      await userEvent.click(await screen.findByText(/院内 HIS 同步通道/));
+      fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
+      await userEvent.click(await screen.findByText("总院 · 医院 · HOSPITAL-1"));
+      await userEvent.type(screen.getByLabelText("发布说明"), "验证缺少包版本阻断");
+      await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
+
+      expect(await screen.findByText("当前配置包缺少版本，暂不能同步发布。")).toBeInTheDocument();
+      expect(apiMocks.releasePackage).not.toHaveBeenCalled();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "shows failed and not-connected adapters and exports sync evidence",
     async () => {
       apiMocks.releasePackage.mockResolvedValueOnce({
@@ -1203,6 +1306,81 @@ describe("ConfigPackages offline package export", () => {
   );
 
   it(
+    "blocks package item creation when the selected package version is missing",
+    async () => {
+      apiMocks.packagesData = {
+        items: [
+          {
+            packageId: "pkg-missing-version",
+            tenantId: "tenant-A",
+            packageCode: "PKG.MISSING.VERSION",
+            packageVersion: "",
+            name: "缺少版本配置包",
+            description: "后端未返回包版本时不得关联资产",
+            accessPolicy: "OPEN",
+            status: "DRAFT",
+            createdAt: "2026-06-01T00:00:00Z",
+            createdBy: "tester",
+            updatedAt: "2026-06-01T00:00:00Z",
+            updatedBy: "tester",
+            traceId: "trace-missing-version",
+          },
+        ],
+        page: 1,
+        size: 10,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      };
+      apiMocks.permissions = [{ code: "rule.read" }];
+      apiMocks.useAuthoringAssets.mockReturnValue({
+        data: {
+          items: [
+            {
+              assetType: "CONDITION_FRAGMENT",
+              assetId: "frag-ckd",
+              assetCode: "FRAG.CKD",
+              name: "CKD 条件片段",
+              category: "慢病",
+              tags: ["复用"],
+              version: "1",
+              status: "ACTIVE",
+              packageVersion: "3.0.0",
+              favorite: true,
+              cloneable: true,
+              updatedAt: "2026-06-08T00:00:00Z",
+            },
+          ],
+        },
+      });
+
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+      const drawer = screen.getByRole("dialog", { name: "办理包内资产细项" });
+
+      openSelectByLabel("资产类型", drawer);
+      await chooseVisibleSelectOption("条件片段 (CONDITION_FRAGMENT)");
+
+      openSelectByLabel("选择已发布的临床资产", drawer);
+      await chooseVisibleSelectOption(/CKD 条件片段/);
+      await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
+
+      expect(
+        await screen.findByText("当前配置包缺少版本，暂不能添加资产条目。"),
+      ).toBeInTheDocument();
+      expect(apiMocks.addPackageItem).not.toHaveBeenCalled();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "adds followup templates from the unified authoring asset library",
     async () => {
       apiMocks.permissions = [{ code: "followup.read" }];
@@ -1255,7 +1433,7 @@ describe("ConfigPackages offline package export", () => {
 
       await waitFor(() => {
         expect(apiMocks.useAuthoringAssets).toHaveBeenCalledWith(
-          { assetType: "FOLLOWUP", size: 100 },
+          { assetType: "FOLLOWUP", page: 1, size: 20 },
           { enabled: true },
         );
         expect(apiMocks.addPackageItem).toHaveBeenCalledWith({

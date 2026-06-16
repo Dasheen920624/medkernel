@@ -21,4 +21,6 @@ public interface TenantPackageReferenceRepository extends ListCrudRepository<Ten
     List<TenantPackageReference> findByTenantIdAndStatusOrderByUpdatedAtDesc(
         String tenantId,
         TenantPackageReferenceStatus status);
+
+    long countByTenantIdAndStatus(String tenantId, TenantPackageReferenceStatus status);
 }

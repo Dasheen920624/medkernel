@@ -328,12 +328,17 @@ public class MpiService {
     }
 
     @Transactional(readOnly = true)
-    public List<MpiMergeReview> getMergeReviews(String status) {
+    public PageResponse<MpiMergeReview> getMergeReviews(String status, PageRequest pageReq) {
         String tenantId = requireTenantId();
-        if (status == null || status.isBlank()) {
-            return reviewRepository.findAllByTenantIdAndStatus(tenantId, "PENDING");
+        String normalizedStatus = status == null || status.isBlank() ? "PENDING" : status.trim().toUpperCase();
+        PageRequest req = pageReq != null ? pageReq : PageRequest.defaults();
+        long total = reviewRepository.countByTenantIdAndStatus(tenantId, normalizedStatus);
+        if (total == 0) {
+            return PageResponse.empty(req);
         }
-        return reviewRepository.findAllByTenantIdAndStatus(tenantId, status.trim().toUpperCase());
+        List<MpiMergeReview> items = reviewRepository.pageByTenantIdAndStatus(
+            tenantId, normalizedStatus, req.offset(), req.safeSize());
+        return PageResponse.of(items, req, total);
     }
 
     private MpiMergeResult mergeValidatedPatients(MpiPatient sourcePatient,

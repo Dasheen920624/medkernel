@@ -62,6 +62,81 @@ public interface KnowledgeIdentityRepository extends ListCrudRepository<Knowledg
     List<KnowledgeIdentity> listByFilter(String tenantId, String domain, String specialtyId, String status, String keyword);
 
     @Query("""
+        SELECT COUNT(*) FROM (
+            SELECT local.identity_code
+            FROM knowledge_identity local
+            WHERE local.tenant_id = :tenantId
+              AND (:domain IS NULL OR local.domain = :domain)
+              AND (:specialtyId IS NULL OR local.specialty_id = :specialtyId)
+              AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
+              AND (:keyword IS NULL OR LOWER(local.subject) LIKE :keyword OR LOWER(local.identity_code) LIKE :keyword)
+            UNION ALL
+            SELECT platform.identity_code
+            FROM knowledge_identity platform
+            WHERE platform.tenant_id = :platformTenantId
+              AND (:domain IS NULL OR platform.domain = :domain)
+              AND (:specialtyId IS NULL OR platform.specialty_id = :specialtyId)
+              AND (
+                    (:platformStatus IS NULL AND platform.status IN ('ACTIVE', 'DEPRECATED'))
+                    OR (:platformStatus IS NOT NULL AND platform.status = :platformStatus)
+                  )
+              AND (:keyword IS NULL OR LOWER(platform.subject) LIKE :keyword OR LOWER(platform.identity_code) LIKE :keyword)
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM knowledge_identity local_shadow
+                    WHERE local_shadow.tenant_id = :tenantId
+                      AND local_shadow.identity_code = platform.identity_code
+                      AND (:domain IS NULL OR local_shadow.domain = :domain)
+                      AND (:specialtyId IS NULL OR local_shadow.specialty_id = :specialtyId)
+                      AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
+                      AND (:keyword IS NULL OR LOWER(local_shadow.subject) LIKE :keyword OR LOWER(local_shadow.identity_code) LIKE :keyword)
+                  )
+        ) effective_rows
+        """)
+    long countEffectiveByFilter(String tenantId, String platformTenantId, String domain,
+                                String specialtyId, String tenantStatus, String platformStatus,
+                                String keyword);
+
+    @Query("""
+        SELECT * FROM (
+            SELECT local.*
+            FROM knowledge_identity local
+            WHERE local.tenant_id = :tenantId
+              AND (:domain IS NULL OR local.domain = :domain)
+              AND (:specialtyId IS NULL OR local.specialty_id = :specialtyId)
+              AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
+              AND (:keyword IS NULL OR LOWER(local.subject) LIKE :keyword OR LOWER(local.identity_code) LIKE :keyword)
+            UNION ALL
+            SELECT platform.*
+            FROM knowledge_identity platform
+            WHERE platform.tenant_id = :platformTenantId
+              AND (:domain IS NULL OR platform.domain = :domain)
+              AND (:specialtyId IS NULL OR platform.specialty_id = :specialtyId)
+              AND (
+                    (:platformStatus IS NULL AND platform.status IN ('ACTIVE', 'DEPRECATED'))
+                    OR (:platformStatus IS NOT NULL AND platform.status = :platformStatus)
+                  )
+              AND (:keyword IS NULL OR LOWER(platform.subject) LIKE :keyword OR LOWER(platform.identity_code) LIKE :keyword)
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM knowledge_identity local_shadow
+                    WHERE local_shadow.tenant_id = :tenantId
+                      AND local_shadow.identity_code = platform.identity_code
+                      AND (:domain IS NULL OR local_shadow.domain = :domain)
+                      AND (:specialtyId IS NULL OR local_shadow.specialty_id = :specialtyId)
+                      AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
+                      AND (:keyword IS NULL OR LOWER(local_shadow.subject) LIKE :keyword OR LOWER(local_shadow.identity_code) LIKE :keyword)
+                  )
+        ) effective_rows
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeIdentity> pageEffectiveByFilter(String tenantId, String platformTenantId,
+                                                  String domain, String specialtyId,
+                                                  String tenantStatus, String platformStatus,
+                                                  String keyword, int offset, int limit);
+
+    @Query("""
         SELECT * FROM knowledge_identity
         WHERE tenant_id = :tenantId
         ORDER BY updated_at DESC, id DESC

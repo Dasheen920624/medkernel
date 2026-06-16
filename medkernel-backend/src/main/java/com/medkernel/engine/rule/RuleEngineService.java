@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -419,9 +420,25 @@ public class RuleEngineService {
         String status = filter == null || filter.status() == null ? null : filter.status().name();
         String type = filter == null || filter.ruleType() == null ? null : filter.ruleType().name();
         String risk = filter == null || filter.riskLevel() == null ? null : filter.riskLevel().name();
-        List<RuleDefinition> effectiveRows = effectiveRulesByFilter(tenantId, status, type, risk);
-        long total = effectiveRows.size();
-        List<RuleDefinition> rows = slice(effectiveRows, page.offset(), page.safeSize());
+        String keyword = filter == null ? null : keywordLike(filter.keyword());
+        if (requiresEffectiveRuleMerge(tenantId, status)) {
+            String platformStatus = RuleDefinitionStatus.PUBLISHED.name();
+            long total = definitions.countEffectiveByFilter(
+                tenantId, PlatformTenant.ID, status, platformStatus, type, risk, keyword);
+            if (total == 0) {
+                return PageResponse.empty(page);
+            }
+            List<RuleDefinition> rows = definitions.pageEffectiveByFilter(
+                tenantId, PlatformTenant.ID, status, platformStatus, type, risk, keyword,
+                page.offset(), page.safeSize());
+            return PageResponse.of(rows, page, total);
+        }
+        long total = definitions.countByFilter(tenantId, status, type, risk, keyword);
+        if (total == 0) {
+            return PageResponse.empty(page);
+        }
+        List<RuleDefinition> rows = definitions.pageByFilter(
+            tenantId, status, type, risk, keyword, page.offset(), page.safeSize());
         return PageResponse.of(rows, page, total);
     }
 
@@ -904,6 +921,11 @@ public class RuleEngineService {
 
     private static String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String keywordLike(String value) {
+        String normalized = trimToNull(value);
+        return normalized == null ? null : "%" + normalized.toLowerCase(Locale.ROOT) + "%";
     }
 
     private String ruleAssetContent(RuleDefinition rule, RuleVersion version) {
@@ -2300,33 +2322,18 @@ public class RuleEngineService {
         return List.copyOf(byCode.values());
     }
 
+    private boolean requiresEffectiveRuleMerge(String tenantId, String status) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return false;
+        }
+        return status == null || RuleDefinitionStatus.PUBLISHED.name().equals(status);
+    }
+
     private boolean hasPublishedUnifiedVersion(RuleDefinition rule) {
         return effectiveVersions.resolve(
                 rule.tenantId(), rule, releaseApplicableScope(rule))
             .filter(resolved -> rule.tenantId().equals(resolved.assetVersion().tenantId()))
             .isPresent();
-    }
-
-    private List<RuleDefinition> effectiveRulesByFilter(String tenantId, String status, String ruleType, String riskLevel) {
-        LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
-        definitions.listByFilter(tenantId, status, ruleType, riskLevel)
-            .forEach(rule -> byCode.put(rule.ruleCode(), rule));
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            String platformStatus = status == null ? RuleDefinitionStatus.PUBLISHED.name() : status;
-            if (RuleDefinitionStatus.PUBLISHED.name().equals(platformStatus)) {
-                definitions.listByFilter(PlatformTenant.ID, platformStatus, ruleType, riskLevel)
-                    .forEach(rule -> byCode.putIfAbsent(rule.ruleCode(), rule));
-            }
-        }
-        return List.copyOf(byCode.values());
-    }
-
-    private List<RuleDefinition> slice(List<RuleDefinition> rows, int offset, int limit) {
-        if (rows.isEmpty() || offset >= rows.size()) {
-            return List.of();
-        }
-        int end = Math.min(rows.size(), offset + limit);
-        return rows.subList(offset, end);
     }
 
     private RuleVersion findVersion(String versionId, String tenantId) {

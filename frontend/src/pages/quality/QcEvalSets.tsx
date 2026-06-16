@@ -35,6 +35,7 @@ import {
   useEvaluationIndicators,
   useGrayEvaluationIndicator,
   useOrgUnits,
+  usePackages,
   usePublishEvaluationIndicator,
   useSubmitEvaluationIndicator,
   type EvaluationIndicator,
@@ -124,6 +125,8 @@ const STATUS_COLORS: Record<EvaluationIndicatorStatus, string> = {
   OFFLINE: "error",
   ARCHIVED: "default",
 };
+const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
+const EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 function optionalText(value?: string) {
   const normalized = value?.trim();
@@ -175,12 +178,34 @@ function formatVersion(indicator: EvaluationIndicator) {
 export default function QcEvalSets() {
   const { message } = App.useApp();
   const [form] = Form.useForm<IndicatorFormValues>();
-  const departmentsQuery = useOrgUnits({ page: 1, size: 100, sort: "name,asc" });
+  const [departmentSearch, setDepartmentSearch] = useState("");
+  const [evaluationPackageSearch, setEvaluationPackageSearch] = useState("");
+  const departmentKeyword = departmentSearch.trim();
+  const departmentsQuery = useOrgUnits({
+    page: 1,
+    size: DEPARTMENT_REFERENCE_PAGE_SIZE,
+    sort: "name,asc",
+    level: "DEPARTMENT",
+    status: "ACTIVE",
+    ...(departmentKeyword ? { keyword: departmentKeyword } : {}),
+  });
+  const evaluationPackagesQuery = usePackages({
+    page: 1,
+    size: EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE,
+    assetType: "EVALUATION",
+    keyword: evaluationPackageSearch || undefined,
+  });
   const departmentOptions = (departmentsQuery.data?.items ?? [])
     .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
     .map((unit) => ({
       value: unit.id as string,
       label: `${unit.name} · ${unit.code}`,
+    }));
+  const packageOptions = (evaluationPackagesQuery.data?.items ?? [])
+    .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
+    .map((item) => ({
+      value: item.packageVersion,
+      label: `${item.packageVersion} · ${item.name}`,
     }));
   const [status, setStatus] = useState<EvaluationIndicatorStatus | undefined>();
   const [subjectType, setSubjectType] = useState<EvaluationSubjectType | undefined>();
@@ -308,6 +333,9 @@ export default function QcEvalSets() {
     form.resetFields();
     setDenominatorTree(createDefaultTree());
     setNumeratorTree(createDefaultTree());
+    if (packageOptions.length === 1) {
+      form.setFieldValue("packageVersion", packageOptions[0].value);
+    }
     setCreateOpen(true);
   }
 
@@ -634,7 +662,9 @@ export default function QcEvalSets() {
               >
                 <Select
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={false}
+                  onSearch={setDepartmentSearch}
+                  onClear={() => setDepartmentSearch("")}
                   placeholder="选择责任科室"
                   options={departmentOptions}
                   loading={departmentsQuery.isLoading}
@@ -656,7 +686,18 @@ export default function QcEvalSets() {
                 <Input />
               </Form.Item>
               <Form.Item name="packageVersion" label="配置包版本">
-                <Input />
+                <Select
+                  allowClear
+                  showSearch
+                  filterOption={false}
+                  onSearch={setEvaluationPackageSearch}
+                  placeholder="选择已存在的评估配置包版本"
+                  options={packageOptions}
+                  loading={evaluationPackagesQuery.isLoading}
+                  notFoundContent={
+                    evaluationPackagesQuery.isError ? "配置包版本读取失败" : "暂无评估配置包版本"
+                  }
+                />
               </Form.Item>
             </div>
             <Form.Item
@@ -830,10 +871,20 @@ export default function QcEvalSets() {
               />
             </Form.Item>
             <Form.Item label="配置包版本" htmlFor="eval-package-version">
-              <Input
+              <Select
                 id="eval-package-version"
+                allowClear
+                showSearch
+                filterOption={false}
+                onSearch={setEvaluationPackageSearch}
+                placeholder="选择仿真使用的评估配置包版本"
                 value={simulationPackageVersion}
-                onChange={(event) => setSimulationPackageVersion(event.target.value)}
+                onChange={(value) => setSimulationPackageVersion(value ?? "")}
+                options={packageOptions}
+                loading={evaluationPackagesQuery.isLoading}
+                notFoundContent={
+                  evaluationPackagesQuery.isError ? "配置包版本读取失败" : "暂无评估配置包版本"
+                }
               />
             </Form.Item>
           </div>

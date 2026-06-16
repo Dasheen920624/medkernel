@@ -60,10 +60,13 @@ const sourceText: Record<WorkflowNotificationSourceType, string> = {
   SYNC_EVENT: "同步事件",
 };
 
+const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+
 export default function Notifications() {
   const [status, setStatus] = useState<WorkflowNotificationStatus | undefined>("UNREAD");
   const [level, setLevel] = useState<WorkflowNotificationLevel | undefined>();
   const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
+  const [orgUnitSearch, setOrgUnitSearch] = useState("");
 
   const queryParams = {
     status,
@@ -75,7 +78,13 @@ export default function Notifications() {
   const { data, isError, isLoading, refetch } = useWorkflowNotifications(queryParams);
   const { data: notificationSettings, isError: notificationSettingsError } =
     useWorkflowNotificationSettings();
-  const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({ page: 1, size: 100 });
+  const orgUnitKeyword = orgUnitSearch.trim();
+  const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({
+    page: 1,
+    size: ORG_UNIT_REFERENCE_PAGE_SIZE,
+    status: "ACTIVE",
+    ...(orgUnitKeyword ? { keyword: orgUnitKeyword } : {}),
+  });
   const readMutation = useReadWorkflowNotification();
   const unreadNotifications = data?.items.filter((item) => item.status === "UNREAD") ?? [];
   const quietActiveNow = Boolean(
@@ -210,6 +219,10 @@ export default function Notifications() {
               value={orgUnitId}
               onChange={setOrgUnitId}
               allowClear
+              showSearch
+              filterOption={false}
+              onSearch={setOrgUnitSearch}
+              onClear={() => setOrgUnitSearch("")}
               loading={orgUnitsLoading}
               placeholder="组织范围"
               className={styles.controlMd}

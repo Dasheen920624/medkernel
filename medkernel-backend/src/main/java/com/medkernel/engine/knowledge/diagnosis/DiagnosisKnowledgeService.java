@@ -1,6 +1,7 @@
 package com.medkernel.engine.knowledge.diagnosis;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -39,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>发布走 {@link #publishDiagnosis}：先 {@link #publishGate} 复算全部测试病例，分级与期望一致才调通用版本激活；
  * 不一致抛 {@code ENG_DX_006}，门禁真正生效（非死方法）。置信策略可按租户/科室覆盖，未覆盖回退平台主租户 t-1 DEFAULT。
+ * B0 阶段数值/时序约束只允许草稿登记，发布门禁会阻断，避免生成运行时无法真实求值的诊断知识。
  */
 @Service
 public class DiagnosisKnowledgeService {
@@ -157,7 +159,8 @@ public class DiagnosisKnowledgeService {
 
     @Transactional
     public DiagnosisCriterion addCriterion(Long versionId, DiagnosisCriterionRequest req) {
-        requireEditableDiagnosisVersion(versionId);
+        KnowledgeAssetVersion version = requireEditableDiagnosisVersion(versionId);
+        references.validateCriterion(version, req.findingTermCode(), req.citationId());
         String tenant = tenant();
         String actor = actor();
         Instant now = Instant.now();
@@ -260,6 +263,7 @@ public class DiagnosisKnowledgeService {
         String tenant = tenant();
         KnowledgeAssetVersion version = knowledgeVersions.getVersion(versionId);
         List<DiagnosisCriterion> versionCriteria = criteria.findByTenantIdAndDiagnosisVersionId(tenant, versionId);
+        rejectUnsupportedConstraintCriteria(versionCriteria);
         DiagnosisConfidencePolicy policy = resolvePolicy(tenant);
         List<DiagnosisTestCase> cases = testCases.findByTenantIdAndDiagnosisVersionId(tenant, versionId);
         if (cases.isEmpty()) {
@@ -324,12 +328,32 @@ public class DiagnosisKnowledgeService {
         }
     }
 
+    private void rejectUnsupportedConstraintCriteria(List<DiagnosisCriterion> versionCriteria) {
+        for (DiagnosisCriterion criterion : versionCriteria) {
+            if (hasText(criterion.valueConstraint()) || hasText(criterion.temporalConstraint())) {
+                throw new ApiException(ErrorCode.ENG_DX_006,
+                    "诊断标准 " + criterion.findingTermCode()
+                        + " 含数值或时序约束，B0 运行门禁尚未求值，暂不可发布");
+            }
+        }
+    }
+
     private Set<String> parseFindings(String raw) {
-        // findings 存为逗号分隔标准编码；空安全。
         if (raw == null || raw.isBlank()) {
             return Set.of();
         }
-        return Set.of(raw.split("\\s*,\\s*"));
+        LinkedHashSet<String> findings = new LinkedHashSet<>();
+        for (String token : raw.split("\\\\[nr]|[,;\\n\\r，、]+")) {
+            String normalized = token.trim();
+            if (!normalized.isBlank()) {
+                findings.add(normalized);
+            }
+        }
+        return Set.copyOf(findings);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String tenant() {

@@ -181,8 +181,34 @@ class MigrationBaselineContractTest {
         "V130__knowledge_production_job.sql",
         "V131__knowledge_production_candidate.sql",
         "V132__knowledge_review_return.sql",
-        "V133__doc_parse_job.sql"
+        "V133__doc_parse_job.sql",
+        "V134__diagnosis_knowledge_menu_permission.sql",
+        "V135__terminology_candidate_generation_job.sql"
     );
+
+    @Test
+    void terminologyCandidateGenerationJobIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V135__terminology_candidate_generation_job.sql");
+            assertThat(ddl)
+                .as("%s 术语候选生成任务必须持久化并关联候选分页追溯", dialect)
+                .contains("mk_term_candidate_generation_job", "job_code", "source_system",
+                    "generated_count", "candidate_page_uri", "generation_job_code")
+                .contains("ck_mk_term_candidate_generation_job_status")
+                .contains("idx_mapping_candidate_generation_job");
+        }
+    }
+
+    @Test
+    void diagnosisKnowledgeMenuPermissionIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V134__diagnosis_knowledge_menu_permission.sql");
+            assertThat(ddl)
+                .as("%s 诊断知识维护菜单权限必须进入系统权限目录", dialect)
+                .contains("'menu.diagnosis-knowledge'", "'MENU'", "'diagnosis-knowledge'", "'查看诊断知识维护'")
+                .contains("migration-v134");
+        }
+    }
 
     @Test
     void sandboxPermissionsArePersistedAcrossAllDialects() {
@@ -274,7 +300,7 @@ class MigrationBaselineContractTest {
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "standard_term", "local_term", "mk_term_high_risk_rule",
+        "standard_term", "local_term", "mk_term_high_risk_rule", "mk_term_candidate_generation_job",
         "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment", "tenant_user",
         "mk_plugin_registry", "mk_plugin_grant",
@@ -529,6 +555,7 @@ class MigrationBaselineContractTest {
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
         "idx_mk_diagnosis_differential_version", "idx_mk_diagnosis_pointer_version",
         "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant",
+        "idx_mk_term_candidate_generation_job_tenant", "idx_mapping_candidate_generation_job",
         "idx_knowledge_customization_local", "idx_person_directory",
         "idx_person_appointment_person", "idx_person_appointment_org",
         "idx_person_import_row_job", "idx_compliance_data_permission_ward"
@@ -572,6 +599,7 @@ class MigrationBaselineContractTest {
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
         "uk_mk_term_high_risk_rule_code", "ck_mk_term_high_risk_rule_type", "ck_mk_term_high_risk_rule_category", "ck_mk_term_high_risk_rule_status",
+        "uk_mk_term_candidate_generation_job_code", "ck_mk_term_candidate_generation_job_status",
         "uk_local_term_code", "ck_local_term_category", "ck_local_term_status",
         "ck_term_mapping_status", "ck_term_mapping_risk",
         "ck_mapping_candidate_status", "ck_mapping_candidate_source", "ck_mapping_candidate_risk",
@@ -923,6 +951,7 @@ class MigrationBaselineContractTest {
         Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
         Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
         Map.entry("mk_engine_data_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("mk_term_candidate_generation_job", Set.of("requested_by", "created_at", "started_at", "completed_at")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
         Map.entry("rule_applicability", Set.of(
@@ -963,6 +992,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_doc_parse_job", Set.of("status")),
         Map.entry("standard_term", Set.of("version_no", "status")),
         Map.entry("mk_term_high_risk_rule", Set.of("rule_type", "status")),
+        Map.entry("mk_term_candidate_generation_job", Set.of("status")),
         Map.entry("local_term", Set.of("status")),
         Map.entry("term_mapping", Set.of("status")),
         Map.entry("mapping_candidate", Set.of("status")),

@@ -4,14 +4,13 @@ import java.time.Duration;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import com.medkernel.shared.config.ClinicalEventWorkerSettings;
 
 /**
  * 临床事件处理配置。
  */
-@Component
 @ConfigurationProperties(prefix = "medkernel.events")
 public record ClinicalEventProperties(
     long maxPayloadSizeBytes,
@@ -19,9 +18,11 @@ public record ClinicalEventProperties(
     int workerBatchSize,
     int maxRetries,
     List<Long> backoffSeconds,
-    long workerPollIntervalMs
+    long workerPollIntervalMs,
+    Boolean workerEnabled
 ) implements ClinicalEventWorkerSettings {
 
+    @ConstructorBinding
     public ClinicalEventProperties {
         if (maxPayloadSizeBytes <= 0) {
             maxPayloadSizeBytes = 1_048_576L;
@@ -43,6 +44,25 @@ public record ClinicalEventProperties(
         if (workerPollIntervalMs <= 0) {
             workerPollIntervalMs = 200L;
         }
+        if (workerEnabled == null) {
+            workerEnabled = true;
+        }
+    }
+
+    public ClinicalEventProperties(long maxPayloadSizeBytes,
+                                   Duration syncTimeout,
+                                   int workerBatchSize,
+                                   int maxRetries,
+                                   List<Long> backoffSeconds,
+                                   long workerPollIntervalMs) {
+        this(
+            maxPayloadSizeBytes,
+            syncTimeout,
+            workerBatchSize,
+            maxRetries,
+            backoffSeconds,
+            workerPollIntervalMs,
+            true);
     }
 
     public ClinicalEventProperties(long maxPayloadSizeBytes,
@@ -54,6 +74,6 @@ public record ClinicalEventProperties(
     }
 
     public ClinicalEventProperties() {
-        this(1_048_576L, Duration.ofSeconds(3), 50, 5, List.of(5L, 30L, 300L, 1800L), 200L);
+        this(1_048_576L, Duration.ofSeconds(3), 50, 5, List.of(5L, 30L, 300L, 1800L), 200L, true);
     }
 }

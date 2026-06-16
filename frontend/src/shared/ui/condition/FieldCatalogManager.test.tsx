@@ -50,6 +50,10 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
         codeSystem: "ATC",
         source: "PLATFORM",
         fieldId: null,
+        payloadKey: "medications",
+        propertyName: "code",
+        jsonSchemaType: "string",
+        externalWritable: true,
       },
       {
         category: "检验检查",
@@ -61,6 +65,25 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
         codeSystem: "LOINC-LOCAL",
         source: "TENANT",
         fieldId: "f-1",
+        payloadKey: "observations",
+        propertyName: "code",
+        jsonSchemaType: "string",
+        externalWritable: true,
+      },
+      {
+        category: "基本信息",
+        group: "患者基本信息",
+        resourceType: "Patient",
+        fieldPath: "patient.age",
+        displayName: "年龄",
+        dataType: "number",
+        source: "PLATFORM",
+        fieldId: null,
+        derived: true,
+        payloadKey: "patient",
+        propertyName: "age",
+        jsonSchemaType: "number",
+        externalWritable: false,
       },
     ];
   });
@@ -69,7 +92,10 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     renderManager();
     expect(screen.getByText("medications[].code")).toBeInTheDocument();
     expect(screen.getByText("observations[].code")).toBeInTheDocument();
-    expect(screen.getByText("平台")).toBeInTheDocument();
+    expect(screen.getByText("medications.code")).toBeInTheDocument();
+    expect(screen.getAllByText("patient.age").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("派生")).toBeInTheDocument();
+    expect(screen.getAllByText("平台").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("服务机构")).toBeInTheDocument();
     // 仅租户覆盖有删除按钮
     expect(screen.getByLabelText("删除覆盖 observations[].code")).toBeInTheDocument();

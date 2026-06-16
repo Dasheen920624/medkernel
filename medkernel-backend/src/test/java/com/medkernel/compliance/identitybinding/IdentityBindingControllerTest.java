@@ -51,13 +51,17 @@ class IdentityBindingControllerTest {
     @Test
     void listsBindingsOnlyInsideCurrentTenant() throws Exception {
         mvc.perform(get("/api/v1/compliance/identity-bindings")
+                .param("page", "1")
+                .param("size", "20")
                 .with(jwt().jwt(token -> token
                     .subject("admin-1")
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data").isArray())
-            .andExpect(jsonPath("$.data").isEmpty());
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.items").isEmpty())
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(20));
     }
 
     @Test
@@ -205,7 +209,7 @@ class IdentityBindingControllerTest {
         mvc.perform(get("/api/v1/compliance/identity-bindings")
                 .with(adminJwt("admin-2", "t-2")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data").isEmpty());
+            .andExpect(jsonPath("$.data.items").isEmpty());
 
         mvc.perform(post("/api/v1/compliance/identity-bindings/{bindingId}:unbind", active.bindingId())
                 .contentType(MediaType.APPLICATION_JSON)

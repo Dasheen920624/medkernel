@@ -146,18 +146,22 @@ class EngineEndToEndIntegrationTest {
             "DEPT-01", LocalTermStatus.UNMAPPED, Instant.now(), Instant.now(), Instant.now(), "system", Instant.now(), "system"
         ));
 
-        // 触发确定性候选生成：标准字典 normalized_name 提供真实别名，禁止靠字符相似度误配。
-        TerminologyCandidateGenerationResponse generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
+        // 提交确定性候选生成任务：标准字典 normalized_name 提供真实别名，禁止靠字符相似度误配。
+        TerminologyCandidateGenerationJob generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
             "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
             "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("knowledge-governor"), "pkg-stroke-2026",
             "HIS", null, null
         ));
-        assertEquals(1, generation.generatedCount(), "字典规则引擎发现了 1 个候选映射");
+        assertEquals(TerminologyCandidateGenerationJobStatus.PENDING, generation.status(), "候选生成先返回任务而非同步明细");
+        terminologyService.executeCandidateGenerationJob(generation.jobCode());
+        TerminologyCandidateGenerationJob completed = terminologyService.getCandidateGenerationJob(generation.jobCode());
+        assertEquals(1, completed.generatedCount(), "字典规则引擎发现了 1 个候选映射");
+        assertEquals(TerminologyCandidateGenerationJobStatus.SUCCEEDED, completed.status());
 
         // 查到候选并执行人工确认
         var candidatesPage = terminologyService.pageCandidates(
             new com.medkernel.shared.api.PageRequest(1, 10, null),
-            new CandidateFilter(MappingCandidateStatus.PENDING, null, null)
+            new CandidateFilter(MappingCandidateStatus.PENDING, null, null, generation.jobCode())
         );
         assertEquals(1, candidatesPage.total());
         var candidate = candidatesPage.items().get(0);

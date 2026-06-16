@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.KnowledgeAssetSchemaValidator;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -26,9 +28,6 @@ import com.medkernel.shared.context.RequestContext;
  */
 @Service
 public class KnowledgeProductionOrchestrationService {
-
-    private static final int DEFAULT_PAGE_SIZE = 20;
-    private static final int MAX_PAGE_SIZE = 200;
 
     private final KnowledgeProductionJobRepository jobRepository;
     private final KnowledgeProductionCandidateRepository candidateRepository;
@@ -134,14 +133,18 @@ public class KnowledgeProductionOrchestrationService {
     }
 
     @Transactional(readOnly = true)
-    public List<KnowledgeProductionJob> listJobs(int page, int size) {
+    public PageResponse<KnowledgeProductionJob> listJobs(int page, int size) {
         String tenantId = requireCurrentTenant();
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        if (size <= 0) {
-            safeSize = DEFAULT_PAGE_SIZE;
+        PageRequest pageRequest = new PageRequest(page, size, null);
+        long total = jobRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(pageRequest);
         }
-        int safePage = Math.max(page, 0);
-        return jobRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
+        return PageResponse.of(
+            jobRepository.pageByTenantId(tenantId, pageRequest.offset(), pageRequest.safeSize()),
+            pageRequest,
+            total
+        );
     }
 
     /** 列某 job 的候选生产血缘 + 会签路由决策（FR-5/6 可回溯，路由只读 resolve）。 */

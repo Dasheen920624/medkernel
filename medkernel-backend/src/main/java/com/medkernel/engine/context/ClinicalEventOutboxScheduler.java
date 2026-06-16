@@ -29,6 +29,9 @@ public class ClinicalEventOutboxScheduler implements SchedulingConfigurer {
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+        if (!properties.workerEnabled()) {
+            return;
+        }
         taskRegistrar.addTriggerTask(worker::pollOnce, this::nextExecution);
     }
 

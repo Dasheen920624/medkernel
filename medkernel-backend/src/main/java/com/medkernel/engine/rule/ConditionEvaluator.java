@@ -235,8 +235,8 @@ public class ConditionEvaluator {
             expected = normalizeOperand(expected, context);
             outcome = switch (operator) {
                 case "exists" -> clinicalOperators.basicOutcome(exists(actual), actual, expected);
-                case "equals" -> clinicalOperators.basicOutcome(exists(actual) && valuesEqual(actual, expected), actual, expected);
-                case "not_equals" -> clinicalOperators.basicOutcome(!exists(actual) || !valuesEqual(actual, expected), actual, expected);
+                case "equals" -> clinicalOperators.basicOutcome(equalsAny(actual, expected), actual, expected);
+                case "not_equals" -> clinicalOperators.basicOutcome(!equalsAny(actual, expected), actual, expected);
                 case "contains" -> clinicalOperators.basicOutcome(contains(actual, expected), actual, expected);
                 case "gt" -> clinicalOperators.basicOutcome(compare(actual, expected, "gt"), actual, expected);
                 case "gte" -> clinicalOperators.basicOutcome(compare(actual, expected, "gte"), actual, expected);
@@ -728,6 +728,22 @@ public class ConditionEvaluator {
         return actual.equals(expected);
     }
 
+    private boolean equalsAny(JsonNode actual, JsonNode expected) {
+        if (!exists(actual)) {
+            return expected == null || expected.isMissingNode();
+        }
+        if (actual.isArray()) {
+            Iterator<JsonNode> values = actual.elements();
+            while (values.hasNext()) {
+                if (valuesEqual(values.next(), expected)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return valuesEqual(actual, expected);
+    }
+
     private boolean contains(JsonNode actual, JsonNode expected) {
         if (!exists(actual) || expected == null || expected.isMissingNode()) {
             return false;
@@ -748,6 +764,15 @@ public class ConditionEvaluator {
         if (!exists(actual) || expected == null || !expected.isArray()) {
             return false;
         }
+        if (actual.isArray()) {
+            Iterator<JsonNode> values = actual.elements();
+            while (values.hasNext()) {
+                if (in(values.next(), expected)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         for (JsonNode item : expected) {
             if (valuesEqual(actual, item)) {
                 return true;
@@ -757,6 +782,15 @@ public class ConditionEvaluator {
     }
 
     private boolean compare(JsonNode actual, JsonNode expected, String operator) {
+        if (actual != null && actual.isArray()) {
+            Iterator<JsonNode> values = actual.elements();
+            while (values.hasNext()) {
+                if (compare(values.next(), expected, operator)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         if (!exists(actual) || expected == null || !actual.isNumber() || !expected.isNumber()) {
             return false;
         }

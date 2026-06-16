@@ -63,6 +63,7 @@ import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
+const PATHWAY_REFERENCE_PAGE_SIZE = 20;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
@@ -230,6 +231,10 @@ function firstClockForNode(clocks: ClinicalClock[], nodeCode: string) {
   return clocks.find((clock) => clock.nodeCode === nodeCode);
 }
 
+function searchKeyword(value: string) {
+  return value.trim() || undefined;
+}
+
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
@@ -245,17 +250,14 @@ export default function PatientPathways() {
   const [patientFilter, setPatientFilter] = useState<string>("");
   const [enterPatientFilter, setEnterPatientFilter] = useState<string>("");
   const [enterEncounterFilter, setEnterEncounterFilter] = useState<string>("");
+  const [enterTemplateSearch, setEnterTemplateSearch] = useState<string>("");
   const [selectedContextSnapshotId, setSelectedContextSnapshotId] = useState<string>("");
 
   const { data: templatesData } = usePathwayTemplates({
     status: "PUBLISHED",
+    keyword: searchKeyword(enterTemplateSearch),
     page: 1,
-    size: 100,
-  });
-  const { data: packagesData } = usePackages({
-    page: 1,
-    size: 100,
-    assetType: "PATHWAY",
+    size: PATHWAY_REFERENCE_PAGE_SIZE,
   });
   const hasEnterSnapshotFilter = Boolean(enterPatientFilter.trim() || enterEncounterFilter.trim());
   const enterSnapshotsQuery = useContextSnapshots(
@@ -298,6 +300,13 @@ export default function PatientPathways() {
   const { data: templateDetail } = usePathwayTemplateDetail(
     detailData?.patientPathway.templateId || "",
   );
+  const { data: packagesData } = usePackages({
+    page: 1,
+    size: PATHWAY_REFERENCE_PAGE_SIZE,
+    assetType: "PATHWAY",
+    status: "PUBLISHED",
+    keyword: templateDetail?.template.packageId || undefined,
+  });
 
   const { data: clocksData, refetch: refetchClocks } = usePatientPathwayClocks(
     selectedPathwayId || "",
@@ -331,11 +340,18 @@ export default function PatientPathways() {
     const knowledgePackage = packagesData?.items?.find(
       (item) => item.packageId === template?.packageId,
     );
-    return knowledgePackage?.packageVersion ?? (template ? String(template.templateVersion) : "");
+    return knowledgePackage?.packageVersion ?? "";
   };
 
   const selectedTemplatePackageVersion = () =>
     packageVersionForTemplate(templateDetail?.template.templateId);
+
+  const requireSelectedTemplatePackageVersion = () => {
+    const packageVersion = selectedTemplatePackageVersion().trim();
+    if (packageVersion) return packageVersion;
+    message.error("无法确认当前路径模板所属的配置包版本，暂不能推进路径。");
+    return undefined;
+  };
 
   const isPathwayMutable = (status?: PatientPathwayStatus) =>
     status === "ENTERED" || status === "NODE_EXECUTING" || status === "VARIANCE";
@@ -472,6 +488,7 @@ export default function PatientPathways() {
       setEnterModalVisible(false);
       setEnterPatientFilter("");
       setEnterEncounterFilter("");
+      setEnterTemplateSearch("");
       setSelectedContextSnapshotId("");
       enterForm.resetFields();
       refetchPathways();
@@ -486,9 +503,11 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await advanceForm.validateFields();
+      const packageVersion = requireSelectedTemplatePackageVersion();
+      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion: selectedTemplatePackageVersion(),
+        packageVersion,
         eventType: "COMPLETE",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode: values.requestedNextNodeCode,
@@ -512,9 +531,11 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await varianceForm.validateFields();
+      const packageVersion = requireSelectedTemplatePackageVersion();
+      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion: selectedTemplatePackageVersion(),
+        packageVersion,
         eventType: "VARIANCE",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode:
@@ -546,9 +567,11 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await exitForm.validateFields();
+      const packageVersion = requireSelectedTemplatePackageVersion();
+      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion: selectedTemplatePackageVersion(),
+        packageVersion,
         eventType: "EXIT",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         exitReason: values.exitReason,
@@ -705,6 +728,7 @@ export default function PatientPathways() {
               onClick={() => {
                 setEnterPatientFilter("");
                 setEnterEncounterFilter("");
+                setEnterTemplateSearch("");
                 setSelectedContextSnapshotId("");
                 enterForm.resetFields();
                 setEnterModalVisible(true);
@@ -744,6 +768,7 @@ export default function PatientPathways() {
           setEnterModalVisible(false);
           setEnterPatientFilter("");
           setEnterEncounterFilter("");
+          setEnterTemplateSearch("");
           setSelectedContextSnapshotId("");
           enterForm.resetFields();
         }}
@@ -791,7 +816,14 @@ export default function PatientPathways() {
             />
           </Form.Item>
           <Form.Item name="templateId" label="选择受控专病路径模板" rules={[{ required: true }]}>
-            <Select placeholder="选择已发布上线的临床路径模型" notFoundContent="暂无已发布路径模板">
+            <Select
+              showSearch
+              filterOption={false}
+              placeholder="选择已发布上线的临床路径模型"
+              notFoundContent="暂无已发布路径模板"
+              onSearch={setEnterTemplateSearch}
+              onChange={() => setEnterTemplateSearch("")}
+            >
               {templatesData?.items?.map((t: PathwayTemplate) => (
                 <Option key={t.templateId} value={t.templateId}>
                   {t.name} (v{t.templateVersion}.0) · {pathwayEntryModeText(t.entryMode)}

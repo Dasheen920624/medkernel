@@ -225,7 +225,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             String tenantId,
             FragmentKey key,
             List<ConditionFragmentAffectedAsset> affected) {
-        for (RuleDefinition rule : ruleDefinitions.listByFilter(tenantId, null, null, null)) {
+        for (RuleDefinition rule : ruleDefinitions.listByFilter(tenantId, null, null, null, null)) {
             if (!hasText(rule.activeVersionId())) {
                 continue;
             }
@@ -250,7 +250,7 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
             String tenantId,
             FragmentKey key,
             List<ConditionFragmentAffectedAsset> affected) {
-        for (PathwayTemplate template : pathwayTemplates.listByFilter(tenantId, null, null, null, null)) {
+        for (PathwayTemplate template : pathwayTemplates.listByFilter(tenantId, null, null, null, null, null)) {
             boolean matched = false;
             for (PathwayEdge edge : pathwayEdges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
                     template.templateId(), tenantId)) {

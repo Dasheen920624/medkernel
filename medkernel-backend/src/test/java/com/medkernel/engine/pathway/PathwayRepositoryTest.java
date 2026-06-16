@@ -142,23 +142,68 @@ class PathwayRepositoryTest {
     }
 
     @Test
+    void packageFilterFindsPathwayPackageByPackageIdKeyword() {
+        KnowledgePackage pack = knowledgePackages.save(samplePackage(
+            "sp-clinical-pathway-only-id", "tenant-A", "COPD"));
+        savePackageMarker(pack, "COPD");
+
+        List<KnowledgePackage> rows = knowledgePackages.pageByFilter(
+            "tenant-A", "%sp-clinical-pathway-only-id%", null, "PATHWAY", 0, 10);
+        long total = knowledgePackages.countByFilter(
+            "tenant-A", "%sp-clinical-pathway-only-id%", null, "PATHWAY");
+
+        assertThat(total).isEqualTo(1);
+        assertThat(rows).extracting(KnowledgePackage::packageId)
+            .containsExactly("sp-clinical-pathway-only-id");
+    }
+
+    @Test
     void pagesTemplatesByStatusDiseaseAndPackage() {
-        templates.save(sampleTemplate("pt-a", "tenant-A", "sp-a", "COPD"));
-        templates.save(sampleTemplate("pt-b", "tenant-A", "sp-a", "COPD"));
+        templates.save(sampleTemplate("pt-a", "tenant-A", "sp-a", "COPD", "慢阻肺稳定期路径"));
+        templates.save(sampleTemplate("pt-b", "tenant-A", "sp-a", "COPD", "慢阻肺急性期路径"));
         templates.save(sampleTemplate("pt-c", "tenant-A", "sp-b", "STROKE"));
         templates.save(sampleTemplate("pt-d", "tenant-B", "sp-a", "COPD"));
 
-        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null);
-        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, 0, 10);
-        long codeTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a");
+        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, null);
+        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, null, 0, 10);
+        long codeTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", null);
         List<PathwayTemplate> codeRows = templates.pageByFilter(
-            "tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", 0, 10);
+            "tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", null, 0, 10);
+        long keywordTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, "%稳定%");
+        List<PathwayTemplate> keywordRows = templates.pageByFilter(
+            "tenant-A", "DRAFT", "COPD", "sp-a", null, "%稳定%", 0, 10);
 
         assertThat(total).isEqualTo(2);
         assertThat(rows).extracting(PathwayTemplate::tenantId).containsOnly("tenant-A");
         assertThat(rows).extracting(PathwayTemplate::diseaseCode).containsOnly("COPD");
         assertThat(codeTotal).isEqualTo(1);
         assertThat(codeRows).extracting(PathwayTemplate::templateId).containsExactly("pt-a");
+        assertThat(keywordTotal).isEqualTo(1);
+        assertThat(keywordRows).extracting(PathwayTemplate::templateId).containsExactly("pt-a");
+    }
+
+    @Test
+    void pagesEffectiveTemplatesWithoutMaterializingTenantAndPlatformSnapshots() {
+        PathwayTemplate platformShadowed = templates.save(sampleTemplate(
+            "pt-platform-shadowed", "t-1", "sp-platform", "COPD",
+            "平台慢阻肺路径", PathwayTemplateStatus.PUBLISHED));
+        PathwayTemplate platformOnly = templates.save(sampleTemplate(
+            "pt-platform-stroke", "t-1", "sp-platform", "STROKE",
+            "平台卒中路径", PathwayTemplateStatus.PUBLISHED));
+        PathwayTemplate localOverride = templates.save(sampleTemplate(
+            "pt-platform-shadowed", "tenant-A", "sp-local", "COPD",
+            "本院慢阻肺路径", PathwayTemplateStatus.PUBLISHED));
+
+        long total = templates.countEffectiveByFilter(
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, null);
+        List<PathwayTemplate> rows = templates.pageEffectiveByFilter(
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, null, 0, 20);
+
+        assertThat(total).isEqualTo(2L);
+        assertThat(rows).extracting(PathwayTemplate::id)
+            .containsExactlyInAnyOrder(localOverride.id(), platformOnly.id());
+        assertThat(rows).extracting(PathwayTemplate::id)
+            .doesNotContain(platformShadowed.id());
     }
 
     @Test
@@ -244,10 +289,29 @@ class PathwayRepositoryTest {
     }
 
     private PathwayTemplate sampleTemplate(String templateId, String tenantId, String packageId, String diseaseCode) {
+        return sampleTemplate(templateId, tenantId, packageId, diseaseCode, "稳定期随访路径");
+    }
+
+    private PathwayTemplate sampleTemplate(
+            String templateId,
+            String tenantId,
+            String packageId,
+            String diseaseCode,
+            String name) {
+        return sampleTemplate(templateId, tenantId, packageId, diseaseCode, name, PathwayTemplateStatus.DRAFT);
+    }
+
+    private PathwayTemplate sampleTemplate(
+            String templateId,
+            String tenantId,
+            String packageId,
+            String diseaseCode,
+            String name,
+            PathwayTemplateStatus status) {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            null, templateId, tenantId, packageId, "TPL." + templateId, "稳定期随访路径",
-            diseaseCode, 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.DRAFT,
+            null, templateId, tenantId, packageId, "TPL." + templateId, name,
+            diseaseCode, 1, PathwayTemplateLevel.STANDARD, status,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");
