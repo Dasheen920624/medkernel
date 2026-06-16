@@ -14,6 +14,8 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -140,6 +142,52 @@ class DocumentParseIntegrationTest {
             }
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             pdf.save(baos);
+            return baos.toByteArray();
+        }
+    }
+
+    @Test
+    void parsesWordViaBase64AndMaterializesParagraphAndTableCellFragments() throws IOException {
+        RequestContext.restore(new RequestContext.Snapshot("trace-word", OrgScope.tenant(TENANT), "user-it"));
+        Instant now = Instant.now();
+        SourceDocument doc = sourceDocuments.save(new SourceDocument(null, TENANT, "SRC-PARSE-WORD",
+            SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE, "国家卫健委发布", "高血压指南(Word)",
+            "卫健委", "lic", "zh-CN", now, "u", now, "u"));
+
+        String base64 = Base64.getEncoder().encodeToString(guidelineDocxWithTable());
+
+        DocParseJob job = service.submit(new DocumentParseRequest(
+            doc.id(), "v1", "guide.docx", DocumentFormat.WORD, base64));
+
+        assertThat(job.status()).isEqualTo(ParseJobStatus.SUCCEEDED);
+        assertThat(job.sourceHash()).hasSize(64);
+        // 1 段正文片段 + 4 个非空表格单元格片段。
+        assertThat(job.parsedFragmentCount()).isEqualTo(5);
+
+        List<SourceFragment> fragments = sourceFragments
+            .findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc(TENANT, job.resultSourceVersionId());
+        assertThat(fragments).extracting(SourceFragment::anchorPath)
+            .contains("§1/¶1", "§1/tbl1/r1c1", "§1/tbl1/r1c2", "§1/tbl1/r2c1", "§1/tbl1/r2c2");
+        assertThat(fragments).allSatisfy(f -> assertThat(f.contentHash()).hasSize(64));
+        assertThat(fragments).anySatisfy(f -> {
+            assertThat(f.anchorPath()).isEqualTo("§1/tbl1/r2c1");
+            assertThat(f.textExcerpt()).isEqualTo("阿司匹林");
+            assertThat(f.anchorLabel()).isEqualTo("用法用量");
+        });
+    }
+
+    /** 由 POI 确定性构造的夹具 docx：编号标题 §1 + 1 段正文 + 该节下 1 张 2×2 表（全单元格非空）。 */
+    private byte[] guidelineDocxWithTable() throws IOException {
+        try (XWPFDocument word = new XWPFDocument()) {
+            word.createParagraph().createRun().setText("1 用法用量");
+            word.createParagraph().createRun().setText("成人口服给药。");
+            XWPFTable table = word.createTable(2, 2);
+            table.getRow(0).getCell(0).setText("药品");
+            table.getRow(0).getCell(1).setText("剂量");
+            table.getRow(1).getCell(0).setText("阿司匹林");
+            table.getRow(1).getCell(1).setText("100mg");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            word.write(baos);
             return baos.toByteArray();
         }
     }

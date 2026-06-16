@@ -9,6 +9,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
+import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.Element;
 import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.TextLine;
 
 /**
@@ -27,7 +28,7 @@ public class PdfDocumentParser implements DocumentParser {
 
     @Override
     public ParsedDocument parse(ParseInput input) {
-        List<TextLine> lines = new ArrayList<>();
+        List<Element> elements = new ArrayList<>();
         try (PDDocument document = Loader.loadPDF(input.rawBytes())) {
             int pageCount = document.getNumberOfPages();
             PDFTextStripper stripper = new PDFTextStripper();
@@ -38,16 +39,16 @@ public class PdfDocumentParser implements DocumentParser {
                 for (String raw : pageText.split("\\R", -1)) {
                     String line = raw.strip();
                     if (!line.isEmpty()) {
-                        lines.add(new TextLine(line, page));
+                        elements.add(new TextLine(line, page));
                     }
                 }
             }
         } catch (IOException e) {
             throw new DocumentParseException("PDF 解析失败：" + e.getMessage());
         }
-        if (lines.isEmpty()) {
+        if (elements.isEmpty()) {
             throw new DocumentParseException("PDF 无可提取文本（可能为扫描件，本卡不做 OCR），诚实拒绝");
         }
-        return DocumentSectionizer.sectionize(lines);
+        return DocumentSectionizer.sectionize(elements);
     }
 }

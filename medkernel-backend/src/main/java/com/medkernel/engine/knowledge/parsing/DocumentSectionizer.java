@@ -1,63 +1,87 @@
 package com.medkernel.engine.knowledge.parsing;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 文档分章器（AIK-STD-02 B0）。把有序文本行流（每行携来源页号）确定性地解析为章节树：
- * 识别 Markdown 标题（{@code #}/{@code ##}…）与点分编号标题（{@code 1}/{@code 1.1}），
- * 标题前正文归入「前言」§0；超出片段长度上限的段落按句界切分不丢语义；段落沿用其来源页号。
+ * 文档分章器（AIK-STD-02 B0）。把有序文档元素流（文本行携来源页号 + 表格块）确定性地解析为
+ * 章节树 + 表格列表：识别 Markdown 标题（{@code #}/{@code ##}…）与点分编号标题（{@code 1}/{@code 1.1}），
+ * 标题前正文归入「前言」§0；超出片段长度上限的段落按句界切分不丢语义；段落沿用其来源页号；
+ * 表格归属其出现处的当前章节并按节内出现序编号（{@code tbl<n>}）。
  * 纯规则、确定性、零外部依赖，供文本/PDF/Word 各解析器共用，去重解析骨架。
- * 行流无任何可成章内容时诚实抛 {@link DocumentParseException}（FR-5，绝不产伪结构）。
+ * 元素流无任何可成章/成表内容时诚实抛 {@link DocumentParseException}（FR-5，绝不产伪结构）。
  */
 final class DocumentSectionizer {
 
     private static final int MAX_EXCERPT = 2048;
+    private static final String PREAMBLE_PATH = "0";
+    private static final String PREAMBLE_TITLE = "前言";
     private static final Pattern MARKDOWN = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
     private static final Pattern NUMBERED = Pattern.compile("^(\\d+(?:\\.\\d+)*)[\\s、.]+(.+?)\\s*$");
 
     private DocumentSectionizer() {
     }
 
-    /** 输入文本行：正文 + 来源页号（1 基；无版式页维度时为 {@code null}）。 */
-    record TextLine(String text, Integer page) {
+    /** 文档元素：有序流中的一个单元，文本行或表格块，供分章器统一消费。 */
+    sealed interface Element permits TextLine, TableBlock {
     }
 
-    static ParsedDocument sectionize(List<TextLine> lines) {
+    /** 文本行：正文 + 来源页号（1 基；无版式页维度时为 {@code null}）。 */
+    record TextLine(String text, Integer page) implements Element {
+    }
+
+    /** 表格块：行优先单元格正文矩阵 + 来源页号（1 基；无版式页维度时为 {@code null}）。 */
+    record TableBlock(Integer page, List<List<String>> rows) implements Element {
+    }
+
+    static ParsedDocument sectionize(List<Element> elements) {
         List<ParsedSection> sections = new ArrayList<>();
+        List<ParsedTable> tables = new ArrayList<>();
+        Map<String, Integer> tableSeq = new HashMap<>();
         int[] counters = new int[7];
         SectionBuilder current = null;
+        String currentNumberPath = PREAMBLE_PATH;
+        String currentTitle = PREAMBLE_TITLE;
         List<ParsedParagraph> preamble = new ArrayList<>();
 
-        for (TextLine line : lines) {
-            String text = line.text().strip();
-            if (text.isEmpty()) {
-                continue;
-            }
-            Heading heading = detectHeading(text, counters);
-            if (heading != null) {
-                if (current != null) {
-                    sections.add(current.build());
+        for (Element element : elements) {
+            if (element instanceof TextLine line) {
+                String text = line.text().strip();
+                if (text.isEmpty()) {
+                    continue;
                 }
-                current = new SectionBuilder(heading.numberPath(), heading.level(), heading.title());
-            } else if (current == null) {
-                appendParagraph(preamble, text, line.page());
-            } else {
-                current.addParagraph(text, line.page());
+                Heading heading = detectHeading(text, counters);
+                if (heading != null) {
+                    if (current != null) {
+                        sections.add(current.build());
+                    }
+                    current = new SectionBuilder(heading.numberPath(), heading.level(), heading.title());
+                    currentNumberPath = heading.numberPath();
+                    currentTitle = heading.title();
+                } else if (current == null) {
+                    appendParagraph(preamble, text, line.page());
+                } else {
+                    current.addParagraph(text, line.page());
+                }
+            } else if (element instanceof TableBlock block) {
+                int seq = tableSeq.merge(currentNumberPath, 1, Integer::sum);
+                tables.add(new ParsedTable(currentNumberPath, currentTitle, seq, block.page(), block.rows()));
             }
         }
         if (current != null) {
             sections.add(current.build());
         }
         if (!preamble.isEmpty()) {
-            sections.add(0, new ParsedSection("0", 1, "前言", List.copyOf(preamble)));
+            sections.add(0, new ParsedSection(PREAMBLE_PATH, 1, PREAMBLE_TITLE, List.copyOf(preamble)));
         }
-        if (sections.isEmpty()) {
+        if (sections.isEmpty() && tables.isEmpty()) {
             throw new DocumentParseException("空文档无法解析，禁止产伪结构");
         }
-        return new ParsedDocument(sections);
+        return new ParsedDocument(sections, tables);
     }
 
     private static Heading detectHeading(String line, int[] counters) {

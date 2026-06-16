@@ -13,7 +13,21 @@
 
 ---
 
-## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR2 PDF 解析适配器（PDFBox）+ 页锚点 + Base64 传输（**已实现待合**，[PR #627](https://github.com/Dasheen920624/medkernel/pull/627)，分支 `claude/wave2-p2c-aikstd02-pr2-pdf-parser`）
+## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR3 Word 解析适配器（POI）+ 表格理解（FR-2）+ 单元锚点（**已实现待合**，[PR #628](https://github.com/Dasheen920624/medkernel/pull/628)，分支 `claude/wave2-p2c-aikstd02-pr3-word-table`）
+
+> **接力须知**：PR1 管线核心（#626）+ PR2 PDF 适配器（#627，已 squash 合入 main `e0a31a6d`）已落 main。本段＝**AIK-STD-02 最后一刀**，补齐 AC-1 全格式（FR-1 Word + FR-2 表格理解）。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md) §3.1/§3.3/§4 · 计划 [`docs/superpowers/plans/2026-06-16-aikstd02-pr3-word-table.md`](superpowers/plans/2026-06-16-aikstd02-pr3-word-table.md)。续接从最新 `origin/main` 起。
+
+- **已实现（续 `com.medkernel.engine.knowledge.parsing`）**：
+  - **`WordDocumentParser`（Apache POI 5.3.0，`@Component` 自动并入分派）**：按文档顺序遍历 `.docx` 正文——段落确定性提取为文本行、表格按结构（行/单元格）提取为表格块 → 复用 `DocumentSectionizer`。Word 无版式页维度故段落/表格 `page=null`；空 docx、旧二进制 `.doc`/非 OOXML、损坏字节诚实 `FAILED`（catch `IOException | POIXMLException | NotOfficeXmlFileException`），绝不产伪结构（FR-5 / 铁律 #1）。
+  - **表格理解（FR-2，两格式通用）**：`DocumentSectionizer` 由行流升级为**密封元素流**（`sealed Element` = `TextLine` | `TableBlock`），表格归属其出现处的当前章节并按**节内出现序**编号 → 产 `ParsedTable`（节号 + 节标题 + 表序 + 可空页号 + 行优先单元格矩阵）；`ParsedDocument` 由 `(sections)` 扩为 `(sections, tables)`。文本/PDF 适配器仅喂 `TextLine`（tables 空），PDF 文本层无可靠表结构则诚实不产表不伪造。
+  - **单元锚点物化**：`ParsedDocumentMaterializer` 在段落物化后追加表格物化，逐**非空**单元格落 `[p<页>/]§<节>/tbl<n>/r<行>c<列>` 锚点片段（真实 SHA-256 + 幂等去重 + 空单元格不产指纹，守「片段正文不能为空」红线）；`anchor_label`=节标题，计入 job `parsed_fragment_count`。`page` 维度使锚点方案对 PDF（`p<页>/…`）与 Word（无页前缀）两格式统一可表达。
+  - **无新表/端点/权限/迁移**：`ck_mk_doc_parse_job_format` 建表即含 `'WORD'`，编排对非文本格式走 Base64 解码——WORD job 零编排/迁移改动；`LATEST_MIGRATION_VERSION` 保持 133；走既有 `documents:parse`，产品目录不漂移。
+- **验证全绿**：全量 `mvn test` **2571 通过**（基线 2564 + 新增 7：`WordDocumentParserTest` 4 + 物化表格单元 2 + 集成 WORD 端到端 1）+ 四门禁 changed（真实性 7 / 配置 7 / 迁移 0 / 中文注释 0fail0warn）全过 + 五方言 Flyway smoke 真实容器 3/3（无迁移）+ `MigrationBaselineContractTest` 107 + `git diff --check` 干净 + 前端 `productCatalog.test.ts` 5/5 无漂移。卡 [AIK-STD-02](cards/wave2/AIK-STD-02.md) FR-1/2/3/4/5 + AC-1/2 全勾（PR1/2/3 全格式闭合）。
+- **当前下一步（接力点，从最新 `origin/main` 起；#628 合并后清本分支）**：AIK-STD-02 全闭，续 P2-C 内容管线——① **AIK-STD-03 术语**映射 / ② **AIK-STD-04 候选生成**（消费本卡带锚点的受控来源片段 → `KnowledgeAssetEnvelope` 候选，接 AIK-STD-13 落审核链）/ ③ **AIK-STD-05** 11 项门禁 / ④ **AIK-STD-10** 8 态去重分流。恒守：TDD 红绿 + B0 + P6 阻断（不连真实文献库、不进 P6）+ 铁律 #1（锚点/hash 真实，扫描件/损坏诚实 FAILED）+ 域归属 SYS-02 + 合并 main 逐 PR 授权。
+
+---
+
+## 2026-06-16 第二阶段 P2-C · AIK-STD-02 PR2 PDF 解析适配器（PDFBox）+ 页锚点 + Base64 传输（**已合并入 main**，[PR #627](https://github.com/Dasheen920624/medkernel/pull/627) `e0a31a6d`，分支已删）
 
 > **接力须知**：PR1 管线核心（#626）已合并入 main。本段＝PR2，接入 PDF 解析适配器产带页锚点的受控来源片段。设计 [`docs/superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md`](superpowers/specs/2026-06-15-aikstd02-doc-parse-pipeline-design.md) §3.3/§4 · 计划 [`docs/superpowers/plans/2026-06-16-aikstd02-pr2-pdf-parser.md`](superpowers/plans/2026-06-16-aikstd02-pr2-pdf-parser.md)。续接从最新 `origin/main` 起。
 

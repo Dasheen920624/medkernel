@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
+import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.Element;
 import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.TextLine;
 
 /**
@@ -25,13 +26,13 @@ public class StructuredTextDocumentParser implements DocumentParser {
     @Override
     public ParsedDocument parse(ParseInput input) {
         String text = new String(input.rawBytes(), UTF_8);
-        List<TextLine> lines = new ArrayList<>();
+        List<Element> elements = new ArrayList<>();
         for (String raw : text.split("\\R", -1)) {
             String line = raw.strip();
             if (!line.isEmpty()) {
-                lines.add(new TextLine(line, null));
+                elements.add(new TextLine(line, null));
             }
         }
-        return DocumentSectionizer.sectionize(lines);
+        return DocumentSectionizer.sectionize(elements);
     }
 }
