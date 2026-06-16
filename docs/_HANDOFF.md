@@ -48,6 +48,11 @@
   - 新增 `knowledge_diff` + `expiry_task` 五方言 V140 基线；`DiscoveryRequest.targetIdentityId` 绑定现行知识身份后，响应 `diffs[]` 返回新增/修订/废止检测结果。
   - `KnowledgeDiffDetectionService` 只做 B0 hash/结构化 payload 判断：无更新诚实空态；来源声明废止建 `SOURCE_DEPRECATED` 复核任务；复审超期建 `REVIEW_OVERDUE` 任务；不自动替换、不撤回权威版本。
   - 已补同指纹但复审超期的回归：只建过期任务，不落伪 `REVISED` 差异。
+- 已完成 Phase 3 第三片「AIK-STD-07 知识包生成 + 院内同步」后端闭环：
+  - 新增 `POST /api/v1/engine/pkg/packages/aik`：只接受当前租户 `ACTIVE` 知识版本 ID，生成 PKG-01 `knowledge_package` 草稿与 `package_item`，不把待审候选或历史版本入包。
+  - 新增 `aik_pack_job` 五方言 V141 基线：保存资产 manifest、`manifest_sha256`、包引用和作业状态；服务契约、领域 owner、产品功能目录已同步。
+  - `PackageSyncRequest.adapterIds=[]` 现在真实落 `ReleasePlanStatus.NOT_SYNCED`，不触发 `ReleasePort`，不再把空通道伪造成发布成功。
+  - 已过目标测试：`AikKnowledgePackageServiceTest`、`PackageEngineServiceTest#syncPackageReturnsNotSyncedWhenNoAdapterChannelIsSelected`、`PackageEngineControllerSecurityTest#aikPackageBuildUsesUnifiedPackageRoot+doctorCannotPublishOrRollbackPackage`、`MigrationBaselineContractTest#aikPackJobIsPersistedAcrossAllDialects`。
 
 ## 仍不可宣称
 
@@ -58,7 +63,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：下一片推进 AIK-STD-07 知识包生成 + 院内同步；先核 `PKG-01`、`KnowledgeExportService`、`package_item/release_plan/sync_log` 与现有版本发布链，避免重复造表。
+1. 继续主计划 Phase 3：下一片推进 AIK-STD-03 术语勾卡；先核 `TERM-01`、`TerminologyCandidateGenerationJob`、`TerminologyController` 与现有候选生成/确认/映射链，确认已实质建成的部分只勾卡和补证据，不重复造流水线。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

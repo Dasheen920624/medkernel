@@ -41,18 +41,21 @@ public class PackageEngineController {
     private final PackageEntitlementService entitlementService;
     private final TerminologyKnowledgePackageService terminologyPackageService;
     private final PathwayKnowledgePackageService pathwayPackageService;
+    private final AikKnowledgePackageService aikPackageService;
 
     public PackageEngineController(
             PackageEngineService service,
             PackageInheritanceImpactService inheritanceImpactService,
             PackageEntitlementService entitlementService,
             TerminologyKnowledgePackageService terminologyPackageService,
-            PathwayKnowledgePackageService pathwayPackageService) {
+            PathwayKnowledgePackageService pathwayPackageService,
+            AikKnowledgePackageService aikPackageService) {
         this.service = service;
         this.inheritanceImpactService = inheritanceImpactService;
         this.entitlementService = entitlementService;
         this.terminologyPackageService = terminologyPackageService;
         this.pathwayPackageService = pathwayPackageService;
+        this.aikPackageService = aikPackageService;
     }
 
     /**
@@ -95,6 +98,20 @@ public class PackageEngineController {
         validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(pathwayPackageService.build(request)));
+    }
+
+    /**
+     * 把 AI 工厂已审知识资产装配为 PKG-01 知识包草稿。
+     *
+     * <p>权限：{@code knowledge.publish}。
+     */
+    @PostMapping("/aik")
+    @PreAuthorize("@perm.has('knowledge.publish')")
+    public ResponseEntity<ApiResult<AikPackageBuildResponse>> buildAikPackage(
+            @RequestBody @Valid AikPackageBuildRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(aikPackageService.build(request)));
     }
 
     /**

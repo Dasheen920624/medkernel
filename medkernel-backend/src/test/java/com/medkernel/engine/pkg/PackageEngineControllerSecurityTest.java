@@ -193,6 +193,19 @@ class PackageEngineControllerSecurityTest {
             """.formatted(standardContextFields(tenantId));
     }
 
+    private static String aikPackageBody(String tenantId) {
+        return """
+            {
+              %s,
+              "packageCode": "AIK.KNOWGEN",
+              "packageVersion": "2026.06.1",
+              "name": "AI 工厂首发知识包",
+              "description": "已审知识资产首发包",
+              "assetVersionIds": [11, 12]
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
     @Autowired
     MockMvc mvc;
 
@@ -210,6 +223,9 @@ class PackageEngineControllerSecurityTest {
 
     @MockBean
     PathwayKnowledgePackageService pathwayPackageService;
+
+    @MockBean
+    AikKnowledgePackageService aikPackageService;
 
     @Autowired
     KnowledgePackageRepository packageRepository;
@@ -287,6 +303,11 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/references")
                 .contentType("application/json")
                 .content(applyReferencesBodyWithContext("tenant-A")))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post(PKG_ROOT + "/aik")
+                .contentType("application/json")
+                .content(aikPackageBody("tenant-A")))
             .andExpect(status().isForbidden());
     }
 
@@ -414,6 +435,37 @@ class PackageEngineControllerSecurityTest {
                     .jwt(token -> token.subject("knowledge-governor").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isCreated());
+    }
+
+    @Test
+    void aikPackageBuildUsesUnifiedPackageRoot() throws Exception {
+        when(aikPackageService.build(any(AikPackageBuildRequest.class)))
+            .thenReturn(new AikPackageBuildResponse(
+                "aik-pack-job-1",
+                new PackageResponse(
+                    "pkg-aik-1",
+                    "AIK.KNOWGEN",
+                    "2026.06.1",
+                    "AI 工厂首发知识包",
+                    "已审知识资产首发包",
+                    PackageAccessPolicy.OPEN,
+                    KnowledgePackageStatus.DRAFT
+                ),
+                2,
+                "a".repeat(64)
+            ));
+
+        mvc.perform(post(PKG_ROOT + "/aik")
+                .contentType("application/json")
+                .content(aikPackageBody("tenant-A"))
+                .with(jwt()
+                    .jwt(token -> token.subject("knowledge-governor").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.jobId").value("aik-pack-job-1"))
+            .andExpect(jsonPath("$.data.packageResponse.packageId").value("pkg-aik-1"))
+            .andExpect(jsonPath("$.data.itemCount").value(2))
+            .andExpect(jsonPath("$.data.manifestSha256").value("a".repeat(64)));
     }
 
     @Test
