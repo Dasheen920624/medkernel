@@ -52,7 +52,11 @@ public class AuthorityConflictGate implements CandidateGate {
         SourceAuthorityLevel activeLevel = active.get().authorityLevel();
         if (candidateLevel.isLowAuthority() && activeLevel.isHighAuthority()) {
             return GateItemResult.fail(CODE,
-                "低阶来源覆盖高阶来源：候选 " + candidateLevel.label() + "，现行 " + activeLevel.label());
+                "低阶来源覆盖高阶来源：候选 " + candidateLevel.label()
+                    + "，现行 " + activeLevel.label()
+                    + "，targetIdentityId=" + context.targetIdentityId()
+                    + "，activeVersionId=" + active.get().id()
+                    + "，scope=" + organizationScope);
         }
         return GateItemResult.pass(CODE);
     }

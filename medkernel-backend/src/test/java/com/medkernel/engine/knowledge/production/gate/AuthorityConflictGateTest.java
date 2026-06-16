@@ -70,7 +70,11 @@ class AuthorityConflictGateTest {
             new GateContext("t-1", "job-1", 10L));
 
         assertThat(result.passed()).isFalse();
-        assertThat(result.reason()).contains("低阶来源覆盖高阶来源");
+        assertThat(result.reason())
+            .contains("低阶来源覆盖高阶来源")
+            .contains("targetIdentityId=10")
+            .contains("activeVersionId=5")
+            .contains("scope=tenant:t-1");
     }
 
     @Test

@@ -40,6 +40,10 @@
   - `ReadinessValidation` 接入 `/engine/knowledge-production/readiness`，展示 9 闸 PASS/BLOCK、阻断原因和真实配置去处；无权限不查询 readiness，读取失败按部分状态未采集处理。
   - `SecurityBaseline` 文献资料库根提示已改为受管本地磁盘、对象存储或 HTTPS 网关均可；现场 `file://` 受管本地根是正式后端，不得再写成对象存储唯一。
   - 主计划已同步清理“文献库桶/原件→对象存储”单一路径口径。
+- 已完成 Phase 3 首片「AIK-STD-05 结构化红线与仲裁留证」：
+  - `CLINICAL_REDLINE` 门禁现在识别候选 payload 中的 `clinicalSafety.redlineChecks` / `clinicalRedlineChecks`；每条结构化检查必须匹配 ACTIVE 红线并带证据，命中/越界/阻断即 FAIL。
+  - `AUTHORITY_CONFLICT` 失败原因已带 `targetIdentityId`、`activeVersionId`、`scope`，用于审计和后续审核台逐条仲裁。
+  - 仍不宣称 AIK-STD-05 全卡完成：去重和完整冲突分流待 AIK-STD-10/09。
 
 ## 仍不可宣称
 
@@ -50,7 +54,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：AI 工厂收尾；优先推进 AIK-STD-05 深临床红线结构化 payload 与冲突仲裁留证，再进入差异/过期治理与知识包生成。
+1. 继续主计划 Phase 3：下一片推进 AIK-STD-08 差异检测 + 过期治理；先核现有 `DiscoveryOrchestrationService`、知识版本/退役任务与审计表，避免重复造表。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

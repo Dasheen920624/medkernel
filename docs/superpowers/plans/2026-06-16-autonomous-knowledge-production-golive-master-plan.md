@@ -166,7 +166,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **验收**：自带真实基准集且可维护 + 6 项配置超管默认关可管 + readiness 前端逐项可见（注：`MODEL_EVALUATION` 仍要求真跑 PASSED，不被种子绕过）。
 
 #### Phase 3 · AI 工厂收尾（5d）
-  - [ ] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；卡 FR-1 11 项补全。
+  - [ ] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；当前已补结构化红线检查与仲裁证据，去重/完整冲突分流仍待 AIK-STD-10/09 后再勾满。
   - [ ] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`knowledge_diff` + `expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。
   - [ ] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。
   - [ ] T3.4 **AIK-STD-03 术语勾卡**（已实质建成 TERM-01+`TerminologyCandidateGenerationJob`，核实+勾卡不重建）。
