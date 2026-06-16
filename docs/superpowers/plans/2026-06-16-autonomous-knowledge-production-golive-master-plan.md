@@ -145,11 +145,11 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - [ ] T0.2 `docs/backlog.md` wave2 区标注各卡归属本计划哪个 Phase（不改 done/pending 口径）。
 
 #### Phase 1 · 文档原件资料库存储层（地基，3d）
-- **目标**：多进料口共用的原件对象存储——原件落资料库根 → `file_uri`，可取回/重解析/审计；按 scope 隔离；未配根诚实阻断不伪造本地路径。
+- **目标**：多进料口共用的原件资料库存储——原件落现场明确配置的受管资料库根 → `file_uri`，可取回/重解析/审计；按 scope 隔离；未配根诚实阻断，不偷偷回退到 tmp/工作目录。
 - **复用**：`SourceVersion.file_uri`、`SystemConfigService.runtimeKnowledgeLiteratureMaterialRootUri()`、根 URI 校验。
 - **新建包** `engine.knowledge.material`
   - [ ] T1.1 `DocumentMaterialStoragePort`：`store(scope,bytes,contentType,sha256)->fileUri` / `fetch(fileUri)->bytes` / `exists/delete`；scope 决定路径前缀（t-1 / 租户 id）。
-  - [ ] T1.2 适配器 `ObjectStoreDocumentMaterialStorage`（S3 兼容 COS/OSS/OBS/MinIO；HTTPS 网关另适配）；凭据走 `credential_ref`；根未配/不可达→结构化阻断（不回退本机磁盘）。
+  - [ ] T1.2 适配器 `ManagedDocumentMaterialStorage`（现场受管 `file://` 本地资料库、S3 兼容 COS/OSS/OBS/MinIO、HTTPS 网关均可接入）；凭据走 `credential_ref`；根未配/不可达→结构化阻断，不自动选择隐式本地路径。
   - [ ] T1.3 `mk_knowledge_material_object` 账本（五方言 append-audited）：scope/file_uri/sha256/content_type/byte_size/stored_at/stored_by/source_channel。**先核无等价表再建**。
   - [ ] T1.4 接 `DocumentParseOrchestrationService`：上传/抓取原件先 store→登记 `SourceVersion(file_uri,hash)`→解析；重解析从 fetch 取原件。
   - [ ] T1.5 只读取回端点 `GET .../knowledge/materials/{ref}`（`knowledge.read`，审计下载）。
@@ -222,16 +222,17 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 ### 〈第二大块 · 生产中心(134)上线〉
 
 #### Phase 9 · 生产中心(134)上线（第一次上线 · ops+治理，非纯代码）
-> 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。须用户/运维供给；碰 134 须本会话点名授权 + 备份 + 留痕 + 可回滚。
-  - [ ] T9.1 运维开对象存储桶（COS/OSS/MinIO）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。
+> 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。用户已明确按全新项目发布：发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不做历史数据兼容、不保留旧包袱，发布留痕只记录清库初始化和新版本证据。
+  - [ ] T9.0 清库发布准备：停服务 → 清空数据库/旧制品/旧运行数据 → 从最新迁移基线全新建库 → 核验没有历史数据兼容、回灌或旧部署回滚路径被依赖。
+  - [ ] T9.1 运维准备受管资料库后端（现场本地磁盘、COS/OSS/MinIO 或 HTTPS 网关）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。
   - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 兼容/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。
   - [ ] T9.3 质量医保治理员复核真实医学基准集 + 专家签字；**实跑一次 PASSED 医学回归评测**（覆盖启用题数）。
   - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。
   - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。
   - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。
-  - [ ] T9.7 按发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；备份 dump 先 chown postgres；可回滚）。
+  - [ ] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；不得从旧库回灌历史业务数据，不保留旧部署兼容路径）。
   - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。
-- **验收**：readiness 全绿 + 一条真实知识端到端上线留证 + 134 运行 manifest 哈希一致 + 可回滚。
+- **验收**：readiness 全绿 + 一条真实知识端到端上线留证 + 清库初始化记录 + 134 运行 manifest 哈希一致。
 
 ### 〈第三大块 · 在 134 上生产首发知识〉
 

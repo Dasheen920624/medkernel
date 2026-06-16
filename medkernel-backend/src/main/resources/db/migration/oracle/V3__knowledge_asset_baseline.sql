@@ -44,6 +44,28 @@ CREATE TABLE source_version (
 CREATE INDEX idx_source_version_tenant_doc ON source_version (tenant_id, source_document_id);
 COMMENT ON TABLE source_version IS '权威来源的受控版本';
 
+CREATE TABLE mk_knowledge_material_object (
+    id              NUMBER(19)     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id       VARCHAR2(64)   NOT NULL,
+    scope_key       VARCHAR2(128)  NOT NULL,
+    file_uri        VARCHAR2(1024) NOT NULL,
+    sha256          VARCHAR2(64)   NOT NULL,
+    content_type    VARCHAR2(128)  NOT NULL,
+    byte_size       NUMBER(19)     NOT NULL,
+    storage_backend VARCHAR2(32)   NOT NULL,
+    source_channel  VARCHAR2(64)   NOT NULL,
+    stored_at       TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    stored_by       VARCHAR2(64)   NULL,
+    CONSTRAINT uk_mk_knowledge_material_object_scope_hash UNIQUE (tenant_id, scope_key, sha256),
+    CONSTRAINT ck_mk_knowledge_material_object_backend CHECK (storage_backend IN ('LOCAL_FILE','REMOTE_URI'))
+);
+
+CREATE INDEX idx_mk_knowledge_material_object_lookup
+    ON mk_knowledge_material_object (tenant_id, scope_key, sha256);
+COMMENT ON TABLE mk_knowledge_material_object IS '知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节';
+COMMENT ON COLUMN mk_knowledge_material_object.file_uri IS '受管资料库 URI，可为现场 file、本地网关或对象存储 URI，禁止伪造临时路径';
+COMMENT ON COLUMN mk_knowledge_material_object.sha256 IS '原件字节 SHA-256 指纹，用于取回校验和重复入库幂等';
+
 CREATE TABLE source_fragment (
     id                  NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id           VARCHAR2(64)  NOT NULL,

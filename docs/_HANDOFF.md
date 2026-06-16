@@ -7,6 +7,7 @@
 - **最新主线**：`origin/main=8520b741`，已包含 #634「自主公域知识生产 + AI 工厂收尾 + 整体上线主计划」。不要再从 `399ed29f`、`a3c132de` 或 #633 合并前口径续接。
 - **当前本地分支**：`codex/knowledge-fullflow-audit-production`，按用户要求执行长任务：先全面核查现有功能，发现问题直接优化，再推进知识生成到上线全流程；只本地提交，暂不合并远程 `main`。
 - **当前验收口径**：仍处于 B0 第一阶段全功能核查与完美化后的接续推进；国产化真实环境本轮暂不处理，后续全面验收再处理。
+- **134 发布口径**：用户已明确按全新项目上线；进入 P9 发布时停服务后清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不做历史数据兼容、回灌或旧部署回滚路径。
 - **主计划入口**：[`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
 - **正确顺序**：P0-P8 建生产中心机器 → P9 部署 134 并配齐真实前置 → P10 在 134 真实生产首发知识 → P11 GA 总验收与试点医院上线。
 
@@ -23,17 +24,20 @@
   - `node --test scripts/b0-perfect-check.test.mjs`：96/96 通过。
   - `node scripts/b0-perfect-check.mjs`：阻断 0。
 - `docs/backlog.md` 已补 #634 Phase 对照说明，但未把 pending 卡虚改为 done。
+- 已完成 Phase 1 首片「文档原件资料库存储层」：
+  - `ManagedDocumentMaterialStorage` 支持现场显式配置的受管 `file://` 本地资料库根；未配根/未接入协议结构化阻断，不回退 tmp/工作目录，也不写死对象存储。
+  - `mk_knowledge_material_object` 已入五方言基线；解析成功后原件入账，`SourceVersion.file_uri` 指向受管 URI；新增 `GET /api/v1/engine/knowledge/materials/{materialId}` 审计读取。
 
 ## 仍不可宣称
 
 - **不得宣称正式知识生产已开放**：P6 独立验收、受管文献资料库根、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
-- **不得宣称 134 已部署最新主线**：134 当前已知运行 manifest 仍是旧收官现场证据；触碰 134 需要本会话重新点名授权、备份、隔离恢复、留痕和可回滚。
+- **不得宣称 134 已部署最新主线**：清库全新发布口径已明确，但未进入 P9 并完成全新初始化、部署和 readiness 留证前不得冒领。
 - **不得宣称 KNOWGEN 首发知识包或试点医院上线完成**：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - **不得把模型 key 当作 P6 放行**：key 只满足「模型」一项，凭据只能走 `credential_ref`，不得写入对话、日志或仓库。
 
 ## 下一步
 
-1. 从主计划 Phase 1 开始执行：文档原件资料库存储层。
+1. 继续主计划 Phase 1 后续切片：按现场配置接入其他受管资料库后端（COS/OSS/OBS/MinIO/HTTPS 网关等）与重解析 fetch 链路；当前受管 `file://` 本地磁盘能力是正式后端，不是旧兼容兜底。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

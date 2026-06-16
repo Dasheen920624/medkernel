@@ -452,7 +452,7 @@
 <!-- capability:controller:controller@DiscoveryController decision=KEEP -->
 | `DiscoveryController` | POST /api/v1/engine/knowledge/discovery:explore<br>GET /api/v1/engine/knowledge/discovery/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DocumentParseController decision=KEEP -->
-| `DocumentParseController` | POST /api/v1/engine/knowledge/documents:parse<br>GET /api/v1/engine/knowledge/documents/parse-jobs/{jobCode}<br>GET /api/v1/engine/knowledge/documents/parse-jobs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `DocumentParseController` | POST /api/v1/engine/knowledge/documents:parse<br>GET /api/v1/engine/knowledge/documents/parse-jobs/{jobCode}<br>GET /api/v1/engine/knowledge/documents/parse-jobs<br>GET /api/v1/engine/knowledge/materials/{materialId} | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeProductionController decision=KEEP -->
 | `KnowledgeProductionController` | POST /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs/{jobCode}<br>POST /api/v1/engine/knowledge-production/jobs/{jobCode}/candidates<br>GET /api/v1/engine/knowledge-production/jobs/{jobCode}/candidates<br>POST /api/v1/engine/knowledge-production/candidates/provenance<br>GET /api/v1/engine/knowledge-production/candidates/coexistence<br>GET /api/v1/engine/knowledge-production/readiness<br>其余 9 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@LargeListController decision=MERGE -->

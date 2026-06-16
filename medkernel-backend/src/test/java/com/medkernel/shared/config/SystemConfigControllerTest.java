@@ -311,14 +311,14 @@ class SystemConfigControllerTest {
             .isEqualTo(KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT);
 
         String yearlyManagedStorageUri =
-            "s3://medkernel-platform-literature/medkernel/platform-knowledge/t-1/literature-materials/2026/";
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/2026/";
         mvc.perform(patch("/api/v1/system/configs/{key}", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY)
                 .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "value": "%s",
-                      "reason": "正式文献资料库按年度分层",
+                      "reason": "正式文献资料库按年度分层，现场使用受管本地磁盘",
                       "expectedVersion": 1,
                       "confirmedHighRisk": true
                     }

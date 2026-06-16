@@ -1,5 +1,7 @@
 package com.medkernel.shared.config;
 
+import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -74,7 +76,7 @@ public class SystemConfigService {
     public static final String DEPLOYMENT_FORM_KEY = "medkernel.deployment.form";
     public static final String DEFAULT_DEPLOYMENT_FORM = "HOSPITAL_RUNTIME";
     private static final Set<String> FORBIDDEN_KNOWLEDGE_LITERATURE_URI_SCHEMES =
-        Set.of("file", "tmp", "local", "classpath", "http");
+        Set.of("tmp", "local", "classpath", "http");
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
@@ -611,7 +613,19 @@ public class SystemConfigService {
             || usesTmp) {
             throw new ApiException(
                 ErrorCode.VALIDATION_FAILED,
-                "平台知识文献资料库根地址必须使用正式受管资料库 URI，保留 /platform-knowledge/t-1/literature-materials/ 结构，且不能指向 tmp、本机文件或非加密 HTTP");
+                "平台知识文献资料库根地址必须使用正式受管资料库 URI，保留 /platform-knowledge/t-1/literature-materials/ 结构，且不能指向 tmp、相对路径或非加密 HTTP");
+        }
+        if ("file".equals(scheme)) {
+            try {
+                Path path = Path.of(URI.create(value.trim()));
+                if (!path.isAbsolute()) {
+                    throw new IllegalArgumentException("relative");
+                }
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(
+                    ErrorCode.VALIDATION_FAILED,
+                    "本地文献资料库根地址必须使用 file:/// 开头的绝对受管路径");
+            }
         }
     }
 

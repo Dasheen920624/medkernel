@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
@@ -17,9 +19,12 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
@@ -28,6 +33,8 @@ import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.knowledge.SourceFragmentRepository;
 import com.medkernel.engine.knowledge.SourceType;
+import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -49,6 +56,24 @@ class DocumentParseIntegrationTest {
     private SourceDocumentRepository sourceDocuments;
     @Autowired
     private SourceFragmentRepository sourceFragments;
+    @Autowired
+    private SourceVersionRepository sourceVersions;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @TempDir
+    Path materialRoot;
+
+    @BeforeEach
+    void configureManagedMaterialRoot() throws IOException {
+        Path root = materialRoot.resolve("platform-knowledge/t-1/literature-materials/2026");
+        Files.createDirectories(root);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, root.toUri().toString(), SystemConfigService.KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
+    }
 
     @AfterEach
     void tearDown() {
@@ -79,6 +104,10 @@ class DocumentParseIntegrationTest {
         assertThat(job.sourceHash()).hasSize(64);
         assertThat(job.parsedSectionCount()).isEqualTo(2);
         assertThat(job.parsedFragmentCount()).isEqualTo(2);
+        String fileUri = sourceVersions.findByTenantIdAndId(TENANT, job.resultSourceVersionId())
+            .orElseThrow()
+            .fileUri();
+        assertThat(fileUri).startsWith("file:").doesNotStartWith("doc-parse:");
 
         List<SourceFragment> fragments = sourceFragments
             .findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc(TENANT, job.resultSourceVersionId());

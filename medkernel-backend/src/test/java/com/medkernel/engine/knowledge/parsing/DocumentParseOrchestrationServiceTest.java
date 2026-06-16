@@ -22,6 +22,8 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceType;
+import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
+import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -34,6 +36,7 @@ class DocumentParseOrchestrationServiceTest {
     @Mock DocParseJobRepository jobRepository;
     @Mock SourceDocumentRepository sourceDocumentRepository;
     @Mock ParsedDocumentMaterializer materializer;
+    @Mock DocumentMaterialStoragePort materialStorage;
     @Mock AuditRecorder auditRecorder;
 
     private DocumentParseOrchestrationService service;
@@ -42,7 +45,7 @@ class DocumentParseOrchestrationServiceTest {
     void setUp() {
         service = new DocumentParseOrchestrationService(
             jobRepository, sourceDocumentRepository,
-            List.of(new StructuredTextDocumentParser()), materializer, auditRecorder);
+            List.of(new StructuredTextDocumentParser()), materializer, materialStorage, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "user-001"));
         org.mockito.Mockito.lenient().when(jobRepository.save(any())).thenAnswer(i -> {
             DocParseJob j = i.getArgument(0);
@@ -74,6 +77,16 @@ class DocumentParseOrchestrationServiceTest {
     void parsesAndMaterializesToSucceeded() {
         when(sourceDocumentRepository.findByTenantIdAndId("tenant-1", 5L))
             .thenReturn(Optional.of(stubDoc()));
+        when(materialStorage.store(any())).thenReturn(new StoredDocumentMaterial(
+            12L,
+            "tenant-1",
+            "tenant-1",
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/"
+                + "0d/0d0d/g.txt",
+            "a".repeat(64),
+            "text/plain; charset=UTF-8",
+            42L,
+            "LOCAL_FILE"));
         when(materializer.materialize(any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(new MaterializationResult(99L, 1, 2));
 
@@ -83,6 +96,15 @@ class DocumentParseOrchestrationServiceTest {
         assertThat(job.resultSourceVersionId()).isEqualTo(99L);
         assertThat(job.parsedFragmentCount()).isEqualTo(2);
         assertThat(job.sourceHash()).hasSize(64);
+        verify(materializer).materialize(
+            any(), any(), any(),
+            org.mockito.ArgumentMatchers.startsWith("file:///zoesoft/medkernel/platform-knowledge"),
+            any(), any(), any());
+        verify(materialStorage).store(org.mockito.ArgumentMatchers.argThat(request ->
+            request.scopeKey().equals("tenant-1")
+                && request.fileName().equals("g.txt")
+                && request.sourceChannel().equals("DOC_PARSE")
+                && request.bytes().length > 0));
     }
 
     @Test

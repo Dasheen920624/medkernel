@@ -53,6 +53,28 @@ CREATE TABLE IF NOT EXISTS source_version (
 
 CREATE INDEX IF NOT EXISTS idx_source_version_tenant_doc ON source_version (tenant_id, source_document_id);
 
+CREATE TABLE IF NOT EXISTS mk_knowledge_material_object (
+    id              BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id       VARCHAR(64)   NOT NULL,
+    scope_key       VARCHAR(128)  NOT NULL,
+    file_uri        VARCHAR(1024) NOT NULL,
+    sha256          VARCHAR(64)   NOT NULL,
+    content_type    VARCHAR(128)  NOT NULL,
+    byte_size       BIGINT        NOT NULL,
+    storage_backend VARCHAR(32)   NOT NULL,
+    source_channel  VARCHAR(64)   NOT NULL,
+    stored_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    stored_by       VARCHAR(64)   NULL,
+    CONSTRAINT uk_mk_knowledge_material_object_scope_hash UNIQUE (tenant_id, scope_key, sha256),
+    CONSTRAINT ck_mk_knowledge_material_object_backend CHECK (storage_backend IN ('LOCAL_FILE','REMOTE_URI'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_mk_knowledge_material_object_lookup
+    ON mk_knowledge_material_object (tenant_id, scope_key, sha256);
+COMMENT ON TABLE mk_knowledge_material_object IS '知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节';
+COMMENT ON COLUMN mk_knowledge_material_object.file_uri IS '受管资料库 URI，可为现场 file、本地网关或对象存储 URI，禁止伪造临时路径';
+COMMENT ON COLUMN mk_knowledge_material_object.sha256 IS '原件字节 SHA-256 指纹，用于取回校验和重复入库幂等';
+
 CREATE TABLE IF NOT EXISTS source_fragment (
     id                  BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id           VARCHAR(64)  NOT NULL,

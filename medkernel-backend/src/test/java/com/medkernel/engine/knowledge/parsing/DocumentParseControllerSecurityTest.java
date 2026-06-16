@@ -29,6 +29,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.knowledge.material.DocumentMaterialResponse;
+import com.medkernel.engine.knowledge.material.DocumentMaterialService;
 
 /**
  * 文档解析控制器权限安全测试（AIK-STD-02）。
@@ -47,6 +49,8 @@ class DocumentParseControllerSecurityTest {
 
     @MockBean
     private DocumentParseOrchestrationService service;
+    @MockBean
+    private DocumentMaterialService materialService;
 
     @AfterEach
     void clearContext() {
@@ -133,5 +137,36 @@ class DocumentParseControllerSecurityTest {
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadMaterial() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge/materials/12"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadMaterial() throws Exception {
+        when(materialService.getMaterial(12L)).thenReturn(new DocumentMaterialResponse(
+            12L,
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/a/doc.txt",
+            "a".repeat(64),
+            "text/plain; charset=UTF-8",
+            6L,
+            "LOCAL_FILE",
+            "DOC_PARSE",
+            Instant.parse("2026-06-16T00:00:00Z"),
+            "u",
+            "5Y6f5paH"));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge/materials/12")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(12))
+            .andExpect(jsonPath("$.data.storageBackend").value("LOCAL_FILE"))
+            .andExpect(jsonPath("$.data.contentBase64").value("5Y6f5paH"));
     }
 }

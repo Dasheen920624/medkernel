@@ -12,10 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
-import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
+import com.medkernel.engine.knowledge.material.DocumentMaterialStoreRequest;
+import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -38,17 +41,20 @@ public class DocumentParseOrchestrationService {
     private final SourceDocumentRepository sourceDocumentRepository;
     private final List<DocumentParser> parsers;
     private final ParsedDocumentMaterializer materializer;
+    private final DocumentMaterialStoragePort materialStorage;
     private final AuditRecorder auditRecorder;
 
     public DocumentParseOrchestrationService(DocParseJobRepository jobRepository,
                                              SourceDocumentRepository sourceDocumentRepository,
                                              List<DocumentParser> parsers,
                                              ParsedDocumentMaterializer materializer,
+                                             DocumentMaterialStoragePort materialStorage,
                                              AuditRecorder auditRecorder) {
         this.jobRepository = jobRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
         this.parsers = parsers;
         this.materializer = materializer;
+        this.materialStorage = materialStorage;
         this.auditRecorder = auditRecorder;
     }
 
@@ -85,8 +91,18 @@ public class DocumentParseOrchestrationService {
             return fail(pending, e.getMessage(), actor);
         }
 
+        StoredDocumentMaterial material = materialStorage.store(new DocumentMaterialStoreRequest(
+            tenantId,
+            tenantId,
+            rawBytes,
+            request.fileName(),
+            contentType(request.format()),
+            sourceHash,
+            "DOC_PARSE",
+            actor));
+
         MaterializationResult result = materializer.materialize(tenantId, sourceDoc.id(),
-            request.versionNo(), "doc-parse:" + jobCode, sourceHash, parsed, actor);
+            request.versionNo(), material.fileUri(), sourceHash, parsed, actor);
 
         DocParseJob done = jobRepository.save(new DocParseJob(
             pending.id(), tenantId, jobCode, sourceDoc.id(), request.fileName(), request.format(),
@@ -139,6 +155,14 @@ public class DocumentParseOrchestrationService {
         } catch (IllegalArgumentException e) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "二进制格式 content 须为合法 Base64 编码");
         }
+    }
+
+    private static String contentType(DocumentFormat format) {
+        return switch (format) {
+            case STRUCTURED_TEXT -> "text/plain; charset=UTF-8";
+            case PDF -> "application/pdf";
+            case WORD -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        };
     }
 
     private String requireCurrentTenant() {

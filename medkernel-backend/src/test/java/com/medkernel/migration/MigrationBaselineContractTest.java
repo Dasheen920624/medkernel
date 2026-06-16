@@ -338,7 +338,7 @@ class MigrationBaselineContractTest {
 
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
-        "audit_event", "source_document", "source_version",
+        "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
@@ -428,7 +428,8 @@ class MigrationBaselineContractTest {
         "idx_audit_event_large_cursor", "idx_audit_event_large_action",
         "idx_audit_event_large_resource", "idx_audit_event_large_actor",
         "idx_source_document_tenant_type", "idx_source_document_tenant_auth",
-        "idx_source_version_tenant_doc", "idx_source_fragment_tenant_ver",
+        "idx_source_version_tenant_doc", "idx_mk_knowledge_material_object_lookup",
+        "idx_source_fragment_tenant_ver",
         "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",
         "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
         "idx_knowledge_av_effective_scope",
@@ -623,7 +624,9 @@ class MigrationBaselineContractTest {
         "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
-        "uk_source_version_doc_no", "uk_source_version_doc_hash", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
+        "uk_source_version_doc_no", "uk_source_version_doc_hash",
+        "uk_mk_knowledge_material_object_scope_hash", "ck_mk_knowledge_material_object_backend",
+        "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
         "uk_knowledge_asset_version", "uk_knowledge_asset_version_active_scope",
         "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
@@ -891,7 +894,8 @@ class MigrationBaselineContractTest {
         "ck_person_import_row_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
-        "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
+        "org_unit", "org_closure", "audit_event", "source_document", "source_version",
+        "mk_knowledge_material_object", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
@@ -1002,6 +1006,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
         Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
         Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("mk_knowledge_material_object", Set.of("stored_at", "stored_by")),
         Map.entry("mk_engine_data_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
         Map.entry("mk_term_candidate_generation_job", Set.of("requested_by", "created_at", "started_at", "completed_at")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
@@ -1033,6 +1038,7 @@ class MigrationBaselineContractTest {
         Map.entry("org_unit", Set.of("status")),
         Map.entry("audit_event", Set.of("status")),
         Map.entry("source_version", Set.of("version_no")),
+        Map.entry("mk_knowledge_material_object", Set.of("sha256", "storage_backend")),
         Map.entry("knowledge_identity", Set.of("status")),
         Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
