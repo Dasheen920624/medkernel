@@ -26,6 +26,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
@@ -52,10 +54,17 @@ class KnowledgeProductionControllerSecurityTest {
     @MockBean
     private CandidateProvenanceService provenanceService;
 
+    @MockBean
+    private CandidateGenerationOrchestrationService generationService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
     }
+
+    private static final String GENERATE_BODY =
+        "{\"sourceVersionId\":9,\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\","
+        + "\"items\":[{\"assetType\":\"RULE\",\"target\":{\"targetIdentityId\":5}}]}";
 
     private static final String JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
@@ -99,6 +108,34 @@ class KnowledgeProductionControllerSecurityTest {
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(JOB_BODY))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    void clinicalUserCannotGenerateCandidates() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotGenerateCandidates() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanGenerateCandidates() throws Exception {
+        when(generationService.generate(any())).thenReturn(new GenerationSummary(List.of(), List.of()));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
             .andExpect(status().isOk());
     }
 
