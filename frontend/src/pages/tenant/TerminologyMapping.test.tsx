@@ -305,7 +305,7 @@ function configureQuery(
   vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useRollbackPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(usePackageReleaseAdapters).mockReturnValue({
-    data: [
+    data: pageData([
       {
         adapterId: "adapter-1",
         adapterName: "院内配置同步",
@@ -316,7 +316,7 @@ function configureQuery(
         lastHeartbeatAt: "2026-06-01T00:00:00.000Z",
         connectorAvailable: true,
       },
-    ],
+    ]),
   } as never);
   vi.mocked(useStandardTerms).mockReturnValue({
     data: pageData([standardTerm]),
@@ -415,7 +415,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(usePackages).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20, assetType: "TERMINOLOGY" }),
     );
-    expect(usePackageReleaseAdapters).toHaveBeenCalledWith(true);
+    expect(usePackageReleaseAdapters).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
 
     expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
 
@@ -509,7 +509,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByRole("button", { name: "确认候选" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "构建映射包" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "发布映射包" })).toBeDisabled();
-    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith(false);
+    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith({ page: 1, size: 20 }, false);
 
     const knowledgeGovernorProfile: SecurityProfile = {
       ...profile,
@@ -533,7 +533,7 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByRole("button", { name: "确认候选" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "构建映射包" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "发布映射包" })).toBeEnabled();
-    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith(true);
+    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith({ page: 1, size: 20 }, true);
   });
 
   it("requires per-candidate second confirmation before confirming a high-risk mapping", async () => {

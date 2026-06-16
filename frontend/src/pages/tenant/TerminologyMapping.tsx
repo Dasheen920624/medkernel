@@ -359,7 +359,10 @@ export default function TerminologyMapping() {
     assetType: "TERMINOLOGY",
     keyword: packageSearch || undefined,
   });
-  const releaseAdapters = usePackageReleaseAdapters(canPublish);
+  const releaseAdapters = usePackageReleaseAdapters(
+    { page: 1, size: TERMINOLOGY_PACKAGE_REFERENCE_PAGE_SIZE },
+    canPublish,
+  );
   const confirmCandidate = useConfirmTerminologyCandidate();
   const rejectCandidate = useRejectTerminologyCandidate();
   const resolveConflict = useResolveTerminologyConflict();
@@ -454,7 +457,8 @@ export default function TerminologyMapping() {
   const canReleaseSelected =
     selectedPackage?.status === "DRAFT" || selectedPackage?.status === "PUBLISHED";
   const canRollbackSelected = selectedPackage?.status === "ACTIVE" && rollbackCandidates.length > 0;
-  const usableReleaseAdapters = (releaseAdapters.data ?? []).filter(
+  const releaseAdapterItems = releaseAdapters.data?.items ?? [];
+  const usableReleaseAdapters = releaseAdapterItems.filter(
     (adapter) =>
       adapter.status === "ACTIVE" &&
       adapter.healthStatus === "HEALTHY" &&

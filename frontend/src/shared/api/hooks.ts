@@ -945,7 +945,9 @@ function compactParams<T extends object>(params: T): Partial<T> {
 }
 
 function compactOneBasedPageParams<T extends { page?: number }>(params: T): Partial<T> {
-  return compactParams(params.page !== undefined && params.page < 1 ? { ...params, page: 1 } : params);
+  return compactParams(
+    params.page !== undefined && params.page < 1 ? { ...params, page: 1 } : params,
+  );
 }
 
 // ──────────────────────────────────────────
@@ -1273,7 +1275,10 @@ export function useDeprecateKnowledgeIdentity() {
   });
 }
 
-export function useKnowledgeCandidates(identityId?: number, params: KnowledgeCandidatesParams = {}) {
+export function useKnowledgeCandidates(
+  identityId?: number,
+  params: KnowledgeCandidatesParams = {},
+) {
   const requestParams = compactParams({
     page: params.page ?? 1,
     size: params.size ?? 20,
@@ -2716,9 +2721,7 @@ export function useUpdateTenantSystemConfig() {
   });
 }
 
-export function useDataPermissionPolicies(
-  params: DataPermissionPoliciesParams = {},
-) {
+export function useDataPermissionPolicies(params: DataPermissionPoliciesParams = {}) {
   return useQuery({
     queryKey: ["compliance", "data-permissions", params],
     queryFn: () => fetchDataPermissionPolicies(params),
@@ -3637,7 +3640,11 @@ export function useCloneAuthoringAsset() {
   });
 }
 
-export function useAuthoringBatchJobs(options?: { enabled?: boolean; page?: number; size?: number }) {
+export function useAuthoringBatchJobs(options?: {
+  enabled?: boolean;
+  page?: number;
+  size?: number;
+}) {
   const page = options?.page ?? 1;
   const size = options?.size ?? 20;
   return useQuery({
@@ -7108,7 +7115,10 @@ export interface PackageReleaseAdaptersParams {
 }
 
 // 1. 获取配置包发布可用的统一集成适配器
-export function usePackageReleaseAdapters(params: PackageReleaseAdaptersParams = {}, enabled = true) {
+export function usePackageReleaseAdapters(
+  params: PackageReleaseAdaptersParams = {},
+  enabled = true,
+) {
   return useQuery({
     queryKey: ["packages", "release-adapters", params],
     queryFn: async () => {
@@ -8714,10 +8724,9 @@ export function useIntegrationOnboardings(params: IntegrationMaintenancePagePara
   return useQuery({
     queryKey: ["integration", "onboardings", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<IntegrationOnboarding>>>(
-        "/engine/integration/onboardings",
-        { params },
-      );
+      const { data } = await apiClient.get<
+        IntegrationEnvelope<PageResponse<IntegrationOnboarding>>
+      >("/engine/integration/onboardings", { params });
       return data.data ?? emptyIntegrationPage<IntegrationOnboarding>(params);
     },
   });
@@ -8768,10 +8777,9 @@ export function useWebhooks(params: IntegrationMaintenancePageParams = {}) {
   return useQuery({
     queryKey: ["integration", "webhooks", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<IntegrationEnvelope<PageResponse<IntegrationWebhookConfig>>>(
-        "/engine/integration/webhooks",
-        { params },
-      );
+      const { data } = await apiClient.get<
+        IntegrationEnvelope<PageResponse<IntegrationWebhookConfig>>
+      >("/engine/integration/webhooks", { params });
       return data.data ?? emptyIntegrationPage<IntegrationWebhookConfig>(params);
     },
   });

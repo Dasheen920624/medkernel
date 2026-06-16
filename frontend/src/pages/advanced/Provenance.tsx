@@ -305,8 +305,9 @@ export default function Provenance() {
     const activeVersion = versionItems.find(
       (version) => version.id === provenance.currentVersionId,
     );
-    const retirement = supersessionItems
-      .find((item) => item.transitionType === "DEPRECATE" || item.transitionType === "RETIRE");
+    const retirement = supersessionItems.find(
+      (item) => item.transitionType === "DEPRECATE" || item.transitionType === "RETIRE",
+    );
     detailContent = (
       <Space direction="vertical" size="large" className={styles.fullWidth}>
         <div className={styles.detailHeader}>

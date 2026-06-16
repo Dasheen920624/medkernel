@@ -1076,12 +1076,9 @@ describe("package export api helpers", () => {
     );
 
     await waitFor(() => expect(result.current.data?.affectedAssets.items).toHaveLength(1));
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/engine/authoring/fragments/frag-renal-v1/impact",
-      {
-        params: { page: 2, size: 20, sort: "updatedAt,desc" },
-      },
-    );
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/fragments/frag-renal-v1/impact", {
+      params: { page: 2, size: 20, sort: "updatedAt,desc" },
+    });
   });
 
   it("renders rule and pathway authoring preview through the unified authoring endpoint", async () => {
@@ -3125,10 +3122,9 @@ describe("release governance api hooks", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(page);
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/engine/versioning/releases/override-templates",
-      { params: { page: 2, size: 10 } },
-    );
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/versioning/releases/override-templates", {
+      params: { page: 2, size: 10 },
+    });
   });
 
   it("uses the canonical simulation, rollout, rollback and override operation endpoints", async () => {
@@ -3579,9 +3575,7 @@ describe("knowledge review api helpers", () => {
     const candidateResponse = {
       identityId: 42,
       candidates: {
-        items: [
-          { id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" },
-        ],
+        items: [{ id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" }],
         page: 2,
         size: 10,
         total: 21,

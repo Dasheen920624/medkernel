@@ -791,19 +791,19 @@ export default function KnowledgeGovernance() {
     );
   } else {
     candidatePanel = (
-        <Table
-          rowKey="id"
-          columns={candidateColumns}
-          dataSource={candidates}
-          pagination={{
-            current: candidatePageData?.page ?? candidatePage,
-            pageSize: candidatePageData?.size ?? KNOWLEDGE_CANDIDATE_PAGE_SIZE,
-            total: candidatePageData?.total ?? 0,
-            showSizeChanger: false,
-            onChange: setCandidatePage,
-          }}
-          size="middle"
-        />
+      <Table
+        rowKey="id"
+        columns={candidateColumns}
+        dataSource={candidates}
+        pagination={{
+          current: candidatePageData?.page ?? candidatePage,
+          pageSize: candidatePageData?.size ?? KNOWLEDGE_CANDIDATE_PAGE_SIZE,
+          total: candidatePageData?.total ?? 0,
+          showSizeChanger: false,
+          onChange: setCandidatePage,
+        }}
+        size="middle"
+      />
     );
   }
 

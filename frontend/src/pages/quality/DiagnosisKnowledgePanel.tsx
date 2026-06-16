@@ -177,10 +177,7 @@ export default function DiagnosisKnowledgePanel() {
     page: versionPage,
     size: DIAGNOSIS_VERSION_PAGE_SIZE,
   });
-  const versions = useMemo(
-    () => versionsQuery.data?.items ?? [],
-    [versionsQuery.data?.items],
-  );
+  const versions = useMemo(() => versionsQuery.data?.items ?? [], [versionsQuery.data?.items]);
   const [versionId, setVersionId] = useState<number>();
   const selectedIdentity = identities.find((item) => item.id === identityId);
   const selectedVersion = versions.find((item) => item.id === versionId);

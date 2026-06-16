@@ -242,7 +242,9 @@ describe("DiagnosisKnowledgePanel", () => {
   it("requires real electronic signature evidence for a high-risk diagnosis release", async () => {
     const user = userEvent.setup();
     const publish = mutation();
-    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])));
+    hooks.useKnowledgeVersions.mockReturnValue(
+      query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])),
+    );
     hooks.useDiagnosisTestCases.mockReturnValue(
       query([
         {
@@ -309,7 +311,9 @@ describe("DiagnosisKnowledgePanel", () => {
   it("requires all platform quality gates before activating diagnosis knowledge", async () => {
     const user = userEvent.setup();
     const publish = mutation();
-    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])));
+    hooks.useKnowledgeVersions.mockReturnValue(
+      query(versionPage([{ ...editableVersion, riskLevel: "HIGH" }])),
+    );
     hooks.useDiagnosisTestCases.mockReturnValue(
       query([
         {
