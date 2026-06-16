@@ -69,6 +69,9 @@ class KnowledgeProductionControllerSecurityTest {
     @MockBean
     private KnowledgeShadowEvaluationService shadowService;
 
+    @MockBean
+    private CandidateCoexistenceService coexistenceService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -319,6 +322,30 @@ class KnowledgeProductionControllerSecurityTest {
                 .with(governor()).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"candidateRefs\":[]}"))
             .andExpect(status().isBadRequest());
+    }
+
+    // ─── AIK-STD-09/11：候选共存只读视图（knowledge.read）─────────────
+
+    @Test
+    void knowledgeReaderCanQueryCandidateCoexistence() throws Exception {
+        when(coexistenceService.resolve("kv:1:v2")).thenReturn(new CandidateCoexistenceView(
+            "kv:1:v2", 1L, null, null, null, null, null, null,
+            false, true, "APPROVE_REPLACE_ACTIVE", "审核通过后进入 SYS-08 原子替换", "候选不执行"));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/candidates/coexistence")
+                .queryParam("candidateRef", "kv:1:v2")
+                .with(governor()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.candidateExecutable").value(false))
+            .andExpect(jsonPath("$.data.approvalOutcome").value("APPROVE_REPLACE_ACTIVE"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotQueryCandidateCoexistence() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/candidates/coexistence")
+                .queryParam("candidateRef", "kv:1:v2"))
+            .andExpect(status().isForbidden());
     }
 
     // ─── AIK-STD-12 PR3：全专业资产模板目录（FR-1）────────────────

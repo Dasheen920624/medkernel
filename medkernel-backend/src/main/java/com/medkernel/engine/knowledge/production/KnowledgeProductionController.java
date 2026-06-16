@@ -47,6 +47,7 @@ public class KnowledgeProductionController {
     private final CandidateSafetyGateService gateService;
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
+    private final CandidateCoexistenceService coexistenceService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
@@ -54,7 +55,8 @@ public class KnowledgeProductionController {
                                          CandidateGenerationOrchestrationService generationService,
                                          CandidateSafetyGateService gateService,
                                          KnowledgeGenerationTriageService triageService,
-                                         KnowledgeShadowEvaluationService shadowService) {
+                                         KnowledgeShadowEvaluationService shadowService,
+                                         CandidateCoexistenceService coexistenceService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
@@ -62,6 +64,7 @@ public class KnowledgeProductionController {
         this.gateService = gateService;
         this.triageService = triageService;
         this.shadowService = shadowService;
+        this.coexistenceService = coexistenceService;
     }
 
     @PostMapping("/jobs")
@@ -104,6 +107,13 @@ public class KnowledgeProductionController {
     public ApiResult<List<CandidateProvenanceView>> candidateProvenance(
             @Valid @RequestBody CandidateProvenanceRequest request) {
         return ApiResult.ok(provenanceService.resolve(request.candidateRefs()));
+    }
+
+    /** 候选共存视图（AIK-STD-09/11）：待审候选不执行，现行 ACTIVE 仍是唯一执行版本。 */
+    @GetMapping("/candidates/coexistence")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<CandidateCoexistenceView> candidateCoexistence(@RequestParam String candidateRef) {
+        return ApiResult.ok(coexistenceService.resolve(candidateRef));
     }
 
     /** 完成 job（FR-1）。 */

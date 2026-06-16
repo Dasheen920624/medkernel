@@ -14,13 +14,20 @@
 ## 目标
 新版审过后**原子替换旧版 + 旧版失效 + 受影响病例/路径处置**：复用既有替换框架，AI 生成侧接入、不另起。
 
-## 现状（核查 2026-05-31，不深调研）
+## 现状（核查 2026-06-16）
 承载＝D2 [SYS-08](../D2/SYS-08.md) 权威原子替换 + D3 [MED-C3](../D3/MED-C3.md) 安全撤回与旧版下游隔离已建。本卡＝**AI 生成资产接入替换链**。
 
+2026-06-16 本地进展（`codex/wave2-knowledge-model-readiness`）：AIK-STD-13 物化候选已真实进入
+`KnowledgeAssetVersion(PENDING_REPLACEMENT_REVIEW)` + `CandidateClassification`；`KnowledgeVersionService.reviewCandidate(APPROVE)`
+已委派 `activate(...)` 走 SYS-08 原子替换。新增 `CandidateCoexistenceService` 与
+`GET /api/v1/engine/knowledge-production/candidates/coexistence?candidateRef=...`，按生产候选引用返回现行
+`ACTIVE`、待审候选、分类差异、生产血缘与 `APPROVE_REPLACE_ACTIVE` 替换提醒。尚未新增 AI 专属影响任务表；
+受影响病例/路径处置继续复用 SYS-08/MED-C3，后续需补 AI 候选端到端影响证据和前端展示。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 原子替换：审过新版接 [SYS-08](../D2/SYS-08.md) 原子替换旧版（唯一有效约束）。
-- [ ] FR-2 旧版失效：旧版隔离不再执行（接 [MED-C3](../D3/MED-C3.md)）。
-- [ ] FR-3 影响处置：受影响患者/路径自动生成复核任务。
+- [x] FR-1 原子替换：审过新版接 [SYS-08](../D2/SYS-08.md) 原子替换旧版（唯一有效约束）。AI 生产候选物化后走同一 `reviewCandidate(APPROVE) → activate(...)` 主链路。
+- [x] FR-2 旧版失效：旧版隔离不再执行（接 [MED-C3](../D3/MED-C3.md)）。候选共存视图明确审核前仍由现行 `ACTIVE` 执行，审过后旧版按 SYS-08 退出新临床决策。
+- [ ] FR-3 影响处置：受影响患者/路径自动生成复核任务。SYS-08 已有机制；AI 候选端到端影响证据待补。
 - [ ] FR-4 可回滚：替换可回滚到旧版。
 - [ ] FR-5 紧急失效：召回/禁忌升级可紧急停用旧版。
 
@@ -35,7 +42,7 @@
 - 本卡落点：AI 资产接原子替换 + 旧版隔离 + 影响处置 + 可回滚/紧急失效。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：原子替换 + 旧版隔离。
+- [x] AC-1（FR-1/2）：原子替换 + 旧版隔离。证据：`KnowledgeVersionServiceTest.approveCandidateDelegatesToAtomicActivationFlow` + `CandidateCoexistenceServiceTest.pendingCandidateShowsActiveVersionAndBlocksCandidateExecution`。
 - [ ] AC-2（FR-3~5）：影响复核任务 + 回滚 + 紧急失效。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★替换链不依赖模型（确定性）。
