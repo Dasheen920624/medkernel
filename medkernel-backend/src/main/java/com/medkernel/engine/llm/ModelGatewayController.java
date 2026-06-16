@@ -106,6 +106,18 @@ public class ModelGatewayController {
     }
 
     /**
+     * 按 task_id 重放 B0 确定性模型任务，复现原任务保存的输入摘要与版本三元组。
+     *
+     * @param id 原任务唯一 ID
+     * @return 新重放任务处理结果
+     */
+    @PostMapping("/tasks/{id}/replay")
+    @PreAuthorize("@perm.has('llm.execute')")
+    public ApiResult<ModelTaskResponse> replayTask(@PathVariable String id) {
+        return ApiResult.ok(service.replayTask(id));
+    }
+
+    /**
      * 发布路由及脱敏策略前的合法性逻辑校验，确保路由降级通道畅通。
      *
      * @param request 策略配置检验请求参数

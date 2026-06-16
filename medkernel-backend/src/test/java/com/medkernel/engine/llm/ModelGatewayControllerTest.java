@@ -205,6 +205,42 @@ class ModelGatewayControllerTest {
     }
 
     @Test
+    void replayTask_ReturnsB0ReproductionWithStoredTriple() throws Exception {
+        ModelTaskResponse response = new ModelTaskResponse(
+            "task-replay-123456",
+            "REPLAYED",
+            "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"knowledge.extract\",\"candidates\":[]}",
+            "B0",
+            "B0-Deterministic-Baseline",
+            "prompt:extract-v1",
+            "tool:extract-schema-v1",
+            "[]",
+            null,
+            "LOW",
+            true,
+            "[LLM-04_REPLAY_FROM=task-123456] B0 deterministic replay",
+            3L,
+            "trace-123"
+        );
+        when(service.replayTask(eq("task-123456"))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/model-capabilities/tasks/task-123456/replay")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.taskId").value("task-replay-123456"))
+            .andExpect(jsonPath("$.data.status").value("REPLAYED"))
+            .andExpect(jsonPath("$.data.modelMode").value("B0"))
+            .andExpect(jsonPath("$.data.promptVersion").value("prompt:extract-v1"))
+            .andExpect(jsonPath("$.data.toolVersion").value("tool:extract-schema-v1"));
+
+        verify(service).replayTask(eq("task-123456"));
+    }
+
+    @Test
     void validatePolicy_ReturnsOkWithResponse() throws Exception {
         ModelPolicyValidateResponse response = new ModelPolicyValidateResponse(true, "验证通过", true);
         when(service.validatePolicy(any(ModelPolicyValidateRequest.class))).thenReturn(response);

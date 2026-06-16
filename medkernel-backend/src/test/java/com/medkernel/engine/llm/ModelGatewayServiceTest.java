@@ -452,6 +452,89 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void replayTask_usesStoredB0InputSummaryAndVersionTripleWithoutActiveVersionDrift() {
+        String originalOutput = b0Output("knowledge.extract");
+        when(taskRepo.findByTaskId("task-original")).thenReturn(Optional.of(new ModelCapabilityTask(
+            31L,
+            "task-original",
+            "tenant-1",
+            "knowledge.extract",
+            "original-input-hash",
+            "已脱敏输入摘要",
+            originalOutput,
+            "B0",
+            "B0-Deterministic-Baseline",
+            "prompt:extract-v1",
+            "tool:extract-schema-v1",
+            "[]",
+            null,
+            "LOW",
+            true,
+            "[LLM-02:POLICY_BASELINE] B0 -> B0：策略显式指定 B0 基线",
+            12L,
+            "DEGRADED",
+            "trace-original",
+            Instant.parse("2026-06-16T01:00:00Z"),
+            "ops",
+            Instant.parse("2026-06-16T01:00:00Z"),
+            "ops")));
+        when(taskRepo.save(any(ModelCapabilityTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ModelTaskResponse replay = service.replayTask("task-original");
+
+        assertEquals("REPLAYED", replay.status());
+        assertEquals(originalOutput, replay.outputContent());
+        assertEquals("B0", replay.modelMode());
+        assertEquals("B0-Deterministic-Baseline", replay.modelVersion());
+        assertEquals("prompt:extract-v1", replay.promptVersion());
+        assertEquals("tool:extract-schema-v1", replay.toolVersion());
+        assertTrue(replay.fallbackReason().contains("LLM-04_REPLAY_FROM=task-original"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(versionBundleRepository, never())
+            .findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(anyString(), anyString(), anyString());
+        verify(taskRepo).save(argThat(task ->
+            "已脱敏输入摘要".equals(task.inputSummary())
+                && "prompt:extract-v1".equals(task.promptVersion())
+                && "tool:extract-schema-v1".equals(task.toolVersion())
+                && "B0-Deterministic-Baseline".equals(task.modelVersion())
+                && task.fallbackReason().contains("LLM-04_REPLAY_FROM=task-original")));
+    }
+
+    @Test
+    void replayTask_rejectsProviderTaskInsteadOfPretendingDeterministicReproduction() {
+        when(taskRepo.findByTaskId("task-provider")).thenReturn(Optional.of(new ModelCapabilityTask(
+            32L,
+            "task-provider",
+            "tenant-1",
+            "knowledge.extract",
+            "hash",
+            "已脱敏输入摘要",
+            "{\"entity\":\"高血压\"}",
+            "B2",
+            "claude-opus-4",
+            "prompt:extract-v2",
+            "tool:extract-schema-v2",
+            "[]",
+            0.92,
+            "LOW",
+            false,
+            null,
+            120L,
+            "SUCCEEDED",
+            "trace-provider",
+            Instant.parse("2026-06-16T01:00:00Z"),
+            "ops",
+            Instant.parse("2026-06-16T01:00:00Z"),
+            "ops")));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.replayTask("task-provider"));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.errorCode());
+        assertTrue(ex.getMessage().contains("仅支持 B0"));
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+    }
+
+    @Test
     void submitTask_withHealthyExternalProvider_passesEgressThenProducesRealB2Output() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -574,5 +657,10 @@ class ModelGatewayServiceTest {
             "tool:extract-schema-v3", "t-hash",
             "model:qwen2.5:7b", "m-hash",
             "ACTIVE", now, null, now, "ops", now, "ops");
+    }
+
+    private static String b0Output(String capabilityCode) {
+        return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
+            + "\",\"candidates\":[],\"message\":\"当前未接入可用模型 provider，未生成候选内容\"}";
     }
 }

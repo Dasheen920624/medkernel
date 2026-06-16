@@ -15,7 +15,7 @@ public class ModelFallbackMatrix {
         ModelFallbackTrigger actualTrigger = trigger == null ? ModelFallbackTrigger.PROVIDER_ERROR : trigger;
         String sourceMode = sourceMode(strategy);
         String fallbackMode = "B0";
-        boolean fallbackUsed = !"B0".equals(sourceMode) || actualTrigger != ModelFallbackTrigger.POLICY_BASELINE;
+        boolean fallbackUsed = !"B0".equals(sourceMode);
         String reason = "[LLM-02:" + actualTrigger.name() + "] " + sourceMode + " -> "
             + fallbackMode + "：" + actualTrigger.message();
         if (detail != null && !detail.isBlank()) {

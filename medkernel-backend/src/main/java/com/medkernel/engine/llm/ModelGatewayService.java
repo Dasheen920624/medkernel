@@ -411,6 +411,88 @@ public class ModelGatewayService {
     }
 
     /**
+     * 按任务 ID 做审计重放复现。
+     *
+     * <p>LLM-04 的可复现重放只对 B0 确定性任务成立；B1/B2 provider 结果受外部模型状态影响，
+     * 不能伪装为可逐字复现，必须由真实评测/审计链另行举证。
+     *
+     * @param taskId 原任务 ID
+     * @return 新重放任务响应
+     */
+    @Transactional
+    public ModelTaskResponse replayTask(String taskId) {
+        String tenantId = requireCurrentTenant();
+        String actor = RequestContext.currentUserId().orElse("system");
+        String traceId = RequestContext.currentTraceId();
+        ModelCapabilityTask task = taskRepo.findByTaskId(taskId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_004, "任务不存在"));
+
+        if (!tenantId.equals(task.tenantId())) {
+            throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "无权访问此任务");
+        }
+        if (!"B0".equalsIgnoreCase(task.modelMode())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "仅支持 B0 确定性任务按 task_id 重放复现");
+        }
+
+        String promptVersion = requireReplayVersion(task.promptVersion(), "prompt_version");
+        String toolVersion = requireReplayVersion(task.toolVersion(), "tool_version");
+        String modelVersion = requireReplayVersion(task.modelVersion(), "model_version");
+        long startTime = System.currentTimeMillis();
+        String replayTaskId = "task-replay-" + UUID.randomUUID().toString().replace("-", "");
+        String outputContent = executeB0Fallback(task.capabilityCode());
+        long timeCost = System.currentTimeMillis() - startTime;
+        String fallbackReason = (task.fallbackReason() == null || task.fallbackReason().isBlank())
+            ? "[LLM-04_REPLAY_FROM=" + task.taskId() + "] B0 deterministic replay"
+            : task.fallbackReason() + "；[LLM-04_REPLAY_FROM=" + task.taskId() + "] B0 deterministic replay";
+
+        ModelCapabilityTask replay = new ModelCapabilityTask(
+            null,
+            replayTaskId,
+            tenantId,
+            task.capabilityCode(),
+            task.inputHash(),
+            task.inputSummary(),
+            outputContent,
+            "B0",
+            modelVersion,
+            promptVersion,
+            toolVersion,
+            task.sourceCitations() == null ? "[]" : task.sourceCitations(),
+            null,
+            task.riskLevel(),
+            true,
+            fallbackReason,
+            timeCost,
+            "REPLAYED",
+            traceId,
+            Instant.now(),
+            actor,
+            Instant.now(),
+            actor
+        );
+        taskRepo.save(replay);
+        auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", replayTaskId,
+            "按 task_id 重放模型版本三元组 " + task.taskId());
+
+        return new ModelTaskResponse(
+            replayTaskId,
+            "REPLAYED",
+            outputContent,
+            "B0",
+            modelVersion,
+            promptVersion,
+            toolVersion,
+            task.sourceCitations() == null ? "[]" : task.sourceCitations(),
+            null,
+            task.riskLevel(),
+            true,
+            fallbackReason,
+            timeCost,
+            traceId
+        );
+    }
+
+    /**
      * 发布路由及脱敏策略前的边界合法性校验，验证是否具备合法的 B0 验收通道。
      *
      * @param req 策略发布前校验参数
@@ -518,6 +600,13 @@ public class ModelGatewayService {
 
     private static String normalizeOptional(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String requireReplayVersion(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "原任务缺少 " + fieldName + "，不能重放复现");
+        }
+        return value.trim();
     }
 
     private String computeSha256(String data) {

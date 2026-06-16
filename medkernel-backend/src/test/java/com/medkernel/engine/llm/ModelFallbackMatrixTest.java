@@ -2,7 +2,12 @@ package com.medkernel.engine.llm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * LLM-02 降级矩阵测试。
@@ -48,5 +53,47 @@ class ModelFallbackMatrixTest {
         assertThat(decision.fallbackMode()).isEqualTo("B0");
         assertThat(decision.reason()).contains("POLICY_BASELINE");
         assertThat(decision.retryable()).isFalse();
+    }
+
+    @ParameterizedTest(name = "{0} + {1} -> B0")
+    @MethodSource("runtimeMatrix")
+    void fourRuntimeTriggersByThreeModelLevelsHaveAuditableB0Outcome(
+            String routeStrategy,
+            String expectedSourceMode,
+            ModelFallbackTrigger trigger,
+            boolean expectedRetryable) {
+        ModelFallbackDecision decision = matrix.decide(routeStrategy, trigger, "matrix-proof");
+
+        assertThat(decision.routeStrategy()).isEqualTo(routeStrategy);
+        assertThat(decision.sourceMode()).isEqualTo(expectedSourceMode);
+        assertThat(decision.fallbackMode()).isEqualTo("B0");
+        assertThat(decision.reason())
+            .contains("LLM-02")
+            .contains(trigger.name())
+            .contains(expectedSourceMode + " -> B0")
+            .contains("matrix-proof");
+        assertThat(decision.retryable()).isEqualTo(expectedRetryable);
+        if ("B0".equals(expectedSourceMode)) {
+            assertThat(decision.fallbackUsed()).isFalse();
+        } else {
+            assertThat(decision.fallbackUsed()).isTrue();
+        }
+    }
+
+    private static Stream<Arguments> runtimeMatrix() {
+        return Stream.of(
+            row("BASELINE", "B0"),
+            row("LOCAL_MODEL", "B1"),
+            row("EXTERNAL_MODEL", "B2")
+        ).flatMap(stream -> stream);
+    }
+
+    private static Stream<Arguments> row(String routeStrategy, String expectedSourceMode) {
+        return Stream.of(
+            Arguments.of(routeStrategy, expectedSourceMode, ModelFallbackTrigger.PROVIDER_TIMEOUT, true),
+            Arguments.of(routeStrategy, expectedSourceMode, ModelFallbackTrigger.PROVIDER_RATE_LIMITED, true),
+            Arguments.of(routeStrategy, expectedSourceMode, ModelFallbackTrigger.STRUCTURED_OUTPUT_FAILED, false),
+            Arguments.of(routeStrategy, expectedSourceMode, ModelFallbackTrigger.PROVIDER_DISCONNECTED, true)
+        );
     }
 }

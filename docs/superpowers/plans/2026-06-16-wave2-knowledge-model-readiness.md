@@ -53,6 +53,7 @@
    - 新增 `ModelKnowledgeProducer`，只经 `ModelGatewayService` 调用模型。
    - 输出必须先转 `KnowledgeAssetEnvelope`，带来源锚点、内容 hash、AI 标识、版本三元组、模型模式；然后走同一门禁/评测/去重/审核链。
    - readiness 未通过、provider 失败或 schema 不合格时，诚实阻断或降级，不产伪候选。
+   - 功能验收必须覆盖：配置受控文献根、健康 provider、PASSED 回归评测、出域白名单、能力策略、prompt/tool/model 三元组和 P6 独立验收开关后，模型生产器能启动并生成**候选知识**进入统一生产链；缺任一项必须返回结构化阻断原因。
 
 8. **AIK-STD-14：Agent 受控回写协议**
    - 复用 DATASVC MCP/CLI 底座，新增受控回写工具 `submitProductionCandidate`。
@@ -99,12 +100,13 @@
 - [x] Task 14: 实现 readiness 服务与只读端点。
 - [x] Task 15a: 补 LLM-02 降级矩阵与网关结构化失败/限流等稳定归因测试。
 - [x] Task 15b: 补 LLM-04 prompt/tool/model 版本包、任务三元组绑定、回滚和导出。
-- [ ] Task 15c: 补 LLM-04 按 task_id 的三元组重放复现与完整 4×3 矩阵验收，本地提交。
+- [x] Task 15c: 补 LLM-04 按 task_id 的三元组重放复现与完整 4×3 矩阵验收，本地提交。
 
 ### Chunk 6: 模型/Agent 生产器
 
 - [ ] Task 16: 写 `ModelKnowledgeProducer` 测试：readiness 阻断、provider 成功、schema 失败、出域阻断、B0 降级。
 - [ ] Task 17: 实现模型生产器并接 AIK-STD-13 FR2，输出同一候选信封。
+- [ ] Task 17a: 补功能验收：配置齐全后模型生产器能启动 AI 候选生产；缺模型、缺文献根、缺评测、缺白名单、缺三元组、缺 P6 验收时分别结构化阻断。
 - [ ] Task 18: 写 Agent 回写工具测试：患者数据禁触、锚点必填、幂等、审计。
 - [ ] Task 19: 实现 AIK-STD-14 受控回写协议与 MCP/CLI 接线，本地提交。
 

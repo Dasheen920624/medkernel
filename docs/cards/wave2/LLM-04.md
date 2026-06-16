@@ -20,12 +20,13 @@
 ## 最新进度（2026-06-16 readiness 前置闸）
 - 知识生产 readiness 已要求模型生产任务传入 `modelStrategy`，并至少声明 `prompt`、`tool`、`model` 三元组；若指定 provider，三元组中的模型版本必须与 provider 当前 `modelVersion` 一致。
 - 已新增 `mk_llm_model_version_bundle` V139 五方言版本包表与 `tool_version` 任务列；`ModelVersionGovernanceService/Controller` 支持版本包发布、active 查询、回滚、导出，导出只含版本号与 hash，不泄露提示词正文/工具契约明文；`ModelGatewayService` 在 provider 成功任务上记录 ACTIVE 版本包的 prompt/tool 版本与 provider 返回的真实 modelVersion。
-- 仍未完成：按 `task_id` 取当时输入和三元组执行可复现重放；版本仓尚未接 SYS-04 发布计划 UI。
+- 已新增 `POST /api/v1/model-capabilities/tasks/{id}/replay`：按 `task_id` 取原任务保存的脱敏输入摘要与 prompt/tool/model 三元组执行 B0 确定性重放，生成 `REPLAYED` 任务并审计；B1/B2 provider 任务拒绝伪装成可逐字复现。
+- 仍未完成：版本仓尚未接 SYS-04 发布计划 UI。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 版本仓：prompt/tool/model 各有版本记录（内容 hash + 生效区间）。
 - [x] FR-2 任务绑定：每任务记真实 prompt+tool+model 版本三元组。
-- [ ] FR-3 重放：按 task_id 取当时三元组 + 输入可复现产出（B0 下确定性）。
+- [x] FR-3 重放：按 task_id 取当时三元组 + 输入可复现产出（B0 下确定性）。
 - [x] FR-4 回滚：可将能力码切回历史版本三元组。
 - [x] FR-5 导出：版本与审计可导出（[EVID-01](../D5/EVID-01.md)）。
 
@@ -55,8 +56,8 @@
 - 本卡落点：prompt/tool/model 版本可重放可回滚可导出，任务绑定真实三元组。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：版本发布 + 任务绑定 + 重放复现。
-- [ ] AC-2（FR-4/5）：回滚 + 导出可举证。
+- [x] AC-1（FR-1~3）：版本发布 + 任务绑定 + 重放复现。
+- [x] AC-2（FR-4/5）：回滚 + 导出可举证。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★无模型时版本治理不阻断 B0 主链路。
 
