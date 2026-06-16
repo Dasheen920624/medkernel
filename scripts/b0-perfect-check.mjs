@@ -379,6 +379,20 @@ function lineOf(content, pattern) {
   return content.slice(0, index).split(/\r?\n/).length;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasSnippet(content, snippet) {
+  if (content.includes(snippet)) return true;
+  const compact = (value) => value.replace(/\s+/g, "").replace(/,\)/g, ")");
+  if (compact(content).includes(compact(snippet))) {
+    return true;
+  }
+  const pattern = snippet.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
+  return new RegExp(pattern).test(content);
+}
+
 function pushMissing(violations, file, content, needle, ruleId, message) {
   if (!content.includes(needle)) {
     violations.push({ file, line: 1, ruleId, message });
@@ -1319,7 +1333,7 @@ export async function scanRepository(root = process.cwd()) {
       "loads diagnosis versions through server pagination",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -1384,7 +1398,7 @@ export async function scanRepository(root = process.cwd()) {
       "classifyCandidateUsesPointLookupsInsteadOfLoadingAllIdentityVersions",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -1497,7 +1511,7 @@ export async function scanRepository(root = process.cwd()) {
       "$.data.candidates.items[0].id",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -1691,7 +1705,7 @@ export async function scanRepository(root = process.cwd()) {
       "mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 })",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -1848,7 +1862,7 @@ export async function scanRepository(root = process.cwd()) {
       "countByTenantIdAndStrategyAndStatus",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -1966,7 +1980,7 @@ export async function scanRepository(root = process.cwd()) {
       "adapterRepository.countByTenantIdAndStatus",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2068,7 +2082,7 @@ export async function scanRepository(root = process.cwd()) {
       "$.data.items[0].reviewId",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2217,7 +2231,7 @@ export async function scanRepository(root = process.cwd()) {
       "expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true)",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2325,7 +2339,7 @@ export async function scanRepository(root = process.cwd()) {
       "jsonPath(\"$.data.items\").isArray()",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2395,7 +2409,7 @@ export async function scanRepository(root = process.cwd()) {
       "oversizedProvenanceRefsRejectedBeforeService",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2462,7 +2476,7 @@ export async function scanRepository(root = process.cwd()) {
       "$.data.items[0].jobCode",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2557,7 +2571,7 @@ export async function scanRepository(root = process.cwd()) {
       "$.data.items[0].jobCode",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2658,7 +2672,7 @@ export async function scanRepository(root = process.cwd()) {
       "$.data.items[0].jobCode",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2708,7 +2722,7 @@ export async function scanRepository(root = process.cwd()) {
       "pagesEffectiveTenantIdentitiesWithoutMaterializingTenantAndPlatformSnapshots",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2746,7 +2760,7 @@ export async function scanRepository(root = process.cwd()) {
       "pagesEffectiveRulesWithoutMaterializingTenantAndPlatformSnapshots",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -2792,7 +2806,7 @@ export async function scanRepository(root = process.cwd()) {
       "pagesEffectiveTemplatesWithoutMaterializingTenantAndPlatformSnapshots",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -3125,7 +3139,7 @@ export async function scanRepository(root = process.cwd()) {
       "useIdentityBindings({ page: bindingPage, size: IDENTITY_BINDING_PAGE_SIZE })",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -3217,7 +3231,7 @@ export async function scanRepository(root = process.cwd()) {
       'resourceType: "AUDIT_EVENT", page: 1, size: 20',
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -3401,7 +3415,7 @@ export async function scanRepository(root = process.cwd()) {
       "expect(useMaskingRules).toHaveBeenCalledWith({ page: 1, size: 20 })",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -3705,7 +3719,7 @@ export async function scanRepository(root = process.cwd()) {
       "loads batch job records through server pagination",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -3818,7 +3832,7 @@ export async function scanRepository(root = process.cwd()) {
       "PageResponse<IntegrationAdapter> page = service.getAdapters",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4001,7 +4015,7 @@ export async function scanRepository(root = process.cwd()) {
       "adapterHubMaintenanceListsReturnPagedContractsForTenantOperators",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4120,7 +4134,7 @@ export async function scanRepository(root = process.cwd()) {
       "listsOverrideTemplatesAsPagedTenantScopedContract",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4298,7 +4312,7 @@ export async function scanRepository(root = process.cwd()) {
       "loads package sync evidence logs through server pagination",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4415,7 +4429,7 @@ export async function scanRepository(root = process.cwd()) {
       "loads package release adapters through server pagination",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4751,7 +4765,7 @@ export async function scanRepository(root = process.cwd()) {
       "fragmentImpactPrefilterQueriesExecuteThroughRepositoryPagination",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -4853,7 +4867,7 @@ export async function scanRepository(root = process.cwd()) {
       "expect.objectContaining({ page: 1, size: 10, status: \"OPEN\" })",
     ],
   ]) {
-    if (!content.includes(snippet)) {
+    if (!hasSnippet(content, snippet)) {
       violations.push({
         file,
         line: 1,
@@ -5367,7 +5381,7 @@ export async function scanRepository(root = process.cwd()) {
       "idx_mk_term_candidate_generation_job_tenant",
       "idx_mapping_candidate_generation_job",
     ]) {
-      if (!content.includes(snippet)) {
+      if (!hasSnippet(content, snippet)) {
         violations.push({
           file,
           line: 1,

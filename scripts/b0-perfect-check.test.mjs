@@ -3257,6 +3257,35 @@ test("B0 门禁通过当前完美化整改所需的最小文档和路由约束",
   assert.deepEqual(report.violations, []);
 });
 
+test("B0 门禁识别 Prettier 多行分页 hook 签名", async () => {
+  const root = await fixtureRoot({
+    "frontend/src/shared/api/hooks.ts": apiHooksContent()
+      .replace(
+        "function useKnowledgeCandidates(identityId?: number, params: KnowledgeCandidatesParams = {}) {",
+        [
+          "function useKnowledgeCandidates(",
+          "  identityId?: number,",
+          "  params: KnowledgeCandidatesParams = {},",
+          ") {",
+        ].join("\n"),
+      )
+      .replace(
+        "function usePackageReleaseAdapters(params: PackageReleaseAdaptersParams = {}, enabled = true) {",
+        [
+          "function usePackageReleaseAdapters(",
+          "  params: PackageReleaseAdaptersParams = {},",
+          "  enabled = true,",
+          ") {",
+        ].join("\n"),
+      ),
+  });
+
+  const report = await scanRepository(root);
+
+  assert.equal(hasBlockingViolations(report), false);
+  assert.deepEqual(report.violations, []);
+});
+
 test("B0 门禁阻断未评审沙盘场景提前开放", async () => {
   const root = await fixtureRoot({
     "scripts/sandbox/scenario-rules.json": sandboxManifest({

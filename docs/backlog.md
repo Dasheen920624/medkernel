@@ -287,6 +287,8 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 >
 > 🗂️ wave2 **分 4 子块 + 接入底座、多 PR 增量交付**（[wave2 域简报](cards/wave2/_brief.md) + [卡索引](cards/_index.md)）：**wave2 全 68 卡已建**（X-LLM 11 + X-AIK 14 + X-KNOWGEN 25 + X-DOMAIN 17 + DATASVC 1）。已建卡 ID = 卡名（`cards/wave2/<ID>.md`），合同级功能/契约/11 视角/验收以卡为准；下表「状态」仍以**实际实现**为准（建卡 ≠ 任务 done）。
 
+> **整体上线主计划 Phase 对照（2026-06-16 #634）**：执行详见 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。状态列不因归属 Phase 改动而提前 done。Phase 1 = 原件资料库存储（AIK-STD-02/LLM-06/AIK-STD-04 的物理进料地基）；Phase 2 = 上线就绪地基（LLM-01/02/04/07/08/API-12 与配置/readiness）；Phase 3 = AI 工厂收尾（AIK-STD-03/05/06/07/08/09/10/11/12/13/14、DATASVC-01、OPT-06/09 中剩余工程项）；Phase 4 = 自主公域获取（LLM-06 扩展 + AIK-STD-14 Agent 取数 + 公域获取新能力）；Phase 5 = 模型增强真实化（LLM-01/02/04/08/API-12/OPT-06/09 + AIK-STD-13 模型生产器）；Phase 6 = 院内覆盖管道（AIK-STD-13/14 + DATASVC-01 院内/本地模型/加密边界）；Phase 7 = X-DOMAIN 17 卡 + KNOWGEN 需代码支撑的资产类型专用能力；Phase 8 = 前端体验完美化；Phase 9 = 134 生产中心上线；Phase 10 = KNOWGEN-01~25 首发知识真产出；Phase 11 = GA 总验收与试点医院上线。
+
 ### 模型网关与真实接入（X-LLM + API-12 + OPT-06/09）🗂️ 11 卡已建（批 1）
 
 | ID | 任务 | 工作量 | 状态 |
