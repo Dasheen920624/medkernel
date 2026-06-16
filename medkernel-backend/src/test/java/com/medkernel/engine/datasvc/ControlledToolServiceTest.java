@@ -32,6 +32,8 @@ import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.hash.Sha256ContentHash;
 import org.junit.jupiter.api.AfterEach;
@@ -202,7 +204,8 @@ class ControlledToolServiceTest {
     @Test
     void execute_submitProductionCandidate_submitsViaProductionServiceAndAuditsOutputHash() {
         when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
-        when(productionService.listCandidates("job-agent")).thenReturn(List.of());
+        when(productionService.listCandidates(eq("job-agent"), anyInt(), anyInt()))
+            .thenReturn(PageResponse.empty(PageRequest.defaults()));
         when(productionService.submitCandidate(eq("job-agent"), any(), any())).thenReturn(
             new CandidateSubmissionResponse("candidate:agent:1",
                 new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
@@ -225,16 +228,17 @@ class ControlledToolServiceTest {
     void execute_submitProductionCandidate_isIdempotentWhenContentHashAlreadySubmitted() {
         when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
         CandidateSubmissionRequest submission = validSubmission();
-        when(productionService.listCandidates("job-agent")).thenReturn(List.of(new ProductionCandidateView(
-            "job-agent",
-            submission.candidate().assetIdentity(),
-            submission.candidate().contentHash(),
-            "candidate:existing",
-            KnowledgeRiskLevel.MEDIUM,
-            Instant.parse("2026-06-14T00:00:00Z"),
-            "agent",
-            new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
-                false, KnowledgeDomain.CLINICAL))));
+        when(productionService.listCandidates(eq("job-agent"), anyInt(), anyInt()))
+            .thenReturn(PageResponse.of(List.of(new ProductionCandidateView(
+                "job-agent",
+                submission.candidate().assetIdentity(),
+                submission.candidate().contentHash(),
+                "candidate:existing",
+                KnowledgeRiskLevel.MEDIUM,
+                Instant.parse("2026-06-14T00:00:00Z"),
+                "agent",
+                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
+                    false, KnowledgeDomain.CLINICAL))), PageRequest.defaults(), 1L));
 
         ToolExecutionEnvelope envelope =
             service.execute("submitProductionCandidate", agentReq(agentPayload(submission)));

@@ -18,6 +18,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -117,6 +119,23 @@ class KnowledgeExportServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void listRecentReturnsTenantScopedPageInsteadOfTop100Snapshot() {
+        KnowledgeExportJob row = job("job-page-2", ExportStatus.SUCCEEDED);
+        when(jobRepo.countByTenantId("t-1")).thenReturn(21L);
+        when(jobRepo.pageByTenantId("t-1", 20, 20)).thenReturn(List.of(row));
+
+        PageResponse<KnowledgeExportJob> page = service.listRecent(new PageRequest(2, 20, null));
+
+        assertThat(page.items()).containsExactly(row);
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(21L);
+        assertThat(page.hasNext()).isFalse();
+        Mockito.verify(jobRepo).countByTenantId("t-1");
+        Mockito.verify(jobRepo).pageByTenantId("t-1", 20, 20);
     }
 
     @Test

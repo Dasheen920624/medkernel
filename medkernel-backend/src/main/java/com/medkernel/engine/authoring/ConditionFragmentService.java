@@ -180,22 +180,43 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
      */
     @Transactional(readOnly = true)
     public ConditionFragmentImpactResponse impact(String fragmentId) {
+        return impact(fragmentId, PageRequest.defaults());
+    }
+
+    /**
+     * 分页返回片段变更影响分析。
+     */
+    @Transactional(readOnly = true)
+    public ConditionFragmentImpactResponse impact(String fragmentId, PageRequest pageRequest) {
         String tenantId = requireCurrentTenant();
         ConditionFragment fragment = findFragment(fragmentId, tenantId);
+        PageRequest safePage = pageRequest == null ? PageRequest.defaults() : pageRequest;
         FragmentKey key = new FragmentKey(fragment.fragmentCode(), fragment.versionNo(), fragment.packageVersion());
+        String fragmentPattern = fragmentPattern(fragment.fragmentCode());
         List<ConditionFragmentAffectedAsset> affected = new ArrayList<>();
-        appendRuleImpacts(tenantId, key, affected);
-        appendPathwayImpacts(tenantId, key, affected);
-        affected.sort(Comparator
+        int sourceLimit = safePage.offset() + safePage.safeSize();
+        appendRuleImpacts(tenantId, key, fragmentPattern, sourceLimit, affected);
+        appendPathwayImpacts(tenantId, key, fragmentPattern, sourceLimit, affected);
+        List<ConditionFragmentAffectedAsset> sorted = affected.stream()
+            .sorted(Comparator
             .comparingInt((ConditionFragmentAffectedAsset asset) -> assetTypeOrder(asset.assetType()))
-            .thenComparing(ConditionFragmentAffectedAsset::assetCode));
+            .thenComparing(ConditionFragmentAffectedAsset::assetCode))
+            .toList();
+        List<ConditionFragmentAffectedAsset> items = sorted.stream()
+            .skip(safePage.offset())
+            .limit(safePage.safeSize())
+            .toList();
+        long total = ruleDefinitions.countActiveRuleImpactsByFragmentPattern(tenantId, fragmentPattern)
+            + pathwayTemplates.countTemplateImpactsByFragmentPattern(tenantId, fragmentPattern);
         return new ConditionFragmentImpactResponse(
             fragment.fragmentId(),
             fragment.fragmentCode(),
             fragment.versionNo(),
             fragment.packageVersion(),
-            affected,
-            "sha256:" + Sha256ContentHash.sha256(writeJson(affected, "条件片段影响分析摘要为空"), "条件片段影响分析摘要为空"),
+            PageResponse.of(items, safePage, total),
+            "sha256:" + Sha256ContentHash.sha256(
+                writeJson(items, "条件片段影响分析摘要为空"),
+                "条件片段影响分析摘要为空"),
             RequestContext.currentTraceId());
     }
 
@@ -224,8 +245,11 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
     private void appendRuleImpacts(
             String tenantId,
             FragmentKey key,
+            String fragmentPattern,
+            int limit,
             List<ConditionFragmentAffectedAsset> affected) {
-        for (RuleDefinition rule : ruleDefinitions.listByFilter(tenantId, null, null, null, null)) {
+        for (RuleDefinition rule : ruleDefinitions.pageActiveRuleImpactsByFragmentPattern(
+                tenantId, fragmentPattern, 0, limit)) {
             if (!hasText(rule.activeVersionId())) {
                 continue;
             }
@@ -249,8 +273,11 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
     private void appendPathwayImpacts(
             String tenantId,
             FragmentKey key,
+            String fragmentPattern,
+            int limit,
             List<ConditionFragmentAffectedAsset> affected) {
-        for (PathwayTemplate template : pathwayTemplates.listByFilter(tenantId, null, null, null, null, null)) {
+        for (PathwayTemplate template : pathwayTemplates.pageTemplateImpactsByFragmentPattern(
+                tenantId, fragmentPattern, 0, limit)) {
             boolean matched = false;
             for (PathwayEdge edge : pathwayEdges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
                     template.templateId(), tenantId)) {
@@ -272,6 +299,10 @@ public class ConditionFragmentService implements ConditionFragmentResolver {
                     "路径守卫引用条件片段"));
             }
         }
+    }
+
+    private String fragmentPattern(String fragmentCode) {
+        return "%" + fragmentCode.toLowerCase() + "%";
     }
 
     private void validateBodyGraph(

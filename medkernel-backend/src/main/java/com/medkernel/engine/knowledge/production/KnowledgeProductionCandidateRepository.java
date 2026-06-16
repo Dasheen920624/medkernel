@@ -21,6 +21,24 @@ public interface KnowledgeProductionCandidateRepository
         """)
     List<KnowledgeProductionCandidate> findByTenantIdAndJobCode(String tenantId, String jobCode);
 
+    @Query("""
+        SELECT COUNT(*) FROM mk_knowledge_production_candidate
+        WHERE tenant_id = :tenantId AND job_code = :jobCode
+        """)
+    long countByTenantIdAndJobCode(String tenantId, String jobCode);
+
+    @Query("""
+        SELECT * FROM mk_knowledge_production_candidate
+        WHERE tenant_id = :tenantId AND job_code = :jobCode
+        ORDER BY created_at ASC, id ASC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeProductionCandidate> pageByTenantIdAndJobCode(
+        String tenantId,
+        String jobCode,
+        int offset,
+        int limit);
+
     /** 按候选引用反查生产血缘（AIK-STD-12 PR1，审核台来源溯源），强租户隔离。 */
     @Query("""
         SELECT * FROM mk_knowledge_production_candidate

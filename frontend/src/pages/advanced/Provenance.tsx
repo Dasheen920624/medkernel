@@ -66,6 +66,7 @@ const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
   ["WITHDRAWN", "已撤回"],
   ["ARCHIVED", "已归档"],
 ]);
+const PROVENANCE_HISTORY_PAGE_SIZE = 20;
 
 function domainLabel(value: KnowledgeDomain) {
   return domainLabels.get(value) ?? customerEnumLabel(value);
@@ -165,6 +166,7 @@ export default function Provenance() {
   const [keyword, setKeyword] = useState("");
   const [domain, setDomain] = useState<string>();
   const [page, setPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const [selectedIdentityId, setSelectedIdentityId] = useState<number | undefined>(
     linkedIdentityId,
   );
@@ -179,7 +181,10 @@ export default function Provenance() {
     () => identitiesQuery.data?.items ?? [],
     [identitiesQuery.data?.items],
   );
-  const provenanceQuery = useKnowledgeProvenance(selectedIdentityId);
+  const provenanceQuery = useKnowledgeProvenance(selectedIdentityId, {
+    page: historyPage,
+    size: PROVENANCE_HISTORY_PAGE_SIZE,
+  });
   const reviewQueueQuery = useKnowledgeReviewQueue({
     withinDays: 30,
     page: 1,
@@ -189,14 +194,17 @@ export default function Provenance() {
   useEffect(() => {
     if (linkedIdentityId) {
       setSelectedIdentityId(linkedIdentityId);
+      setHistoryPage(1);
       return;
     }
     if (identities.length === 0) {
       setSelectedIdentityId(undefined);
+      setHistoryPage(1);
       return;
     }
     if (!identities.some((identity) => identity.id === selectedIdentityId)) {
       setSelectedIdentityId(identities[0].id);
+      setHistoryPage(1);
     }
   }, [identities, linkedIdentityId, selectedIdentityId]);
 
@@ -256,6 +264,7 @@ export default function Provenance() {
     setKeyword(value.trim());
     setPage(1);
     setSelectedIdentityId(undefined);
+    setHistoryPage(1);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("identityId");
     setSearchParams(nextParams, { replace: true });
@@ -263,6 +272,7 @@ export default function Provenance() {
 
   const selectIdentity = (identityId: number) => {
     setSelectedIdentityId(identityId);
+    setHistoryPage(1);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("identityId", String(identityId));
     setSearchParams(nextParams, { replace: true });
@@ -290,12 +300,14 @@ export default function Provenance() {
     );
   } else if (provenanceQuery.data) {
     const provenance = provenanceQuery.data;
-    const activeVersion = provenance.versions.find(
+    const versionItems = provenance.versions.items ?? [];
+    const supersessionItems = provenance.supersessions.items ?? [];
+    const activeVersion = versionItems.find(
       (version) => version.id === provenance.currentVersionId,
     );
-    const retirement = [...provenance.supersessions]
-      .reverse()
-      .find((item) => item.transitionType === "DEPRECATE" || item.transitionType === "RETIRE");
+    const retirement = supersessionItems.find(
+      (item) => item.transitionType === "DEPRECATE" || item.transitionType === "RETIRE",
+    );
     detailContent = (
       <Space direction="vertical" size="large" className={styles.fullWidth}>
         <div className={styles.detailHeader}>
@@ -382,10 +394,16 @@ export default function Provenance() {
           </Space>
           <Table
             columns={versionColumns}
-            dataSource={provenance.versions}
+            dataSource={versionItems}
             rowKey="id"
             size="small"
-            pagination={false}
+            pagination={{
+              current: provenance.versions.page ?? historyPage,
+              pageSize: provenance.versions.size ?? PROVENANCE_HISTORY_PAGE_SIZE,
+              total: provenance.versions.total ?? 0,
+              showSizeChanger: false,
+              onChange: setHistoryPage,
+            }}
             locale={{ emptyText: <Empty description="暂无版本记录" /> }}
             scroll={{ x: 520 }}
           />
@@ -448,6 +466,7 @@ export default function Provenance() {
                   setDomain(value);
                   setPage(1);
                   setSelectedIdentityId(undefined);
+                  setHistoryPage(1);
                   const nextParams = new URLSearchParams(searchParams);
                   nextParams.delete("identityId");
                   setSearchParams(nextParams, { replace: true });

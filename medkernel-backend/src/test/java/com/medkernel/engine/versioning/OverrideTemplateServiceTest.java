@@ -24,6 +24,8 @@ import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.engine.org.OrgUnitStatus;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgLevel;
@@ -75,6 +77,23 @@ class OverrideTemplateServiceTest {
             assertThat(item.overrideMode()).isEqualTo(InheritanceOverrideMode.REPLACE);
             assertThat(item.propagation()).isEqualTo(InheritancePropagation.INHERITABLE);
         });
+    }
+
+    @Test
+    void listTemplatesReturnsTenantScopedPageInsteadOfArraySnapshot() {
+        PageRequest request = new PageRequest(2, 1, null);
+        OverrideTemplate template = activeTemplate("tpl-2", "成人模板");
+        when(templates.countByTenantIdAndStatus("tenant-A", OverrideTemplateStatus.ACTIVE)).thenReturn(2L);
+        when(templates.pageByTenantIdAndStatus("tenant-A", OverrideTemplateStatus.ACTIVE, 1, 1))
+            .thenReturn(List.of(template));
+
+        PageResponse<OverrideTemplate> page = service.listTemplates("tenant-A", request);
+
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(1);
+        assertThat(page.total()).isEqualTo(2);
+        assertThat(page.items()).containsExactly(template);
+        verify(templates, never()).findByTenantIdAndStatusOrderByUpdatedAtDesc(any(), any());
     }
 
     @Test
@@ -268,20 +287,7 @@ class OverrideTemplateServiceTest {
     }
 
     private void stubTemplate() {
-        OverrideTemplate template = new OverrideTemplate(
-            1L,
-            "tpl-1",
-            "tenant-A",
-            "儿科剂量包",
-            "儿科人群本地剂量规则",
-            "pediatric|inpatient",
-            OverrideTemplateStatus.ACTIVE,
-            NOW,
-            "operator-1",
-            NOW,
-            "operator-1",
-            "trace-template"
-        );
+        OverrideTemplate template = activeTemplate("tpl-1", "儿科剂量包");
         OverrideTemplateItem item = new OverrideTemplateItem(
             1L,
             "tpi-1",
@@ -300,6 +306,23 @@ class OverrideTemplateServiceTest {
             .thenReturn(Optional.of(template));
         when(items.findByTemplateIdOrderByAssetTypeAscAssetIdentityAsc("tpl-1"))
             .thenReturn(List.of(item));
+    }
+
+    private OverrideTemplate activeTemplate(String templateId, String templateName) {
+        return new OverrideTemplate(
+            1L,
+            templateId,
+            "tenant-A",
+            templateName,
+            "儿科人群本地剂量规则",
+            "pediatric|inpatient",
+            OverrideTemplateStatus.ACTIVE,
+            NOW,
+            "operator-1",
+            NOW,
+            "operator-1",
+            "trace-template"
+        );
     }
 
     private OverrideBatchPreviewCommand previewCommand(Map<String, String> targetVersions) {

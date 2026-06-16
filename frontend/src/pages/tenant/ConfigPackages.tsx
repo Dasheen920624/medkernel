@@ -11,6 +11,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
   Progress,
   Radio,
@@ -92,6 +93,8 @@ const { Option } = Select;
 const { Text } = Typography;
 const PACKAGE_ITEM_ASSET_REFERENCE_PAGE_SIZE = 20;
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+const PACKAGE_RELEASE_ADAPTER_PAGE_SIZE = 20;
+const PACKAGE_SYNC_LOG_PAGE_SIZE = 20;
 
 type PackageStatusFilter = "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE";
 type InheritancePerspective = "PLATFORM" | "TENANT" | "ORG";
@@ -393,6 +396,7 @@ export default function ConfigPackages() {
     keyword?: string;
     status?: PackageStatusFilter;
   }>({});
+  const [releaseAdapterPage, setReleaseAdapterPage] = useState(1);
 
   const { data: securityProfile } = useSecurityProfile();
   const packageQuery = usePackages({
@@ -401,7 +405,10 @@ export default function ConfigPackages() {
     keyword: filters.keyword,
     status: filters.status,
   });
-  const { data: releaseAdapters } = usePackageReleaseAdapters();
+  const { data: releaseAdapters } = usePackageReleaseAdapters({
+    page: releaseAdapterPage,
+    size: PACKAGE_RELEASE_ADAPTER_PAGE_SIZE,
+  });
   const { data: pilotTemplates = [], isLoading: pilotTemplatesLoading = false } =
     usePilotPackageTemplates();
   const {
@@ -414,7 +421,7 @@ export default function ConfigPackages() {
   const apiPackagesData = packageQuery.data;
   const apiPackages = apiPackagesData?.items ?? [];
   const totalPackagesCount = apiPackagesData?.total ?? 0;
-  const displayAdapters = releaseAdapters ?? [];
+  const displayAdapters = releaseAdapters?.items ?? [];
   const usableReleaseAdapters = displayAdapters.filter(
     (adapter) =>
       adapter.status === "ACTIVE" &&
@@ -469,6 +476,7 @@ export default function ConfigPackages() {
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
+  const [syncLogPage, setSyncLogPage] = useState(1);
   const [syncExecuting, setSyncExecuting] = useState(false);
   const [diffExporting, setDiffExporting] = useState(false);
   const [offlineExportingId, setOfflineExportingId] = useState<string | null>(null);
@@ -506,7 +514,10 @@ export default function ConfigPackages() {
     effectivePackageId || "",
   );
   const currentItems = apiDetail?.items ?? [];
-  const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
+  const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "", {
+    page: syncLogPage,
+    size: PACKAGE_SYNC_LOG_PAGE_SIZE,
+  });
   const entitlementQuery = usePackageEntitlements(
     entitlementPackage?.packageId ?? "",
     Boolean(entitlementPackage) && canManageEntitlements,
@@ -578,7 +589,8 @@ export default function ConfigPackages() {
   const offlineCount = apiPackages.filter((p) => p.status === "OFFLINE").length;
   const readinessBlockers = assetReadiness?.blockers ?? [];
   const canApplyPilotTemplateReferences = pilotTemplates.length > 0 && !pilotTemplatesLoading;
-  const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
+  const persistedSyncLogItems = persistedSyncLogs?.items ?? [];
+  const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : persistedSyncLogItems;
   const attentionSyncLogs = visibleSyncLogs.filter(
     (log) => log.status === "FAILED" || log.status === "NOT_SYNCED",
   );
@@ -2737,6 +2749,16 @@ export default function ConfigPackages() {
               ))}
             </Select>
           </Form.Item>
+          {(releaseAdapters?.total ?? 0) > 0 && (
+            <Pagination
+              size="small"
+              current={releaseAdapters?.page ?? releaseAdapterPage}
+              pageSize={releaseAdapters?.size ?? PACKAGE_RELEASE_ADAPTER_PAGE_SIZE}
+              total={releaseAdapters?.total ?? 0}
+              showSizeChanger={false}
+              onChange={setReleaseAdapterPage}
+            />
+          )}
           {usableReleaseAdapters.length === 0 && (
             <Alert
               type="warning"
@@ -2805,22 +2827,34 @@ export default function ConfigPackages() {
                   />
                 )}
                 {visibleSyncLogs.length > 0 && (
-                  <Timeline
-                    items={visibleSyncLogs.map((log) => ({
-                      key: log.logId,
-                      color: syncLogStatusColor(log.status),
-                      children: (
-                        <Space direction="vertical" size={0}>
-                          <Text>通道: {releaseAdapterName(log.adapterId)}</Text>
-                          <Tag color={syncLogStatusColor(log.status)}>
-                            {syncLogStatusText(log.status)}
-                          </Tag>
-                          {log.errorMessage && <Text type="secondary">{log.errorMessage}</Text>}
-                          {log.syncEvidence && <Text type="secondary">{log.syncEvidence}</Text>}
-                        </Space>
-                      ),
-                    }))}
-                  />
+                  <>
+                    <Timeline
+                      items={visibleSyncLogs.map((log) => ({
+                        key: log.logId,
+                        color: syncLogStatusColor(log.status),
+                        children: (
+                          <Space direction="vertical" size={0}>
+                            <Text>通道: {releaseAdapterName(log.adapterId)}</Text>
+                            <Tag color={syncLogStatusColor(log.status)}>
+                              {syncLogStatusText(log.status)}
+                            </Tag>
+                            {log.errorMessage && <Text type="secondary">{log.errorMessage}</Text>}
+                            {log.syncEvidence && <Text type="secondary">{log.syncEvidence}</Text>}
+                          </Space>
+                        ),
+                      }))}
+                    />
+                    {syncLogs.length === 0 && (persistedSyncLogs?.total ?? 0) > 0 && (
+                      <Pagination
+                        size="small"
+                        current={persistedSyncLogs?.page ?? syncLogPage}
+                        pageSize={persistedSyncLogs?.size ?? PACKAGE_SYNC_LOG_PAGE_SIZE}
+                        total={persistedSyncLogs?.total ?? 0}
+                        showSizeChanger={false}
+                        onChange={setSyncLogPage}
+                      />
+                    )}
+                  </>
                 )}
               </Space>
             </Card>

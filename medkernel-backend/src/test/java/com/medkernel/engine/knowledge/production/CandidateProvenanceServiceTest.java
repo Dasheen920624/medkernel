@@ -1,9 +1,11 @@
 package com.medkernel.engine.knowledge.production;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -88,5 +92,18 @@ class CandidateProvenanceServiceTest {
     void emptyRefsReturnEmptyWithoutQuery() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant(TENANT), "user"));
         assertThat(service.resolve(List.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsOversizedProvenanceRefBatchBeforeRepositoryLookup() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant(TENANT), "user"));
+        List<String> oversized = IntStream.rangeClosed(1, 201)
+            .mapToObj(index -> "kv:prov-" + index + ":v1")
+            .toList();
+
+        assertThatThrownBy(() -> service.resolve(oversized))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
     }
 }

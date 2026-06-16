@@ -33,6 +33,8 @@ import com.medkernel.engine.datasvc.KnowledgeUsageStat;
 import com.medkernel.engine.datasvc.KnowledgeUsageStatsRepository;
 import com.medkernel.engine.datasvc.RuleUsageStat;
 import com.medkernel.engine.datasvc.RuleUsageStatsRepository;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -141,9 +143,15 @@ public class EngineDataExportService implements ExportArtifactProvider {
             .orElseThrow(() -> ApiException.notFound("导出作业 jobCode=" + jobCode));
     }
 
-    public List<EngineDataExportJob> listRecent() {
+    public PageResponse<EngineDataExportJob> listRecent(PageRequest request) {
         String tenantId = requireCurrentTenant();
-        return jobRepository.findTop100ByTenantIdOrderByCreatedAtDesc(tenantId);
+        PageRequest page = request == null ? PageRequest.defaults() : request;
+        long total = jobRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(page);
+        }
+        List<EngineDataExportJob> items = jobRepository.pageByTenantId(tenantId, page.offset(), page.safeSize());
+        return PageResponse.of(items, page, total);
     }
 
     @Transactional

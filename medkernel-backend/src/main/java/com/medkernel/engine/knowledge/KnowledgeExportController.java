@@ -17,9 +17,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -55,8 +58,10 @@ public class KnowledgeExportController {
 
     @GetMapping
     @PreAuthorize("@perm.has('knowledge.export')")
-    public ApiResult<List<KnowledgeExportJob>> listRecent() {
-        return ApiResult.ok(exportService.listRecent());
+    public ApiResult<PageResponse<KnowledgeExportJob>> listRecent(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "20") int size) {
+        return ApiResult.ok(exportService.listRecent(new PageRequest(page, size, null)));
     }
 
     @PostMapping("/{jobCode}/cancel")

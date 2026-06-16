@@ -231,43 +231,57 @@ describe("SecurityBaseline", () => {
       ]) as never,
     );
     vi.mocked(useDataPermissionPolicies).mockReturnValue(
-      query([
-        {
-          policyId: "policy-1",
-          tenantId: "t-1",
-          resourceType: "clinical_case",
-          action: "READ",
-          minDataLevel: "HOSPITAL",
-          allowedColumns: ["patientId", "encounterId"],
-          status: "ACTIVE",
-          version: 1,
-          createdAt: "2026-06-06T00:00:00Z",
-          createdBy: "security-admin",
-          updatedAt: "2026-06-06T00:00:00Z",
-          updatedBy: "security-admin",
-        },
-      ]) as never,
+      query({
+        items: [
+          {
+            policyId: "policy-1",
+            tenantId: "t-1",
+            resourceType: "clinical_case",
+            action: "READ",
+            minDataLevel: "HOSPITAL",
+            allowedColumns: ["patientId", "encounterId"],
+            status: "ACTIVE",
+            version: 1,
+            createdAt: "2026-06-06T00:00:00Z",
+            createdBy: "security-admin",
+            updatedAt: "2026-06-06T00:00:00Z",
+            updatedBy: "security-admin",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 21,
+        hasNext: true,
+        totalEstimated: false,
+      }) as never,
     );
     vi.mocked(useMaskingRules).mockReturnValue(
-      query([
-        {
-          ruleId: "mask-1",
-          tenantId: "t-1",
-          resourceType: "clinical_case",
-          fieldName: "patientName",
-          scenarioCode: "DEFAULT",
-          strategy: "KEEP_FIRST_LAST",
-          maskChar: "*",
-          prefixKeep: 1,
-          suffixKeep: 0,
-          status: "ACTIVE",
-          version: 1,
-          createdAt: "2026-06-06T00:00:00Z",
-          createdBy: "security-admin",
-          updatedAt: "2026-06-06T00:00:00Z",
-          updatedBy: "security-admin",
-        },
-      ]) as never,
+      query({
+        items: [
+          {
+            ruleId: "mask-1",
+            tenantId: "t-1",
+            resourceType: "clinical_case",
+            fieldName: "patientName",
+            scenarioCode: "DEFAULT",
+            strategy: "KEEP_FIRST_LAST",
+            maskChar: "*",
+            prefixKeep: 1,
+            suffixKeep: 0,
+            status: "ACTIVE",
+            version: 1,
+            createdAt: "2026-06-06T00:00:00Z",
+            createdBy: "security-admin",
+            updatedAt: "2026-06-06T00:00:00Z",
+            updatedBy: "security-admin",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 25,
+        hasNext: true,
+        totalEstimated: false,
+      }) as never,
     );
     vi.mocked(useOrgUnits).mockReturnValue(
       query({
@@ -395,10 +409,12 @@ describe("SecurityBaseline", () => {
     expect(screen.getByRole("button", { name: "编辑 国密增强" })).toBeDisabled();
 
     await user.click(screen.getByRole("tab", { name: "数据权限" }));
+    expect(useDataPermissionPolicies).toHaveBeenCalledWith({ page: 1, size: 20 });
     expect(screen.getByText("clinical_case")).toBeInTheDocument();
     expect(screen.getByText("patientId, encounterId")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
+    expect(useMaskingRules).toHaveBeenCalledWith({ page: 1, size: 20 });
     expect(
       screen.getByRole("row", { name: /clinical_case patientName DEFAULT KEEP_FIRST_LAST/ }),
     ).toBeInTheDocument();

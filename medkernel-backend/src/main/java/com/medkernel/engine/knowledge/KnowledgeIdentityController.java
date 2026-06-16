@@ -81,8 +81,12 @@ public class KnowledgeIdentityController {
 
     @GetMapping("/identities/{id}/lineage")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<KnowledgeLineage> getLineage(@PathVariable Long id) {
-        return ApiResult.ok(service.getLineage(id));
+    public ApiResult<KnowledgeLineage> getLineage(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.getLineage(id, new PageRequest(page, size, sort)));
     }
 
     /**
@@ -93,8 +97,12 @@ public class KnowledgeIdentityController {
      */
     @GetMapping("/identities/{id}/provenance")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<KnowledgeProvenanceResponse> getProvenance(@PathVariable Long id) {
-        return ApiResult.ok(service.getProvenance(id));
+    public ApiResult<KnowledgeProvenanceResponse> getProvenance(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.getProvenance(id, new PageRequest(page, size, sort)));
     }
 
     @GetMapping("/identities/{id}/citations")

@@ -164,4 +164,112 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                                 String diseaseCode, String packageId,
                                                 String templateCode, String keyword,
                                                 int offset, int limit);
+
+    /**
+     * 统一创作资产库按标签、收藏和关键字分页查询路径模板，避免全量租户快照。
+     */
+    @Query("""
+        SELECT pt.*
+        FROM pathway_template pt
+        LEFT JOIN mk_engine_authoring_asset_profile p
+          ON p.tenant_id = pt.tenant_id
+         AND p.asset_type = 'PATHWAY'
+         AND p.asset_id = pt.template_id
+        WHERE pt.tenant_id = :tenantId
+          AND (
+              :keyword IS NULL
+              OR LOWER(pt.template_code) LIKE :keyword
+              OR LOWER(pt.name) LIKE :keyword
+              OR LOWER(pt.disease_code) LIKE :keyword
+              OR LOWER(COALESCE(p.category, '')) LIKE :keyword
+              OR LOWER(p.tags_json) LIKE :keyword
+          )
+          AND (:tagPattern IS NULL OR LOWER(p.tags_json) LIKE :tagPattern)
+          AND (:favoriteUserId IS NULL OR EXISTS (
+              SELECT 1
+              FROM mk_engine_authoring_asset_favorite f
+              WHERE f.tenant_id = pt.tenant_id
+                AND f.user_id = :favoriteUserId
+                AND f.asset_type = 'PATHWAY'
+                AND f.asset_id = pt.template_id
+          ))
+        ORDER BY pt.updated_at DESC, pt.id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<PathwayTemplate> pageForAuthoringLibrary(
+        String tenantId,
+        String keyword,
+        String tagPattern,
+        String favoriteUserId,
+        int offset,
+        int limit);
+
+    /**
+     * 与 {@link #pageForAuthoringLibrary} 同口径统计路径模板数。
+     */
+    @Query("""
+        SELECT COUNT(*)
+        FROM pathway_template pt
+        LEFT JOIN mk_engine_authoring_asset_profile p
+          ON p.tenant_id = pt.tenant_id
+         AND p.asset_type = 'PATHWAY'
+         AND p.asset_id = pt.template_id
+        WHERE pt.tenant_id = :tenantId
+          AND (
+              :keyword IS NULL
+              OR LOWER(pt.template_code) LIKE :keyword
+              OR LOWER(pt.name) LIKE :keyword
+              OR LOWER(pt.disease_code) LIKE :keyword
+              OR LOWER(COALESCE(p.category, '')) LIKE :keyword
+              OR LOWER(p.tags_json) LIKE :keyword
+          )
+          AND (:tagPattern IS NULL OR LOWER(p.tags_json) LIKE :tagPattern)
+          AND (:favoriteUserId IS NULL OR EXISTS (
+              SELECT 1
+              FROM mk_engine_authoring_asset_favorite f
+              WHERE f.tenant_id = pt.tenant_id
+                AND f.user_id = :favoriteUserId
+                AND f.asset_type = 'PATHWAY'
+                AND f.asset_id = pt.template_id
+          ))
+        """)
+    long countForAuthoringLibrary(
+        String tenantId,
+        String keyword,
+        String tagPattern,
+        String favoriteUserId);
+
+    /**
+     * 条件片段影响分析按路径边条件预过滤候选模板，避免全量路径扫描。
+     */
+    @Query("""
+        SELECT DISTINCT pt.*
+        FROM pathway_template pt
+        JOIN pathway_edge pe
+          ON pe.tenant_id = pt.tenant_id
+         AND pe.template_id = pt.template_id
+        WHERE pt.tenant_id = :tenantId
+          AND LOWER(pe.condition_json) LIKE :fragmentPattern
+        ORDER BY pt.updated_at DESC, pt.id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<PathwayTemplate> pageTemplateImpactsByFragmentPattern(
+        String tenantId,
+        String fragmentPattern,
+        int offset,
+        int limit);
+
+    /**
+     * 与 {@link #pageTemplateImpactsByFragmentPattern} 同口径统计路径模板影响候选数。
+     */
+    @Query("""
+        SELECT COUNT(DISTINCT pt.template_id)
+        FROM pathway_template pt
+        JOIN pathway_edge pe
+          ON pe.tenant_id = pt.tenant_id
+         AND pe.template_id = pt.template_id
+        WHERE pt.tenant_id = :tenantId
+          AND LOWER(pe.condition_json) LIKE :fragmentPattern
+        """)
+    long countTemplateImpactsByFragmentPattern(String tenantId, String fragmentPattern);
 }

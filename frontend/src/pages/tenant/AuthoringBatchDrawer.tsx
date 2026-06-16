@@ -53,6 +53,7 @@ const { Text, Title } = Typography;
 const { TextArea } = Input;
 
 const RULE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
+const AUTHORING_BATCH_JOB_PAGE_SIZE = 20;
 
 interface AuthoringBatchDrawerProps {
   open: boolean;
@@ -176,8 +177,13 @@ export default function AuthoringBatchDrawer({
     "GRAYSCALE",
   );
   const [distributionScope, setDistributionScope] = useState<ReleaseScopeType>("FACILITY");
+  const [jobPage, setJobPage] = useState(1);
 
-  const jobsQuery = useAuthoringBatchJobs({ enabled: open });
+  const jobsQuery = useAuthoringBatchJobs({
+    page: jobPage,
+    size: AUTHORING_BATCH_JOB_PAGE_SIZE,
+    enabled: open,
+  });
   const normalizedRulePackageSearch = rulePackageSearch.trim();
   const rulePackagesQuery = usePackages({
     page: 1,
@@ -211,6 +217,7 @@ export default function AuthoringBatchDrawer({
     try {
       const job = await operation();
       setLastJob(job);
+      setJobPage(1);
       message.success(`批量任务 ${job.jobId} 已记录`);
       return job;
     } catch (error) {
@@ -749,10 +756,16 @@ export default function AuthoringBatchDrawer({
   const recentPanel = (
     <Table
       rowKey="jobId"
-      dataSource={jobsQuery.data ?? []}
+      dataSource={jobsQuery.data?.items ?? []}
       columns={recentColumns}
       loading={jobsQuery.isLoading}
-      pagination={false}
+      pagination={{
+        current: jobsQuery.data?.page ?? jobPage,
+        pageSize: jobsQuery.data?.size ?? AUTHORING_BATCH_JOB_PAGE_SIZE,
+        total: jobsQuery.data?.total ?? 0,
+        showSizeChanger: false,
+        onChange: (page) => setJobPage(page),
+      }}
       size="small"
     />
   );

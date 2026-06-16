@@ -384,6 +384,17 @@ function adapterPage(items: IntegrationAdapter[], total = items.length) {
   };
 }
 
+function pageData<T>(items: T[], total = items.length) {
+  return {
+    items,
+    page: 1,
+    size: 20,
+    total,
+    hasNext: total > items.length,
+    totalEstimated: false,
+  };
+}
+
 function mutation<T>(result: T) {
   return {
     mutateAsync: vi.fn().mockResolvedValue(result),
@@ -422,9 +433,9 @@ function setupMocks() {
   vi.mocked(useIntegrationLogs).mockReturnValue(
     query({ items: [failedLog, deadLetterLog], total: 2 }) as never,
   );
-  vi.mocked(useIntegrationOnboardings).mockReturnValue(query([onboarding]) as never);
+  vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([onboarding])) as never);
   vi.mocked(useMasterDataReconciliation).mockReturnValue(query(masterDataReconciliation) as never);
-  vi.mocked(useWebhooks).mockReturnValue(query([webhook]) as never);
+  vi.mocked(useWebhooks).mockReturnValue(query(pageData([webhook])) as never);
   vi.mocked(useTerminologyMappings).mockReturnValue(
     query({
       items: [
@@ -448,7 +459,7 @@ function setupMocks() {
       totalEstimated: false,
     }) as never,
   );
-  vi.mocked(useRegionalSources).mockReturnValue(query([regionalSource]) as never);
+  vi.mocked(useRegionalSources).mockReturnValue(query(pageData([regionalSource])) as never);
   vi.mocked(useCreateAdapter).mockReturnValue(mutation(hisAdapter) as never);
   vi.mocked(useUpdateAdapter).mockReturnValue(mutation(hisAdapter) as never);
   vi.mocked(useCheckAdapterHealth).mockReturnValue(
@@ -559,6 +570,14 @@ describe("AdapterHub", () => {
     expect(useTerminologyMappings).not.toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
   });
 
+  it("loads adapter hub maintenance ledgers through small server-side pages", () => {
+    renderPage();
+
+    expect(useIntegrationOnboardings).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(useWebhooks).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(useRegionalSources).toHaveBeenCalledWith({ page: 1, size: 20 });
+  });
+
   it("loads the data contract summary with an explicit package version", async () => {
     const user = userEvent.setup();
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
@@ -594,7 +613,7 @@ describe("AdapterHub", () => {
       }) as never,
     );
     vi.mocked(useIntegrationLogs).mockReturnValue(query({ items: [], total: 0 }) as never);
-    vi.mocked(useIntegrationOnboardings).mockReturnValue(query([]) as never);
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([])) as never);
 
     renderPage();
 
@@ -840,7 +859,7 @@ describe("AdapterHub", () => {
     vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([])) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(query({ ...status, totalAdapters: 0 }) as never);
     vi.mocked(useIntegrationLogs).mockReturnValue(query({ items: [], total: 0 }) as never);
-    vi.mocked(useIntegrationOnboardings).mockReturnValue(query([]) as never);
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([])) as never);
     rerender(
       <ConfigProvider>
         <AdapterHub />

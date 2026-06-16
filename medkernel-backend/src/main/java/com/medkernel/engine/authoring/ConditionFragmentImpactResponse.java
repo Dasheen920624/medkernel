@@ -1,6 +1,7 @@
 package com.medkernel.engine.authoring;
 
-import java.util.List;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 
 /**
  * 条件片段变更影响分析响应。
@@ -10,11 +11,11 @@ public record ConditionFragmentImpactResponse(
     String fragmentCode,
     int versionNo,
     String packageVersion,
-    List<ConditionFragmentAffectedAsset> affectedAssets,
+    PageResponse<ConditionFragmentAffectedAsset> affectedAssets,
     String impactDigest,
     String traceId
 ) {
     public ConditionFragmentImpactResponse {
-        affectedAssets = affectedAssets == null ? List.of() : List.copyOf(affectedAssets);
+        affectedAssets = affectedAssets == null ? PageResponse.empty(PageRequest.defaults()) : affectedAssets;
     }
 }

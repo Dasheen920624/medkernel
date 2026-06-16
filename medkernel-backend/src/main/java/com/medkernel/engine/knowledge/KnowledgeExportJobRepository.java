@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,5 +20,13 @@ public interface KnowledgeExportJobRepository extends ListCrudRepository<Knowled
 
     List<KnowledgeExportJob> findByTenantIdAndStatusOrderByCreatedAtDesc(String tenantId, ExportStatus status);
 
-    List<KnowledgeExportJob> findTop100ByTenantIdOrderByCreatedAtDesc(String tenantId);
+    long countByTenantId(String tenantId);
+
+    @Query("""
+        SELECT * FROM knowledge_export_job
+        WHERE tenant_id = :tenantId
+        ORDER BY created_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeExportJob> pageByTenantId(String tenantId, int offset, int limit);
 }

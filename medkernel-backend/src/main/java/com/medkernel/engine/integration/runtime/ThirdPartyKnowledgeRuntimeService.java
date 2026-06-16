@@ -20,6 +20,8 @@ import com.medkernel.engine.versioning.ApplicableScopeMatcher;
 import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
 import com.medkernel.engine.versioning.InheritanceOverrideService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -136,13 +138,13 @@ public class ThirdPartyKnowledgeRuntimeService {
         return packages.syncPackage(required(packageId, "知识包 ID"), request);
     }
 
-    public ThirdPartyPackageReconciliationResponse reconcilePackage(String packageId) {
+    public ThirdPartyPackageReconciliationResponse reconcilePackage(String packageId, PageRequest page) {
         String normalizedPackageId = required(packageId, "知识包 ID");
-        List<SyncLogResponse> logs = packages.listSyncLogs(normalizedPackageId);
+        PageResponse<SyncLogResponse> logs = packages.listSyncLogs(normalizedPackageId, page);
         return new ThirdPartyPackageReconciliationResponse(
             CONTRACT_VERSION,
             normalizedPackageId,
-            reconciliationStatus(logs),
+            reconciliationStatus(logs.items()),
             logs);
     }
 

@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -144,6 +146,32 @@ class ReleaseGovernanceControllerTest {
                 VersionRolloutRollbackCommand::traceId
             )
             .containsExactly("tenant-a", "vrl-1", "publisher-a", "trace-release");
+    }
+
+    @Test
+    void listsOverrideTemplatesAsPagedTenantScopedContract() {
+        OverrideTemplate template = new OverrideTemplate(
+            1L,
+            "tpl-a",
+            "tenant-a",
+            "儿科模板",
+            "儿科本地覆盖",
+            "ALL",
+            OverrideTemplateStatus.ACTIVE,
+            Instant.parse("2026-06-07T00:00:00Z"),
+            "publisher-a",
+            Instant.parse("2026-06-07T00:00:00Z"),
+            "publisher-a",
+            "trace-release"
+        );
+        when(overrideTemplates.listTemplates("tenant-a", new PageRequest(2, 1, "updatedAt,desc")))
+            .thenReturn(PageResponse.of(List.of(template), new PageRequest(2, 1, "updatedAt,desc"), 2));
+
+        PageResponse<OverrideTemplate> page = controller.listTemplates(2, 1, "updatedAt,desc").data();
+
+        org.assertj.core.api.Assertions.assertThat(page.items()).containsExactly(template);
+        org.assertj.core.api.Assertions.assertThat(page.page()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(page.total()).isEqualTo(2);
     }
 
     private ReleaseGovernanceController.SimulationRequest simulationRequest() {

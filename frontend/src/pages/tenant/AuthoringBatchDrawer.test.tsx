@@ -25,10 +25,18 @@ const apiMocks = vi.hoisted(() => ({
     total: 1,
   },
   packageListParams: [] as unknown[],
+  batchJobParams: [] as unknown[],
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
-  useAuthoringBatchJobs: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
+  useAuthoringBatchJobs: (params?: unknown) => {
+    apiMocks.batchJobParams.push(params ?? {});
+    return {
+      data: { items: [], page: 1, size: 20, total: 0, totalEstimated: false, hasNext: false },
+      isLoading: false,
+      refetch: vi.fn(),
+    };
+  },
   usePackages: (params?: unknown) => {
     apiMocks.packageListParams.push(params ?? {});
     return { data: apiMocks.packagesData, isLoading: false, isError: false };
@@ -77,6 +85,13 @@ describe("AuthoringBatchDrawer", () => {
       }
     });
     apiMocks.packageListParams = [];
+    apiMocks.batchJobParams = [];
+  });
+
+  it("loads batch job records through server pagination", () => {
+    renderDrawer();
+
+    expect(apiMocks.batchJobParams).toContainEqual({ page: 1, size: 20, enabled: true });
   });
 
   it("loads rule package selector through small server-side pages", () => {

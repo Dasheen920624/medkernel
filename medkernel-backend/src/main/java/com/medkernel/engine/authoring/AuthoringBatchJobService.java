@@ -18,6 +18,8 @@ import com.medkernel.engine.rule.RuleCreateResponse;
 import com.medkernel.engine.rule.RuleGovernanceResponse;
 import com.medkernel.engine.rule.RuleImpactResponse;
 import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -287,14 +289,20 @@ public class AuthoringBatchJobService {
     }
 
     /**
-     * 查询当前租户最近任务。
+     * 分页查询当前租户批量任务台账。
      */
-    public List<AuthoringBatchJobResponse> listRecent() {
+    public PageResponse<AuthoringBatchJobResponse> listRecent(PageRequest request) {
         requireFeature();
         String tenantId = requireTenant();
-        return jobs.findTop50ByTenantIdOrderByCreatedAtDesc(tenantId).stream()
+        PageRequest page = request == null ? PageRequest.defaults() : request;
+        long total = jobs.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(page);
+        }
+        List<AuthoringBatchJobResponse> rows = jobs.pageByTenantId(tenantId, page.offset(), page.safeSize()).stream()
             .map(job -> response(job, List.of()))
             .toList();
+        return PageResponse.of(rows, page, total);
     }
 
     private AuthoringBatchJob createJob(AuthoringBatchJobType type, int totalCount, Object request) {

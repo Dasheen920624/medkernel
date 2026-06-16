@@ -15,7 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
  * 引擎数据服务层异步导出作业仓储集成测试（DATASVC-01）。
  *
  * <p>对真实 H2 验证 {@code mk_engine_data_export_job} 建表与 Spring Data JDBC 列映射真实可执行：
- * 保存 / 按租户+jobCode 查 / 按租户+幂等键查 / 近期列表 / 租户隔离。
+ * 保存 / 按租户+jobCode 查 / 按租户+幂等键查 / 分页列表 / 租户隔离。
  */
 @SpringBootTest
 @ActiveProfiles("dev")
@@ -57,15 +57,23 @@ class EngineDataExportJobRepositoryIntegrationTest {
     }
 
     @Test
-    void listsRecentScopedToTenant() {
+    void pagesRecentScopedToTenant() {
         Instant now = Instant.now();
         repo.save(pending("idem-it-r1", now.minusSeconds(200)));
         repo.save(pending("idem-it-r2", now.minusSeconds(100)));
+        repo.save(new EngineDataExportJob(
+            null, "tenant-export-it-other", UUID.randomUUID().toString(), "quality-1",
+            EngineDataExportType.RULE_USAGE, ExportJobStatus.PENDING, 0,
+            null, null, null, "exp-other", "idem-other",
+            "{\"exportType\":\"RULE_USAGE\",\"windowDays\":90}",
+            now, null, null, null));
 
-        List<EngineDataExportJob> recent = repo.findTop100ByTenantIdOrderByCreatedAtDesc(TENANT);
+        assertThat(repo.countByTenantId(TENANT)).isGreaterThanOrEqualTo(2L);
+        List<EngineDataExportJob> recent = repo.pageByTenantId(TENANT, 0, 2);
 
         assertThat(recent).extracting(EngineDataExportJob::tenantId).containsOnly(TENANT);
         assertThat(recent).extracting(EngineDataExportJob::idempotencyKey)
-            .contains("idem-it-r1", "idem-it-r2");
+            .contains("idem-it-r1", "idem-it-r2")
+            .doesNotContain("idem-other");
     }
 }

@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.security.DataAccessLevel;
 import com.medkernel.shared.security.ResolvedDataScope;
 import com.medkernel.shared.api.error.ApiException;
@@ -49,15 +51,22 @@ public class DataPermissionService {
         this.orgAssignments = orgAssignments;
     }
 
-    public List<DataPermissionPolicyResponse> listPolicies(
-            String tenantId, String resourceType, DataPermissionAction action) {
+    public PageResponse<DataPermissionPolicyResponse> listPolicies(
+            String tenantId, String resourceType, DataPermissionAction action, PageRequest request) {
         String safeTenant = requireTenant(tenantId);
         String normalizedResource = resourceType == null || resourceType.isBlank()
             ? null : normalizeResourceType(resourceType);
         String actionValue = action == null ? null : action.name();
-        return repository.findPolicies(safeTenant, normalizedResource, actionValue).stream()
+        PageRequest page = request == null ? PageRequest.defaults() : request;
+        long total = repository.countPolicies(safeTenant, normalizedResource, actionValue);
+        if (total == 0L) {
+            return PageResponse.empty(page);
+        }
+        List<DataPermissionPolicyResponse> items = repository.pagePolicies(
+                safeTenant, normalizedResource, actionValue, page.offset(), page.safeSize()).stream()
             .map(policy -> DataPermissionPolicyResponse.from(policy, readColumns(policy.allowedColumnsJson())))
             .toList();
+        return PageResponse.of(items, page, total);
     }
 
     @Transactional

@@ -54,6 +54,7 @@ import {
   useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
   useCreateRule,
+  useConditionFragmentImpact,
   useCreateWebhook,
   useDispatchRectification,
   useEvaluationIndicators,
@@ -93,6 +94,7 @@ import {
   useKnowledgeProductionReadiness,
   useKnowledgeProductionShadowRuns,
   useKnowledgeProductionTriageResults,
+  useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
   useCandidateCoexistence,
@@ -106,6 +108,7 @@ import {
   useOnboardingReadiness,
   useOrgUnits,
   useOrgUsers,
+  useOverrideTemplates,
   usePackageInheritanceImpact,
   usePackageEntitlements,
   useGrantPackageEntitlement,
@@ -116,6 +119,7 @@ import {
   useProjectionFacts,
   useProjectionRuntimeStatus,
   usePackageAssetReadiness,
+  usePackageReleaseAdapters,
   usePackageSyncLogs,
   usePathwayTemplates,
   usePilotPackageTemplates,
@@ -516,18 +520,45 @@ describe("package export api helpers", () => {
   });
 
   it("loads persisted sync logs from the API-10 sync-log endpoint", async () => {
+    const page = {
+      items: [{ logId: "log-1", status: "NOT_SYNCED", syncEvidence: null }],
+      page: 2,
+      size: 10,
+      total: 21,
+      hasNext: true,
+      totalEstimated: false,
+    };
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { data: [{ logId: "log-1", status: "NOT_SYNCED", syncEvidence: null }] },
+      data: { data: page },
     });
 
-    const { result } = renderApiHook(() => usePackageSyncLogs("pkg-1"));
+    const { result } = renderApiHook(() => usePackageSyncLogs("pkg-1", { page: 2, size: 10 }));
 
-    await waitFor(() =>
-      expect(result.current.data).toEqual([
-        { logId: "log-1", status: "NOT_SYNCED", syncEvidence: null },
-      ]),
-    );
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
+    await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs", {
+      params: { page: 2, size: 10 },
+    });
+  });
+
+  it("loads package release adapters through server pagination", async () => {
+    const page = {
+      items: [{ adapterId: "target-his", adapterName: "HIS 同步通道" }],
+      page: 2,
+      size: 10,
+      total: 21,
+      hasNext: true,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: page },
+    });
+
+    const { result } = renderApiHook(() => usePackageReleaseAdapters({ page: 2, size: 10 }));
+
+    await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/release-adapters", {
+      params: { page: 2, size: 10 },
+    });
   });
 
   it("loads package inheritance impact with the platform-first query contract", async () => {
@@ -1016,6 +1047,47 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("loads condition fragment impact through paged authoring endpoint", async () => {
+    const response = {
+      fragmentId: "frag-renal-v1",
+      fragmentCode: "FRAG_RENAL_IMPAIRED",
+      versionNo: 1,
+      packageVersion: "pkg-2026.06",
+      affectedAssets: {
+        items: [
+          {
+            assetType: "RULE",
+            assetId: "rule-renal",
+            assetCode: "RULE.RENAL",
+            displayName: "肾病规则",
+            impactReason: "规则当前版本 when 引用条件片段",
+          },
+        ],
+        page: 2,
+        size: 20,
+        total: 21,
+        hasNext: true,
+        totalEstimated: false,
+      },
+      impactDigest: "sha256:fragment-impact",
+      traceId: "trace-fragment-impact",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() =>
+      useConditionFragmentImpact("frag-renal-v1", {
+        page: 2,
+        size: 20,
+        sort: "updatedAt,desc",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data?.affectedAssets.items).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/fragments/frag-renal-v1/impact", {
+      params: { page: 2, size: 20, sort: "updatedAt,desc" },
+    });
+  });
+
   it("renders rule and pathway authoring preview through the unified authoring endpoint", async () => {
     const response = {
       previewText: "当 年龄 大于等于 65。",
@@ -1242,11 +1314,22 @@ describe("package export api helpers", () => {
       createdAt: "2026-06-08T00:00:00Z",
       updatedAt: "2026-06-08T00:00:01Z",
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [job] } });
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [job],
+          page: 2,
+          size: 20,
+          total: 41,
+          totalEstimated: false,
+          hasNext: true,
+        },
+      },
+    });
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: job } });
 
-    const jobs = renderApiHook(() => useAuthoringBatchJobs());
-    await waitFor(() => expect(jobs.result.current.data).toEqual([job]));
+    const jobs = renderApiHook(() => useAuthoringBatchJobs({ page: 2, size: 20 }));
+    await waitFor(() => expect(jobs.result.current.data?.items).toEqual([job]));
 
     const generate = renderApiHook(() => useGenerateAuthoringBatchRules());
     const request = {
@@ -1262,7 +1345,9 @@ describe("package export api helpers", () => {
     };
     await generate.result.current.mutateAsync(request);
 
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/batch");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/batch", {
+      params: { page: 2, size: 20 },
+    });
     expect(apiClient.post).toHaveBeenCalledWith("/engine/authoring/batch/rules/generate", request);
   });
 
@@ -2726,8 +2811,8 @@ describe("terminology mapping api helpers", () => {
 
   it("loads standard and local dictionaries from the API-04 paged endpoints", async () => {
     vi.mocked(apiClient.get)
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } })
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } });
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 20, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 20, total: 0 } } });
 
     const standard = renderApiHook(() =>
       useStandardTerms({ page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" }),
@@ -2739,18 +2824,18 @@ describe("terminology mapping api helpers", () => {
     await waitFor(() => expect(standard.result.current.data?.items).toEqual([]));
     await waitFor(() => expect(local.result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/terms/standard", {
-      params: { page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" },
+      params: { page: 1, size: 20, standardSystem: "LOINC", status: "ACTIVE" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/terms/local", {
-      params: { page: 0, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
+      params: { page: 1, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
     });
   });
 
   it("loads candidates, conflicts and terminology knowledge packages from unified roots", async () => {
     vi.mocked(apiClient.get)
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } });
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } });
 
     const candidates = renderApiHook(() =>
       useTerminologyCandidates({ page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" }),
@@ -2766,10 +2851,10 @@ describe("terminology mapping api helpers", () => {
     await waitFor(() => expect(conflicts.result.current.data?.items).toEqual([]));
     await waitFor(() => expect(packages.result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/mappings/candidates", {
-      params: { page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" },
+      params: { page: 1, size: 10, status: "PENDING", riskLevel: "HIGH" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/mappings/conflicts", {
-      params: { page: 0, size: 10, status: "OPEN" },
+      params: { page: 1, size: 10, status: "OPEN" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/pkg/packages", {
       params: { page: 1, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" },
@@ -3020,6 +3105,35 @@ describe("release governance api hooks", () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
+  it("loads override templates through server pagination", async () => {
+    const page = {
+      items: [
+        {
+          templateId: "template-a",
+          templateName: "儿科模板",
+          description: "儿科本地覆盖",
+          applicableScope: "ALL",
+          status: "ACTIVE",
+          updatedAt: "2026-06-09T00:00:00Z",
+        },
+      ],
+      page: 2,
+      size: 10,
+      total: 12,
+      hasNext: true,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useOverrideTemplates({ page: 2, size: 10 }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(page);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/versioning/releases/override-templates", {
+      params: { page: 2, size: 10 },
+    });
+  });
+
   it("uses the canonical simulation, rollout, rollback and override operation endpoints", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
     const simulation = {
@@ -3172,13 +3286,16 @@ describe("integration adapter api helpers", () => {
         updatedAt: "2026-06-03T08:00:00Z",
       },
     ];
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: onboardings } });
+    const page = { items: onboardings, page: 2, size: 10, total: 21, hasNext: true };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
 
-    const { result } = renderApiHook(() => useIntegrationOnboardings());
+    const { result } = renderApiHook(() => useIntegrationOnboardings({ page: 2, size: 10 }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(onboardings);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/onboardings");
+    expect(result.current.data).toEqual(page);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/onboardings", {
+      params: { page: 2, size: 10 },
+    });
   });
 
   it("loads versioned integration data contracts from the canonical endpoint", async () => {
@@ -3291,7 +3408,8 @@ describe("integration adapter api helpers", () => {
       createdAt: "2026-06-06T08:00:00Z",
       updatedAt: "2026-06-06T08:00:00Z",
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [callback] } });
+    const page = { items: [callback], page: 3, size: 10, total: 25, hasNext: true };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
         data: { data: { ...callback, sharedSecret: "whsec_once_only" } },
@@ -3310,7 +3428,7 @@ describe("integration adapter api helpers", () => {
         },
       });
 
-    const listing = renderApiHook(() => useWebhooks());
+    const listing = renderApiHook(() => useWebhooks({ page: 3, size: 10 }));
     await waitFor(() => expect(listing.result.current.isSuccess).toBe(true));
     const create = renderApiHook(() => useCreateWebhook());
     const preview = renderApiHook(() => useTestWebhookSignature());
@@ -3326,11 +3444,13 @@ describe("integration adapter api helpers", () => {
       payload: '{"event":"clinical.test"}',
     });
 
-    expect(listing.result.current.data).toEqual([callback]);
-    expect(listing.result.current.data?.[0]).not.toHaveProperty("sharedSecret");
+    expect(listing.result.current.data).toEqual(page);
+    expect(listing.result.current.data?.items[0]).not.toHaveProperty("sharedSecret");
     expect(created.sharedSecret).toBe("whsec_once_only");
     expect(previewed.connectionStatus).toBe("NOT_TESTED");
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/webhooks");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/webhooks", {
+      params: { page: 3, size: 10 },
+    });
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/integration/webhooks", {
       webhookId: callback.webhookId,
       name: callback.name,
@@ -3358,10 +3478,11 @@ describe("integration adapter api helpers", () => {
       createdAt: "2026-06-06T08:00:00Z",
       updatedAt: "2026-06-06T08:00:00Z",
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [source] } });
+    const page = { items: [source], page: 4, size: 10, total: 31, hasNext: true };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: source } });
 
-    const listing = renderApiHook(() => useRegionalSources());
+    const listing = renderApiHook(() => useRegionalSources({ page: 4, size: 10 }));
     await waitFor(() => expect(listing.result.current.isSuccess).toBe(true));
     const register = renderApiHook(() => useRegisterRegionalSource());
     const registered = await register.result.current.mutateAsync({
@@ -3376,9 +3497,11 @@ describe("integration adapter api helpers", () => {
       orgPath: source.orgPath,
     });
 
-    expect(listing.result.current.data).toEqual([source]);
+    expect(listing.result.current.data).toEqual(page);
     expect(registered).toEqual(source);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/regional-sources");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/regional-sources", {
+      params: { page: 4, size: 10 },
+    });
     expect(apiClient.post).toHaveBeenCalledWith("/engine/integration/regional-sources", {
       sourceId: source.sourceId,
       regionalNetworkName: source.regionalNetworkName,
@@ -3458,9 +3581,14 @@ describe("knowledge review api helpers", () => {
     };
     const candidateResponse = {
       identityId: 42,
-      candidates: [
-        { id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" },
-      ],
+      candidates: {
+        items: [{ id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" }],
+        page: 2,
+        size: 10,
+        total: 21,
+        hasNext: true,
+        totalEstimated: false,
+      },
       classifications: [{ candidateVersionId: 2002, classification: "CONFLICT" }],
       available: true,
       reasonCode: "CONFLICT",
@@ -3480,7 +3608,7 @@ describe("knowledge review api helpers", () => {
         sort: "updatedAt,desc",
       }),
     );
-    const candidates = renderApiHook(() => useKnowledgeCandidates(42));
+    const candidates = renderApiHook(() => useKnowledgeCandidates(42, { page: 2, size: 10 }));
     const diff = renderApiHook(() => useKnowledgeCandidateDiff(2002));
 
     await waitFor(() => expect(identities.result.current.data).toBe(identityPage));
@@ -3496,7 +3624,9 @@ describe("knowledge review api helpers", () => {
         sort: "updatedAt,desc",
       },
     });
-    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge/identities/42/candidates");
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge/identities/42/candidates", {
+      params: { page: 2, size: 10 },
+    });
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/knowledge/candidates/2002/diff");
   });
 
@@ -3511,6 +3641,25 @@ describe("knowledge review api helpers", () => {
 
     expect(identities.result.current.fetchStatus).toBe("idle");
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("loads knowledge versions through server pagination", async () => {
+    const versionPage = {
+      items: [{ id: 10, versionNo: "2026", status: "ACTIVE" }],
+      page: 2,
+      size: 10,
+      total: 21,
+      hasNext: true,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: versionPage } });
+
+    const versions = renderApiHook(() => useKnowledgeVersions(42, { page: 2, size: 10 }));
+
+    await waitFor(() => expect(versions.result.current.data).toEqual(versionPage));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/versions", {
+      params: { page: 2, size: 10 },
+    });
   });
 
   it("loads institution knowledge customizations through server pagination", async () => {
@@ -3549,18 +3698,34 @@ describe("knowledge review api helpers", () => {
         status: "ACTIVE",
       },
       currentVersionId: 2001,
-      versions: [{ id: 2001, versionNo: "2026.1", status: "ACTIVE" }],
-      supersessions: [],
+      versions: {
+        items: [{ id: 2001, versionNo: "2026.1", status: "ACTIVE" }],
+        page: 2,
+        size: 10,
+        total: 21,
+        hasNext: true,
+        totalEstimated: false,
+      },
+      supersessions: {
+        items: [],
+        page: 2,
+        size: 10,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      },
       sourceEvidence: [{ citationId: 9, anchorPath: "section-2.1" }],
       unresolvedCitationCount: 0,
       partial: false,
     };
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: provenance } });
 
-    const hook = renderApiHook(() => useKnowledgeProvenance(42));
+    const hook = renderApiHook(() => useKnowledgeProvenance(42, { page: 2, size: 10 }));
 
     await waitFor(() => expect(hook.result.current.data).toBe(provenance));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/provenance");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/provenance", {
+      params: { page: 2, size: 10 },
+    });
   });
 
   it("loads the knowledge production center readiness, job and pipeline evidence through governed roots", async () => {
@@ -3887,8 +4052,22 @@ describe("experience foundation api helpers", () => {
 
   it("uses the unified compliance configuration contracts", async () => {
     const systemConfigs = [{ key: "medkernel.auth.password.min-length", value: "12" }];
-    const policies = [{ policyId: "policy-1", resourceType: "clinical_case" }];
-    const maskingRules = [{ ruleId: "mask-1", fieldName: "patientName" }];
+    const policies = {
+      items: [{ policyId: "policy-1", resourceType: "clinical_case" }],
+      page: 2,
+      size: 20,
+      total: 21,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    const maskingRules = {
+      items: [{ ruleId: "mask-1", fieldName: "patientName" }],
+      page: 3,
+      size: 10,
+      total: 25,
+      hasNext: false,
+      totalEstimated: false,
+    };
     const assessment = { standardVersion: "IOT-2026", totalItems: 1, items: [] };
     const approvals = {
       items: [{ approvalId: "exp-audit-1", status: "REQUESTED" }],
@@ -3909,9 +4088,16 @@ describe("experience foundation api helpers", () => {
     expect(await fetchSystemConfigs("medkernel.auth.")).toBe(systemConfigs);
     expect(await fetchTenantSystemConfigs("tenant-A", "medkernel.runtime.")).toBe(systemConfigs);
     expect(
-      await fetchDataPermissionPolicies({ resourceType: "clinical_case", action: "READ" }),
+      await fetchDataPermissionPolicies({
+        resourceType: "clinical_case",
+        action: "READ",
+        page: 2,
+        size: 20,
+      }),
     ).toBe(policies);
-    expect(await fetchMaskingRules({ resourceType: "clinical_case" })).toBe(maskingRules);
+    expect(await fetchMaskingRules({ resourceType: "clinical_case", page: 3, size: 10 })).toBe(
+      maskingRules,
+    );
     expect(await fetchInteropAssessment("IOT-2026")).toBe(assessment);
     expect(
       await fetchExportApprovals({
@@ -3929,10 +4115,10 @@ describe("experience foundation api helpers", () => {
       params: { prefix: "medkernel.runtime." },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/compliance/data-permissions", {
-      params: { resourceType: "clinical_case", action: "READ" },
+      params: { resourceType: "clinical_case", action: "READ", page: 2, size: 20 },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(4, "/compliance/masking-rules", {
-      params: { resourceType: "clinical_case" },
+      params: { resourceType: "clinical_case", page: 3, size: 10 },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(5, "/compliance/interop-assessment", {
       params: { standardVersion: "IOT-2026" },

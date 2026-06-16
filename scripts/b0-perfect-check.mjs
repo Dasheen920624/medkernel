@@ -17,6 +17,10 @@ const KNOWLEDGE_GOVERNANCE_TEST =
   "frontend/src/pages/quality/KnowledgeGovernance.test.tsx";
 const API_HOOKS = "frontend/src/shared/api/hooks.ts";
 const API_HOOKS_TEST = "frontend/src/shared/api/hooks.test.ts";
+const SECURITY_BASELINE_PANELS =
+  "frontend/src/pages/compliance/SecurityBaselinePanels.tsx";
+const SECURITY_BASELINE_TEST =
+  "frontend/src/pages/compliance/SecurityBaseline.test.tsx";
 const DIAGNOSIS_MAINTENANCE =
   "frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx";
 const DIAGNOSIS_PANEL =
@@ -58,6 +62,26 @@ const EXPORT_APPROVAL_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/compliance/exportapproval/ExportApprovalServiceTest.java";
 const EXPORT_APPROVAL_CONTROLLER_SECURITY_TEST =
   "medkernel-backend/src/test/java/com/medkernel/compliance/exportapproval/ExportApprovalControllerSecurityTest.java";
+const DATA_PERMISSION_POLICY_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/datapermission/DataPermissionPolicyRepository.java";
+const DATA_PERMISSION_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/datapermission/DataPermissionService.java";
+const DATA_PERMISSION_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/datapermission/DataPermissionController.java";
+const DATA_PERMISSION_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/compliance/datapermission/DataPermissionServiceTest.java";
+const DATA_PERMISSION_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/compliance/datapermission/DataPermissionControllerSecurityTest.java";
+const MASKING_RULE_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingRuleRepository.java";
+const MASKING_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingService.java";
+const MASKING_RULE_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingRuleController.java";
+const MASKING_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/compliance/masking/MaskingServiceTest.java";
+const MASKING_RULE_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/compliance/masking/MaskingRuleControllerSecurityTest.java";
 const KNOWLEDGE_CUSTOMIZATION_REPOSITORY =
   "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeCustomizationRepository.java";
 const KNOWLEDGE_CUSTOMIZATION_SERVICE =
@@ -66,14 +90,90 @@ const KNOWLEDGE_CUSTOMIZATION_CONTROLLER =
   "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeCustomizationController.java";
 const KNOWLEDGE_CUSTOMIZATION_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeCustomizationServiceTest.java";
+const KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/KnowledgeProductionCandidateRepository.java";
+const KNOWLEDGE_PRODUCTION_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/KnowledgeProductionOrchestrationService.java";
+const KNOWLEDGE_PRODUCTION_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/KnowledgeProductionController.java";
+const KNOWLEDGE_PRODUCTION_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/KnowledgeProductionOrchestrationServiceTest.java";
+const KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/KnowledgeProductionCandidateRepositoryIntegrationTest.java";
+const KNOWLEDGE_PRODUCTION_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/KnowledgeProductionControllerSecurityTest.java";
+const CANDIDATE_PROVENANCE_REQUEST =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/CandidateProvenanceRequest.java";
+const CANDIDATE_PROVENANCE_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/CandidateProvenanceService.java";
+const CANDIDATE_PROVENANCE_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/CandidateProvenanceServiceTest.java";
+const DOC_PARSE_JOB_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocParseJobRepository.java";
+const DOCUMENT_PARSE_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationService.java";
+const DOCUMENT_PARSE_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseController.java";
+const DOCUMENT_PARSE_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationServiceTest.java";
+const DOCUMENT_PARSE_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/parsing/DocumentParseControllerSecurityTest.java";
+const KNOWLEDGE_EXPORT_JOB_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportJobRepository.java";
+const KNOWLEDGE_EXPORT_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportService.java";
+const KNOWLEDGE_EXPORT_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportController.java";
+const KNOWLEDGE_EXPORT_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeExportServiceTest.java";
+const KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeIdentityControllerSecurityTest.java";
+const ENGINE_DATA_EXPORT_JOB_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/export/EngineDataExportJobRepository.java";
+const ENGINE_DATA_EXPORT_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/export/EngineDataExportService.java";
+const ENGINE_DATA_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/EngineDataController.java";
+const ENGINE_DATA_EXPORT_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/datasvc/export/EngineDataExportServiceTest.java";
+const ENGINE_DATA_EXPORT_JOB_REPOSITORY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/datasvc/export/EngineDataExportJobRepositoryIntegrationTest.java";
+const ENGINE_DATA_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/datasvc/EngineDataControllerSecurityTest.java";
 const KNOWLEDGE_IDENTITY_REPOSITORY =
   "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeIdentityRepository.java";
+const KNOWLEDGE_IDENTITY_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeIdentityController.java";
 const KNOWLEDGE_IDENTITY_SERVICE =
   "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeIdentityService.java";
 const KNOWLEDGE_IDENTITY_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeIdentityServiceTest.java";
 const KNOWLEDGE_IDENTITY_REPOSITORY_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeIdentityRepositoryTest.java";
+const KNOWLEDGE_ASSET_VERSION_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeAssetVersionRepository.java";
+const CANDIDATE_CLASSIFICATION_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/CandidateClassificationRepository.java";
+const KNOWLEDGE_CANDIDATE_RESPONSE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeCandidateResponse.java";
+const KNOWLEDGE_VERSION_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeVersionService.java";
+const KNOWLEDGE_VERSION_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeVersionController.java";
+const KNOWLEDGE_VERSION_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeVersionServiceTest.java";
+const KNOWLEDGE_PROVENANCE_RESPONSE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeProvenanceResponse.java";
+const KNOWLEDGE_LINEAGE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeLineage.java";
+const KNOWLEDGE_SUPERSESSION_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeSupersessionRepository.java";
+const KNOWLEDGE_ASSET_API_CONTRACT_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/knowledge/KnowledgeAssetApiContractTest.java";
+const ADVANCED_PROVENANCE =
+  "frontend/src/pages/advanced/Provenance.tsx";
+const ADVANCED_PROVENANCE_TEST =
+  "frontend/src/pages/advanced/Provenance.test.tsx";
 const PATIENT_PATHWAYS = "frontend/src/pages/clinical/PatientPathways.tsx";
 const PATIENT_PATHWAYS_TEST =
   "frontend/src/pages/clinical/PatientPathways.test.tsx";
@@ -84,6 +184,28 @@ const AUTHORING_ASSET_LIBRARY_SERVICE =
   "medkernel-backend/src/main/java/com/medkernel/engine/authoring/AuthoringAssetLibraryService.java";
 const AUTHORING_ASSET_LIBRARY_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/authoring/AuthoringAssetLibraryServiceTest.java";
+const AUTHORING_ASSET_LIBRARY_REPOSITORY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/authoring/AuthoringAssetLibraryRepositoryTest.java";
+const CONDITION_FRAGMENT_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/ConditionFragmentService.java";
+const CONDITION_FRAGMENT_IMPACT_RESPONSE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/ConditionFragmentImpactResponse.java";
+const CONDITION_FRAGMENT_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/ConditionFragmentController.java";
+const CONDITION_FRAGMENT_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/authoring/ConditionFragmentServiceTest.java";
+const CONDITION_FRAGMENT_CONTROLLER_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/authoring/ConditionFragmentControllerTest.java";
+const AUTHORING_BATCH_JOB_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/AuthoringBatchJobRepository.java";
+const AUTHORING_BATCH_JOB_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/AuthoringBatchJobService.java";
+const AUTHORING_BATCH_JOB_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/authoring/AuthoringBatchJobController.java";
+const AUTHORING_BATCH_JOB_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/authoring/AuthoringBatchJobServiceTest.java";
+const AUTHORING_BATCH_JOB_CONTROLLER_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/authoring/AuthoringBatchJobControllerTest.java";
 const AUTHORING_BATCH_DRAWER =
   "frontend/src/pages/tenant/AuthoringBatchDrawer.tsx";
 const AUTHORING_BATCH_DRAWER_TEST =
@@ -108,6 +230,9 @@ const TERMINOLOGY_MAPPING =
   "frontend/src/pages/tenant/TerminologyMapping.tsx";
 const TERMINOLOGY_MAPPING_TEST =
   "frontend/src/pages/tenant/TerminologyMapping.test.tsx";
+const RELEASE_GOVERNANCE = "frontend/src/pages/tenant/ReleaseGovernance.tsx";
+const RELEASE_GOVERNANCE_TEST =
+  "frontend/src/pages/tenant/ReleaseGovernance.test.tsx";
 const CONFIG_PACKAGES = "frontend/src/pages/tenant/ConfigPackages.tsx";
 const CONFIG_PACKAGES_TEST =
   "frontend/src/pages/tenant/ConfigPackages.test.tsx";
@@ -152,16 +277,48 @@ const USER_ROLE_ASSIGNMENT_REPOSITORY =
   "medkernel-backend/src/main/java/com/medkernel/engine/security/UserRoleAssignmentRepository.java";
 const INTEGRATION_ADAPTER_REPOSITORY =
   "medkernel-backend/src/main/java/com/medkernel/engine/integration/repository/IntegrationAdapterRepository.java";
+const INTEGRATION_ONBOARDING_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/repository/IntegrationOnboardingRepository.java";
+const INTEGRATION_WEBHOOK_CONFIG_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/repository/IntegrationWebhookConfigRepository.java";
+const REGIONAL_SOURCE_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/repository/RegionalSourceRepository.java";
 const INTEGRATION_SERVICE =
   "medkernel-backend/src/main/java/com/medkernel/engine/integration/service/IntegrationService.java";
 const INTEGRATION_CONTROLLER =
   "medkernel-backend/src/main/java/com/medkernel/engine/integration/controller/IntegrationController.java";
 const INTEGRATION_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/integration/IntegrationServiceTest.java";
+const INTEGRATION_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/integration/IntegrationControllerSecurityTest.java";
+const OVERRIDE_TEMPLATE_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/versioning/OverrideTemplateRepository.java";
+const OVERRIDE_TEMPLATE_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/versioning/OverrideTemplateService.java";
+const RELEASE_GOVERNANCE_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/versioning/ReleaseGovernanceController.java";
+const OVERRIDE_TEMPLATE_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/versioning/OverrideTemplateServiceTest.java";
+const RELEASE_GOVERNANCE_CONTROLLER_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/versioning/ReleaseGovernanceControllerTest.java";
 const PACKAGE_ENGINE_SERVICE =
   "medkernel-backend/src/main/java/com/medkernel/engine/pkg/PackageEngineService.java";
+const PACKAGE_ENGINE_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/pkg/PackageEngineController.java";
+const SYNC_LOG_REPOSITORY =
+  "medkernel-backend/src/main/java/com/medkernel/engine/pkg/SyncLogRepository.java";
 const PACKAGE_ENGINE_SERVICE_TEST =
   "medkernel-backend/src/test/java/com/medkernel/engine/pkg/PackageEngineServiceTest.java";
+const PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/pkg/PackageEngineControllerSecurityTest.java";
+const THIRD_PARTY_PACKAGE_RECONCILIATION_RESPONSE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/runtime/ThirdPartyPackageReconciliationResponse.java";
+const THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/runtime/ThirdPartyKnowledgeRuntimeService.java";
+const THIRD_PARTY_KNOWLEDGE_RUNTIME_CONTROLLER =
+  "medkernel-backend/src/main/java/com/medkernel/engine/integration/runtime/ThirdPartyKnowledgeRuntimeController.java";
+const THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE_TEST =
+  "medkernel-backend/src/test/java/com/medkernel/engine/integration/runtime/ThirdPartyKnowledgeRuntimeServiceTest.java";
 const TENANT_PILOT_SERVICE =
   "medkernel-backend/src/main/java/com/medkernel/engine/tenant/TenantPilotService.java";
 const TENANT_PILOT_SERVICE_TEST =
@@ -238,6 +395,16 @@ export async function scanRepository(root = process.cwd()) {
   );
   const apiHooks = readRequired(root, API_HOOKS, violations);
   const apiHooksTest = readRequired(root, API_HOOKS_TEST, violations);
+  const securityBaselinePanels = readRequired(
+    root,
+    SECURITY_BASELINE_PANELS,
+    violations,
+  );
+  const securityBaselineTest = readRequired(
+    root,
+    SECURITY_BASELINE_TEST,
+    violations,
+  );
   const diagnosisPage = readRequired(root, DIAGNOSIS_MAINTENANCE, violations);
   const diagnosisPanel = readRequired(root, DIAGNOSIS_PANEL, violations);
   const diagnosisPanelTest = readRequired(
@@ -318,6 +485,52 @@ export async function scanRepository(root = process.cwd()) {
     EXPORT_APPROVAL_CONTROLLER_SECURITY_TEST,
     violations,
   );
+  const dataPermissionPolicyRepository = readRequired(
+    root,
+    DATA_PERMISSION_POLICY_REPOSITORY,
+    violations,
+  );
+  const dataPermissionService = readRequired(
+    root,
+    DATA_PERMISSION_SERVICE,
+    violations,
+  );
+  const dataPermissionController = readRequired(
+    root,
+    DATA_PERMISSION_CONTROLLER,
+    violations,
+  );
+  const dataPermissionServiceTest = readRequired(
+    root,
+    DATA_PERMISSION_SERVICE_TEST,
+    violations,
+  );
+  const dataPermissionControllerSecurityTest = readRequired(
+    root,
+    DATA_PERMISSION_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const maskingRuleRepository = readRequired(
+    root,
+    MASKING_RULE_REPOSITORY,
+    violations,
+  );
+  const maskingService = readRequired(root, MASKING_SERVICE, violations);
+  const maskingRuleController = readRequired(
+    root,
+    MASKING_RULE_CONTROLLER,
+    violations,
+  );
+  const maskingServiceTest = readRequired(
+    root,
+    MASKING_SERVICE_TEST,
+    violations,
+  );
+  const maskingRuleControllerSecurityTest = readRequired(
+    root,
+    MASKING_RULE_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
   const knowledgeCustomizationRepository = readRequired(
     root,
     KNOWLEDGE_CUSTOMIZATION_REPOSITORY,
@@ -338,9 +551,139 @@ export async function scanRepository(root = process.cwd()) {
     KNOWLEDGE_CUSTOMIZATION_SERVICE_TEST,
     violations,
   );
+  const knowledgeProductionCandidateRepository = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY,
+    violations,
+  );
+  const knowledgeProductionService = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_SERVICE,
+    violations,
+  );
+  const knowledgeProductionController = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_CONTROLLER,
+    violations,
+  );
+  const knowledgeProductionServiceTest = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_SERVICE_TEST,
+    violations,
+  );
+  const knowledgeProductionCandidateRepositoryTest = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY_TEST,
+    violations,
+  );
+  const knowledgeProductionControllerSecurityTest = readRequired(
+    root,
+    KNOWLEDGE_PRODUCTION_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const candidateProvenanceRequest = readRequired(
+    root,
+    CANDIDATE_PROVENANCE_REQUEST,
+    violations,
+  );
+  const candidateProvenanceService = readRequired(
+    root,
+    CANDIDATE_PROVENANCE_SERVICE,
+    violations,
+  );
+  const candidateProvenanceServiceTest = readRequired(
+    root,
+    CANDIDATE_PROVENANCE_SERVICE_TEST,
+    violations,
+  );
+  const docParseJobRepository = readRequired(
+    root,
+    DOC_PARSE_JOB_REPOSITORY,
+    violations,
+  );
+  const documentParseService = readRequired(
+    root,
+    DOCUMENT_PARSE_SERVICE,
+    violations,
+  );
+  const documentParseController = readRequired(
+    root,
+    DOCUMENT_PARSE_CONTROLLER,
+    violations,
+  );
+  const documentParseServiceTest = readRequired(
+    root,
+    DOCUMENT_PARSE_SERVICE_TEST,
+    violations,
+  );
+  const documentParseControllerSecurityTest = readRequired(
+    root,
+    DOCUMENT_PARSE_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const knowledgeExportJobRepository = readRequired(
+    root,
+    KNOWLEDGE_EXPORT_JOB_REPOSITORY,
+    violations,
+  );
+  const knowledgeExportService = readRequired(
+    root,
+    KNOWLEDGE_EXPORT_SERVICE,
+    violations,
+  );
+  const knowledgeExportController = readRequired(
+    root,
+    KNOWLEDGE_EXPORT_CONTROLLER,
+    violations,
+  );
+  const knowledgeExportServiceTest = readRequired(
+    root,
+    KNOWLEDGE_EXPORT_SERVICE_TEST,
+    violations,
+  );
+  const knowledgeIdentityControllerSecurityTest = readRequired(
+    root,
+    KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const engineDataExportJobRepository = readRequired(
+    root,
+    ENGINE_DATA_EXPORT_JOB_REPOSITORY,
+    violations,
+  );
+  const engineDataExportService = readRequired(
+    root,
+    ENGINE_DATA_EXPORT_SERVICE,
+    violations,
+  );
+  const engineDataController = readRequired(
+    root,
+    ENGINE_DATA_CONTROLLER,
+    violations,
+  );
+  const engineDataExportServiceTest = readRequired(
+    root,
+    ENGINE_DATA_EXPORT_SERVICE_TEST,
+    violations,
+  );
+  const engineDataExportJobRepositoryTest = readRequired(
+    root,
+    ENGINE_DATA_EXPORT_JOB_REPOSITORY_TEST,
+    violations,
+  );
+  const engineDataControllerSecurityTest = readRequired(
+    root,
+    ENGINE_DATA_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
   const knowledgeIdentityRepository = readRequired(
     root,
     KNOWLEDGE_IDENTITY_REPOSITORY,
+    violations,
+  );
+  const knowledgeIdentityController = readRequired(
+    root,
+    KNOWLEDGE_IDENTITY_CONTROLLER,
     violations,
   );
   const knowledgeIdentityService = readRequired(
@@ -356,6 +699,62 @@ export async function scanRepository(root = process.cwd()) {
   const knowledgeIdentityRepositoryTest = readRequired(
     root,
     KNOWLEDGE_IDENTITY_REPOSITORY_TEST,
+    violations,
+  );
+  const knowledgeAssetVersionRepository = readRequired(
+    root,
+    KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+    violations,
+  );
+  const candidateClassificationRepository = readRequired(
+    root,
+    CANDIDATE_CLASSIFICATION_REPOSITORY,
+    violations,
+  );
+  const knowledgeCandidateResponse = readRequired(
+    root,
+    KNOWLEDGE_CANDIDATE_RESPONSE,
+    violations,
+  );
+  const knowledgeVersionService = readRequired(
+    root,
+    KNOWLEDGE_VERSION_SERVICE,
+    violations,
+  );
+  const knowledgeVersionController = readRequired(
+    root,
+    KNOWLEDGE_VERSION_CONTROLLER,
+    violations,
+  );
+  const knowledgeVersionServiceTest = readRequired(
+    root,
+    KNOWLEDGE_VERSION_SERVICE_TEST,
+    violations,
+  );
+  const knowledgeProvenanceResponse = readRequired(
+    root,
+    KNOWLEDGE_PROVENANCE_RESPONSE,
+    violations,
+  );
+  const knowledgeLineage = readRequired(root, KNOWLEDGE_LINEAGE, violations);
+  const knowledgeSupersessionRepository = readRequired(
+    root,
+    KNOWLEDGE_SUPERSESSION_REPOSITORY,
+    violations,
+  );
+  const knowledgeAssetApiContractTest = readRequired(
+    root,
+    KNOWLEDGE_ASSET_API_CONTRACT_TEST,
+    violations,
+  );
+  const advancedProvenance = readRequired(
+    root,
+    ADVANCED_PROVENANCE,
+    violations,
+  );
+  const advancedProvenanceTest = readRequired(
+    root,
+    ADVANCED_PROVENANCE_TEST,
     violations,
   );
   const patientPathways = readRequired(root, PATIENT_PATHWAYS, violations);
@@ -378,6 +777,61 @@ export async function scanRepository(root = process.cwd()) {
   const authoringAssetLibraryServiceTest = readRequired(
     root,
     AUTHORING_ASSET_LIBRARY_SERVICE_TEST,
+    violations,
+  );
+  const authoringAssetLibraryRepositoryTest = readRequired(
+    root,
+    AUTHORING_ASSET_LIBRARY_REPOSITORY_TEST,
+    violations,
+  );
+  const conditionFragmentService = readRequired(
+    root,
+    CONDITION_FRAGMENT_SERVICE,
+    violations,
+  );
+  const conditionFragmentImpactResponse = readRequired(
+    root,
+    CONDITION_FRAGMENT_IMPACT_RESPONSE,
+    violations,
+  );
+  const conditionFragmentController = readRequired(
+    root,
+    CONDITION_FRAGMENT_CONTROLLER,
+    violations,
+  );
+  const conditionFragmentServiceTest = readRequired(
+    root,
+    CONDITION_FRAGMENT_SERVICE_TEST,
+    violations,
+  );
+  const conditionFragmentControllerTest = readRequired(
+    root,
+    CONDITION_FRAGMENT_CONTROLLER_TEST,
+    violations,
+  );
+  const authoringBatchJobRepository = readRequired(
+    root,
+    AUTHORING_BATCH_JOB_REPOSITORY,
+    violations,
+  );
+  const authoringBatchJobService = readRequired(
+    root,
+    AUTHORING_BATCH_JOB_SERVICE,
+    violations,
+  );
+  const authoringBatchJobController = readRequired(
+    root,
+    AUTHORING_BATCH_JOB_CONTROLLER,
+    violations,
+  );
+  const authoringBatchJobServiceTest = readRequired(
+    root,
+    AUTHORING_BATCH_JOB_SERVICE_TEST,
+    violations,
+  );
+  const authoringBatchJobControllerTest = readRequired(
+    root,
+    AUTHORING_BATCH_JOB_CONTROLLER_TEST,
     violations,
   );
   const authoringBatchDrawer = readRequired(
@@ -428,6 +882,12 @@ export async function scanRepository(root = process.cwd()) {
   const terminologyMappingTest = readRequired(
     root,
     TERMINOLOGY_MAPPING_TEST,
+    violations,
+  );
+  const releaseGovernance = readRequired(root, RELEASE_GOVERNANCE, violations);
+  const releaseGovernanceTest = readRequired(
+    root,
+    RELEASE_GOVERNANCE_TEST,
     violations,
   );
   const configPackages = readRequired(root, CONFIG_PACKAGES, violations);
@@ -533,6 +993,21 @@ export async function scanRepository(root = process.cwd()) {
     INTEGRATION_ADAPTER_REPOSITORY,
     violations,
   );
+  const integrationOnboardingRepository = readRequired(
+    root,
+    INTEGRATION_ONBOARDING_REPOSITORY,
+    violations,
+  );
+  const integrationWebhookConfigRepository = readRequired(
+    root,
+    INTEGRATION_WEBHOOK_CONFIG_REPOSITORY,
+    violations,
+  );
+  const regionalSourceRepository = readRequired(
+    root,
+    REGIONAL_SOURCE_REPOSITORY,
+    violations,
+  );
   const integrationService = readRequired(root, INTEGRATION_SERVICE, violations);
   const integrationController = readRequired(
     root,
@@ -544,14 +1019,75 @@ export async function scanRepository(root = process.cwd()) {
     INTEGRATION_SERVICE_TEST,
     violations,
   );
+  const integrationControllerSecurityTest = readRequired(
+    root,
+    INTEGRATION_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const overrideTemplateRepository = readRequired(
+    root,
+    OVERRIDE_TEMPLATE_REPOSITORY,
+    violations,
+  );
+  const overrideTemplateService = readRequired(
+    root,
+    OVERRIDE_TEMPLATE_SERVICE,
+    violations,
+  );
+  const releaseGovernanceController = readRequired(
+    root,
+    RELEASE_GOVERNANCE_CONTROLLER,
+    violations,
+  );
+  const overrideTemplateServiceTest = readRequired(
+    root,
+    OVERRIDE_TEMPLATE_SERVICE_TEST,
+    violations,
+  );
+  const releaseGovernanceControllerTest = readRequired(
+    root,
+    RELEASE_GOVERNANCE_CONTROLLER_TEST,
+    violations,
+  );
   const packageEngineService = readRequired(
     root,
     PACKAGE_ENGINE_SERVICE,
     violations,
   );
+  const packageEngineController = readRequired(
+    root,
+    PACKAGE_ENGINE_CONTROLLER,
+    violations,
+  );
+  const syncLogRepository = readRequired(root, SYNC_LOG_REPOSITORY, violations);
   const packageEngineServiceTest = readRequired(
     root,
     PACKAGE_ENGINE_SERVICE_TEST,
+    violations,
+  );
+  const packageEngineControllerSecurityTest = readRequired(
+    root,
+    PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+    violations,
+  );
+  const thirdPartyPackageReconciliationResponse = readRequired(
+    root,
+    THIRD_PARTY_PACKAGE_RECONCILIATION_RESPONSE,
+    violations,
+  );
+  const thirdPartyKnowledgeRuntimeService = readRequired(
+    root,
+    THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE,
+    violations,
+  );
+  const thirdPartyKnowledgeRuntimeController = readRequired(
+    root,
+    THIRD_PARTY_KNOWLEDGE_RUNTIME_CONTROLLER,
+    violations,
+  );
+  const thirdPartyKnowledgeRuntimeServiceTest = readRequired(
+    root,
+    THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE_TEST,
     violations,
   );
   const tenantPilotService = readRequired(root, TENANT_PILOT_SERVICE, violations);
@@ -665,6 +1201,504 @@ export async function scanRepository(root = process.cwd()) {
       ruleId: "b0.diagnosis-reference-search-test.required-snippet-missing",
       message: "诊断维护引用选择器必须保留小页服务端搜索回归测试。",
     });
+  }
+  const knowledgeVersionControllerArrayPattern =
+    /ApiResult<\s*(?:java\.util\.)?List<KnowledgeAssetVersion>>/;
+  const knowledgeVersionServiceListPattern =
+    /public\s+List<KnowledgeAssetVersion>\s+listByIdentity\s*\([^)]*\)\s*\{[\s\S]*?findByTenantIdAndIdentityIdOrderByCreatedAtDesc/;
+  if (
+    knowledgeVersionControllerArrayPattern.test(knowledgeVersionController) ||
+    knowledgeVersionServiceListPattern.test(knowledgeVersionService)
+  ) {
+    violations.push({
+      file: KNOWLEDGE_VERSION_CONTROLLER,
+      line: lineOf(knowledgeVersionController, knowledgeVersionControllerArrayPattern),
+      ruleId: "b0.knowledge-version-history.backend-array-forbidden",
+      message:
+        "知识版本历史对外接口不得返回数组或全量版本快照，必须返回 PageResponse 并使用服务端分页。",
+    });
+  }
+
+  if (
+    apiHooks.includes("data: KnowledgeAssetVersion[]") ||
+    apiHooks.includes("function useKnowledgeVersions(identityId?: number)") ||
+    diagnosisPanel.includes("versionsQuery.data ?? []")
+  ) {
+    violations.push({
+      file: DIAGNOSIS_PANEL,
+      line: lineOf(diagnosisPanel, "useKnowledgeVersions"),
+      ruleId: "b0.knowledge-version-history.frontend-array-forbidden",
+      message:
+        "诊断知识版本历史前端不得按数组快照消费，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "countByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "PageResponse<KnowledgeAssetVersion> listByIdentity",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "versionRepository.countByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "versionRepository.pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_VERSION_CONTROLLER,
+      knowledgeVersionController,
+      "ApiResult<PageResponse<KnowledgeAssetVersion>> listByIdentity",
+    ],
+    [
+      KNOWLEDGE_VERSION_CONTROLLER,
+      knowledgeVersionController,
+      "new PageRequest(page, size, sort)",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE_TEST,
+      knowledgeVersionServiceTest,
+      "listByIdentityFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE_TEST,
+      knowledgeVersionServiceTest,
+      "pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+      knowledgeIdentityControllerSecurityTest,
+      "readRoleListsKnowledgeVersionsAsPagedContract",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+      knowledgeIdentityControllerSecurityTest,
+      "$.data.items[0].id",
+    ],
+    [API_HOOKS, apiHooks, "export interface KnowledgeVersionsParams"],
+    [API_HOOKS, apiHooks, "PageResponse<KnowledgeAssetVersion>"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "useKnowledgeVersions(identityId?: number, params: KnowledgeVersionsParams = {})",
+    ],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "useKnowledgeVersions(42, { page: 2, size: 10 })",
+    ],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "DIAGNOSIS_VERSION_PAGE_SIZE = 20"],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "versionPage"],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "useKnowledgeVersions(identityId, {"],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "versionsQuery.data?.items ?? []"],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "Pagination"],
+    [DIAGNOSIS_PANEL, diagnosisPanel, "onChange={setVersionPage}"],
+    [
+      DIAGNOSIS_PANEL_TEST,
+      diagnosisPanelTest,
+      "loads diagnosis versions through server pagination",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.knowledge-version-history.required-snippet-missing",
+        message: `知识版本历史分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    knowledgeVersionService.includes("List<KnowledgeAssetVersion> existingVersions =") ||
+    knowledgeVersionService.includes(
+      "versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId)",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_VERSION_SERVICE,
+      line: lineOf(knowledgeVersionService, "classifyCandidate"),
+      ruleId: "b0.knowledge-candidate-classification.identity-version-snapshot-forbidden",
+      message:
+        "知识候选分类不得拉取身份全量版本后内存判断版本号、content_hash 或 ACTIVE，必须用仓储点查询。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "countByTenantIdAndIdentityIdAndVersionNoIgnoreCase",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "findByTenantIdAndIdentityIdAndContentHash",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "versionRepository.existsByTenantIdAndIdentityIdAndVersionNoIgnoreCase",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "versionRepository.findByTenantIdAndIdentityIdAndContentHash",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "versionRepository.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE_TEST,
+      knowledgeVersionServiceTest,
+      "classifyCandidateUsesPointLookupsInsteadOfLoadingAllIdentityVersions",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.knowledge-candidate-classification.required-snippet-missing",
+        message: `知识候选分类点查询缺少仓储、服务或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    /record\s+KnowledgeCandidateResponse\s*\([^)]*List<KnowledgeAssetVersion>\s+candidates/s.test(
+      knowledgeCandidateResponse,
+    ) ||
+    knowledgeVersionService.includes(
+      "candidateClassificationRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(tenantId, identityId)",
+    ) ||
+    knowledgeVersionService.includes(
+      ".filter(version -> version.status() == KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW)",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_VERSION_SERVICE,
+      line: lineOf(knowledgeVersionService, "listCandidates"),
+      ruleId: "b0.knowledge-candidate-review.backend-array-forbidden",
+      message:
+        "知识审核候选队列不得按身份全量拉取版本/分类后内存过滤，必须返回 PageResponse 并只补当前页候选分类。",
+    });
+  }
+
+  if (
+    apiHooks.includes("candidates: KnowledgeAssetVersion[]") ||
+    apiHooks.includes("function useKnowledgeCandidates(identityId?: number)") ||
+    governance.includes("candidateResponse?.candidates ?? []") ||
+    governance.includes("dataSource={candidates}\n        pagination={false}")
+  ) {
+    violations.push({
+      file: KNOWLEDGE_GOVERNANCE,
+      line: lineOf(governance, "useKnowledgeCandidates"),
+      ruleId: "b0.knowledge-candidate-review.frontend-array-forbidden",
+      message:
+        "知识审核台不得消费全量候选数组或关闭候选表分页，必须用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_CANDIDATE_RESPONSE,
+      knowledgeCandidateResponse,
+      "PageResponse<KnowledgeAssetVersion> candidates",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "countPendingReplacementCandidatesByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_ASSET_VERSION_REPOSITORY,
+      knowledgeAssetVersionRepository,
+      "pagePendingReplacementCandidatesByTenantIdAndIdentityId",
+    ],
+    [
+      CANDIDATE_CLASSIFICATION_REPOSITORY,
+      candidateClassificationRepository,
+      "findByTenantIdAndCandidateVersionIdIn",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "listCandidates(Long identityId, PageRequest request)",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE,
+      knowledgeVersionService,
+      "PageResponse.of(candidates, safeRequest, total)",
+    ],
+    [
+      KNOWLEDGE_VERSION_CONTROLLER,
+      knowledgeVersionController,
+      "versionService.listCandidates(identityId, new PageRequest(page, size, sort))",
+    ],
+    [API_HOOKS, apiHooks, "export interface KnowledgeCandidatesParams"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "useKnowledgeCandidates(identityId?: number, params: KnowledgeCandidatesParams = {})",
+    ],
+    [API_HOOKS, apiHooks, "{ params: requestParams }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "useKnowledgeCandidates(42, { page: 2, size: 10 })",
+    ],
+    [KNOWLEDGE_GOVERNANCE, governance, "KNOWLEDGE_CANDIDATE_PAGE_SIZE = 20"],
+    [KNOWLEDGE_GOVERNANCE, governance, "candidatePage"],
+    [KNOWLEDGE_GOVERNANCE, governance, "candidatePageData?.items ?? []"],
+    [KNOWLEDGE_GOVERNANCE, governance, "useKnowledgeCandidates(selectedIdentityId, {"],
+    [KNOWLEDGE_GOVERNANCE, governance, "onChange: setCandidatePage"],
+    [
+      KNOWLEDGE_GOVERNANCE_TEST,
+      governanceTest,
+      "expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42, { page: 1, size: 20 })",
+    ],
+    [
+      KNOWLEDGE_VERSION_SERVICE_TEST,
+      knowledgeVersionServiceTest,
+      "listCandidatesPagesPendingCandidatesAndLoadsOnlyCurrentPageClassifications",
+    ],
+    [
+      KNOWLEDGE_ASSET_API_CONTRACT_TEST,
+      knowledgeAssetApiContractTest,
+      "$.data.candidates.items[0].id",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.knowledge-candidate-review.required-snippet-missing",
+        message: `知识候选审核分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    knowledgeProvenanceResponse.includes("List<KnowledgeAssetVersion> versions") ||
+    knowledgeProvenanceResponse.includes("List<KnowledgeSupersession> supersessions") ||
+    knowledgeLineage.includes("List<KnowledgeAssetVersion> versions") ||
+    knowledgeLineage.includes("List<KnowledgeSupersession> supersessions") ||
+    knowledgeIdentityService.includes(
+      "versionRepository.listByIdentity(effective.sourceTenantId(), identity.id())",
+    ) ||
+    knowledgeIdentityService.includes(
+      "supersessionRepository.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_PROVENANCE_RESPONSE,
+      line: lineOf(knowledgeProvenanceResponse, "List<KnowledgeAssetVersion> versions"),
+      ruleId: "b0.knowledge-provenance-history.backend-array-forbidden",
+      message:
+        "知识来源追溯和 lineage 不得返回全量版本/替代历史数组，必须使用 PageResponse 分页沿革。",
+    });
+  }
+
+  if (
+    apiHooks.includes("versions: KnowledgeAssetVersion[]") ||
+    apiHooks.includes("supersessions: KnowledgeSupersession[]") ||
+    apiHooks.includes("function useKnowledgeProvenance(identityId?: number)") ||
+    advancedProvenance.includes("provenance.versions.find(") ||
+    advancedProvenance.includes("dataSource={provenance.versions}") ||
+    advancedProvenance.includes("pagination={false}")
+  ) {
+    violations.push({
+      file: ADVANCED_PROVENANCE,
+      line: lineOf(advancedProvenance, "useKnowledgeProvenance"),
+      ruleId: "b0.knowledge-provenance-history.frontend-array-forbidden",
+      message:
+        "知识来源追溯页不得按数组快照消费版本沿革，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_PROVENANCE_RESPONSE,
+      knowledgeProvenanceResponse,
+      "PageResponse<KnowledgeAssetVersion> versions",
+    ],
+    [
+      KNOWLEDGE_PROVENANCE_RESPONSE,
+      knowledgeProvenanceResponse,
+      "PageResponse<KnowledgeSupersession> supersessions",
+    ],
+    [
+      KNOWLEDGE_LINEAGE,
+      knowledgeLineage,
+      "PageResponse<KnowledgeAssetVersion> versions",
+    ],
+    [
+      KNOWLEDGE_LINEAGE,
+      knowledgeLineage,
+      "PageResponse<KnowledgeSupersession> supersessions",
+    ],
+    [
+      KNOWLEDGE_SUPERSESSION_REPOSITORY,
+      knowledgeSupersessionRepository,
+      "countByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_SUPERSESSION_REPOSITORY,
+      knowledgeSupersessionRepository,
+      "pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_SUPERSESSION_REPOSITORY,
+      knowledgeSupersessionRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "getProvenance(Long identityId, PageRequest request)",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "versionHistoryPage(effective, safeRequest)",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "supersessionPage(effective, safeRequest)",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "versionRepository.pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "supersessionRepository.pageByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE,
+      knowledgeIdentityService,
+      "getLineage(Long identityId, PageRequest request)",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER,
+      knowledgeIdentityController,
+      "service.getProvenance(id, new PageRequest(page, size, sort))",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER,
+      knowledgeIdentityController,
+      "service.getLineage(id, new PageRequest(page, size, sort))",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+      knowledgeIdentityControllerSecurityTest,
+      "doctorCanReachProvenanceButDataScopeRejectsMissingTenant",
+    ],
+    [
+      KNOWLEDGE_ASSET_API_CONTRACT_TEST,
+      knowledgeAssetApiContractTest,
+      "getProvenance(eq(1L), any())",
+    ],
+    [
+      KNOWLEDGE_ASSET_API_CONTRACT_TEST,
+      knowledgeAssetApiContractTest,
+      "$.data.versions.items[0].id",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE_TEST,
+      knowledgeIdentityServiceTest,
+      "lineageBundlesIdentityVersionsAndSupersessions",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE_TEST,
+      knowledgeIdentityServiceTest,
+      "versionRepo.countByTenantIdAndIdentityId",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_SERVICE_TEST,
+      knowledgeIdentityServiceTest,
+      "supersessionRepo.countByTenantIdAndIdentityId",
+    ],
+    [API_HOOKS, apiHooks, "export interface KnowledgeProvenanceParams"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "versions: PageResponse<KnowledgeAssetVersion>",
+    ],
+    [
+      API_HOOKS,
+      apiHooks,
+      "supersessions: PageResponse<KnowledgeSupersession>",
+    ],
+    [API_HOOKS, apiHooks, "params: KnowledgeProvenanceParams = {}"],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "useKnowledgeProvenance(42, { page: 2, size: 10 })",
+    ],
+    [
+      ADVANCED_PROVENANCE,
+      advancedProvenance,
+      "PROVENANCE_HISTORY_PAGE_SIZE = 20",
+    ],
+    [
+      ADVANCED_PROVENANCE,
+      advancedProvenance,
+      "const [historyPage, setHistoryPage]",
+    ],
+    [
+      ADVANCED_PROVENANCE,
+      advancedProvenance,
+      "useKnowledgeProvenance(selectedIdentityId, {",
+    ],
+    [ADVANCED_PROVENANCE, advancedProvenance, "provenance.versions.items"],
+    [ADVANCED_PROVENANCE, advancedProvenance, "onChange: setHistoryPage"],
+    [
+      ADVANCED_PROVENANCE_TEST,
+      advancedProvenanceTest,
+      "mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 })",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.knowledge-provenance-history.required-snippet-missing",
+        message: `知识来源追溯版本沿革分页缺少后端、前端或测试片段：${snippet}`,
+      });
+    }
   }
   if (/\bsize:\s*100\b/.test(patientPathways)) {
     violations.push({
@@ -1189,6 +2223,447 @@ export async function scanRepository(root = process.cwd()) {
         line: 1,
         ruleId: "b0.knowledge-customization-list.required-snippet-missing",
         message: `机构知识定制列表分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    knowledgeCustomizationService.includes(
+      "versions.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId)",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_CUSTOMIZATION_SERVICE,
+      line: lineOf(knowledgeCustomizationService, "nextLocalVersionNo"),
+      ruleId: "b0.knowledge-customization-local-version.identity-version-snapshot-forbidden",
+      message:
+        "机构知识定制生成本地版本号不得拉取身份全量版本后 size，必须使用 count 查询。",
+    });
+  }
+  if (
+    !knowledgeCustomizationService.includes(
+      "versions.countByTenantIdAndIdentityId(tenantId, identityId)",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_CUSTOMIZATION_SERVICE,
+      line: lineOf(knowledgeCustomizationService, "nextLocalVersionNo"),
+      ruleId: "b0.knowledge-customization-local-version.required-snippet-missing",
+      message: "机构知识定制本地版本号缺少 countByTenantIdAndIdentityId 点查询。",
+    });
+  }
+  if (
+    knowledgeProductionService.includes(
+      "candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode).stream()",
+    )
+  ) {
+    violations.push({
+      file: KNOWLEDGE_PRODUCTION_SERVICE,
+      line: lineOf(
+        knowledgeProductionService,
+        "candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode).stream()",
+      ),
+      ruleId:
+        "b0.knowledge-production-candidates-list.tenant-job-snapshot-forbidden",
+      message:
+        "知识生产候选血缘列表不得按 job 全量读取后返回数组，必须使用后端 PageResponse 与仓储 count/page。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY,
+      knowledgeProductionCandidateRepository,
+      "countByTenantIdAndJobCode",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY,
+      knowledgeProductionCandidateRepository,
+      "pageByTenantIdAndJobCode",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY,
+      knowledgeProductionCandidateRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_SERVICE,
+      knowledgeProductionService,
+      "PageResponse<ProductionCandidateView> listCandidates(String jobCode, int page, int size)",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_SERVICE,
+      knowledgeProductionService,
+      "candidateRepository.countByTenantIdAndJobCode",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_SERVICE,
+      knowledgeProductionService,
+      ".pageByTenantIdAndJobCode",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CONTROLLER,
+      knowledgeProductionController,
+      "ApiResult<PageResponse<ProductionCandidateView>> listCandidates(",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CONTROLLER,
+      knowledgeProductionController,
+      "@RequestParam(required = false, defaultValue = \"1\") int page",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_SERVICE_TEST,
+      knowledgeProductionServiceTest,
+      "listCandidatesReturnsTenantScopedPageWithRouting",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CANDIDATE_REPOSITORY_TEST,
+      knowledgeProductionCandidateRepositoryTest,
+      "pagesLineageByJobWithoutLoadingAllRows",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CONTROLLER_SECURITY_TEST,
+      knowledgeProductionControllerSecurityTest,
+      "jsonPath(\"$.data.items\").isArray()",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId:
+          "b0.knowledge-production-candidates-list.required-snippet-missing",
+        message: `知识生产候选血缘列表分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    /record\s+CandidateProvenanceRequest\s*\([^)]*List<String>\s+candidateRefs/s.test(
+      candidateProvenanceRequest,
+    ) ||
+    candidateProvenanceService.includes(
+      "findByTenantIdAndCandidateRefIn(tenantId, candidateRefs)",
+    )
+  ) {
+    violations.push({
+      file: CANDIDATE_PROVENANCE_SERVICE,
+      line: lineOf(candidateProvenanceService, "findByTenantIdAndCandidateRefIn"),
+      ruleId: "b0.candidate-provenance-batch-limit.unbounded-ref-batch-forbidden",
+      message:
+        "候选来源溯源不得接收或查询无上限 ref 数组，必须限制批量、校验空值并仅用归一化后的候选引用查询。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [
+      CANDIDATE_PROVENANCE_REQUEST,
+      candidateProvenanceRequest,
+      "MAX_CANDIDATE_REFS = 200",
+    ],
+    [
+      CANDIDATE_PROVENANCE_REQUEST,
+      candidateProvenanceRequest,
+      "@Size(max = CandidateProvenanceRequest.MAX_CANDIDATE_REFS)",
+    ],
+    [
+      CANDIDATE_PROVENANCE_REQUEST,
+      candidateProvenanceRequest,
+      "List<@NotBlank @Size(max = 128) String> candidateRefs",
+    ],
+    [
+      CANDIDATE_PROVENANCE_SERVICE,
+      candidateProvenanceService,
+      "candidateRefs.size() > CandidateProvenanceRequest.MAX_CANDIDATE_REFS",
+    ],
+    [
+      CANDIDATE_PROVENANCE_SERVICE,
+      candidateProvenanceService,
+      "ErrorCode.VALIDATION_FAILED",
+    ],
+    [CANDIDATE_PROVENANCE_SERVICE, candidateProvenanceService, ".map(String::trim)"],
+    [CANDIDATE_PROVENANCE_SERVICE, candidateProvenanceService, ".distinct()"],
+    [
+      CANDIDATE_PROVENANCE_SERVICE,
+      candidateProvenanceService,
+      "findByTenantIdAndCandidateRefIn(tenantId, normalizedRefs)",
+    ],
+    [
+      CANDIDATE_PROVENANCE_SERVICE_TEST,
+      candidateProvenanceServiceTest,
+      "rejectsOversizedProvenanceRefBatchBeforeRepositoryLookup",
+    ],
+    [
+      KNOWLEDGE_PRODUCTION_CONTROLLER_SECURITY_TEST,
+      knowledgeProductionControllerSecurityTest,
+      "oversizedProvenanceRefsRejectedBeforeService",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.candidate-provenance-batch-limit.required-snippet-missing",
+        message: `候选来源溯源批量上限缺少请求、服务或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (
+    documentParseService.includes("List<DocParseJob> listJobs(") ||
+    documentParseController.includes("ApiResult<List<DocParseJob>> listJobs")
+  ) {
+    const file = documentParseController.includes("ApiResult<List<DocParseJob>> listJobs")
+      ? DOCUMENT_PARSE_CONTROLLER
+      : DOCUMENT_PARSE_SERVICE;
+    const content = file === DOCUMENT_PARSE_CONTROLLER
+      ? documentParseController
+      : documentParseService;
+    const pattern = file === DOCUMENT_PARSE_CONTROLLER
+      ? "ApiResult<List<DocParseJob>> listJobs"
+      : "List<DocParseJob> listJobs(";
+    violations.push({
+      file,
+      line: lineOf(content, pattern),
+      ruleId: "b0.document-parse-job-ledger.array-page-forbidden",
+      message:
+        "文档解析 job 台账不得返回数组分页，必须返回 PageResponse 并提供 total/hasNext 证据链。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [DOC_PARSE_JOB_REPOSITORY, docParseJobRepository, "long countByTenantId(String tenantId)"],
+    [DOC_PARSE_JOB_REPOSITORY, docParseJobRepository, "pageByTenantId"],
+    [
+      DOC_PARSE_JOB_REPOSITORY,
+      docParseJobRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      DOCUMENT_PARSE_SERVICE,
+      documentParseService,
+      "PageResponse<DocParseJob> listJobs(int page, int size)",
+    ],
+    [DOCUMENT_PARSE_SERVICE, documentParseService, "new PageRequest(page"],
+    [DOCUMENT_PARSE_SERVICE, documentParseService, "jobRepository.countByTenantId"],
+    [DOCUMENT_PARSE_SERVICE, documentParseService, "PageResponse.of"],
+    [
+      DOCUMENT_PARSE_CONTROLLER,
+      documentParseController,
+      "ApiResult<PageResponse<DocParseJob>> listJobs(",
+    ],
+    [
+      DOCUMENT_PARSE_CONTROLLER,
+      documentParseController,
+      '@RequestParam(required = false, defaultValue = "1") int page',
+    ],
+    [
+      DOCUMENT_PARSE_SERVICE_TEST,
+      documentParseServiceTest,
+      "listJobsReturnsTenantScopedPageWithTotal",
+    ],
+    [
+      DOCUMENT_PARSE_CONTROLLER_SECURITY_TEST,
+      documentParseControllerSecurityTest,
+      "$.data.items[0].jobCode",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.document-parse-job-ledger.required-snippet-missing",
+        message: `文档解析 job 台账分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+  for (const [file, content, pattern] of [
+    [
+      KNOWLEDGE_EXPORT_JOB_REPOSITORY,
+      knowledgeExportJobRepository,
+      "findTop100ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      KNOWLEDGE_EXPORT_SERVICE,
+      knowledgeExportService,
+      "findTop100ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      KNOWLEDGE_EXPORT_SERVICE,
+      knowledgeExportService,
+      "List<KnowledgeExportJob> listRecent()",
+    ],
+    [
+      KNOWLEDGE_EXPORT_CONTROLLER,
+      knowledgeExportController,
+      "ApiResult<List<KnowledgeExportJob>> listRecent",
+    ],
+  ]) {
+    if (content.includes(pattern)) {
+      violations.push({
+        file,
+        line: lineOf(content, pattern),
+        ruleId: "b0.knowledge-export-job-ledger.top100-snapshot-forbidden",
+        message:
+          "知识异步导出作业台账不得只返回最近 100 条快照，必须使用后端 PageResponse 与仓储 count/page。",
+      });
+    }
+  }
+  for (const [file, content, snippet] of [
+    [
+      KNOWLEDGE_EXPORT_JOB_REPOSITORY,
+      knowledgeExportJobRepository,
+      "long countByTenantId(String tenantId)",
+    ],
+    [
+      KNOWLEDGE_EXPORT_JOB_REPOSITORY,
+      knowledgeExportJobRepository,
+      "List<KnowledgeExportJob> pageByTenantId(String tenantId, int offset, int limit)",
+    ],
+    [
+      KNOWLEDGE_EXPORT_JOB_REPOSITORY,
+      knowledgeExportJobRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      KNOWLEDGE_EXPORT_SERVICE,
+      knowledgeExportService,
+      "PageResponse<KnowledgeExportJob> listRecent(PageRequest request)",
+    ],
+    [KNOWLEDGE_EXPORT_SERVICE, knowledgeExportService, "jobRepository.countByTenantId"],
+    [KNOWLEDGE_EXPORT_SERVICE, knowledgeExportService, "jobRepository.pageByTenantId"],
+    [
+      KNOWLEDGE_EXPORT_CONTROLLER,
+      knowledgeExportController,
+      "ApiResult<PageResponse<KnowledgeExportJob>> listRecent(",
+    ],
+    [
+      KNOWLEDGE_EXPORT_CONTROLLER,
+      knowledgeExportController,
+      "new PageRequest(page, size, null)",
+    ],
+    [
+      KNOWLEDGE_EXPORT_SERVICE_TEST,
+      knowledgeExportServiceTest,
+      "listRecentReturnsTenantScopedPageInsteadOfTop100Snapshot",
+    ],
+    [
+      KNOWLEDGE_EXPORT_SERVICE_TEST,
+      knowledgeExportServiceTest,
+      "Mockito.verify(jobRepo).pageByTenantId",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+      knowledgeIdentityControllerSecurityTest,
+      "auditComplianceCanListExportsAsPage",
+    ],
+    [
+      KNOWLEDGE_IDENTITY_CONTROLLER_SECURITY_TEST,
+      knowledgeIdentityControllerSecurityTest,
+      "$.data.items[0].jobCode",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.knowledge-export-job-ledger.required-snippet-missing",
+        message: `知识异步导出作业台账分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+  for (const [file, content, pattern] of [
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY,
+      engineDataExportJobRepository,
+      "findTop100ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      ENGINE_DATA_EXPORT_SERVICE,
+      engineDataExportService,
+      "findTop100ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      ENGINE_DATA_EXPORT_SERVICE,
+      engineDataExportService,
+      "List<EngineDataExportJob> listRecent()",
+    ],
+    [
+      ENGINE_DATA_CONTROLLER,
+      engineDataController,
+      "ApiResult<List<EngineDataExportJob>> listExports",
+    ],
+  ]) {
+    if (content.includes(pattern)) {
+      violations.push({
+        file,
+        line: lineOf(content, pattern),
+        ruleId: "b0.engine-data-export-job-ledger.top100-snapshot-forbidden",
+        message:
+          "引擎数据导出作业台账不得只返回最近 100 条快照，必须使用后端 PageResponse 与仓储 count/page。",
+      });
+    }
+  }
+  for (const [file, content, snippet] of [
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY,
+      engineDataExportJobRepository,
+      "long countByTenantId(String tenantId)",
+    ],
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY,
+      engineDataExportJobRepository,
+      "List<EngineDataExportJob> pageByTenantId(String tenantId, int offset, int limit)",
+    ],
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY,
+      engineDataExportJobRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      ENGINE_DATA_EXPORT_SERVICE,
+      engineDataExportService,
+      "PageResponse<EngineDataExportJob> listRecent(PageRequest request)",
+    ],
+    [ENGINE_DATA_EXPORT_SERVICE, engineDataExportService, "jobRepository.countByTenantId"],
+    [ENGINE_DATA_EXPORT_SERVICE, engineDataExportService, "jobRepository.pageByTenantId"],
+    [
+      ENGINE_DATA_CONTROLLER,
+      engineDataController,
+      "ApiResult<PageResponse<EngineDataExportJob>> listExports(",
+    ],
+    [ENGINE_DATA_CONTROLLER, engineDataController, "new PageRequest(page, size, null)"],
+    [
+      ENGINE_DATA_EXPORT_SERVICE_TEST,
+      engineDataExportServiceTest,
+      "listRecentReturnsTenantScopedPageInsteadOfTop100Snapshot",
+    ],
+    [
+      ENGINE_DATA_EXPORT_SERVICE_TEST,
+      engineDataExportServiceTest,
+      "Mockito.verify(jobRepo).pageByTenantId",
+    ],
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY_TEST,
+      engineDataExportJobRepositoryTest,
+      "pagesRecentScopedToTenant",
+    ],
+    [
+      ENGINE_DATA_EXPORT_JOB_REPOSITORY_TEST,
+      engineDataExportJobRepositoryTest,
+      "repo.pageByTenantId(TENANT, 0, 2)",
+    ],
+    [
+      ENGINE_DATA_CONTROLLER_SECURITY_TEST,
+      engineDataControllerSecurityTest,
+      "qualityGovernorCanListExportsAsPage",
+    ],
+    [
+      ENGINE_DATA_CONTROLLER_SECURITY_TEST,
+      engineDataControllerSecurityTest,
+      "$.data.items[0].jobCode",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.engine-data-export-job-ledger.required-snippet-missing",
+        message: `引擎数据导出作业台账分页缺少必要实现或测试片段：${snippet}`,
       });
     }
   }
@@ -1752,6 +3227,190 @@ export async function scanRepository(root = process.cwd()) {
     }
   }
 
+  for (const [file, content, pattern, message] of [
+    [
+      DATA_PERMISSION_POLICY_REPOSITORY,
+      dataPermissionPolicyRepository,
+      "findPolicies(",
+      "数据权限策略仓储不得保留无界 findPolicies 快照查询，必须使用 count/page。",
+    ],
+    [
+      DATA_PERMISSION_SERVICE,
+      dataPermissionService,
+      "List<DataPermissionPolicyResponse> listPolicies(",
+      "数据权限策略服务不得返回数组快照，必须返回 PageResponse。",
+    ],
+    [
+      DATA_PERMISSION_CONTROLLER,
+      dataPermissionController,
+      "ApiResult<List<DataPermissionPolicyResponse>> listPolicies",
+      "数据权限策略控制器不得返回数组响应，必须返回 PageResponse。",
+    ],
+    [
+      MASKING_RULE_REPOSITORY,
+      maskingRuleRepository,
+      "findRules(",
+      "脱敏规则仓储不得保留无界 findRules 快照查询，必须使用 count/page。",
+    ],
+    [
+      MASKING_SERVICE,
+      maskingService,
+      "List<MaskingRuleResponse> listRules(",
+      "脱敏规则服务不得返回数组快照，必须返回 PageResponse。",
+    ],
+    [
+      MASKING_RULE_CONTROLLER,
+      maskingRuleController,
+      "ApiResult<List<MaskingRuleResponse>> listRules",
+      "脱敏规则控制器不得返回数组响应，必须返回 PageResponse。",
+    ],
+  ]) {
+    if (content.includes(pattern)) {
+      violations.push({
+        file,
+        line: lineOf(content, pattern),
+        ruleId: "b0.security-baseline-policy-ledger.array-snapshot-forbidden",
+        message,
+      });
+    }
+  }
+  const securityBaselineFrontendSnapshotPattern =
+    /Promise<DataPermissionPolicy\[\]>|Promise<MaskingRule\[\]>|dataSource=\{policies\.data\s*\?\?\s*\[\]\}|dataSource=\{rules\.data\s*\?\?\s*\[\]\}|defaultPolicy\s*=\s*policies\.data\?\.\[0\]|defaultRule\s*=\s*rules\.data\?\.\[0\]|useDataPermissionPolicies\(\s*\)|useMaskingRules\(\s*\)/s;
+  if (
+    securityBaselineFrontendSnapshotPattern.test(apiHooks) ||
+    securityBaselineFrontendSnapshotPattern.test(securityBaselinePanels)
+  ) {
+    const file = securityBaselineFrontendSnapshotPattern.test(securityBaselinePanels)
+      ? SECURITY_BASELINE_PANELS
+      : API_HOOKS;
+    const content = file === SECURITY_BASELINE_PANELS ? securityBaselinePanels : apiHooks;
+    violations.push({
+      file,
+      line: lineOf(content, securityBaselineFrontendSnapshotPattern),
+      ruleId: "b0.security-baseline-policy-ledger.frontend-array-snapshot-forbidden",
+      message:
+        "数据权限/脱敏规则前端不得按数组快照消费，必须传 page/size 并读取 PageResponse.items。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [DATA_PERMISSION_POLICY_REPOSITORY, dataPermissionPolicyRepository, "long countPolicies("],
+    [DATA_PERMISSION_POLICY_REPOSITORY, dataPermissionPolicyRepository, "List<DataPermissionPolicy> pagePolicies("],
+    [
+      DATA_PERMISSION_POLICY_REPOSITORY,
+      dataPermissionPolicyRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      DATA_PERMISSION_SERVICE,
+      dataPermissionService,
+      "PageResponse<DataPermissionPolicyResponse> listPolicies(",
+    ],
+    [DATA_PERMISSION_SERVICE, dataPermissionService, "repository.countPolicies"],
+    [DATA_PERMISSION_SERVICE, dataPermissionService, "repository.pagePolicies"],
+    [
+      DATA_PERMISSION_CONTROLLER,
+      dataPermissionController,
+      "ApiResult<PageResponse<DataPermissionPolicyResponse>> listPolicies(",
+    ],
+    [DATA_PERMISSION_CONTROLLER, dataPermissionController, "new PageRequest(page, size, null)"],
+    [
+      DATA_PERMISSION_SERVICE_TEST,
+      dataPermissionServiceTest,
+      "listPoliciesReturnsTenantScopedPageInsteadOfUnboundedList",
+    ],
+    [DATA_PERMISSION_SERVICE_TEST, dataPermissionServiceTest, "verify(repository).pagePolicies"],
+    [
+      DATA_PERMISSION_CONTROLLER_SECURITY_TEST,
+      dataPermissionControllerSecurityTest,
+      'jsonPath("$.data.items").isArray()',
+    ],
+    [MASKING_RULE_REPOSITORY, maskingRuleRepository, "long countRules("],
+    [MASKING_RULE_REPOSITORY, maskingRuleRepository, "List<MaskingRule> pageRules("],
+    [
+      MASKING_RULE_REPOSITORY,
+      maskingRuleRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [MASKING_SERVICE, maskingService, "PageResponse<MaskingRuleResponse> listRules("],
+    [MASKING_SERVICE, maskingService, "repository.countRules"],
+    [MASKING_SERVICE, maskingService, "repository.pageRules"],
+    [
+      MASKING_RULE_CONTROLLER,
+      maskingRuleController,
+      "ApiResult<PageResponse<MaskingRuleResponse>> listRules(",
+    ],
+    [MASKING_RULE_CONTROLLER, maskingRuleController, "new PageRequest(page, size, null)"],
+    [
+      MASKING_SERVICE_TEST,
+      maskingServiceTest,
+      "listRulesReturnsTenantScopedPageInsteadOfUnboundedList",
+    ],
+    [MASKING_SERVICE_TEST, maskingServiceTest, "verify(repository).pageRules"],
+    [
+      MASKING_RULE_CONTROLLER_SECURITY_TEST,
+      maskingRuleControllerSecurityTest,
+      'jsonPath("$.data.items").isArray()',
+    ],
+    [API_HOOKS, apiHooks, "interface DataPermissionPoliciesParams"],
+    [API_HOOKS, apiHooks, "interface MaskingRulesParams"],
+    [API_HOOKS, apiHooks, "PageResponse<DataPermissionPolicy>"],
+    [API_HOOKS, apiHooks, "PageResponse<MaskingRule>"],
+    [API_HOOKS_TEST, apiHooksTest, "fetchDataPermissionPolicies({"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      'fetchMaskingRules({ resourceType: "clinical_case", page: 3, size: 10 })',
+    ],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "SECURITY_RULE_PAGE_SIZE = 20"],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "policyPage"],
+    [
+      SECURITY_BASELINE_PANELS,
+      securityBaselinePanels,
+      "useDataPermissionPolicies({ page: policyPage, size: SECURITY_RULE_PAGE_SIZE })",
+    ],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "policyItems = policies.data?.items ?? []"],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "dataSource={policyItems}"],
+    [
+      SECURITY_BASELINE_PANELS,
+      securityBaselinePanels,
+      "current: policies.data?.page ?? policyPage",
+    ],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "onChange: setPolicyPage"],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "rulePage"],
+    [
+      SECURITY_BASELINE_PANELS,
+      securityBaselinePanels,
+      "useMaskingRules({ page: rulePage, size: SECURITY_RULE_PAGE_SIZE })",
+    ],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "ruleItems = rules.data?.items ?? []"],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "dataSource={ruleItems}"],
+    [
+      SECURITY_BASELINE_PANELS,
+      securityBaselinePanels,
+      "current: rules.data?.page ?? rulePage",
+    ],
+    [SECURITY_BASELINE_PANELS, securityBaselinePanels, "onChange: setRulePage"],
+    [
+      SECURITY_BASELINE_TEST,
+      securityBaselineTest,
+      "expect(useDataPermissionPolicies).toHaveBeenCalledWith({ page: 1, size: 20 })",
+    ],
+    [
+      SECURITY_BASELINE_TEST,
+      securityBaselineTest,
+      "expect(useMaskingRules).toHaveBeenCalledWith({ page: 1, size: 20 })",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.security-baseline-policy-ledger.required-snippet-missing",
+        message: `数据权限/脱敏规则维护分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+
   const authoringClonePackageFixedSnapshotPattern =
     /clonePackagesQuery\s*=\s*usePackages\(\{[^}]*size:\s*100[^}]*assetType:\s*cloneAsset\.assetType[^}]*\}\)|clonePackagesQuery\s*=\s*usePackages\(\{[^}]*assetType:\s*cloneAsset\.assetType[^}]*size:\s*100[^}]*\}\)/s;
   if (authoringClonePackageFixedSnapshotPattern.test(authoringAssets)) {
@@ -1800,7 +3459,7 @@ export async function scanRepository(root = process.cwd()) {
     });
   }
   const authoringAssetBackendSnapshotPattern =
-    /findByTenantIdOrderByUpdatedAtDesc\(|\.subList\(/;
+    /findByTenantIdOrderByUpdatedAtDesc\(|\.subList\(|SOURCE_SCAN_LIMIT|rules\.listByFilter\(tenantId,\s*null,\s*null,\s*null,\s*null\)|pathways\.listByFilter\(tenantId,\s*null,\s*null,\s*null,\s*null,\s*null\)/;
   if (authoringAssetBackendSnapshotPattern.test(authoringAssetLibraryService)) {
     violations.push({
       file: AUTHORING_ASSET_LIBRARY_SERVICE,
@@ -1813,15 +3472,27 @@ export async function scanRepository(root = process.cwd()) {
   for (const snippet of [
     "listRepositoryPage",
     "loadRepositoryPage",
+    "listWithProfileFilters",
+    "loadProfileFilteredRepositoryPage",
     "RepositoryAssetPage",
     "rules.countByFilter",
     "rules.pageByFilter",
+    "rules.countForAuthoringLibrary",
+    "rules.pageForAuthoringLibrary",
     "pathways.countByFilter",
     "pathways.pageByFilter",
+    "pathways.countForAuthoringLibrary",
+    "pathways.pageForAuthoringLibrary",
     "fragments.countByFilter",
     "fragments.pageByFilter",
+    "fragments.countForAuthoringLibrary",
+    "fragments.pageForAuthoringLibrary",
     "followupTemplates.countByFilter",
     "followupTemplates.pageByFilter",
+    "followupTemplates.countForAuthoringLibrary",
+    "followupTemplates.pageForAuthoringLibrary",
+    "tagPattern(tag)",
+    "favoriteUserId",
     "page.offset()",
     "page.safeSize()",
   ]) {
@@ -1838,6 +3509,9 @@ export async function scanRepository(root = process.cwd()) {
   if (
     !authoringAssetLibraryServiceTest.includes(
       "listsTypedFollowupAssetsThroughRepositoryPagination",
+    )
+    || !authoringAssetLibraryServiceTest.includes(
+      "listsRulesPathwaysAndFragmentsWithTagsAndFavorites",
     )
   ) {
     violations.push({
@@ -1895,6 +3569,150 @@ export async function scanRepository(root = process.cwd()) {
         "b0.authoring-batch-rule-package-reference-test.required-snippet-missing",
       message: "批量规则生成规则包小页服务端搜索缺少回归测试。",
     });
+  }
+  for (const [file, content, pattern] of [
+    [
+      AUTHORING_BATCH_JOB_REPOSITORY,
+      authoringBatchJobRepository,
+      "findTop50ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      AUTHORING_BATCH_JOB_SERVICE,
+      authoringBatchJobService,
+      "findTop50ByTenantIdOrderByCreatedAtDesc",
+    ],
+    [
+      AUTHORING_BATCH_JOB_SERVICE,
+      authoringBatchJobService,
+      "List<AuthoringBatchJobResponse> listRecent()",
+    ],
+    [
+      AUTHORING_BATCH_JOB_CONTROLLER,
+      authoringBatchJobController,
+      "ApiResult<List<AuthoringBatchJobResponse>> listRecent",
+    ],
+  ]) {
+    if (content.includes(pattern)) {
+      violations.push({
+        file,
+        line: lineOf(content, pattern),
+        ruleId: "b0.authoring-batch-job-ledger.top50-snapshot-forbidden",
+        message:
+          "批量维护任务记录不得只返回最近 50 条快照，必须使用后端 PageResponse 与仓储 count/page。",
+      });
+    }
+  }
+  const authoringBatchJobFrontendSnapshotPattern =
+    /data:\s*AuthoringBatchJobResponse\[\]|dataSource=\{jobsQuery\.data\s*\?\?\s*\[\]\}|useAuthoringBatchJobs\(\s*\{\s*enabled:\s*open\s*\}\s*\)/s;
+  if (
+    authoringBatchJobFrontendSnapshotPattern.test(apiHooks) ||
+    authoringBatchJobFrontendSnapshotPattern.test(authoringBatchDrawer)
+  ) {
+    const file = authoringBatchJobFrontendSnapshotPattern.test(authoringBatchDrawer)
+      ? AUTHORING_BATCH_DRAWER
+      : API_HOOKS;
+    const content = file === AUTHORING_BATCH_DRAWER ? authoringBatchDrawer : apiHooks;
+    violations.push({
+      file,
+      line: lineOf(content, authoringBatchJobFrontendSnapshotPattern),
+      ruleId: "b0.authoring-batch-job-ledger.frontend-array-snapshot-forbidden",
+      message:
+        "批量维护任务记录前端不得按数组快照消费，必须传 page/size 并读取 PageResponse.items。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [
+      AUTHORING_BATCH_JOB_REPOSITORY,
+      authoringBatchJobRepository,
+      "long countByTenantId(String tenantId)",
+    ],
+    [
+      AUTHORING_BATCH_JOB_REPOSITORY,
+      authoringBatchJobRepository,
+      "List<AuthoringBatchJob> pageByTenantId(String tenantId, int offset, int limit)",
+    ],
+    [
+      AUTHORING_BATCH_JOB_REPOSITORY,
+      authoringBatchJobRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      AUTHORING_BATCH_JOB_SERVICE,
+      authoringBatchJobService,
+      "PageResponse<AuthoringBatchJobResponse> listRecent(PageRequest request)",
+    ],
+    [AUTHORING_BATCH_JOB_SERVICE, authoringBatchJobService, "jobs.countByTenantId"],
+    [AUTHORING_BATCH_JOB_SERVICE, authoringBatchJobService, "jobs.pageByTenantId"],
+    [
+      AUTHORING_BATCH_JOB_CONTROLLER,
+      authoringBatchJobController,
+      "ApiResult<PageResponse<AuthoringBatchJobResponse>> listRecent(",
+    ],
+    [
+      AUTHORING_BATCH_JOB_CONTROLLER,
+      authoringBatchJobController,
+      "new PageRequest(page, size, null)",
+    ],
+    [
+      AUTHORING_BATCH_JOB_SERVICE_TEST,
+      authoringBatchJobServiceTest,
+      "listRecentReturnsTenantScopedPageInsteadOfTop50Snapshot",
+    ],
+    [
+      AUTHORING_BATCH_JOB_CONTROLLER_TEST,
+      authoringBatchJobControllerTest,
+      "recentEndpointReturnsServerPage",
+    ],
+    [
+      AUTHORING_BATCH_JOB_CONTROLLER_TEST,
+      authoringBatchJobControllerTest,
+      "$.data.items[0].jobId",
+    ],
+    [API_HOOKS, apiHooks, "PageResponse<AuthoringBatchJobResponse>"],
+    [API_HOOKS, apiHooks, "{ params: { page, size } }"],
+    [API_HOOKS_TEST, apiHooksTest, "useAuthoringBatchJobs({ page: 2, size: 20 })"],
+    [
+      AUTHORING_BATCH_DRAWER,
+      authoringBatchDrawer,
+      "AUTHORING_BATCH_JOB_PAGE_SIZE = 20",
+    ],
+    [AUTHORING_BATCH_DRAWER, authoringBatchDrawer, "jobPage"],
+    [
+      AUTHORING_BATCH_DRAWER,
+      authoringBatchDrawer,
+      "useAuthoringBatchJobs({",
+    ],
+    [AUTHORING_BATCH_DRAWER, authoringBatchDrawer, "page: jobPage"],
+    [
+      AUTHORING_BATCH_DRAWER,
+      authoringBatchDrawer,
+      "size: AUTHORING_BATCH_JOB_PAGE_SIZE",
+    ],
+    [AUTHORING_BATCH_DRAWER, authoringBatchDrawer, "dataSource={jobsQuery.data?.items ?? []}"],
+    [
+      AUTHORING_BATCH_DRAWER,
+      authoringBatchDrawer,
+      "current: jobsQuery.data?.page ?? jobPage",
+    ],
+    [
+      AUTHORING_BATCH_DRAWER,
+      authoringBatchDrawer,
+      "onChange: (page) => setJobPage(page)",
+    ],
+    [
+      AUTHORING_BATCH_DRAWER_TEST,
+      authoringBatchDrawerTest,
+      "loads batch job records through server pagination",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.authoring-batch-job-ledger.required-snippet-missing",
+        message: `批量维护任务记录分页缺少必要实现或测试片段：${snippet}`,
+      });
+    }
   }
 
   if (
@@ -2006,6 +3824,603 @@ export async function scanRepository(root = process.cwd()) {
         line: 1,
         ruleId: "b0.integration-adapter-list.required-snippet-missing",
         message: `第三方适配器目录分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+
+  const maintenanceBackendArrayPattern =
+    /ApiResult<\s*(?:java\.util\.)?List<(?:IntegrationOnboardingResponse|WebhookConfigResponse|RegionalSourceResponse)>>/;
+  if (
+    maintenanceBackendArrayPattern.test(integrationController) ||
+    integrationService.includes(
+      "public List<IntegrationOnboardingResponse> listIntegrationOnboardings",
+    ) ||
+    integrationService.includes("public List<WebhookConfigResponse> getWebhooks") ||
+    integrationService.includes(
+      "public List<RegionalSourceResponse> listRegionalSources",
+    )
+  ) {
+    violations.push({
+      file: INTEGRATION_CONTROLLER,
+      line: lineOf(integrationController, maintenanceBackendArrayPattern),
+      ruleId: "b0.integration-maintenance-ledger.backend-array-forbidden",
+      message:
+        "AdapterHub 维护台账不得返回数组响应或全量租户快照，必须返回 PageResponse 并使用服务端分页。",
+    });
+  }
+
+  const maintenanceFrontendArrayPattern =
+    /dataSource=\{(?:onboardings|webhooks|regionalSources)\}[\s\S]{0,160}pagination=\{false\}/;
+  if (
+    apiHooks.includes("IntegrationEnvelope<IntegrationOnboarding[]>") ||
+    apiHooks.includes("IntegrationEnvelope<IntegrationWebhookConfig[]>") ||
+    apiHooks.includes("IntegrationEnvelope<RegionalSource[]>") ||
+    adapterHub.includes("useIntegrationOnboardings();") ||
+    adapterHub.includes("useWebhooks();") ||
+    adapterHub.includes("useRegionalSources();") ||
+    adapterHub.includes("const onboardings = onboardingsQuery.data ?? []") ||
+    adapterHub.includes("const webhooks = webhooksQuery.data ?? []") ||
+    adapterHub.includes("const regionalSources = regionalSourcesQuery.data ?? []") ||
+    maintenanceFrontendArrayPattern.test(adapterHub)
+  ) {
+    violations.push({
+      file: ADAPTER_HUB,
+      line: lineOf(adapterHub, maintenanceFrontendArrayPattern),
+      ruleId: "b0.integration-maintenance-ledger.frontend-array-forbidden",
+      message:
+        "AdapterHub 维护台账前端不得按数组快照消费，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [
+      INTEGRATION_ONBOARDING_REPOSITORY,
+      integrationOnboardingRepository,
+      "countByTenantId(String tenantId)",
+    ],
+    [
+      INTEGRATION_ONBOARDING_REPOSITORY,
+      integrationOnboardingRepository,
+      "pageByTenantId",
+    ],
+    [
+      INTEGRATION_WEBHOOK_CONFIG_REPOSITORY,
+      integrationWebhookConfigRepository,
+      "countByTenantId(String tenantId)",
+    ],
+    [
+      INTEGRATION_WEBHOOK_CONFIG_REPOSITORY,
+      integrationWebhookConfigRepository,
+      "pageByTenantId",
+    ],
+    [
+      REGIONAL_SOURCE_REPOSITORY,
+      regionalSourceRepository,
+      "countByTenantId(String tenantId)",
+    ],
+    [REGIONAL_SOURCE_REPOSITORY, regionalSourceRepository, "pageByTenantId"],
+    [
+      INTEGRATION_SERVICE,
+      integrationService,
+      "PageResponse<IntegrationOnboardingResponse> listIntegrationOnboardings",
+    ],
+    [
+      INTEGRATION_SERVICE,
+      integrationService,
+      "PageResponse<WebhookConfigResponse> getWebhooks",
+    ],
+    [
+      INTEGRATION_SERVICE,
+      integrationService,
+      "PageResponse<RegionalSourceResponse> listRegionalSources",
+    ],
+    [
+      INTEGRATION_SERVICE,
+      integrationService,
+      "onboardingRepository.countByTenantId",
+    ],
+    [INTEGRATION_SERVICE, integrationService, "webhookRepository.countByTenantId"],
+    [
+      INTEGRATION_SERVICE,
+      integrationService,
+      "regionalSourceRepository.countByTenantId",
+    ],
+    [INTEGRATION_SERVICE, integrationService, ".pageByTenantId"],
+    [
+      INTEGRATION_CONTROLLER,
+      integrationController,
+      "ApiResult<PageResponse<IntegrationOnboardingResponse>>",
+    ],
+    [
+      INTEGRATION_CONTROLLER,
+      integrationController,
+      "ApiResult<PageResponse<WebhookConfigResponse>>",
+    ],
+    [
+      INTEGRATION_CONTROLLER,
+      integrationController,
+      "ApiResult<PageResponse<RegionalSourceResponse>>",
+    ],
+    [API_HOOKS, apiHooks, "export interface IntegrationMaintenancePageParams"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "IntegrationEnvelope<PageResponse<IntegrationOnboarding>>",
+    ],
+    [
+      API_HOOKS,
+      apiHooks,
+      "IntegrationEnvelope<PageResponse<IntegrationWebhookConfig>>",
+    ],
+    [
+      API_HOOKS,
+      apiHooks,
+      "IntegrationEnvelope<PageResponse<RegionalSource>>",
+    ],
+    [API_HOOKS, apiHooks, "emptyIntegrationPage"],
+    [ADAPTER_HUB, adapterHub, "INTEGRATION_MAINTENANCE_PAGE_SIZE = 20"],
+    [ADAPTER_HUB, adapterHub, "const [onboardingPage, setOnboardingPage]"],
+    [ADAPTER_HUB, adapterHub, "const [webhookPage, setWebhookPage]"],
+    [ADAPTER_HUB, adapterHub, "const [regionalSourcePage, setRegionalSourcePage]"],
+    [ADAPTER_HUB, adapterHub, "useIntegrationOnboardings({"],
+    [ADAPTER_HUB, adapterHub, "useWebhooks({"],
+    [ADAPTER_HUB, adapterHub, "useRegionalSources({"],
+    [ADAPTER_HUB, adapterHub, "page: onboardingPage"],
+    [ADAPTER_HUB, adapterHub, "page: webhookPage"],
+    [ADAPTER_HUB, adapterHub, "page: regionalSourcePage"],
+    [ADAPTER_HUB, adapterHub, "size: INTEGRATION_MAINTENANCE_PAGE_SIZE"],
+    [ADAPTER_HUB, adapterHub, "onboardingsQuery.data?.items ?? []"],
+    [ADAPTER_HUB, adapterHub, "webhooksQuery.data?.items ?? []"],
+    [ADAPTER_HUB, adapterHub, "regionalSourcesQuery.data?.items ?? []"],
+    [ADAPTER_HUB, adapterHub, "total: onboardingsQuery.data?.total ?? 0"],
+    [ADAPTER_HUB, adapterHub, "total: webhooksQuery.data?.total ?? 0"],
+    [ADAPTER_HUB, adapterHub, "total: regionalSourcesQuery.data?.total ?? 0"],
+    [ADAPTER_HUB, adapterHub, "onChange: setOnboardingPage"],
+    [ADAPTER_HUB, adapterHub, "onChange: setWebhookPage"],
+    [ADAPTER_HUB, adapterHub, "onChange: setRegionalSourcePage"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "useIntegrationOnboardings({ page: 2, size: 10 })",
+    ],
+    [API_HOOKS_TEST, apiHooksTest, "useWebhooks({ page: 3, size: 10 })"],
+    [API_HOOKS_TEST, apiHooksTest, "useRegionalSources({ page: 4, size: 10 })"],
+    [
+      ADAPTER_HUB_TEST,
+      adapterHubTest,
+      "loads adapter hub maintenance ledgers through small server-side pages",
+    ],
+    [
+      INTEGRATION_SERVICE_TEST,
+      integrationServiceTest,
+      "adapterHubMaintenanceListsUseTenantScopedPagesInsteadOfArraySnapshots",
+    ],
+    [
+      INTEGRATION_CONTROLLER_SECURITY_TEST,
+      integrationControllerSecurityTest,
+      "adapterHubMaintenanceListsReturnPagedContractsForTenantOperators",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.integration-maintenance-ledger.required-snippet-missing",
+        message: `AdapterHub 维护台账分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+
+  if (
+    releaseGovernanceController.includes("ApiResult<List<OverrideTemplate>>") ||
+    releaseGovernanceController.includes("ApiResult<java.util.List<OverrideTemplate>>") ||
+    overrideTemplateService.includes("public List<OverrideTemplate> listTemplates")
+  ) {
+    violations.push({
+      file: RELEASE_GOVERNANCE_CONTROLLER,
+      line: lineOf(releaseGovernanceController, /ApiResult<.*List<OverrideTemplate>>/),
+      ruleId: "b0.release-override-template-ledger.backend-array-forbidden",
+      message:
+        "发布治理覆盖模板不得返回数组响应或租户全量快照，必须返回 PageResponse 并使用服务端分页。",
+    });
+  }
+
+  if (
+    apiHooks.includes("data: OverrideTemplate[]") ||
+    releaseGovernance.includes("useOverrideTemplates();") ||
+    releaseGovernance.includes("(templatesQuery.data ?? []).map") ||
+    releaseGovernance.includes("dataSource={templatesQuery.data ?? []}") ||
+    /dataSource=\{[^}]*template[^}]*\}[\s\S]{0,160}pagination=\{false\}/i.test(
+      releaseGovernance,
+    )
+  ) {
+    violations.push({
+      file: RELEASE_GOVERNANCE,
+      line: lineOf(releaseGovernance, "useOverrideTemplates"),
+      ruleId: "b0.release-override-template-ledger.frontend-array-forbidden",
+      message:
+        "发布治理覆盖模板前端不得按数组快照消费，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [
+      OVERRIDE_TEMPLATE_REPOSITORY,
+      overrideTemplateRepository,
+      "countByTenantIdAndStatus",
+    ],
+    [OVERRIDE_TEMPLATE_REPOSITORY, overrideTemplateRepository, "pageByTenantIdAndStatus"],
+    [
+      OVERRIDE_TEMPLATE_SERVICE,
+      overrideTemplateService,
+      "PageResponse<OverrideTemplate> listTemplates",
+    ],
+    [
+      OVERRIDE_TEMPLATE_SERVICE,
+      overrideTemplateService,
+      "templates.countByTenantIdAndStatus",
+    ],
+    [
+      OVERRIDE_TEMPLATE_SERVICE,
+      overrideTemplateService,
+      "templates.pageByTenantIdAndStatus",
+    ],
+    [
+      RELEASE_GOVERNANCE_CONTROLLER,
+      releaseGovernanceController,
+      "ApiResult<PageResponse<OverrideTemplate>> listTemplates",
+    ],
+    [
+      RELEASE_GOVERNANCE_CONTROLLER,
+      releaseGovernanceController,
+      "new PageRequest(page, size, sort)",
+    ],
+    [API_HOOKS, apiHooks, "export interface OverrideTemplatesParams"],
+    [API_HOOKS, apiHooks, "PageResponse<OverrideTemplate>"],
+    [
+      API_HOOKS,
+      apiHooks,
+      'queryKey: ["release-governance", "override-templates", params]',
+    ],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [RELEASE_GOVERNANCE, releaseGovernance, "OVERRIDE_TEMPLATE_PAGE_SIZE = 20"],
+    [RELEASE_GOVERNANCE, releaseGovernance, "const [templatePage, setTemplatePage]"],
+    [
+      RELEASE_GOVERNANCE,
+      releaseGovernance,
+      "useOverrideTemplates({",
+    ],
+    [RELEASE_GOVERNANCE, releaseGovernance, "page: templatePage"],
+    [
+      RELEASE_GOVERNANCE,
+      releaseGovernance,
+      "size: OVERRIDE_TEMPLATE_PAGE_SIZE",
+    ],
+    [RELEASE_GOVERNANCE, releaseGovernance, "templatesQuery.data?.items ?? []"],
+    [RELEASE_GOVERNANCE, releaseGovernance, "total: templatesQuery.data?.total ?? 0"],
+    [RELEASE_GOVERNANCE, releaseGovernance, "onChange: setTemplatePage"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "useOverrideTemplates({ page: 2, size: 10 })",
+    ],
+    [
+      RELEASE_GOVERNANCE_TEST,
+      releaseGovernanceTest,
+      "loads override templates through bounded server pagination",
+    ],
+    [
+      OVERRIDE_TEMPLATE_SERVICE_TEST,
+      overrideTemplateServiceTest,
+      "listTemplatesReturnsTenantScopedPageInsteadOfArraySnapshot",
+    ],
+    [
+      RELEASE_GOVERNANCE_CONTROLLER_TEST,
+      releaseGovernanceControllerTest,
+      "listsOverrideTemplatesAsPagedTenantScopedContract",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId:
+          "b0.release-override-template-ledger.required-snippet-missing",
+        message: `发布治理覆盖模板分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+
+  const packageSyncLogBackendArrayPattern =
+    /ApiResult<\s*(?:java\.util\.)?List<SyncLogResponse>>/;
+  if (
+    packageSyncLogBackendArrayPattern.test(packageEngineController) ||
+    packageEngineService.includes("public List<SyncLogResponse> listSyncLogs") ||
+    packageEngineService.includes(
+      "findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId).stream()",
+    ) ||
+    thirdPartyPackageReconciliationResponse.includes("List<SyncLogResponse> logs") ||
+    thirdPartyKnowledgeRuntimeService.includes("packages.listSyncLogs(normalizedPackageId)")
+  ) {
+    violations.push({
+      file: PACKAGE_ENGINE_CONTROLLER,
+      line: lineOf(packageEngineController, packageSyncLogBackendArrayPattern),
+      ruleId: "b0.package-sync-log-ledger.backend-array-forbidden",
+      message:
+        "配置包同步日志和第三方对账不得返回数组响应或全量发布计划快照，必须返回 PageResponse 并使用服务端分页。",
+    });
+  }
+
+  if (
+    apiHooks.includes("data: SyncLogResponse[]") ||
+    apiHooks.includes("function usePackageSyncLogs(packageId: string)") ||
+    configPackages.includes('usePackageSyncLogs(effectivePackageId || "");') ||
+    configPackages.includes("persistedSyncLogs ?? []") ||
+    configPackages.includes(
+      "const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? [])",
+    )
+  ) {
+    violations.push({
+      file: CONFIG_PACKAGES,
+      line: lineOf(configPackages, "usePackageSyncLogs"),
+      ruleId: "b0.package-sync-log-ledger.frontend-array-forbidden",
+      message:
+        "配置包同步日志前端不得按数组快照消费，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [SYNC_LOG_REPOSITORY, syncLogRepository, "countByTenantIdAndPackageId"],
+    [SYNC_LOG_REPOSITORY, syncLogRepository, "pageByTenantIdAndPackageId"],
+    [SYNC_LOG_REPOSITORY, syncLogRepository, "JOIN release_plan"],
+    [
+      SYNC_LOG_REPOSITORY,
+      syncLogRepository,
+      "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      "PageResponse<SyncLogResponse> listSyncLogs",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      "logRepository.countByTenantIdAndPackageId",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      ".pageByTenantIdAndPackageId",
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER,
+      packageEngineController,
+      "ApiResult<PageResponse<SyncLogResponse>> listSyncLogs",
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER,
+      packageEngineController,
+      "new PageRequest(page, size, null)",
+    ],
+    [
+      THIRD_PARTY_PACKAGE_RECONCILIATION_RESPONSE,
+      thirdPartyPackageReconciliationResponse,
+      "PageResponse<SyncLogResponse> logs",
+    ],
+    [
+      THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE,
+      thirdPartyKnowledgeRuntimeService,
+      "ThirdPartyPackageReconciliationResponse reconcilePackage(String packageId, PageRequest page)",
+    ],
+    [
+      THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE,
+      thirdPartyKnowledgeRuntimeService,
+      "packages.listSyncLogs(normalizedPackageId, page)",
+    ],
+    [
+      THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE,
+      thirdPartyKnowledgeRuntimeService,
+      "reconciliationStatus(logs.items())",
+    ],
+    [
+      THIRD_PARTY_KNOWLEDGE_RUNTIME_CONTROLLER,
+      thirdPartyKnowledgeRuntimeController,
+      "new PageRequest(page, size, null)",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE_TEST,
+      packageEngineServiceTest,
+      "listSyncLogsReturnsServerPageForPackageReleaseEvidence",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE_TEST,
+      packageEngineServiceTest,
+      "countByTenantIdAndPackageId",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE_TEST,
+      packageEngineServiceTest,
+      "pageByTenantIdAndPackageId",
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      '"/pkg-1/sync-logs"',
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      '.param("page", "1")',
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      '.param("size", "20")',
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      "$.data.items[0].status",
+    ],
+    [
+      THIRD_PARTY_KNOWLEDGE_RUNTIME_SERVICE_TEST,
+      thirdPartyKnowledgeRuntimeServiceTest,
+      "PageResponse.of(logs, page, logs.size())",
+    ],
+    [API_HOOKS, apiHooks, "export interface PackageSyncLogParams"],
+    [API_HOOKS, apiHooks, "PageResponse<SyncLogResponse>"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "usePackageSyncLogs(packageId: string, params: PackageSyncLogParams = {})",
+    ],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      'usePackageSyncLogs("pkg-1", { page: 2, size: 10 })',
+    ],
+    [CONFIG_PACKAGES, configPackages, "PACKAGE_SYNC_LOG_PAGE_SIZE = 20"],
+    [CONFIG_PACKAGES, configPackages, "const [syncLogPage, setSyncLogPage]"],
+    [
+      CONFIG_PACKAGES,
+      configPackages,
+      'usePackageSyncLogs(effectivePackageId || "", {',
+    ],
+    [CONFIG_PACKAGES, configPackages, "page: syncLogPage"],
+    [CONFIG_PACKAGES, configPackages, "persistedSyncLogs?.items ?? []"],
+    [CONFIG_PACKAGES, configPackages, "Pagination"],
+    [CONFIG_PACKAGES, configPackages, "onChange={setSyncLogPage}"],
+    [
+      CONFIG_PACKAGES_TEST,
+      configPackagesTest,
+      "loads package sync evidence logs through server pagination",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.package-sync-log-ledger.required-snippet-missing",
+        message: `配置包同步日志分页缺少仓储、服务、控制器、第三方门面、前端或测试片段：${snippet}`,
+      });
+    }
+  }
+
+  const packageReleaseAdapterBackendArrayPattern =
+    /ApiResult<\s*(?:java\.util\.)?List<PackageReleaseAdapterResponse>>/;
+  if (
+    packageReleaseAdapterBackendArrayPattern.test(packageEngineController) ||
+    packageEngineService.includes(
+      "public List<PackageReleaseAdapterResponse> listReleaseAdapters",
+    ) ||
+    packageEngineService.includes("adapterRepository.findAllByTenantId(tenantId).stream()")
+  ) {
+    violations.push({
+      file: PACKAGE_ENGINE_CONTROLLER,
+      line: lineOf(packageEngineController, packageReleaseAdapterBackendArrayPattern),
+      ruleId: "b0.package-release-adapter-list.backend-array-forbidden",
+      message:
+        "配置包发布适配器目录不得返回数组响应或租户全量快照，必须返回 PageResponse 并按 ACTIVE 状态服务端分页。",
+    });
+  }
+
+  if (
+    apiHooks.includes("data: PackageReleaseAdapter[]") ||
+    apiHooks.includes("function usePackageReleaseAdapters(enabled = true)") ||
+    configPackages.includes("usePackageReleaseAdapters();") ||
+    configPackages.includes("const displayAdapters = releaseAdapters ?? []")
+  ) {
+    violations.push({
+      file: CONFIG_PACKAGES,
+      line: lineOf(configPackages, "usePackageReleaseAdapters"),
+      ruleId: "b0.package-release-adapter-list.frontend-array-forbidden",
+      message:
+        "配置包发布适配器前端不得按数组快照消费，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+
+  for (const [file, content, snippet] of [
+    [INTEGRATION_ADAPTER_REPOSITORY, integrationAdapterRepository, "countByTenantIdAndStatus"],
+    [INTEGRATION_ADAPTER_REPOSITORY, integrationAdapterRepository, "pageByTenantIdAndStatus"],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      "PageResponse<PackageReleaseAdapterResponse> listReleaseAdapters",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      "adapterRepository.countByTenantIdAndStatus",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE,
+      packageEngineService,
+      ".pageByTenantIdAndStatus",
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER,
+      packageEngineController,
+      "ApiResult<PageResponse<PackageReleaseAdapterResponse>> listReleaseAdapters",
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER,
+      packageEngineController,
+      "new PageRequest(page, size, null)",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE_TEST,
+      packageEngineServiceTest,
+      "listReleaseAdaptersReturnsActivePageInsteadOfTenantSnapshot",
+    ],
+    [
+      PACKAGE_ENGINE_SERVICE_TEST,
+      packageEngineServiceTest,
+      "pageByTenantIdAndStatus",
+    ],
+    [PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST, packageEngineControllerSecurityTest, "release-adapters"],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      '.param("page", "1")',
+    ],
+    [
+      PACKAGE_ENGINE_CONTROLLER_SECURITY_TEST,
+      packageEngineControllerSecurityTest,
+      "$.data.items[0].adapterId",
+    ],
+    [API_HOOKS, apiHooks, "export interface PackageReleaseAdaptersParams"],
+    [API_HOOKS, apiHooks, "PageResponse<PackageReleaseAdapter>"],
+    [
+      API_HOOKS,
+      apiHooks,
+      "usePackageReleaseAdapters(params: PackageReleaseAdaptersParams = {}, enabled = true)",
+    ],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "usePackageReleaseAdapters({ page: 2, size: 10 })",
+    ],
+    [CONFIG_PACKAGES, configPackages, "PACKAGE_RELEASE_ADAPTER_PAGE_SIZE = 20"],
+    [CONFIG_PACKAGES, configPackages, "const [releaseAdapterPage, setReleaseAdapterPage]"],
+    [CONFIG_PACKAGES, configPackages, "usePackageReleaseAdapters({"],
+    [CONFIG_PACKAGES, configPackages, "page: releaseAdapterPage"],
+    [CONFIG_PACKAGES, configPackages, "releaseAdapters?.items ?? []"],
+    [CONFIG_PACKAGES, configPackages, "onChange={setReleaseAdapterPage}"],
+    [
+      CONFIG_PACKAGES_TEST,
+      configPackagesTest,
+      "loads package release adapters through server pagination",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.package-release-adapter-list.required-snippet-missing",
+        message: `配置包发布适配器分页缺少仓储、服务、控制器、前端或测试片段：${snippet}`,
       });
     }
   }
@@ -2195,6 +4610,157 @@ export async function scanRepository(root = process.cwd()) {
       message: "规则条件片段库小页服务端搜索缺少回归测试。",
     });
   }
+  const conditionFragmentImpactBackendSnapshotPattern =
+    /ruleDefinitions\.listByFilter\(tenantId,\s*null,\s*null,\s*null,\s*null\)|pathwayTemplates\.listByFilter\(tenantId,\s*null,\s*null,\s*null,\s*null,\s*null\)/;
+  if (conditionFragmentImpactBackendSnapshotPattern.test(conditionFragmentService)) {
+    violations.push({
+      file: CONDITION_FRAGMENT_SERVICE,
+      line: lineOf(
+        conditionFragmentService,
+        conditionFragmentImpactBackendSnapshotPattern,
+      ),
+      ruleId:
+        "b0.condition-fragment-impact.backend-tenant-snapshot-forbidden",
+      message:
+        "条件片段影响分析不得全量读取规则/路径后内存扫描，必须使用规则版本和路径边仓储预过滤分页。",
+    });
+  }
+  if (
+    apiHooks.includes("affectedAssets: ConditionFragmentAffectedAsset[]") ||
+    ruleDefinitions.includes(
+      "dataSource={conditionFragmentImpactQuery.data?.affectedAssets ?? []}",
+    ) ||
+    /title="条件片段影响分析"[\s\S]*?pagination=\{false\}/.test(ruleDefinitions)
+  ) {
+    violations.push({
+      file: RULE_DEFINITIONS,
+      line: lineOf(ruleDefinitions, "条件片段影响分析"),
+      ruleId:
+        "b0.condition-fragment-impact.frontend-array-forbidden",
+      message:
+        "条件片段影响分析前端不得消费全量 affectedAssets 数组或关闭分页，必须使用 PageResponse.items 和服务端分页。",
+    });
+  }
+  for (const [file, content, snippet] of [
+    [
+      CONDITION_FRAGMENT_IMPACT_RESPONSE,
+      conditionFragmentImpactResponse,
+      "PageResponse<ConditionFragmentAffectedAsset> affectedAssets",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE,
+      conditionFragmentService,
+      "impact(String fragmentId, PageRequest pageRequest)",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE,
+      conditionFragmentService,
+      "countActiveRuleImpactsByFragmentPattern",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE,
+      conditionFragmentService,
+      "pageActiveRuleImpactsByFragmentPattern",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE,
+      conditionFragmentService,
+      "countTemplateImpactsByFragmentPattern",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE,
+      conditionFragmentService,
+      "pageTemplateImpactsByFragmentPattern",
+    ],
+    [
+      RULE_DEFINITION_REPOSITORY,
+      ruleDefinitionRepository,
+      "pageActiveRuleImpactsByFragmentPattern",
+    ],
+    [
+      RULE_DEFINITION_REPOSITORY,
+      ruleDefinitionRepository,
+      "countActiveRuleImpactsByFragmentPattern",
+    ],
+    [
+      PATHWAY_TEMPLATE_REPOSITORY,
+      pathwayTemplateRepository,
+      "pageTemplateImpactsByFragmentPattern",
+    ],
+    [
+      PATHWAY_TEMPLATE_REPOSITORY,
+      pathwayTemplateRepository,
+      "countTemplateImpactsByFragmentPattern",
+    ],
+    [
+      CONDITION_FRAGMENT_CONTROLLER,
+      conditionFragmentController,
+      "service.impact(fragmentId, new PageRequest(page, size, sort))",
+    ],
+    [
+      API_HOOKS,
+      apiHooks,
+      "affectedAssets: PageResponse<ConditionFragmentAffectedAsset>",
+    ],
+    [API_HOOKS, apiHooks, "useConditionFragmentImpact("],
+    [API_HOOKS, apiHooks, "{ params }"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      "loads condition fragment impact through paged authoring endpoint",
+    ],
+    [
+      RULE_DEFINITIONS,
+      ruleDefinitions,
+      "CONDITION_FRAGMENT_IMPACT_PAGE_SIZE = 20",
+    ],
+    [RULE_DEFINITIONS, ruleDefinitions, "impactPage"],
+    [
+      RULE_DEFINITIONS,
+      ruleDefinitions,
+      "conditionFragmentImpactQuery.data?.affectedAssets.items ?? []",
+    ],
+    [
+      RULE_DEFINITIONS,
+      ruleDefinitions,
+      "total: conditionFragmentImpactQuery.data?.affectedAssets.total ?? 0",
+    ],
+    [
+      RULE_DEFINITIONS_TEST,
+      ruleDefinitionsTest,
+      "条件片段影响分析通过小页服务端分页加载受影响资产",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE_TEST,
+      conditionFragmentServiceTest,
+      "impactFindsRulesAndPathwaysReferencingSameFragment",
+    ],
+    [
+      CONDITION_FRAGMENT_SERVICE_TEST,
+      conditionFragmentServiceTest,
+      "verify(ruleDefinitions, never()).listByFilter",
+    ],
+    [
+      CONDITION_FRAGMENT_CONTROLLER_TEST,
+      conditionFragmentControllerTest,
+      "$.data.affectedAssets.items[0].assetType",
+    ],
+    [
+      AUTHORING_ASSET_LIBRARY_REPOSITORY_TEST,
+      authoringAssetLibraryRepositoryTest,
+      "fragmentImpactPrefilterQueriesExecuteThroughRepositoryPagination",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId:
+          "b0.condition-fragment-impact.required-snippet-missing",
+        message: `B0 条件片段影响分析必须保持仓储预过滤与服务端分页：${snippet}`,
+      });
+    }
+  }
 
   const terminologyReleasePackageFixedSnapshotPattern =
     /packages\s*=\s*usePackages\(\{[^}]*page:\s*0[^}]*size:\s*10[^}]*assetType:\s*"TERMINOLOGY"[^}]*\}\)|packages\s*=\s*usePackages\(\{[^}]*assetType:\s*"TERMINOLOGY"[^}]*page:\s*0[^}]*size:\s*10[^}]*\}\)/s;
@@ -2248,6 +4814,61 @@ export async function scanRepository(root = process.cwd()) {
       ruleId:
         "b0.terminology-release-package-reference-test.required-snippet-missing",
       message: "术语映射包发布小页搜索和显式选包缺少回归测试。",
+    });
+  }
+  const terminologyZeroBasedPagePattern =
+    /use(?:TerminologyMappings|StandardTerms|LocalTerms|TerminologyCandidates|TerminologyConflicts)\(\s*\{[^}]*page:\s*0/s;
+  if (terminologyZeroBasedPagePattern.test(terminologyMapping)) {
+    violations.push({
+      file: TERMINOLOGY_MAPPING,
+      line: lineOf(terminologyMapping, terminologyZeroBasedPagePattern),
+      ruleId: "b0.terminology-page.one-based-page-required",
+      message:
+        "术语映射维护不得向 1 基 PageRequest 端点发送 page: 0，必须统一使用 page: 1 起始页。",
+    });
+  }
+  const oneBasedTerminologyHookUsages =
+    (apiHooks.match(/compactOneBasedPageParams\(params\)/g) ?? []).length;
+  for (const [file, content, snippet] of [
+    [API_HOOKS, apiHooks, "function compactOneBasedPageParams"],
+    [API_HOOKS, apiHooks, "compactOneBasedPageParams(params ?? {})"],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      'params: { page: 1, size: 20, standardSystem: "LOINC", status: "ACTIVE" }',
+    ],
+    [
+      API_HOOKS_TEST,
+      apiHooksTest,
+      'params: { page: 1, size: 10, status: "PENDING", riskLevel: "HIGH" }',
+    ],
+    [
+      TERMINOLOGY_MAPPING_TEST,
+      terminologyMappingTest,
+      "expect.objectContaining({ page: 1, size: 20 })",
+    ],
+    [
+      TERMINOLOGY_MAPPING_TEST,
+      terminologyMappingTest,
+      "expect.objectContaining({ page: 1, size: 10, status: \"OPEN\" })",
+    ],
+  ]) {
+    if (!content.includes(snippet)) {
+      violations.push({
+        file,
+        line: 1,
+        ruleId: "b0.terminology-page.required-snippet-missing",
+        message: `术语分页 1 基合同缺少必要实现或测试片段：${snippet}`,
+      });
+    }
+  }
+  if (oneBasedTerminologyHookUsages < 4) {
+    violations.push({
+      file: API_HOOKS,
+      line: lineOf(apiHooks, "compactOneBasedPageParams"),
+      ruleId: "b0.terminology-page.required-snippet-missing",
+      message:
+        "术语标准词、本地词、候选和冲突 Hook 都必须使用 compactOneBasedPageParams 归一化 page。",
     });
   }
 

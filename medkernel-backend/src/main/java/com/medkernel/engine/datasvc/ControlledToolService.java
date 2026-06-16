@@ -1,6 +1,7 @@
 package com.medkernel.engine.datasvc;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -19,6 +20,8 @@ import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionOrchestrationService;
 import com.medkernel.engine.knowledge.production.ProductionCandidateView;
 import com.medkernel.engine.security.PermissionEvaluator;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -269,8 +272,16 @@ public class ControlledToolService {
     }
 
     private List<ProductionCandidateView> existingCandidates(String jobCode) {
-        List<ProductionCandidateView> candidates = productionService.listCandidates(jobCode);
-        return candidates == null ? List.of() : candidates;
+        // listCandidates 已改为分页（#632）；内容 hash 去重需全量候选，故按最大页逐页拉取至无下一页。
+        List<ProductionCandidateView> candidates = new ArrayList<>();
+        int page = PageRequest.DEFAULT_PAGE;
+        PageResponse<ProductionCandidateView> response;
+        do {
+            response = productionService.listCandidates(jobCode, page, PageRequest.MAX_SIZE);
+            candidates.addAll(response.items());
+            page++;
+        } while (response.hasNext());
+        return candidates;
     }
 
     private java.util.Optional<ProductionCandidateView> findExistingByContentHash(

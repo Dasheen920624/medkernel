@@ -144,7 +144,7 @@ public class DiagnosisKnowledgeService {
                 versionInput.versionNo(), versionInput.versionLabel(), source.id(), sourceVersion.id(),
                 sourceInput.content(), evidenceInput.anchorPath(), versionInput.riskLevel(),
                 versionInput.gradeQuality(), versionInput.gradeStrength(), versionInput.reviewCycleMonths()));
-        KnowledgeAssetVersion version = candidate.candidates().stream().findFirst()
+        KnowledgeAssetVersion version = candidate.candidates().items().stream().findFirst()
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT, "诊断知识内容与既有版本重复，未创建新的可编辑版本"));
         SourceFragment fragment = knowledgeIdentities.createFragment(new FragmentCreateRequest(

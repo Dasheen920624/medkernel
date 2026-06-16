@@ -339,27 +339,30 @@ export default function TerminologyMapping() {
     sourceSystem: getFilterValue(filters, "sourceSystem"),
     keyword: getFilterValue(filters, "keyword"),
   });
-  const standardTerms = useStandardTerms({ page: 0, size: PAGE_SIZE, status: "ACTIVE" });
+  const standardTerms = useStandardTerms({ page: 1, size: PAGE_SIZE, status: "ACTIVE" });
   const localTerms = useLocalTerms({
-    page: 0,
+    page: 1,
     size: PAGE_SIZE,
     sourceSystem: getFilterValue(filters, "sourceSystem"),
     status: "UNMAPPED",
   });
   // 待确认队列必须完整加载：普通候选同样需要在前台可见并可批量确认。
   const candidates = useTerminologyCandidates({
-    page: 0,
+    page: 1,
     size: PAGE_SIZE,
     status: "PENDING",
   });
-  const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
+  const conflicts = useTerminologyConflicts({ page: 1, size: 10, status: "OPEN" });
   const packages = usePackages({
     page: 1,
     size: TERMINOLOGY_PACKAGE_REFERENCE_PAGE_SIZE,
     assetType: "TERMINOLOGY",
     keyword: packageSearch || undefined,
   });
-  const releaseAdapters = usePackageReleaseAdapters(canPublish);
+  const releaseAdapters = usePackageReleaseAdapters(
+    { page: 1, size: TERMINOLOGY_PACKAGE_REFERENCE_PAGE_SIZE },
+    canPublish,
+  );
   const confirmCandidate = useConfirmTerminologyCandidate();
   const rejectCandidate = useRejectTerminologyCandidate();
   const resolveConflict = useResolveTerminologyConflict();
@@ -454,7 +457,8 @@ export default function TerminologyMapping() {
   const canReleaseSelected =
     selectedPackage?.status === "DRAFT" || selectedPackage?.status === "PUBLISHED";
   const canRollbackSelected = selectedPackage?.status === "ACTIVE" && rollbackCandidates.length > 0;
-  const usableReleaseAdapters = (releaseAdapters.data ?? []).filter(
+  const releaseAdapterItems = releaseAdapters.data?.items ?? [];
+  const usableReleaseAdapters = releaseAdapterItems.filter(
     (adapter) =>
       adapter.status === "ACTIVE" &&
       adapter.healthStatus === "HEALTHY" &&

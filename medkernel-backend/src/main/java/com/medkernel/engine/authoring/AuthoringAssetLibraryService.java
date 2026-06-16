@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthoringAssetLibraryService {
 
-    private static final int SOURCE_SCAN_LIMIT = 200;
     private static final TypeReference<List<String>> TAG_LIST = new TypeReference<>() {};
 
     private final ObjectMapper json;
@@ -126,36 +125,34 @@ public class AuthoringAssetLibraryService {
             String tag,
             boolean favoriteOnly,
             PageRequest page) {
+        String likeKeyword = likeKeyword(keyword);
+        String tagPattern = tagPattern(tag);
+        String favoriteUserId = favoriteOnly ? userId : null;
+        if (requestedType != null) {
+            RepositoryAssetPage source = loadProfileFilteredRepositoryPage(
+                tenantId, userId, requestedType, likeKeyword, tagPattern, favoriteUserId,
+                page.offset(), page.safeSize());
+            return PageResponse.of(source.items(), page, source.total());
+        }
+
+        int sourceLimit = page.offset() + page.safeSize();
         List<AuthoringAssetLibraryItem> rows = new ArrayList<>();
-        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.RULE)) {
-            rules.listByFilter(tenantId, null, null, null, null).forEach(rule ->
-                rows.add(ruleItem(tenantId, userId, rule)));
-        }
-        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.PATHWAY)) {
-            pathways.listByFilter(tenantId, null, null, null, null, null).forEach(pathway ->
-                rows.add(pathwayItem(tenantId, userId, pathway)));
-        }
-        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.CONDITION_FRAGMENT)) {
-            fragments.pageByFilter(tenantId, null, null, null, 0, SOURCE_SCAN_LIMIT).forEach(fragment ->
-                rows.add(fragmentItem(tenantId, userId, fragment)));
-        }
-        if (shouldInclude(requestedType, allowedTypes, VersionedAssetType.FOLLOWUP)) {
-            followupTemplates.pageByFilter(tenantId, null, null, 0, SOURCE_SCAN_LIMIT).forEach(template ->
-                rows.add(followupItem(tenantId, userId, template)));
+        long total = 0L;
+        for (VersionedAssetType type : repositoryBackedTypes()) {
+            if (!shouldInclude(null, allowedTypes, type)) {
+                continue;
+            }
+            RepositoryAssetPage source = loadProfileFilteredRepositoryPage(
+                tenantId, userId, type, likeKeyword, tagPattern, favoriteUserId, 0, sourceLimit);
+            rows.addAll(source.items());
+            total += source.total();
         }
 
-        List<AuthoringAssetLibraryItem> filtered = rows.stream()
-            .filter(item -> matchesKeyword(item, keyword))
-            .filter(item -> tag == null || item.tags().stream().anyMatch(value -> value.equalsIgnoreCase(tag)))
-            .filter(item -> !favoriteOnly || item.favorite())
-            .sorted(assetOrdering())
-            .toList();
-
-        List<AuthoringAssetLibraryItem> items = filtered.stream()
+        List<AuthoringAssetLibraryItem> items = sorted(rows).stream()
             .skip(page.offset())
             .limit(page.safeSize())
             .toList();
-        return PageResponse.of(items, page, filtered.size());
+        return PageResponse.of(items, page, total);
     }
 
     private List<VersionedAssetType> repositoryBackedTypes() {
@@ -204,6 +201,45 @@ public class AuthoringAssetLibraryService {
         };
     }
 
+    private RepositoryAssetPage loadProfileFilteredRepositoryPage(
+            String tenantId,
+            String userId,
+            VersionedAssetType type,
+            String keyword,
+            String tagPattern,
+            String favoriteUserId,
+            int offset,
+            int limit) {
+        return switch (type) {
+            case RULE -> new RepositoryAssetPage(
+                rules.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit).stream()
+                    .map(rule -> ruleItem(tenantId, userId, rule))
+                    .toList(),
+                rules.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
+            );
+            case PATHWAY -> new RepositoryAssetPage(
+                pathways.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit).stream()
+                    .map(pathway -> pathwayItem(tenantId, userId, pathway))
+                    .toList(),
+                pathways.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
+            );
+            case CONDITION_FRAGMENT -> new RepositoryAssetPage(
+                fragments.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit).stream()
+                    .map(fragment -> fragmentItem(tenantId, userId, fragment))
+                    .toList(),
+                fragments.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
+            );
+            case FOLLOWUP -> new RepositoryAssetPage(
+                followupTemplates.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit)
+                    .stream()
+                    .map(template -> followupItem(tenantId, userId, template))
+                    .toList(),
+                followupTemplates.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
+            );
+            default -> new RepositoryAssetPage(List.of(), 0L);
+        };
+    }
+
     private List<AuthoringAssetLibraryItem> sorted(List<AuthoringAssetLibraryItem> rows) {
         return rows.stream()
             .sorted(assetOrdering())
@@ -219,6 +255,10 @@ public class AuthoringAssetLibraryService {
 
     private String likeKeyword(String keyword) {
         return keyword == null ? null : "%" + keyword.toLowerCase(Locale.ROOT) + "%";
+    }
+
+    private String tagPattern(String tag) {
+        return tag == null ? null : "%\"" + tag.toLowerCase(Locale.ROOT) + "\"%";
     }
 
     private record RepositoryAssetPage(List<AuthoringAssetLibraryItem> items, long total) {

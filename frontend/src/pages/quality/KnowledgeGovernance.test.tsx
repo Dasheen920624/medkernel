@@ -32,7 +32,8 @@ const mockUseCandidateCoexistence = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
-  useKnowledgeCandidates: (identityId?: number) => mockUseKnowledgeCandidates(identityId),
+  useKnowledgeCandidates: (identityId?: number, params?: unknown) =>
+    mockUseKnowledgeCandidates(identityId, params),
   useCandidateProvenance: (refs: string[]) => mockUseCandidateProvenance(refs),
   useAssetTemplates: () => mockUseAssetTemplates(),
   useKnowledgeCandidateDiff: (candidateId?: number) => mockUseKnowledgeCandidateDiff(candidateId),
@@ -208,6 +209,17 @@ function customizationPage(items: Array<Record<string, unknown>> = []) {
     size: 20,
     total: items.length,
     hasNext: false,
+    totalEstimated: false,
+  };
+}
+
+function pageResponse<T>(items: T[], total = items.length, page = 1, size = 20) {
+  return {
+    items,
+    page,
+    size,
+    total,
+    hasNext: page * size < total,
     totalEstimated: false,
   };
 }
@@ -418,7 +430,7 @@ beforeEach(() => {
   mockUseKnowledgeCandidates.mockReturnValue({
     data: {
       identityId: 42,
-      candidates: [candidateVersion],
+      candidates: pageResponse([candidateVersion], 21),
       classifications: [candidateClassification],
       available: true,
       reasonCode: "CONFLICT",
@@ -438,7 +450,7 @@ beforeEach(() => {
   mockUseKnowledgeCandidateDiff.mockReturnValue({
     data: {
       identityId: 42,
-      candidates: [candidateVersion, activeVersion],
+      candidates: pageResponse([candidateVersion, activeVersion], 2),
       classifications: [candidateClassification],
       available: true,
       reasonCode: "CONFLICT",
@@ -677,7 +689,7 @@ describe("KnowledgeGovernance", () => {
     });
 
     renderPage();
-    await user.click(screen.getByTitle("2"));
+    await user.click(screen.getAllByTitle("2")[0]);
 
     await waitFor(() => {
       expect(mockUseKnowledgeIdentities).toHaveBeenCalledWith(
@@ -735,7 +747,7 @@ describe("KnowledgeGovernance", () => {
         sort: "updatedAt,desc",
       }),
     );
-    expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42);
+    expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42, { page: 1, size: 20 });
 
     expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();

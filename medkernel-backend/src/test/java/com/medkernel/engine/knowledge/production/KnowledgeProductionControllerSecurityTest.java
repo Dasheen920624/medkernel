@@ -3,6 +3,8 @@ package com.medkernel.engine.knowledge.production;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -13,6 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -304,10 +308,15 @@ class KnowledgeProductionControllerSecurityTest {
 
     @Test
     void knowledgeGovernorCanListCandidates() throws Exception {
-        when(service.listCandidates(anyString())).thenReturn(List.of());
+        when(service.listCandidates(anyString(), anyInt(), anyInt()))
+            .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
-        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/candidates").with(governor()))
-            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/candidates?page=1&size=20")
+                .with(governor()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.total").value(0));
     }
 
     @Test
@@ -422,6 +431,19 @@ class KnowledgeProductionControllerSecurityTest {
     void guestCannotQueryReadiness() throws Exception {
         mockMvc.perform(get("/api/v1/engine/knowledge-production/readiness"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void oversizedProvenanceRefsRejectedBeforeService() throws Exception {
+        String body = IntStream.rangeClosed(1, 201)
+            .mapToObj(index -> "\"kv:" + index + ":v1\"")
+            .collect(Collectors.joining(",", "{\"candidateRefs\":[", "]}"));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/candidates/provenance")
+                .with(governor()).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest());
+        verify(provenanceService, never()).resolve(any());
     }
 
     // ─── AIK-STD-12 PR3：全专业资产模板目录（FR-1）────────────────

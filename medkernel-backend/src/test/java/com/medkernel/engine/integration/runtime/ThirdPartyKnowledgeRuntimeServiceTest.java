@@ -31,6 +31,8 @@ import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
 import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.InheritancePropagation;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -125,19 +127,22 @@ class ThirdPartyKnowledgeRuntimeServiceTest {
 
     @Test
     void reconciliationReportsHonestNotSyncedState() {
-        when(packages.listSyncLogs("pkg-1")).thenReturn(List.of(
+        PageRequest page = new PageRequest(1, 20, null);
+        List<SyncLogResponse> logs = List.of(
             new SyncLogResponse(
                 "log-1", "plan-1", "adapter-1", SyncLogStatus.SUCCESS,
                 null, null, 0, "ok"),
             new SyncLogResponse(
                 "log-2", "plan-1", "adapter-2", SyncLogStatus.NOT_SYNCED,
-                "NOT_CONNECTED", "适配器未接入真实同步通道", 0, null)));
+                "NOT_CONNECTED", "适配器未接入真实同步通道", 0, null));
+        when(packages.listSyncLogs("pkg-1", page)).thenReturn(PageResponse.of(logs, page, logs.size()));
 
-        ThirdPartyPackageReconciliationResponse response = service.reconcilePackage("pkg-1");
+        ThirdPartyPackageReconciliationResponse response = service.reconcilePackage("pkg-1", page);
 
         assertThat(response.contractVersion()).isEqualTo("v1");
         assertThat(response.status()).isEqualTo(ThirdPartyReconciliationStatus.NOT_SYNCED);
-        assertThat(response.logs()).hasSize(2);
+        assertThat(response.logs().items()).hasSize(2);
+        assertThat(response.logs().page()).isEqualTo(1);
     }
 
     @Test

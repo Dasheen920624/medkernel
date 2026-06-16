@@ -24,6 +24,8 @@ import com.medkernel.engine.rule.RuleGovernanceState;
 import com.medkernel.engine.rule.RuleImpactResponse;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -166,6 +168,23 @@ class AuthoringBatchJobServiceTest {
         assertThat(itemCaptor.getValue().rollbackRef()).isEqualTo("plan-1");
     }
 
+    @Test
+    void listRecentReturnsTenantScopedPageInsteadOfTop50Snapshot() {
+        AuthoringBatchJob row = job("abj-page-2", AuthoringBatchJobType.RULE_GENERATE);
+        when(jobs.countByTenantId("tenant-A")).thenReturn(41L);
+        when(jobs.pageByTenantId("tenant-A", 20, 20)).thenReturn(List.of(row));
+
+        PageResponse<AuthoringBatchJobResponse> page = service.listRecent(new PageRequest(2, 20, null));
+
+        assertThat(page.items()).extracting(AuthoringBatchJobResponse::jobId).containsExactly("abj-page-2");
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(41L);
+        assertThat(page.hasNext()).isTrue();
+        verify(jobs).countByTenantId("tenant-A");
+        verify(jobs).pageByTenantId("tenant-A", 20, 20);
+    }
+
     private RuleImpactResponse impact(String ruleId, RuleRiskLevel riskLevel) {
         return new RuleImpactResponse(
             ruleId,
@@ -178,6 +197,27 @@ class AuthoringBatchJobServiceTest {
             List.of(),
             List.of(),
             List.of(),
+            "trace-batch");
+    }
+
+    private static AuthoringBatchJob job(String jobId, AuthoringBatchJobType type) {
+        Instant now = Instant.parse("2026-06-08T00:00:00Z");
+        return new AuthoringBatchJob(
+            1L,
+            jobId,
+            "tenant-A",
+            type,
+            AuthoringBatchJobStatus.SUCCEEDED,
+            1,
+            1,
+            0,
+            0,
+            "{}",
+            null,
+            now,
+            "author-1",
+            now,
+            "author-1",
             "trace-batch");
     }
 }

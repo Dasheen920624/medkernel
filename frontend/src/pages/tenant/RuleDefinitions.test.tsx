@@ -82,6 +82,9 @@ const apiMocks = vi.hoisted(() => ({
   createConditionFragment: vi.fn(),
   updateConditionFragment: vi.fn(),
   conditionFragmentImpactData: null as unknown,
+  conditionFragmentImpactRequests: [] as Array<
+    { fragmentId: string; params?: Record<string, unknown> } | undefined
+  >,
   addTestCase: vi.fn(),
   runRuleTests: vi.fn(),
   simulateRule: vi.fn(),
@@ -209,12 +212,21 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.updateConditionFragment,
     isPending: false,
   }),
-  useConditionFragmentImpact: () => ({
-    data: apiMocks.conditionFragmentImpactData,
-    isLoading: false,
-    isError: false,
-    error: null,
-  }),
+  useConditionFragmentImpact: (
+    fragmentId: string,
+    params?: Record<string, unknown>,
+    options?: { enabled?: boolean },
+  ) => {
+    if (fragmentId && (options?.enabled ?? true)) {
+      apiMocks.conditionFragmentImpactRequests.push({ fragmentId, params });
+    }
+    return {
+      data: apiMocks.conditionFragmentImpactData,
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+  },
   useOrgUnits: (params?: Record<string, unknown>) => {
     apiMocks.orgUnitRequests.push(params);
     return { data: apiMocks.orgUnitsData, isLoading: false, isError: false };
@@ -457,6 +469,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.orgUnitRequests = [];
     apiMocks.packageRequests = [];
     apiMocks.conditionFragmentRequests = [];
+    apiMocks.conditionFragmentImpactRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
     apiMocks.refetchBacktest.mockReset();
@@ -761,6 +774,83 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           }),
         ]),
       );
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "条件片段影响分析通过小页服务端分页加载受影响资产",
+    async () => {
+      apiMocks.conditionFragmentsData = {
+        items: [
+          {
+            fragmentId: "frag-renal-v1",
+            tenantId: "tenant-hospital",
+            fragmentCode: "FRAG_RENAL_IMPAIRED",
+            name: "肾功能受限",
+            category: "肾病",
+            bodyJson: { all: [] },
+            versionNo: 1,
+            status: "ACTIVE",
+            packageVersion: "pkg-2026.06",
+            createdAt: "2026-06-08T00:00:00Z",
+            createdBy: "u-admin",
+            updatedAt: "2026-06-08T00:00:00Z",
+            updatedBy: "u-admin",
+            traceId: "trace-fragment",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.conditionFragmentImpactData = {
+        fragmentId: "frag-renal-v1",
+        fragmentCode: "FRAG_RENAL_IMPAIRED",
+        versionNo: 1,
+        packageVersion: "pkg-2026.06",
+        affectedAssets: {
+          items: [
+            {
+              assetType: "RULE",
+              assetId: "rule-renal",
+              assetCode: "RULE.RENAL",
+              displayName: "肾病规则",
+              impactReason: "规则当前版本 when 引用条件片段",
+            },
+          ],
+          page: 1,
+          size: 20,
+          total: 21,
+          hasNext: true,
+          totalEstimated: false,
+        },
+        impactDigest: "sha256:fragment-impact",
+        traceId: "trace-fragment-impact",
+      };
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
+
+      const fragmentLibraryTitle = await screen.findByText("条件片段库");
+      const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
+      expect(fragmentLibraryDrawer).not.toBeNull();
+      await user.click(
+        within(fragmentLibraryDrawer as HTMLElement).getByRole("button", { name: /影响/ }),
+      );
+
+      await screen.findByText("条件片段影响分析");
+      expect(screen.getAllByText("FRAG_RENAL_IMPAIRED").length).toBeGreaterThan(0);
+      expect(screen.getByText("RULE.RENAL")).toBeInTheDocument();
+      expect(apiMocks.conditionFragmentImpactRequests).toContainEqual({
+        fragmentId: "frag-renal-v1",
+        params: { page: 1, size: 20 },
+      });
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );
