@@ -176,9 +176,14 @@ public class IntegrationController {
      */
     @GetMapping("/onboardings")
     @PreAuthorize("@perm.has('integration.read')")
-    public ApiResult<List<IntegrationOnboardingResponse>> listIntegrationOnboardings() {
+    public ApiResult<PageResponse<IntegrationOnboardingResponse>> listIntegrationOnboardings(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false) String sort) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(integrationService.listIntegrationOnboardings(tenantId));
+        return ApiResult.ok(integrationService.listIntegrationOnboardings(
+            tenantId,
+            new PageRequest(page, size, sort)));
     }
 
     /**
@@ -246,9 +251,14 @@ public class IntegrationController {
      */
     @GetMapping("/regional-sources")
     @PreAuthorize("@perm.has('integration.read')")
-    public ApiResult<List<RegionalSourceResponse>> listRegionalSources() {
+    public ApiResult<PageResponse<RegionalSourceResponse>> listRegionalSources(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false) String sort) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(integrationService.listRegionalSources(tenantId));
+        return ApiResult.ok(integrationService.listRegionalSources(
+            tenantId,
+            new PageRequest(page, size, sort)));
     }
 
     /**
@@ -318,9 +328,14 @@ public class IntegrationController {
      */
     @GetMapping("/webhooks")
     @PreAuthorize("@perm.has('integration.read')")
-    public ApiResult<List<WebhookConfigResponse>> getWebhooks() {
+    public ApiResult<PageResponse<WebhookConfigResponse>> getWebhooks(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false) String sort) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(integrationService.getWebhooks(tenantId));
+        return ApiResult.ok(integrationService.getWebhooks(
+            tenantId,
+            new PageRequest(page, size, sort)));
     }
 
     /**

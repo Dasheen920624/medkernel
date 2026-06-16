@@ -21,6 +21,7 @@ import com.medkernel.engine.pkg.PackageSyncRequest;
 import com.medkernel.engine.pkg.PackageSyncResponse;
 import com.medkernel.engine.versioning.InheritanceOverride;
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.datascope.DataScope;
 
 import jakarta.validation.Valid;
@@ -104,7 +105,9 @@ public class ThirdPartyKnowledgeRuntimeController {
     @GetMapping("/packages/{packageId}/reconciliation")
     @PreAuthorize("@perm.has('package.read')")
     public ApiResult<ThirdPartyPackageReconciliationResponse> reconcilePackage(
-            @PathVariable String packageId) {
-        return ApiResult.ok(service.reconcilePackage(packageId));
+            @PathVariable String packageId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResult.ok(service.reconcilePackage(packageId, new PageRequest(page, size, null)));
     }
 }

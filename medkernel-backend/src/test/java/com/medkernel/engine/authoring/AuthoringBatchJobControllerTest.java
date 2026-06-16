@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.List;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -104,6 +106,22 @@ class AuthoringBatchJobControllerTest {
                         .claim("roles", List.of("guest")))
                     .authorities(new SimpleGrantedAuthority("ROLE_GUEST"))))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void recentEndpointReturnsServerPage() throws Exception {
+        when(service.listRecent(any(PageRequest.class)))
+            .thenReturn(PageResponse.of(
+                List.of(job(AuthoringBatchJobType.RULE_GENERATE, AuthoringBatchJobStatus.SUCCEEDED)),
+                new PageRequest(2, 20, null),
+                41L));
+
+        mvc.perform(get("/api/v1/engine/authoring/batch?page=2&size=20")
+                .with(authorJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].jobId").value("abj-1"))
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.total").value(41));
     }
 
     private AuthoringBatchJobResponse job(AuthoringBatchJobType type, AuthoringBatchJobStatus status) {

@@ -15,6 +15,8 @@ public interface DocParseJobRepository extends ListCrudRepository<DocParseJob, L
 
     Optional<DocParseJob> findByTenantIdAndJobCode(String tenantId, String jobCode);
 
+    long countByTenantId(String tenantId);
+
     @Query("""
         SELECT * FROM mk_doc_parse_job
         WHERE tenant_id = :tenantId

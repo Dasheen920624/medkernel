@@ -263,7 +263,7 @@ class KnowledgeEngineTest {
         KnowledgeCandidateResponse response = versionService.classifyCandidate(5L,
             versionCreateRequest("v2.0", "这里是全新的医学文献内容"));
 
-        KnowledgeAssetVersion saved = response.candidates().get(0);
+        KnowledgeAssetVersion saved = response.candidates().items().get(0);
         assertThat(saved).isNotNull();
         assertThat(saved.versionNo()).isEqualTo("v2.0");
         assertThat(saved.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
@@ -296,19 +296,24 @@ class KnowledgeEngineTest {
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(List.of(historyVersion));
+        when(versionRepo.findByTenantIdAndIdentityIdAndContentHash("t-1", 5L, computedHash))
+            .thenReturn(Optional.of(historyVersion));
+        when(versionRepo.findFirstByTenantIdAndIdentityIdAndStatusOrderByCreatedAtDescIdDesc(
+            "t-1", 5L, KnowledgeVersionStatus.ACTIVE)).thenReturn(Optional.of(historyVersion));
         when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
         KnowledgeCandidateResponse response = versionService.classifyCandidate(5L,
             versionCreateRequest("v2.0", "这里是完全重复的历史医学内容"));
 
         assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
-        assertThat(response.candidates()).isEmpty();
+        assertThat(response.candidates().items()).isEmpty();
         assertThat(response.classifications()).singleElement()
             .satisfies(item -> {
                 assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.DUPLICATE_SKIPPED);
                 assertThat(item.candidateVersionId()).isNull();
             });
         verify(versionRepo, never()).save(any(KnowledgeAssetVersion.class));
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc(any(), any());
         verify(reviewAssignmentRepo, never()).save(any(ReviewAssignment.class));
     }
 

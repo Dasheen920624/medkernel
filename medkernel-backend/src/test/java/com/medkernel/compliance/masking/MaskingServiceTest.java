@@ -11,6 +11,8 @@ import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.security.DataAccessLevel;
 import com.medkernel.shared.security.ResolvedDataScope;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -133,6 +135,25 @@ class MaskingServiceTest {
         assertThat(result.rawAllowed()).isTrue();
         assertThat(result.maskedFields()).isEmpty();
         assertThat(result.values()).containsEntry("patientPhone", "13800138000");
+    }
+
+    @Test
+    void listRulesReturnsTenantScopedPageInsteadOfUnboundedList() {
+        MaskingRule row = activeRule("patientPhone", "DEFAULT", MaskingStrategy.KEEP_LAST, 0, 4);
+        when(repository.countRules("t-1", "clinical_case", "patientPhone")).thenReturn(25L);
+        when(repository.pageRules("t-1", "clinical_case", "patientPhone", 10, 10)).thenReturn(List.of(row));
+
+        PageResponse<MaskingRuleResponse> page = service.listRules(
+            "t-1", "Clinical Case", "patientPhone", new PageRequest(2, 10, null));
+
+        assertThat(page.items()).extracting(MaskingRuleResponse::ruleId)
+            .containsExactly("mask-clinical-case-patientPhone-default");
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(10);
+        assertThat(page.total()).isEqualTo(25);
+        assertThat(page.hasNext()).isTrue();
+        verify(repository).countRules("t-1", "clinical_case", "patientPhone");
+        verify(repository).pageRules("t-1", "clinical_case", "patientPhone", 10, 10);
     }
 
     @Test

@@ -21,6 +21,8 @@ import com.medkernel.engine.datasvc.export.EngineDataExportJob;
 import com.medkernel.engine.datasvc.export.EngineDataExportService;
 import com.medkernel.engine.datasvc.export.EngineDataExportSubmitRequest;
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -147,12 +149,14 @@ public class EngineDataController {
     }
 
     /**
-     * 列出当前租户最近的导出作业。
+     * 分页列出当前租户导出作业台账。
      */
     @GetMapping("/exports")
     @PreAuthorize("@perm.has('engine-data.export')")
-    public ApiResult<List<EngineDataExportJob>> listExports() {
-        return ApiResult.ok(engineDataExportService.listRecent());
+    public ApiResult<PageResponse<EngineDataExportJob>> listExports(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "20") int size) {
+        return ApiResult.ok(engineDataExportService.listRecent(new PageRequest(page, size, null)));
     }
 
     /**

@@ -2785,12 +2785,8 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void listSyncLogsReturnsOnlyPersistedLogsForPackageReleasePlans() {
-        ReleasePlan plan = new ReleasePlan(
-            10L, "plan-1", "tenant-A", "pkg-1", "org-1",
-            ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, ReleasePlanStatus.NOT_SYNCED,
-            Instant.now(), "tester", Instant.now(), "tester", "trace"
-        );
+    void listSyncLogsReturnsServerPageForPackageReleaseEvidence() {
+        PageRequest request = new PageRequest(2, 1, null);
         SyncLog log = new SyncLog(
             20L, "log-1", "tenant-A", "plan-1", "target-1",
             SyncLogStatus.NOT_SYNCED, "NOT_SYNCED", "未配置真实同步适配器", 0, null,
@@ -2801,17 +2797,22 @@ class PackageEngineServiceTest {
                 1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "配置包", null,
                 KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
             )));
-        when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
-            .thenReturn(List.of(plan));
-        when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-1"))
+        when(logRepository.countByTenantIdAndPackageId("tenant-A", "pkg-1")).thenReturn(2L);
+        when(logRepository.pageByTenantIdAndPackageId("tenant-A", "pkg-1", 1, 1))
             .thenReturn(List.of(log));
 
-        List<SyncLogResponse> response = service.listSyncLogs("pkg-1");
+        PageResponse<SyncLogResponse> response = service.listSyncLogs("pkg-1", request);
 
-        assertThat(response).hasSize(1);
-        assertThat(response.get(0).planId()).isEqualTo("plan-1");
-        assertThat(response.get(0).status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
-        assertThat(response.get(0).syncEvidence()).isNull();
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(1);
+        assertThat(response.total()).isEqualTo(2);
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.planId()).isEqualTo("plan-1");
+            assertThat(item.status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
+            assertThat(item.syncEvidence()).isNull();
+        });
+        verify(planRepository, never()).findByTenantIdAndPackageIdOrderByCreatedAtDesc(any(), any());
+        verify(logRepository, never()).findByTenantIdAndPlanId(any(), any());
     }
 
     @Test
@@ -3381,20 +3382,26 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void listReleaseAdaptersRetrievesActiveAdapters() {
+    void listReleaseAdaptersReturnsActivePageInsteadOfTenantSnapshot() {
         IntegrationAdapter activeAdapter = integrationAdapter(
             1L, "target-active", "tenant-A", "激活通道", "REST", "config",
             "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(adapterRepository.findAllByTenantId("tenant-A"))
+        PageRequest request = new PageRequest(2, 1, null);
+        when(adapterRepository.countByTenantIdAndStatus("tenant-A", "ACTIVE"))
+            .thenReturn(2L);
+        when(adapterRepository.pageByTenantIdAndStatus("tenant-A", "ACTIVE", 1, 1))
             .thenReturn(List.of(activeAdapter));
         when(syncPort.supports(activeAdapter)).thenReturn(true);
 
-        List<PackageReleaseAdapterResponse> results = service.listReleaseAdapters();
+        PageResponse<PackageReleaseAdapterResponse> results = service.listReleaseAdapters(request);
 
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).adapterId()).isEqualTo("target-active");
-        assertThat(results.get(0).connectorAvailable()).isTrue();
+        assertThat(results.page()).isEqualTo(2);
+        assertThat(results.total()).isEqualTo(2);
+        assertThat(results.items()).hasSize(1);
+        assertThat(results.items().get(0).adapterId()).isEqualTo("target-active");
+        assertThat(results.items().get(0).connectorAvailable()).isTrue();
+        verify(adapterRepository, never()).findAllByTenantId(any());
     }
 
     private KnowledgePackage packageVersion(String packageId, String version, KnowledgePackageStatus status) {

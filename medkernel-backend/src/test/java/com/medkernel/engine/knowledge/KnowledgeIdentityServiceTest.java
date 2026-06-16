@@ -217,13 +217,21 @@ class KnowledgeIdentityServiceTest {
     @Test
     void lineageBundlesIdentityVersionsAndSupersessions() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
-        when(versionRepo.listByIdentity("t-1", 1L)).thenReturn(List.of());
-        when(supersessionRepo.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc("t-1", 1L)).thenReturn(List.of());
+        PageRequest page = new PageRequest(2, 1, null);
+        KnowledgeAssetVersion historical = versionRow(19L, 1L, KnowledgeVersionStatus.SUPERSEDED);
+        when(versionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(2L);
+        when(versionRepo.pageByTenantIdAndIdentityId("t-1", 1L, 1, 1)).thenReturn(List.of(historical));
+        when(supersessionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(0L);
 
-        KnowledgeLineage lineage = service.getLineage(1L);
+        KnowledgeLineage lineage = service.getLineage(1L, page);
         assertThat(lineage.identity().id()).isEqualTo(1L);
-        assertThat(lineage.versions()).isEmpty();
-        assertThat(lineage.supersessions()).isEmpty();
+        assertThat(lineage.versions().items()).containsExactly(historical);
+        assertThat(lineage.versions().page()).isEqualTo(2);
+        assertThat(lineage.versions().total()).isEqualTo(2L);
+        assertThat(lineage.supersessions().items()).isEmpty();
+        Mockito.verify(versionRepo, Mockito.never()).listByIdentity("t-1", 1L);
+        Mockito.verify(supersessionRepo, Mockito.never())
+            .findByTenantIdAndIdentityIdOrderByTransitionedAtAsc("t-1", 1L);
     }
 
     @Test
@@ -599,7 +607,11 @@ class KnowledgeIdentityServiceTest {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
         KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
         KnowledgeAssetVersion historical = versionRow(19L, 1L, KnowledgeVersionStatus.SUPERSEDED);
-        when(versionRepo.listByIdentity("t-1", 1L)).thenReturn(List.of(active, historical));
+        PageRequest page = new PageRequest(1, 2, null);
+        when(versionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(2L);
+        when(versionRepo.pageByTenantIdAndIdentityId("t-1", 1L, 0, 2))
+            .thenReturn(List.of(active, historical));
+        when(supersessionRepo.countByTenantIdAndIdentityId("t-1", 1L)).thenReturn(0L);
         when(effectiveVersions.resolve("t-1", "DRUG.X", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
             .thenReturn(Optional.of(resolvedKnowledge(identity, active)));
         Citation resolved = new Citation(
@@ -615,11 +627,13 @@ class KnowledgeIdentityServiceTest {
         when(sourceDocRepo.findByTenantIdAndId("t-1", 10L))
             .thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.A_REGULATION, "国家法规")));
 
-        KnowledgeProvenanceResponse provenance = service.getProvenance(1L);
+        KnowledgeProvenanceResponse provenance = service.getProvenance(1L, page);
 
         assertThat(provenance.currentVersionId()).isEqualTo(20L);
-        assertThat(provenance.versions()).extracting(KnowledgeAssetVersion::id)
+        assertThat(provenance.versions().items()).extracting(KnowledgeAssetVersion::id)
             .containsExactly(20L, 19L);
+        assertThat(provenance.versions().total()).isEqualTo(2L);
+        assertThat(provenance.supersessions().items()).isEmpty();
         assertThat(provenance.unresolvedCitationCount()).isEqualTo(1);
         assertThat(provenance.partial()).isTrue();
         assertThat(provenance.sourceEvidence()).singleElement().satisfies(item -> {
@@ -633,6 +647,7 @@ class KnowledgeIdentityServiceTest {
             assertThat(item.startOffset()).isEqualTo(2);
             assertThat(item.endOffset()).isEqualTo(12);
         });
+        Mockito.verify(versionRepo, Mockito.never()).listByIdentity("t-1", 1L);
     }
 
     private KnowledgeIdentity identityRow(Long id) {

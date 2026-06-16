@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -35,7 +37,7 @@ import com.medkernel.shared.context.RequestContext;
  * <ul>
  *   <li>{@code submit}：写入 PENDING 作业 + 事务提交后投递后台执行</li>
  *   <li>{@code get}：按 {@code jobCode} 查询当前状态</li>
- *   <li>{@code listRecent}：当前租户最近 100 个作业</li>
+ *   <li>{@code listRecent}：当前租户导出作业分页台账</li>
  *   <li>{@code cancel}：标记 PENDING/RUNNING 作业为 CANCELLED</li>
  * </ul>
  *
@@ -116,9 +118,15 @@ public class KnowledgeExportService {
             .orElseThrow(() -> ApiException.notFound("导出作业 jobCode=" + jobCode));
     }
 
-    public List<KnowledgeExportJob> listRecent() {
+    public PageResponse<KnowledgeExportJob> listRecent(PageRequest request) {
         String tenantId = requireCurrentTenant();
-        return jobRepository.findTop100ByTenantIdOrderByCreatedAtDesc(tenantId);
+        PageRequest page = request == null ? PageRequest.defaults() : request;
+        long total = jobRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(page);
+        }
+        List<KnowledgeExportJob> items = jobRepository.pageByTenantId(tenantId, page.offset(), page.safeSize());
+        return PageResponse.of(items, page, total);
     }
 
     @Transactional

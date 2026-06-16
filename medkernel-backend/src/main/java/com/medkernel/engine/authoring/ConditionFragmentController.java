@@ -72,7 +72,11 @@ public class ConditionFragmentController {
      */
     @GetMapping("/{fragmentId}/impact")
     @PreAuthorize("@perm.hasAny('rule.read','pathway.read')")
-    public ApiResult<ConditionFragmentImpactResponse> impact(@PathVariable String fragmentId) {
-        return ApiResult.ok(service.impact(fragmentId));
+    public ApiResult<ConditionFragmentImpactResponse> impact(
+            @PathVariable String fragmentId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.impact(fragmentId, new PageRequest(page, size, sort)));
     }
 }

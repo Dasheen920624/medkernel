@@ -452,7 +452,12 @@ class PackageEngineControllerSecurityTest {
                 "term-pkg-1",
                 ReleasePlanStatus.NOT_SYNCED,
                 List.of()));
-        when(service.listReleaseAdapters()).thenReturn(List.of());
+        when(service.listReleaseAdapters(any()))
+            .thenReturn(new com.medkernel.shared.api.PageResponse<>(
+                List.of(new PackageReleaseAdapterResponse(
+                    "target-his", "HIS 同步通道", "REST", "ACTIVE", "HEALTHY",
+                    8L, null, true)),
+                1, 20, 1, false, false));
 
         mvc.perform(post(PKG_ROOT + "/term-pkg-1/release")
                 .contentType("application/json")
@@ -465,10 +470,15 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.data.packageId").value("term-pkg-1"));
 
         mvc.perform(get(PKG_ROOT + "/release-adapters")
+                .param("page", "1")
+                .param("size", "20")
                 .with(jwt()
                     .jwt(token -> token.subject("knowledge-governor-1").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].adapterId").value("target-his"))
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(20));
     }
 
     @Test
@@ -567,10 +577,12 @@ class PackageEngineControllerSecurityTest {
                 List.of(new SyncLogResponse(
                     "log-1", "plan-1", "target-dify-1", SyncLogStatus.NOT_SYNCED,
                     "NOT_SYNCED", "未配置真实同步适配器", 0, null))));
-        when(service.listSyncLogs("pkg-1"))
-            .thenReturn(List.of(new SyncLogResponse(
+        when(service.listSyncLogs(eq("pkg-1"), any()))
+            .thenReturn(new com.medkernel.shared.api.PageResponse<>(
+                List.of(new SyncLogResponse(
                 "log-1", "plan-1", "target-dify-1", SyncLogStatus.NOT_SYNCED,
-                "NOT_SYNCED", "未配置真实同步适配器", 0, null)));
+                "NOT_SYNCED", "未配置真实同步适配器", 0, null)),
+                1, 20, 1, false, false));
 
         mvc.perform(post(PKG_ROOT + "/pkg-1/validate")
                 .contentType("application/json")
@@ -593,12 +605,16 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.data.logs[0].syncEvidence").doesNotExist());
 
         mvc.perform(get(PKG_ROOT + "/pkg-1/sync-logs")
+                .param("page", "1")
+                .param("size", "20")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].status").value("NOT_SYNCED"))
-            .andExpect(jsonPath("$.data[0].errorCode").value("NOT_SYNCED"));
+            .andExpect(jsonPath("$.data.items[0].status").value("NOT_SYNCED"))
+            .andExpect(jsonPath("$.data.items[0].errorCode").value("NOT_SYNCED"))
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(20));
     }
 
     @Test

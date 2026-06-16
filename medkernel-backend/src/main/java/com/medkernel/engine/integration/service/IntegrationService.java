@@ -377,10 +377,18 @@ public class IntegrationService {
      * 查询当前租户第三方业务接口接入状态。
      */
     @Transactional(readOnly = true)
-    public List<IntegrationOnboardingResponse> listIntegrationOnboardings(String tenantId) {
-        return onboardingRepository.findAllByTenantId(tenantId).stream()
+    public PageResponse<IntegrationOnboardingResponse> listIntegrationOnboardings(String tenantId, PageRequest request) {
+        PageRequest safe = request == null ? PageRequest.defaults() : request;
+        long total = onboardingRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(safe);
+        }
+        List<IntegrationOnboardingResponse> rows = onboardingRepository
+            .pageByTenantId(tenantId, safe.offset(), safe.safeSize())
+            .stream()
             .map(this::toOnboardingResponse)
             .toList();
+        return PageResponse.of(rows, safe, total);
     }
 
     /**
@@ -430,10 +438,18 @@ public class IntegrationService {
      * 查询当前租户区域协同来源。
      */
     @Transactional(readOnly = true)
-    public List<RegionalSourceResponse> listRegionalSources(String tenantId) {
-        return regionalSourceRepository.findAllByTenantId(tenantId).stream()
+    public PageResponse<RegionalSourceResponse> listRegionalSources(String tenantId, PageRequest request) {
+        PageRequest safe = request == null ? PageRequest.defaults() : request;
+        long total = regionalSourceRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(safe);
+        }
+        List<RegionalSourceResponse> rows = regionalSourceRepository
+            .pageByTenantId(tenantId, safe.offset(), safe.safeSize())
+            .stream()
             .map(this::toRegionalSourceResponse)
             .toList();
+        return PageResponse.of(rows, safe, total);
     }
 
     /**
@@ -512,10 +528,18 @@ public class IntegrationService {
      * @return Webhook 订阅配置列表
      */
     @Transactional(readOnly = true)
-    public List<WebhookConfigResponse> getWebhooks(String tenantId) {
-        return webhookRepository.findAllByTenantId(tenantId).stream()
+    public PageResponse<WebhookConfigResponse> getWebhooks(String tenantId, PageRequest request) {
+        PageRequest safe = request == null ? PageRequest.defaults() : request;
+        long total = webhookRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(safe);
+        }
+        List<WebhookConfigResponse> rows = webhookRepository
+            .pageByTenantId(tenantId, safe.offset(), safe.safeSize())
+            .stream()
             .map(this::toWebhookConfigResponse)
             .toList();
+        return PageResponse.of(rows, safe, total);
     }
 
     /**

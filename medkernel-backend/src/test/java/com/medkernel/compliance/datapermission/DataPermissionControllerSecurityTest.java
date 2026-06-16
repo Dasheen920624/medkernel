@@ -16,8 +16,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.security.DataAccessLevel;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
@@ -68,7 +71,8 @@ class DataPermissionControllerSecurityTest {
     @Test
     @DisplayName("合规审计角色带租户上下文可读取数据权限策略")
     void listPolicies_auditRoleWithTenant_returns200() throws Exception {
-        when(service.listPolicies(eq("t-1"), isNull(), isNull())).thenReturn(List.of());
+        when(service.listPolicies(eq("t-1"), isNull(), isNull(), any(PageRequest.class)))
+            .thenReturn(PageResponse.of(List.of(), new PageRequest(1, 20, null), 0));
 
         mvc.perform(get("/api/v1/compliance/data-permissions")
                 .with(jwt().jwt(token -> token
@@ -80,7 +84,9 @@ class DataPermissionControllerSecurityTest {
                     .claim("roles", List.of("audit_compliance")))
                     .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data").isArray());
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.total").value(0));
     }
 
     @Test

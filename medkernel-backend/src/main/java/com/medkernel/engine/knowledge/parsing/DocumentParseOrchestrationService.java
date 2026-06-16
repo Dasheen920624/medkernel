@@ -14,6 +14,8 @@ import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -101,11 +103,16 @@ public class DocumentParseOrchestrationService {
             .orElseThrow(() -> ApiException.notFound("解析 job"));
     }
 
-    public List<DocParseJob> listJobs(int page, int size) {
+    public PageResponse<DocParseJob> listJobs(int page, int size) {
         String tenantId = requireCurrentTenant();
-        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
-        int safePage = Math.max(page, 0);
-        return jobRepository.pageByTenantId(tenantId, safePage * safeSize, safeSize);
+        PageRequest pageRequest = new PageRequest(page, Math.min(size <= 0 ? DEFAULT_PAGE_SIZE : size, MAX_PAGE_SIZE), null);
+        long total = jobRepository.countByTenantId(tenantId);
+        if (total == 0) {
+            return PageResponse.empty(pageRequest);
+        }
+        List<DocParseJob> items = jobRepository.pageByTenantId(
+            tenantId, pageRequest.offset(), pageRequest.safeSize());
+        return PageResponse.of(items, pageRequest, total);
     }
 
     private DocParseJob fail(DocParseJob pending, String error, String actor) {

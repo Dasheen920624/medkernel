@@ -98,6 +98,7 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 
 const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
+const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
 const INTEGRATION_CONTRACT_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 interface AdapterFieldMappingFormValue {
@@ -246,6 +247,9 @@ function pageStateFor({
 export default function AdapterHub() {
   const [adapterPage, setAdapterPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
+  const [onboardingPage, setOnboardingPage] = useState(1);
+  const [webhookPage, setWebhookPage] = useState(1);
+  const [regionalSourcePage, setRegionalSourcePage] = useState(1);
   const [adapterModalOpen, setAdapterModalOpen] = useState(false);
   const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
@@ -287,9 +291,18 @@ export default function AdapterHub() {
     masterDataSource.length > 0,
   );
   const logsQuery = useIntegrationLogs(logPage, LOG_PAGE_SIZE);
-  const onboardingsQuery = useIntegrationOnboardings();
-  const webhooksQuery = useWebhooks();
-  const regionalSourcesQuery = useRegionalSources();
+  const onboardingsQuery = useIntegrationOnboardings({
+    page: onboardingPage,
+    size: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+  });
+  const webhooksQuery = useWebhooks({
+    page: webhookPage,
+    size: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+  });
+  const regionalSourcesQuery = useRegionalSources({
+    page: regionalSourcePage,
+    size: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+  });
   const terminologyMappingsQuery = useTerminologyMappings({
     status: "CONFIRMED",
     page: 1,
@@ -329,10 +342,10 @@ export default function AdapterHub() {
   const adapters = adaptersQuery.data?.items ?? [];
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
-  const onboardings = onboardingsQuery.data ?? [];
-  const webhooks = webhooksQuery.data ?? [];
-  const firstWebhookId = webhooksQuery.data?.[0]?.webhookId;
-  const regionalSources = regionalSourcesQuery.data ?? [];
+  const onboardings = onboardingsQuery.data?.items ?? [];
+  const webhooks = webhooksQuery.data?.items ?? [];
+  const firstWebhookId = webhooks[0]?.webhookId;
+  const regionalSources = regionalSourcesQuery.data?.items ?? [];
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
     status?.healthyAdapters ??
@@ -1161,7 +1174,13 @@ export default function AdapterHub() {
                       rowKey="onboardingId"
                       columns={onboardingColumns}
                       dataSource={onboardings}
-                      pagination={false}
+                      loading={onboardingsQuery.isLoading}
+                      pagination={{
+                        current: onboardingPage,
+                        pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+                        total: onboardingsQuery.data?.total ?? 0,
+                        onChange: setOnboardingPage,
+                      }}
                       scroll={{ x: 900 }}
                     />
                   </div>
@@ -1189,7 +1208,12 @@ export default function AdapterHub() {
                       columns={webhookColumns}
                       dataSource={webhooks}
                       loading={webhooksQuery.isLoading}
-                      pagination={false}
+                      pagination={{
+                        current: webhookPage,
+                        pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+                        total: webhooksQuery.data?.total ?? 0,
+                        onChange: setWebhookPage,
+                      }}
                       scroll={{ x: 900 }}
                     />
                     <Card title="签名预览" className={styles.sectionCard}>
@@ -1265,7 +1289,12 @@ export default function AdapterHub() {
                       columns={regionalSourceColumns}
                       dataSource={regionalSources}
                       loading={regionalSourcesQuery.isLoading}
-                      pagination={false}
+                      pagination={{
+                        current: regionalSourcePage,
+                        pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
+                        total: regionalSourcesQuery.data?.total ?? 0,
+                        onChange: setRegionalSourcePage,
+                      }}
                       scroll={{ x: 900 }}
                     />
                   </div>

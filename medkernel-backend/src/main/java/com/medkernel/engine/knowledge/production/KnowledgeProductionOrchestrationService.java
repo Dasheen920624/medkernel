@@ -149,13 +149,21 @@ public class KnowledgeProductionOrchestrationService {
 
     /** 列某 job 的候选生产血缘 + 会签路由决策（FR-5/6 可回溯，路由只读 resolve）。 */
     @Transactional(readOnly = true)
-    public List<ProductionCandidateView> listCandidates(String jobCode) {
+    public PageResponse<ProductionCandidateView> listCandidates(String jobCode, int page, int size) {
         String tenantId = requireCurrentTenant();
         KnowledgeProductionJob job = requireJob(tenantId, jobCode);
-        return candidateRepository.findByTenantIdAndJobCode(tenantId, jobCode).stream()
+        PageRequest pageRequest = new PageRequest(page, size, null);
+        long total = candidateRepository.countByTenantIdAndJobCode(tenantId, jobCode);
+        if (total == 0) {
+            return PageResponse.empty(pageRequest);
+        }
+        List<ProductionCandidateView> items = candidateRepository
+            .pageByTenantIdAndJobCode(tenantId, jobCode, pageRequest.offset(), pageRequest.safeSize())
+            .stream()
             .map(row -> ProductionCandidateView.from(row,
                 reviewRouter.resolve(job.targetPipeline(), job.domain(), row.riskLevel())))
             .toList();
+        return PageResponse.of(items, pageRequest, total);
     }
 
     /** 完成 job（FR-1）：PENDING/RUNNING → COMPLETED。 */

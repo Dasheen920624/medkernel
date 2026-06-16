@@ -15,4 +15,9 @@ public interface CandidateClassificationRepository extends ListCrudRepository<Ca
     Optional<CandidateClassification> findByTenantIdAndId(String tenantId, Long id);
 
     List<CandidateClassification> findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(String tenantId, Long identityId);
+
+    List<CandidateClassification> findByTenantIdAndCandidateVersionIdIn(
+        String tenantId,
+        List<Long> candidateVersionIds
+    );
 }

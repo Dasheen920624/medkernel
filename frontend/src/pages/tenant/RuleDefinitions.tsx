@@ -187,6 +187,7 @@ type ConditionFragmentFormValue = {
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
 const RULE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 const RULE_FRAGMENT_LIBRARY_PAGE_SIZE = 20;
+const CONDITION_FRAGMENT_IMPACT_PAGE_SIZE = 20;
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
 const CLINICAL_SETTING_LABELS: Record<RuleClinicalSetting, string> = {
   INPATIENT: "住院",
@@ -768,6 +769,7 @@ export default function RuleDefinitions() {
   const [editingFragmentId, setEditingFragmentId] = useState<string | null>(null);
   const [fragmentBodyJson, setFragmentBodyJson] = useState<unknown | null>(null);
   const [impactFragmentId, setImpactFragmentId] = useState("");
+  const [impactPage, setImpactPage] = useState(1);
   const [fragmentForm] = Form.useForm<ConditionFragmentFormValue>();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
@@ -941,9 +943,11 @@ export default function RuleDefinitions() {
   const previewRunMutation = useAuthoringPreviewRun();
   const createConditionFragmentMutation = useCreateConditionFragment();
   const updateConditionFragmentMutation = useUpdateConditionFragment();
-  const conditionFragmentImpactQuery = useConditionFragmentImpact(impactFragmentId, {
-    enabled: Boolean(impactFragmentId),
-  });
+  const conditionFragmentImpactQuery = useConditionFragmentImpact(
+    impactFragmentId,
+    { page: impactPage, size: CONDITION_FRAGMENT_IMPACT_PAGE_SIZE },
+    { enabled: Boolean(impactFragmentId) },
+  );
   const runBacktestMutation = useRunRuleBacktest();
   const captureDriftMutation = useCaptureRuleDriftSnapshot();
   const snapshotsQuery = useContextSnapshots(
@@ -2978,7 +2982,10 @@ export default function RuleDefinitions() {
           <Button
             size="small"
             icon={<FileSearchOutlined />}
-            onClick={() => setImpactFragmentId(fragment.fragmentId)}
+            onClick={() => {
+              setImpactPage(1);
+              setImpactFragmentId(fragment.fragmentId);
+            }}
           >
             影响
           </Button>
@@ -5380,7 +5387,10 @@ export default function RuleDefinitions() {
         title="条件片段影响分析"
         open={Boolean(impactFragmentId)}
         footer={null}
-        onCancel={() => setImpactFragmentId("")}
+        onCancel={() => {
+          setImpactFragmentId("");
+          setImpactPage(1);
+        }}
         width={760}
         zIndex={1300}
       >
@@ -5405,8 +5415,16 @@ export default function RuleDefinitions() {
             rowKey={(item) => `${item.assetType}-${item.assetId}`}
             size="small"
             loading={conditionFragmentImpactQuery.isLoading}
-            dataSource={conditionFragmentImpactQuery.data?.affectedAssets ?? []}
-            pagination={false}
+            dataSource={conditionFragmentImpactQuery.data?.affectedAssets.items ?? []}
+            pagination={{
+              current: conditionFragmentImpactQuery.data?.affectedAssets.page ?? impactPage,
+              pageSize:
+                conditionFragmentImpactQuery.data?.affectedAssets.size ??
+                CONDITION_FRAGMENT_IMPACT_PAGE_SIZE,
+              total: conditionFragmentImpactQuery.data?.affectedAssets.total ?? 0,
+              showSizeChanger: false,
+              onChange: (page) => setImpactPage(page),
+            }}
             columns={[
               { title: "资产类型", dataIndex: "assetType", key: "assetType" },
               { title: "资产编码", dataIndex: "assetCode", key: "assetCode" },

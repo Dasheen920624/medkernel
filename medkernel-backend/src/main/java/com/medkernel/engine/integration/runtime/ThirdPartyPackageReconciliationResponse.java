@@ -1,8 +1,8 @@
 package com.medkernel.engine.integration.runtime;
 
-import java.util.List;
-
 import com.medkernel.engine.pkg.SyncLogResponse;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 
 /**
  * 第三方知识包分发对账响应。
@@ -11,9 +11,9 @@ public record ThirdPartyPackageReconciliationResponse(
     String contractVersion,
     String packageId,
     ThirdPartyReconciliationStatus status,
-    List<SyncLogResponse> logs
+    PageResponse<SyncLogResponse> logs
 ) {
     public ThirdPartyPackageReconciliationResponse {
-        logs = List.copyOf(logs == null ? List.of() : logs);
+        logs = logs == null ? PageResponse.empty(PageRequest.defaults()) : logs;
     }
 }

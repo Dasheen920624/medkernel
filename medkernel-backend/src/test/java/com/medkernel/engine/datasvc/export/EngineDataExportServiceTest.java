@@ -18,6 +18,8 @@ import com.medkernel.engine.datasvc.ClinicalSignalsRepository;
 import com.medkernel.engine.datasvc.KnowledgeUsageStatsRepository;
 import com.medkernel.engine.datasvc.RuleUsageStat;
 import com.medkernel.engine.datasvc.RuleUsageStatsRepository;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -127,6 +129,23 @@ class EngineDataExportServiceTest {
         assertThat(saved.jobCode()).isEqualTo("job-existing");
         Mockito.verify(approvalGate, Mockito.never()).requireApprovedForExport(any(), any(), any(), any());
         Mockito.verify(jobRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void listRecentReturnsTenantScopedPageInsteadOfTop100Snapshot() {
+        EngineDataExportJob row = job("job-page-2", ExportJobStatus.SUCCEEDED);
+        when(jobRepo.countByTenantId("t-1")).thenReturn(41L);
+        when(jobRepo.pageByTenantId("t-1", 20, 20)).thenReturn(List.of(row));
+
+        PageResponse<EngineDataExportJob> page = service.listRecent(new PageRequest(2, 20, null));
+
+        assertThat(page.items()).containsExactly(row);
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.total()).isEqualTo(41L);
+        assertThat(page.hasNext()).isTrue();
+        Mockito.verify(jobRepo).countByTenantId("t-1");
+        Mockito.verify(jobRepo).pageByTenantId("t-1", 20, 20);
     }
 
     @Test

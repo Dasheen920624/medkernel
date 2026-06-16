@@ -17,6 +17,21 @@ public interface KnowledgeSupersessionRepository extends ListCrudRepository<Know
 
     List<KnowledgeSupersession> findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(String tenantId, Long identityId);
 
+    long countByTenantIdAndIdentityId(String tenantId, Long identityId);
+
+    @Query("""
+        SELECT * FROM knowledge_supersession
+        WHERE tenant_id = :tenantId AND identity_id = :identityId
+        ORDER BY transitioned_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeSupersession> pageByTenantIdAndIdentityId(
+        String tenantId,
+        Long identityId,
+        int offset,
+        int limit
+    );
+
     @Query("""
         SELECT d.* FROM knowledge_supersession d
         WHERE d.transition_type = 'DEPRECATE'

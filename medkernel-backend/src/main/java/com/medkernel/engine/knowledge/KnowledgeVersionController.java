@@ -1,7 +1,5 @@
 package com.medkernel.engine.knowledge;
 
-import java.util.List;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 
@@ -40,8 +38,12 @@ public class KnowledgeVersionController {
 
     @GetMapping("/identities/{identityId}/versions")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<KnowledgeAssetVersion>> listByIdentity(@PathVariable Long identityId) {
-        return ApiResult.ok(versionService.listByIdentity(identityId));
+    public ApiResult<PageResponse<KnowledgeAssetVersion>> listByIdentity(
+            @PathVariable Long identityId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(versionService.listByIdentity(identityId, new PageRequest(page, size, sort)));
     }
 
     @PostMapping("/identities/{identityId}/versions")
@@ -88,8 +90,12 @@ public class KnowledgeVersionController {
 
     @GetMapping("/identities/{identityId}/candidates")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<KnowledgeCandidateResponse> candidates(@PathVariable Long identityId) {
-        return ApiResult.ok(versionService.listCandidates(identityId));
+    public ApiResult<KnowledgeCandidateResponse> candidates(
+            @PathVariable Long identityId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(versionService.listCandidates(identityId, new PageRequest(page, size, sort)));
     }
 
     @PostMapping("/candidates/{candidateId}/review")

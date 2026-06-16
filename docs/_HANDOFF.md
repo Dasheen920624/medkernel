@@ -5,8 +5,8 @@
 
 ## 常驻操作上下文（跨会话有效，先看这里）
 
-- **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603）。B0 第一阶段全系统核查与完美化整改 **#629 已合并入 main `9cd3a4f4`**（下方该段「未提交未合并」为 PR 内旧文案，合并后未回刷，以此条为准）。**2026-06-16 用户已明确指令：恢复 wave2 P2-C 内容管线推进**（覆盖此前 B0 暂停）——续 `AIK-STD-03 术语`（核查＝TERM-01 + #629 `TerminologyCandidateGenerationJob` 已实质建成，第三次「别建重复表」命中）/ `AIK-STD-04 候选生成`（**PR1 进行：从 AIK-STD-02 带锚点片段确定性生成五类候选**，见下方段）/ 续 `AIK-STD-05` 11 项门禁 / `AIK-STD-10` 8 态去重。后续 B0 深查与 P2-C 并行推进，按卡 TDD。
-- **模型 key 边界（恒守）**：即便提供大模型 key，**也不等于解除 P6**——key 仅满足 P6 前置里「模型」一项，文献库受管根地址仍为空、IdP/独立验收未做；故正式知识生产仍阻断，AIK-STD-04 等只产 B0 模板桩候选（逻辑字段留白，模型填充受 P6 + LLM-03 出域闸 + LLM-07 评测闸闸控）。key 须走凭据通道（`mk_llm_provider.credential_ref` 只存引用，不入对话/仓库）。
+- **当前主线**：P5 **第一阶段 B0 主链路已收官**（PR #600 + 复核 #603），B0 第一轮全系统核查与完美化整改 **#629 已合并入 main `9cd3a4f4`**；最新 `origin/main` 已到 **`399ed29f`**（#630 AIK-STD-04 候选生成 PR1 + #631 AIK-STD-05 候选安全门禁 PR1 均已合并）。**本会话用户最新指令仍是继续 B0 第一阶段全系统深度核查与改造优化**，因此当前分支 `codex/b0-post-629-continuation-audit` 从 `399ed29f` 继续审计、修复、验证和复核 B0 全功能问题；#630/#631 作为最新主线事实一并纳入 B0 复核，但不要额外领取新的 AIK/KNOWGEN 正式生产任务。
+- **模型 key 边界（恒守）**：即便提供大模型 key，**也不等于解除 P6**——key 仅满足 P6 前置里「模型」一项，文献库受管根地址仍为空、IdP/独立验收未做；故正式知识生产仍阻断，AIK-STD-04/05 等只产 B0 模板桩与确定性门禁（逻辑字段留白，模型填充受 P6 + LLM-03 出域闸 + LLM-07 评测闸闸控）。key 须走凭据通道（`mk_llm_provider.credential_ref` 只存引用，不入对话/仓库）。
 - **134 目标环境**：腾讯云轻量 `root@193.112.107.134`，部署根 `/zoesoft/medkernel`，实测运行程序 manifest `e7392c8f`，`medkernel|nginx|postgresql=active`，HTTPS readiness 200，Flyway 123，181 表。`b410f5a3` 已含同等收官代码但**尚未按发布流程重发到 134**，不得冒领 134 已部署 `b410f5a3`。
 - **凭据**：14 角色受控凭据仅在服务器 `/zoesoft/medkernel/conf/p5-14-role-drill-credentials-20260612.json`（600）与本机受控副本 `/tmp/p5-14-role-drill-credentials-20260612.json`（600），**不入仓库**。
 - **授权纪律**：新会话碰 134（SSH/写入/部署）前须重新 AskUserQuestion 点名授权（会话授权不跨会话）；合并 `main` 逐 PR 授权；碰 134 须备份+隔离恢复+留痕+可回滚，不清库、不伪造通过。
@@ -14,14 +14,14 @@
 
 ---
 
-## 2026-06-16 第二阶段 P2-C · AIK-STD-05 候选安全门禁 PR1（门禁框架 + 6 项确定性门禁 + 接入 AIK-STD-04，**已实现待合**，分支 `claude/wave2-p2c-aikstd05-safety-gate`）
+## 2026-06-16 第二阶段 P2-C · AIK-STD-05 候选安全门禁 PR1（门禁框架 + 6 项确定性门禁 + 接入 AIK-STD-04，**已合并入 main** [#631](https://github.com/Dasheen920624/medkernel/pull/631) `399ed29f`）
 
 > **接力须知**：AIK-STD-04 PR1（#630）已合并入 main。本段＝AIK-STD-05 第一刀——候选提审前过安全门禁，校验 [AIK-STD-04](cards/wave2/AIK-STD-04.md) 候选。设计 [`specs/2026-06-16-aikstd05-safety-gate-design.md`](superpowers/specs/2026-06-16-aikstd05-safety-gate-design.md)。续接从最新 `origin/main` 起。
 
 - **关键核查（第 5 次防重复）**：OPT-04 红线库（`engine.safety.ClinicalRedlineService/Matcher`，DDI/危急值/剂量/抗菌/禁忌）+ OPT-07 仲裁（`ConflictArbitration` + 低阶覆盖门禁）均已建，PR2 复用；V108 是**发布期**质量闸（release_plan 摘要）非候选**提审前**逐项门禁，故 `mk_aik_gate_result` 新表确有必要。
 - **已实现（新包 `engine.knowledge.production.gate`）**：`CandidateGate` 接口 + 6 `@Component` 确定性信封门禁（`SOURCE_PRESENT`/`ANCHOR_COMPLETE`/`AUTHORITY_LEVEL`/`CONTENT_FORMAT`/`REVIEW_ELEMENTS`/`APPLICABLE_SCOPE`，纯函数无 I/O）+ `CandidateSafetyGateService`（按门禁码定序、逐项落 `mk_aik_gate_result`、任一不过即整体不过、单项异常诚实判不过不吞错）。**接入 AIK-STD-04**：生成 envelope → 过门禁才 `submitCandidate`，不过入 `GenerationSummary.blocked` 诚实报因（FR-4）。`GET .../jobs/{jobCode}/gate-results` 审计查询（FR-5）。`mk_aik_gate_result` V136 五方言（append-only）+ 迁移基线/域归属登记。纯确定性 B0 不依赖模型。
 - **验证全绿**：新增测试（门禁服务 7 + 编排增量 blocked 1 + 控制器安全 +2 + 门禁集成真实 H2 2）全过；迁移基线/H2/域归属 114 绿；治理/arch 14 绿；四门禁 changed（真实性/配置/迁移/中文注释 0fail0warn）全过；产品目录重生成 + 前端 `productCatalog.test.ts` 5/5（端点 +1 KEEP 无漂移）；`git diff --check` 干净。卡 [AIK-STD-05](cards/wave2/AIK-STD-05.md) FR-4/5 勾、FR-1 标 6/11 确定性项进度（红线/仲裁 PR2、去重待 AIK-STD-10），未虚勾。
-- **当前下一步（接力点，本 PR 合并后清分支）**：① **AIK-STD-05 PR2**：红线（FR-2，接 `ClinicalRedlineService`）+ 冲突仲裁（FR-3，接 `ConflictArbitration`）+ 剂量/高危/许可门禁；② **AIK-STD-10** 8 态去重分流（建成后补「去重」门禁）；③ AIK-STD-03 勾卡闭卡。恒守：TDD 红绿 + B0 + **P6 阻断（深层临床逻辑校验须逻辑在场，B0 留白诚实标待逻辑）** + 域归属 SYS-02 + 合并 main 逐 PR 授权。
+- **当前下一步（事实保留）**：后续可做 AIK-STD-05 PR2（红线/冲突仲裁/剂量/高危/许可门禁）、AIK-STD-10 8 态去重分流、AIK-STD-03 勾卡闭卡；但本会话执行线按用户最新指令先继续 B0 第一阶段全系统深查。恒守：TDD 红绿 + B0 + **P6 阻断（深层临床逻辑校验须逻辑在场，B0 留白诚实标待逻辑）** + 域归属 SYS-02 + 合并 main 逐 PR 授权。
 
 ---
 
@@ -36,12 +36,12 @@
 
 ---
 
-## 2026-06-16 B0 第一阶段全功能核查与完美化 · 长任务继续（当前分支 `codex/b0-first-phase-perfect-remediation`，单一大 PR 未提交未合并）
+## 2026-06-16 B0 第一阶段全功能核查与完美化 · 长任务继续（#629 已合并，后续分支 `codex/b0-post-629-continuation-audit`）
 
-- **最新状态**：已按用户要求登记长任务，并已获取最新 `origin/main` `7969f93f`。B0 既有整改已安全重放到 #628 之后；主线新增 `V133__doc_parse_job` 后，B0 本分支迁移后移为 `V134__diagnosis_knowledge_menu_permission` 与 `V135__terminology_candidate_generation_job`，避免 Flyway 版本冲突。用户已明确本轮改为**当前所有改动合成一个 PR，合入 main 后再继续后续深查**。
-- **已落地的 B0 整改范围**：诊断知识维护已从审核页拆到 `/knowledge/diagnosis`；诊断 value/time 不可求值约束发布阻断、findings 去重、TERM-01 ACTIVE 发现项校验和 citation 当前版本归属校验已纳入门禁；路径运行已通过 `ContextFactBridge` 同时支持字段目录 canonical arrays 与历史 dotted fact；第三方数据契约、知识审核、规则维护、质控评估、统一资产克隆、术语映射、配置包包内资产、患者路径和路径模板等关键入口已改为 20 条小页 + 服务端搜索/过滤或缺真实 `packageVersion` 阻断；10 万级 H2 合同与 PG/Oracle opt-in 烟测、B0 Playwright 截图链和 `scripts/b0-perfect-check.mjs` 已作为本地证据链。
-- **本轮本地验证**：`node --test scripts/b0-perfect-check.test.mjs && node scripts/b0-perfect-check.mjs` 66/66 通过、B0 阻断 0；`git diff --check && git diff --cached --check` 通过；`cd medkernel-backend && mvn -q clean -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过并验证 135 版迁移；`cd medkernel-backend && mvn -q -Dtest=DiscoveryRunRepositoryIntegrationTest,KnowledgeProductionJobRepositoryIntegrationTest,DiscoveryOrchestrationServiceTest,KnowledgeProductionOrchestrationServiceTest,DiscoveryControllerSecurityTest,KnowledgeProductionControllerSecurityTest test` 通过；`cd frontend && npm run verify` 通过（95 files / 737 tests，保留 1 个 no-nested-ternary warning）；`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 退出 0（含 Oracle Testcontainers 迁移到 v135 与 10 万级导出合同）。
-- **仍不可宣称完成**：134 尚未按本分支重发部署（触碰远端需用户本会话点名授权）；真实院方 IdP 未接；9 个未评审沙盘场景仍只能保持临床门禁；真实 API-03 异步导出、API-04 候选/冲突专项资源占用与 CI/交付验收证据仍未关闭；国产化真实环境本轮暂不处理，不属于本轮完成口径。整改完成并最终验收前，不恢复 wave2 正式知识生产；本轮 PR 合并后再继续后续 B0 深查。
+- **最新状态**：已按用户要求把当时全部改动合成单一 PR [#629](https://github.com/Dasheen920624/medkernel/pull/629)，GitHub Actions 8/8 通过后 squash 合并入 `main`，合并提交为 `9cd3a4f4`。B0 既有整改已安全重放到 #628 之后；主线新增 `V133__doc_parse_job` 后，B0 第一轮整改迁移后移为 `V134__diagnosis_knowledge_menu_permission` 与 `V135__terminology_candidate_generation_job`，避免 Flyway 版本冲突。当前后续工作从最新 `main` 新分支 `codex/b0-post-629-continuation-audit` 继续深查。
+- **已落地的 B0 整改范围**：诊断知识维护已从审核页拆到 `/knowledge/diagnosis`；诊断 value/time 不可求值约束发布阻断、findings 去重、TERM-01 ACTIVE 发现项校验和 citation 当前版本归属校验已纳入门禁；路径运行已通过 `ContextFactBridge` 同时支持字段目录 canonical arrays 与历史 dotted fact；第三方数据契约、知识审核、规则维护、质控评估、统一资产克隆、术语映射、配置包包内资产、患者路径和路径模板等关键入口已改为 20 条小页 + 服务端搜索/过滤或缺真实 `packageVersion` 阻断；知识发现/生产 job 列表和知识生产候选血缘列表均已接入服务端 count/page，不再按 job 全量返回候选血缘；10 万级 H2 合同与 PG/Oracle opt-in 烟测、B0 Playwright 截图链和 `scripts/b0-perfect-check.mjs` 已作为本地证据链。
+- **#629 验证证据**：本地 `node --test scripts/b0-perfect-check.test.mjs && node scripts/b0-perfect-check.mjs` 66/66 通过、B0 阻断 0；`git diff --check && git diff --cached --check` 通过；`cd medkernel-backend && mvn -q clean -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过并验证 135 版迁移；`cd medkernel-backend && mvn -q -Dtest=DiscoveryRunRepositoryIntegrationTest,KnowledgeProductionJobRepositoryIntegrationTest,DiscoveryOrchestrationServiceTest,KnowledgeProductionOrchestrationServiceTest,DiscoveryControllerSecurityTest,KnowledgeProductionControllerSecurityTest test` 通过；`cd frontend && npm run verify` 通过（95 files / 737 tests，保留 1 个 no-nested-ternary warning）；`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 退出 0（Surefire 419 files / 2618 tests / 0 failures / 0 errors / 2 skipped，含 Oracle Testcontainers 迁移到 v135 与 10 万级导出合同）；远端 #629 `backend-build-test`、`frontend-build-test`、`frontend-lint`、`guard-rules`、`comment-language-check`、`jdk-matrix-smoke` 三矩阵全部通过。
+- **仍不可宣称完成**：134 尚未按 #629 重发部署（触碰远端需用户本会话点名授权）；真实院方 IdP 未接；9 个未评审沙盘场景仍只能保持临床门禁；真实 API-03 异步导出、API-04 候选/冲突专项资源占用与 CI/交付验收证据仍未关闭；国产化真实环境本轮暂不处理，不属于本轮完成口径。整改完成并最终验收前，不恢复 wave2 正式知识生产；下一步继续 B0 深查而不是领取 wave2 正式知识生产。
 
 ---
 

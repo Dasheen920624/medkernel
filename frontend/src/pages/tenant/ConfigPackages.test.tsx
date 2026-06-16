@@ -50,6 +50,8 @@ const apiMocks = vi.hoisted(() => ({
   useEvaluationIndicators: vi.fn(),
   useOrgUnits: vi.fn(),
   useTenants: vi.fn(),
+  usePackageReleaseAdapters: vi.fn(),
+  usePackageSyncLogs: vi.fn(),
   permissions: [] as Array<{ code: string }>,
   tenantId: "tenant-A",
   entitlements: [] as Array<Record<string, unknown>>,
@@ -74,6 +76,14 @@ const apiMocks = vi.hoisted(() => ({
   inheritanceImpact: null as Record<string, unknown> | null,
   inheritanceImpactLoading: false,
   releaseAdapters: [] as Array<Record<string, unknown>>,
+  syncLogsPage: {
+    items: [] as Array<Record<string, unknown>>,
+    page: 1,
+    size: 20,
+    total: 0,
+    hasNext: false,
+    totalEstimated: false,
+  },
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -107,9 +117,7 @@ vi.mock("@/shared/api/hooks", () => ({
       mfaBound: true,
     },
   }),
-  usePackageReleaseAdapters: () => ({
-    data: apiMocks.releaseAdapters,
-  }),
+  usePackageReleaseAdapters: (...args: unknown[]) => apiMocks.usePackageReleaseAdapters(...args),
   useOrgUnits: (...args: unknown[]) => apiMocks.useOrgUnits(...args),
   useTenants: (...args: unknown[]) => apiMocks.useTenants(...args),
   useCreatePackage: () => ({ mutateAsync: apiMocks.createPackage, isPending: false }),
@@ -179,7 +187,7 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useSyncPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReleasePackage: () => ({ mutateAsync: apiMocks.releasePackage, isPending: false }),
-  usePackageSyncLogs: () => ({ data: [] }),
+  usePackageSyncLogs: (...args: unknown[]) => apiMocks.usePackageSyncLogs(...args),
   useRollbackPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useImportOfflinePackage: () => ({ mutateAsync: apiMocks.importOfflinePackage, isPending: false }),
   usePilotPackageTemplates: () => ({
@@ -271,6 +279,21 @@ describe("ConfigPackages offline package export", () => {
       isError: false,
       refetch: vi.fn(),
     });
+    apiMocks.usePackageReleaseAdapters.mockReset();
+    apiMocks.usePackageReleaseAdapters.mockImplementation(() => ({
+      data: {
+        items: apiMocks.releaseAdapters,
+        page: 1,
+        size: 20,
+        total: apiMocks.releaseAdapters.length,
+        hasNext: false,
+        totalEstimated: false,
+      },
+    }));
+    apiMocks.usePackageSyncLogs.mockReset();
+    apiMocks.usePackageSyncLogs.mockImplementation(() => ({
+      data: apiMocks.syncLogsPage,
+    }));
     apiMocks.permissions = [];
     apiMocks.tenantId = "tenant-A";
     apiMocks.entitlements = [];
@@ -357,6 +380,14 @@ describe("ConfigPackages offline package export", () => {
         connectorAvailable: true,
       },
     ];
+    apiMocks.syncLogsPage = {
+      items: [],
+      page: 1,
+      size: 20,
+      total: 0,
+      hasNext: false,
+      totalEstimated: false,
+    };
     apiMocks.pilotTemplates = [
       {
         templateId: "tpl-first-run",
@@ -1036,6 +1067,36 @@ describe("ConfigPackages offline package export", () => {
     },
     PAGE_INTERACTION_TIMEOUT_MS,
   );
+
+  it("loads package sync evidence logs through server pagination", () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(apiMocks.usePackageSyncLogs).toHaveBeenLastCalledWith("pkg-offline", {
+      page: 1,
+      size: 20,
+    });
+  });
+
+  it("loads package release adapters through server pagination", () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(apiMocks.usePackageReleaseAdapters).toHaveBeenLastCalledWith({
+      page: 1,
+      size: 20,
+    });
+  });
 
   it(
     "defaults package release to grayscale rollout instead of direct full rollout",
