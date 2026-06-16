@@ -41,7 +41,7 @@ public final class DomainOwnershipCatalog {
                 "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
                 "mk_knowledge_customization", "mk_knowledge_discovery_run",
                 "mk_knowledge_production_job", "mk_knowledge_production_candidate",
-                "mk_doc_parse_job", "mk_aik_gate_result")),
+                "mk_doc_parse_job", "mk_aik_gate_result", "mk_knowledge_generation_triage")),
         module("engine-package", packages("com.medkernel.engine.pkg"), prefixes("mk_pkg_"),
             tables("knowledge_package", "package_item", "release_plan", "sync_log")),
         module("engine-versioning", packages("com.medkernel.engine.versioning"), prefixes("mk_version_"), tables()),

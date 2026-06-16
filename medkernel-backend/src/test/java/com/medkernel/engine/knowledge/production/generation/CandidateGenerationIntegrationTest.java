@@ -29,6 +29,9 @@ import com.medkernel.engine.knowledge.production.KnowledgeDomain;
 import com.medkernel.engine.knowledge.production.MaterializationTarget;
 import com.medkernel.engine.knowledge.production.NewIdentitySpec;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageRepository;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
 import com.medkernel.engine.safety.ClinicalRedlineRepository;
@@ -65,6 +68,8 @@ class CandidateGenerationIntegrationTest {
     private KnowledgeAssetVersionRepository versions;
     @Autowired
     private ClinicalRedlineRepository redlines;
+    @Autowired
+    private GenerationTriageRepository triages;
 
     @AfterEach
     void tearDown() {
@@ -109,6 +114,26 @@ class CandidateGenerationIntegrationTest {
         assertThat(ruleVersions).hasSize(1);
         assertThat(ruleVersions.get(0).status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
         assertThat(ruleVersions.get(0).sourceDocumentId()).isEqualTo(doc.id());
+
+        List<GenerationTriage> firstTriages = summary.candidates().stream()
+            .flatMap(candidate -> triages.findByTenantIdAndJobCodeOrderByIdAsc(TENANT, candidate.jobCode()).stream())
+            .toList();
+        assertThat(firstTriages).hasSize(2);
+        assertThat(firstTriages).allSatisfy(row ->
+            assertThat(row.triageState()).isEqualTo(GenerationTriageState.NEW_ASSET));
+
+        GenerationSummary duplicate = service.generate(new CandidateGenerationRequest(
+            version.id(), TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
+            List.of(new GenerationItem(VersionedAssetType.RULE,
+                new MaterializationTarget(ruleIdentity.id(), null)))));
+
+        assertThat(duplicate.candidates()).isEmpty();
+        assertThat(duplicate.skipped()).singleElement()
+            .satisfies(skipped -> assertThat(skipped.reason()).contains("重复"));
+        List<GenerationTriage> duplicateTriages =
+            triages.findByTenantIdAndTargetIdentityIdOrderByCreatedAtDescIdDesc(TENANT, ruleIdentity.id());
+        assertThat(duplicateTriages).anySatisfy(row ->
+            assertThat(row.triageState()).isEqualTo(GenerationTriageState.DUPLICATE));
     }
 
     private void seedRedlines(Instant now) {

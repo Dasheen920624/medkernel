@@ -20,6 +20,8 @@ import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
@@ -41,17 +43,20 @@ public class KnowledgeProductionController {
     private final ProfessionalAssetTemplateRegistry templateRegistry;
     private final CandidateGenerationOrchestrationService generationService;
     private final CandidateSafetyGateService gateService;
+    private final KnowledgeGenerationTriageService triageService;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
                                          ProfessionalAssetTemplateRegistry templateRegistry,
                                          CandidateGenerationOrchestrationService generationService,
-                                         CandidateSafetyGateService gateService) {
+                                         CandidateSafetyGateService gateService,
+                                         KnowledgeGenerationTriageService triageService) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
         this.generationService = generationService;
         this.gateService = gateService;
+        this.triageService = triageService;
     }
 
     @PostMapping("/jobs")
@@ -136,5 +141,12 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<AikGateResult>> gateResults(@PathVariable String jobCode) {
         return ApiResult.ok(gateService.listResults(jobCode));
+    }
+
+    /** 生成期 8 态分流结果列表（AIK-STD-10 FR-5）：按 job 回溯身份识别、去重与处理去向。 */
+    @GetMapping("/jobs/{jobCode}/triage-results")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<List<GenerationTriage>> triageResults(@PathVariable String jobCode) {
+        return ApiResult.ok(triageService.listResults(jobCode));
     }
 }

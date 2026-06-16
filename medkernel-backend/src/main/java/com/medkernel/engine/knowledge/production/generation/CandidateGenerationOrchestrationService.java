@@ -22,6 +22,9 @@ import com.medkernel.engine.knowledge.production.ProductionJobResponse;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
 import com.medkernel.engine.knowledge.production.gate.GateContext;
 import com.medkernel.engine.knowledge.production.gate.GateOutcome;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
+import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
+import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -42,19 +45,22 @@ public class CandidateGenerationOrchestrationService {
     private final SourceCandidateGenerator generator;
     private final KnowledgeProductionOrchestrationService production;
     private final CandidateSafetyGateService gateService;
+    private final KnowledgeGenerationTriageService triageService;
 
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
                                                    SourceFragmentRepository fragments,
                                                    SourceCandidateGenerator generator,
                                                    KnowledgeProductionOrchestrationService production,
-                                                   CandidateSafetyGateService gateService) {
+                                                   CandidateSafetyGateService gateService,
+                                                   KnowledgeGenerationTriageService triageService) {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
         this.generator = generator;
         this.production = production;
         this.gateService = gateService;
+        this.triageService = triageService;
     }
 
     @Transactional
@@ -92,6 +98,12 @@ public class CandidateGenerationOrchestrationService {
                 new GateContext(tenantId, job.jobCode(), item.target().targetIdentityId()));
             if (!outcome.passed()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
+                continue;
+            }
+            GenerationTriageDecision triage = triageService.evaluate(envelope, new GenerationTriageContext(
+                tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
+            if (!triage.shouldSubmit()) {
+                skipped.add(new SkippedType(item.assetType(), "生成期分流跳过：" + triage.basis()));
                 continue;
             }
             CandidateSubmissionResponse response =
