@@ -66,7 +66,7 @@
 | `/rule/definitions` | 规则配置 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 规则配置 | 配置、试运行、审核和发布临床规则 |
 <!-- capability:route:route@%2Fterminology%2Fmapping decision=MOVE -->
 <!-- route:/terminology/mapping -->
-| `/terminology/mapping` | 术语与字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语与字典 | 维护院内术语映射、冲突和高风险确认 |
+| `/terminology/mapping` | 术语与字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语与字典 | 启动候选生成，维护院内术语映射、冲突和高风险确认 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=MOVE -->
 <!-- route:/adapter/hub -->
 | `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
@@ -512,7 +512,7 @@
 <!-- capability:controller:controller@TenantEngineController decision=KEEP -->
 | `TenantEngineController` | GET /api/v1/engine/tenant/branding<br>POST /api/v1/engine/tenant/branding<br>GET /api/v1/engine/tenant/success-plan<br>POST /api/v1/engine/tenant/success-plan/transition<br>GET /api/v1/engine/tenant/implementation-steps<br>GET /api/v1/engine/tenant/onboarding-readiness | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@TerminologyController decision=MERGE -->
-| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>其余 6 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
+| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>GET /api/v1/engine/terminology/mappings/candidate-generation-jobs/{jobCode}<br>其余 5 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ReleaseGovernanceController decision=MERGE -->
 | `ReleaseGovernanceController` | POST /api/v1/engine/versioning/releases/simulations<br>POST /api/v1/engine/versioning/releases/rollouts<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}/observations<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}:rollback<br>GET /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-batches:preview<br>POST /api/v1/engine/versioning/releases/override-batches:apply<br>其余 1 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@WorkflowNotificationController decision=KEEP -->

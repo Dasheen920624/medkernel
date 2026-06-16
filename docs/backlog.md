@@ -311,7 +311,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 |---|---|---:|---|
 | AIK-STD-01 | 来源与全类资产 schema + 统一元数据（统一资产信封 + 校验闸，复用 versioning + KNOW-01/OPT-07，不新建表）| 4d | done |
 | AIK-STD-02 | 文档解析、引用锚点与版本存证（PDF/Word 章节 + 表格理解 + hash）| 6d | pending |
-| AIK-STD-03 | 术语编码与院内映射流水线 | 4d | pending |
+| AIK-STD-03 | 术语编码与院内映射流水线 | 4d | done |
 | AIK-STD-04 | 规则/路径/推荐/指标/随访候选生成 | 5d | pending |
 | AIK-STD-05 | 安全校验与冲突仲裁（详规 §8.9 11 项门禁）| 5d | pending |
 | AIK-STD-06 | 静默运行、反馈和回归评测 | 4d | pending |

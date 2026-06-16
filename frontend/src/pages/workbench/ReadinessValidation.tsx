@@ -173,9 +173,7 @@ export default function ReadinessValidation() {
   }
 
   const snapshot = runtime.data;
-  const items = snapshot
-    ? buildSelfCheckItems(snapshot, knowledgeReadiness.data?.items ?? [])
-    : [];
+  const items = snapshot ? buildSelfCheckItems(snapshot, knowledgeReadiness.data?.items ?? []) : [];
   if (knowledgeReadiness.isError) {
     items.push(buildKnowledgeReadinessUnavailableItem(knowledgeReadiness.error));
   }

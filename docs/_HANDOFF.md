@@ -53,6 +53,10 @@
   - 新增 `aik_pack_job` 五方言 V141 基线：保存资产 manifest、`manifest_sha256`、包引用和作业状态；服务契约、领域 owner、产品功能目录已同步。
   - `PackageSyncRequest.adapterIds=[]` 现在真实落 `ReleasePlanStatus.NOT_SYNCED`，不触发 `ReleasePort`，不再把空通道伪造成发布成功。
   - 已过目标测试：`AikKnowledgePackageServiceTest`、`PackageEngineServiceTest#syncPackageReturnsNotSyncedWhenNoAdapterChannelIsSelected`、`PackageEngineControllerSecurityTest#aikPackageBuildUsesUnifiedPackageRoot+doctorCannotPublishOrRollbackPackage`、`MigrationBaselineContractTest#aikPackJobIsPersistedAcrossAllDialects`。
+- 已完成 Phase 3 第四片「AIK-STD-03 术语勾卡」：
+  - 核实 TERM-01 后端已实质建成批量术语候选流水线：`TerminologyCandidateGenerationJob` + `mk_term_candidate_generation_job`、`mapping_candidate.generation_job_code`、高危规则强制 HIGH、候选人工审核后才确认。
+  - 前端 `/terminology/mapping` 已补「生成候选」入口和最近任务状态追踪，直接调用 API-04 候选生成任务并显示 `generatedCount` / `candidatePageUri`。
+  - AIK-STD-03 卡、backlog、主计划、产品功能目录和服务契约审计点已同步。
 
 ## 仍不可宣称
 
@@ -63,7 +67,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：下一片推进 AIK-STD-03 术语勾卡；先核 `TERM-01`、`TerminologyCandidateGenerationJob`、`TerminologyController` 与现有候选生成/确认/映射链，确认已实质建成的部分只勾卡和补证据，不重复造流水线。
+1. 继续主计划 Phase 3：下一片推进 T3.5 前端 Chunk7（triage 8 态队列、影子展示、共存左右对照高亮、Agent 进度可视/可中止、审后任务化提醒）；先核 `KnowledgeGovernance`、`DiagnosisKnowledgePanel`、`KnowledgeProduction`、`CandidateCoexistenceService` 和现有 triage/shadow/run API，已实质建成的只补证据，不重复造页面。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。
