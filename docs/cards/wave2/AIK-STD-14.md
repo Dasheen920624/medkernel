@@ -31,7 +31,7 @@
 - 新建 `engine.knowledge.acquisition`：`AcquisitionOrchestrationService` 只允许 `PRODUCTION_CENTER` 手动触发，URL 必须命中已审批 allowlist、HTTPS、许可 `PERMITTED` 且 robots 策略允许。
 - V142 五方言新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`，记录域名、A-E 权威、许可、robots 策略、审批人、真实 URL、抓取时点、原文字节数、sha256、资料 URI、解析 job 和状态。
 - `WebContentFetcher`/`RestWebContentFetcher` 负责真实 HTTP 获取；资料进入 AIK-STD-02 解析链路，由 P1 受管资料库存储决定落 `file://` 本地磁盘、对象存储或 HTTPS 网关，不写死对象存储。
-- 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，复用 `knowledge.write/read` 与服务契约。当前完成“手动公域资料→资料库→SourceVersion/fragment”链路；MCP/CLI `fetchPublicMaterial`、自动调度和候选生成触发仍待后续。
+- 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，复用 `knowledge.write/read` 与服务契约。请求可携带显式 `generation` 计划，当前完成“手动公域资料→资料库→SourceVersion/fragment→候选生成/审核池触发”链路；MCP/CLI `fetchPublicMaterial`、自动调度仍待后续。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务规格：Agent 收到结构化任务（来源范围 + 目标资产类型 + 目标管道 + 输出 schema + 约束）；任务由 [AIK-STD-13](AIK-STD-13.md) 编排层下发。
@@ -44,7 +44,7 @@
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - Agent 侧不新增直连 API，**复用 [DATASVC-01](DATASVC-01.md) MCP 工具**（`searchKnowledge`/`checkKnowledgeExistence`/…）读来源 + 新增受控回写工具 `submitProductionCandidate`（带 schema 校验、锚点必填、归属管道、幂等键）。
-- 公域取数后端入口：`POST /api/v1/engine/knowledge/acquisition/runs` 手动触发 allowlisted 公开资料获取；`GET /api/v1/engine/knowledge/acquisition/sources` 与 `/runs` 查询白名单和运行账本。该入口服务 MCP/CLI `fetchPublicMaterial` 的后续接线，不允许绕过解析和候选审核链。
+- 公域取数后端入口：`POST /api/v1/engine/knowledge/acquisition/runs` 手动触发 allowlisted 公开资料获取，可选 `generation` 计划声明目标管道、领域和资产物化目标；`GET /api/v1/engine/knowledge/acquisition/sources` 与 `/runs` 查询白名单和运行账本。该入口服务 MCP/CLI `fetchPublicMaterial` 的后续接线，不允许绕过解析和候选审核链。
 - CLI：`medkernel agent submit-candidate '<payloadJson>' --purpose 'Agent 受控回写'`，payload 为 `AgentProductionCandidatePayload` JSON。
 - MCP：`tools/list` 暴露 `payload` object schema，`tools/call` 以 `{purpose,payload}` 调 `submitProductionCandidate`。
 - 任务下发/回写经 [AIK-STD-13](AIK-STD-13.md) 编排层 job 接口。
@@ -75,7 +75,7 @@
 
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：Agent 收任务、经受控工具回写候选，锚点/hash/AI 标识齐全；不合 schema 拒收。
-- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。当前后端公域取数已阻断非生产中心、非白名单域、未许可/robots 不允许来源；MCP/CLI `fetchPublicMaterial` 未接线，故本 AC 未完全勾满。
+- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。当前后端公域取数已阻断非生产中心、非白名单域、未许可/robots 不允许来源，并把手动获取结果接入候选审核链；MCP/CLI `fetchPublicMaterial` 未接线，故本 AC 未完全勾满。
 - [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。当前前端已补进度可视和中止；纠偏、会话级 prompt/tool 版本审计与可重放仍未勾满。
 - 关联 A1–A9 剧本：A9 AI 知识审核（Agent 候选入审）。
 - T-GATE：后端真实性门禁全绿（候选真实锚点、无伪造）。

@@ -179,7 +179,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **新建包** `engine.knowledge.acquisition`
   - [x] T4.1 公域源 allowlist 治理 `mk_knowledge_acquisition_source`（域名/A–E 权威(OPT-07)/license/robots 策略/enabled/审批人/时点）五方言；启用必须审批，许可和 robots 策略不允许时运行阻断。配置中心管理面仍留 P8/P9 配置体验收口。
   - [x] T4.2 合规抓取器 `WebContentFetcher` + `RestWebContentFetcher`：本轮完成仅 PRODUCTION_CENTER + allowlisted HTTPS 域 + license/robots 策略裁决 + 真实 URL/时点/字节/sha256 留证；资料落 P1 解析链路，受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均可承载。调度限速和更细出域审批证据留 T4.5/P5。
-  - [ ] T4.3 获取编排 `AcquisitionOrchestrationService`：已完成手动触发→抓取→同 hash 去重→解析链路→`SourceVersion(file_uri,hash,authority,license)`；待继续接候选生成/审核池触发。
+  - [x] T4.3 获取编排 `AcquisitionOrchestrationService`：手动触发→抓取→同 hash 去重→解析链路→`SourceVersion(file_uri,hash,authority,license)`；请求可携带显式 `generation` 计划，把新解析或重复复用的来源版本接入统一候选生成/审核池，不新造候选表、不绕门禁。
   - [x] T4.4 抓取账本 `mk_knowledge_acquisition_run`（域名/url/fetched_at/sha256/bytes/license/status/触发方式）五方言；合规审计可查。
   - [ ] T4.5 自主调度：接 SYS-05 异步/批量框架，定时探索 allowlisted 源更新（接 AIK-STD-08 差异）；失败补偿/死信（OBS-01）。
   - [ ] T4.6 **AIK-STD-14 Agent 取数工具**：MCP/CLI 新增 `fetchPublicMaterial`（仅 allowlisted 公域、仅生产中心、留证、产候选不产事实），生产器②可自主取公开资料回写候选。

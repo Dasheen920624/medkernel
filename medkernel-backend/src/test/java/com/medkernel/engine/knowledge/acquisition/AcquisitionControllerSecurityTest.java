@@ -73,6 +73,7 @@ class AcquisitionControllerSecurityTest {
             7L,
             9L,
             "dpj:x",
+            null,
             null);
     }
 

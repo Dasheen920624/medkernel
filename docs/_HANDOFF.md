@@ -27,12 +27,12 @@
   - 新增 `engine.knowledge.acquisition`：`AcquisitionOrchestrationService` 仅允许 `PRODUCTION_CENTER` 手动触发；URL 必须命中已审批 allowlist、HTTPS、许可 `PERMITTED` 且 robots 策略允许。
   - V142 五方言新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`，记录域名、A-E 权威、许可、robots 策略、审批人、真实 URL、抓取时点、sha256、资料 URI、解析 job 和状态。
   - `WebContentFetcher` / `RestWebContentFetcher` 真实抓取公开资料；获取内容进入既有 AIK-STD-02 解析链路和 P1 受管资料库，不新造存储。
-  - 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，服务契约、产品功能目录和领域表归属已同步。
+  - 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，服务契约、产品功能目录和领域表归属已同步；请求可携带可选 `generation` 计划，把成功解析或重复复用的 `SourceVersion` 接入统一候选生成/审核池。
 
 ## 最新验证
 
 - Phase 3 收口后：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`git diff --check` 均曾退出 0。
-- Phase 4 首片目标验证：`mvn -q -Dtest=AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
+- Phase 4 首片目标验证：`mvn -q -Dtest=AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
 - Phase 4 首片提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 
 ## 仍不可宣称
@@ -40,11 +40,11 @@
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
 - 不得宣称 134 已部署最新主线：未进入 P9 并完成清库全新初始化、部署和 readiness 留证前不得冒领。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
-- 不得宣称 Phase 4 全部完成：手动公域获取最小闭环已完成；候选生成触发、自动调度、MCP/CLI `fetchPublicMaterial` 和更细出域审批证据仍待做。
+- 不得宣称 Phase 4 全部完成：手动公域获取→解析→可选候选生成触发已完成；自动调度、失败补偿/死信、MCP/CLI `fetchPublicMaterial` 和更细出域审批证据仍待做。
 
 ## 下一步
 
-1. 继续 Phase 4：把 `AcquisitionOrchestrationService` 接到候选生成/审核池触发（T4.3 剩余），再做调度/死信（T4.5）和 MCP/CLI `fetchPublicMaterial`（T4.6）。
+1. 继续 Phase 4：做自主调度/失败补偿/死信（T4.5）和 MCP/CLI `fetchPublicMaterial`（T4.6），保持公域资料只产候选、不产事实。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

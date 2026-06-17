@@ -1,7 +1,9 @@
 package com.medkernel.engine.knowledge.acquisition;
 
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+
 /**
- * 公域资料获取响应。失败或阻断时只给真实原因，不伪造资料 URI 或来源版本。
+ * 公域资料获取响应。失败或阻断时只给真实原因，不伪造资料 URI、来源版本或候选生成结果。
  */
 public record KnowledgeAcquisitionRunResponse(
     String runCode,
@@ -16,9 +18,14 @@ public record KnowledgeAcquisitionRunResponse(
     Long sourceDocumentId,
     Long sourceVersionId,
     String parseJobCode,
-    String failureReason
+    String failureReason,
+    GenerationSummary generationSummary
 ) {
     static KnowledgeAcquisitionRunResponse from(KnowledgeAcquisitionRun run) {
+        return from(run, null);
+    }
+
+    static KnowledgeAcquisitionRunResponse from(KnowledgeAcquisitionRun run, GenerationSummary generationSummary) {
         return new KnowledgeAcquisitionRunResponse(
             run.runCode(),
             run.status(),
@@ -32,6 +39,7 @@ public record KnowledgeAcquisitionRunResponse(
             run.sourceDocumentId(),
             run.sourceVersionId(),
             run.parseJobCode(),
-            run.failureReason());
+            run.failureReason(),
+            generationSummary);
     }
 }

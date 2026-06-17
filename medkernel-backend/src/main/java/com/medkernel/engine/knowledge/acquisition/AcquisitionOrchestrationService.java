@@ -24,6 +24,9 @@ import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 import com.medkernel.engine.knowledge.parsing.DocumentParseOrchestrationService;
 import com.medkernel.engine.knowledge.parsing.DocumentParseRequest;
 import com.medkernel.engine.knowledge.parsing.ParseJobStatus;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.GenerationItem;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.shared.api.PageRequest;
@@ -55,6 +58,7 @@ public class AcquisitionOrchestrationService {
     private final SourceDocumentRepository sourceDocuments;
     private final SourceVersionRepository sourceVersions;
     private final DocumentParseOrchestrationService parseService;
+    private final CandidateGenerationOrchestrationService candidateGeneration;
     private final DeploymentFormService deploymentFormService;
     private final WebContentFetcher fetcher;
     private final AuditRecorder auditRecorder;
@@ -64,6 +68,7 @@ public class AcquisitionOrchestrationService {
                                            SourceDocumentRepository sourceDocuments,
                                            SourceVersionRepository sourceVersions,
                                            DocumentParseOrchestrationService parseService,
+                                           CandidateGenerationOrchestrationService candidateGeneration,
                                            DeploymentFormService deploymentFormService,
                                            WebContentFetcher fetcher,
                                            AuditRecorder auditRecorder) {
@@ -72,6 +77,7 @@ public class AcquisitionOrchestrationService {
         this.sourceDocuments = sourceDocuments;
         this.sourceVersions = sourceVersions;
         this.parseService = parseService;
+        this.candidateGeneration = candidateGeneration;
         this.deploymentFormService = deploymentFormService;
         this.fetcher = fetcher;
         this.auditRecorder = auditRecorder;
@@ -85,6 +91,7 @@ public class AcquisitionOrchestrationService {
         String runCode = "acq:" + UUID.randomUUID();
         URI uri = parseUri(request.url());
         String domain = normalizeHost(uri.getHost());
+        validateGenerationRequest(request.generation());
 
         if (deploymentFormService.currentForm() != DeploymentForm.PRODUCTION_CENTER) {
             return saveBlocked(tenantId, runCode, null, request, domain,
@@ -132,13 +139,21 @@ public class AcquisitionOrchestrationService {
             .findBySourceDocumentIdAndContentHash(sourceDocument.id(), sourceHash);
         if (duplicate.isPresent()) {
             SourceVersion version = duplicate.get();
+            GenerationSummary generationSummary;
+            try {
+                generationSummary = generateCandidates(request.generation(), version.id());
+            } catch (RuntimeException exception) {
+                return saveFailed(tenantId, runCode, source, request, domain, fetched.fetchedAt(), sourceHash,
+                    (long) bytes.length, contentType(fetched, request.format()), null,
+                    "候选生成失败：" + exception.getMessage(), actor, now);
+            }
             KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
                 KnowledgeAcquisitionRunStatus.DUPLICATE, fetched.fetchedAt(), sourceHash, (long) bytes.length,
                 contentType(fetched, request.format()), version.fileUri(), sourceDocument.id(), version.id(),
                 null, null, actor, now);
             auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
                 "公域资料重复复用：" + source.sourceCode());
-            return KnowledgeAcquisitionRunResponse.from(run);
+            return KnowledgeAcquisitionRunResponse.from(run, generationSummary);
         }
 
         DocParseJob parseJob = parseService.submit(new DocumentParseRequest(
@@ -155,13 +170,21 @@ public class AcquisitionOrchestrationService {
         SourceVersion sourceVersion = sourceVersions
             .findByTenantIdAndId(tenantId, parseJob.resultSourceVersionId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVID_002, "解析成功但来源版本缺失，禁止伪造获取结果"));
+        GenerationSummary generationSummary;
+        try {
+            generationSummary = generateCandidates(request.generation(), sourceVersion.id());
+        } catch (RuntimeException exception) {
+            return saveFailed(tenantId, runCode, source, request, domain, fetched.fetchedAt(), sourceHash,
+                (long) bytes.length, contentType(fetched, request.format()), parseJob.jobCode(),
+                "候选生成失败：" + exception.getMessage(), actor, now);
+        }
         KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
             KnowledgeAcquisitionRunStatus.SUCCEEDED, fetched.fetchedAt(), sourceHash, (long) bytes.length,
             contentType(fetched, request.format()), sourceVersion.fileUri(), sourceDocument.id(), sourceVersion.id(),
             parseJob.jobCode(), null, actor, now);
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
             "公域资料获取成功：" + source.sourceCode());
-        return KnowledgeAcquisitionRunResponse.from(run);
+        return KnowledgeAcquisitionRunResponse.from(run, generationSummary);
     }
 
     public PageResponse<KnowledgeAcquisitionSource> listSources(int page, int size) {
@@ -265,6 +288,33 @@ public class AcquisitionOrchestrationService {
                 actor,
                 now,
                 actor)));
+    }
+
+    private GenerationSummary generateCandidates(AcquisitionCandidateGenerationRequest generation, Long sourceVersionId) {
+        if (generation == null) {
+            return null;
+        }
+        return candidateGeneration.generate(generation.toCandidateGenerationRequest(sourceVersionId));
+    }
+
+    private static void validateGenerationRequest(AcquisitionCandidateGenerationRequest generation) {
+        if (generation == null) {
+            return;
+        }
+        if (generation.targetPipeline() == null || generation.domain() == null
+            || generation.items() == null || generation.items().isEmpty()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "候选生成计划须声明目标管道、领域和至少一个生成项");
+        }
+        for (GenerationItem item : generation.items()) {
+            if (item == null || item.assetType() == null || item.target() == null) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "候选生成项须声明资产类型和物化目标");
+            }
+            try {
+                item.target().validate();
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, exception.getMessage());
+            }
+        }
     }
 
     private URI parseUri(String raw) {

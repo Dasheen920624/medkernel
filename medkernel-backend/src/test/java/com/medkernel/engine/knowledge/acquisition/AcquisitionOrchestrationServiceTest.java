@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +29,16 @@ import com.medkernel.engine.knowledge.parsing.DocParseJob;
 import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 import com.medkernel.engine.knowledge.parsing.DocumentParseOrchestrationService;
 import com.medkernel.engine.knowledge.parsing.ParseJobStatus;
+import com.medkernel.engine.knowledge.production.KnowledgeDomain;
+import com.medkernel.engine.knowledge.production.MaterializationTarget;
+import com.medkernel.engine.knowledge.production.NewIdentitySpec;
+import com.medkernel.engine.knowledge.production.ReviewRoutingDecision;
+import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
+import com.medkernel.engine.knowledge.production.generation.GeneratedCandidate;
+import com.medkernel.engine.knowledge.production.generation.GenerationItem;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.shared.api.error.ApiException;
@@ -37,6 +48,8 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 class AcquisitionOrchestrationServiceTest {
 
@@ -45,6 +58,7 @@ class AcquisitionOrchestrationServiceTest {
     private SourceDocumentRepository sourceDocuments;
     private SourceVersionRepository sourceVersions;
     private DocumentParseOrchestrationService parseService;
+    private CandidateGenerationOrchestrationService candidateGeneration;
     private DeploymentFormService deploymentFormService;
     private WebContentFetcher fetcher;
     private AuditRecorder auditRecorder;
@@ -57,12 +71,13 @@ class AcquisitionOrchestrationServiceTest {
         sourceDocuments = mock(SourceDocumentRepository.class);
         sourceVersions = mock(SourceVersionRepository.class);
         parseService = mock(DocumentParseOrchestrationService.class);
+        candidateGeneration = mock(CandidateGenerationOrchestrationService.class);
         deploymentFormService = mock(DeploymentFormService.class);
         fetcher = mock(WebContentFetcher.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new AcquisitionOrchestrationService(
             sourceRepository, runRepository, sourceDocuments, sourceVersions,
-            parseService, deploymentFormService, fetcher, auditRecorder);
+            parseService, candidateGeneration, deploymentFormService, fetcher, auditRecorder);
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "user-001"));
     }
@@ -102,12 +117,25 @@ class AcquisitionOrchestrationServiceTest {
             "国家卫生健康委", "公开资料许可", "zh-CN", Instant.EPOCH, "user-001", Instant.EPOCH, "user-001");
     }
 
+    private KnowledgeAcquisitionRunRequest request(String url) {
+        return new KnowledgeAcquisitionRunRequest(
+            "NHC-HTN", url, "v2026", DocumentFormat.STRUCTURED_TEXT, null);
+    }
+
+    private AcquisitionCandidateGenerationRequest generationRequest() {
+        return new AcquisitionCandidateGenerationRequest(
+            TargetPipeline.PLATFORM_SOURCE,
+            KnowledgeDomain.CLINICAL,
+            List.of(new GenerationItem(VersionedAssetType.RULE, new MaterializationTarget(null,
+                new NewIdentitySpec(com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
+                    "高血压指南", "RULE-HTN-2026")))));
+    }
+
     @Test
     void runBlocksOutsideProductionCenterBeforeFetching() {
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
 
-        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
-            "NHC-HTN", "https://guideline.example.org/htn.txt", "v2026", DocumentFormat.STRUCTURED_TEXT));
+        KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
         assertThat(response.failureReason()).contains("PRODUCTION_CENTER");
@@ -122,7 +150,7 @@ class AcquisitionOrchestrationServiceTest {
     @Test
     void runRejectsNullUrlAsBadRequestBeforeFetching() {
         assertThatThrownBy(() -> service.run(new KnowledgeAcquisitionRunRequest(
-                "NHC-HTN", null, "v2026", DocumentFormat.STRUCTURED_TEXT)))
+                "NHC-HTN", null, "v2026", DocumentFormat.STRUCTURED_TEXT, null)))
             .isInstanceOf(ApiException.class)
             .extracting(error -> ((ApiException) error).errorCode())
             .isEqualTo(ErrorCode.BAD_REQUEST);
@@ -135,8 +163,7 @@ class AcquisitionOrchestrationServiceTest {
         when(sourceRepository.findByTenantIdAndSourceCode("tenant-1", "NHC-HTN"))
             .thenReturn(Optional.of(source("guideline.example.org")));
 
-        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
-            "NHC-HTN", "https://evil.example.net/htn.txt", "v2026", DocumentFormat.STRUCTURED_TEXT));
+        KnowledgeAcquisitionRunResponse response = service.run(request("https://evil.example.net/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
         assertThat(response.failureReason()).contains("白名单");
@@ -149,8 +176,7 @@ class AcquisitionOrchestrationServiceTest {
         when(sourceRepository.findByTenantIdAndSourceCode("tenant-1", "NHC-HTN"))
             .thenReturn(Optional.of(source("https://%")));
 
-        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
-            "NHC-HTN", "https://guideline.example.org/htn.txt", "v2026", DocumentFormat.STRUCTURED_TEXT));
+        KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
         assertThat(response.failureReason()).contains("白名单");
@@ -179,8 +205,7 @@ class AcquisitionOrchestrationServiceTest {
             "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/NHC-HTN-v2026.txt",
             "zh-CN", Instant.EPOCH, "user-001")));
 
-        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
-            "NHC-HTN", "https://guideline.example.org/redirect", "v2026", DocumentFormat.STRUCTURED_TEXT));
+        KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/redirect"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
         assertThat(response.failureReason()).contains("重定向域名不在来源白名单");
@@ -209,8 +234,7 @@ class AcquisitionOrchestrationServiceTest {
             "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/NHC-HTN-v2026.txt",
             "zh-CN", Instant.EPOCH, "user-001")));
 
-        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
-            "NHC-HTN", "https://guideline.example.org/htn.txt", "v2026", DocumentFormat.STRUCTURED_TEXT));
+        KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.SUCCEEDED);
         assertThat(response.sourceHash()).isEqualTo(sourceHash);
@@ -228,7 +252,53 @@ class AcquisitionOrchestrationServiceTest {
         assertThat(run.robotsPolicy()).isEqualTo(AcquisitionRobotsPolicy.ALLOW_FETCH);
         assertThat(run.materialFileUri()).startsWith("file://");
         assertThat(run.parseJobCode()).isEqualTo("dpj:acq");
+        assertThat(response.generationSummary()).isNull();
+        verify(candidateGeneration, never()).generate(any());
         verify(auditRecorder).record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run",
             run.runCode(), "公域资料获取成功：NHC-HTN");
+    }
+
+    @Test
+    void runTriggersCandidateGenerationAfterSuccessfulParseWhenRequested() {
+        byte[] body = "# 高血压指南\n\n1. 诊断标准\n收缩压持续升高。".getBytes(StandardCharsets.UTF_8);
+        String sourceHash = Sha256ContentHash.sha256Bytes(body, "原文不能为空");
+        when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
+        when(sourceRepository.findByTenantIdAndSourceCode("tenant-1", "NHC-HTN"))
+            .thenReturn(Optional.of(source("guideline.example.org")));
+        when(sourceDocuments.findByTenantIdAndSourceCode("tenant-1", "NHC-HTN")).thenReturn(Optional.empty());
+        when(sourceDocuments.save(any())).thenReturn(savedDocument());
+        when(sourceVersions.findBySourceDocumentIdAndContentHash(7L, sourceHash)).thenReturn(Optional.empty());
+        when(fetcher.fetch(URI.create("https://guideline.example.org/htn.txt")))
+            .thenReturn(new FetchedWebContent(URI.create("https://guideline.example.org/htn.txt"),
+                "text/plain; charset=UTF-8", body, Instant.parse("2026-06-17T08:00:00Z")));
+        when(parseService.submit(any())).thenReturn(new DocParseJob(
+            3L, "tenant-1", "dpj:acq", 7L, "NHC-HTN-v2026.txt", DocumentFormat.STRUCTURED_TEXT,
+            sourceHash, ParseJobStatus.SUCCEEDED, 9L, 1, 1, null,
+            Instant.EPOCH, "user-001", Instant.EPOCH, "user-001"));
+        when(sourceVersions.findByTenantIdAndId("tenant-1", 9L)).thenReturn(Optional.of(new SourceVersion(
+            9L, "tenant-1", 7L, "v2026", Instant.EPOCH, sourceHash,
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/NHC-HTN-v2026.txt",
+            "zh-CN", Instant.EPOCH, "user-001")));
+        GenerationSummary generationSummary = new GenerationSummary(
+            List.of(new GeneratedCandidate(VersionedAssetType.RULE, "job-acq", "kv:1:draft",
+                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR,
+                    false, KnowledgeDomain.CLINICAL))),
+            List.of(),
+            List.of());
+        when(candidateGeneration.generate(any())).thenReturn(generationSummary);
+
+        KnowledgeAcquisitionRunResponse response = service.run(new KnowledgeAcquisitionRunRequest(
+            "NHC-HTN", "https://guideline.example.org/htn.txt", "v2026",
+            DocumentFormat.STRUCTURED_TEXT, generationRequest()));
+
+        assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.SUCCEEDED);
+        assertThat(response.generationSummary()).isSameAs(generationSummary);
+        org.mockito.ArgumentCaptor<CandidateGenerationRequest> generation =
+            org.mockito.ArgumentCaptor.forClass(CandidateGenerationRequest.class);
+        verify(candidateGeneration).generate(generation.capture());
+        assertThat(generation.getValue().sourceVersionId()).isEqualTo(9L);
+        assertThat(generation.getValue().targetPipeline()).isEqualTo(TargetPipeline.PLATFORM_SOURCE);
+        assertThat(generation.getValue().domain()).isEqualTo(KnowledgeDomain.CLINICAL);
+        assertThat(generation.getValue().items()).hasSize(1);
     }
 }
