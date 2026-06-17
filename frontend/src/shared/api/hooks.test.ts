@@ -88,6 +88,7 @@ import {
   useDeprecateKnowledgeIdentity,
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
+  useCreateKnowledgeProductionJob,
   useKnowledgeProductionCandidates,
   useCancelKnowledgeProductionJob,
   useKnowledgeProductionGateResults,
@@ -3989,6 +3990,45 @@ describe("knowledge review api helpers", () => {
     expect(shadowHook.result.current.fetchStatus).toBe("idle");
     expect(coexistenceHook.result.current.fetchStatus).toBe("idle");
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("creates a governed knowledge production job through the production endpoint", async () => {
+    const createdJob = {
+      jobCode: "job-new-1",
+      tenantId: "tenant-A",
+      sourceScope: "acquisition-run:guideline-2026",
+      assetType: "KNOWLEDGE",
+      producer: "API_MODEL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      modelStrategy: "gpt-pipeline",
+      status: "PENDING",
+      candidateCount: 0,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: createdJob } });
+
+    const { result } = renderApiHook(() => useCreateKnowledgeProductionJob());
+    let response: unknown;
+    await act(async () => {
+      response = await result.current.mutateAsync({
+        sourceScope: "acquisition-run:guideline-2026",
+        assetType: "KNOWLEDGE",
+        producer: "API_MODEL",
+        targetPipeline: "TENANT_OVERLAY",
+        domain: "GUIDELINE",
+        modelStrategy: "gpt-pipeline",
+      });
+    });
+
+    expect(response).toBe(createdJob);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/knowledge-production/jobs", {
+      sourceScope: "acquisition-run:guideline-2026",
+      assetType: "KNOWLEDGE",
+      producer: "API_MODEL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      modelStrategy: "gpt-pipeline",
+    });
   });
 
   it("cancels a running knowledge production job through the governed lifecycle endpoint", async () => {

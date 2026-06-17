@@ -1430,6 +1430,15 @@ export interface KnowledgeProductionJobsParams {
   size?: number;
 }
 
+export interface CreateKnowledgeProductionJobRequest {
+  sourceScope: string;
+  assetType: string;
+  producer: KnowledgeProducer;
+  targetPipeline: KnowledgeProductionJob["targetPipeline"];
+  domain: string;
+  modelStrategy?: string;
+}
+
 export interface ReviewRoutingDecision {
   ownerReviewerRole?: string | null;
   domainReviewerRole?: string | null;
@@ -1574,6 +1583,25 @@ export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams
         { params: requestParams },
       );
       return data.data;
+    },
+  });
+}
+
+export function useCreateKnowledgeProductionJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: CreateKnowledgeProductionJobRequest) => {
+      const { data } = await apiClient.post<{ data: KnowledgeProductionJobResponse }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
+        compactParams(request),
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "readiness"] }),
+      ]);
     },
   });
 }

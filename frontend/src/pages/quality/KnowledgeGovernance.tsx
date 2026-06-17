@@ -1,6 +1,7 @@
 import {
   AuditOutlined,
   BranchesOutlined,
+  PlusOutlined,
   ReloadOutlined,
   StopOutlined,
   SwapOutlined,
@@ -34,6 +35,7 @@ import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   useDeprecateKnowledgeIdentity,
   useCreateKnowledgeCustomization,
+  useCreateKnowledgeProductionJob,
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
@@ -57,6 +59,7 @@ import {
   type AikGateResult,
   type CandidateCoexistenceView,
   type CandidateCoexistenceVersionSnapshot,
+  type CreateKnowledgeProductionJobRequest,
   type GenerationTriage,
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
@@ -299,6 +302,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const [candidatePage, setCandidatePage] = useState(1);
   const [customizationPage, setCustomizationPage] = useState(1);
   const [productionJobCode, setProductionJobCode] = useState<string>();
+  const [productionCandidateRef, setProductionCandidateRef] = useState<string>();
   const [reviewPackageSearch, setReviewPackageSearch] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
@@ -325,6 +329,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     signedAt?: string;
     signatureHash?: string;
   }>();
+  const [productionJobForm] = Form.useForm<CreateKnowledgeProductionJobRequest>();
   const security = useSecurityProfile();
   const knowledgePackagesQuery = usePackages({
     page: 1,
@@ -371,6 +376,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     security.data.permissions.some((permission) => permission.code === "knowledge.publish");
   const currentTenantId = security.data?.dataScope.tenantId;
   const isPlatformTenant = currentTenantId === platformTenantId;
+  const defaultProductionTargetPipeline = isPlatformTenant ? "PLATFORM_SOURCE" : "TENANT_OVERLAY";
   const customizationsQuery = useKnowledgeCustomizations(
     { page: customizationPage, size: KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE },
     Boolean(currentTenantId && !isPlatformTenant),
@@ -382,12 +388,16 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const createCustomization = useCreateKnowledgeCustomization();
   const publishCustomization = usePublishKnowledgeCustomization();
   const restorePlatformKnowledge = useRestorePlatformKnowledge();
+  const createProductionJobMutation = useCreateKnowledgeProductionJob();
   const cancelProductionJobMutation = useCancelKnowledgeProductionJob();
   const canCustomize =
     !isPlatformTenant &&
     security.data?.permissions.some((permission) => permission.code === "knowledge.write");
   const canWriteKnowledge =
     security.data?.permissions.some((permission) => permission.code === "knowledge.write") ?? false;
+  const canPublishKnowledge =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.publish") ??
+    false;
   const canPublishCustomization =
     security.data?.permissions.some((permission) => permission.code === "knowledge.publish") &&
     security.data?.permissions.some((permission) => permission.code === "tenant.override");
@@ -410,7 +420,16 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     useKnowledgeProductionTriageResults(selectedProductionJobCode);
   const productionShadowRunsQuery = useKnowledgeProductionShadowRuns(selectedProductionJobCode);
   const firstProductionCandidateRef = (productionCandidatesQuery.data ?? [])[0]?.candidateRef;
-  const productionCoexistenceQuery = useCandidateCoexistence(firstProductionCandidateRef);
+  const selectedProductionCandidateRef = productionCandidateRef ?? firstProductionCandidateRef;
+  const productionCoexistenceQuery = useCandidateCoexistence(selectedProductionCandidateRef);
+
+  useEffect(() => {
+    setProductionCandidateRef(undefined);
+  }, [selectedProductionJobCode]);
+
+  useEffect(() => {
+    productionJobForm.setFieldsValue({ targetPipeline: defaultProductionTargetPipeline });
+  }, [defaultProductionTargetPipeline, productionJobForm]);
 
   useEffect(() => {
     if (identities.length === 0) {
@@ -597,6 +616,22 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         }
       },
     });
+  }
+
+  async function submitProductionJob(values: CreateKnowledgeProductionJobRequest) {
+    try {
+      await createProductionJobMutation.mutateAsync({
+        ...values,
+        sourceScope: values.sourceScope.trim(),
+        modelStrategy: values.modelStrategy?.trim() || undefined,
+      });
+      message.success("生产任务已创建，等待统一候选流水线处理");
+      productionJobForm.resetFields(["sourceScope"]);
+      await productionJobsQuery.refetch();
+      await productionReadinessQuery.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "创建生产任务失败"));
+    }
   }
 
   function openRetirement(identity: KnowledgeIdentity) {
@@ -1174,27 +1209,142 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     );
   }
 
+  const productionWorkbench = (
+    <Card>
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space direction="vertical" size={4}>
+          <Title level={4} className="mk-title-tight">
+            生产者工作台
+          </Title>
+          <Space size={[8, 8]} wrap>
+            {["下任务", "看进度", "审候选", "影响", "结论"].map((step) => (
+              <Tag key={step} color="processing">
+                {step}
+              </Tag>
+            ))}
+          </Space>
+        </Space>
+        <Divider className="mk-divider-tight" />
+        <Title level={5}>下任务</Title>
+        <Form<CreateKnowledgeProductionJobRequest>
+          form={productionJobForm}
+          layout="vertical"
+          initialValues={{
+            sourceScope: "",
+            assetType: "KNOWLEDGE",
+            producer: "API_MODEL",
+            targetPipeline: defaultProductionTargetPipeline,
+            domain: "GUIDELINE",
+            modelStrategy: "gpt-pipeline",
+          }}
+          onFinish={submitProductionJob}
+        >
+          <Row gutter={[16, 0]}>
+            <Col xs={24} lg={8}>
+              <Form.Item
+                label="来源范围"
+                name="sourceScope"
+                rules={[{ required: true, whitespace: true, message: "请填写真实来源范围" }]}
+              >
+                <Input placeholder="例如 acquisition-run:guideline-2026" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="资产类型" name="assetType">
+                <Select
+                  options={[
+                    { value: "KNOWLEDGE", label: "知识" },
+                    { value: "RULE", label: "规则" },
+                    { value: "PATHWAY", label: "路径" },
+                    { value: "RECOMMENDATION", label: "推荐" },
+                    { value: "METRIC", label: "指标" },
+                    { value: "FOLLOWUP", label: "随访" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="生产器" name="producer">
+                <Select
+                  options={[
+                    { value: "API_MODEL", label: "API 大模型" },
+                    { value: "AGENT_TOOL", label: "Agent 工具" },
+                    { value: "LOCAL_MODEL", label: "本地模型" },
+                    { value: "MANUAL", label: "人工录入" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="目标管道" name="targetPipeline">
+                <Select
+                  options={[
+                    { value: "PLATFORM_SOURCE", label: "平台主源" },
+                    { value: "TENANT_OVERLAY", label: "院内覆盖" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="领域" name="domain">
+                <Select options={KNOWLEDGE_DOMAIN_OPTIONS} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item label="模型策略" name="modelStrategy">
+                <Input placeholder="B0 / 本地 / 外部策略标识" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item label="提交" colon={false}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<PlusOutlined />}
+                  aria-label="创建生产任务"
+                  disabled={!canWriteKnowledge}
+                  loading={createProductionJobMutation.isPending}
+                >
+                  创建生产任务
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Space>
+    </Card>
+  );
+
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
-    productionCenterContent = <PageState state="loading" title="正在读取知识生产中心" />;
+    productionCenterContent = (
+      <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        <PageState state="loading" title="正在读取知识生产中心" />
+      </Space>
+    );
   } else if (productionReadinessQuery.isError || productionJobsQuery.isError) {
     productionCenterContent = (
-      <PageState
-        state="error"
-        title="知识生产中心读取失败"
-        description={getApiErrorMessage(
-          productionReadinessQuery.error ?? productionJobsQuery.error,
-          "无法读取知识生产中心",
-        )}
-        onRetry={() => {
-          void productionReadinessQuery.refetch();
-          void productionJobsQuery.refetch();
-        }}
-      />
+      <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        <PageState
+          state="error"
+          title="知识生产中心读取失败"
+          description={getApiErrorMessage(
+            productionReadinessQuery.error ?? productionJobsQuery.error,
+            "无法读取知识生产中心",
+          )}
+          onRetry={() => {
+            void productionReadinessQuery.refetch();
+            void productionJobsQuery.refetch();
+          }}
+        />
+      </Space>
     );
   } else if (productionJobs.length === 0) {
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
         <Card title="模型生产 readiness">
           <Table
             rowKey="code"
@@ -1229,6 +1379,14 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     const productionTriageResults = productionTriageResultsQuery.data ?? [];
     const productionShadowRuns = productionShadowRunsQuery.data ?? [];
     const coexistence = productionCoexistenceQuery.data;
+    const selectedProductionCandidate =
+      productionCandidates.find(
+        (candidate) => candidate.candidateRef === selectedProductionCandidateRef,
+      ) ?? productionCandidates[0];
+    const selectedProductionBatch = selectedProductionCandidate ? [selectedProductionCandidate] : [];
+    const batchApprovalLocked = selectedProductionBatch.some(
+      (candidate) => candidate.riskLevel === "HIGH" || candidate.routing?.requiresDualSign,
+    );
     const productionEvidenceErrors = [
       productionCandidatesQuery.isError
         ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
@@ -1261,8 +1419,38 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       canWriteKnowledge &&
       selectedProductionJob !== undefined &&
       canCancelProductionJob(selectedProductionJob.status);
+    let productionCandidateLineageContent: ReactNode;
+    if (productionCandidatesQuery.isLoading) {
+      productionCandidateLineageContent = <PageState state="loading" title="正在读取候选血缘" />;
+    } else if (productionCandidatesQuery.isError) {
+      productionCandidateLineageContent = (
+        <PageState
+          state="error"
+          title="候选血缘读取失败"
+          description={getApiErrorMessage(productionCandidatesQuery.error, "无法读取候选血缘")}
+        />
+      );
+    } else {
+      productionCandidateLineageContent = (
+        <Table
+          rowKey="candidateRef"
+          columns={productionCandidateColumns}
+          dataSource={productionCandidates}
+          rowSelection={{
+            type: "radio",
+            selectedRowKeys: selectedProductionCandidate
+              ? [selectedProductionCandidate.candidateRef]
+              : [],
+            onChange: (keys) => setProductionCandidateRef(String(keys[0])),
+          }}
+          pagination={false}
+          size="small"
+        />
+      );
+    }
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
         <Card title="模型生产 readiness">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Alert
@@ -1368,28 +1556,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
 
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={12}>
-            <Card title="候选血缘">
-              {productionCandidatesQuery.isLoading ? (
-                <PageState state="loading" title="正在读取候选血缘" />
-              ) : productionCandidatesQuery.isError ? (
-                <PageState
-                  state="error"
-                  title="候选血缘读取失败"
-                  description={getApiErrorMessage(
-                    productionCandidatesQuery.error,
-                    "无法读取候选血缘",
-                  )}
-                />
-              ) : (
-                <Table
-                  rowKey="candidateRef"
-                  columns={productionCandidateColumns}
-                  dataSource={productionCandidates}
-                  pagination={false}
-                  size="small"
-                />
-              )}
-            </Card>
+            <Card title="候选血缘">{productionCandidateLineageContent}</Card>
           </Col>
           <Col xs={24} xl={12}>
             <Card title="门禁结果">
@@ -1549,6 +1716,38 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
           ) : (
             <PageState state="empty" title="未选择生产 job" />
           )}
+        </Card>
+
+        <Card title="结论">
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Space size="middle" wrap>
+              <Tag color={selectedProductionBatch.length > 0 ? "processing" : "default"}>
+                批处置候选 {selectedProductionBatch.length} 条
+              </Tag>
+              {batchApprovalLocked ? (
+                <Tag color="error">高风险或双签候选必须逐条进入审核台确认</Tag>
+              ) : (
+                <Tag color="success">低风险候选可进入批处置预备</Tag>
+              )}
+            </Space>
+            <Space size="small" wrap>
+              <Button
+                type="primary"
+                disabled={
+                  batchApprovalLocked || selectedProductionBatch.length === 0 || !canPublishKnowledge
+                }
+                aria-label={
+                  batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"
+                }
+              >
+                {batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
+              </Button>
+              <Button disabled={selectedProductionBatch.length === 0}>转审核台逐条处理</Button>
+            </Space>
+            <Text type="secondary">
+              生产面只汇总候选批次、影响和处置预案；最终通过、退修、驳回仍由审核台按来源、双签和发布证据执行。
+            </Text>
+          </Space>
         </Card>
       </Space>
     );

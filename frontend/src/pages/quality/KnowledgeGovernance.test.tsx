@@ -33,6 +33,7 @@ const mockUseKnowledgeProductionGateResults = vi.fn();
 const mockUseKnowledgeProductionTriageResults = vi.fn();
 const mockUseKnowledgeProductionShadowRuns = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
+const mockUseCreateKnowledgeProductionJob = vi.fn();
 const mockUseCancelKnowledgeProductionJob = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -63,6 +64,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeProductionShadowRuns: (jobCode?: string) =>
     mockUseKnowledgeProductionShadowRuns(jobCode),
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
+  useCreateKnowledgeProductionJob: () => mockUseCreateKnowledgeProductionJob(),
   useCancelKnowledgeProductionJob: () => mockUseCancelKnowledgeProductionJob(),
 }));
 
@@ -205,6 +207,7 @@ let reviewCandidate: ReturnType<typeof vi.fn>;
 let deprecateIdentity: ReturnType<typeof vi.fn>;
 let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
+let createProductionJob: ReturnType<typeof vi.fn>;
 let cancelProductionJob: ReturnType<typeof vi.fn>;
 
 function customizationPage(items: Array<Record<string, unknown>> = []) {
@@ -253,6 +256,10 @@ beforeEach(() => {
     customizationId: "kc-high-risk",
     status: "ACTIVE",
   });
+  createProductionJob = vi.fn().mockResolvedValue({
+    jobCode: "job-new-1",
+    status: "PENDING",
+  });
   cancelProductionJob = vi.fn().mockResolvedValue({
     jobCode: "job-ai-1",
     status: "CANCELLED",
@@ -279,6 +286,7 @@ beforeEach(() => {
   mockUseKnowledgeProductionTriageResults.mockReset();
   mockUseKnowledgeProductionShadowRuns.mockReset();
   mockUseCandidateCoexistence.mockReset();
+  mockUseCreateKnowledgeProductionJob.mockReset();
   mockUseCancelKnowledgeProductionJob.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
@@ -436,6 +444,10 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
     error: undefined,
+  });
+  mockUseCreateKnowledgeProductionJob.mockReturnValue({
+    mutateAsync: createProductionJob,
+    isPending: false,
   });
   mockUseCancelKnowledgeProductionJob.mockReturnValue({
     mutateAsync: cancelProductionJob,
@@ -836,7 +848,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("P6 独立验收未放行")).toBeInTheDocument();
     expect(screen.getByText("生产 job")).toBeInTheDocument();
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
-    expect(screen.getByText("API 大模型")).toBeInTheDocument();
+    expect(screen.getAllByText("API 大模型").length).toBeGreaterThan(0);
     expect(screen.getByText("门禁结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("8 态分流")).toBeInTheDocument();
@@ -847,6 +859,45 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("候选不可执行")).toBeInTheDocument();
     expect(screen.getAllByText("审核通过后将触发 SYS-08 原子替换").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
+  it("creates production jobs from the producer workstation and locks high-risk batch approval", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }, { code: "knowledge.review" }],
+      },
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByRole("heading", { name: "生产者工作台" })).toBeInTheDocument();
+    expect(screen.getAllByText("下任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("看进度").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
+
+    await user.clear(screen.getByLabelText("来源范围"));
+    await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");
+    await user.click(screen.getByRole("button", { name: "创建生产任务" }));
+
+    await waitFor(() =>
+      expect(createProductionJob).toHaveBeenCalledWith({
+        sourceScope: "acquisition-run:guideline-2026",
+        assetType: "KNOWLEDGE",
+        producer: "API_MODEL",
+        targetPipeline: "TENANT_OVERLAY",
+        domain: "GUIDELINE",
+        modelStrategy: "gpt-pipeline",
+      }),
+    );
+    expect(screen.getByText("批处置候选 1 条")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "批量通过候选（高风险已锁定）" }),
+    ).toBeDisabled();
+    expect(screen.getByText("高风险或双签候选必须逐条进入审核台确认")).toBeInTheDocument();
   });
 
   it("keeps the production center visible when downstream evidence queries partially fail", async () => {
