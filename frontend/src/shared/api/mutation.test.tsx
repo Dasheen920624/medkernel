@@ -68,7 +68,7 @@ describe("useApiMutation", () => {
     expect(message.error).not.toHaveBeenCalled();
   });
 
-  it("shows a unified Chinese toast with traceId for non-field errors and preserves custom onError", async () => {
+  it("shows a unified Chinese toast with tracking number for non-field errors and preserves custom onError", async () => {
     const onError = vi.fn();
 
     function Subject() {
@@ -89,7 +89,7 @@ describe("useApiMutation", () => {
 
     await waitFor(() => {
       expect(message.error).toHaveBeenCalledWith(
-        "请修正表单字段后重试（traceId: trace-mutation-1）",
+        "请修正表单字段后重试（追踪号：trace-mutation-1）",
       );
     });
     expect(onError).toHaveBeenCalledTimes(1);

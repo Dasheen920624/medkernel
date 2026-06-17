@@ -307,7 +307,7 @@ describe("QcEvalSets", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看指标详情" }));
-    expect(screen.getAllByText("条件根组").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("条件根组 · 第 1 层").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "提交审核" }));
 

@@ -402,22 +402,16 @@ describe("WorkbenchPanel", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: {
-        response: {
-          data: {
-            detail: "审计服务暂时不可用",
-            traceId: "trace-audit-down",
-          },
-        },
-      },
+      error: new Error("GET /api/v1/audit/events failed: ECONNREFUSED 127.0.0.1:8080"),
       refetch: vi.fn(),
     };
 
     renderWorkbench();
 
     expect(screen.getByText("部分来源暂时不可用")).toBeInTheDocument();
-    expect(screen.getAllByText(/审计服务暂时不可用/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/trace-audit-down/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/最近变化暂时不可用/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/audit/)).not.toBeInTheDocument();
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
   });

@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
 import {
   useAnalyzeAuthoringBatchRuleImpacts,
   useAuthoringBatchJobs,
@@ -131,6 +132,13 @@ function splitLines(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+function localFailureMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error) || !/[\u3400-\u9fff]/.test(error.message)) {
+    return fallback;
+  }
+  return customerSafeDisplayText(error.message, fallback);
 }
 
 function jobStatusColor(status: string) {
@@ -266,7 +274,7 @@ export default function AuthoringBatchDrawer({
         "规则批量生成失败",
       );
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "参数表解析失败");
+      message.error(localFailureMessage(error, "参数表解析失败"));
     }
   };
 
@@ -341,7 +349,7 @@ export default function AuthoringBatchDrawer({
         "配置包批量导出失败",
       );
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "导出目标表解析失败");
+      message.error(localFailureMessage(error, "导出目标表解析失败"));
     }
   };
 
@@ -374,7 +382,7 @@ export default function AuthoringBatchDrawer({
         "配置包批量分发失败",
       );
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "分发目标表解析失败");
+      message.error(localFailureMessage(error, "分发目标表解析失败"));
     }
   };
 
@@ -402,7 +410,7 @@ export default function AuthoringBatchDrawer({
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "离线包下载失败");
+      message.error(localFailureMessage(error, "离线包下载失败"));
     }
   };
 

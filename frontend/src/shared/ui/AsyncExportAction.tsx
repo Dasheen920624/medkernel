@@ -2,10 +2,15 @@ import { DownloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Modal, Space, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
+
 import type { AsyncExportActionProps, AsyncExportJob } from "./experienceTypes";
 
 const { Text } = Typography;
 const DEFAULT_POLL_DELAY_MS = 2000;
+const EXPORT_SUBMIT_FAILURE_FALLBACK = "导出服务暂时不可用，请重试或联系信息科。";
+const EXPORT_POLL_FAILURE_FALLBACK = "导出任务状态读取失败，请重试或联系信息科。";
+const EXPORT_JOB_FAILURE_FALLBACK = "导出任务未完成，请重试或联系信息科。";
 
 function shouldPoll(job: AsyncExportJob): boolean {
   return job.status === "pending" || job.status === "running";
@@ -26,6 +31,10 @@ function jobStatusMessage(job: AsyncExportJob): string {
     default:
       return "导出任务不可用";
   }
+}
+
+function exportFailureText(error: unknown, fallback: string): string {
+  return customerSafeDisplayText(error instanceof Error ? error.message : undefined, fallback);
 }
 
 export function AsyncExportAction({
@@ -65,7 +74,7 @@ export function AsyncExportAction({
         })
         .catch((error: unknown) => {
           if (!cancelled) {
-            setFailure(error instanceof Error ? error.message : "轮询导出任务失败");
+            setFailure(exportFailureText(error, EXPORT_POLL_FAILURE_FALLBACK));
           }
         })
         .finally(() => {
@@ -103,7 +112,7 @@ export function AsyncExportAction({
       setConfirmOpen(false);
       activeRequestRef.current = undefined;
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "导出提交失败");
+      setFailure(exportFailureText(error, EXPORT_SUBMIT_FAILURE_FALLBACK));
       setConfirmOpen(false);
     } finally {
       setSubmitting(false);
@@ -179,7 +188,11 @@ export function AsyncExportAction({
               <Text>任务编号：{job.jobId}</Text>
               {job.traceId && <Text>追踪号：{job.traceId}</Text>}
               {job.auditId && <Text>审计编号：{job.auditId}</Text>}
-              {job.failureReason && <Text>{job.failureReason}</Text>}
+              {job.failureReason && (
+                <Text>
+                  {customerSafeDisplayText(job.failureReason, EXPORT_JOB_FAILURE_FALLBACK)}
+                </Text>
+              )}
               {job.downloadUrl && (
                 <Button type="link" href={job.downloadUrl}>
                   下载导出文件

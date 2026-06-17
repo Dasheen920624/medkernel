@@ -180,6 +180,30 @@ describe("AuthoringBatchDrawer", () => {
     });
   });
 
+  it("keeps batch API failures in hospital language", async () => {
+    apiMocks.generate.mockRejectedValue(
+      new Error("POST /api/v1/authoring-batch failed: ECONNREFUSED 127.0.0.1:8080"),
+    );
+
+    renderDrawer();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "规则包版本" }));
+    await userEvent.click(await screen.findByText("临床规则包（pkg-2026.06）"));
+    fireEvent.change(screen.getByLabelText("模板规则 ID"), {
+      target: { value: "rule-template" },
+    });
+    fireEvent.change(screen.getByLabelText("参数表"), {
+      target: { value: "ruleCode,name\nRULE.CKD.1,CKD 阈值 1" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "生成草稿" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("规则批量生成失败")).toBeInTheDocument();
+      expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\/api\/v1\/authoring-batch/)).not.toBeInTheDocument();
+    });
+  });
+
   it("requires explicit confirmation for every high-risk rule before publish", async () => {
     apiMocks.analyze.mockResolvedValue({
       totalCount: 1,
