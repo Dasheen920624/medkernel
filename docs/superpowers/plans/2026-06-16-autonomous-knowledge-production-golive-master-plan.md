@@ -206,7 +206,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 
 #### Phase 7 · 领域门面代码 + KNOWGEN 资产类型专用代码（6d）
 - **目标**：建领域门面（代码组合）+ KNOWGEN 中需**代码支撑**的部分（计算器/模板/规则结构），为 P10 内容产出备好机器。**注意：这里只建代码，不产内容**。
-  - [ ] T7.1 **领域门面 X-DOMAIN 17 卡代码**（[NURSING-01](../../cards/wave2/NURSING-01.md)/REPORT/POC-KNOW/PHARMACY/CRITICAL/SPECIAL-POP/PERIOP/ONCO-RENAL/ALLIED-CARE/TCM-HEALTH/INFECTION-PH/PRIMARY-CARE/REGION-COLLAB/SPECIALTY-EXT/RWD + SVC-DOMAIN-01/02）：规则+路径+知识+CDSS+嵌入+评估+随访 领域组合，**复用同一引擎链路不另起业务实现**。
+  - [ ] T7.1 **领域门面 X-DOMAIN 17 卡代码**（[NURSING-01](../../cards/wave2/NURSING-01.md)/REPORT/POC-KNOW/PHARMACY/CRITICAL/SPECIAL-POP/PERIOP/ONCO-RENAL/ALLIED-CARE/TCM-HEALTH/INFECTION-PH/PRIMARY-CARE/REGION-COLLAB/SPECIALTY-EXT/RWD + SVC-DOMAIN-01/02）：规则+路径+知识+CDSS+嵌入+评估+随访 领域组合，**复用同一引擎链路不另起业务实现**。第一刀已补 17 卡只读组合目录 API、权限、服务契约和产品目录；待继续补 B0 fixtures/E2E 主链路证据后再勾选。
   - [ ] T7.2 **KNOWGEN 资产类型专用代码**：KNOWGEN-16 评分量表/计算器**算法物理化可复算**、KNOWGEN-04/18/20 规则结构+测试病例骨架、KNOWGEN-19 PGx 剂量结构、各类专用模板（复用 AIK-STD-12 全专业模板，缺则补）。**不预填医学内容**（内容 P10 产）。
 - **验收**：各领域门面 B0 主链路 E2E（用 fixtures）；KNOWGEN 各资产类型有可运行的生成/校验/计算代码骨架。
 
