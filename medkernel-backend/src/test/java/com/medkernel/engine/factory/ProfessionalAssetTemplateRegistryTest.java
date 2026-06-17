@@ -21,8 +21,8 @@ class ProfessionalAssetTemplateRegistryTest {
     @Test
     void coversAllFr1ProfessionsWithNonEmptySections() {
         List<ProfessionalAssetTemplate> all = registry.listAll();
-        // FR-1 列举十类（术语/规则/路径/推荐/指标/随访/护理/报告/中医/医保）+ 指南/药品/诊断 = 13 专业模板
-        assertThat(all).hasSize(13);
+        // FR-1 13 专业模板 + T7.2 评分/计算器 FORMULA 骨架 = 14 个代码态模板。
+        assertThat(all).hasSize(14);
         assertThat(all).allSatisfy(t -> {
             assertThat(t.professionCode()).isNotBlank();
             assertThat(t.displayName()).isNotBlank();
@@ -49,6 +49,20 @@ class ProfessionalAssetTemplateRegistryTest {
             registry.findByAssetTypeAndDomain(VersionedAssetType.RULE, null);
         assertThat(rule).isPresent();
         assertThat(rule.get().knowledgeDomain()).isNull();
+        assertThat(rule.get().sections())
+            .anySatisfy(section -> assertThat(section.key()).isEqualTo("test_cases"));
+    }
+
+    @Test
+    void formulaTemplateSupportsKnowgen16CalculatorSkeletonWithoutMedicalConstants() {
+        Optional<ProfessionalAssetTemplate> formula =
+            registry.findByAssetTypeAndDomain(VersionedAssetType.FORMULA, null);
+
+        assertThat(formula).isPresent();
+        assertThat(formula.get().professionCode()).isEqualTo("FORMULA");
+        assertThat(formula.get().sections())
+            .extracting(TemplateSection::key)
+            .contains("inputs", "algorithm", "thresholds", "test_vectors", "source");
     }
 
     @Test

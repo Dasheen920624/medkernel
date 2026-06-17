@@ -70,13 +70,28 @@ class SourceCandidateGeneratorTest {
     @Test
     void generatesEachOfFiveAssetTypes() {
         for (VersionedAssetType type : List.of(VersionedAssetType.RULE, VersionedAssetType.PATHWAY,
-            VersionedAssetType.RECOMMENDATION, VersionedAssetType.EVALUATION, VersionedAssetType.FOLLOWUP)) {
+            VersionedAssetType.RECOMMENDATION, VersionedAssetType.EVALUATION, VersionedAssetType.FOLLOWUP,
+            VersionedAssetType.FORMULA)) {
             KnowledgeAssetEnvelope envelope = generator.generate(
                 "t-1", document(), version(), fragments(), type, "identity:1");
             assertThat(envelope.assetType()).isEqualTo(type);
             assertThat(envelope.sources()).isNotEmpty();
             assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
         }
+    }
+
+    @Test
+    void generatesFormulaCalculatorDraftWithExecutableStructureButNoMedicalConstants() {
+        KnowledgeAssetEnvelope envelope = generator.generate(
+            "t-1", document(), version(), fragments(), VersionedAssetType.FORMULA, "formula:fixture");
+
+        assertThat(envelope.payload())
+            .contains("\"template\":\"FORMULA\"")
+            .contains("\"inputs\"")
+            .contains("\"algorithm\"")
+            .contains("\"test_vectors\"")
+            .contains("待编著");
+        assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());
     }
 
     @Test

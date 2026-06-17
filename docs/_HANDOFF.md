@@ -47,9 +47,10 @@
   - T6.2 已补本地模型生产器：`ModelKnowledgeProducer` 对 `LOCAL_MODEL` job 强制 `TENANT_OVERLAY` 院内覆盖，发现平台主源管道在 readiness/模型调用前即拒；模型网关 `ModelTaskRequest` 支持 `requiredRouteStrategy/providerCode`，知识生产器传入 `LOCAL_MODEL`/指定本地 provider，网关在 provider 解析前校验策略匹配并按指定 provider 走本地健康检查，策略漂移时不落任务、不外调、不伪造候选。
   - T6.3 已补双形态隔离强化测试：平台主源 job 收到客户候选时返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，不再落泛化 BAD_REQUEST；`t-1` 候选进入平台主源保持平台归属并路由平台知识治理员；客户租户不能把平台 `identityId` 当写入目标提交候选，只能读 effective 主源或走本租户覆盖。
   - T6.4 已补 DATASVC-01 D3/D4 字段级加密与分级元数据：V145 五方言新增 `mk_engine_data_encrypted_field` / `mk_engine_data_field_policy`，后端通过 `FieldLevelEncryptionService` 使用独立字段级密钥派生 SM4 密文、SM3 检索 hash、字段策略和审计凭证；`PrivacyPolicyService` 对 D3/D4 返回 `allowed=true` 且 `requiresFieldEncryption=true`，D5 仍禁入；Agent 写工具继续拒绝 D3/D4/D5，CLI/MCP 测试确认不绕治理。
-- Phase 7 当前：T7.1 领域门面 X-DOMAIN 17 卡代码已收口。
+- Phase 7 已收口：领域门面代码 + KNOWGEN 资产类型专用代码。
   - 新增 `engine.domainfacade` 只读目录：17 张 X-DOMAIN 卡按总计划顺序声明共享引擎链路、依赖卡、B0 工作流摘要、服务包成员、模型可选、不预填真实医学内容、不新增领域专属业务引擎。
   - 新增 `/api/v1/engine/domain-facades`、`/{code}`、`/b0-fixtures` 与 `/{code}/b0-fixture`，受 `knowledge.read` 与租户 DataScope 约束；B0 fixture 证据逐门面返回共享处理器、确定性路由、模型非必需、未预填医学内容、服务包成员可解析和扩展专科诚实空态；服务契约和产品功能目录已同步。
+  - T7.2 已补 KNOWGEN 资产类型专用代码骨架：`FORMULA` 评分/计算器模板接入 `SourceCandidateGenerator` B0 候选生成；RULE 模板新增测试病例结构；新增 `KnowgenSpecializedAssetSkeletonRegistry` / `KnowgenSpecializedPayloadValidator` 覆盖 KNOWGEN-16/04/18/20/19；`ClinicalFormulaCalculatorService` 用传入公式定义确定性复算，不内置医学常量、不预填真实医学内容。
 
 ## 最新验证
 
@@ -71,6 +72,7 @@
 - Phase 6 T6.3 提交前验证：`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest#submitCandidateRejectsCustomerCandidateIntoPlatformSourcePipelineAsReadOnlyViolation test` 红灯命中平台主源客户候选仅返回 BAD_REQUEST 后转绿；`mvn -q -Dtest=KnowledgeVersionServiceTest#classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest,CandidateGenerationOrchestrationServiceTest,DocumentParseOrchestrationServiceTest,ModelKnowledgeProducerTest,ControlledToolServiceTest,CandidateMaterializationIntegrationTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test` 均退出 0。
 - Phase 6 T6.4 提交前验证：`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test` 红灯命中 D3/D4 隐私策略与字段级加密服务/实体缺口后转绿；`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test`、`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test`、`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest,ClinicalContextServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`cd cli && npm test`、`cd mcp-server && npm test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；字段级加密旧 pending 口径扫描无命中。
 - Phase 7 T7.1 验证：`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeControllerSecurityTest test` 红灯命中领域门面目录服务/定义/引擎枚举缺失后转绿；`mvn -q -Dtest=DomainFacadeB0FixtureServiceTest,DomainFacadeApiContractTest test` 红灯命中 B0 fixture 服务/证据缺失后转绿；`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeB0FixtureServiceTest,DomainFacadeControllerSecurityTest,DomainFacadeApiContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
+- Phase 7 T7.2 验证：`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest test` 红灯命中 FORMULA 模板、专用骨架、payload 校验器和公式计算服务缺失后转绿；补结构化 `inputs`/`test_vectors` 回归后该命令仍退出 0；`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,KnowledgeAssetSchemaValidatorTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeProductionControllerSecurityTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 
 ## 仍不可宣称
 
@@ -81,7 +83,7 @@
 
 ## 下一步
 
-1. 继续 Phase 7 T7.2：KNOWGEN 资产类型专用代码，先从 KNOWGEN-16/04/18/20/19 与 AIK-STD-12 模板复用建立基线，补可运行的生成/校验/计算代码骨架，不预填医学内容。
+1. 进入 Phase 8：前端体验完美化。先做 T8.1 菜单 IA 双产品面，保持生产侧“知识生产”一级域与临床客户不可见边界，再推进生产者工作台、双形态标识和可信解释体验。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 
