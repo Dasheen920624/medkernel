@@ -200,7 +200,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 #### Phase 6 · 院内覆盖管道全实现（4d）
   - [x] T6.1 院内上传增强：`DocumentParseController` 上传接 P1 存储层（原件落本租户 scope）；候选归院内覆盖。已新增 multipart `documents:upload-parse`，上传原件复用 P1 资料库存储与解析，`scopeKey=tenantId`；上传后的生成计划不暴露平台主源管道，后端固定转为 `TENANT_OVERLAY` 后进入统一候选生成/门禁/分流/影子/审核链。
   - [x] T6.2 本地模型生产器（生产器③）：`ModelKnowledgeProducer` 本地 provider 路径（Ollama/国产化不出网），归院内覆盖，运行侧可用。已补 `ModelTaskRequest.requiredRouteStrategy/providerCode` 内部约束，`LOCAL_MODEL` job 强制 `TENANT_OVERLAY` 后才进入 readiness；网关在 provider 解析前校验必需路由并按指定本地 provider 解析，策略漂移时拒绝越界调用、不落任务、不外调。
-  - [ ] T6.3 双形态隔离强化测试：院内候选禁反写 t-1；客户对主源只读；复核 AIK-STD-13 FR-4/FR-7。
+  - [x] T6.3 双形态隔离强化测试：院内候选禁反写 t-1；客户对主源只读；复核 AIK-STD-13 FR-4/FR-7。已补平台主源提交双向测试：客户候选进入平台主源管道返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，平台候选进入平台主源保持 `t-1` 归属并路由平台知识治理员；补客户租户不能把平台 identityId 当写入目标提交候选的只读证据。
   - [ ] T6.4 **DATASVC-01 剩余**：D3/D4 字段级加密落地 + AC 收口；MCP/CLI 不绕治理复核。
 - **验收**：院内上传→覆盖候选全链 + 本地模型不出网 + 隔离硬保证 + D3/D4 加密。
 

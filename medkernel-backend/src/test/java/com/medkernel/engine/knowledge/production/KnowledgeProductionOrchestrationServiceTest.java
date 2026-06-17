@@ -195,6 +195,38 @@ class KnowledgeProductionOrchestrationServiceTest {
     }
 
     @Test
+    void submitCandidateRejectsCustomerCandidateIntoPlatformSourcePipelineAsReadOnlyViolation() {
+        asTenant(PlatformTenant.ID);
+        when(jobRepository.findByTenantIdAndJobCode(PlatformTenant.ID, "job-1"))
+            .thenReturn(Optional.of(jobWith(
+                PlatformTenant.ID, ProductionJobStatus.PENDING, TargetPipeline.PLATFORM_SOURCE)));
+
+        assertThatThrownBy(() ->
+            service.submitCandidate("job-1", envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE),
+                new MaterializationTarget(5L, null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION);
+        verify(candidateIntake, never()).intake(any(), any(), any(), any());
+    }
+
+    @Test
+    void submitCandidateIntoPlatformSourceKeepsPlatformOwnershipAndRoutesPlatformGovernor() {
+        asTenant(PlatformTenant.ID);
+        when(jobRepository.findByTenantIdAndJobCode(PlatformTenant.ID, "job-1"))
+            .thenReturn(Optional.of(jobWith(
+                PlatformTenant.ID, ProductionJobStatus.PENDING, TargetPipeline.PLATFORM_SOURCE)));
+        when(candidateIntake.intake(any(), any(), any(), any())).thenReturn("platform:knowledge:1");
+
+        CandidateSubmissionResponse resp = service.submitCandidate("job-1",
+            envelope(PlatformTenant.ID, VersionedAssetType.KNOWLEDGE), new MaterializationTarget(5L, null));
+
+        assertThat(resp.candidateRef()).isEqualTo("platform:knowledge:1");
+        assertThat(resp.routing().ownerReviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR);
+        verify(candidateIntake).intake(any(), any(), any(), any());
+    }
+
+    @Test
     void submitCandidateRejectsAssetTypeMismatch() {
         asTenant(CUSTOMER);
         when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))

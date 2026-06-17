@@ -1193,6 +1193,28 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "organization-admin"));
+        KnowledgeIdentity platformIdentity = new KnowledgeIdentity(
+            1L, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "平台主源主题", null, null,
+            KnowledgeIdentityStatus.ACTIVE, null,
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin"
+        );
+        when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(platformIdentity));
+
+        assertThatThrownBy(() -> service.classifyCandidate(1L,
+            versionCreateRequestWithTenant("t-hospital", 10L, 20L, "hospital-v1", "医院本地定制内容")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+
+        verify(sourceDocRepo, never()).findByTenantIdAndId(any(), any());
+        verify(versionRepo, never()).save(any(KnowledgeAssetVersion.class));
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
+    }
+
+    @Test
     void listByIdentityFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
         KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);

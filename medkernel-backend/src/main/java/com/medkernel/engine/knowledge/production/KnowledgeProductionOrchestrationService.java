@@ -93,6 +93,11 @@ public class KnowledgeProductionOrchestrationService {
             throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
                 "院内覆盖候选禁反写平台主源 t-1");
         }
+        if (job.targetPipeline() == TargetPipeline.PLATFORM_SOURCE
+            && !PlatformTenant.isPlatformTenant(candidate.orgScope())) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "客户候选禁产平台主源，平台主源管道仅允许 t-1 候选");
+        }
         if (candidate.assetType() != job.assetType()) {
             throw new ApiException(ErrorCode.BAD_REQUEST,
                 "候选资产类型与 job 不一致：job=" + job.assetType() + " 候选=" + candidate.assetType());

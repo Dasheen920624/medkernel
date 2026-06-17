@@ -69,6 +69,11 @@
 - `ModelTaskRequest` 增加可选 `requiredRouteStrategy/providerCode`，知识生产器按 job 类型传入 `LOCAL_MODEL` 或 `EXTERNAL_MODEL`；`ModelGatewayService` 在 provider 解析、脱敏摘要落库和真实调用前校验当前能力策略必须匹配必需路由，策略漂移时拒绝越界调用，不落任务、不外调。
 - `ModelProviderRegistry` 支持按 `routeStrategy + providerCode` 解析指定 provider，并复用部署形态、类型匹配与健康检查；`LOCAL_MODEL` 指定外部 providerCode 时解析为空并回到既有诚实降级/阻断路径，不伪造 B1/B2。
 
+**2026-06-17 T6.3 双形态隔离强化（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `KnowledgeProductionOrchestrationService.submitCandidate` 对 `PLATFORM_SOURCE` job 增加对称守卫：非 `t-1` 候选进入平台主源管道直接返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，不再退化为泛化租户不一致错误；`TENANT_OVERLAY` 反写 `t-1` 守卫保持不变。
+- 新增平台主源正向提交测试：`t-1` 候选进入平台主源管道时保持平台归属并路由 `PLATFORM_KNOWLEDGE_GOVERNOR`；院内覆盖候选仍路由机构知识治理员，FR-7 不路由平台归口。
+- `KnowledgeVersionService` 补客户只读平台主源测试：客户租户可读取平台 effective identity，但不能把平台 `identityId` 当写入目标提交候选；写入必须命中本租户 identity，否则 `NOT_FOUND` 且不读取来源、不保存版本、不触碰平台版本链。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
 - [ ] FR-2 四生产器可插拔：① API 大模型自主（B2 外部，经 [LLM-01](LLM-01.md) 网关）② Agent 工具协助（经 [DATASVC-01](DATASVC-01.md) MCP/CLI 回写，契约见 [AIK-STD-14](AIK-STD-14.md)）③ 本地大模型（B1 本地/国产化）④ 人工录入/批量导入；新增生产器不破坏框架。
