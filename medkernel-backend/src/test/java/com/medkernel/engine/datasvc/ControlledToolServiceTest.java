@@ -13,13 +13,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.knowledge.acquisition.AcquisitionOrchestrationService;
+import com.medkernel.engine.knowledge.acquisition.KnowledgeAcquisitionRunRequest;
+import com.medkernel.engine.knowledge.acquisition.KnowledgeAcquisitionRunResponse;
+import com.medkernel.engine.knowledge.acquisition.KnowledgeAcquisitionRunStatus;
+import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionRequest;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeDomain;
@@ -39,6 +46,7 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
@@ -64,6 +72,7 @@ class ControlledToolServiceTest {
     private PrivacyPolicyService privacyPolicyService;
     private ClinicalContextService clinicalContextService;
     private KnowledgeProductionOrchestrationService productionService;
+    private AcquisitionOrchestrationService acquisitionService;
     private PermissionEvaluator permissionEvaluator;
     private AuditRecorder auditRecorder;
     private ControlledToolService service;
@@ -79,12 +88,13 @@ class ControlledToolServiceTest {
         privacyPolicyService = mock(PrivacyPolicyService.class);
         clinicalContextService = mock(ClinicalContextService.class);
         productionService = mock(KnowledgeProductionOrchestrationService.class);
+        acquisitionService = mock(AcquisitionOrchestrationService.class);
         permissionEvaluator = mock(PermissionEvaluator.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new ControlledToolService(ruleUsageStatsService, knowledgeUsageStatsService,
             clinicalSignalsService, ruleExplanationService, knowledgeExistenceService,
             knowledgeSearchService, privacyPolicyService, clinicalContextService, productionService,
-            permissionEvaluator, auditRecorder, new ObjectMapper());
+            acquisitionService, permissionEvaluator, auditRecorder, new ObjectMapper());
         when(permissionEvaluator.has("engine-data.read")).thenReturn(true);
         RequestContext.restore(new RequestContext.Snapshot("trace-xyz", OrgScope.tenant("tenant-1"), "quality-001"));
     }
@@ -115,6 +125,22 @@ class ControlledToolServiceTest {
         return new AgentProductionCandidatePayload("job-agent", "idem-agent-1", "D1", submission);
     }
 
+    private ToolExecutionRequest fetchReq(Object payload) {
+        return new ToolExecutionRequest("Agent 受控获取公域资料", null, null, null, 0, 20, payload);
+    }
+
+    private Map<String, Object> publicMaterialPayload(String dataLevel) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sourceCode", "NHC-HTN");
+        payload.put("url", "https://guideline.example.org/htn.txt");
+        payload.put("versionNo", "v2026");
+        payload.put("format", "STRUCTURED_TEXT");
+        if (dataLevel != null) {
+            payload.put("dataLevel", dataLevel);
+        }
+        return payload;
+    }
+
     private CandidateSubmissionRequest validSubmission() {
         String payload = "{\"aiGenerated\":true,\"sections\":{\"summary\":\"仅作为待审候选\"}}";
         KnowledgeAssetEnvelope envelope = new KnowledgeAssetEnvelope(
@@ -141,7 +167,9 @@ class ControlledToolServiceTest {
         assertThat(tools).extracting(ControlledToolDescriptor::name)
             .contains("queryRuleUsage", "summarizeEngineSignals");
         // 读工具统一受 engine-data.read 管控；写候选工具单独受 knowledge.write 管控。
-        assertThat(tools).filteredOn(t -> !t.name().equals("submitProductionCandidate")).allSatisfy(t ->
+        assertThat(tools)
+            .filteredOn(t -> !List.of("submitProductionCandidate", "fetchPublicMaterial").contains(t.name()))
+            .allSatisfy(t ->
             assertThat(t.requiredPermission()).isEqualTo("engine-data.read"));
         // D2 聚合类工具数据级别为 D2。
         assertThat(tools).filteredOn(t -> t.name().equals("queryRuleUsage"))
@@ -160,6 +188,88 @@ class ControlledToolServiceTest {
                 assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1);
                 assertThat(t.purpose()).contains("回写候选");
             });
+    }
+
+    @Test
+    void listTools_registersFetchPublicMaterialAsWriteTool() {
+        List<ControlledToolDescriptor> tools = service.listTools();
+
+        assertThat(tools).filteredOn(t -> t.name().equals("fetchPublicMaterial"))
+            .singleElement()
+            .satisfies(t -> {
+                assertThat(t.requiredPermission()).isEqualTo("knowledge.write");
+                assertThat(t.dataLevel()).isEqualTo(EngineDataLevel.D1);
+                assertThat(t.purpose()).contains("公域资料");
+            });
+    }
+
+    @Test
+    void execute_fetchPublicMaterial_requiresKnowledgeWrite() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.execute("fetchPublicMaterial", fetchReq(publicMaterialPayload("D1"))))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+        verify(acquisitionService, never()).run(any());
+    }
+
+    @Test
+    void execute_fetchPublicMaterial_rejectsD5PatientDataBeforeAcquisition() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.execute("fetchPublicMaterial", fetchReq(publicMaterialPayload("D5"))))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN);
+        verify(acquisitionService, never()).run(any());
+    }
+
+    @Test
+    void execute_fetchPublicMaterial_usesPublicMaterialErrorForInvalidDataLevel() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.execute("fetchPublicMaterial", fetchReq(publicMaterialPayload("UNKNOWN"))))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(error).hasMessageContaining("Agent 公域资料获取载荷不合格"))
+            .extracting("errorCode").isEqualTo(ErrorCode.BAD_REQUEST);
+        verify(acquisitionService, never()).run(any());
+    }
+
+    @Test
+    void execute_fetchPublicMaterial_runsAcquisitionThroughControlledServiceAndAuditsOutputHash() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        when(acquisitionService.run(any())).thenReturn(new KnowledgeAcquisitionRunResponse(
+            "acq:agent:1",
+            KnowledgeAcquisitionRunStatus.SUCCEEDED,
+            "NHC-HTN",
+            "https://guideline.example.org/htn.txt",
+            "guideline.example.org",
+            "b".repeat(64),
+            128L,
+            "text/plain",
+            "file:///var/medkernel/materials/NHC-HTN/v2026.txt",
+            7L,
+            8L,
+            "parse:1",
+            null,
+            null));
+
+        ToolExecutionEnvelope envelope =
+            service.execute("fetchPublicMaterial", fetchReq(publicMaterialPayload("D1")));
+
+        assertThat(envelope.toolName()).isEqualTo("fetchPublicMaterial");
+        assertThat(envelope.dataLevel()).isEqualTo(EngineDataLevel.D1);
+        assertThat(envelope.outputHash()).matches("[0-9a-f]{64}");
+        assertThat(envelope.payload()).isInstanceOf(KnowledgeAcquisitionRunResponse.class);
+        assertThat(((KnowledgeAcquisitionRunResponse) envelope.payload()).materialFileUri()).startsWith("file://");
+        ArgumentCaptor<KnowledgeAcquisitionRunRequest> request =
+            ArgumentCaptor.forClass(KnowledgeAcquisitionRunRequest.class);
+        verify(acquisitionService).run(request.capture());
+        assertThat(request.getValue().sourceCode()).isEqualTo("NHC-HTN");
+        assertThat(request.getValue().url()).isEqualTo("https://guideline.example.org/htn.txt");
+        assertThat(request.getValue().versionNo()).isEqualTo("v2026");
+        assertThat(request.getValue().format()).isEqualTo(DocumentFormat.STRUCTURED_TEXT);
+        verify(auditRecorder).record(eq(AuditAction.EXECUTE), eq("engine_data_tool"),
+            eq("fetchPublicMaterial"), contains("输出hash="));
     }
 
     @Test

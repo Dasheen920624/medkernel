@@ -30,6 +30,7 @@
   - 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，服务契约、产品功能目录和领域表归属已同步；请求可携带可选 `generation` 计划，把成功解析或重复复用的 `SourceVersion` 接入统一候选生成/审核池。
   - V143 五方言新增调度字段：`schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧数据回填。
   - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
+  - DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 Agent/MCP/CLI 的结构化公域资料载荷转入既有获取编排；CLI 已接 `agent fetch-public-material`，MCP 沿动态工具目录暴露；D3/D4/D5 入参拒绝。
 
 ## 最新验证
 
@@ -37,17 +38,18 @@
 - Phase 4 首片目标验证：`mvn -q -Dtest=AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
 - Phase 4 调度目标验证：`mvn -q -Dtest=DefaultRuntimeTaskExecutorTest,AcquisitionRuntimeTaskHandlerTest,AcquisitionScheduleWorkerTest,AcquisitionScheduleSchedulerTest,KnowledgeAcquisitionSourceRepositoryTest,AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,SystemConfigServiceTest#runtimeKnowledgeAcquisitionScheduleIntervalReadsConfigCenterAndFallsBackSafely,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
 - Phase 4 调度提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
+- Phase 4 Agent 取数提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check`、`cd cli && npm test`、`cd mcp-server && npm test` 均退出 0；旧状态扫描无命中。
 
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
 - 不得宣称 134 已部署最新主线：未进入 P9 并完成清库全新初始化、部署和 readiness 留证前不得冒领。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
-- 不得宣称 Phase 4 全部完成：手动/调度公域获取→解析→可选候选生成触发已完成；MCP/CLI `fetchPublicMaterial` 和更细出域审批证据仍待做。
+- 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
 ## 下一步
 
-1. 继续 Phase 4：做 MCP/CLI `fetchPublicMaterial`（T4.6），保持公域资料只产候选、不产事实。
+1. 继续 Phase 5：模型增强与出域最小化证据（保持公域资料只产候选、不产事实）。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

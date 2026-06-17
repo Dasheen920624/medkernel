@@ -17,7 +17,7 @@ export const DOMAINS = {
   knowledge: '查询知识身份存在性、关键词检索、知识使用统计',
   rules: '检查规则解释、规则使用统计',
   'clinical-signals': '查看脱敏聚合后的临床信号与引擎降级情况',
-  agent: '通过受控工具回写 AI Agent 生产候选',
+  agent: '通过受控工具获取公域资料或回写 AI Agent 生产候选',
   privacy: '验证数据分级是否准入数据服务/CLI/MCP',
   exports: '提交与查看经审批闸控制的异步导出任务（submit/status/list/cancel/complete）',
   diagnostics: '检查服务连通、受控工具目录与状态',
@@ -106,8 +106,19 @@ export async function runCommand(client, domain, action, positional = [], option
               payload: parseJsonArg(positional, 0, 'payloadJson'),
             }),
           };
+        case 'fetch-public-material':
+          return {
+            domain,
+            action,
+            result: await client.executeTool('fetchPublicMaterial', {
+              purpose,
+              payload: parseJsonArg(positional, 0, 'payloadJson'),
+            }),
+          };
         default:
-          throw new CliUsageError(`agent 不支持的动作：${action || '(空)'}（可用：submit-candidate）`);
+          throw new CliUsageError(
+            `agent 不支持的动作：${action || '(空)'}（可用：submit-candidate|fetch-public-material）`,
+          );
       }
     case 'privacy':
       switch (action) {

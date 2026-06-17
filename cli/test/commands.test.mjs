@@ -110,6 +110,35 @@ test('agent submit-candidate 候选载荷非 JSON 时结构化拒绝', async () 
   assert.equal(client.calls.executeTool.length, 0);
 });
 
+test('agent fetch-public-material 派发 fetchPublicMaterial 受控工具并携带公域资料载荷', async () => {
+  const client = fakeClient();
+  const payload = {
+    sourceCode: 'NHC-HTN',
+    url: 'https://guideline.example.org/htn.txt',
+    versionNo: 'v2026',
+    format: 'STRUCTURED_TEXT',
+    dataLevel: 'D1',
+  };
+
+  await runCommand(client, 'agent', 'fetch-public-material', [JSON.stringify(payload)], {
+    purpose: 'Agent 受控获取公域资料',
+  });
+
+  assert.deepEqual(client.calls.executeTool[0], {
+    name: 'fetchPublicMaterial',
+    body: { purpose: 'Agent 受控获取公域资料', payload },
+  });
+});
+
+test('agent fetch-public-material 公域资料载荷非 JSON 时结构化拒绝', async () => {
+  const client = fakeClient();
+  await assert.rejects(
+    () => runCommand(client, 'agent', 'fetch-public-material', ['not-json'], {}),
+    (err) => err instanceof CliUsageError && /payloadJson/.test(err.message),
+  );
+  assert.equal(client.calls.executeTool.length, 0);
+});
+
 test('exports submit 经审批闸控制的导出端点，带审批ID与幂等键', async () => {
   const client = fakeClient();
   await runCommand(client, 'exports', 'submit', ['RULE_USAGE', 'exp-1', 'idem-1'], { windowDays: '90' });

@@ -78,7 +78,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 
 **知识版本/审核/替换（KNOW-02 / SYS-08 / MED-C3 / AIREVIEW-01）**：`KnowledgeVersionService`（reviewCandidate APPROVE/REJECT/RETURN、classifyCandidate、activate）+ SYS-08 原子替换 + MED-C3 旧版隔离；前端 `frontend/src/pages/quality/KnowledgeGovernance.tsx` + `shared/api/hooks.ts`。
 
-**配置/安全/包/接入底座**：`shared.config.{SystemConfigService, SystemConfigSeeder, SystemConfigController}`；`engine.safety.ClinicalRedlineService`（OPT-04）；PKG-01 包发布；DATASVC-01 MCP 7 工具 + CLI + 引擎数据服务层。
+**配置/安全/包/接入底座**：`shared.config.{SystemConfigService, SystemConfigSeeder, SystemConfigController}`；`engine.safety.ClinicalRedlineService`（OPT-04）；PKG-01 包发布；DATASVC-01 MCP 动态工具目录 + CLI + 引擎数据服务层。
 **注意**：`shared.observability.{PayloadStoragePort, DbPayloadStorage}` 是 OBS-01 可观测性 payload（存进 DB）——**不是**文档原件存储，勿误用。
 
 ---
@@ -182,7 +182,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T4.3 获取编排 `AcquisitionOrchestrationService`：手动触发→抓取→同 hash 去重→解析链路→`SourceVersion(file_uri,hash,authority,license)`；请求可携带显式 `generation` 计划，把新解析或重复复用的来源版本接入统一候选生成/审核池，不新造候选表、不绕门禁。
   - [x] T4.4 抓取账本 `mk_knowledge_acquisition_run`（域名/url/fetched_at/sha256/bytes/license/status/触发方式）五方言；合规审计可查。
   - [x] T4.5 自主调度：V143 为公域来源加入调度开关、间隔、下次/上次检查、默认格式和候选生成计划 JSON；`AcquisitionScheduleScheduler` 动态读取配置中心间隔，`AcquisitionScheduleWorker` 原子推进到期来源并按租户提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；handler 调 `runScheduled`，失败项走 SYS-05 重试/死信证据，不另造队列。
-  - [ ] T4.6 **AIK-STD-14 Agent 取数工具**：MCP/CLI 新增 `fetchPublicMaterial`（仅 allowlisted 公域、仅生产中心、留证、产候选不产事实），生产器②可自主取公开资料回写候选。
+  - [x] T4.6 **AIK-STD-14 Agent 取数工具**：DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 `AgentPublicMaterialFetchPayload` 转入既有 `AcquisitionOrchestrationService.run`；MCP 通过动态工具目录暴露，CLI 接 `agent fetch-public-material`；D3/D4/D5 结构化拒绝，产候选不产事实。
   - [x] T4.7 端点：`POST .../knowledge/acquisition/runs`（手动触发，write）+ `GET .../knowledge/acquisition/{sources,runs}`（read）。
 - **验收**：自主抓 allowlisted 公域→资料库→候选入审核链；形态/出域/license/robots 合规留证；Agent 工具越权（患者数据/D5/非公域）拒；全程 AI 只产候选、专家审核、不臆造来源。
 

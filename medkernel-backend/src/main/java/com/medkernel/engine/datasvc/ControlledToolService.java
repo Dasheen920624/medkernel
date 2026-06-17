@@ -15,6 +15,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.acquisition.AcquisitionOrchestrationService;
+import com.medkernel.engine.knowledge.acquisition.KnowledgeAcquisitionRunResponse;
+import com.medkernel.engine.knowledge.acquisition.KnowledgeAcquisitionRunStatus;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionRequest;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionOrchestrationService;
@@ -37,9 +40,8 @@ import com.medkernel.shared.hash.Sha256ContentHash;
  * （traceId/数据级别/脱敏策略/来源版本/权限结果/降级状态/输出 hash），并留工具调用审计（FR-6）。
  * 上游降级诚实透传不伪装（FR-7/铁律 #1）；未知工具返回结构化 404 不泄漏内部（FR-4）。
  *
- * <p>本切片注册两个 D2 工具：{@code queryRuleUsage}（规则使用聚合）、{@code summarizeEngineSignals}
- * （汇总规则/知识/临床信号分组数）。其余工具（searchKnowledge/explainRule/validatePrivacyPolicy/
- * getClinicalContextExplanation 等）须随其上游读模型落地后续切片登记。
+ * <p>当前目录同时覆盖 D0-D4 受控读工具与 AIK-STD-14 知识生产写工具；新增工具必须继续保持
+ * 「登记目录 → 权限校验 → 既有受控服务派发 → 治理信封 → 审计」这一条主路径。
  */
 @Service
 public class ControlledToolService {
@@ -52,6 +54,7 @@ public class ControlledToolService {
     static final String TOOL_VALIDATE_PRIVACY_POLICY = "validatePrivacyPolicy";
     static final String TOOL_GET_CLINICAL_CONTEXT_EXPLANATION = "getClinicalContextExplanation";
     static final String TOOL_SUBMIT_PRODUCTION_CANDIDATE = "submitProductionCandidate";
+    static final String TOOL_FETCH_PUBLIC_MATERIAL = "fetchPublicMaterial";
     private static final String REQUIRED_PERMISSION = "engine-data.read";
     private static final String WRITE_PERMISSION = "knowledge.write";
     private static final String FINGERPRINT_BLANK_MESSAGE = "工具输出指纹不可为空";
@@ -68,6 +71,7 @@ public class ControlledToolService {
     private final PrivacyPolicyService privacyPolicyService;
     private final ClinicalContextService clinicalContextService;
     private final KnowledgeProductionOrchestrationService productionService;
+    private final AcquisitionOrchestrationService acquisitionService;
     private final PermissionEvaluator permissionEvaluator;
     private final AuditRecorder auditRecorder;
     private final ObjectMapper objectMapper;
@@ -81,6 +85,7 @@ public class ControlledToolService {
             PrivacyPolicyService privacyPolicyService,
             ClinicalContextService clinicalContextService,
             KnowledgeProductionOrchestrationService productionService,
+            AcquisitionOrchestrationService acquisitionService,
             PermissionEvaluator permissionEvaluator,
             AuditRecorder auditRecorder,
             ObjectMapper objectMapper) {
@@ -93,6 +98,7 @@ public class ControlledToolService {
         this.privacyPolicyService = privacyPolicyService;
         this.clinicalContextService = clinicalContextService;
         this.productionService = productionService;
+        this.acquisitionService = acquisitionService;
         this.permissionEvaluator = permissionEvaluator;
         this.auditRecorder = auditRecorder;
         this.objectMapper = objectMapper;
@@ -118,7 +124,9 @@ public class ControlledToolService {
             new ControlledToolDescriptor(TOOL_GET_CLINICAL_CONTEXT_EXPLANATION,
                 "解释临床 launch 令牌授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_SUBMIT_PRODUCTION_CANDIDATE,
-                "Agent 受控回写候选到知识生产流水线", EngineDataLevel.D1, WRITE_PERMISSION));
+                "Agent 受控回写候选到知识生产流水线", EngineDataLevel.D1, WRITE_PERMISSION),
+            new ControlledToolDescriptor(TOOL_FETCH_PUBLIC_MATERIAL,
+                "Agent 受控获取 allowlisted 公域资料并进入资料库/候选生产链", EngineDataLevel.D1, WRITE_PERMISSION));
     }
 
     /**
@@ -136,8 +144,57 @@ public class ControlledToolService {
             case TOOL_VALIDATE_PRIVACY_POLICY -> executeValidatePrivacyPolicy(request);
             case TOOL_GET_CLINICAL_CONTEXT_EXPLANATION -> executeGetClinicalContextExplanation(request);
             case TOOL_SUBMIT_PRODUCTION_CANDIDATE -> executeSubmitProductionCandidate(request);
+            case TOOL_FETCH_PUBLIC_MATERIAL -> executeFetchPublicMaterial(request);
             default -> throw ApiException.notFound("受控工具 " + toolName);
         };
+    }
+
+    private ToolExecutionEnvelope executeFetchPublicMaterial(ToolExecutionRequest request) {
+        AgentPublicMaterialFetchPayload payload = requirePublicMaterialPayload(request);
+        validatePublicMaterialPayload(payload);
+        KnowledgeAcquisitionRunResponse response = acquisitionService.run(payload.toRequest());
+        String fingerprint = TOOL_FETCH_PUBLIC_MATERIAL + "|source=" + payload.sourceCode()
+            + "|version=" + payload.versionNo() + "|status=" + response.status()
+            + "|run=" + response.runCode() + "|hash=" + response.sourceHash()
+            + "|versionId=" + response.sourceVersionId();
+        boolean degraded = response.status() == KnowledgeAcquisitionRunStatus.BLOCKED
+            || response.status() == KnowledgeAcquisitionRunStatus.FAILED;
+        return envelope(TOOL_FETCH_PUBLIC_MATERIAL, EngineDataLevel.D1, Instant.now(),
+            degraded, response.failureReason(), fingerprint, response, request.purpose());
+    }
+
+    private AgentPublicMaterialFetchPayload requirePublicMaterialPayload(ToolExecutionRequest request) {
+        Object raw = request.payload();
+        if (raw == null) {
+            throw publicMaterialPayloadInvalid("fetchPublicMaterial 必须携带 payload");
+        }
+        if (raw instanceof AgentPublicMaterialFetchPayload payload) {
+            return payload;
+        }
+        try {
+            return objectMapper.convertValue(raw, AgentPublicMaterialFetchPayload.class);
+        } catch (IllegalArgumentException invalidPayload) {
+            throw publicMaterialPayloadInvalid("payload 不能转换为公域资料获取协议");
+        }
+    }
+
+    private void validatePublicMaterialPayload(AgentPublicMaterialFetchPayload payload) {
+        if (payload == null) {
+            throw publicMaterialPayloadInvalid("payload 不能为空");
+        }
+        guardPublicMaterialDataLevel(payload.dataLevel());
+        if (blank(payload.sourceCode())) {
+            throw publicMaterialPayloadInvalid("sourceCode 不能为空");
+        }
+        if (blank(payload.url())) {
+            throw publicMaterialPayloadInvalid("url 不能为空");
+        }
+        if (blank(payload.versionNo())) {
+            throw publicMaterialPayloadInvalid("versionNo 不能为空");
+        }
+        if (payload.format() == null) {
+            throw publicMaterialPayloadInvalid("format 不能为空");
+        }
     }
 
     private ToolExecutionEnvelope executeSubmitProductionCandidate(ToolExecutionRequest request) {
@@ -194,16 +251,27 @@ public class ControlledToolService {
     }
 
     private void guardAgentDataLevel(String dataLevel) {
+        guardAgentDataLevel(dataLevel, false);
+    }
+
+    private void guardPublicMaterialDataLevel(String dataLevel) {
+        guardAgentDataLevel(dataLevel, true);
+    }
+
+    private void guardAgentDataLevel(String dataLevel, boolean publicMaterialPayload) {
         String normalized = blank(dataLevel) ? "D1" : dataLevel.trim().toUpperCase(Locale.ROOT);
         EngineDataLevel level;
         try {
             level = EngineDataLevel.valueOf(normalized);
         } catch (IllegalArgumentException invalidLevel) {
+            if (publicMaterialPayload) {
+                throw publicMaterialPayloadInvalid("dataLevel 取值无效：" + dataLevel);
+            }
             throw schemaInvalid("dataLevel 取值无效：" + dataLevel);
         }
         if (level == EngineDataLevel.D3 || level == EngineDataLevel.D4 || level == EngineDataLevel.D5) {
             throw new ApiException(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN,
-                "Agent 回写只能携带公开医学资料或受控来源元数据，禁止 " + level + " 患者相关数据");
+                "Agent 受控工具只能携带公开医学资料或受控来源元数据，禁止 " + level + " 患者相关数据");
         }
     }
 
@@ -304,8 +372,15 @@ public class ControlledToolService {
             "Agent 回写候选不合格：" + reason);
     }
 
+    private ApiException publicMaterialPayloadInvalid(String reason) {
+        return new ApiException(ErrorCode.BAD_REQUEST, "Agent 公域资料获取载荷不合格：" + reason);
+    }
+
     private void requireToolPermission(String toolName) {
-        String required = TOOL_SUBMIT_PRODUCTION_CANDIDATE.equals(toolName) ? WRITE_PERMISSION : REQUIRED_PERMISSION;
+        String required = switch (toolName) {
+            case TOOL_SUBMIT_PRODUCTION_CANDIDATE, TOOL_FETCH_PUBLIC_MATERIAL -> WRITE_PERMISSION;
+            default -> REQUIRED_PERMISSION;
+        };
         if (!permissionEvaluator.has(required)) {
             throw new ApiException(ErrorCode.FORBIDDEN, "受控工具 " + toolName + " 需要权限 " + required);
         }
@@ -406,7 +481,7 @@ public class ControlledToolService {
         auditRecorder.record(AuditAction.EXECUTE, "engine_data_tool", toolName,
             "执行受控工具 " + toolName + " 级别=" + level + " 用途=" + purpose
             + " 输出hash=" + outputHash + (degraded ? " 降级=true" : ""));
-        // permissionGranted 恒 true：执行到此处已过控制器 @PreAuthorize('engine-data.read') 鉴权。
+        // permissionGranted 恒 true：执行到此处已过控制器与本服务权限校验。
         return new ToolExecutionEnvelope(toolName, level, policyFor(level),
             generatedAt != null ? generatedAt.toString() : null, true, degraded, degradeReason,
             traceId, outputHash, payload);
