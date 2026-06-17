@@ -40,6 +40,7 @@
   - T5.5 已补 OPT-09 数据最小化策略引擎：V144 五方言在 `mk_llm_egress_whitelist` 扩展 `desensitization_rules`、`approval_threshold_level`、锁定式 `guardrail_locked_flag`；新增 `/api/v1/data-minimization/policies/model-egress/{capabilityCode}` 与 `/model-egress/approvals` 管理入口，统一复用 `llm.egress.manage` 权限和出域审计表。
   - T5.5 运行时护栏已接入 `ModelEgressGuard`：字段白名单外继续阻断，字段级 `MASK`/`MASK_ALL`/`GENERALIZE`/`NULLIFY`/`NONE` 策略在出域前执行；缺省或异常规则按最严 `MASK_ALL` 处理；审批门槛按 `LOW/MEDIUM/HIGH` 可配置，命中门槛且无有效审批时仍返回 `ENG_LLM_007`，不绕过既有证据链。
   - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
+  - T5.7 已补候选真实化语义：`ModelKnowledgeProducer` 成功模型输出只产 DRAFT 候选并走同一门禁/分流/影子/提交链；payload 不落生产提示正文，仅落 `promptInputHash`、AI 标识、任务 ID、模型模式、prompt/tool/model 三元组、来源引用、模型输出和真实内容 hash；B2→B1 本地模型真实成功可入链并保留 fallback 证据，B0/非成功/readiness 未齐/schema 不合格仍跳过或阻断不产伪候选。
 
 ## 最新验证
 
@@ -54,6 +55,7 @@
 - Phase 5 T5.4 提交前验证：AI 质量评测目标测试、V126 五方言迁移契约、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.4 范围旧构造器、旧表名、legacy/backfill/ROLLBACK 扫描无命中。
 - Phase 5 T5.5 提交前验证：`mvn -q -Dtest=ModelEgressGuardTest,ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；OPT-09 旧 pending 口径、T5.5 未完成勾选、旧迁移版本哨兵、旧 data-min-policy 路径扫描无命中。
 - Phase 5 T5.6 提交前验证：`cd frontend && npm test -- hooks.test.ts` 红灯命中缺失 `useReplayModelTask` 后转绿；`cd frontend && npm run typecheck`、`mvn -q -Dtest=ModelGatewayServiceTest test`、`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,ModelCapabilityDefinitionRepositoryTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；API-12/LLM-01 pending 口径和前端缺失 `toolVersion` 扫描无命中。
+- Phase 5 T5.7 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 prompt 原文落 payload 与 B1 fallback 被跳过后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.7 未勾、prompt 原文落候选 payload、B1 fallback 误跳过旧口径扫描无命中。
 
 ## 仍不可宣称
 
@@ -64,7 +66,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5 T5.7：候选真实化；核对 `SourceCandidateGenerator`/`ModelKnowledgeProducer`、AIK-STD-13、readiness、模型任务三元组与真实锚点链路，让模型增强只产带 AI 标识、锚点、hash、三元组和门禁证据的候选；readiness 未过/provider 失败/schema 不合格必须诚实降级且不产伪候选。
+1. 继续 Phase 5 T5.8：降级路径实现 + 验收；围绕模型 off、provider 断连/限流/结构化失败、出域阻断、readiness 未过、B1/B2 fallback、B0 模板链路和前端六态证据做全链路核查，确保降级时诚实跳过/阻断、不产伪候选且生产中心展示清楚。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

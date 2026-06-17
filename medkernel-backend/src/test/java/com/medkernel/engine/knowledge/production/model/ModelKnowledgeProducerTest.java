@@ -164,9 +164,28 @@ class ModelKnowledgeProducerTest {
         assertThat(envelope.orgScope()).isEqualTo(TENANT);
         assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
         assertThat(envelope.payload()).contains("\"aiGenerated\":true", "\"modelTaskId\":\"task-model-1\"",
-            "\"modelVersion\":\"claude-opus-4\"", "\"sections\"");
+            "\"modelVersion\":\"claude-opus-4\"", "\"promptInputHash\"", "\"sections\"");
+        assertThat(envelope.payload()).doesNotContain("请基于来源锚点生成");
         assertThat(envelope.contentHash()).isEqualTo(
             Sha256ContentHash.sha256(envelope.payload(), "资产内容不能为空"));
+    }
+
+    @Test
+    void localFallbackSuccessStillSubmitsCandidateWithFallbackEvidence() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalFallbackModelTask());
+        ArgumentCaptor<KnowledgeAssetEnvelope> envelopeCaptor = ArgumentCaptor.forClass(KnowledgeAssetEnvelope.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.modelMode()).isEqualTo("B1");
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> assertThat(candidate.candidateRef()).isEqualTo("candidate:model:1"));
+        verify(production).submitCandidate(eq(JOB_CODE), envelopeCaptor.capture(), eq(target()));
+        KnowledgeAssetEnvelope envelope = envelopeCaptor.getValue();
+        assertThat(envelope.payload()).contains(
+            "\"modelMode\":\"B1\"",
+            "\"fallbackUsed\":true",
+            "\"fallbackReason\":\"B2 -> B1：外部 provider 限流，本地模型成功\"");
     }
 
     @Test
@@ -280,6 +299,24 @@ class ModelKnowledgeProducerTest {
             false,
             null,
             120L,
+            "trace-model");
+    }
+
+    private ModelTaskResponse successfulLocalFallbackModelTask() {
+        return new ModelTaskResponse(
+            "task-model-fallback-b1",
+            "SUCCEEDED",
+            "{\"sections\":{\"summary\":\"本地模型在外部限流后生成候选规则\"}}",
+            "B1",
+            "qwen2.5:7b",
+            "prompt:aikstd13-v1",
+            "tool:submit-candidate-v1",
+            "[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\"}]",
+            0.81,
+            "MEDIUM",
+            true,
+            "B2 -> B1：外部 provider 限流，本地模型成功",
+            95L,
             "trace-model");
     }
 }

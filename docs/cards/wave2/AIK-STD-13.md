@@ -50,6 +50,11 @@
 - 页面只展示候选生产证据，不提供 AI 生成/创建候选按钮；readiness 未过时明确提示不得调用模型或伪造候选。
 - **Task 22 验证记录**：后端全量 `mvn test` 2722 通过、前端全量 95 文件/740 用例通过，CLI/MCP 与 changed 门禁均通过；卡片仍不勾 Agent 中止/纠偏等未完成协同控制。
 
+**2026-06-17 T5.7 候选真实化复核（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 的模型候选 payload 已只落 `promptInputHash`，不落生产提示正文；候选 payload 保留 `aiGenerated/modelTaskId/modelMode/modelVersion/promptVersion/toolVersion/sourceCitations/modelOutput` 与真实内容 hash，满足 AI 标识、三元组、锚点与最小化证据。
+- B2 外部失败但 B1 本地模型真实成功时不再被误判为 B0 跳过；候选继续进入同一 `CandidateSafetyGateService → triage → shadow → submitCandidate` 链，并在 payload 中保留 `fallbackUsed/fallbackReason` 降级证据。B0、非 `SUCCEEDED`、readiness 未齐或模型输出非 JSON 对象仍阻断/跳过，不产伪候选。
+- 本轮仅收口模型候选真实化语义，不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
 - [ ] FR-2 四生产器可插拔：① API 大模型自主（B2 外部，经 [LLM-01](LLM-01.md) 网关）② Agent 工具协助（经 [DATASVC-01](DATASVC-01.md) MCP/CLI 回写，契约见 [AIK-STD-14](AIK-STD-14.md)）③ 本地大模型（B1 本地/国产化）④ 人工录入/批量导入；新增生产器不破坏框架。

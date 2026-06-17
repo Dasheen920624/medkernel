@@ -157,7 +157,9 @@ public class ModelKnowledgeProducer {
     }
 
     private boolean isB0Fallback(ModelTaskResponse task) {
-        return task == null || "B0".equalsIgnoreCase(task.modelMode()) || Boolean.TRUE.equals(task.fallbackUsed());
+        return task == null
+            || "B0".equalsIgnoreCase(task.modelMode())
+            || !"SUCCEEDED".equalsIgnoreCase(task.status());
     }
 
     private String fallbackReason(ModelTaskResponse task) {
@@ -213,7 +215,11 @@ public class ModelKnowledgeProducer {
         root.put("promptVersion", task.promptVersion());
         root.put("toolVersion", task.toolVersion());
         root.put("capabilityCode", request.capabilityCode());
-        root.put("prompt", request.prompt());
+        root.put("promptInputHash", Sha256ContentHash.sha256(request.prompt(), "生产提示不能为空"));
+        root.put("fallbackUsed", task.fallbackUsed());
+        if (task.fallbackReason() != null && !task.fallbackReason().isBlank()) {
+            root.put("fallbackReason", task.fallbackReason());
+        }
         root.set("sourceCitations", parseCitations(task.sourceCitations()));
         root.set("modelOutput", modelOutput);
         try {
