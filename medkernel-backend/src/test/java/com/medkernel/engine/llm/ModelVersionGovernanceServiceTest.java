@@ -1,7 +1,9 @@
 package com.medkernel.engine.llm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -70,6 +73,23 @@ class ModelVersionGovernanceServiceTest {
         verify(repository).retireActive("tenant-1", "rule.draft", "ops", response.effectiveAt());
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_model_version_bundle", "7",
             "发布模型版本三元组 rule.draft");
+    }
+
+    @Test
+    void publishBundleRejectsBlankVersionPayloadBeforeRetiringActiveBundle() {
+        assertThatThrownBy(() -> service.publish(new ModelVersionBundleRequest(
+            "rule.draft",
+            " ",
+            "生成规则候选的受控提示词",
+            "tool:submit-candidate-v1",
+            "{\"name\":\"submitProductionCandidate\"}",
+            "model:claude-opus-4",
+            "claude-opus-4")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("prompt_version");
+
+        verify(repository, never()).retireActive(any(), any(), any(), any());
+        verify(repository, never()).save(any(ModelVersionBundle.class));
     }
 
     @Test

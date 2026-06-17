@@ -189,7 +189,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 #### Phase 5 · 模型增强全实现（X-LLM 收口，5d）
   - [x] T5.1 **LLM-01** 固化 provider 无关网关契约，修正"未接 provider"陈旧口径；B0 空候选不写死医学事实。已补 `model_capability_policy` 作用域化 clean baseline、当前组织链继承解析、readiness 同源策略解析和前端策略来源证据列。
   - [x] T5.2 **LLM-02** provider 缺位/断连/限流/结构化失败/出域阻断→B0 降级矩阵验收（接 `ModelFallbackMatrix`）。已补 `fallback_order_json`/`timeout_ms`/`rate_limit_per_minute` clean baseline、发布前顺序校验、B2→B1→B0 逐级尝试、provider HTTP 超时预算、运行时 provider 调用限流和前端降级顺序证据列。
-  - [ ] T5.3 **LLM-04** prompt/tool/model 版本包 + 三元组绑定 + 重放/回滚/导出（只出 hash）；模型候选必带真实三元组。
+  - [x] T5.3 **LLM-04** prompt/tool/model 版本包 + 三元组绑定 + 重放/回滚/导出（只出 hash）；模型候选必带真实三元组。已完成 `mk_llm_model_version_bundle` V139 clean baseline、任务 `tool_version` 绑定、provider 成功任务真实 prompt/tool/model 三元组记录、B0 脱敏摘要重放、历史版本回滚、hash-only 导出，以及服务层发布前载荷校验，避免绕过 Controller 写入空版本或正文空 hash。
   - [ ] T5.4 **OPT-06** AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。
   - [ ] T5.5 **OPT-09** 数据最小化策略引擎（字段白名单+脱敏+审批）。
   - [ ] T5.6 **API-12** 模型能力网关 API 收口勾卡。

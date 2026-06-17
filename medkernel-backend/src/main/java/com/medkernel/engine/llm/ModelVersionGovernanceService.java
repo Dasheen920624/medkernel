@@ -38,18 +38,24 @@ public class ModelVersionGovernanceService {
         String tenantId = requireCurrentTenant();
         String actor = RequestContext.currentUserId().orElse("system");
         String capability = normalizeCapability(request.capabilityCode());
+        String promptVersion = requireText(request.promptVersion(), "prompt_version");
+        String promptContent = requireText(request.promptContent(), "prompt_content");
+        String toolVersion = requireText(request.toolVersion(), "tool_version");
+        String toolContract = requireText(request.toolContract(), "tool_contract");
+        String modelVersion = requireText(request.modelVersion(), "model_version");
+        String modelDescriptor = requireText(request.modelDescriptor(), "model_descriptor");
         Instant now = Instant.now();
         repository.retireActive(tenantId, capability, actor, now);
         ModelVersionBundle saved = repository.save(new ModelVersionBundle(
             null,
             tenantId,
             capability,
-            request.promptVersion().trim(),
-            sha256(request.promptContent()),
-            request.toolVersion().trim(),
-            sha256(request.toolContract()),
-            request.modelVersion().trim(),
-            sha256(request.modelDescriptor()),
+            promptVersion,
+            sha256(promptContent),
+            toolVersion,
+            sha256(toolContract),
+            modelVersion,
+            sha256(modelDescriptor),
             "ACTIVE",
             now,
             null,
@@ -126,6 +132,13 @@ public class ModelVersionGovernanceService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "能力代码不能为空");
         }
         return capabilityCode.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String requireText(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+        }
+        return value.trim();
     }
 
     private String sha256(String value) {
