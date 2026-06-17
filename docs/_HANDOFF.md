@@ -42,10 +42,11 @@
   - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
   - T5.7 已补候选真实化语义：`ModelKnowledgeProducer` 成功模型输出只产 DRAFT 候选并走同一门禁/分流/影子/提交链；payload 不落生产提示正文，仅落 `promptInputHash`、AI 标识、任务 ID、模型模式、prompt/tool/model 三元组、来源引用、模型输出和真实内容 hash；B2→B1 本地模型真实成功可入链并保留 fallback 证据，B0/非成功/readiness 未齐/schema 不合格仍跳过或阻断不产伪候选。
   - T5.8 已补降级路径预验证：非成功 B2/B1 模型任务返回诚实 `status/mode` 跳过原因，不再误写成 B0 降级；真正 B0 仍明确标注 B0。知识生产中心 readiness/job 主证据可见时，候选血缘、门禁、8 态、影子评测、共存提醒任一下游 evidence 读取失败会显示“生产证据部分读取失败”与分项错误，不用空表掩盖断连。
-- Phase 6 当前：院内覆盖管道全实现。
+- Phase 6 已收口：院内覆盖管道全实现。
   - T6.1 已补院内上传增强：`DocumentParseController` 新增 multipart `POST /api/v1/engine/knowledge/documents:upload-parse`；上传原件复用 AIK-STD-02 解析与 P1 受管资料库存储，`DocumentMaterialStoreRequest.scopeKey=tenantId`，不落临时目录；可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `TENANT_OVERLAY` 候选生成请求，继续走门禁、8 态、影子评测和审核链，不新增平台主源写入口。
   - T6.2 已补本地模型生产器：`ModelKnowledgeProducer` 对 `LOCAL_MODEL` job 强制 `TENANT_OVERLAY` 院内覆盖，发现平台主源管道在 readiness/模型调用前即拒；模型网关 `ModelTaskRequest` 支持 `requiredRouteStrategy/providerCode`，知识生产器传入 `LOCAL_MODEL`/指定本地 provider，网关在 provider 解析前校验策略匹配并按指定 provider 走本地健康检查，策略漂移时不落任务、不外调、不伪造候选。
   - T6.3 已补双形态隔离强化测试：平台主源 job 收到客户候选时返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，不再落泛化 BAD_REQUEST；`t-1` 候选进入平台主源保持平台归属并路由平台知识治理员；客户租户不能把平台 `identityId` 当写入目标提交候选，只能读 effective 主源或走本租户覆盖。
+  - T6.4 已补 DATASVC-01 D3/D4 字段级加密与分级元数据：V145 五方言新增 `mk_engine_data_encrypted_field` / `mk_engine_data_field_policy`，后端通过 `FieldLevelEncryptionService` 使用独立字段级密钥派生 SM4 密文、SM3 检索 hash、字段策略和审计凭证；`PrivacyPolicyService` 对 D3/D4 返回 `allowed=true` 且 `requiresFieldEncryption=true`，D5 仍禁入；Agent 写工具继续拒绝 D3/D4/D5，CLI/MCP 测试确认不绕治理。
 
 ## 最新验证
 
@@ -65,6 +66,7 @@
 - Phase 6 T6.1 提交前验证：`mvn -q -Dtest=DocumentParseOrchestrationServiceTest test` 红灯命中缺失院内上传响应/生成计划/服务方法后转绿；`mvn -q -Dtest=DocumentParseControllerSecurityTest test` 红灯命中缺失 multipart 上传端点后转绿；`mvn -q -Dtest=DocumentParseIntegrationTest,CandidateGenerationIntegrationTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,CandidateGenerationOrchestrationServiceTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,DocumentParseIntegrationTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 - Phase 6 T6.2 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest test` 红灯命中 `ModelTaskRequest` 缺失路由/provider 约束字段后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest,ModelProviderRegistryTest test`、`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest,ModelProviderRegistryTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,OpenApiContractConfigurationTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test`、`cd frontend && npm test -- hooks.test.ts`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0。
 - Phase 6 T6.3 提交前验证：`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest#submitCandidateRejectsCustomerCandidateIntoPlatformSourcePipelineAsReadOnlyViolation test` 红灯命中平台主源客户候选仅返回 BAD_REQUEST 后转绿；`mvn -q -Dtest=KnowledgeVersionServiceTest#classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest,CandidateGenerationOrchestrationServiceTest,DocumentParseOrchestrationServiceTest,ModelKnowledgeProducerTest,ControlledToolServiceTest,CandidateMaterializationIntegrationTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test` 均退出 0。
+- Phase 6 T6.4 提交前验证：`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test` 红灯命中 D3/D4 隐私策略与字段级加密服务/实体缺口后转绿；`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test`、`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test`、`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest,ClinicalContextServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`cd cli && npm test`、`cd mcp-server && npm test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；字段级加密旧 pending 口径扫描无命中。
 
 ## 仍不可宣称
 
@@ -75,7 +77,7 @@
 
 ## 下一步
 
-1. 继续 Phase 6 T6.4：DATASVC-01 剩余；补 D3/D4 字段级加密落地与 AC 收口，复核 MCP/CLI 不绕治理。
+1. 继续 Phase 7 T7.1：领域门面 X-DOMAIN 17 卡代码；先从相关卡与 `_brief` 建立最小基线，按 TDD 复用同一引擎链路，不产真实医学内容。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

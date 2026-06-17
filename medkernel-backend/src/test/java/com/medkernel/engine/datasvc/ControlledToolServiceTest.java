@@ -295,6 +295,18 @@ class ControlledToolServiceTest {
     }
 
     @Test
+    void execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit() {
+        when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
+        AgentProductionCandidatePayload payload =
+            new AgentProductionCandidatePayload("job-agent", "idem-agent-1", "D4", validSubmission());
+
+        assertThatThrownBy(() -> service.execute("submitProductionCandidate", agentReq(payload)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode").isEqualTo(ErrorCode.AGENT_PATIENT_DATA_FORBIDDEN);
+        verify(productionService, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
     void execute_submitProductionCandidate_requiresAnchoredSourceAndAiHash() {
         when(permissionEvaluator.has("knowledge.write")).thenReturn(true);
         CandidateSubmissionRequest invalid = new CandidateSubmissionRequest(
