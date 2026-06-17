@@ -206,6 +206,59 @@ class KnowledgeVersionServiceTest {
         assertThat(spCap.getValue().newVersionId()).isEqualTo(11L);
         assertThat(spCap.getValue().transitionReason()).isEqualTo("新版指南更新");
         verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 11L, "u-99", "trace");
+
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo).save(invalidation.capture());
+        assertThat(invalidation.getValue().versionId()).isEqualTo(5L);
+        assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
+        assertThat(invalidation.getValue().expeditedReviewRequired()).isFalse();
+        assertThat(invalidation.getValue().reason()).contains("新版指南更新").contains("newVersionId=11");
+
+        ArgumentCaptor<AffectedCaseTask> task = ArgumentCaptor.forClass(AffectedCaseTask.class);
+        verify(affectedCaseTaskRepo, times(3)).save(task.capture());
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::versionId).containsOnly(5L);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::taskType)
+            .containsExactlyInAnyOrder(
+                AffectedCaseTaskType.PHYSICIAN_REVIEW,
+                AffectedCaseTaskType.PACKAGE_RESYNC,
+                AffectedCaseTaskType.SYNC_ALERT);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::reason)
+            .allSatisfy(reason -> assertThat(reason).contains("新版指南更新").contains("newVersionId=11"));
+    }
+
+    @Test
+    void activateSupersededVersionRollsBackThroughTheSameAtomicReplacementFlow() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion rollbackTarget =
+            version(5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion currentActive = version(11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(rollbackTarget));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(currentActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+
+        KnowledgeAssetVersion activated = service.activate(
+            1L, 5L, "回滚到上一版权威知识", VersionPublishEvidence.empty());
+
+        assertThat(activated.id()).isEqualTo(5L);
+        assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+
+        ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
+        verify(supersessionRepo).save(spCap.capture());
+        assertThat(spCap.getValue().transitionType()).isEqualTo(SupersessionType.ROLLBACK);
+        assertThat(spCap.getValue().oldVersionId()).isEqualTo(11L);
+        assertThat(spCap.getValue().newVersionId()).isEqualTo(5L);
+
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo).save(invalidation.capture());
+        assertThat(invalidation.getValue().versionId()).isEqualTo(11L);
+        assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
+        assertThat(invalidation.getValue().reason()).contains("newVersionId=5");
+        verify(affectedCaseTaskRepo, times(3)).save(any(AffectedCaseTask.class));
     }
 
     @Test

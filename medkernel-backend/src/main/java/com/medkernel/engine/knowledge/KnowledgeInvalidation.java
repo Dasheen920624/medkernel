@@ -7,10 +7,10 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 权威知识版本紧急失效记录。
+ * 权威知识版本失效记录。
  *
- * <p>失效记录区别于普通状态字段：它保留安全原因、授权人、适用域和加急审核标识，
- * 支撑 SYS-08 的旧版立即退出新临床决策与后续审计导出。
+ * <p>失效记录区别于普通状态字段：它保留替换或安全原因、授权人、适用域和加急审核标识，
+ * 支撑 SYS-08 的旧版退出新临床决策与后续审计导出。
  */
 @Table("mk_knowledge_invalidation")
 public record KnowledgeInvalidation(

@@ -166,7 +166,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **验收**：自带真实基准集且可维护 + 6 项配置超管默认关可管 + readiness 前端逐项可见（注：`MODEL_EVALUATION` 仍要求真跑 PASSED，不被种子绕过）。
 
 #### Phase 3 · AI 工厂收尾（5d）
-  - [ ] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；当前已补结构化红线检查与仲裁证据，去重/完整冲突分流仍待 AIK-STD-10/09 后再勾满。
+  - [x] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；去重由 AIK-STD-10 生成期分流跳过重复入审，冲突/升级/降级接 AIK-STD-09 原子替换、影响任务和回滚链，当前切片已收口。
   - [x] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`knowledge_diff` + `expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。已实现 `KnowledgeDiffDetectionService`、`DiscoveryRequest.targetIdentityId` / 响应 `diffs[]`，来源废止建 `SOURCE_DEPRECATED` 任务，复审超期建 `REVIEW_OVERDUE` 任务；同指纹超期不落伪 `REVISED` 差异。
   - [x] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。已新增 `POST /api/v1/engine/pkg/packages/aik`、`aik_pack_job` V141 五方言、manifest hash 证据；发布仍走 PKG-01，空 `adapterIds` 真实返回 `NOT_SYNCED` 且不触发发布端口。
   - [x] T3.4 **AIK-STD-03 术语勾卡**（已实质建成 TERM-01+`TerminologyCandidateGenerationJob`，本轮补前端生成入口、任务追踪、服务契约审计点并勾卡）。

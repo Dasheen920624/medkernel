@@ -313,12 +313,12 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | AIK-STD-02 | 文档解析、引用锚点与版本存证（PDF/Word 章节 + 表格理解 + hash）| 6d | pending |
 | AIK-STD-03 | 术语编码与院内映射流水线 | 4d | done |
 | AIK-STD-04 | 规则/路径/推荐/指标/随访候选生成 | 5d | pending |
-| AIK-STD-05 | 安全校验与冲突仲裁（详规 §8.9 11 项门禁）| 5d | pending |
+| AIK-STD-05 | 安全校验与冲突仲裁（详规 §8.9 11 项门禁）| 5d | done |
 | AIK-STD-06 | 静默运行、反馈和回归评测 | 4d | pending |
 | AIK-STD-07 | 知识包/配置包生成与院内同步 | 4d | pending |
 | AIK-STD-08 | 最新知识探索、差异检测与过期治理 | 5d | pending |
-| AIK-STD-09 | 权威知识替换、旧版失效与影响处置 | 4d | pending |
-| AIK-STD-10 | 生成期知识身份识别、去重与审核分流（8 态分流）| 5d | pending |
+| AIK-STD-09 | 权威知识替换、旧版失效与影响处置 | 4d | done |
+| AIK-STD-10 | 生成期知识身份识别、去重与审核分流（8 态分流）| 5d | done |
 | AIK-STD-11 | 待审新版共存与替换提醒 | 3d | pending |
 | AIK-STD-12 | 全医疗专业领域标准资产模板 + AiReview 前端审核台 | 7d | pending |
 | AIK-STD-13 | 知识生产编排与多生产器双形态接入（API/Agent/本地模型/人工 + 主源·院内覆盖隔离 + 血缘/可重放）| 6d | pending |

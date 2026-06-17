@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS mk_llm_regression_case (
     capability_code   VARCHAR(64)   NOT NULL,
     case_input        VARCHAR(2000) NOT NULL,
     expected_phrase   VARCHAR(512)  NOT NULL,
-    red_line_type     VARCHAR(32)   NULL,
+    red_line_type     VARCHAR(64)   NULL,
     source_reference  VARCHAR(512)  NOT NULL,
     citation_required CHAR(1)       NOT NULL DEFAULT 'N',
     case_version      VARCHAR(32)   NOT NULL DEFAULT 'v1',

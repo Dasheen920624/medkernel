@@ -615,8 +615,10 @@ public class KnowledgeVersionService {
         }
         if (target.status() == null || !target.status().isActivatable()) {
             throw new ApiException(ErrorCode.CONFLICT,
-                "版本当前状态 " + target.status() + " 不可激活（需 UNDER_REVIEW、CANDIDATE 或 PENDING_REPLACEMENT_REVIEW）");
+                "版本当前状态 " + target.status()
+                    + " 不可激活（需 UNDER_REVIEW、CANDIDATE、PENDING_REPLACEMENT_REVIEW 或 SUPERSEDED）");
         }
+        boolean rollbackActivation = target.status() == KnowledgeVersionStatus.SUPERSEDED;
         if (target.isHighRisk() && normalizedReason == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
@@ -648,7 +650,7 @@ public class KnowledgeVersionService {
                     "低阶来源覆盖高阶来源必须填写理由并由发布审核人确认");
             }
             oldVersionId = oldActive.id();
-            transitionType = SupersessionType.REPLACE;
+            transitionType = rollbackActivation ? SupersessionType.ROLLBACK : SupersessionType.REPLACE;
             KnowledgeAssetVersion superseded = new KnowledgeAssetVersion(
                 oldActive.id(), oldActive.tenantId(), oldActive.identityId(),
                 oldActive.versionNo(), oldActive.versionLabel(),
@@ -667,6 +669,7 @@ public class KnowledgeVersionService {
                 oldActive.reviewCycleMonths(), oldActive.nextReviewAt()
             );
             versionRepository.save(superseded);
+            createReplacementAffectedCaseTasks(superseded, target.id(), normalizedReason, now, actor);
         }
 
         // 4) 目标版本 → ACTIVE
@@ -1017,6 +1020,40 @@ public class KnowledgeVersionService {
             AffectedCaseTargetType.SYNC_TARGET,
             "sync-target/version:" + version.id() + "/scope:" + version.activeScopeKeyForActiveStatus(),
             reason, now, actor);
+    }
+
+    private void createReplacementAffectedCaseTasks(KnowledgeAssetVersion oldVersion, Long newVersionId,
+            String reason, Instant now, String actor) {
+        String impactReason = replacementImpactReason(oldVersion.id(), newVersionId, reason);
+        KnowledgeInvalidation invalidation = invalidationRepository.save(new KnowledgeInvalidation(
+            null,
+            oldVersion.tenantId(),
+            oldVersion.identityId(),
+            oldVersion.id(),
+            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+            KnowledgeInvalidationStatus.OPEN,
+            oldVersion.riskLevel(),
+            impactReason,
+            oldVersion.effectiveOrganizationScope(),
+            oldVersion.effectiveApplicableScope(),
+            actor,
+            now,
+            false,
+            RequestContext.currentTraceId(),
+            now,
+            actor,
+            now,
+            actor
+        ));
+        createAffectedCaseTasks(invalidation, oldVersion, impactReason, now, actor);
+    }
+
+    private String replacementImpactReason(Long oldVersionId, Long newVersionId, String reason) {
+        String base = "知识版本原子替换：oldVersionId=" + oldVersionId + "，newVersionId=" + newVersionId;
+        if (reason == null || reason.isBlank()) {
+            return base;
+        }
+        return base + "；原因：" + reason.trim();
     }
 
     private void saveAffectedTask(KnowledgeInvalidation invalidation, KnowledgeAssetVersion version,

@@ -193,6 +193,17 @@ class MigrationBaselineContractTest {
     );
 
     @Test
+    void medicalRegressionRedLineTypeFitsClinicalRedLineCategoriesAcrossAllDialects() {
+        Pattern redLineTypeWidth = Pattern.compile("red_line_type\\s+VARCHAR2?\\(64\\)", Pattern.CASE_INSENSITIVE);
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
+            assertThat(redLineTypeWidth.matcher(ddl).find())
+                .as("%s 医学回归红线类型字段必须容纳 SPECIAL_POPULATION_CONTRAINDICATION", dialect)
+                .isTrue();
+        }
+    }
+
+    @Test
     void terminologyCandidateGenerationJobIsPersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V135__terminology_candidate_generation_job.sql");

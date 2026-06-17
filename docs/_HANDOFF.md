@@ -34,6 +34,7 @@
   - readiness 的 `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补“有真实基线”，不绕过模型评测闸。
 - 已完成 Phase 2 第二片「医学回归基准集维护后端」：
   - `mk_llm_regression_case` 五方言基线新增 `source_reference`，用例来源引用结构化保存；创建/批量导入拒绝 TODO/mock/fake 等占位来源。
+  - `red_line_type` 五方言 V126 基线已扩为 64 位并补真实仓储回归，保证 `SPECIAL_POPULATION_CONTRAINDICATION` 等正式红线类型可入库；此前全量后端 96 个 ApplicationContext 错误根因在此。
   - `ModelEvalController` 新增 `GET/POST /regression-cases`、`POST /regression-cases:bulk-import`、`POST /regression-cases/{caseId}:enable|disable`，统一 `llm.eval.manage` 权限和租户隔离。
   - 服务契约、产品功能目录、OpenAPI 和迁移一致性已同步。
 - 已完成 Phase 2 第三片「配置与 readiness 前端」：
@@ -43,7 +44,10 @@
 - 已完成 Phase 3 首片「AIK-STD-05 结构化红线与仲裁留证」：
   - `CLINICAL_REDLINE` 门禁现在识别候选 payload 中的 `clinicalSafety.redlineChecks` / `clinicalRedlineChecks`；每条结构化检查必须匹配 ACTIVE 红线并带证据，命中/越界/阻断即 FAIL。
   - `AUTHORITY_CONFLICT` 失败原因已带 `targetIdentityId`、`activeVersionId`、`scope`，用于审计和后续审核台逐条仲裁。
-  - 仍不宣称 AIK-STD-05 全卡完成：去重和完整冲突分流待 AIK-STD-10/09。
+- 已完成 Phase 3 补片「AIK-STD-05/09/10 收口」：
+  - 去重按 AIK-STD-10 生成期 `DUPLICATE/SKIP_DUPLICATE` 留痕并跳过入审；8 态队列前端已展示。
+  - `KnowledgeVersionService.activate` 替换已有 ACTIVE 时落 `SUPERSEDED_REPLACEMENT` 失效证据并派医师复核、包补同步、同步告警三类任务；`SUPERSEDED` 旧版可经同一原子替换链回滚，高危 `WITHDRAWN` 仍禁止一键回滚。
+  - 本片目标套件、B0 门禁、`git diff --check` 与后端全量 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 已退出 0。
 - 已完成 Phase 3 第二片「AIK-STD-08 差异检测与过期治理」：
   - 新增 `knowledge_diff` + `expiry_task` 五方言 V140 基线；`DiscoveryRequest.targetIdentityId` 绑定现行知识身份后，响应 `diffs[]` 返回新增/修订/废止检测结果。
   - `KnowledgeDiffDetectionService` 只做 B0 hash/结构化 payload 判断：无更新诚实空态；来源声明废止建 `SOURCE_DEPRECATED` 复核任务；复审超期建 `REVIEW_OVERDUE` 任务；不自动替换、不撤回权威版本。
@@ -71,7 +75,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：回补 T3.1 剩余 AIK-STD-05 去重与完整冲突分流，并联动核查 AIK-STD-09 替换处置现状；已实质建成的只补证据，不重复造表/造页面。
+1. 继续主计划 Phase 4：建设自主公域知识获取引擎。先核查是否已有 allowlist / acquisition 账本 / 抓取器 / Agent 工具地基；没有就按 TDD 新建，必须复用 P1 受管资料库和统一候选管线。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

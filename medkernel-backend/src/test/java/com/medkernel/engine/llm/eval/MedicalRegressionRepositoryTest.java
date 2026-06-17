@@ -67,6 +67,19 @@ class MedicalRegressionRepositoryTest {
     }
 
     @Test
+    void caseStoresLongestClinicalRedLineType() {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        caseRepo.save(new MedicalRegressionCase(null, "tenant-1", "rule.draft",
+            "特殊人群禁忌证红线", "特殊人群禁忌证必须阻断",
+            "SPECIAL_POPULATION_CONTRAINDICATION", "source-version:77#special-population", "Y",
+            "2026.1", "Y", now, "system", now, "system"));
+
+        assertThat(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
+            .extracting(MedicalRegressionCase::redLineType)
+            .contains("SPECIAL_POPULATION_CONTRAINDICATION");
+    }
+
+    @Test
     void evalRunFoundByProviderVersionStatus() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         runRepo.save(new ModelEvalRun(null, "tenant-1", "claude-prod", "claude-opus-4-8",

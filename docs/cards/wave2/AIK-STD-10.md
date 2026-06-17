@@ -23,7 +23,7 @@
 - [x] FR-1 身份识别：识别候选 = 现有知识的（同一/变体/新增）。后端 B0 以目标身份、现行版本、内容 hash、显式 triage 标记与来源权威等级判定。
 - [x] FR-2 去重：重复候选合并，不重复入审。同一目标身份命中相同内容 hash 时落 `DUPLICATE/SKIP_DUPLICATE` 并跳过 `submitCandidate`。
 - [x] FR-3 8 态分流：新增/重复/小修订/重大升级/冲突/降级/废止/存疑 八态准确分流。八态均有单测覆盖。
-- [ ] FR-4 分流去向：各态对应处理（直审/合并/冲突仲裁/升级走 [AIK-STD-09](AIK-STD-09.md)）。本地分支已落后端 action 映射与重复跳过；前端展示和专门审核队列/替换闭环仍随 AIK-STD-09/11 与生产中心收口。
+- [x] FR-4 分流去向：各态对应处理（直审/合并/冲突仲裁/升级走 [AIK-STD-09](AIK-STD-09.md)）。本地分支已落后端 action 映射与重复跳过；前端展示 8 态队列，共存对照和替换闭环已接 AIK-STD-09/11，审核通过后走原子替换、影响任务和回滚链。
 - [x] FR-5 可审计：分流结果留痕、可复查。按 job 与租户只读查询，append-only 留痕。
 
 ## 接口 / 数据契约
@@ -43,6 +43,6 @@
 - B0 验收：★规则/hash 识别（不依赖模型）。
 
 ## 完工证据
-- 本地代码：`KnowledgeGenerationTriageService` + `GenerationTriage*` + V137 五方言迁移 + 生成链路接入 + `triage-results` 只读端点；前端 `KnowledgeGovernance` 8 态队列。
-- 测试：`KnowledgeGenerationTriageServiceTest` 覆盖八态/去向；`CandidateGenerationOrchestrationServiceTest` 与 `CandidateGenerationIntegrationTest` 覆盖重复跳过不入审；`KnowledgeProductionControllerSecurityTest` 覆盖读权限；迁移基线/H2 覆盖 V137；`KnowledgeGovernance.test.tsx` 覆盖 8 态队列呈现。
+- 本地代码：`KnowledgeGenerationTriageService` + `GenerationTriage*` + V137 五方言迁移 + 生成链路接入 + `triage-results` 只读端点；前端 `KnowledgeGovernance` 8 态队列；AIK-STD-09 替换影响任务和回滚链。
+- 测试：`KnowledgeGenerationTriageServiceTest` 覆盖八态/去向；`CandidateGenerationOrchestrationServiceTest` 与 `CandidateGenerationIntegrationTest` 覆盖重复跳过不入审；`KnowledgeProductionControllerSecurityTest` 覆盖读权限；迁移基线/H2 覆盖 V137；`KnowledgeGovernance.test.tsx` 覆盖 8 态队列呈现；`KnowledgeVersionServiceTest` 覆盖替换影响处置和回滚。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
