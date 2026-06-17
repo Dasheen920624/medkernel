@@ -237,6 +237,15 @@ function canCancelProductionJob(status?: string | null) {
   return status === "PENDING" || status === "RUNNING";
 }
 
+function confidenceText(confidence?: number | null) {
+  return confidence === null || confidence === undefined ? "未返回置信" : `置信 ${confidence}`;
+}
+
+function fallbackText(provenance: CandidateProvenanceView) {
+  if (!provenance.fallbackUsed) return "未降级";
+  return `降级：${provenance.fallbackReason || "已降级，未返回原因"}`;
+}
+
 function productionProgressPercent(
   job: KnowledgeProductionJob | undefined,
   candidateCount: number,
@@ -998,8 +1007,15 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         return (
           <Space direction="vertical" size={2}>
             {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
+            {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
             <Text>{producerLabel(provenance.producer)}</Text>
             <Text type="secondary">job：{provenance.jobCode}</Text>
+            {provenance.modelVersion ? (
+              <Text type="secondary">模型：{provenance.modelVersion}</Text>
+            ) : null}
+            {provenance.confidence !== null && provenance.confidence !== undefined ? (
+              <Text type="secondary">{confidenceText(provenance.confidence)}</Text>
+            ) : null}
           </Space>
         );
       },
@@ -2358,6 +2374,27 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                 </Descriptions.Item>
                 <Descriptions.Item label="模型策略">
                   {provenance.modelStrategy || "无"}
+                </Descriptions.Item>
+                <Descriptions.Item label="模型模式">
+                  {provenance.modelMode || "未返回"}
+                </Descriptions.Item>
+                <Descriptions.Item label="模型版本">
+                  {provenance.modelVersion || "未返回"}
+                </Descriptions.Item>
+                <Descriptions.Item label="提示词版本">
+                  {provenance.promptVersion || "未返回"}
+                </Descriptions.Item>
+                <Descriptions.Item label="工具版本">
+                  {provenance.toolVersion || "未返回"}
+                </Descriptions.Item>
+                <Descriptions.Item label="置信 / 降级">
+                  <Space direction="vertical" size={2}>
+                    <Text>{confidenceText(provenance.confidence)}</Text>
+                    <Text>{fallbackText(provenance)}</Text>
+                  </Space>
+                </Descriptions.Item>
+                <Descriptions.Item label="来源引用">
+                  {provenance.sourceCitations || "未返回来源引用"}
                 </Descriptions.Item>
                 <Descriptions.Item label="生产时点 / 人">
                   {provenance.producedAt ?? "未返回"} / {provenance.producedBy ?? "未返回"}

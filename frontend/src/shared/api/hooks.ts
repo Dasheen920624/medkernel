@@ -1312,6 +1312,15 @@ export interface CandidateProvenanceView {
   riskLevel?: string | null;
   producedAt?: string | null;
   producedBy?: string | null;
+  modelTaskId?: string | null;
+  modelMode?: string | null;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  toolVersion?: string | null;
+  sourceCitations?: string | null;
+  confidence?: number | null;
+  fallbackUsed?: boolean | null;
+  fallbackReason?: string | null;
 }
 
 /**

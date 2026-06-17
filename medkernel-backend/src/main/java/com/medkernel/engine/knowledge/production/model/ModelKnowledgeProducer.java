@@ -236,6 +236,9 @@ public class ModelKnowledgeProducer {
         root.put("capabilityCode", request.capabilityCode());
         root.put("promptInputHash", Sha256ContentHash.sha256(request.prompt(), "生产提示不能为空"));
         root.put("fallbackUsed", task.fallbackUsed());
+        if (task.confidence() != null) {
+            root.put("confidence", task.confidence());
+        }
         if (task.fallbackReason() != null && !task.fallbackReason().isBlank()) {
             root.put("fallbackReason", task.fallbackReason());
         }

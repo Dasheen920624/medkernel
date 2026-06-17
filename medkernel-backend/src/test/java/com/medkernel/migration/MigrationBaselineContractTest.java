@@ -194,7 +194,8 @@ class MigrationBaselineContractTest {
         "V143__knowledge_acquisition_schedule.sql",
         "V144__data_minimization_policy.sql",
         "V145__engine_data_field_encryption.sql",
-        "V146__knowledge_surface_menu_split.sql"
+        "V146__knowledge_surface_menu_split.sql",
+        "V147__knowledge_candidate_explain_evidence.sql"
     );
 
     @Test
@@ -393,6 +394,18 @@ class MigrationBaselineContractTest {
                 .contains("'menu.knowledge-production'", "'MENU'", "'knowledge-production'",
                     "'查看知识生产'")
                 .contains("menu.ai-workflows", "查看模型能力", "migration-v146");
+        }
+    }
+
+    @Test
+    void knowledgeCandidateExplainEvidenceIsDataMinimizedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V147__knowledge_candidate_explain_evidence.sql");
+            assertThat(ddl)
+                .as("%s AI 候选解释证据只允许保存最小必要元数据", dialect)
+                .contains("explain_json", "候选生产解释元数据JSON")
+                .contains("模型任务ID", "模式", "版本三元组", "来源引用", "置信", "降级原因")
+                .contains("不保存提示词原文或候选正文");
         }
     }
 

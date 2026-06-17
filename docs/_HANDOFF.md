@@ -51,17 +51,19 @@
   - 新增 `engine.domainfacade` 只读目录：17 张 X-DOMAIN 卡按总计划顺序声明共享引擎链路、依赖卡、B0 工作流摘要、服务包成员、模型可选、不预填真实医学内容、不新增领域专属业务引擎。
   - 新增 `/api/v1/engine/domain-facades`、`/{code}`、`/b0-fixtures` 与 `/{code}/b0-fixture`，受 `knowledge.read` 与租户 DataScope 约束；B0 fixture 证据逐门面返回共享处理器、确定性路由、模型非必需、未预填医学内容、服务包成员可解析和扩展专科诚实空态；服务契约和产品功能目录已同步。
   - T7.2 已补 KNOWGEN 资产类型专用代码骨架：`FORMULA` 评分/计算器模板接入 `SourceCandidateGenerator` B0 候选生成；RULE 模板新增测试病例结构；新增 `KnowgenSpecializedAssetSkeletonRegistry` / `KnowgenSpecializedPayloadValidator` 覆盖 KNOWGEN-16/04/18/20/19；`ClinicalFormulaCalculatorService` 用传入公式定义确定性复算，不内置医学常量、不预填真实医学内容。
-- Phase 8 当前已完成 T8.1/T8.2/T8.3：菜单 IA 双产品面 + 生产者工作台 + 双形态一眼可辨。
+- Phase 8 当前已完成 T8.1/T8.2/T8.3/T8.4：菜单 IA 双产品面 + 生产者工作台 + 双形态一眼可辨 + AI 产物可信解释贯穿。
   - 审核台 `/knowledge/governance` 只保留候选审核/发布边界，要求 `knowledge.review`；实施运维员不再进入审核台。
   - 机构知识独立为 `/knowledge/institution`，承载从平台标准派生机构版本、机构覆盖血缘和恢复平台标准；不再藏在审核页签里。
   - 知识生产独立为一级域 `/knowledge/production`，模型能力 `/advanced/ai-workflows` 改名并迁入“知识生产”；临床运行角色不可见，实施/集成运维员通过生产面查看 readiness/job/模型能力。
   - 后端同步 `MENU_INSTITUTION_KNOWLEDGE`、`MENU_KNOWLEDGE_PRODUCTION`、`menu.ai-workflows=查看模型能力`、V146 五方言迁移、14 角色菜单快照、产品功能目录、角色旅程和 IA 矩阵。
   - T8.2 已补 `useCreateKnowledgeProductionJob` 与知识生产入口“生产者工作台”：下任务表单真实调用既有 `/engine/knowledge-production/jobs`，看进度沿用 job/readiness/evidence，候选队列可单选并驱动左右对照与影响区，结论区只给批处置预案；高风险/双签候选批量通过锁定，最终通过/退修/驳回仍归审核台。
   - T8.3 已补双形态可辨边界：平台主源/院内覆盖统一走 `PIPELINE_META`，机构知识页常驻显示“平台主源只读 / 院内覆盖可治理”，生产中心常驻显示“双形态生产分区”，job 管道、候选溯源和机构血缘表格同步颜色与边界标签；空数据、失败和就绪态均不再只靠表格行解释归属。
+  - T8.4 已补 AI 产物可信解释贯穿：模型候选 payload 的任务 ID、模型模式、prompt/tool/model 版本、来源引用、置信和降级原因在提交候选时白名单抽取到 `mk_knowledge_production_candidate.explain_json`；溯源接口解析并返回解释字段，坏 JSON 诚实降级为空解释；审核台候选来源列和“AI 生产来源溯源”抽屉展示 AI 标识、模型模式、模型版本、提示词/工具版本、来源引用、置信和降级状态。迁移 V147 五方言新增 `explain_json`，COMMENT 明确不保存提示词原文或候选正文。
   - 同类问题审计结论：`/clinical/followup` 仍混有运行侧随访协同与治理侧模板治理，本批不纳入知识生产链路提交；后续应按“运行只做运行，模板治理独立归知识/配置治理”拆分。
 
 ## 最新验证
 
+- Phase 8 T8.4 目标验证：`cd medkernel-backend && mvn -q -Dtest=CandidateProvenanceServiceTest,KnowledgeProductionOrchestrationServiceTest,ModelKnowledgeProducerTest test`、`cd medkernel-backend && mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,CandidateProvenanceServiceTest,KnowledgeProductionOrchestrationServiceTest,ModelKnowledgeProducerTest test`、`cd medkernel-backend && mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；`FlywayMultiDialectSmokeTest` 因本机无 Docker socket 跳过 postgres/oracle，H2 从空库跑到 v147 且重复 migrate 为 0；浏览器烟测 `/knowledge/governance` 在无后端授权态非空渲染“权限读取失败”且 console error=0。
 - Phase 8 T8.3 目标验证：`cd frontend && npm test -- --run src/pages/quality/KnowledgeGovernance.test.tsx` 红灯先命中机构知识页空数据态缺少“院内覆盖可治理”边界与重复 `jobCode` 断言后转绿；`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/institution` 与 `/knowledge/production` 在无后端授权态非空渲染诚实权限失败态且无 console error。
 - Phase 8 T8.2 目标验证：`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/production` 在无后端授权态非空渲染诚实权限失败态且无 console error。
 - Phase 8 T8.1 提交前验证：`cd frontend && npm test -- --run src/shared/config/routes.test.ts src/shared/config/menu.test.ts src/shared/config/productRoleJourneys.test.ts src/widgets/AppLayout.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd medkernel-backend && mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,DefaultPermissionPolicyTest,PermissionDimensionModelTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；浏览器烟测 `/knowledge/institution`、`/knowledge/production`、`/advanced/ai-workflows`、`/knowledge/governance` 均非空渲染诚实权限失败态且无 console error。前端 lint 仅保留既有 warning。
@@ -94,7 +96,7 @@
 
 ## 下一步
 
-1. 继续 Phase 8：进入 T8.4 可信解释贯穿，确保每条 AI 产物显式展示 AI 生成标识、来源锚点、版本、模型模式和置信/降级信息。
+1. 继续 Phase 8：进入 T8.5 反馈回流闭环，把审核采纳/不采纳/误报/空白统一回流到新候选或治理任务，保持审核台只做审核、生产台只做生产。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

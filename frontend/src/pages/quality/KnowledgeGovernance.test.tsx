@@ -1140,6 +1140,15 @@ describe("KnowledgeGovernance", () => {
           targetPipeline: "TENANT_OVERLAY",
           domain: "DRUG",
           modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1193,6 +1202,15 @@ describe("KnowledgeGovernance", () => {
           targetPipeline: "TENANT_OVERLAY",
           domain: "DRUG",
           modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1210,6 +1228,13 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖")).toBeInTheDocument();
     expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
+    expect(screen.getAllByText("B2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("claude-opus-4").length).toBeGreaterThan(0);
+    expect(screen.getByText("prompt:aikstd13-v1")).toBeInTheDocument();
+    expect(screen.getByText("tool:submit-candidate-v1")).toBeInTheDocument();
+    expect(screen.getAllByText("置信 0.87").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/source-fragment-candidate/).length).toBeGreaterThan(0);
   });
 
   it("shows the professional asset template matching the candidate domain for completeness review", async () => {

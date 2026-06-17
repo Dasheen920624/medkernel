@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.KnowledgeAssetSchemaValidator;
@@ -60,7 +61,7 @@ class KnowledgeProductionOrchestrationServiceTest {
         auditRecorder = mock(AuditRecorder.class);
         service = new KnowledgeProductionOrchestrationService(
             jobRepository, candidateRepository, candidateIntake, new KnowledgeAssetSchemaValidator(),
-            auditRecorder, new CandidateReviewRouter());
+            auditRecorder, new CandidateReviewRouter(), new ObjectMapper());
         when(jobRepository.save(any())).thenAnswer(inv -> {
             KnowledgeProductionJob j = inv.getArgument(0);
             return j.id() == null
@@ -87,7 +88,10 @@ class KnowledgeProductionOrchestrationServiceTest {
     }
 
     private KnowledgeAssetEnvelope envelope(String orgScope, VersionedAssetType type) {
-        String payload = "受控候选正文";
+        return envelopeWithPayload(orgScope, type, "受控候选正文");
+    }
+
+    private KnowledgeAssetEnvelope envelopeWithPayload(String orgScope, VersionedAssetType type, String payload) {
         return new KnowledgeAssetEnvelope(type, "discovery:SRC:v1:a", "主题", "run-1",
             List.of(new AssetSourceRef("SRC:v1:a", SourceAuthorityLevel.A_REGULATION)),
             SourceAuthorityLevel.A_REGULATION, null, null, KnowledgeRiskLevel.MEDIUM, orgScope,
@@ -325,6 +329,32 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(lineage.getValue().candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
         assertThat(lineage.getValue().tenantId()).isEqualTo(CUSTOMER);
         assertThat(lineage.getValue().riskLevel()).isEqualTo(KnowledgeRiskLevel.MEDIUM);
+    }
+
+    @Test
+    void submitCandidatePersistsOnlyDataMinimizedExplainEvidence() {
+        asTenant(CUSTOMER);
+        when(jobRepository.findByTenantIdAndJobCode(CUSTOMER, "job-1"))
+            .thenReturn(Optional.of(overlayJob(CUSTOMER, VersionedAssetType.KNOWLEDGE)));
+        when(candidateIntake.intake(any(), any(), any(), any())).thenReturn("staged:discovery:SRC:v1:a");
+        KnowledgeAssetEnvelope candidate = envelopeWithPayload(CUSTOMER, VersionedAssetType.KNOWLEDGE, """
+            {"modelTaskId":"task-42","modelMode":"B2","modelVersion":"claude-opus-4",
+             "promptVersion":"prompt:aikstd13-v1","toolVersion":"tool:submit-candidate-v1",
+             "sourceCitations":[{"anchor":"source-fragment-candidate","version":"sv-2026"}],
+             "confidence":0.91,"fallbackUsed":false,
+             "rawPrompt":"严禁落库的提示词原文","modelOutput":"严禁落库的模型原文","candidateBody":"严禁落库的候选正文"}
+            """);
+
+        service.submitCandidate("job-1", candidate, new MaterializationTarget(5L, null));
+
+        ArgumentCaptor<KnowledgeProductionCandidate> lineage =
+            ArgumentCaptor.forClass(KnowledgeProductionCandidate.class);
+        verify(candidateRepository).save(lineage.capture());
+        assertThat(lineage.getValue().explainJson())
+            .contains("\"modelTaskId\":\"task-42\"", "\"modelMode\":\"B2\"", "\"confidence\":0.91",
+                "source-fragment-candidate")
+            .doesNotContain("rawPrompt", "严禁落库的提示词原文", "modelOutput", "严禁落库的模型原文",
+                "candidateBody", "严禁落库的候选正文");
     }
 
     @Test
