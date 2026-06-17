@@ -11,6 +11,7 @@ const EXPERT_PERMISSIONS = new Set(["advanced.read", "system.debug"]);
 const EXPERT_MENU_KEYS = new Set([
   "provenance",
   "graph-explore",
+  "knowledge-production",
   "ai-workflows",
   "domestic-check",
   "dev-console",

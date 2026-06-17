@@ -3,8 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
 
-import KnowledgeGovernance from "./KnowledgeGovernance";
+import KnowledgeGovernance, {
+  InstitutionKnowledge,
+  KnowledgeProduction,
+} from "./KnowledgeGovernance";
 
 const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
 
@@ -179,7 +183,7 @@ const assetTemplates = [
   },
 ];
 
-function renderPage() {
+function renderPage(page: ReactElement = <KnowledgeGovernance />) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -189,9 +193,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <ConfigProvider>
-        <AntdApp>
-          <KnowledgeGovernance />
-        </AntdApp>
+        <AntdApp>{page}</AntdApp>
       </ConfigProvider>
     </QueryClientProvider>,
   );
@@ -561,7 +563,7 @@ describe("KnowledgeGovernance", () => {
         refetch: vi.fn(),
       });
 
-      renderPage();
+      renderPage(<InstitutionKnowledge />);
       expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
       await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
       expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
@@ -623,8 +625,7 @@ describe("KnowledgeGovernance", () => {
         refetch: vi.fn(),
       });
 
-      renderPage();
-      await user.click(screen.getByRole("tab", { name: "机构知识" }));
+      renderPage(<InstitutionKnowledge />);
       await user.click(screen.getByRole("button", { name: "发布机构版本" }));
 
       expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
@@ -778,11 +779,50 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
-  it("renders the knowledge production center with readiness, job, gate, triage, shadow and coexistence evidence", async () => {
-    const user = userEvent.setup();
+  it("keeps review desk focused on candidate review without institution or production tabs", () => {
     renderPage();
 
-    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
+    expect(screen.queryByText("机构知识血缘")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+  });
+
+  it("renders institution knowledge as a standalone maintenance entry", () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [{ ...realIdentity, tenantId: "t-1" }],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      refetch: refetchIdentities,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage(<InstitutionKnowledge />);
+
+    expect(screen.getByRole("heading", { name: "机构知识" })).toBeInTheDocument();
+    expect(screen.getByText("平台标准知识")).toBeInTheDocument();
+    expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
+    expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+  });
+
+  it("renders the knowledge production center as a standalone production entry", async () => {
+    renderPage(<KnowledgeProduction />);
 
     expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith({ producer: "API_MODEL" });
     expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 });
@@ -810,7 +850,6 @@ describe("KnowledgeGovernance", () => {
   });
 
   it("keeps the production center visible when downstream evidence queries partially fail", async () => {
-    const user = userEvent.setup();
     mockUseKnowledgeProductionGateResults.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -824,9 +863,7 @@ describe("KnowledgeGovernance", () => {
       error: new Error("影子评测接口断开"),
     });
 
-    renderPage();
-
-    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+    renderPage(<KnowledgeProduction />);
 
     expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
     expect(screen.getByText("生产证据部分读取失败")).toBeInTheDocument();
@@ -958,8 +995,7 @@ describe("KnowledgeGovernance", () => {
       error: undefined,
     });
 
-    renderPage();
-    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+    renderPage(<KnowledgeProduction />);
 
     expect(screen.getByText("Agent 进度与中止")).toBeInTheDocument();
     expect(screen.getByText("Agent 工具")).toBeInTheDocument();

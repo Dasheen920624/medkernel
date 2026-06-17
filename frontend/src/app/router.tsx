@@ -38,6 +38,8 @@ const InsuranceAudit = lazy(() => import("@/pages/quality/InsuranceAudit"));
 const QcEvalSets = lazy(() => import("@/pages/quality/QcEvalSets"));
 const QcEvalResults = lazy(() => import("@/pages/quality/QcEvalResults"));
 const KnowledgeGovernance = lazy(() => import("@/pages/quality/KnowledgeGovernance"));
+const InstitutionKnowledge = lazy(() => import("@/pages/quality/InstitutionKnowledge"));
+const KnowledgeProduction = lazy(() => import("@/pages/quality/KnowledgeProduction"));
 const DiagnosisKnowledgeMaintenance = lazy(
   () => import("@/pages/quality/DiagnosisKnowledgeMaintenance"),
 );
@@ -97,7 +99,9 @@ export function AppRouter() {
           <Route path="/qc/eval/sets" element={<QcEvalSets />} />
           <Route path="/qc/eval/results" element={<QcEvalResults />} />
           <Route path="/knowledge/governance" element={<KnowledgeGovernance />} />
+          <Route path="/knowledge/institution" element={<InstitutionKnowledge />} />
           <Route path="/knowledge/diagnosis" element={<DiagnosisKnowledgeMaintenance />} />
+          <Route path="/knowledge/production" element={<KnowledgeProduction />} />
 
           {/* 机构与安全治理 */}
           <Route path="/admin/users" element={<AdminUsers />} />

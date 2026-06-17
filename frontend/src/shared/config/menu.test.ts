@@ -3,12 +3,13 @@ import { menuSections } from "./menu";
 import { routeMetas } from "./routes";
 
 describe("menu config", () => {
-  it("matches the first-phase seven-domain information architecture", () => {
-    expect(menuSections).toHaveLength(7);
+  it("matches the split clinical runtime and knowledge production information architecture", () => {
+    expect(menuSections).toHaveLength(8);
     expect(menuSections.map((section) => [section.key, section.label])).toEqual([
       ["workbench", "工作台"],
       ["organization-people", "机构与人员"],
       ["knowledge-governance", "知识治理"],
+      ["knowledge-production", "知识生产"],
       ["clinical-collaboration", "临床协同"],
       ["quality-management", "质量管理"],
       ["compliance-security", "合规安全"],
@@ -56,6 +57,7 @@ describe("menu config", () => {
       expect.arrayContaining([
         "provenance",
         "graph-explore",
+        "knowledge-production",
         "ai-workflows",
         "domestic-check",
         "dev-console",
@@ -63,10 +65,10 @@ describe("menu config", () => {
     );
   });
 
-  it("locks the exact 30 customer primary entries", () => {
+  it("locks the exact 32 customer and production primary entries", () => {
     const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
 
-    expect(visibleTotal).toBe(30);
+    expect(visibleTotal).toBe(32);
     expect(
       menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
     ).toEqual([
@@ -76,6 +78,7 @@ describe("menu config", () => {
         "knowledge-governance",
         [
           "knowledge-governance",
+          "institution-knowledge",
           "diagnosis-knowledge",
           "config-packages",
           "terminology-mapping",
@@ -83,9 +86,9 @@ describe("menu config", () => {
           "pathway-templates",
           "provenance",
           "graph-explore",
-          "ai-workflows",
         ],
       ],
+      ["knowledge-production", ["knowledge-production", "ai-workflows"]],
       [
         "clinical-collaboration",
         [

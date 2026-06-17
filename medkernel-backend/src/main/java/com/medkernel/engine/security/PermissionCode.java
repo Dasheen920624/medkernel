@@ -135,7 +135,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：30 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
@@ -156,8 +156,12 @@ public enum PermissionCode {
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
     MENU_KNOWLEDGE_GOVERNANCE(
         "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
+    MENU_INSTITUTION_KNOWLEDGE(
+        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识"),
     MENU_DIAGNOSIS_KNOWLEDGE(
         "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识维护"),
+    MENU_KNOWLEDGE_PRODUCTION(
+        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产"),
     MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看人员与账号"),
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份来源"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计与证据"),
@@ -166,7 +170,7 @@ public enum PermissionCode {
     MENU_NOTIFICATION_SETTINGS("menu.notification-settings", PermissionDimension.MENU, Risk.LOW, "查看通知偏好"),
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
-    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看智能工作流"),
+    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
     MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化核验"),
     MENU_DEV_CONSOLE("menu.dev-console", PermissionDimension.MENU, Risk.LOW, "查看诊断工具");
 

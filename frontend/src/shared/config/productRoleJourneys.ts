@@ -65,8 +65,8 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     showLifecycle: false,
     primaryAction: { label: "审核发布平台知识", path: "/knowledge/governance" },
     highFrequencyActions: [
+      { label: "知识生产", path: "/knowledge/production" },
       { label: "配置包与发布", path: "/config/packages" },
-      { label: "术语与字典", path: "/terminology/mapping" },
       { label: "规则配置", path: "/rule/definitions" },
     ],
   }),
@@ -96,11 +96,11 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     summary: "创建机构派生知识，审阅差异并发布或恢复平台标准。",
     kind: "knowledge",
     showLifecycle: false,
-    primaryAction: { label: "审核发布机构知识", path: "/knowledge/governance" },
+    primaryAction: { label: "维护机构知识", path: "/knowledge/institution" },
     highFrequencyActions: [
+      { label: "知识审核与发布", path: "/knowledge/governance" },
       { label: "配置包与发布", path: "/config/packages" },
-      { label: "术语与字典", path: "/terminology/mapping" },
-      { label: "规则配置", path: "/rule/definitions" },
+      { label: "知识生产", path: "/knowledge/production" },
     ],
   }),
   journey("clinical-governor", {
@@ -194,7 +194,7 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     primaryAction: { label: "继续实施与验收", path: "/onboarding/guide" },
     highFrequencyActions: [
       { label: "服务机构", path: "/tenant/onboarding" },
-      { label: "人员与账号", path: "/admin/users" },
+      { label: "知识生产", path: "/knowledge/production" },
       { label: "系统接入", path: "/adapter/hub" },
     ],
   }),

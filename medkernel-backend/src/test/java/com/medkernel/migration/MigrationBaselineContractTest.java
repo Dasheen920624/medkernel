@@ -193,7 +193,8 @@ class MigrationBaselineContractTest {
         "V142__knowledge_acquisition.sql",
         "V143__knowledge_acquisition_schedule.sql",
         "V144__data_minimization_policy.sql",
-        "V145__engine_data_field_encryption.sql"
+        "V145__engine_data_field_encryption.sql",
+        "V146__knowledge_surface_menu_split.sql"
     );
 
     @Test
@@ -378,6 +379,20 @@ class MigrationBaselineContractTest {
                 .as("%s 诊断知识维护菜单权限必须进入系统权限目录", dialect)
                 .contains("'menu.diagnosis-knowledge'", "'MENU'", "'diagnosis-knowledge'", "'查看诊断知识维护'")
                 .contains("migration-v134");
+        }
+    }
+
+    @Test
+    void knowledgeSurfaceMenuSplitIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V146__knowledge_surface_menu_split.sql");
+            assertThat(ddl)
+                .as("%s 知识审核、机构知识和知识生产入口必须有独立菜单权限", dialect)
+                .contains("'menu.institution-knowledge'", "'MENU'", "'institution-knowledge'",
+                    "'查看机构知识'")
+                .contains("'menu.knowledge-production'", "'MENU'", "'knowledge-production'",
+                    "'查看知识生产'")
+                .contains("menu.ai-workflows", "查看模型能力", "migration-v146");
         }
     }
 

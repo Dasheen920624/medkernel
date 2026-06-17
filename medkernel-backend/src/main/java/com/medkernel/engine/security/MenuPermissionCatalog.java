@@ -17,7 +17,9 @@ import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
 import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
 import static com.medkernel.engine.security.PermissionCode.MENU_IDENTITY_BINDINGS;
 import static com.medkernel.engine.security.PermissionCode.MENU_IMPLEMENTATION_GUIDE;
+import static com.medkernel.engine.security.PermissionCode.MENU_INSTITUTION_KNOWLEDGE;
 import static com.medkernel.engine.security.PermissionCode.MENU_INSURANCE_AUDIT;
+import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_PRODUCTION;
 import static com.medkernel.engine.security.PermissionCode.MENU_MPI;
 import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATIONS;
 import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATION_SETTINGS;
@@ -39,7 +41,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 30 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>入口权限只承认 32 个按业务域分类的主导航、1 个页头和 1 个个人入口。
  */
 public final class MenuPermissionCatalog {
 
@@ -53,6 +55,8 @@ public final class MenuPermissionCatalog {
             MENU_IDENTITY_BINDINGS, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "knowledge-governance", "知识审核与发布",
             MENU_KNOWLEDGE_GOVERNANCE, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "institution-knowledge", "机构知识",
+            MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "diagnosis-knowledge", "诊断知识维护",
             MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "config-packages", "配置包与发布",
@@ -67,7 +71,9 @@ public final class MenuPermissionCatalog {
             MENU_PROVENANCE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "graph-explore", "知识关系",
             MENU_GRAPH_EXPLORE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "ai-workflows", "智能工作流",
+        menu("knowledge-production", "knowledge-production", "知识生产",
+            MENU_KNOWLEDGE_PRODUCTION, MenuPlacement.PRIMARY),
+        menu("knowledge-production", "ai-workflows", "模型能力",
             MENU_AI_WORKFLOWS, MenuPlacement.PRIMARY),
         menu("clinical-collaboration", "mpi", "患者索引", MENU_MPI, MenuPlacement.PRIMARY),
         menu("clinical-collaboration", "patient-pathways", "患者路径",

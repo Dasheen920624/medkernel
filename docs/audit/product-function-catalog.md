@@ -6,9 +6,9 @@
 
 ## 1. 库存结论
 
-- 前端路由：42 项。
-- 后端菜单：32 项。
-- 页面与页内组件：46 项。
+- 前端路由：44 项。
+- 后端菜单：34 项。
+- 页面与页内组件：48 项。
 - 后端控制器：91 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
@@ -22,7 +22,7 @@
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
-| SPLIT | 2 |
+| SPLIT | 8 |
 
 ## 2. 前端路由与客户任务裁决
 
@@ -111,10 +111,16 @@
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
-| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
+| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回 |
+<!-- capability:route:route@%2Fknowledge%2Finstitution decision=SPLIT -->
+<!-- route:/knowledge/institution -->
+| `/knowledge/institution` | 机构知识 | knowledge-governance | institution-knowledge | primary | SPLIT | 知识治理 | 机构知识 | 从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准 |
 <!-- capability:route:route@%2Fknowledge%2Fdiagnosis decision=SPLIT -->
 <!-- route:/knowledge/diagnosis -->
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |
+<!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
+<!-- route:/knowledge/production -->
+| `/knowledge/production` | 知识生产 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -141,7 +147,7 @@
 | `/advanced/graph` | 知识关系 | knowledge-governance | graph-explore | primary | MOVE | 知识治理 | 知识关系 | 查询可重建的知识关系投影 |
 <!-- capability:route:route@%2Fadvanced%2Fai-workflows decision=MOVE -->
 <!-- route:/advanced/ai-workflows -->
-| `/advanced/ai-workflows` | 智能工作流 | knowledge-governance | ai-workflows | primary | MOVE | 知识治理 | 智能工作流 | 查看模型能力、任务和诚实降级状态 |
+| `/advanced/ai-workflows` | 模型能力 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力 | 查看模型能力、任务和诚实降级状态 |
 <!-- capability:route:route@%2Fadvanced%2Fdomestic decision=MOVE -->
 <!-- route:/advanced/domestic -->
 | `/advanced/domestic` | 国产化核验 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化核验 | 核查国产化适配与部署证据 |
@@ -174,6 +180,9 @@
 <!-- capability:menu:menu@knowledge-governance decision=MOVE -->
 <!-- menu:knowledge-governance -->
 | `knowledge-governance` | 知识审核与发布 | `knowledge-governance` | primary | `MENU_KNOWLEDGE_GOVERNANCE` | MOVE | 知识治理 | 知识审核与发布 |
+<!-- capability:menu:menu@institution-knowledge decision=SPLIT -->
+<!-- menu:institution-knowledge -->
+| `institution-knowledge` | 机构知识 | `knowledge-governance` | primary | `MENU_INSTITUTION_KNOWLEDGE` | SPLIT | 知识治理 | 机构知识 |
 <!-- capability:menu:menu@diagnosis-knowledge decision=SPLIT -->
 <!-- menu:diagnosis-knowledge -->
 | `diagnosis-knowledge` | 诊断知识维护 | `knowledge-governance` | primary | `MENU_DIAGNOSIS_KNOWLEDGE` | SPLIT | 知识治理 | 诊断知识维护 |
@@ -195,9 +204,12 @@
 <!-- capability:menu:menu@graph-explore decision=MOVE -->
 <!-- menu:graph-explore -->
 | `graph-explore` | 知识关系 | `knowledge-governance` | primary | `MENU_GRAPH_EXPLORE` | MOVE | 知识治理 | 知识关系 |
+<!-- capability:menu:menu@knowledge-production decision=SPLIT -->
+<!-- menu:knowledge-production -->
+| `knowledge-production` | 知识生产 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
 <!-- capability:menu:menu@ai-workflows decision=MOVE -->
 <!-- menu:ai-workflows -->
-| `ai-workflows` | 智能工作流 | `knowledge-governance` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识治理 | 智能工作流 |
+| `ai-workflows` | 模型能力 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力 |
 <!-- capability:menu:menu@mpi decision=MOVE -->
 <!-- menu:mpi -->
 | `mpi` | 患者索引 | `clinical-collaboration` | primary | `MENU_MPI` | MOVE | 临床协同 | 患者索引 |
@@ -269,7 +281,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2FNotFound.tsx decision=KEEP -->
 | `frontend/src/pages/NotFound.tsx` | `*` | KEEP | 系统反馈 | 未找到页面 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FAiWorkflows.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识治理 | 智能工作流 |
+| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDevConsole.tsx decision=MOVE -->
 | `frontend/src/pages/advanced/DevConsole.tsx` | `/advanced/dev-console` | MOVE | 系统运维 | 诊断工具 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDomesticCheck.tsx decision=MOVE -->
@@ -314,10 +326,14 @@
 | `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgePanel.tsx decision=MERGE -->
 | `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInstitutionKnowledge.tsx decision=SPLIT -->
+| `frontend/src/pages/quality/InstitutionKnowledge.tsx` | `/knowledge/institution` | SPLIT | 知识治理 | 机构知识 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FInsuranceAudit.tsx decision=RENAME -->
 | `frontend/src/pages/quality/InsuranceAudit.tsx` | `/qc/insurance` | RENAME | 质量管理 | 医保审核 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FKnowledgeGovernance.tsx decision=MOVE -->
 | `frontend/src/pages/quality/KnowledgeGovernance.tsx` | `/knowledge/governance` | MOVE | 知识治理 | 知识审核与发布 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FKnowledgeProduction.tsx decision=SPLIT -->
+| `frontend/src/pages/quality/KnowledgeProduction.tsx` | `/knowledge/production` | SPLIT | 知识生产 | 知识生产 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcAlerts.tsx decision=RENAME -->
 | `frontend/src/pages/quality/QcAlerts.tsx` | `/qc/alerts` | RENAME | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcDashboard.tsx decision=RENAME -->

@@ -24,7 +24,6 @@ import {
   Space,
   Statistic,
   Table,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
@@ -244,6 +243,12 @@ const EMPTY_RETIREMENT_FORM: RetirementFormValues = {
   migrationGuidance: "",
 };
 
+type KnowledgeGovernanceMode = "review" | "institution" | "production";
+
+interface KnowledgeGovernanceProps {
+  mode?: KnowledgeGovernanceMode;
+}
+
 function versionTitle(version?: KnowledgeAssetVersion) {
   if (!version) return "未返回版本";
   return version.versionLabel || `v${version.versionNo}`;
@@ -277,7 +282,15 @@ function customizationStatusColor(status: string) {
   return "default";
 }
 
-export default function KnowledgeGovernance() {
+export function InstitutionKnowledge() {
+  return <KnowledgeGovernance mode="institution" />;
+}
+
+export function KnowledgeProduction() {
+  return <KnowledgeGovernance mode="production" />;
+}
+
+export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovernanceProps) {
   const { message, modal } = AntdApp.useApp();
   const [domain, setDomain] = useState<KnowledgeDomain>("GUIDELINE");
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
@@ -710,6 +723,14 @@ export default function KnowledgeGovernance() {
     return "LOCAL_ORIGINAL";
   }
 
+  const platformStandardIdentities = useMemo(
+    () =>
+      identities.filter(
+        (identity) => identity.tenantId === platformTenantId && identity.status === "ACTIVE",
+      ),
+    [identities],
+  );
+
   const identityColumns: ColumnsType<KnowledgeIdentity> = [
     {
       title: "知识身份",
@@ -781,6 +802,59 @@ export default function KnowledgeGovernance() {
           )}
         </Space>
       ),
+    },
+  ];
+
+  const institutionIdentityColumns: ColumnsType<KnowledgeIdentity> = [
+    {
+      title: "平台标准",
+      dataIndex: "subject",
+      key: "subject",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.subject}</Text>
+          <Text type="secondary">{record.identityCode}</Text>
+          <Tag color="blue">{knowledgeSourceLabel("PLATFORM_STANDARD")}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "领域 / 风险",
+      key: "domain",
+      render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          <Tag>{knowledgeDomainLabel(record.domain)}</Tag>
+          <Tag>{lifecycleStatusLabel(record.status)}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "适用范围",
+      key: "scope",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.specialtyId || "未限定专科"}</Text>
+          <Text type="secondary">机构版本继承平台证据链后单独审核发布</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_, record) =>
+        canCustomize ? (
+          <Button
+            icon={<BranchesOutlined />}
+            onClick={() => {
+              setCustomizeIdentity(record);
+              customizeForm.setFieldsValue({ applicableScope: "ALL" });
+            }}
+          >
+            定制为本机构版本
+          </Button>
+        ) : (
+          <Text type="secondary">无机构定制权限</Text>
+        ),
     },
   ];
 
@@ -1598,10 +1672,109 @@ export default function KnowledgeGovernance() {
           message="默认复用平台标准，只有确需调整时才创建机构版本"
           description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
+        <Card title="平台标准知识">
+          <Table
+            rowKey="id"
+            columns={institutionIdentityColumns}
+            dataSource={platformStandardIdentities}
+            locale={{ emptyText: "当前筛选下暂无可派生的平台标准" }}
+            pagination={{
+              current: identityPage,
+              pageSize: identitiesQuery.data?.size ?? 20,
+              total: identitiesQuery.data?.total ?? 0,
+              showSizeChanger: false,
+              hideOnSinglePage: true,
+              onChange: setIdentityPage,
+            }}
+            size="middle"
+          />
+        </Card>
         {customizationListContent}
       </Space>
     );
   }
+
+  const reviewContent = (
+    <Space direction="vertical" size="large" className="mk-full-width">
+      <Card title="默认筛选">
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={8}>
+            <Select
+              aria-label="知识域"
+              className="mk-full-width"
+              value={domain}
+              options={KNOWLEDGE_DOMAIN_OPTIONS}
+              onChange={(value) => {
+                setDomain(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Select
+              aria-label="身份状态"
+              className="mk-full-width"
+              value={status}
+              options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
+              onChange={(value) => {
+                setStatus(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Input.Search
+              aria-label="知识关键词"
+              placeholder="按主题或编码搜索"
+              allowClear
+              onSearch={(value) => {
+                setKeyword(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      {pageState === "ready" ? (
+        <>
+          <Card>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <Statistic title="待审核候选总数" value={pendingCount} prefix={<AuditOutlined />} />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic title="冲突候选" value={conflictCount} />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic title="高风险候选" value={highRiskCount} />
+              </Col>
+            </Row>
+          </Card>
+
+          <Card title="知识身份台账">
+            <Table
+              rowKey="id"
+              columns={identityColumns}
+              dataSource={identities}
+              pagination={{
+                current: identityPage,
+                pageSize: identitiesQuery.data?.size ?? 20,
+                total: identitiesQuery.data?.total ?? 0,
+                showSizeChanger: false,
+                onChange: setIdentityPage,
+              }}
+              size="middle"
+            />
+          </Card>
+
+          <Card title="待审候选">{candidatePanel}</Card>
+        </>
+      ) : (
+        <PageState state={pageState} {...pageStateProps} />
+      )}
+    </Space>
+  );
 
   let customizationActionMessage = "恢复后新请求将重新使用平台标准";
   if (customizationAction?.type === "publish") {
@@ -1611,127 +1784,69 @@ export default function KnowledgeGovernance() {
         : "发布后将接管所选机构的知识解析";
   }
 
+  const pageMeta = {
+    review: {
+      title: "知识审核与发布",
+      description: "统一审核知识候选、发布结论和替换恢复",
+    },
+    institution: {
+      title: "机构知识",
+      description: "维护院内覆盖、机构定制、换基线和恢复平台标准",
+    },
+    production: {
+      title: "知识生产",
+      description: "核查生产流水线 readiness、job、门禁、8 态分流和影子证据",
+    },
+  }[mode];
+
+  let pageContent: ReactNode = reviewContent;
+  if (mode === "institution") {
+    pageContent = institutionKnowledgeContent;
+  } else if (mode === "production") {
+    pageContent = productionCenterContent;
+  }
+
+  let pageExtras: ReactNode = (
+    <Button
+      aria-label="刷新知识审核与发布"
+      icon={<ReloadOutlined />}
+      onClick={() => {
+        void identitiesQuery.refetch();
+        void candidatesQuery.refetch();
+      }}
+    >
+      刷新
+    </Button>
+  );
+  if (mode === "institution") {
+    pageExtras = (
+      <Button
+        aria-label="刷新机构知识"
+        icon={<ReloadOutlined />}
+        onClick={() => void customizationsQuery.refetch()}
+      >
+        刷新
+      </Button>
+    );
+  } else if (mode === "production") {
+    pageExtras = (
+      <Button
+        aria-label="刷新知识生产"
+        icon={<ReloadOutlined />}
+        onClick={() => {
+          void productionReadinessQuery.refetch();
+          void productionJobsQuery.refetch();
+        }}
+      >
+        刷新
+      </Button>
+    );
+  }
+
   return (
     <>
-      <PageShell
-        title="知识审核与发布"
-        description="统一审核知识候选、发布结论和替换恢复"
-        extras={
-          <Button
-            aria-label="刷新知识审核与发布"
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              void identitiesQuery.refetch();
-              void candidatesQuery.refetch();
-            }}
-          >
-            刷新
-          </Button>
-        }
-      >
-        <Tabs
-          items={[
-            {
-              key: "review",
-              label: "候选审核",
-              children: (
-                <Space direction="vertical" size="large" className="mk-full-width">
-                  <Card title="默认筛选">
-                    <Row gutter={[16, 16]}>
-                      <Col xs={24} md={8}>
-                        <Select
-                          aria-label="知识域"
-                          className="mk-full-width"
-                          value={domain}
-                          options={KNOWLEDGE_DOMAIN_OPTIONS}
-                          onChange={(value) => {
-                            setDomain(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Select
-                          aria-label="身份状态"
-                          className="mk-full-width"
-                          value={status}
-                          options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
-                          onChange={(value) => {
-                            setStatus(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Input.Search
-                          aria-label="知识关键词"
-                          placeholder="按主题或编码搜索"
-                          allowClear
-                          onSearch={(value) => {
-                            setKeyword(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                    </Row>
-                  </Card>
-
-                  {pageState === "ready" ? (
-                    <>
-                      <Card>
-                        <Row gutter={[16, 16]}>
-                          <Col xs={24} md={8}>
-                            <Statistic
-                              title="待审核候选总数"
-                              value={pendingCount}
-                              prefix={<AuditOutlined />}
-                            />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Statistic title="冲突候选" value={conflictCount} />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Statistic title="高风险候选" value={highRiskCount} />
-                          </Col>
-                        </Row>
-                      </Card>
-
-                      <Card title="知识身份台账">
-                        <Table
-                          rowKey="id"
-                          columns={identityColumns}
-                          dataSource={identities}
-                          pagination={{
-                            current: identityPage,
-                            pageSize: identitiesQuery.data?.size ?? 20,
-                            total: identitiesQuery.data?.total ?? 0,
-                            showSizeChanger: false,
-                            onChange: setIdentityPage,
-                          }}
-                          size="middle"
-                        />
-                      </Card>
-
-                      <Card title="待审候选">{candidatePanel}</Card>
-                    </>
-                  ) : (
-                    <PageState state={pageState} {...pageStateProps} />
-                  )}
-                </Space>
-              ),
-            },
-            {
-              key: "institution",
-              label: "机构知识",
-              children: institutionKnowledgeContent,
-            },
-            {
-              key: "production",
-              label: "知识生产",
-              children: productionCenterContent,
-            },
-          ]}
-        />
+      <PageShell title={pageMeta.title} description={pageMeta.description} extras={pageExtras}>
+        {pageContent}
       </PageShell>
 
       <Modal

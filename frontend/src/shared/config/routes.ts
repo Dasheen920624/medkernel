@@ -9,6 +9,7 @@ export type RouteSectionKey =
   | "workbench"
   | "organization-people"
   | "knowledge-governance"
+  | "knowledge-production"
   | "clinical-collaboration"
   | "quality-management"
   | "compliance-security"
@@ -82,6 +83,7 @@ export const routeSections: RouteSectionMeta[] = [
   { key: "workbench", label: "工作台" },
   { key: "organization-people", label: "机构与人员" },
   { key: "knowledge-governance", label: "知识治理" },
+  { key: "knowledge-production", label: "知识生产" },
   { key: "clinical-collaboration", label: "临床协同" },
   { key: "quality-management", label: "质量管理" },
   { key: "compliance-security", label: "合规安全" },
@@ -818,12 +820,11 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "知识审核与发布",
     placement: "primary",
     navigationOrder: 1,
-    requiredPermissions: ["menu.knowledge-governance", "knowledge.read"],
+    requiredPermissions: ["menu.knowledge-governance", "knowledge.review"],
     requiredRoles: [
       "platform-governance-admin",
       "platform-knowledge-governor",
       "knowledge-governor",
-      "implementation-operator",
       "clinical-governor",
       "quality-governor",
       "medication-safety-user",
@@ -835,6 +836,33 @@ const routeMetaInputs: RouteMetaInput[] = [
       "large",
     ),
     pageType: "review",
+    stateMachine: "config",
+  },
+  {
+    path: "/knowledge/institution",
+    title: "机构知识",
+    breadcrumb: ["知识治理", "机构知识"],
+    requireAuth: true,
+    sectionKey: "knowledge-governance",
+    menuKey: "institution-knowledge",
+    menuLabel: "机构知识",
+    placement: "primary",
+    navigationOrder: 1.25,
+    requiredPermissions: ["menu.institution-knowledge", "knowledge.write"],
+    requiredRoles: [
+      "platform-governance-admin",
+      "platform-knowledge-governor",
+      "organization-admin",
+      "knowledge-governor",
+      "clinical-governor",
+    ],
+    experience: readonlyExperience(
+      "机构知识治理员 / 临床治理负责人",
+      "维护院内覆盖、机构定制、换基线和恢复平台标准",
+      "机构知识血缘",
+      "large",
+    ),
+    pageType: "configuration",
     stateMachine: "config",
   },
   {
@@ -863,6 +891,32 @@ const routeMetaInputs: RouteMetaInput[] = [
     ),
     pageType: "configuration",
     stateMachine: "config",
+  },
+  {
+    path: "/knowledge/production",
+    title: "知识生产",
+    breadcrumb: ["知识生产", "生产中心"],
+    requireAuth: true,
+    sectionKey: "knowledge-production",
+    menuKey: "knowledge-production",
+    menuLabel: "知识生产",
+    placement: "primary",
+    navigationOrder: 1,
+    requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
+    requiredRoles: [
+      "platform-governance-admin",
+      "platform-knowledge-governor",
+      "knowledge-governor",
+      "implementation-operator",
+      "integration-operator",
+    ],
+    experience: readonlyExperience(
+      "平台知识治理员 / 机构知识治理员 / 实施运维员",
+      "核查知识生产 readiness、job、门禁、8 态分流和影子证据",
+      "生产 job",
+      "large",
+    ),
+    pageType: "system",
   },
   {
     path: "/admin/users",
@@ -1026,23 +1080,21 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/advanced/ai-workflows",
-    title: "智能工作流",
-    breadcrumb: ["知识治理", "智能工作流"],
+    title: "模型能力",
+    breadcrumb: ["知识生产", "模型能力"],
     requireAuth: true,
-    sectionKey: "knowledge-governance",
+    sectionKey: "knowledge-production",
     menuKey: "ai-workflows",
-    menuLabel: "智能工作流",
+    menuLabel: "模型能力",
     placement: "primary",
-    navigationOrder: 8,
+    navigationOrder: 2,
     requiredPermissions: ["menu.ai-workflows", "llm.read"],
     requiredRoles: [
-      "implementation-operator",
-      "integration-operator",
+      "platform-governance-admin",
       "platform-knowledge-governor",
       "knowledge-governor",
-      "clinical-governor",
-      "platform-governance-admin",
-      "organization-admin",
+      "implementation-operator",
+      "integration-operator",
     ],
     experience: readonlyExperience(
       "平台知识治理员 / 机构知识治理员 / 实施运维员",
