@@ -55,6 +55,11 @@
 - B2 外部失败但 B1 本地模型真实成功时不再被误判为 B0 跳过；候选继续进入同一 `CandidateSafetyGateService → triage → shadow → submitCandidate` 链，并在 payload 中保留 `fallbackUsed/fallbackReason` 降级证据。B0、非 `SUCCEEDED`、readiness 未齐或模型输出非 JSON 对象仍阻断/跳过，不产伪候选。
 - 本轮仅收口模型候选真实化语义，不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
 
+**2026-06-17 T5.8 降级路径预验（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 对非成功 B2/B1 模型任务返回 `模型网关未成功(status=..., mode=...)` 跳过原因，保留 provider 失败码与模型模式；只有真实 B0 模式才写“降级 B0”，避免把 provider 断连/超时伪装成 B0 成功模板链。
+- 知识生产中心在 readiness/job 主证据可读取时，候选血缘、门禁结果、8 态分流、影子评测、共存替换提醒任一下游 evidence 查询失败，会显示“生产证据部分读取失败”和分项错误；页面不展示 AI 生成按钮，也不以空表掩盖断连。
+- 本轮为 DEGRADE-01 预验收口，仍不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
 - [ ] FR-2 四生产器可插拔：① API 大模型自主（B2 外部，经 [LLM-01](LLM-01.md) 网关）② Agent 工具协助（经 [DATASVC-01](DATASVC-01.md) MCP/CLI 回写，契约见 [AIK-STD-14](AIK-STD-14.md)）③ 本地大模型（B1 本地/国产化）④ 人工录入/批量导入；新增生产器不破坏框架。

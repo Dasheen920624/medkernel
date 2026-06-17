@@ -1155,6 +1155,23 @@ export default function KnowledgeGovernance() {
     const productionTriageResults = productionTriageResultsQuery.data ?? [];
     const productionShadowRuns = productionShadowRunsQuery.data ?? [];
     const coexistence = productionCoexistenceQuery.data;
+    const productionEvidenceErrors = [
+      productionCandidatesQuery.isError
+        ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
+        : null,
+      productionGateResultsQuery.isError
+        ? `门禁结果：${getApiErrorMessage(productionGateResultsQuery.error, "门禁结果读取失败")}`
+        : null,
+      productionTriageResultsQuery.isError
+        ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
+        : null,
+      productionShadowRunsQuery.isError
+        ? `影子评测：${getApiErrorMessage(productionShadowRunsQuery.error, "影子评测读取失败")}`
+        : null,
+      productionCoexistenceQuery.isError
+        ? `共存替换提醒：${getApiErrorMessage(productionCoexistenceQuery.error, "共存替换提醒读取失败")}`
+        : null,
+    ].filter((message): message is string => Boolean(message));
     const triageCounts = new Map<string, number>();
     productionTriageResults.forEach((row) => {
       triageCounts.set(row.triageState, (triageCounts.get(row.triageState) ?? 0) + 1);
@@ -1259,6 +1276,21 @@ export default function KnowledgeGovernance() {
             />
           </Space>
         </Card>
+
+        {productionEvidenceErrors.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="生产证据部分读取失败"
+            description={
+              <Space direction="vertical" size={0}>
+                {productionEvidenceErrors.map((message) => (
+                  <Text key={message}>{message}</Text>
+                ))}
+              </Space>
+            }
+          />
+        ) : null}
 
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={12}>

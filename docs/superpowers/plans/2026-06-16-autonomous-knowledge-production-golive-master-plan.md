@@ -194,7 +194,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T5.5 **OPT-09** 数据最小化策略引擎（字段白名单+脱敏+审批）。已补 V144 五方言策略字段（脱敏规则、审批阈值、不可关闭护栏）、`/api/v1/data-minimization/policies/model-egress/*` 正式入口、字段级 `MASK_ALL/MASK/GENERALIZE/NULLIFY/NONE` 脱敏算子、可配置审批阈值与 LLM-03 统一消费；策略缺失仍按最严阻断并降级 B0。
   - [x] T5.6 **API-12** 模型能力网关 API 收口勾卡。已补前端共享 API 契约 `toolVersion` 与 B0 replay hook，确认 `status/catalog/tasks/retry/replay/policies` 端点、权限和三元组口径一致；新增任务查询/重试跨租户拒绝证据，API-12 与 LLM-01 backlog 收口为 done。
   - [x] T5.7 **候选真实化**：`SourceCandidateGenerator`/`ModelKnowledgeProducer` 用真实锚点 + 模型增强填充逻辑字段（带 AI 标识+锚点+hash+三元组），替换 B0 留白；readiness 未过/provider 失败/schema 不合格→诚实降级不产伪候选。已修正模型候选 payload 不落生产提示正文、仅留 `promptInputHash`；B2→B1 真实本地模型成功不再被误判为 B0 跳过，并随候选记录 fallback 证据。
-  - [ ] T5.8 **降级路径实现 + 验收**：模型 off→B0；运行侧只本地/B0；六态齐（DEGRADE-01 预验）。
+  - [x] T5.8 **降级路径实现 + 验收**：模型 off→B0；运行侧只本地/B0；六态齐（DEGRADE-01 预验）。已补非成功 B2/B1 模型任务的诚实 `status/mode` 跳过原因，避免误写为 B0；知识生产中心对候选血缘/门禁/8 态/影子/共存下游 evidence 局部失败显示分项告警，不以空表掩盖断连。
 - **验收**：配齐前置后模型真产候选进统一链 + 缺任一前置结构化阻断 + 降级矩阵全绿 + 候选无伪造。
 
 #### Phase 6 · 院内覆盖管道全实现（4d）

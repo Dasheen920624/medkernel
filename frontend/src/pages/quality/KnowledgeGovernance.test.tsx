@@ -809,6 +809,32 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
+  it("keeps the production center visible when downstream evidence queries partially fail", async () => {
+    const user = userEvent.setup();
+    mockUseKnowledgeProductionGateResults.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("门禁接口断开"),
+    });
+    mockUseKnowledgeProductionShadowRuns.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("影子评测接口断开"),
+    });
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+
+    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
+    expect(screen.getByText("生产证据部分读取失败")).toBeInTheDocument();
+    expect(screen.getByText(/门禁结果：门禁接口断开/)).toBeInTheDocument();
+    expect(screen.getByText(/影子评测：影子评测接口断开/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
   it("shows agent progress, 8-state queue, side-by-side coexistence and a cancellable job action", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({

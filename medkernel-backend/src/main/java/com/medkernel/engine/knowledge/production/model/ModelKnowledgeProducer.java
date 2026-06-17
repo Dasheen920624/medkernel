@@ -167,9 +167,13 @@ public class ModelKnowledgeProducer {
             return "模型网关未返回结果，未生成候选";
         }
         String reason = task.fallbackReason() == null || task.fallbackReason().isBlank()
-            ? "模型网关降级 B0，未生成模型候选"
+            ? "模型网关未返回可用模型输出"
             : task.fallbackReason();
-        return "模型网关降级 B0，未生成模型候选：" + reason;
+        if ("B0".equalsIgnoreCase(task.modelMode())) {
+            return "模型网关降级 B0，未生成模型候选：" + reason;
+        }
+        return "模型网关未成功(status=" + task.status() + ", mode=" + task.modelMode()
+            + ")，未生成模型候选：" + reason;
     }
 
     private JsonNode parseModelOutput(ModelTaskResponse task) {

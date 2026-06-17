@@ -224,6 +224,24 @@ class ModelKnowledgeProducerTest {
         verify(production, never()).submitCandidate(any(), any(), any());
     }
 
+    @Test
+    void failedProviderTaskSkipsWithHonestStatusReason() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
+            "task-provider-timeout", "FAILED", "{\"error\":\"timeout\"}", "B2", "claude-opus-4",
+            "prompt:aikstd13-v1", "tool:submit-candidate-v1", "[]", null, null, false,
+            "PROVIDER_TIMEOUT：外部模型超时", 2_000L, "trace-model"));
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.summary().candidates()).isEmpty();
+        assertThat(result.summary().skipped()).singleElement()
+            .satisfies(skipped -> assertThat(skipped.reason())
+                .contains("模型网关未成功", "FAILED", "B2", "PROVIDER_TIMEOUT")
+                .doesNotContain("降级 B0"));
+        verify(gateService, never()).evaluate(any(), any());
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
     private ModelKnowledgeProductionRequest request() {
         return new ModelKnowledgeProductionRequest(
             CAPABILITY,

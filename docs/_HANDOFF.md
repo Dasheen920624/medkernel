@@ -31,7 +31,7 @@
   - V143 五方言新增调度字段：`schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧数据回填。
   - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
   - DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 Agent/MCP/CLI 的结构化公域资料载荷转入既有获取编排；CLI 已接 `agent fetch-public-material`，MCP 沿动态工具目录暴露；D3/D4/D5 入参拒绝。
-- Phase 5 当前：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵与版本三元组治理。
+- Phase 5 已收口：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵、版本三元组、质量评测、出域最小化、候选真实化与降级路径预验。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
@@ -41,6 +41,7 @@
   - T5.5 运行时护栏已接入 `ModelEgressGuard`：字段白名单外继续阻断，字段级 `MASK`/`MASK_ALL`/`GENERALIZE`/`NULLIFY`/`NONE` 策略在出域前执行；缺省或异常规则按最严 `MASK_ALL` 处理；审批门槛按 `LOW/MEDIUM/HIGH` 可配置，命中门槛且无有效审批时仍返回 `ENG_LLM_007`，不绕过既有证据链。
   - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
   - T5.7 已补候选真实化语义：`ModelKnowledgeProducer` 成功模型输出只产 DRAFT 候选并走同一门禁/分流/影子/提交链；payload 不落生产提示正文，仅落 `promptInputHash`、AI 标识、任务 ID、模型模式、prompt/tool/model 三元组、来源引用、模型输出和真实内容 hash；B2→B1 本地模型真实成功可入链并保留 fallback 证据，B0/非成功/readiness 未齐/schema 不合格仍跳过或阻断不产伪候选。
+  - T5.8 已补降级路径预验证：非成功 B2/B1 模型任务返回诚实 `status/mode` 跳过原因，不再误写成 B0 降级；真正 B0 仍明确标注 B0。知识生产中心 readiness/job 主证据可见时，候选血缘、门禁、8 态、影子评测、共存提醒任一下游 evidence 读取失败会显示“生产证据部分读取失败”与分项错误，不用空表掩盖断连。
 
 ## 最新验证
 
@@ -56,6 +57,7 @@
 - Phase 5 T5.5 提交前验证：`mvn -q -Dtest=ModelEgressGuardTest,ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；OPT-09 旧 pending 口径、T5.5 未完成勾选、旧迁移版本哨兵、旧 data-min-policy 路径扫描无命中。
 - Phase 5 T5.6 提交前验证：`cd frontend && npm test -- hooks.test.ts` 红灯命中缺失 `useReplayModelTask` 后转绿；`cd frontend && npm run typecheck`、`mvn -q -Dtest=ModelGatewayServiceTest test`、`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,ModelCapabilityDefinitionRepositoryTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；API-12/LLM-01 pending 口径和前端缺失 `toolVersion` 扫描无命中。
 - Phase 5 T5.7 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 prompt 原文落 payload 与 B1 fallback 被跳过后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.7 未勾、prompt 原文落候选 payload、B1 fallback 误跳过旧口径扫描无命中。
+- Phase 5 T5.8 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 provider 非成功 B2 被误写 B0 降级后转绿；`cd frontend && npm test -- KnowledgeGovernance.test.tsx` 红灯命中下游 evidence 失败无局部告警后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest,ModelGatewayServiceTest,ModelFallbackMatrixTest test`、`cd frontend && npm test -- KnowledgeGovernance.test.tsx AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0。
 
 ## 仍不可宣称
 
@@ -66,7 +68,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5 T5.8：降级路径实现 + 验收；围绕模型 off、provider 断连/限流/结构化失败、出域阻断、readiness 未过、B1/B2 fallback、B0 模板链路和前端六态证据做全链路核查，确保降级时诚实跳过/阻断、不产伪候选且生产中心展示清楚。
+1. 继续 Phase 6 T6.1：院内上传增强；核查 `DocumentParseController` 上传是否接 P1 受管资料库存储层，确保原件落本租户 scope、解析出的候选归院内覆盖管道且不反写平台主源。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 
