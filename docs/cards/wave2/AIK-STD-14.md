@@ -24,7 +24,8 @@
 - CLI 增加 `agent submit-candidate <payloadJson>`，MCP `tools/list` schema 增加结构化 `payload`，二者只调受控工具入口，不直连库。
 **PR2（生产中心只读接入，分支 `codex/wave2-knowledge-model-readiness`）**：
 - 知识生产 tab 已展示 `AGENT_TOOL`/模型/人工 job 的只读证据面：生产 job、候选血缘、门禁、8 态分流、影子评测、共存替换提醒；Agent 回写候选能在同一生产链路中被看见。
-- **Task 22 工程验收已完成**：受控回写的 schema/锚点/hash/AI 标识、D3/D4/D5 与疑似患者字段拒绝、幂等复用、控制器权限、CLI/MCP payload 均已验证通过。仍待后续补强：Agent 专属任务中止/纠偏、会话级 prompt/tool 版本审计明细和外调最小化证据尚未完整做成操作面。
+- **Task 22 工程验收已完成**：受控回写的 schema/锚点/hash/AI 标识、D3/D4/D5 与疑似患者字段拒绝、幂等复用、控制器权限、CLI/MCP payload 均已验证通过。
+**2026-06-17 前端 Chunk7**：知识生产 tab 已补 Agent 进度与中止操作，`AGENT_TOOL` job 可见候选/门禁/8 态/影子计数，并通过 `/engine/knowledge-production/jobs/{jobCode}/cancel` 走统一生命周期中止。仍待后续补强：Agent 纠偏、会话级 prompt/tool 版本审计明细和外调最小化证据尚未完整做成操作面。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务规格：Agent 收到结构化任务（来源范围 + 目标资产类型 + 目标管道 + 输出 schema + 约束）；任务由 [AIK-STD-13](AIK-STD-13.md) 编排层下发。
@@ -67,12 +68,12 @@
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：Agent 收任务、经受控工具回写候选，锚点/hash/AI 标识齐全；不合 schema 拒收。
 - [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。
-- [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。
+- [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。当前前端已补进度可视和中止；纠偏、会话级 prompt/tool 版本审计与可重放仍未勾满。
 - 关联 A1–A9 剧本：A9 AI 知识审核（Agent 候选入审）。
 - T-GATE：后端真实性门禁全绿（候选真实锚点、无伪造）。
 - B0 验收：★Agent 是可选生产器；关 Agent，API/本地模型/人工生产器与流水线不受影响（铁律 #4）。
 
 ## 完工证据
 - 代码 permalink：Agent 接入协议 + 受控回写工具 + 沙箱无患者数据门禁 + 人在环审计/可重放。
-- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、进度可视/中止、审计可重放、关 Agent 降级。
+- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、进度可视/中止、审计可重放、关 Agent 降级；`KnowledgeGovernance.test.tsx` 覆盖前端 Agent 进度与中止。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

@@ -1,4 +1,10 @@
-import { AuditOutlined, BranchesOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  AuditOutlined,
+  BranchesOutlined,
+  ReloadOutlined,
+  StopOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -12,6 +18,7 @@ import {
   Form,
   Input,
   Modal,
+  Progress,
   Row,
   Select,
   Space,
@@ -31,6 +38,7 @@ import {
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
+  useCancelKnowledgeProductionJob,
   useKnowledgeProductionCandidates,
   useKnowledgeProductionGateResults,
   useKnowledgeProductionJobs,
@@ -48,6 +56,8 @@ import {
   useSecurityProfile,
   type CandidateClassification,
   type AikGateResult,
+  type CandidateCoexistenceView,
+  type CandidateCoexistenceVersionSnapshot,
   type GenerationTriage,
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
@@ -73,6 +83,7 @@ import {
   KNOWLEDGE_DOMAIN_OPTIONS,
   KNOWLEDGE_IDENTITY_STATUS_OPTIONS,
   KNOWLEDGE_QUALITY_GATE_OPTIONS,
+  KNOWLEDGE_TRIAGE_STATE_META,
 } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
@@ -80,7 +91,7 @@ import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
   NEW_ASSET: "全新资产",
@@ -157,6 +168,54 @@ function productionStatusColor(status?: string | null) {
   return "default";
 }
 
+function canCancelProductionJob(status?: string | null) {
+  return status === "PENDING" || status === "RUNNING";
+}
+
+function productionProgressPercent(
+  job: KnowledgeProductionJob | undefined,
+  candidateCount: number,
+  gateCount: number,
+  triageCount: number,
+  shadowCount: number,
+) {
+  if (!job) return 0;
+  if (job.status === "COMPLETED") return 100;
+  if (job.status === "FAILED" || job.status === "CANCELLED") return 100;
+  const finishedStages = [
+    candidateCount > 0,
+    gateCount > 0,
+    triageCount > 0,
+    shadowCount > 0,
+  ].filter(Boolean).length;
+  return Math.max(job.status === "RUNNING" ? 20 : 5, finishedStages * 25);
+}
+
+function triageLabel(state?: string | null) {
+  return (
+    KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === state)?.label ?? state ?? "未分流"
+  );
+}
+
+function reviewTaskReminder(coexistence?: CandidateCoexistenceView) {
+  if (!coexistence) return "未返回审后任务提醒";
+  if (coexistence.approvalOutcome === "APPROVE_ACTIVATE_FIRST_VERSION") {
+    return "审核通过后创建 SYS-08 首次激活、投影刷新与院内同步任务；审核前候选仍不可执行。";
+  }
+  if (coexistence.approvalOutcome === "APPROVE_REPLACE_ACTIVE") {
+    return "审核通过后创建 SYS-08 原子替换、投影刷新与院内同步任务；审核前不改变执行版本。";
+  }
+  return coexistence.replacementReminder || "审核结论生成后进入对应发布任务。";
+}
+
+function snapshotValue(
+  snapshot: CandidateCoexistenceVersionSnapshot | undefined | null,
+  key: keyof CandidateCoexistenceVersionSnapshot,
+) {
+  const value = snapshot?.[key];
+  return value === undefined || value === null || value === "" ? "未返回" : String(value);
+}
+
 function booleanGateLabel(passed: boolean) {
   return passed ? "通过" : "阻断";
 }
@@ -219,7 +278,7 @@ function customizationStatusColor(status: string) {
 }
 
 export default function KnowledgeGovernance() {
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const [domain, setDomain] = useState<KnowledgeDomain>("GUIDELINE");
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
   const [keyword, setKeyword] = useState("");
@@ -310,9 +369,12 @@ export default function KnowledgeGovernance() {
   const createCustomization = useCreateKnowledgeCustomization();
   const publishCustomization = usePublishKnowledgeCustomization();
   const restorePlatformKnowledge = useRestorePlatformKnowledge();
+  const cancelProductionJobMutation = useCancelKnowledgeProductionJob();
   const canCustomize =
     !isPlatformTenant &&
     security.data?.permissions.some((permission) => permission.code === "knowledge.write");
+  const canWriteKnowledge =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.write") ?? false;
   const canPublishCustomization =
     security.data?.permissions.some((permission) => permission.code === "knowledge.publish") &&
     security.data?.permissions.some((permission) => permission.code === "tenant.override");
@@ -503,6 +565,25 @@ export default function KnowledgeGovernance() {
     } catch (error) {
       message.error(getApiErrorMessage(error, "知识候选审核失败"));
     }
+  }
+
+  function requestCancelProductionJob(job: KnowledgeProductionJob) {
+    modal.confirm({
+      title: `中止生产任务 ${job.jobCode}`,
+      content: "仅中止 PENDING/RUNNING job；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      okText: "确认中止",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await cancelProductionJobMutation.mutateAsync(job.jobCode);
+          message.success("生产任务已中止");
+          await productionJobsQuery.refetch();
+        } catch (error) {
+          message.error(getApiErrorMessage(error, "中止生产任务失败"));
+        }
+      },
+    });
   }
 
   function openRetirement(identity: KnowledgeIdentity) {
@@ -898,7 +979,17 @@ export default function KnowledgeGovernance() {
       title: "8 态",
       dataIndex: "triageState",
       render: (value: string) => (
-        <Tag color={value === "CONFLICT" ? "error" : "processing"}>{value}</Tag>
+        <Space size={4} wrap>
+          <Tag
+            color={
+              KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === value)?.color ??
+              (value === "CONFLICT" ? "error" : "processing")
+            }
+          >
+            {triageLabel(value)}
+          </Tag>
+          <Text type="secondary">{value}</Text>
+        </Space>
       ),
     },
     {
@@ -1064,6 +1155,21 @@ export default function KnowledgeGovernance() {
     const productionTriageResults = productionTriageResultsQuery.data ?? [];
     const productionShadowRuns = productionShadowRunsQuery.data ?? [];
     const coexistence = productionCoexistenceQuery.data;
+    const triageCounts = new Map<string, number>();
+    productionTriageResults.forEach((row) => {
+      triageCounts.set(row.triageState, (triageCounts.get(row.triageState) ?? 0) + 1);
+    });
+    const productionProgress = productionProgressPercent(
+      selectedProductionJob,
+      productionCandidates.length,
+      productionGateResults.length,
+      productionTriageResults.length,
+      productionShadowRuns.length,
+    );
+    const selectedJobCanBeCancelled =
+      canWriteKnowledge &&
+      selectedProductionJob !== undefined &&
+      canCancelProductionJob(selectedProductionJob.status);
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         <Card title="模型生产 readiness">
@@ -1104,13 +1210,54 @@ export default function KnowledgeGovernance() {
         </Card>
 
         <Card title="生产 job">
-          <Table
-            rowKey="jobCode"
-            columns={productionJobColumns}
-            dataSource={productionJobs}
-            pagination={false}
-            size="middle"
-          />
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            {selectedProductionJob ? (
+              <Alert
+                type={selectedProductionJob.status === "RUNNING" ? "info" : "warning"}
+                showIcon
+                message={
+                  selectedProductionJob.producer === "AGENT_TOOL"
+                    ? "Agent 进度与中止"
+                    : "生产进度与中止"
+                }
+                description={
+                  <Space direction="vertical" size={4}>
+                    <Space size="middle" wrap>
+                      <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
+                      <Text>门禁 {productionGateResults.length} 项</Text>
+                      <Text>8 态 {productionTriageResults.length} 条</Text>
+                      <Text>影子评测 {productionShadowRuns.length} 次</Text>
+                    </Space>
+                    <Progress
+                      percent={productionProgress}
+                      size="small"
+                      status={selectedProductionJob.status === "FAILED" ? "exception" : "active"}
+                    />
+                  </Space>
+                }
+                action={
+                  selectedJobCanBeCancelled ? (
+                    <Button
+                      danger
+                      aria-label="中止生产任务"
+                      icon={<StopOutlined />}
+                      loading={cancelProductionJobMutation.isPending}
+                      onClick={() => requestCancelProductionJob(selectedProductionJob)}
+                    >
+                      中止生产任务
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : null}
+            <Table
+              rowKey="jobCode"
+              columns={productionJobColumns}
+              dataSource={productionJobs}
+              pagination={false}
+              size="middle"
+            />
+          </Space>
         </Card>
 
         <Row gutter={[16, 16]}>
@@ -1152,14 +1299,25 @@ export default function KnowledgeGovernance() {
           </Col>
           <Col xs={24} xl={12}>
             <Card title="8 态分流">
-              <Table
-                rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
-                columns={productionTriageColumns}
-                dataSource={productionTriageResults}
-                loading={productionTriageResultsQuery.isLoading}
-                pagination={false}
-                size="small"
-              />
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Text strong>8 态队列</Text>
+                <Space size={[8, 8]} wrap>
+                  {KNOWLEDGE_TRIAGE_STATE_META.map((item) => (
+                    <Space key={item.state} size={4}>
+                      <Text>{item.label}</Text>
+                      <Tag color={item.color}>{triageCounts.get(item.state) ?? 0}</Tag>
+                    </Space>
+                  ))}
+                </Space>
+                <Table
+                  rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
+                  columns={productionTriageColumns}
+                  dataSource={productionTriageResults}
+                  loading={productionTriageResultsQuery.isLoading}
+                  pagination={false}
+                  size="small"
+                />
+              </Space>
             </Card>
           </Col>
           <Col xs={24} xl={12}>
@@ -1178,27 +1336,110 @@ export default function KnowledgeGovernance() {
 
         <Card title="共存替换提醒">
           {selectedProductionJob ? (
-            <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="当前 job">
-                {selectedProductionJob.jobCode}
-              </Descriptions.Item>
-              <Descriptions.Item label="候选执行状态">
-                <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
-                  {coexistence?.candidateExecutable ? "候选可执行" : "候选不可执行"}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="现行权威状态">
-                <Tag color={coexistence?.activeExecutable ? "success" : "warning"}>
-                  {coexistence?.activeExecutable ? "现行权威继续执行" : "暂无现行权威"}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="替换提醒">
-                {coexistence?.replacementReminder ?? "未返回替换提醒"}
-              </Descriptions.Item>
-              <Descriptions.Item label="安全说明">
-                {coexistence?.safetyNotice ?? "候选仅供审核，不参与临床执行。"}
-              </Descriptions.Item>
-            </Descriptions>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <Descriptions column={1} bordered size="small">
+                <Descriptions.Item label="当前 job">
+                  {selectedProductionJob.jobCode}
+                </Descriptions.Item>
+                <Descriptions.Item label="候选执行状态">
+                  <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
+                    {coexistence?.candidateExecutable ? "候选可执行" : "候选不可执行"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="现行权威状态">
+                  <Tag color={coexistence?.activeExecutable ? "success" : "warning"}>
+                    {coexistence?.activeExecutable ? "现行权威继续执行" : "暂无现行权威"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="审核状态">
+                  {coexistence?.reviewStatus ?? "未返回审核状态"}
+                </Descriptions.Item>
+                <Descriptions.Item label="差异摘要">
+                  {coexistence?.diffSummary ?? "未返回差异摘要"}
+                </Descriptions.Item>
+                <Descriptions.Item label="替换提醒">
+                  {coexistence?.replacementReminder ?? "未返回替换提醒"}
+                </Descriptions.Item>
+                <Descriptions.Item label="安全说明">
+                  {coexistence?.safetyNotice ?? "候选仅供审核，不参与临床执行。"}
+                </Descriptions.Item>
+              </Descriptions>
+              <Row gutter={[16, 16]}>
+                <Col xs={24} lg={12}>
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    <Title level={5}>待审候选版本</Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="版本">
+                        {snapshotValue(coexistence?.candidateVersion, "versionNo")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        {snapshotValue(coexistence?.candidateVersion, "status")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="风险 / 权威">
+                        <Space size={4} wrap>
+                          <Tag
+                            color={
+                              RISK_COLORS[coexistence?.candidateVersion?.riskLevel ?? ""] ??
+                              "default"
+                            }
+                          >
+                            {riskLabel(coexistence?.candidateVersion?.riskLevel)}
+                          </Tag>
+                          <Tag>
+                            {sourceAuthorityLabel(coexistence?.candidateVersion?.authorityLevel)}
+                          </Tag>
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="hash">
+                        {snapshotValue(coexistence?.candidateVersion, "contentHash")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="适用域">
+                        {snapshotValue(coexistence?.candidateVersion, "applicableScope")}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Space>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    <Title level={5}>现行权威版本</Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="版本">
+                        {snapshotValue(coexistence?.activeVersion, "versionNo")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        {snapshotValue(coexistence?.activeVersion, "status")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="风险 / 权威">
+                        <Space size={4} wrap>
+                          <Tag
+                            color={
+                              RISK_COLORS[coexistence?.activeVersion?.riskLevel ?? ""] ?? "default"
+                            }
+                          >
+                            {riskLabel(coexistence?.activeVersion?.riskLevel)}
+                          </Tag>
+                          <Tag>
+                            {sourceAuthorityLabel(coexistence?.activeVersion?.authorityLevel)}
+                          </Tag>
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="hash">
+                        {snapshotValue(coexistence?.activeVersion, "contentHash")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="适用域">
+                        {snapshotValue(coexistence?.activeVersion, "applicableScope")}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Space>
+                </Col>
+              </Row>
+              <Alert
+                type="warning"
+                showIcon
+                message="审后任务化提醒"
+                description={reviewTaskReminder(coexistence)}
+              />
+            </Space>
           ) : (
             <PageState state="empty" title="未选择生产 job" />
           )}

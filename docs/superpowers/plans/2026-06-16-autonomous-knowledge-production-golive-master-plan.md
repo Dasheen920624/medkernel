@@ -170,7 +170,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`knowledge_diff` + `expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。已实现 `KnowledgeDiffDetectionService`、`DiscoveryRequest.targetIdentityId` / 响应 `diffs[]`，来源废止建 `SOURCE_DEPRECATED` 任务，复审超期建 `REVIEW_OVERDUE` 任务；同指纹超期不落伪 `REVISED` 差异。
   - [x] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。已新增 `POST /api/v1/engine/pkg/packages/aik`、`aik_pack_job` V141 五方言、manifest hash 证据；发布仍走 PKG-01，空 `adapterIds` 真实返回 `NOT_SYNCED` 且不触发发布端口。
   - [x] T3.4 **AIK-STD-03 术语勾卡**（已实质建成 TERM-01+`TerminologyCandidateGenerationJob`，本轮补前端生成入口、任务追踪、服务契约审计点并勾卡）。
-  - [ ] T3.5 **前端 Chunk7**：triage 8 态队列 + 影子展示 + 共存左右对照高亮 + Agent 进度可视/可中止 + 审后任务化提醒。
+  - [x] T3.5 **前端 Chunk7**：triage 8 态队列 + 影子展示 + 共存左右对照高亮 + Agent 进度可视/可中止 + 审后任务化提醒。
 - **验收**：各卡 FR 真实勾全（无虚勾）；差异/过期不自动替换、诚实空；包无通道 NOT_SYNCED。
 
 #### Phase 4 · 🌟 自主公域知识获取引擎（灵魂，6d）

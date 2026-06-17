@@ -29,6 +29,7 @@ const mockUseKnowledgeProductionGateResults = vi.fn();
 const mockUseKnowledgeProductionTriageResults = vi.fn();
 const mockUseKnowledgeProductionShadowRuns = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
+const mockUseCancelKnowledgeProductionJob = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -58,6 +59,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeProductionShadowRuns: (jobCode?: string) =>
     mockUseKnowledgeProductionShadowRuns(jobCode),
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
+  useCancelKnowledgeProductionJob: () => mockUseCancelKnowledgeProductionJob(),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -201,6 +203,7 @@ let reviewCandidate: ReturnType<typeof vi.fn>;
 let deprecateIdentity: ReturnType<typeof vi.fn>;
 let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
+let cancelProductionJob: ReturnType<typeof vi.fn>;
 
 function customizationPage(items: Array<Record<string, unknown>> = []) {
   return {
@@ -248,6 +251,10 @@ beforeEach(() => {
     customizationId: "kc-high-risk",
     status: "ACTIVE",
   });
+  cancelProductionJob = vi.fn().mockResolvedValue({
+    jobCode: "job-ai-1",
+    status: "CANCELLED",
+  });
 
   mockUseKnowledgeIdentities.mockReset();
   mockUseKnowledgeCandidates.mockReset();
@@ -270,6 +277,7 @@ beforeEach(() => {
   mockUseKnowledgeProductionTriageResults.mockReset();
   mockUseKnowledgeProductionShadowRuns.mockReset();
   mockUseCandidateCoexistence.mockReset();
+  mockUseCancelKnowledgeProductionJob.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
     data: assetTemplates,
@@ -426,6 +434,10 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
     error: undefined,
+  });
+  mockUseCancelKnowledgeProductionJob.mockReturnValue({
+    mutateAsync: cancelProductionJob,
+    isPending: false,
   });
   mockUseKnowledgeCandidates.mockReturnValue({
     data: {
@@ -793,8 +805,167 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
     expect(screen.getByText("共存替换提醒")).toBeInTheDocument();
     expect(screen.getByText("候选不可执行")).toBeInTheDocument();
-    expect(screen.getByText("审核通过后将触发 SYS-08 原子替换")).toBeInTheDocument();
+    expect(screen.getAllByText("审核通过后将触发 SYS-08 原子替换").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
+  it("shows agent progress, 8-state queue, side-by-side coexistence and a cancellable job action", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }, { code: "knowledge.publish" }],
+      },
+    });
+    mockUseKnowledgeProductionJobs.mockReturnValue({
+      data: {
+        items: [
+          {
+            jobCode: "job-agent-7",
+            producer: "AGENT_TOOL",
+            targetPipeline: "TENANT_OVERLAY",
+            domain: "GUIDELINE",
+            modelStrategy: "agent-verified",
+            status: "RUNNING",
+            candidateCount: 4,
+            createdAt: "2026-06-16T10:00:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeProductionCandidates.mockReturnValue({
+      data: [
+        {
+          jobCode: "job-agent-7",
+          assetIdentity: "rule:agent:vte",
+          contentHash: "b".repeat(64),
+          candidateRef: "kv:42:2026.07",
+          riskLevel: "HIGH",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeProductionTriageResults.mockReturnValue({
+      data: [
+        "NEW_ASSET",
+        "DUPLICATE",
+        "MINOR_REVISION",
+        "MAJOR_UPGRADE",
+        "CONFLICT",
+        "DOWNGRADE",
+        "DEPRECATION",
+        "UNCERTAIN",
+      ].map((triageState) => ({
+        jobCode: "job-agent-7",
+        contentHash: triageState.toLowerCase(),
+        triageState,
+        action: `${triageState}_ACTION`,
+        basis: `${triageState} 分流依据`,
+      })),
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeProductionShadowRuns.mockReturnValue({
+      data: [
+        {
+          jobCode: "job-agent-7",
+          status: "PASSED",
+          totalCases: 18,
+          hitCount: 16,
+          falsePositiveCount: 1,
+          missCount: 1,
+          degradationDetected: false,
+          readyForReview: true,
+          basis: "影子评测通过",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseCandidateCoexistence.mockReturnValue({
+      data: {
+        candidateRef: "kv:42:2026.07",
+        candidateVersion: {
+          versionNo: "2026.07",
+          status: "PENDING_REPLACEMENT_REVIEW",
+          contentHash: "candidate-real-hash",
+          riskLevel: "HIGH",
+          authorityLevel: "A_STANDARD",
+          gradeQuality: "HIGH",
+          gradeStrength: "STRONG",
+          organizationScope: "hospital:hospital-A",
+          applicableScope: "cardiology",
+        },
+        activeVersion: {
+          versionNo: "2026.05",
+          status: "ACTIVE",
+          contentHash: "active-real-hash",
+          riskLevel: "HIGH",
+          authorityLevel: "B_GUIDELINE",
+          gradeQuality: "MODERATE",
+          gradeStrength: "STRONG",
+          organizationScope: "hospital:hospital-A",
+          applicableScope: "cardiology",
+        },
+        reviewStatus: "PENDING_REPLACEMENT_REVIEW",
+        approvalOutcome: "APPROVE_REPLACE_ACTIVE",
+        candidateExecutable: false,
+        activeExecutable: true,
+        replacementReminder: "审核通过后将触发 SYS-08 原子替换",
+        safetyNotice: "审核前仍由现行 ACTIVE=2026.05 执行",
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+
+    expect(screen.getByText("Agent 进度与中止")).toBeInTheDocument();
+    expect(screen.getByText("Agent 工具")).toBeInTheDocument();
+    expect(screen.getByText("生成候选 4 条")).toBeInTheDocument();
+    expect(screen.getByText("8 态队列")).toBeInTheDocument();
+    for (const label of [
+      "新资产",
+      "重复",
+      "小修订",
+      "重大升级",
+      "冲突仲裁",
+      "降级风险",
+      "废止退役",
+      "人工分流",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByText("待审候选版本")).toBeInTheDocument();
+    expect(screen.getByText("现行权威版本")).toBeInTheDocument();
+    expect(screen.getByText("2026.07")).toBeInTheDocument();
+    expect(screen.getByText("2026.05")).toBeInTheDocument();
+    expect(screen.getByText("审后任务化提醒")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "审核通过后创建 SYS-08 原子替换、投影刷新与院内同步任务；审核前不改变执行版本。",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "中止生产任务" }));
+    await user.click(await screen.findByRole("button", { name: "确认中止" }));
+
+    await waitFor(() => expect(cancelProductionJob).toHaveBeenCalledWith("job-agent-7"));
   });
 
   it("marks AI-factory candidates with an AI provenance tag and producer source", async () => {

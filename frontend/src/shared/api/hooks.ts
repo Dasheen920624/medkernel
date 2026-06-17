@@ -1420,6 +1420,11 @@ export interface KnowledgeProductionJob {
   traceId?: string | null;
 }
 
+export type KnowledgeProductionJobResponse = Omit<
+  KnowledgeProductionJob,
+  "id" | "updatedAt" | "updatedBy" | "traceId"
+>;
+
 export interface KnowledgeProductionJobsParams {
   page?: number;
   size?: number;
@@ -1491,15 +1496,41 @@ export interface KnowledgeShadowRun {
   createdBy?: string | null;
 }
 
+export interface CandidateCoexistenceVersionSnapshot {
+  versionId?: number | null;
+  versionNo?: string | null;
+  status?: string | null;
+  riskLevel?: string | null;
+  authorityLevel?: string | null;
+  gradeQuality?: string | null;
+  gradeStrength?: string | null;
+  contentHash?: string | null;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  activatedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface CandidateCoexistenceProductionLineage {
+  jobCode?: string | null;
+  assetIdentity?: string | null;
+  producer?: KnowledgeProducer | null;
+  targetPipeline?: "PLATFORM_SOURCE" | "TENANT_OVERLAY" | string | null;
+  domain?: string | null;
+  modelStrategy?: string | null;
+  riskLevel?: string | null;
+  createdAt?: string | null;
+}
+
 export interface CandidateCoexistenceView {
   candidateRef: string;
   identityId?: number | null;
-  candidateVersion?: Record<string, unknown> | null;
-  activeVersion?: Record<string, unknown> | null;
+  candidateVersion?: CandidateCoexistenceVersionSnapshot | null;
+  activeVersion?: CandidateCoexistenceVersionSnapshot | null;
   classification?: string | null;
   reviewStatus?: string | null;
   diffSummary?: string | null;
-  productionLineage?: Record<string, unknown> | null;
+  productionLineage?: CandidateCoexistenceProductionLineage | null;
   candidateExecutable: boolean;
   activeExecutable: boolean;
   approvalOutcome?: string | null;
@@ -1543,6 +1574,35 @@ export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams
         { params: requestParams },
       );
       return data.data;
+    },
+  });
+}
+
+export function useCancelKnowledgeProductionJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeProductionJobResponse }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode)}/cancel`,
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, jobCode) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "jobs"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "job-candidates", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "gate-results", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "triage-results", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "shadow-runs", jobCode],
+        }),
+      ]);
     },
   });
 }

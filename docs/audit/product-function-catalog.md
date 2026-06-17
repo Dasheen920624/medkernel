@@ -111,7 +111,7 @@
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
-| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
+| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布，查看 AI 工厂 job、8 态、影子、共存对照并中止 Agent 生产任务 |
 <!-- capability:route:route@%2Fknowledge%2Fdiagnosis decision=SPLIT -->
 <!-- route:/knowledge/diagnosis -->
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |

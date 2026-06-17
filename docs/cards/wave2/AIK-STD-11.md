@@ -14,19 +14,21 @@
 ## 目标
 **待审新版与现行权威共存 + 替换提醒**：待审新版只可审不可执行（铁律 #6），与现行对比共存，审过提醒替换。
 
-## 现状（核查 2026-06-16）
+## 现状（核查 2026-06-17）
 承载＝D2 [KNOW-02](../D2/KNOW-02.md) 待审 + [SYS-08](../D2/SYS-08.md) 唯一有效约束已建。本卡＝**新建共存视图 + 替换提醒**。
 
 2026-06-16 本地进展（`codex/wave2-knowledge-model-readiness`）：新增后端 B0 共存读模型
 `CandidateCoexistenceService` + `CandidateCoexistenceView`，按 `kv:{identityId}:{versionNo}` 候选引用返回：
 待审候选摘要、现行 `ACTIVE` 摘要、`CandidateClassification.diffSummary`、生产血缘、`candidateExecutable=false`、
 `activeExecutable=true/false` 与替换提醒。该读模型只读、不发布、不调用模型，非 `PENDING_REPLACEMENT_REVIEW`
-引用拒绝伪装成共存态。前端左右对照/差异高亮仍留后续生产中心收尾。
+引用拒绝伪装成共存态。
+
+2026-06-17 本地进展（`codex/knowledge-fullflow-audit-production`）：`KnowledgeGovernance` 知识生产 tab 已消费共存读模型，展示待审候选版本 vs 现行权威版本左右对照、差异摘要、审核状态、候选不可执行/现行继续执行标签，以及审核通过后的 SYS-08 原子替换/投影刷新/院内同步任务化提醒。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 只审不执行：待审新版不进执行链（仅现行 `ACTIVE` 执行）。后端共存视图固定 `candidateExecutable=false`。
-- [ ] FR-2 共存对比：待审新版 vs 现行权威并列对比（差异高亮）。后端已提供并列摘要与 diff；前端高亮待补。
-- [ ] FR-3 替换提醒：审过待审版生成替换提醒（接 [AIK-STD-09](AIK-STD-09.md)）。后端已提供审核前替换提醒；审后通知/任务化提醒待补。
+- [x] FR-2 共存对比：待审新版 vs 现行权威并列对比（差异高亮）。后端已提供并列摘要与 diff；前端已补左右对照与差异摘要。
+- [x] FR-3 替换提醒：审过待审版生成替换提醒（接 [AIK-STD-09](AIK-STD-09.md)）。后端已提供替换提醒；前端已补审后任务化提醒。实际替换仍必须经 SYS-08 原子流程，不自动执行。
 - [x] FR-4 不旁路：待审版禁任何旁路执行（铁律 #6）。共存端点仅接受 `PENDING_REPLACEMENT_REVIEW`，其它状态拒绝伪装成待审共存。
 
 ## 接口 / 数据契约
@@ -42,11 +44,11 @@
 
 ## 验收 + 验证
 - [x] AC-1（FR-1/4）：待审不执行、不旁路。证据：`CandidateCoexistenceServiceTest.pendingCandidateShowsActiveVersionAndBlocksCandidateExecution`、`nonPendingCandidateCannotBePresentedAsCoexistence`。
-- [ ] AC-2（FR-2/3）：共存对比 + 替换提醒。后端 B0 已有；前端左右高亮与审后任务化提醒待补。
+- [x] AC-2（FR-2/3）：共存对比 + 替换提醒。后端 B0 已有；前端左右高亮、差异摘要与审后任务化提醒已补。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★共存机制确定性。
 
 ## 完工证据
-- 代码 permalink：共存视图 + 替换提醒。
-- 测试：只审不执行 / 共存对比 / 提醒 / 不旁路。
+- 代码 permalink：共存视图 + 替换提醒 + 前端左右对照与审后任务化提醒。
+- 测试：只审不执行 / 共存对比 / 提醒 / 不旁路；`KnowledgeGovernance.test.tsx` 覆盖前端共存对照与提醒。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

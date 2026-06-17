@@ -57,6 +57,10 @@
   - 核实 TERM-01 后端已实质建成批量术语候选流水线：`TerminologyCandidateGenerationJob` + `mk_term_candidate_generation_job`、`mapping_candidate.generation_job_code`、高危规则强制 HIGH、候选人工审核后才确认。
   - 前端 `/terminology/mapping` 已补「生成候选」入口和最近任务状态追踪，直接调用 API-04 候选生成任务并显示 `generatedCount` / `candidatePageUri`。
   - AIK-STD-03 卡、backlog、主计划、产品功能目录和服务契约审计点已同步。
+- 已完成 Phase 3 第五片「前端 Chunk7」：
+  - `KnowledgeGovernance` 知识生产 tab 已补 Agent 进度与中止、8 态队列总览、影子评测、共存左右对照、差异摘要和审后任务化提醒。
+  - 前端新增 `useCancelKnowledgeProductionJob`，中止只走 `/engine/knowledge-production/jobs/{jobCode}/cancel` 统一生命周期端点，不本地伪改状态。
+  - AIK-STD-10/11/14 卡、主计划和产品功能目录已同步；AIK-STD-14 仍不宣称会话级 prompt/tool 审计与纠偏完成。
 
 ## 仍不可宣称
 
@@ -67,7 +71,7 @@
 
 ## 下一步
 
-1. 继续主计划 Phase 3：下一片推进 T3.5 前端 Chunk7（triage 8 态队列、影子展示、共存左右对照高亮、Agent 进度可视/可中止、审后任务化提醒）；先核 `KnowledgeGovernance`、`DiagnosisKnowledgePanel`、`KnowledgeProduction`、`CandidateCoexistenceService` 和现有 triage/shadow/run API，已实质建成的只补证据，不重复造页面。
+1. 继续主计划 Phase 3：回补 T3.1 剩余 AIK-STD-05 去重与完整冲突分流，并联动核查 AIK-STD-09 替换处置现状；已实质建成的只补证据，不重复造表/造页面。
 2. 每个功能切片按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点时同步五方言迁移、域归属、服务契约、产品目录和中文注释门禁。
 4. 保持 `_HANDOFF` 短接力：只更新当前状态、下一步、阻断和证据摘要；不要恢复旧 PR 长段落。

@@ -89,6 +89,7 @@ import {
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
   useKnowledgeProductionCandidates,
+  useCancelKnowledgeProductionJob,
   useKnowledgeProductionGateResults,
   useKnowledgeProductionJobs,
   useKnowledgeProductionReadiness,
@@ -3836,6 +3837,30 @@ describe("knowledge review api helpers", () => {
     expect(shadowHook.result.current.fetchStatus).toBe("idle");
     expect(coexistenceHook.result.current.fetchStatus).toBe("idle");
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("cancels a running knowledge production job through the governed lifecycle endpoint", async () => {
+    const cancelledJob = {
+      jobCode: "job-ai-1",
+      tenantId: "tenant-A",
+      producer: "AGENT_TOOL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      status: "CANCELLED",
+      candidateCount: 3,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: cancelledJob } });
+
+    const { result } = renderApiHook(() => useCancelKnowledgeProductionJob());
+    let response: typeof cancelledJob | undefined;
+    await act(async () => {
+      response = await result.current.mutateAsync("job-ai-1");
+    });
+
+    expect(response).toBe(cancelledJob);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge-production/jobs/job-ai-1/cancel",
+    );
   });
 
   it("loads the review queue and schedules a governed successor migration", async () => {
