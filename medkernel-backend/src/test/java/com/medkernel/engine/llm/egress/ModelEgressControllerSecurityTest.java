@@ -67,4 +67,30 @@ class ModelEgressControllerSecurityTest {
                 .content(WHITELIST_BODY))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void clinicalUserCannotManageDataMinimizationPolicy() throws Exception {
+        mockMvc.perform(put("/api/v1/data-minimization/policies/model-egress/knowledge.extract")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(WHITELIST_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void integrationOperatorCanManageDataMinimizationPolicy() throws Exception {
+        mockMvc.perform(put("/api/v1/data-minimization/policies/model-egress/knowledge.extract")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("integration-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(WHITELIST_BODY))
+                .andExpect(status().isOk());
+    }
 }

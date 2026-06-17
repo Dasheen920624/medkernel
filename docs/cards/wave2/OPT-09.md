@@ -15,21 +15,21 @@
 **数据最小化策略引擎**：字段白名单 + 脱敏 + 审批——把数据最小化做成**可配策略中枢**，[LLM-03](LLM-03.md) 等出域点统一消费同一套策略。
 
 ## 现状（搬迁时核查 2026-05-31）
-**待建**：[LLM-01](LLM-01.md) 有脱敏函数雏形（散在 service），无集中策略引擎、无可配白名单/审批中枢。本卡＝把策略**集中可配 + 可审计**，[LLM-03](LLM-03.md) 为其在模型出域的执行点（本卡＝引擎，LLM-03＝网关落点）。
+**已建（T5.5 代码态）**：[LLM-03](LLM-03.md) 的模型出域治理表扩展为 OPT-09 策略中枢：V144 五方言新增字段级脱敏规则、审批阈值和不可关闭护栏；`DataMinimizationPolicyController` 提供 `/api/v1/data-minimization/policies/model-egress/*` 正式入口；`ModelEgressGuard` 运行时统一消费同一策略。策略缺失仍默认最严：不放行外调，网关降级 B0。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 策略中枢：字段白名单 + 脱敏规则 + 审批阈值集中配置（可热生效，复用 [CONFIG-01](../D0/CONFIG-01.md)）。
-- [ ] FR-2 脱敏规则库：可配脱敏算子（掩码/泛化/置空），按字段类型应用。
-- [ ] FR-3 审批阈值：按敏感级定审批要求；高敏强制人工批。
-- [ ] FR-4 统一消费：[LLM-03](LLM-03.md) 及其他出域点调同一策略，不各写各的。
-- [ ] FR-5 审计：策略变更 + 应用结果留痕（[BASE-04](../D0/BASE-04.md)/[SYS-06](../D5/SYS-06.md)）。
+- [x] FR-1 策略中枢：字段白名单 + 脱敏规则 + 审批阈值集中配置（可热生效，复用 [CONFIG-01](../D0/CONFIG-01.md)）。
+- [x] FR-2 脱敏规则库：可配脱敏算子（掩码/泛化/置空），按字段类型应用。
+- [x] FR-3 审批阈值：按敏感级定审批要求；高敏强制人工批。
+- [x] FR-4 统一消费：[LLM-03](LLM-03.md) 及其他出域点调同一策略，不各写各的。
+- [x] FR-5 审计：策略变更 + 应用结果留痕（[BASE-04](../D0/BASE-04.md)/[SYS-06](../D5/SYS-06.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`/api/v1/data-minimization/policies/*`；前台在 [SECBASE-01](../D5/SECBASE-01.md)；高危护栏不可关。
+- 端点：`/api/v1/data-minimization/policies/model-egress/{capabilityCode}`、`/api/v1/data-minimization/policies/model-egress/approvals`；前台在 [SECBASE-01](../D5/SECBASE-01.md)；高危护栏不可关。
 
 ## 数据与迁移
-- `data_min_policy`（白名单/脱敏规则/审批阈值）+ 变更审计，五方言；高危项护栏持久化不可关（呼应 [CONFIG-01](../D0/CONFIG-01.md)）。
+- `mk_llm_egress_whitelist` 作为模型出域数据最小化策略中枢：V144 五方言新增 `desensitization_rules`、`approval_threshold_level`、`guardrail_locked_flag`；策略变更复用 LLM-03 审计，应用结果落 `mk_llm_egress_evidence`；高危项护栏持久化不可关（呼应 [CONFIG-01](../D0/CONFIG-01.md)）。
 
 ## 视角清单（11 视角）
 1. 产品架构：数据最小化的策略单一源。
@@ -49,12 +49,12 @@
 - 本卡落点：白名单+脱敏+审批集中可配可审，出域点统一消费、缺省最严。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：策略配置 + 脱敏算子 + 审批阈值生效。
-- [ ] AC-2（FR-4/5）：[LLM-03](LLM-03.md) 消费同策略 + 变更审计。
+- [x] AC-1（FR-1~3）：策略配置 + 脱敏算子 + 审批阈值生效。
+- [x] AC-2（FR-4/5）：[LLM-03](LLM-03.md) 消费同策略 + 变更审计。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★策略缺省最严 → 不外调走 B0，主链路可用。
 
 ## 完工证据
-- 代码 permalink：策略引擎 + 脱敏算子库 + 审批。
-- 测试：策略/脱敏/审批/统一消费/审计。
+- 代码 permalink：`ModelEgressGovernanceService` 策略保存与校验；`ModelEgressGuard` 统一消费；`DataMinimizationPolicyController` 正式策略入口；V144 五方言迁移。
+- 测试：`ModelEgressGuardTest`（字段级算子 + 阈值审批）、`ModelEgressGovernanceServiceTest`（策略保存 + 非法算子拒绝）、`ModelEgressGovernanceRepositoryTest`（H2 真实持久化）、`ModelEgressControllerSecurityTest`（策略入口 RBAC）、`MigrationBaselineContractTest#dataMinimizationPolicyIsPersistedAcrossAllDialects`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

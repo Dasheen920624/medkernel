@@ -191,7 +191,8 @@ class MigrationBaselineContractTest {
         "V140__knowledge_diff_expiry_task.sql",
         "V141__aik_pack_job.sql",
         "V142__knowledge_acquisition.sql",
-        "V143__knowledge_acquisition_schedule.sql"
+        "V143__knowledge_acquisition_schedule.sql",
+        "V144__data_minimization_policy.sql"
     );
 
     @Test
@@ -350,6 +351,21 @@ class MigrationBaselineContractTest {
                     "ck_mk_knowledge_acquisition_interval",
                     "idx_mk_knowledge_acquisition_schedule_due")
                 .contains("公域资料自动获取调度", "候选生成计划 JSON");
+        }
+    }
+
+    @Test
+    void dataMinimizationPolicyIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V144__data_minimization_policy.sql");
+            assertThat(ddl)
+                .as("%s OPT-09 数据最小化策略必须持久化脱敏规则、审批阈值和不可关闭护栏", dialect)
+                .contains("mk_llm_egress_whitelist", "desensitization_rules",
+                    "approval_threshold_level", "guardrail_locked_flag")
+                .contains("MASK_ALL", "GENERALIZE", "NULLIFY", "NONE")
+                .contains("ck_mk_llm_egress_policy_threshold",
+                    "ck_mk_llm_egress_policy_guardrail")
+                .contains("数据最小化策略", "脱敏规则", "审批阈值", "高危护栏");
         }
     }
 
@@ -777,6 +793,7 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_generation_triage_state", "ck_mk_knowledge_generation_triage_action",
         "ck_mk_knowledge_shadow_run_status", "ck_mk_knowledge_shadow_run_counts",
         "ck_mk_llm_model_version_bundle_status",
+        "ck_mk_llm_egress_policy_threshold", "ck_mk_llm_egress_policy_guardrail",
         "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",

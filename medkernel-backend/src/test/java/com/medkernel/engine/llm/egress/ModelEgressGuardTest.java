@@ -44,6 +44,15 @@ class ModelEgressGuardTest {
                 now, "system", now, "system")));
     }
 
+    private void policy(String allowedFields, String sensitivity, String desensitizationRules, String approvalThreshold) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        when(whitelistRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+            .thenReturn(Optional.of(new ModelEgressWhitelist(
+                1L, "tenant-1", "knowledge.extract", allowedFields, sensitivity,
+                desensitizationRules, approvalThreshold, "Y",
+                now, "system", now, "system")));
+    }
+
     @Test
     void stripsNonWhitelistedFields() {
         whitelist("[\"clinicalText\"]", "LOW");
@@ -74,6 +83,35 @@ class ModelEgressGuardTest {
     }
 
     @Test
+    void appliesConfiguredDesensitizationRulesBeforeEgress() {
+        policy("[\"clinicalText\",\"ageYears\"]", "LOW",
+            "{\"clinicalText\":\"GENERALIZE\",\"ageYears\":\"NONE\"}", "HIGH");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"clinicalText\":\"患者张三主诉发热三天\",\"ageYears\":72,\"patientName\":\"张三\"}",
+            "task-1", "ollama-local");
+
+        assertThat(prep.payload()).contains("\"clinicalText\":\"[已泛化]\"");
+        assertThat(prep.payload()).contains("\"ageYears\":72");
+        assertThat(prep.payload()).doesNotContain("患者张三");
+        assertThat(prep.payload()).doesNotContain("patientName");
+    }
+
+    @Test
+    void configuredNullifyRuleClearsWhitelistedField() {
+        policy("[\"clinicalText\"]", "LOW", "{\"clinicalText\":\"NULLIFY\"}", "HIGH");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"clinicalText\":\"患者张三主诉发热三天\"}",
+            "task-1", "ollama-local");
+
+        assertThat(prep.payload()).contains("\"clinicalText\":null");
+        assertThat(prep.payload()).doesNotContain("张三");
+    }
+
+    @Test
     void missingWhitelist_blocksWithEngLlm006() {
         when(whitelistRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
             .thenReturn(Optional.empty());
@@ -88,6 +126,20 @@ class ModelEgressGuardTest {
     @Test
     void highSensitivityWithoutApproval_blocksWithEngLlm007() {
         whitelist("[\"clinicalText\"]", "HIGH");
+        when(approvalRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
+                any(), any(), any(), eq("APPROVED")))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> guard.prepareEgress(
+                "tenant-1", "knowledge.extract", "{\"clinicalText\":\"主诉发热\"}", "task-1", "claude"))
+            .isInstanceOf(ApiException.class)
+            .extracting(e -> ((ApiException) e).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_007);
+    }
+
+    @Test
+    void configuredMediumApprovalThresholdRequiresApproval() {
+        policy("[\"clinicalText\"]", "MEDIUM", "{\"clinicalText\":\"MASK_ALL\"}", "MEDIUM");
         when(approvalRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
                 any(), any(), any(), eq("APPROVED")))
             .thenReturn(Optional.empty());

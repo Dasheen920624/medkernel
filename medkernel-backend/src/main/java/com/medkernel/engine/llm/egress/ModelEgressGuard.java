@@ -4,14 +4,18 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.medkernel.engine.llm.ModelDataDesensitizer;
@@ -68,9 +72,10 @@ public class ModelEgressGuard {
         ObjectNode source = parsePayloadObject(payloadJson);
         ObjectNode minimized = OBJECT_MAPPER.createObjectNode();
         List<String> egressFields = new ArrayList<>();
+        Map<String, String> rules = parseDesensitizationRules(whitelist);
         source.fieldNames().forEachRemaining(field -> {
             if (allowed.contains(field)) {
-                minimized.set(field, desensitizeNode(source.get(field)));
+                minimized.set(field, desensitizeNode(source.get(field), rules.getOrDefault(field, "MASK_ALL")));
                 egressFields.add(field);
             }
         });
@@ -80,7 +85,7 @@ public class ModelEgressGuard {
 
         // FR-3：高敏出域须命中已批准审批记录，否则诚实阻断（不静默出域）。
         Long approvalId = null;
-        if ("HIGH".equalsIgnoreCase(whitelist.sensitivityLevel())) {
+        if (requiresApproval(whitelist.sensitivityLevel(), whitelist.approvalThresholdLevel())) {
             ModelEgressApproval approval = approvalRepo
                 .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
                     tenantId, capabilityCode, desensitizedHash, "APPROVED")
@@ -126,13 +131,65 @@ public class ModelEgressGuard {
     }
 
     /**
-     * 出域字段强制脱敏：外部出域采用最严格 {@code MASK_ALL}，文本节点脱敏后回填，非文本节点原样保留。
+     * 出域字段强制脱敏：默认采用最严格 {@code MASK_ALL}；OPT-09 允许按字段配置掩码、泛化、置空或保留。
      */
-    private JsonNode desensitizeNode(JsonNode value) {
-        if (value != null && value.isTextual()) {
-            return new TextNode(ModelDataDesensitizer.desensitize(value.asText(), "MASK_ALL"));
+    private JsonNode desensitizeNode(JsonNode value, String operator) {
+        String normalized = operator == null ? "MASK_ALL" : operator.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "NONE" -> value == null ? NullNode.getInstance() : value;
+            case "NULLIFY" -> NullNode.getInstance();
+            case "GENERALIZE" -> new TextNode("[已泛化]");
+            case "MASK", "MASK_ALL" -> {
+                if (value != null && value.isTextual()) {
+                    yield new TextNode(ModelDataDesensitizer.desensitize(value.asText(), "MASK_ALL"));
+                }
+                yield value == null ? NullNode.getInstance() : value;
+            }
+            default -> {
+                if (value != null && value.isTextual()) {
+                    yield new TextNode(ModelDataDesensitizer.desensitize(value.asText(), "MASK_ALL"));
+                }
+                yield value == null ? NullNode.getInstance() : value;
+            }
+        };
+    }
+
+    private Map<String, String> parseDesensitizationRules(ModelEgressWhitelist whitelist) {
+        Map<String, String> rules = new LinkedHashMap<>();
+        if (whitelist == null || whitelist.desensitizationRules() == null || whitelist.desensitizationRules().isBlank()) {
+            return rules;
         }
-        return value;
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(whitelist.desensitizationRules());
+            if (node.isObject()) {
+                node.fields().forEachRemaining(entry -> {
+                    if (entry.getValue().isTextual() && !entry.getValue().asText().isBlank()) {
+                        rules.put(entry.getKey(), entry.getValue().asText().trim().toUpperCase(Locale.ROOT));
+                    }
+                });
+            }
+        } catch (Exception ignored) {
+            // 非法策略 JSON 按缺省最严处理：所有白名单字段回退 MASK_ALL。
+        }
+        return rules;
+    }
+
+    private boolean requiresApproval(String sensitivityLevel, String approvalThresholdLevel) {
+        int sensitivityRank = sensitivityRank(sensitivityLevel, 3);
+        int thresholdRank = sensitivityRank(approvalThresholdLevel, 1);
+        return sensitivityRank >= thresholdRank;
+    }
+
+    private int sensitivityRank(String value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        return switch (value.trim().toUpperCase(Locale.ROOT)) {
+            case "LOW" -> 1;
+            case "MEDIUM" -> 2;
+            case "HIGH" -> 3;
+            default -> fallback;
+        };
     }
 
     private ObjectNode parsePayloadObject(String payloadJson) {

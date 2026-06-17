@@ -7,7 +7,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -61,9 +63,38 @@ class ModelEgressGovernanceServiceTest {
     }
 
     @Test
+    void upsertWhitelist_persistsPolicyRulesThresholdAndLockedGuardrail() {
+        when(whitelistRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+            .thenReturn(Optional.empty());
+        when(whitelistRepo.save(any(ModelEgressWhitelist.class))).thenAnswer(i -> i.getArgument(0));
+        Map<String, String> rules = new LinkedHashMap<>();
+        rules.put("clinicalText", "GENERALIZE");
+        rules.put("ageYears", "NONE");
+
+        ModelEgressWhitelist saved = service.upsertWhitelist("knowledge.extract",
+            new ModelEgressWhitelistUpsertRequest(List.of("clinicalText", "ageYears"), "MEDIUM",
+                rules, "MEDIUM"));
+
+        assertThat(saved.desensitizationRules()).isEqualTo("{\"clinicalText\":\"GENERALIZE\",\"ageYears\":\"NONE\"}");
+        assertThat(saved.approvalThresholdLevel()).isEqualTo("MEDIUM");
+        assertThat(saved.guardrailLockedFlag()).isEqualTo("Y");
+        verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
+            "保存模型出域白名单 knowledge.extract");
+    }
+
+    @Test
     void upsertWhitelist_rejectsUnknownSensitivityLevel() {
         assertThatThrownBy(() -> service.upsertWhitelist("knowledge.extract",
                 new ModelEgressWhitelistUpsertRequest(List.of("clinicalText"), "EXTREME")))
+            .isInstanceOf(ApiException.class);
+        verify(whitelistRepo, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void upsertWhitelist_rejectsUnknownDesensitizationOperator() {
+        assertThatThrownBy(() -> service.upsertWhitelist("knowledge.extract",
+                new ModelEgressWhitelistUpsertRequest(List.of("clinicalText"), "LOW",
+                    Map.of("clinicalText", "RAW"), "HIGH")))
             .isInstanceOf(ApiException.class);
         verify(whitelistRepo, org.mockito.Mockito.never()).save(any());
     }

@@ -37,6 +37,8 @@
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
   - T5.3 已补 `mk_llm_model_version_bundle` V139 clean baseline、`model_capability_task.tool_version`、ACTIVE 版本包发布/回滚/hash-only 导出、B0 脱敏摘要重放、provider 成功任务真实 prompt/tool/model 三元组记录，以及服务层发布前载荷校验；空版本或空正文不再能先退役旧 ACTIVE。
   - T5.4 已补 OPT-06 AI 质量评测中心：V126 clean baseline 复用 `mk_llm_regression_case`/`mk_llm_eval_run` 增加质量维度、术语期望、禁用断言、最低分、质量/术语分、幻觉标记、case summary 与 prompt/tool/model 版本趋势；新增 `/api/v1/ai-eval/runs`、`/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出评测；真实领域题库只允许由真实来源导入，不预置伪医学题。
+  - T5.5 已补 OPT-09 数据最小化策略引擎：V144 五方言在 `mk_llm_egress_whitelist` 扩展 `desensitization_rules`、`approval_threshold_level`、锁定式 `guardrail_locked_flag`；新增 `/api/v1/data-minimization/policies/model-egress/{capabilityCode}` 与 `/model-egress/approvals` 管理入口，统一复用 `llm.egress.manage` 权限和出域审计表。
+  - T5.5 运行时护栏已接入 `ModelEgressGuard`：字段白名单外继续阻断，字段级 `MASK`/`MASK_ALL`/`GENERALIZE`/`NULLIFY`/`NONE` 策略在出域前执行；缺省或异常规则按最严 `MASK_ALL` 处理；审批门槛按 `LOW/MEDIUM/HIGH` 可配置，命中门槛且无有效审批时仍返回 `ENG_LLM_007`，不绕过既有证据链。
 
 ## 最新验证
 
@@ -49,6 +51,7 @@
 - Phase 5 T5.2 提交前验证：`mvn -q -Dtest=ModelGatewayServiceTest#submitTask_policyRateLimitExceededSkipsProviderAndFallsBackToB0 test` 红→绿；`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,OllamaProviderTest,ExternalProviderTest,ModelFallbackMatrixTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`cd frontend && npm test -- AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 - Phase 5 T5.3 提交前验证：`mvn -q -Dtest=ModelVersionGovernanceServiceTest#publishBundleRejectsBlankVersionPayloadBeforeRetiringActiveBundle test` 红→绿；`mvn -q -Dtest=ModelVersionGovernanceServiceTest,ModelVersionGovernanceControllerTest,ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest test`、`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 - Phase 5 T5.4 提交前验证：AI 质量评测目标测试、V126 五方言迁移契约、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.4 范围旧构造器、旧表名、legacy/backfill/ROLLBACK 扫描无命中。
+- Phase 5 T5.5 提交前验证：`mvn -q -Dtest=ModelEgressGuardTest,ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；OPT-09 旧 pending 口径、T5.5 未完成勾选、旧迁移版本哨兵、旧 data-min-policy 路径扫描无命中。
 
 ## 仍不可宣称
 
@@ -59,7 +62,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5 T5.5：OPT-09 数据最小化策略引擎（字段白名单、脱敏、审批、模型出域安全）。
+1. 继续 Phase 5 T5.6：API-12 模型能力网关 API 收口勾卡；核对 API-12/LLM-01 卡片、服务契约、OpenAPI 暴露、权限与前端消费口径，发现不达标处直接 TDD 修复。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

@@ -1,8 +1,10 @@
 package com.medkernel.engine.llm.egress;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -29,6 +31,7 @@ public class ModelEgressGovernanceService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> SENSITIVITY_LEVELS = Set.of("LOW", "MEDIUM", "HIGH");
     private static final Set<String> APPROVAL_DECISIONS = Set.of("APPROVED", "REJECTED");
+    private static final Set<String> DESENSITIZATION_OPERATORS = Set.of("MASK", "MASK_ALL", "GENERALIZE", "NULLIFY", "NONE");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
     private final ModelEgressApprovalRepository approvalRepo;
@@ -54,16 +57,25 @@ public class ModelEgressGovernanceService {
         if (!SENSITIVITY_LEVELS.contains(sensitivity)) {
             throw new ApiException(ErrorCode.ENG_LLM_006, "非法的出域敏感级别: " + request.sensitivityLevel());
         }
+        String approvalThreshold = request.approvalThresholdLevel() == null
+            ? "HIGH" : request.approvalThresholdLevel().trim().toUpperCase(Locale.ROOT);
+        if (!SENSITIVITY_LEVELS.contains(approvalThreshold)) {
+            throw new ApiException(ErrorCode.ENG_LLM_007, "非法的出域审批阈值: " + request.approvalThresholdLevel());
+        }
 
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         Optional<ModelEgressWhitelist> existing = whitelistRepo.findByTenantIdAndCapabilityCode(tenantId, code);
+        List<String> allowedFields = normalizeFields(request.allowedFields());
         ModelEgressWhitelist saved = whitelistRepo.save(new ModelEgressWhitelist(
             existing.map(ModelEgressWhitelist::id).orElse(null),
             tenantId,
             code,
-            toJsonArray(request.allowedFields()),
+            toJsonArray(allowedFields),
             sensitivity,
+            toRulesJson(request.desensitizationRules(), allowedFields),
+            approvalThreshold,
+            "Y",
             existing.map(ModelEgressWhitelist::createdAt).orElse(now),
             existing.map(ModelEgressWhitelist::createdBy).orElse(actor),
             now,
@@ -108,9 +120,43 @@ public class ModelEgressGovernanceService {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    private List<String> normalizeFields(List<String> fields) {
+        if (fields == null) {
+            throw new ApiException(ErrorCode.ENG_LLM_006, "出域字段白名单不能为空");
+        }
+        List<String> normalized = fields.stream()
+            .filter(field -> field != null && !field.isBlank())
+            .map(String::trim)
+            .distinct()
+            .toList();
+        if (normalized.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_LLM_006, "出域字段白名单不能为空");
+        }
+        return normalized;
+    }
+
     private String toJsonArray(List<String> fields) {
         var array = OBJECT_MAPPER.createArrayNode();
         fields.forEach(array::add);
         return array.toString();
+    }
+
+    private String toRulesJson(Map<String, String> rules, List<String> allowedFields) {
+        Map<String, String> safeRules = new LinkedHashMap<>();
+        Set<String> allowed = Set.copyOf(allowedFields);
+        if (rules != null) {
+            for (Map.Entry<String, String> entry : rules.entrySet()) {
+                String field = entry.getKey() == null ? "" : entry.getKey().trim();
+                if (field.isBlank() || !allowed.contains(field)) {
+                    throw new ApiException(ErrorCode.ENG_LLM_006, "脱敏规则字段不在出域白名单内: " + entry.getKey());
+                }
+                String operator = entry.getValue() == null ? "" : entry.getValue().trim().toUpperCase(Locale.ROOT);
+                if (!DESENSITIZATION_OPERATORS.contains(operator)) {
+                    throw new ApiException(ErrorCode.ENG_LLM_006, "非法的脱敏算子: " + entry.getValue());
+                }
+                safeRules.put(field, operator);
+            }
+        }
+        return OBJECT_MAPPER.valueToTree(safeRules).toString();
     }
 }

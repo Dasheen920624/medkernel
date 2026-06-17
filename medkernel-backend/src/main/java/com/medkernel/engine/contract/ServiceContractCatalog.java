@@ -379,6 +379,13 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.UPDATE, "mk_llm_egress_whitelist", "维护模型出域字段白名单"),
                 audit(AuditAction.UPDATE, "mk_llm_egress_approval", "裁定高敏出域审批"))),
+        contract("data-minimization-policies", "数据最小化策略服务",
+            "com.medkernel.engine.llm.egress.DataMinimizationPolicyController",
+            "/api/v1/data-minimization/policies",
+            permissions("llm.egress.manage"),
+            audits(
+                audit(AuditAction.UPDATE, "mk_llm_egress_whitelist", "维护 OPT-09 数据最小化字段白名单、脱敏规则和审批阈值"),
+                audit(AuditAction.UPDATE, "mk_llm_egress_approval", "裁定模型高敏出域审批"))),
         contract("model-providers", "模型 provider 接入治理服务",
             "com.medkernel.engine.llm.provider.ModelProviderController", "/api/v1/model-providers",
             permissions("llm.provider.manage"),
