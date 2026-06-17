@@ -512,6 +512,20 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_requiredLocalRouteRejectsExternalPolicyWithoutProviderResolution() {
+        policy("EXTERNAL_MODEL");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60, "LOCAL_MODEL", "ollama-hospital")));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.errorCode());
+        assertTrue(ex.getMessage().contains("LOCAL_MODEL"));
+        assertTrue(ex.getMessage().contains("EXTERNAL_MODEL"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+    }
+
+    @Test
     void submitTask_withActiveVersionBundle_recordsPromptToolModelTriple() {
         policy("LOCAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);

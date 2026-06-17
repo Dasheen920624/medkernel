@@ -100,6 +100,7 @@ import {
   useKnowledgeReviewQueue,
   useModelTask,
   useReplayModelTask,
+  useSubmitModelTask,
   useValidateModelPolicy,
   useSaveModelPolicy,
   useCandidateCoexistence,
@@ -377,6 +378,34 @@ describe("model gateway api hooks", () => {
       toolVersion: "tool:extract-schema-v1",
     });
     expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks/task-1/replay");
+  });
+
+  it("submits local model tasks with required route and provider guardrails", async () => {
+    const task = {
+      ...replayedTask,
+      taskId: "task-local-1",
+      status: "SUCCEEDED",
+      modelMode: "B1",
+      modelVersion: "qwen2.5:7b",
+      fallbackUsed: false,
+      fallbackReason: "",
+    };
+    const payload = {
+      capabilityCode: "knowledge.extract",
+      inputData: "院内受控来源摘要",
+      timeoutSeconds: 60,
+      requiredRouteStrategy: "LOCAL_MODEL",
+      providerCode: "ollama-hospital",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: task } });
+
+    const submitHook = renderApiHook(() => useSubmitModelTask());
+
+    await expect(submitHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      taskId: "task-local-1",
+      modelMode: "B1",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
   });
 
   it("validates and saves route policy with explicit fallback budget", async () => {

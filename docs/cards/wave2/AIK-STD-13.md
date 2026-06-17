@@ -64,6 +64,11 @@
 - `DocumentParseController` 院内 multipart 上传入口复用 AIK-STD-02 解析和 P1 受管资料库；成功解析后可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `CandidateGenerationRequest(..., TENANT_OVERLAY, ...)`。
 - T6.1 未新增候选表、不新增平台主源写入口；院内上传候选仍走 `CandidateGenerationOrchestrationService → KnowledgeProductionOrchestrationService.submitCandidate`，继续受双形态隔离、门禁、8 态、影子评测和会签路由约束。
 
+**2026-06-17 T6.2 本地模型生产器收口（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 对 `LOCAL_MODEL` job 增加 producer 层管道守卫：本地模型只允许生成 `TENANT_OVERLAY` 院内覆盖候选，发现平台主源管道在 readiness 和模型网关调用前即返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`。
+- `ModelTaskRequest` 增加可选 `requiredRouteStrategy/providerCode`，知识生产器按 job 类型传入 `LOCAL_MODEL` 或 `EXTERNAL_MODEL`；`ModelGatewayService` 在 provider 解析、脱敏摘要落库和真实调用前校验当前能力策略必须匹配必需路由，策略漂移时拒绝越界调用，不落任务、不外调。
+- `ModelProviderRegistry` 支持按 `routeStrategy + providerCode` 解析指定 provider，并复用部署形态、类型匹配与健康检查；`LOCAL_MODEL` 指定外部 providerCode 时解析为空并回到既有诚实降级/阻断路径，不伪造 B1/B2。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
 - [ ] FR-2 四生产器可插拔：① API 大模型自主（B2 外部，经 [LLM-01](LLM-01.md) 网关）② Agent 工具协助（经 [DATASVC-01](DATASVC-01.md) MCP/CLI 回写，契约见 [AIK-STD-14](AIK-STD-14.md)）③ 本地大模型（B1 本地/国产化）④ 人工录入/批量导入；新增生产器不破坏框架。

@@ -269,12 +269,14 @@ public class ModelGatewayService {
                 "BASELINE", "DEFAULT", null, serializeFallbackOrder(fallbackMatrix.defaultFallbackOrder("BASELINE")),
                 DEFAULT_PROVIDER_TIMEOUT_MS, null, Instant.now(), createdBy, Instant.now(), createdBy
             ));
+        String strategy = policy.routeStrategy();
 
         // 2. 校验策略禁用阻断
-        if ("DISABLED".equalsIgnoreCase(policy.routeStrategy())) {
+        if ("DISABLED".equalsIgnoreCase(strategy)) {
             publishFailureAudit(ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
             throw new ApiException(ErrorCode.ENG_LLM_001, "模型能力 " + capabilityCode + " 已经被组织禁用");
         }
+        guardRequiredRoute(req.requiredRouteStrategy(), strategy);
 
         // 3. 敏感数据脱敏过滤与Hash计算
         String desensitizedInput = ModelDataDesensitizer.desensitize(req.inputData(), policy.desensitizeStrategy());
@@ -284,12 +286,12 @@ public class ModelGatewayService {
         // 4. 路由与推理：按策略解析真实 provider（B1 本地 / B2 外部）。有健康 provider 且（B2）过出域闸
         //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
         //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
-        String strategy = policy.routeStrategy();
         ModelFallbackConfig fallbackConfig = fallbackConfig(policy);
         ModelVersionTriple plannedTriple = activeTripleOrBaseline(tenantId, capabilityCode);
         String schemaConstraint = policy.expectedSchema();
         RouteOutcome outcome = route(
-            tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, plannedTriple, schemaConstraint);
+            tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, plannedTriple,
+            schemaConstraint, req.providerCode());
 
         // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
@@ -682,6 +684,21 @@ public class ModelGatewayService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private static void guardRequiredRoute(String requiredRouteStrategy, String actualRouteStrategy) {
+        String required = normalizeCode(requiredRouteStrategy);
+        if (required.isEmpty()) {
+            return;
+        }
+        String actual = normalizeCode(actualRouteStrategy);
+        if (!ROUTE_STRATEGIES.contains(required)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "不支持的必需模型路由策略: " + requiredRouteStrategy);
+        }
+        if (!required.equals(actual)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST,
+                "模型任务要求路由 " + required + "，但当前能力策略为 " + actual + "，禁止越界调用");
+        }
+    }
+
     private String validateFallbackSettings(
             String routeStrategy,
             List<String> fallbackOrder,
@@ -887,7 +904,8 @@ public class ModelGatewayService {
      */
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
                                ModelFallbackConfig fallbackConfig, String desensitizedInput,
-                               String taskId, ModelVersionTriple plannedTriple, String expectedSchema) {
+                               String taskId, ModelVersionTriple plannedTriple, String expectedSchema,
+                               String providerCode) {
         List<String> reasons = new ArrayList<>();
         List<String> order = fallbackConfig.fallbackOrder();
         for (int i = 0; i < order.size(); i++) {
@@ -899,9 +917,10 @@ public class ModelGatewayService {
                 return b0Outcome(capabilityCode, reason);
             }
 
+            String attemptProviderCode = attemptStrategy.equalsIgnoreCase(strategy) ? providerCode : null;
             ProviderAttempt attempt = tryProvider(
                 tenantId, capabilityCode, attemptStrategy, desensitizedInput,
-                taskId, plannedTriple, expectedSchema, fallbackConfig);
+                taskId, plannedTriple, expectedSchema, fallbackConfig, attemptProviderCode);
             if (attempt.outcome().isPresent()) {
                 RouteOutcome successful = attempt.outcome().get();
                 if (reasons.isEmpty()) {
@@ -933,8 +952,10 @@ public class ModelGatewayService {
     private ProviderAttempt tryProvider(String tenantId, String capabilityCode, String strategy,
                                         String desensitizedInput, String taskId,
                                         ModelVersionTriple plannedTriple, String expectedSchema,
-                                        ModelFallbackConfig fallbackConfig) {
-        var resolved = providerRegistry.resolve(tenantId, strategy);
+                                        ModelFallbackConfig fallbackConfig, String providerCode) {
+        var resolved = providerCode == null || providerCode.isBlank()
+            ? providerRegistry.resolve(tenantId, strategy)
+            : providerRegistry.resolve(tenantId, strategy, providerCode);
         if (resolved.isEmpty()) {
             return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_UNAVAILABLE,
                 "未解析到健康 provider 或部署形态不允许");

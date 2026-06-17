@@ -26,6 +26,7 @@ import com.medkernel.engine.knowledge.production.generation.SkippedType;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowContext;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.TargetPipeline;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
@@ -85,6 +86,7 @@ public class ModelKnowledgeProducer {
         KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
         guardModelProducer(job);
+        guardLocalModelPipeline(job);
 
         KnowledgeProductionReadinessResponse readiness = readinessService.evaluate(
             job.producer(), request.capabilityCode(), request.providerCode(), job.modelStrategy());
@@ -95,7 +97,8 @@ public class ModelKnowledgeProducer {
         }
 
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
-            request.capabilityCode(), request.prompt(), request.timeoutSeconds()));
+            request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
+            requiredRouteStrategy(job.producer()), request.providerCode()));
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -147,6 +150,18 @@ public class ModelKnowledgeProducer {
         if (job.producer() != KnowledgeProducer.API_MODEL && job.producer() != KnowledgeProducer.LOCAL_MODEL) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "job 生产器不是模型生产器，禁止调用模型生成");
         }
+    }
+
+    private void guardLocalModelPipeline(KnowledgeProductionJob job) {
+        if (job.producer() == KnowledgeProducer.LOCAL_MODEL
+            && job.targetPipeline() != TargetPipeline.TENANT_OVERLAY) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "本地模型生产器只允许生成院内覆盖候选，禁止进入平台主源管道");
+        }
+    }
+
+    private String requiredRouteStrategy(KnowledgeProducer producer) {
+        return producer == KnowledgeProducer.LOCAL_MODEL ? "LOCAL_MODEL" : "EXTERNAL_MODEL";
     }
 
     private List<GateItemResult> readinessFailures(List<KnowledgeProductionReadinessItem> items) {

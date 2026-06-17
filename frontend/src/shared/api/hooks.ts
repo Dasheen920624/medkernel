@@ -8402,6 +8402,8 @@ export interface ModelTaskRequest {
   capabilityCode: string;
   inputData: string;
   timeoutSeconds?: number;
+  requiredRouteStrategy?: "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
+  providerCode?: string | null;
 }
 
 export interface ModelTaskResponse {

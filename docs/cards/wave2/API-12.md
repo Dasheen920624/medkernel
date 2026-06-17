@@ -28,7 +28,7 @@
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - 端点：见 FR；响应信封 `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
-- DTO：`ModelCapabilityStatusResponse`(capabilityCode/routeStrategy/policyScopeType/policyScopeRef/inherited/fallbackOrder/timeoutMs/rateLimitPerMinute/fallbackAvailable…) · `ModelTaskRequest`(capabilityCode/inputData/timeout) · `ModelPolicyUpsertRequest`(routeStrategy/desensitizeStrategy/expectedSchema/fallbackOrder/timeoutMs/rateLimitPerMinute) · `ModelTaskResponse`(taskId/status/modelMode/modelVersion/promptVersion/toolVersion/fallbackUsed/riskLevel/traceId…)。
+- DTO：`ModelCapabilityStatusResponse`(capabilityCode/routeStrategy/policyScopeType/policyScopeRef/inherited/fallbackOrder/timeoutMs/rateLimitPerMinute/fallbackAvailable…) · `ModelTaskRequest`(capabilityCode/inputData/timeout/requiredRouteStrategy/providerCode；requiredRouteStrategy/providerCode 用于知识生产器内部锁定本地或外部 provider 路径，普通调用可空) · `ModelPolicyUpsertRequest`(routeStrategy/desensitizeStrategy/expectedSchema/fallbackOrder/timeoutMs/rateLimitPerMinute) · `ModelTaskResponse`(taskId/status/modelMode/modelVersion/promptVersion/toolVersion/fallbackUsed/riskLevel/traceId…)。
 - 状态机：变更（任务 PENDING→DEGRADED/SUCCESS/FAILED）。
 - 幂等 / 错误码 / traceId：`ENG_LLM_001` 能力禁用 · `002` schema 校验失败 · `004` 任务不存在 · `TENANT_FORBIDDEN`；traceId 全链路透传。
 
