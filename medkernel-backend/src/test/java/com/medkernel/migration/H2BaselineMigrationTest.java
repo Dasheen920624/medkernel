@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 141;
+    private static final int LATEST_MIGRATION_VERSION = 142;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {

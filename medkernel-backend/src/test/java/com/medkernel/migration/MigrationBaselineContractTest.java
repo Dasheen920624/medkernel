@@ -189,7 +189,8 @@ class MigrationBaselineContractTest {
         "V138__knowledge_shadow_run.sql",
         "V139__mk_llm_model_version_bundle.sql",
         "V140__knowledge_diff_expiry_task.sql",
-        "V141__aik_pack_job.sql"
+        "V141__aik_pack_job.sql",
+        "V142__knowledge_acquisition.sql"
     );
 
     @Test
@@ -280,6 +281,30 @@ class MigrationBaselineContractTest {
                 .contains("PACKAGED", "FAILED", "uk_aik_pack_job_id", "uk_aik_pack_job_package",
                     "fk_aik_pack_job_package", "ck_aik_pack_job_status", "idx_aik_pack_job_package")
                 .contains("AIK-STD-07 知识包装配作业", "PKG-01 包引用");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V142__knowledge_acquisition.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-14 公域资料获取必须持久化白名单、许可、robots 策略和运行账本", dialect)
+                .contains("mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
+                    "source_code", "domain", "license_policy", "robots_policy", "approved_by",
+                    "source_hash", "material_file_uri", "parse_job_code")
+                .contains("PERMITTED", "FORBIDDEN", "ALLOW_FETCH", "DISALLOW_FETCH",
+                    "SUCCEEDED", "DUPLICATE", "BLOCKED", "FAILED")
+                .contains("uk_mk_knowledge_acquisition_source_code",
+                    "ck_mk_knowledge_acquisition_source_type",
+                    "ck_mk_knowledge_acquisition_source_authority",
+                    "ck_mk_knowledge_acquisition_license_policy",
+                    "ck_mk_knowledge_acquisition_robots_policy",
+                    "fk_mk_knowledge_acquisition_run_source",
+                    "ck_mk_knowledge_acquisition_run_status",
+                    "idx_mk_knowledge_acquisition_source_domain",
+                    "idx_mk_knowledge_acquisition_run_status")
+                .contains("AIK-STD-14 公域资料来源白名单", "公域资料获取运行账本");
         }
     }
 
@@ -381,7 +406,7 @@ class MigrationBaselineContractTest {
         "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
-        "knowledge_diff", "expiry_task",
+        "knowledge_diff", "expiry_task", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
         "mk_knowledge_generation_triage", "mk_knowledge_shadow_run", "mk_llm_model_version_bundle",
@@ -484,6 +509,8 @@ class MigrationBaselineContractTest {
         "idx_knowledge_diff_target", "idx_knowledge_diff_run",
         "idx_expiry_task_status", "idx_expiry_task_version",
         "idx_aik_pack_job_package", "idx_aik_pack_job_status",
+        "idx_mk_knowledge_acquisition_source_domain", "idx_mk_knowledge_acquisition_source_status",
+        "idx_mk_knowledge_acquisition_run_status", "idx_mk_knowledge_acquisition_run_source",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
         "idx_candidate_classification_identity", "idx_candidate_classification_status",
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
@@ -686,6 +713,11 @@ class MigrationBaselineContractTest {
         "uk_expiry_task_key", "ck_expiry_task_type", "ck_expiry_task_status", "ck_expiry_task_risk",
         "uk_aik_pack_job_id", "uk_aik_pack_job_package", "fk_aik_pack_job_package",
         "ck_aik_pack_job_status", "ck_aik_pack_job_count",
+        "uk_mk_knowledge_acquisition_source_code", "ck_mk_knowledge_acquisition_source_enabled",
+        "ck_mk_knowledge_acquisition_source_type", "ck_mk_knowledge_acquisition_source_authority",
+        "ck_mk_knowledge_acquisition_license_policy", "ck_mk_knowledge_acquisition_robots_policy",
+        "uk_mk_knowledge_acquisition_run_code", "ck_mk_knowledge_acquisition_run_trigger",
+        "ck_mk_knowledge_acquisition_run_status", "fk_mk_knowledge_acquisition_run_source",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
         "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
@@ -946,7 +978,7 @@ class MigrationBaselineContractTest {
         "mk_knowledge_material_object", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
-        "knowledge_diff", "expiry_task",
+        "knowledge_diff", "expiry_task", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
         "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -1006,7 +1038,7 @@ class MigrationBaselineContractTest {
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
         "expiry_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment", "mk_knowledge_production_job",
-        "mk_doc_parse_job",
+        "mk_doc_parse_job", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
@@ -1094,6 +1126,8 @@ class MigrationBaselineContractTest {
         Map.entry("knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
         Map.entry("expiry_task", Set.of("task_type", "status", "review_due_at")),
         Map.entry("aik_pack_job", Set.of("status", "manifest_sha256")),
+        Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy", "enabled_flag")),
+        Map.entry("mk_knowledge_acquisition_run", Set.of("status", "source_hash", "material_file_uri")),
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),

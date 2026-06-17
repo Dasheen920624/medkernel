@@ -9,7 +9,7 @@
 - 前端路由：42 项。
 - 后端菜单：32 项。
 - 页面与页内组件：46 项。
-- 后端控制器：87 项。
+- 后端控制器：88 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
@@ -17,7 +17,7 @@
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 79 |
+| KEEP | 80 |
 | MERGE | 47 |
 | MOVE | 63 |
 | REMOVE | 1 |
@@ -66,7 +66,7 @@
 | `/rule/definitions` | 规则配置 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 规则配置 | 配置、试运行、审核和发布临床规则 |
 <!-- capability:route:route@%2Fterminology%2Fmapping decision=MOVE -->
 <!-- route:/terminology/mapping -->
-| `/terminology/mapping` | 术语与字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语与字典 | 启动候选生成，维护院内术语映射、冲突和高风险确认 |
+| `/terminology/mapping` | 术语与字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语与字典 | 维护院内术语映射、冲突和高风险确认 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=MOVE -->
 <!-- route:/adapter/hub -->
 | `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
@@ -111,7 +111,7 @@
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
 <!-- capability:route:route@%2Fknowledge%2Fgovernance decision=MOVE -->
 <!-- route:/knowledge/governance -->
-| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布，查看 AI 工厂 job、8 态、影子、共存对照并中止 Agent 生产任务 |
+| `/knowledge/governance` | 知识审核与发布 | knowledge-governance | knowledge-governance | primary | MOVE | 知识治理 | 知识审核与发布 | 审核平台主源或机构派生差异并发布、换基线或恢复标准 |
 <!-- capability:route:route@%2Fknowledge%2Fdiagnosis decision=SPLIT -->
 <!-- route:/knowledge/diagnosis -->
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |
@@ -445,6 +445,8 @@
 | `KnowledgeRetirementController` | POST /api/v1/engine/knowledge/identities/{identityId}/deprecate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeVersionController decision=KEEP -->
 | `KnowledgeVersionController` | GET /api/v1/engine/knowledge/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions<br>GET /api/v1/engine/knowledge/versions/{versionId}<br>GET /api/v1/engine/knowledge/review-queue<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/submit<br>GET /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/replay<br>GET /api/v1/engine/knowledge/identities/{identityId}/candidates<br>POST /api/v1/engine/knowledge/candidates/{candidateId}/review<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@AcquisitionController decision=KEEP -->
+| `AcquisitionController` | POST /api/v1/engine/knowledge/acquisition/runs<br>GET /api/v1/engine/knowledge/acquisition/sources<br>GET /api/v1/engine/knowledge/acquisition/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiagnosisKnowledgeController decision=KEEP -->
 | `DiagnosisKnowledgeController` | POST /api/v1/engine/knowledge/diagnosis/assets<br>POST /api/v1/engine/knowledge/diagnosis/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiagnosisAssistController decision=KEEP -->
@@ -476,7 +478,7 @@
 <!-- capability:controller:controller@PathwayEngineController decision=KEEP -->
 | `PathwayEngineController` | POST /api/v1/engine/pathway/pathway-templates<br>GET /api/v1/engine/pathway/pathway-templates<br>GET /api/v1/engine/pathway/pathway-templates/{templateId}<br>GET /api/v1/engine/pathway/pathway-templates/{templateId}/inheritance-diff<br>GET /api/v1/engine/pathway/pathway-templates/{templateId}/impact<br>POST /api/v1/engine/pathway/pathway-templates/{templateId}/publish<br>POST /api/v1/engine/pathway/pathway-templates/{templateId}/rollout/full<br>POST /api/v1/engine/pathway/pathway-templates/{templateId}/rollback<br>其余 7 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@PackageEngineController decision=MERGE -->
-| `PackageEngineController` | POST /api/v1/engine/pkg/packages<br>POST /api/v1/engine/pkg/packages/terminology<br>POST /api/v1/engine/pkg/packages/pathway<br>POST /api/v1/engine/pkg/packages/aik<br>GET /api/v1/engine/pkg/packages<br>GET /api/v1/engine/pkg/packages/pilot-templates<br>POST /api/v1/engine/pkg/packages/pilot-templates/{templateCode}/references<br>GET /api/v1/engine/pkg/packages/asset-readiness<br>GET /api/v1/engine/pkg/packages/{packageId}/entitlements<br>其余 16 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
+| `PackageEngineController` | POST /api/v1/engine/pkg/packages<br>POST /api/v1/engine/pkg/packages/terminology<br>POST /api/v1/engine/pkg/packages/pathway<br>POST /api/v1/engine/pkg/packages/aik<br>GET /api/v1/engine/pkg/packages<br>GET /api/v1/engine/pkg/packages/pilot-templates<br>POST /api/v1/engine/pkg/packages/pilot-templates/{templateCode}/references<br>GET /api/v1/engine/pkg/packages/asset-readiness<br>其余 17 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@PluginSecurityController decision=KEEP -->
 | `PluginSecurityController` | GET /api/v1/plugins<br>POST /api/v1/plugins/register<br>POST /api/v1/plugins/{pluginId}/grants<br>POST /api/v1/plugins/{pluginId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@ProjectionController decision=KEEP -->
@@ -512,7 +514,7 @@
 <!-- capability:controller:controller@TenantEngineController decision=KEEP -->
 | `TenantEngineController` | GET /api/v1/engine/tenant/branding<br>POST /api/v1/engine/tenant/branding<br>GET /api/v1/engine/tenant/success-plan<br>POST /api/v1/engine/tenant/success-plan/transition<br>GET /api/v1/engine/tenant/implementation-steps<br>GET /api/v1/engine/tenant/onboarding-readiness | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@TerminologyController decision=MERGE -->
-| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>GET /api/v1/engine/terminology/mappings/candidate-generation-jobs/{jobCode}<br>其余 5 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
+| `TerminologyController` | GET /api/v1/engine/terminology/terms/standard<br>GET /api/v1/engine/terminology/terms/local<br>POST /api/v1/engine/terminology/terms/standard<br>POST /api/v1/engine/terminology/terms/local<br>GET /api/v1/engine/terminology/mappings<br>GET /api/v1/engine/terminology/mappings/coverage<br>GET /api/v1/engine/terminology/mappings/candidates<br>POST /api/v1/engine/terminology/mappings/candidates<br>其余 6 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ReleaseGovernanceController decision=MERGE -->
 | `ReleaseGovernanceController` | POST /api/v1/engine/versioning/releases/simulations<br>POST /api/v1/engine/versioning/releases/rollouts<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}/observations<br>POST /api/v1/engine/versioning/releases/rollouts/{planId}:rollback<br>GET /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-templates<br>POST /api/v1/engine/versioning/releases/override-batches:preview<br>POST /api/v1/engine/versioning/releases/override-batches:apply<br>其余 1 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@WorkflowNotificationController decision=KEEP -->

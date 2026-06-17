@@ -161,7 +161,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **复用**：`mk_llm_regression_case`、`ModelEvalController/Service`、`ClinicalRedlineService`、`SystemConfigController`、`/readiness`。
   - [x] T2.1 `RegressionBaselineSeeder`：从 OPT-04 **已审红线库**投影首发回归用例（capability+input+expected_phrase+red_line_type+引用+citation=Y）；**禁凭空编题/编答案**，只投影已审内容。已实现 `rule.draft` ACTIVE 红线投影、题干去重、长 DSL 有界摘录且保留证据锚点。
   - [x] T2.2 基准集维护：确认/补 `ModelEvalController` 新增/启停/版本/批量导入真实题。已新增结构化 `source_reference` 五方言基线、列表/新增/批量导入/启停端点，真实来源引用必填且占位来源拒收。
-  - [x] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。已修正资料库根配置提示，明确受管本地磁盘、对象存储和 HTTPS 网关均为正式后端，不再暗示对象存储唯一；系统配置变更仍要求高危确认与审计。
+  - [x] T2.3 配置中心管理面（前端）：文献库根 URI / 部署形态 / P6 / provider / 出域白名单 / 能力策略 归超管"安全基线与系统配置"页，默认关、高危二次确认、审计可见。已修正资料库根配置提示，明确受管本地磁盘、对象存储和 HTTPS 网关均为正式后端，不再暗示只能使用对象存储；系统配置变更仍要求高危确认与审计。
   - [x] T2.4 readiness 前端：生产中心页展示 9 闸逐项 PASS/BLOCK + 阻断原因 + 去配置去处；六态齐。已接 `/engine/knowledge-production/readiness`，把 LITERATURE_ROOT / DEPLOYMENT_FORM / MODEL_PROVIDER / REGRESSION_BASELINE / MODEL_EVALUATION / EGRESS_GOVERNANCE / MODEL_POLICY / VERSION_TRIPLE / P6_ACCEPTANCE 并入验收自检表，保留 loading/error/empty/forbidden/partial/正常视图。
 - **验收**：自带真实基准集且可维护 + 6 项配置超管默认关可管 + readiness 前端逐项可见（注：`MODEL_EVALUATION` 仍要求真跑 PASSED，不被种子绕过）。
 
@@ -177,13 +177,13 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **目标**：生产中心**自主从公域权威源持续获取资料→落资料库→进统一管线→专家审核上线**；补 AIK-STD-14 Agent 取数工具。原设计预留槽位（生产器①②）补全。
 - **复用**：P1 存储层、来源登记、解析管线、`ModelEgressGovernanceService`、`DeploymentFormService`（仅 PRODUCTION_CENTER 可外联）、`CandidateGenerationOrchestrationService`、DATASVC MCP/CLI。
 - **新建包** `engine.knowledge.acquisition`
-  - [ ] T4.1 公域源 allowlist 治理 `mk_knowledge_acquisition_source`（域名/A–E 权威(OPT-07)/license/robots 策略/enabled/审批人/时点）五方言；超管在配置中心管理；**新增域名超管审批才生效**（起步集见 §7）。**先核无等价表再建**。
-  - [ ] T4.2 合规抓取器 `WebContentFetcher` + `RestWebContentFetcher`：仅抓 allowlisted 域；遵守 robots/ToS/rate-limit；记真实 URL+时点；产真实字节→P1 store→真实 sha256；仅 PRODUCTION_CENTER 可运行，经出域治理留证。
-  - [ ] T4.3 获取编排 `AcquisitionOrchestrationService`：调度→抓取→落资料库→登记 `SourceVersion(file_uri,hash,authority,license)`→触发解析→触发候选生成（同 hash 去重；license 不许可接 `SourceLicenseGate` 拒收）。
-  - [ ] T4.4 抓取账本 `mk_knowledge_acquisition_run`（域名/url/fetched_at/sha256/bytes/license/status/触发方式）五方言；合规审计可查。
+  - [x] T4.1 公域源 allowlist 治理 `mk_knowledge_acquisition_source`（域名/A–E 权威(OPT-07)/license/robots 策略/enabled/审批人/时点）五方言；启用必须审批，许可和 robots 策略不允许时运行阻断。配置中心管理面仍留 P8/P9 配置体验收口。
+  - [x] T4.2 合规抓取器 `WebContentFetcher` + `RestWebContentFetcher`：本轮完成仅 PRODUCTION_CENTER + allowlisted HTTPS 域 + license/robots 策略裁决 + 真实 URL/时点/字节/sha256 留证；资料落 P1 解析链路，受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均可承载。调度限速和更细出域审批证据留 T4.5/P5。
+  - [ ] T4.3 获取编排 `AcquisitionOrchestrationService`：已完成手动触发→抓取→同 hash 去重→解析链路→`SourceVersion(file_uri,hash,authority,license)`；待继续接候选生成/审核池触发。
+  - [x] T4.4 抓取账本 `mk_knowledge_acquisition_run`（域名/url/fetched_at/sha256/bytes/license/status/触发方式）五方言；合规审计可查。
   - [ ] T4.5 自主调度：接 SYS-05 异步/批量框架，定时探索 allowlisted 源更新（接 AIK-STD-08 差异）；失败补偿/死信（OBS-01）。
   - [ ] T4.6 **AIK-STD-14 Agent 取数工具**：MCP/CLI 新增 `fetchPublicMaterial`（仅 allowlisted 公域、仅生产中心、留证、产候选不产事实），生产器②可自主取公开资料回写候选。
-  - [ ] T4.7 端点：`POST .../knowledge/acquisition/runs`（手动触发，write）+ `GET .../knowledge/acquisition/{sources,runs}`（read）。
+  - [x] T4.7 端点：`POST .../knowledge/acquisition/runs`（手动触发，write）+ `GET .../knowledge/acquisition/{sources,runs}`（read）。
 - **验收**：自主抓 allowlisted 公域→资料库→候选入审核链；形态/出域/license/robots 合规留证；Agent 工具越权（患者数据/D5/非公域）拒；全程 AI 只产候选、专家审核、不臆造来源。
 
 #### Phase 5 · 模型增强全实现（X-LLM 收口，5d）
