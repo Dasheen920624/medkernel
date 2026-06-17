@@ -63,11 +63,16 @@ CREATE TABLE IF NOT EXISTS model_capability_policy (
     route_strategy            VARCHAR(32)   NOT NULL DEFAULT 'BASELINE',
     desensitize_strategy      VARCHAR(64)   NOT NULL DEFAULT 'DEFAULT',
     expected_schema           TEXT          NULL,
+    fallback_order_json       TEXT          NOT NULL DEFAULT '["BASELINE"]',
+    timeout_ms                INTEGER       NOT NULL DEFAULT 60000,
+    rate_limit_per_minute     INTEGER       NULL,
     created_at                TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     created_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
     updated_at                TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
     CONSTRAINT ck_model_policy_scope CHECK (scope_type IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','WARD')),
+    CONSTRAINT ck_model_policy_timeout_ms CHECK (timeout_ms BETWEEN 1000 AND 120000),
+    CONSTRAINT ck_model_policy_rate_limit CHECK (rate_limit_per_minute IS NULL OR rate_limit_per_minute BETWEEN 1 AND 600),
     CONSTRAINT uk_model_policy_scope UNIQUE (tenant_id, capability_code, scope_type, scope_ref)
 );
 
@@ -105,3 +110,6 @@ COMMENT ON COLUMN model_capability_policy.scope_ref IS '策略作用域引用ID�
 COMMENT ON COLUMN model_capability_policy.route_strategy IS '模型路由策略(DISABLED禁用,BASELINE基线B0,LOCAL_MODEL本地,EXTERNAL_MODEL外部)';
 COMMENT ON COLUMN model_capability_policy.desensitize_strategy IS '数据脱敏策略代码';
 COMMENT ON COLUMN model_capability_policy.expected_schema IS '期待输出匹配的JSON Schema结构约束';
+COMMENT ON COLUMN model_capability_policy.fallback_order_json IS 'B2/B1/B0 降级顺序 JSON 数组，必须由首选层级逐级降到 BASELINE';
+COMMENT ON COLUMN model_capability_policy.timeout_ms IS '单次 provider 调用超时预算（毫秒）';
+COMMENT ON COLUMN model_capability_policy.rate_limit_per_minute IS '能力策略级 provider 每分钟限流阈值';

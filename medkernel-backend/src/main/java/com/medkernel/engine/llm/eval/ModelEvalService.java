@@ -62,7 +62,7 @@ public class ModelEvalService {
 
         MedicalRegressionEvaluator.EvalVerdict verdict = evaluator.evaluate(cases,
             regCase -> provider.adapter().complete(provider.config(),
-                new ProviderRequest(regCase.capabilityCode(), regCase.caseInput())));
+                new ProviderRequest(regCase.capabilityCode(), regCase.caseInput(), 60_000)));
         return persist(tenantId, providerCode, modelVersion, verdict);
     }
 

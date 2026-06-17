@@ -1,5 +1,7 @@
 package com.medkernel.engine.llm;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -14,5 +16,11 @@ public record ModelPolicyValidateRequest(
 
     String desensitizeStrategy,
 
-    String expectedSchema
+    String expectedSchema,
+
+    List<String> fallbackOrder,
+
+    Integer timeoutMs,
+
+    Integer rateLimitPerMinute
 ) {}

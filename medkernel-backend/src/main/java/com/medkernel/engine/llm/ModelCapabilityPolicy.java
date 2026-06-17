@@ -20,6 +20,9 @@ public record ModelCapabilityPolicy(
     @Column("route_strategy") String routeStrategy, // DISABLED, BASELINE, LOCAL_MODEL, EXTERNAL_MODEL
     @Column("desensitize_strategy") String desensitizeStrategy, // DEFAULT, MASK_ALL, NONE
     @Column("expected_schema") String expectedSchema,
+    @Column("fallback_order_json") String fallbackOrderJson,
+    @Column("timeout_ms") Integer timeoutMs,
+    @Column("rate_limit_per_minute") Integer rateLimitPerMinute,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,

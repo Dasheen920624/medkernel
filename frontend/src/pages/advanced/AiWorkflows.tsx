@@ -65,6 +65,10 @@ function availabilityView(item: ModelCapabilityStatusResponse) {
   return { color: "warning", label: "暂不可用" };
 }
 
+function fallbackOrderLabel(order: string[]) {
+  return order.map((strategy) => routeView(strategy).label).join(" → ");
+}
+
 function capabilityDetails(item: ModelCapabilityStatusResponse) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   return (
@@ -82,6 +86,13 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       </Descriptions.Item>
       <Descriptions.Item label="策略作用域">
         <Text code>{scopeLabel}</Text>
+      </Descriptions.Item>
+      <Descriptions.Item label="降级顺序">
+        {fallbackOrderLabel(item.fallbackOrder)}
+      </Descriptions.Item>
+      <Descriptions.Item label="调用预算">
+        {item.timeoutMs}ms
+        {item.rateLimitPerMinute ? ` / ${item.rateLimitPerMinute} 次每分钟` : ""}
       </Descriptions.Item>
       <Descriptions.Item label="结构约束">
         {item.expectedSchema ? "已配置 JSON Schema" : "未配置"}
@@ -168,6 +179,14 @@ export default function AiWorkflows() {
       key: "expectedSchema",
       width: 120,
       render: (value: string | null) => (value ? "已配置" : "未配置"),
+    },
+    {
+      title: "降级顺序",
+      key: "fallbackOrder",
+      width: 180,
+      render: (_value, item) => (
+        <Text type="secondary">{fallbackOrderLabel(item.fallbackOrder)}</Text>
+      ),
     },
     {
       title: "策略来源",

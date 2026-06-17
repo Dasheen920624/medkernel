@@ -40,11 +40,11 @@ class OllamaProviderTest {
 
     @Test
     void completeParsesRealCompletionWithoutFabricatingConfidenceOrCitations() {
-        when(http.post(eq("http://127.0.0.1:11434/api/generate"), any(), contains("qwen2.5:7b")))
+        when(http.post(eq("http://127.0.0.1:11434/api/generate"), any(), contains("qwen2.5:7b"), eq(30_000)))
             .thenReturn("{\"model\":\"qwen2.5:7b\",\"response\":\"候选：高血压病史\",\"done\":true}");
 
         ProviderCompletion completion = provider.complete(config(),
-            new ProviderRequest("knowledge.extract", "提取病史要素"));
+            new ProviderRequest("knowledge.extract", "提取病史要素", 30_000));
 
         assertThat(completion.content()).contains("候选：高血压病史");
         assertThat(completion.modelVersion()).isEqualTo("qwen2.5:7b");
@@ -55,13 +55,13 @@ class OllamaProviderTest {
 
     @Test
     void checkHealthHealthyWhenReachable() {
-        when(http.get(anyString(), any())).thenReturn("{\"models\":[]}");
+        when(http.get(anyString(), any(), eq(5_000))).thenReturn("{\"models\":[]}");
         assertThat(provider.checkHealth(config())).isEqualTo(ProviderHealth.HEALTHY);
     }
 
     @Test
     void checkHealthNotConnectedOnTransportError() {
-        when(http.get(anyString(), any())).thenThrow(new RuntimeException("connection refused"));
+        when(http.get(anyString(), any(), eq(5_000))).thenThrow(new RuntimeException("connection refused"));
         assertThat(provider.checkHealth(config())).isEqualTo(ProviderHealth.NOT_CONNECTED);
     }
 }

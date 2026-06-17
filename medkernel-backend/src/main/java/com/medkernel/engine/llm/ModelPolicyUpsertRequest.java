@@ -1,5 +1,7 @@
 package com.medkernel.engine.llm;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -12,5 +14,11 @@ public record ModelPolicyUpsertRequest(
     @NotBlank(message = "脱敏策略不能为空")
     String desensitizeStrategy,
 
-    String expectedSchema
+    String expectedSchema,
+
+    List<String> fallbackOrder,
+
+    Integer timeoutMs,
+
+    Integer rateLimitPerMinute
 ) {}

@@ -15,12 +15,12 @@
 模型能力网关**引擎**：provider 无关契约 + 路由策略持久化 + 组织继承 + B0 诚实空候选（不写死病种）——所有 AI 增强能力的统一入口与降级裁决中枢。
 
 ## 现状（搬迁时核查 2026-05-31，以 `medkernel-backend` 为准）
-**MVP 已建**：`engine/llm/ModelGatewayService` 实现能力状态、`submitTask`（脱敏→hash→路由→Schema 校验→B0 回退→审计）、`getTask`/`retryTask`/`validatePolicy`；`ModelCapabilityPolicy`(scope_type/scope_ref/route_strategy/desensitize_strategy/expected_schema) + `ModelCapabilityTask` 实体；五方言 `V18`。**LLM-08 已落 provider 机制**：B1/B2 通过 `ModelProviderRegistry` 解析健康 provider，外部 provider 先过出域白名单/审批闸；缺 provider、部署形态禁外部、出域阻断或 provider 调用失败均诚实降级 B0。当前 B0 回退返回统一空候选信封，不写死医学事实。剩余：完整故障矩阵仍待 [LLM-02](LLM-02.md) 收口，候选模型真实化仍待 Phase 5 后续切片。
+**MVP 已建**：`engine/llm/ModelGatewayService` 实现能力状态、`submitTask`（脱敏→hash→路由→Schema 校验→B0 回退→审计）、`getTask`/`retryTask`/`validatePolicy`；`ModelCapabilityPolicy`(scope_type/scope_ref/route_strategy/desensitize_strategy/expected_schema) + `ModelCapabilityTask` 实体；五方言 `V18`。**LLM-08 已落 provider 机制**：B1/B2 通过 `ModelProviderRegistry` 解析健康 provider，外部 provider 先过出域白名单/审批闸；缺 provider、部署形态禁外部、出域阻断、策略限流或 provider 调用失败均诚实降级 B0。当前 B0 回退返回统一空候选信封，不写死医学事实。剩余：候选模型真实化仍待 Phase 5 后续切片。
 
 ## 最新进度（2026-06-16 readiness 前置闸）
 - 知识生产侧已新增 `KnowledgeProductionReadinessService`，在真实模型生成知识前校验 provider 可用、评测通过、出域治理、能力策略、prompt/tool/model 三元组和 P6 独立验收；未通过时不进入模型调用。
 - 本卡的“网关可调用”不等于“知识生产可正式模型生成”：P6、文献资料库、真实基准集、凭据引用和独立验收仍是 readiness 的强阻断项。
-- LLM-02 降级矩阵已把 provider 缺位、限流、超时、结构化失败、断连、出域阻断归因到稳定 `fallbackReason`；LLM-04 版本包已让 provider 成功任务绑定 prompt/tool/model 三元组。
+- LLM-02 降级矩阵已把 provider 缺位、策略限流/provider 429、超时、结构化失败、断连、出域阻断归因到稳定 `fallbackReason`；T5.2 已新增可配置 `fallback_order_json`/`timeout_ms`/`rate_limit_per_minute`，支持 B2→B1→B0 逐级尝试。LLM-04 版本包已让 provider 成功任务绑定 prompt/tool/model 三元组。
 - 2026-06-17 T5.1：模型策略改为 `scope_type/scope_ref` clean baseline（134 清库初始化，不保留旧 `tenant+capability` 唯一策略），`ModelPolicyScope` 按当前组织链由近到远继承到租户；`getStatus` 返回策略来源和是否继承，知识生产 readiness 使用同一解析器，前端 AI 工作流页展示策略来源。
 
 ## 功能要求（原子可测条目）
@@ -37,7 +37,7 @@
 - 错误码：`ENG_LLM_001/002/004`；traceId 透传。
 
 ## 数据与迁移
-- 表族 `model_capability_policy`/`model_capability_task`（五方言 `V18`，本卡单一归属）；策略字段为 `scope_type/scope_ref`，唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，从当前组织链继承解析。
+- 表族 `model_capability_policy`/`model_capability_task`（五方言 `V18`，本卡单一归属）；策略字段为 `scope_type/scope_ref` + `fallback_order_json/timeout_ms/rate_limit_per_minute`，唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，从当前组织链继承解析。
 
 ## 视角清单（11 视角）
 1. 产品架构：AI 能力统一中枢，provider 可插拔。

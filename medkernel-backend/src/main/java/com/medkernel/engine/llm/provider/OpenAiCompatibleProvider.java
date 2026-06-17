@@ -24,6 +24,7 @@ public class OpenAiCompatibleProvider implements ModelProvider {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleProvider.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final int HEALTH_TIMEOUT_MS = 5_000;
 
     private final ModelProviderHttpClient http;
     private final ProviderCredentialResolver credentials;
@@ -45,7 +46,8 @@ public class OpenAiCompatibleProvider implements ModelProvider {
             return ProviderHealth.NOT_CONNECTED;
         }
         try {
-            http.get(baseUri(config) + "/v1/models", Map.of("Authorization", "Bearer " + secret.get()));
+            http.get(baseUri(config) + "/v1/models",
+                Map.of("Authorization", "Bearer " + secret.get()), HEALTH_TIMEOUT_MS);
             return ProviderHealth.HEALTHY;
         } catch (RuntimeException unreachable) {
             log.warn("OpenAI 兼容 provider 探活失败 code={}：{}", config.providerCode(), unreachable.getMessage());
@@ -70,7 +72,8 @@ public class OpenAiCompatibleProvider implements ModelProvider {
         try {
             raw = http.post(baseUri(config) + "/v1/chat/completions",
                 Map.of("Content-Type", "application/json", "Authorization", "Bearer " + secret),
-                payload.toString());
+                payload.toString(),
+                request.timeoutMs());
         } catch (RuntimeException callFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_003,
                 "OpenAI 兼容 provider 调用失败 code=" + config.providerCode() + "：" + callFailed.getMessage());

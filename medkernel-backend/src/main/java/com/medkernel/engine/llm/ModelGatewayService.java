@@ -2,13 +2,18 @@ package com.medkernel.engine.llm;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -50,6 +55,11 @@ public class ModelGatewayService {
         Set.of("DISABLED", "BASELINE", "LOCAL_MODEL", "EXTERNAL_MODEL");
     private static final Set<String> DESENSITIZE_STRATEGIES =
         Set.of("DEFAULT", "MASK_ALL", "NONE");
+    private static final int DEFAULT_PROVIDER_TIMEOUT_MS = 60_000;
+    private static final int MIN_PROVIDER_TIMEOUT_MS = 1_000;
+    private static final int MAX_PROVIDER_TIMEOUT_MS = 120_000;
+    private static final int MAX_RATE_LIMIT_PER_MINUTE = 600;
+    private static final long PROVIDER_RATE_LIMIT_WINDOW_MS = 60_000L;
 
     private final ModelCapabilityTaskRepository taskRepo;
     private final ModelCapabilityPolicyRepository policyRepo;
@@ -60,6 +70,7 @@ public class ModelGatewayService {
     private final ModelEgressGuard egressGuard;
     private final ModelVersionBundleRepository versionBundleRepository;
     private final ModelFallbackMatrix fallbackMatrix = new ModelFallbackMatrix();
+    private final Map<String, Deque<Long>> providerCallWindows = new ConcurrentHashMap<>();
 
     public ModelGatewayService(ModelCapabilityTaskRepository taskRepo,
                                ModelCapabilityPolicyRepository policyRepo,
@@ -103,6 +114,9 @@ public class ModelGatewayService {
                         definition.category(),
                         "BASELINE",
                         "DEFAULT",
+                        null,
+                        fallbackMatrix.defaultFallbackOrder("BASELINE"),
+                        DEFAULT_PROVIDER_TIMEOUT_MS,
                         null,
                         scope.scopeType(),
                         scope.scopeRef(),
@@ -180,12 +194,18 @@ public class ModelGatewayService {
         String routeStrategy = normalizeCode(request.routeStrategy());
         String desensitizeStrategy = normalizeCode(request.desensitizeStrategy());
         String expectedSchema = normalizeOptional(request.expectedSchema());
+        List<String> fallbackOrder = normalizeFallbackOrder(routeStrategy, request.fallbackOrder());
+        Integer timeoutMs = normalizeTimeoutMs(request.timeoutMs());
+        Integer rateLimitPerMinute = normalizeRateLimitPerMinute(request.rateLimitPerMinute());
 
         ModelPolicyValidateResponse validation = validatePolicy(new ModelPolicyValidateRequest(
             normalizedCapability,
             routeStrategy,
             desensitizeStrategy,
-            expectedSchema
+            expectedSchema,
+            fallbackOrder,
+            timeoutMs,
+            rateLimitPerMinute
         ));
         if (!validation.valid()) {
             throw new ApiException(ErrorCode.ENG_LLM_002, validation.message());
@@ -206,6 +226,9 @@ public class ModelGatewayService {
             routeStrategy,
             desensitizeStrategy,
             expectedSchema,
+            serializeFallbackOrder(fallbackOrder),
+            timeoutMs,
+            rateLimitPerMinute,
             existing.map(ModelCapabilityPolicy::createdAt).orElse(now),
             existing.map(ModelCapabilityPolicy::createdBy).orElse(actor),
             now,
@@ -243,7 +266,8 @@ public class ModelGatewayService {
         ModelCapabilityPolicy policy = policyResolution.policy()
             .orElseGet(() -> new ModelCapabilityPolicy(
                 null, tenantId, capabilityCode, defaultScope.scopeType(), defaultScope.scopeRef(),
-                "BASELINE", "DEFAULT", null, Instant.now(), createdBy, Instant.now(), createdBy
+                "BASELINE", "DEFAULT", null, serializeFallbackOrder(fallbackMatrix.defaultFallbackOrder("BASELINE")),
+                DEFAULT_PROVIDER_TIMEOUT_MS, null, Instant.now(), createdBy, Instant.now(), createdBy
             ));
 
         // 2. 校验策略禁用阻断
@@ -261,12 +285,14 @@ public class ModelGatewayService {
         //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
         //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         String strategy = policy.routeStrategy();
+        ModelFallbackConfig fallbackConfig = fallbackConfig(policy);
         ModelVersionTriple plannedTriple = activeTripleOrBaseline(tenantId, capabilityCode);
-        RouteOutcome outcome = route(tenantId, capabilityCode, strategy, desensitizedInput, taskId, plannedTriple);
+        String schemaConstraint = policy.expectedSchema();
+        RouteOutcome outcome = route(
+            tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, plannedTriple, schemaConstraint);
 
         // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
-        String schemaConstraint = policy.expectedSchema();
         if (schemaConstraint != null && !schemaConstraint.isBlank()) {
             try {
                 validateSchema(outcome.outputContent(), schemaConstraint);
@@ -540,6 +566,11 @@ public class ModelGatewayService {
                 return new ModelPolicyValidateResponse(false, invalidSchema.getMessage(), true);
             }
         }
+        String fallbackError = validateFallbackSettings(
+            routeStrategy, req.fallbackOrder(), req.timeoutMs(), req.rateLimitPerMinute());
+        if (fallbackError != null) {
+            return new ModelPolicyValidateResponse(false, fallbackError, !"DISABLED".equals(routeStrategy));
+        }
 
         boolean fallbackAvailable = !"DISABLED".equals(routeStrategy);
         return new ModelPolicyValidateResponse(
@@ -582,6 +613,9 @@ public class ModelGatewayService {
             policy.routeStrategy(),
             policy.desensitizeStrategy(),
             policy.expectedSchema(),
+            fallbackConfig(policy).fallbackOrder(),
+            normalizeTimeoutMs(policy.timeoutMs()),
+            normalizeRateLimitPerMinute(policy.rateLimitPerMinute()),
             policy.scopeType(),
             policy.scopeRef(),
             inherited,
@@ -646,6 +680,83 @@ public class ModelGatewayService {
 
     private static String normalizeOptional(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String validateFallbackSettings(
+            String routeStrategy,
+            List<String> fallbackOrder,
+            Integer timeoutMs,
+            Integer rateLimitPerMinute) {
+        String orderError = fallbackMatrix.validateFallbackOrder(routeStrategy, fallbackOrder);
+        if (orderError != null) {
+            return orderError;
+        }
+        if (timeoutMs != null && (timeoutMs < MIN_PROVIDER_TIMEOUT_MS || timeoutMs > MAX_PROVIDER_TIMEOUT_MS)) {
+            return "timeout_ms：必须在 1000 到 120000 毫秒之间";
+        }
+        if (rateLimitPerMinute != null
+                && (rateLimitPerMinute < 1 || rateLimitPerMinute > MAX_RATE_LIMIT_PER_MINUTE)) {
+            return "rate_limit_per_minute：必须在 1 到 600 之间";
+        }
+        return null;
+    }
+
+    private List<String> normalizeFallbackOrder(String routeStrategy, List<String> fallbackOrder) {
+        try {
+            return fallbackMatrix.normalizeFallbackOrder(routeStrategy, fallbackOrder);
+        } catch (IllegalArgumentException invalid) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, invalid.getMessage());
+        }
+    }
+
+    private Integer normalizeTimeoutMs(Integer timeoutMs) {
+        return timeoutMs == null ? DEFAULT_PROVIDER_TIMEOUT_MS : timeoutMs;
+    }
+
+    private Integer normalizeRateLimitPerMinute(Integer rateLimitPerMinute) {
+        return rateLimitPerMinute;
+    }
+
+    private String serializeFallbackOrder(List<String> fallbackOrder) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(fallbackOrder);
+        } catch (Exception cannotSerialize) {
+            throw new IllegalStateException("fallback_order 序列化失败", cannotSerialize);
+        }
+    }
+
+    private ModelFallbackConfig fallbackConfig(ModelCapabilityPolicy policy) {
+        return new ModelFallbackConfig(
+            parseFallbackOrder(policy.routeStrategy(), policy.fallbackOrderJson()),
+            normalizeTimeoutMs(policy.timeoutMs()),
+            normalizeRateLimitPerMinute(policy.rateLimitPerMinute()),
+            policy.scopeType(),
+            policy.scopeRef()
+        );
+    }
+
+    private List<String> parseFallbackOrder(String routeStrategy, String fallbackOrderJson) {
+        if (fallbackOrderJson == null || fallbackOrderJson.isBlank()) {
+            return fallbackMatrix.defaultFallbackOrder(routeStrategy);
+        }
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(fallbackOrderJson);
+            if (!node.isArray()) {
+                throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是 JSON 字符串数组");
+            }
+            List<String> order = new ArrayList<>();
+            for (JsonNode item : node) {
+                if (!item.isTextual()) {
+                    throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是 JSON 字符串数组");
+                }
+                order.add(item.asText());
+            }
+            return normalizeFallbackOrder(routeStrategy, order);
+        } catch (ApiException invalid) {
+            throw invalid;
+        } catch (Exception invalidJson) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是合法 JSON 字符串数组");
+        }
     }
 
     private String requireReplayVersion(String value, String fieldName) {
@@ -749,25 +860,95 @@ public class ModelGatewayService {
         String sourceCitations, Double confidence, String riskLevel,
         boolean fallbackUsed, String fallbackReason, String taskStatus) {}
 
+    private record ModelFallbackConfig(
+        List<String> fallbackOrder,
+        int timeoutMs,
+        Integer rateLimitPerMinute,
+        String scopeType,
+        String scopeRef
+    ) {}
+
+    private record ProviderAttempt(
+        Optional<RouteOutcome> outcome,
+        ModelFallbackTrigger trigger,
+        String detail
+    ) {
+        static ProviderAttempt success(RouteOutcome outcome) {
+            return new ProviderAttempt(Optional.of(outcome), null, null);
+        }
+
+        static ProviderAttempt failure(ModelFallbackTrigger trigger, String detail) {
+            return new ProviderAttempt(Optional.empty(), trigger, detail);
+        }
+    }
+
     /**
-     * 按路由策略解析真实 provider 并产出；任一环节不可用一律诚实降级 B0（铁律 #1/#2/#4）。
+     * 按 fallback_order 逐级解析真实 provider 并产出；所有失败均先记录稳定归因，最终必须可落 B0。
      */
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
-                               String desensitizedInput, String taskId, ModelVersionTriple plannedTriple) {
+                               ModelFallbackConfig fallbackConfig, String desensitizedInput,
+                               String taskId, ModelVersionTriple plannedTriple, String expectedSchema) {
+        List<String> reasons = new ArrayList<>();
+        List<String> order = fallbackConfig.fallbackOrder();
+        for (int i = 0; i < order.size(); i++) {
+            String attemptStrategy = order.get(i);
+            if ("BASELINE".equals(attemptStrategy)) {
+                String reason = reasons.isEmpty()
+                    ? fallbackMatrix.decide(strategy, ModelFallbackTrigger.POLICY_BASELINE, "策略指定或前置层级均不可用").reason()
+                    : String.join("；", reasons);
+                return b0Outcome(capabilityCode, reason);
+            }
+
+            ProviderAttempt attempt = tryProvider(
+                tenantId, capabilityCode, attemptStrategy, desensitizedInput,
+                taskId, plannedTriple, expectedSchema, fallbackConfig);
+            if (attempt.outcome().isPresent()) {
+                RouteOutcome successful = attempt.outcome().get();
+                if (reasons.isEmpty()) {
+                    return successful;
+                }
+                return new RouteOutcome(
+                    successful.outputContent(),
+                    successful.modelMode(),
+                    successful.modelVersion(),
+                    successful.promptVersion(),
+                    successful.toolVersion(),
+                    successful.sourceCitations(),
+                    successful.confidence(),
+                    successful.riskLevel(),
+                    true,
+                    String.join("；", reasons),
+                    successful.taskStatus()
+                );
+            }
+
+            String nextStrategy = i + 1 < order.size() ? order.get(i + 1) : "BASELINE";
+            ModelFallbackDecision decision = fallbackMatrix.decide(
+                attemptStrategy, nextStrategy, attempt.trigger(), attempt.detail());
+            reasons.add(decision.reason());
+        }
+        return b0Outcome(capabilityCode, String.join("；", reasons));
+    }
+
+    private ProviderAttempt tryProvider(String tenantId, String capabilityCode, String strategy,
+                                        String desensitizedInput, String taskId,
+                                        ModelVersionTriple plannedTriple, String expectedSchema,
+                                        ModelFallbackConfig fallbackConfig) {
         var resolved = providerRegistry.resolve(tenantId, strategy);
         if (resolved.isEmpty()) {
-            // 无配置 / 全不健康 / 运行侧内网形态禁外部 → 诚实 B0。
-            ModelFallbackTrigger trigger = "BASELINE".equalsIgnoreCase(strategy)
-                ? ModelFallbackTrigger.POLICY_BASELINE
-                : ModelFallbackTrigger.PROVIDER_UNAVAILABLE;
-            return b0Outcome(capabilityCode, fallbackMatrix.decide(
-                strategy, trigger, "未解析到健康 provider 或部署形态不允许").reason());
+            return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_UNAVAILABLE,
+                "未解析到健康 provider 或部署形态不允许");
         }
         ModelProviderRegistry.ResolvedProvider provider = resolved.get();
+        if (!reserveProviderBudget(
+                tenantId, capabilityCode, strategy, fallbackConfig, provider.config().providerCode())) {
+            return ProviderAttempt.failure(
+                ModelFallbackTrigger.PROVIDER_RATE_LIMITED,
+                "策略 rate_limit_per_minute=" + fallbackConfig.rateLimitPerMinute() + " 已达到");
+        }
 
         String prompt = desensitizedInput;
         if (provider.adapter().type().external()) {
-            // B2 外调必先过出域数据最小化闸；越白名单/未审批阻断 → 不出域、诚实降级 B0。
             try {
                 String egressJson = OBJECT_MAPPER.createObjectNode().put("prompt", desensitizedInput).toString();
                 var prep = egressGuard.prepareEgress(
@@ -777,23 +958,23 @@ public class ModelGatewayService {
                 log.warn("外调出域闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
                 publishFailureAudit(egressBlocked.errorCode(),
                     "外调出域闸阻断 capabilityCode=" + capabilityCode + "：" + egressBlocked.getMessage());
-                return b0Outcome(capabilityCode, fallbackMatrix.decide(
-                    strategy, ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage()).reason());
+                return ProviderAttempt.failure(ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage());
             }
         }
 
         try {
             ProviderCompletion completion = provider.adapter()
-                .complete(provider.config(), new ProviderRequest(capabilityCode, prompt));
-            // 真实增强产出：真实 model_version；置信度/引文仅由 provider 真实返回，绝不伪造。
-            return new RouteOutcome(
+                .complete(provider.config(), new ProviderRequest(capabilityCode, prompt, fallbackConfig.timeoutMs()));
+            if (expectedSchema != null && !expectedSchema.isBlank()) {
+                validateSchema(completion.content(), expectedSchema);
+            }
+            return ProviderAttempt.success(new RouteOutcome(
                 completion.content(), provider.modelMode(), completion.modelVersion(),
                 plannedTriple.promptVersion(), plannedTriple.toolVersion(),
-                completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED");
+                completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED"));
         } catch (ApiException providerFailed) {
             log.warn("provider 调用失败 capabilityCode={}：{}", capabilityCode, providerFailed.getMessage());
-            return b0Outcome(capabilityCode, fallbackMatrix.decide(
-                strategy, fallbackTrigger(providerFailed), providerFailed.getMessage()).reason());
+            return ProviderAttempt.failure(fallbackTrigger(providerFailed), providerFailed.getMessage());
         }
     }
 
@@ -812,6 +993,42 @@ public class ModelGatewayService {
             return ModelFallbackTrigger.PROVIDER_DISCONNECTED;
         }
         return ModelFallbackTrigger.PROVIDER_ERROR;
+    }
+
+    private boolean reserveProviderBudget(
+            String tenantId,
+            String capabilityCode,
+            String strategy,
+            ModelFallbackConfig fallbackConfig,
+            String providerCode) {
+        Integer limit = fallbackConfig.rateLimitPerMinute();
+        if (limit == null) {
+            return true;
+        }
+        String key = String.join("|",
+            tenantId,
+            capabilityCode,
+            nullToEmpty(fallbackConfig.scopeType()),
+            nullToEmpty(fallbackConfig.scopeRef()),
+            strategy,
+            nullToEmpty(providerCode));
+        long now = System.currentTimeMillis();
+        long cutoff = now - PROVIDER_RATE_LIMIT_WINDOW_MS;
+        Deque<Long> window = providerCallWindows.computeIfAbsent(key, ignored -> new ArrayDeque<>());
+        synchronized (window) {
+            while (!window.isEmpty() && window.peekFirst() <= cutoff) {
+                window.removeFirst();
+            }
+            if (window.size() >= limit) {
+                return false;
+            }
+            window.addLast(now);
+            return true;
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String readPromptField(String json, String fallback) {

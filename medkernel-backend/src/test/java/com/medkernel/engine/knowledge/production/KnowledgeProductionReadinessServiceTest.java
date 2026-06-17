@@ -213,6 +213,7 @@ class KnowledgeProductionReadinessServiceTest {
     private ModelCapabilityPolicy policy(String strategy) {
         Instant now = Instant.now();
         return new ModelCapabilityPolicy(
-            1L, TENANT, CAPABILITY, "TENANT", TENANT, strategy, "DEFAULT", null, now, "u", now, "u");
+            1L, TENANT, CAPABILITY, "TENANT", TENANT, strategy, "DEFAULT", null,
+            null, null, null, now, "u", now, "u");
     }
 }

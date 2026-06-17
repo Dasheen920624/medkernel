@@ -8387,6 +8387,9 @@ export interface ModelCapabilityStatusResponse {
   routeStrategy: "DISABLED" | "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
   desensitizeStrategy: "DEFAULT" | "MASK_ALL" | "NONE" | string;
   expectedSchema: string | null;
+  fallbackOrder: string[];
+  timeoutMs: number;
+  rateLimitPerMinute: number | null;
   policyScopeType: string;
   policyScopeRef: string;
   inherited: boolean;
@@ -8422,6 +8425,9 @@ export interface ModelPolicyValidateRequest {
   routeStrategy: string;
   desensitizeStrategy?: string;
   expectedSchema?: string;
+  fallbackOrder?: string[];
+  timeoutMs?: number;
+  rateLimitPerMinute?: number | null;
 }
 
 export interface ModelPolicyValidateResponse {
@@ -8434,6 +8440,9 @@ export interface ModelPolicyUpsertRequest {
   routeStrategy: string;
   desensitizeStrategy: string;
   expectedSchema?: string;
+  fallbackOrder?: string[];
+  timeoutMs?: number;
+  rateLimitPerMinute?: number | null;
 }
 
 export interface ModelCapabilityDefinition {

@@ -108,6 +108,7 @@ class ModelGatewayServiceTest {
         ModelCapabilityPolicy hospitalPolicy = new ModelCapabilityPolicy(
             11L, "tenant-1", "knowledge.extract", "HOSPITAL", "hospital-a",
             "LOCAL_MODEL", "MASK_ALL", "{\"required\":[\"status\",\"candidates\"]}",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -183,6 +184,7 @@ class ModelGatewayServiceTest {
     void submitTask_DisabledStrategy_ThrowsException() {
         ModelCapabilityPolicy disabledPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "DISABLED", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -214,6 +216,7 @@ class ModelGatewayServiceTest {
     void submitTask_BaselineStrategy_ReturnsHonestEmptyB0Result() {
         ModelCapabilityPolicy baselinePolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "BASELINE", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -250,7 +253,10 @@ class ModelGatewayServiceTest {
             new ModelPolicyUpsertRequest(
                 "BASELINE",
                 "MASK_ALL",
-                "{\"required\":[\"status\",\"candidates\"]}"
+                "{\"required\":[\"status\",\"candidates\"]}",
+                List.of("BASELINE"),
+                2_000,
+                60
             )
         );
 
@@ -258,6 +264,9 @@ class ModelGatewayServiceTest {
         assertEquals("BASELINE", response.routeStrategy());
         assertEquals("MASK_ALL", response.desensitizeStrategy());
         assertEquals("{\"required\":[\"status\",\"candidates\"]}", response.expectedSchema());
+        assertEquals(List.of("BASELINE"), response.fallbackOrder());
+        assertEquals(2_000, response.timeoutMs());
+        assertEquals(60, response.rateLimitPerMinute());
         assertTrue(response.configured());
         assertFalse(response.inherited());
         assertEquals("TENANT", response.policyScopeType());
@@ -269,6 +278,9 @@ class ModelGatewayServiceTest {
         assertEquals("tenant-1", policyCaptor.getValue().tenantId());
         assertEquals("TENANT", policyCaptor.getValue().scopeType());
         assertEquals("tenant-1", policyCaptor.getValue().scopeRef());
+        assertEquals("[\"BASELINE\"]", policyCaptor.getValue().fallbackOrderJson());
+        assertEquals(2_000, policyCaptor.getValue().timeoutMs());
+        assertEquals(60, policyCaptor.getValue().rateLimitPerMinute());
         assertEquals("DOCTOR-001", policyCaptor.getValue().createdBy());
         verify(auditRecorder).record(
             AuditAction.UPDATE,
@@ -282,16 +294,33 @@ class ModelGatewayServiceTest {
     void savePolicy_InvalidRoute_DoesNotPersist() {
         assertThrows(ApiException.class, () -> service.savePolicy(
             "knowledge.extract",
-            new ModelPolicyUpsertRequest("UNKNOWN", "DEFAULT", null)
+            new ModelPolicyUpsertRequest("UNKNOWN", "DEFAULT", null, null, null, null)
         ));
 
         verify(policyRepo, never()).save(any(ModelCapabilityPolicy.class));
     }
 
     @Test
+    void validatePolicy_InvalidFallbackOrderRejectsUnsafeChain() {
+        ModelPolicyValidateResponse resp = service.validatePolicy(new ModelPolicyValidateRequest(
+            "knowledge.extract",
+            "EXTERNAL_MODEL",
+            "DEFAULT",
+            "{\"required\":[\"status\"]}",
+            List.of("EXTERNAL_MODEL", "BASELINE", "LOCAL_MODEL"),
+            2_000,
+            30
+        ));
+
+        assertFalse(resp.valid());
+        assertTrue(resp.message().contains("fallback_order"));
+    }
+
+    @Test
     void submitTask_localModelRoute_honestlyDegradesToB0_noFabrication() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "LOCAL_MODEL", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -321,6 +350,7 @@ class ModelGatewayServiceTest {
     void submitTask_externalModelRoute_honestB0_desensitizesInput_neverFabricates() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -355,6 +385,7 @@ class ModelGatewayServiceTest {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"status\",\"candidates\"]}",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -377,6 +408,7 @@ class ModelGatewayServiceTest {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"nonexistent_field\"]}",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -397,6 +429,7 @@ class ModelGatewayServiceTest {
     void submitTask_withNonJsonSchema_rejectsRemovedLooseSyntax() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
             1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", "required: [entity]",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
         when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -414,7 +447,7 @@ class ModelGatewayServiceTest {
     @Test
     void validatePolicy_InvalidSchema_ReturnsInvalid() {
         ModelPolicyValidateRequest req = new ModelPolicyValidateRequest(
-            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "invalid_non_json_schema"
+            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "invalid_non_json_schema", null, null, null
         );
 
         ModelPolicyValidateResponse resp = service.validatePolicy(req);
@@ -425,7 +458,7 @@ class ModelGatewayServiceTest {
     @Test
     void validatePolicy_Valid_ReturnsOk() {
         ModelPolicyValidateRequest req = new ModelPolicyValidateRequest(
-            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "{\"required\":[\"entity\"]}"
+            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "{\"required\":[\"entity\"]}", null, null, null
         );
 
         ModelPolicyValidateResponse resp = service.validatePolicy(req);
@@ -457,6 +490,7 @@ class ModelGatewayServiceTest {
             "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
                 1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", strategy, "DEFAULT", null,
+                null, null, null,
                 Instant.now(), "system", Instant.now(), "system")));
     }
 
@@ -652,6 +686,68 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_externalRateLimitedFallsBackToHealthyLocalBeforeB0ByConfiguredOrder() {
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1",
+                "EXTERNAL_MODEL", "DEFAULT", null,
+                "[\"EXTERNAL_MODEL\",\"LOCAL_MODEL\",\"BASELINE\"]", 1_500, 20,
+                Instant.now(), "system", Instant.now(), "system")));
+        var external = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        var local = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("EXTERNAL_MODEL", external);
+        resolveProvider("LOCAL_MODEL", local);
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-chain"));
+        when(external.complete(any(), any()))
+            .thenThrow(new ApiException(ErrorCode.TOO_MANY_REQUESTS, "429"));
+        when(local.complete(any(), argThat(request -> request.timeoutMs() == 1_500)))
+            .thenReturn(new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "本地候选", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("SUCCEEDED", resp.status());
+        assertEquals("B1", resp.modelMode());
+        assertEquals("qwen2.5:7b", resp.modelVersion());
+        assertTrue(resp.fallbackUsed());
+        assertTrue(resp.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
+        assertTrue(resp.fallbackReason().contains("B2 -> B1"));
+        assertFalse(resp.fallbackReason().contains("B2 -> B0"));
+        verify(providerRegistry).resolve("tenant-1", "EXTERNAL_MODEL");
+        verify(providerRegistry).resolve("tenant-1", "LOCAL_MODEL");
+    }
+
+    @Test
+    void submitTask_policyRateLimitExceededSkipsProviderAndFallsBackToB0() {
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1",
+                "LOCAL_MODEL", "DEFAULT", null,
+                "[\"LOCAL_MODEL\",\"BASELINE\"]", 2_000, 1,
+                Instant.now(), "system", Instant.now(), "system")));
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("本地候选", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse first = service.submitTask(new ModelTaskRequest("knowledge.extract", "第一次", 60));
+        ModelTaskResponse second = service.submitTask(new ModelTaskRequest("knowledge.extract", "第二次", 60));
+
+        assertEquals("SUCCEEDED", first.status());
+        assertEquals("B1", first.modelMode());
+        assertEquals("DEGRADED", second.status());
+        assertEquals("B0", second.modelMode());
+        assertTrue(second.fallbackUsed());
+        assertTrue(second.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
+        assertTrue(second.fallbackReason().contains("B1 -> B0"));
+        verify(adapter, times(1)).complete(any(), any());
+    }
+
+    @Test
     void submitTask_providerStructuredOutputInvalid_degradesToB0AndPersistsMatrixReason() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -661,6 +757,7 @@ class ModelGatewayServiceTest {
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
                 1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
                 "{\"required\":[\"status\",\"candidates\"]}",
+                null, null, null,
                 Instant.now(), "system", Instant.now(), "system")));
         when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
             .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
