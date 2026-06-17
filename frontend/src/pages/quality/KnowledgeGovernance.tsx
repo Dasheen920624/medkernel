@@ -144,10 +144,32 @@ const PRODUCER_LABELS: Record<string, string> = {
   MANUAL: "人工录入",
 };
 
-const PIPELINE_LABELS: Record<string, string> = {
-  PLATFORM_SOURCE: "平台主源",
-  TENANT_OVERLAY: "院内覆盖",
+const PIPELINE_META: Record<
+  string,
+  {
+    label: string;
+    color: "blue" | "green" | "default";
+    boundaryLabel: string;
+    summary: string;
+    description: string;
+  }
+> = {
+  PLATFORM_SOURCE: {
+    label: "平台主源",
+    color: "blue",
+    boundaryLabel: "平台主源只读",
+    summary: "平台主源只读发布账本",
+    description: "归属 t-1 平台主租户，机构只能订阅和派生，不允许直接编辑或反写。",
+  },
+  TENANT_OVERLAY: {
+    label: "院内覆盖",
+    color: "green",
+    boundaryLabel: "院内覆盖可治理",
+    summary: "院内覆盖本机构治理",
+    description: "归属当前机构租户，只影响本机构继承范围，禁止污染平台主源。",
+  },
 };
+const PIPELINE_KEYS = ["PLATFORM_SOURCE", "TENANT_OVERLAY"] as const;
 
 const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
   PENDING: "待开始",
@@ -160,6 +182,47 @@ const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
 function producerLabel(producer?: string) {
   if (!producer) return "未知来源";
   return PRODUCER_LABELS[producer] ?? producer;
+}
+
+function pipelineMeta(pipeline?: string | null) {
+  if (!pipeline) return { ...PIPELINE_META.TENANT_OVERLAY, label: "未返回管道" };
+  return (
+    PIPELINE_META[pipeline] ?? {
+      label: pipeline,
+      color: "default" as const,
+      boundaryLabel: "未知管道",
+      summary: pipeline,
+      description: "服务端返回了暂未登记的知识生产管道，请核查配置。",
+    }
+  );
+}
+
+function PipelineBoundaryCard({ title = "双形态知识分区" }: { title?: string }) {
+  return (
+    <Card title={title}>
+      <Row gutter={[16, 16]}>
+        {PIPELINE_KEYS.map((pipeline) => {
+          const meta = pipelineMeta(pipeline);
+          return (
+            <Col xs={24} lg={12} key={pipeline}>
+              <Alert
+                type={pipeline === "PLATFORM_SOURCE" ? "info" : "success"}
+                showIcon
+                message={
+                  <Space size={4} wrap>
+                    <Tag color={meta.color}>{meta.label}</Tag>
+                    <Tag>{meta.boundaryLabel}</Tag>
+                    <Text strong>{meta.summary}</Text>
+                  </Space>
+                }
+                description={meta.description}
+              />
+            </Col>
+          );
+        })}
+      </Row>
+    </Card>
+  );
 }
 
 function productionStatusColor(status?: string | null) {
@@ -849,7 +912,10 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         <Space direction="vertical" size={0}>
           <Text strong>{record.subject}</Text>
           <Text type="secondary">{record.identityCode}</Text>
-          <Tag color="blue">{knowledgeSourceLabel("PLATFORM_STANDARD")}</Tag>
+          <Space size={4} wrap>
+            <Tag color={PIPELINE_META.PLATFORM_SOURCE.color}>{PIPELINE_META.PLATFORM_SOURCE.label}</Tag>
+            <Tag>{PIPELINE_META.PLATFORM_SOURCE.boundaryLabel}</Tag>
+          </Space>
         </Space>
       ),
     },
@@ -994,14 +1060,20 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     {
       title: "管道 / 状态",
       key: "status",
-      render: (_, record) => (
-        <Space direction="vertical" size={2}>
-          <Tag>{PIPELINE_LABELS[record.targetPipeline] ?? record.targetPipeline}</Tag>
-          <Tag color={productionStatusColor(record.status)}>
-            {PRODUCTION_JOB_STATUS_LABELS[record.status] ?? record.status}
-          </Tag>
-        </Space>
-      ),
+      render: (_, record) => {
+        const meta = pipelineMeta(record.targetPipeline);
+        return (
+          <Space direction="vertical" size={2}>
+            <Space size={4} wrap>
+              <Tag color={meta.color}>{meta.label}</Tag>
+              <Tag>{meta.boundaryLabel}</Tag>
+            </Space>
+            <Tag color={productionStatusColor(record.status)}>
+              {PRODUCTION_JOB_STATUS_LABELS[record.status] ?? record.status}
+            </Tag>
+          </Space>
+        );
+      },
     },
     {
       title: "领域 / 候选",
@@ -1314,12 +1386,14 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       </Space>
     </Card>
   );
+  const productionPipelinePartition = <PipelineBoundaryCard title="双形态生产分区" />;
 
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionPipelinePartition}
         <PageState state="loading" title="正在读取知识生产中心" />
       </Space>
     );
@@ -1327,6 +1401,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionPipelinePartition}
         <PageState
           state="error"
           title="知识生产中心读取失败"
@@ -1345,6 +1420,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Table
             rowKey="code"
@@ -1451,6 +1527,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Alert
@@ -1759,6 +1836,10 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       key: "source",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
+          <Space size={4} wrap>
+            <Tag color={PIPELINE_META.TENANT_OVERLAY.color}>{PIPELINE_META.TENANT_OVERLAY.label}</Tag>
+            <Tag>{PIPELINE_META.TENANT_OVERLAY.boundaryLabel}</Tag>
+          </Space>
           <Tag color="cyan">{knowledgeSourceLabel(record.sourceType)}</Tag>
           <Text type="secondary">基于平台版本 {record.platformVersionNo}</Text>
           <Tag color={RISK_COLORS[record.riskLevel] ?? "default"}>
@@ -1871,6 +1952,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
           message="默认复用平台标准，只有确需调整时才创建机构版本"
           description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
+        <PipelineBoundaryCard />
         <Card title="平台标准知识">
           <Table
             rowKey="id"
@@ -2258,6 +2340,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
             if (!provenance) {
               return null;
             }
+            const meta = pipelineMeta(provenance.targetPipeline);
             return (
               <Descriptions column={1} bordered size="small" title="AI 生产来源溯源">
                 <Descriptions.Item label="AI 标识">
@@ -2268,7 +2351,10 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                 </Descriptions.Item>
                 <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
                 <Descriptions.Item label="目标管道">
-                  {PIPELINE_LABELS[provenance.targetPipeline] ?? provenance.targetPipeline}
+                  <Space size={4} wrap>
+                    <Tag color={meta.color}>{meta.label}</Tag>
+                    <Tag>{meta.boundaryLabel}</Tag>
+                  </Space>
                 </Descriptions.Item>
                 <Descriptions.Item label="模型策略">
                   {provenance.modelStrategy || "无"}

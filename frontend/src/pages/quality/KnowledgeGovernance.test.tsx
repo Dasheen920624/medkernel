@@ -827,10 +827,58 @@ describe("KnowledgeGovernance", () => {
 
     expect(screen.getByRole("heading", { name: "机构知识" })).toBeInTheDocument();
     expect(screen.getByText("平台标准知识")).toBeInTheDocument();
+    expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
     expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
+    expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
     expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+  });
+
+  it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
+    mockUseKnowledgeProductionJobs.mockReturnValue({
+      data: {
+        items: [
+          {
+            jobCode: "job-platform-1",
+            producer: "API_MODEL",
+            targetPipeline: "PLATFORM_SOURCE",
+            domain: "GUIDELINE",
+            modelStrategy: "gpt-platform",
+            status: "RUNNING",
+            candidateCount: 2,
+            createdAt: "2026-06-16T10:00:00Z",
+          },
+          {
+            jobCode: "job-overlay-1",
+            producer: "LOCAL_MODEL",
+            targetPipeline: "TENANT_OVERLAY",
+            domain: "PROTOCOL",
+            modelStrategy: "ollama-local",
+            status: "PENDING",
+            candidateCount: 1,
+            createdAt: "2026-06-16T11:00:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 2,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("双形态生产分区")).toBeInTheDocument();
+    expect(screen.getByText("平台主源只读发布账本")).toBeInTheDocument();
+    expect(screen.getByText("院内覆盖本机构治理")).toBeInTheDocument();
+    expect(screen.getAllByText("job-platform-1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("job-overlay-1").length).toBeGreaterThan(0);
   });
 
   it("renders the knowledge production center as a standalone production entry", async () => {
