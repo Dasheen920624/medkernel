@@ -73,7 +73,9 @@ import {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -254,7 +256,6 @@ export default function AdapterHub() {
   const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [regionalSourceModalOpen, setRegionalSourceModalOpen] = useState(false);
-  const [expertMode, setExpertMode] = useState(false);
   const [contractVersionInput, setContractVersionInput] = useState("");
   const [contractPackageSearch, setContractPackageSearch] = useState("");
   const [contractVersion, setContractVersion] = useState("");
@@ -335,6 +336,8 @@ export default function AdapterHub() {
   );
 
   const profile = security.data;
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const expertMode = canUseExpertMode(profile) && globalExpertMode;
   const canAccess = !!profile && canAccessRoute(route, profile);
   const canWrite = hasPermission(profile, "integration.write");
   const canExecute = hasPermission(profile, "integration.execute");
@@ -871,8 +874,6 @@ export default function AdapterHub() {
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={profile}
-      expertMode={expertMode}
-      onExpertModeChange={setExpertMode}
       primary={
         <Button
           type="primary"

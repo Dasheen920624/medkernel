@@ -14,6 +14,7 @@ import {
   useTraceDiagnosis,
   useVerifyEvidence,
 } from "@/shared/api/hooks";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 import AdminAudit from "./AdminAudit";
 import { buildAuditEventQuery } from "./auditQuery";
@@ -166,6 +167,8 @@ describe("AdminAudit", () => {
   ];
 
   beforeEach(() => {
+    window.localStorage.clear();
+    useExpertModeStore.setState({ enabled: false });
     vi.clearAllMocks();
     submitExport.mockResolvedValue({
       jobId: "job-audit-1",

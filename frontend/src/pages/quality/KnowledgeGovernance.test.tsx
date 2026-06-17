@@ -9,6 +9,7 @@ import KnowledgeGovernance, {
   InstitutionKnowledge,
   KnowledgeProduction,
 } from "./KnowledgeGovernance";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
 
@@ -233,6 +234,8 @@ function pageResponse<T>(items: T[], total = items.length, page = 1, size = 20) 
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  useExpertModeStore.setState({ enabled: false });
   refetchIdentities = vi.fn();
   refetchCandidates = vi.fn();
   reviewCandidate = vi.fn().mockResolvedValue({
@@ -1190,7 +1193,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
   });
 
-  it("shows AI production provenance trace in the candidate review drawer", async () => {
+  it("shows AI production provenance in hospital language without exposing technical tokens by default", async () => {
     const user = userEvent.setup();
     mockUseCandidateProvenance.mockReturnValue({
       data: [
@@ -1225,16 +1228,80 @@ describe("KnowledgeGovernance", () => {
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
     expect(screen.getByText("AI 生产来源溯源")).toBeInTheDocument();
-    expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖")).toBeInTheDocument();
+    expect(screen.getAllByText("置信 0.87").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已启用备用生产能力，候选仍需人工复核").length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.getAllByText("已记录来源引用，审核时以来源锚点为准").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
+    expect(screen.queryByText("task-vte-ai")).not.toBeInTheDocument();
+    expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("B2")).not.toBeInTheDocument();
+    expect(screen.queryByText("claude-opus-4")).not.toBeInTheDocument();
+    expect(screen.queryByText("prompt:aikstd13-v1")).not.toBeInTheDocument();
+    expect(screen.queryByText("tool:submit-candidate-v1")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("降级：B2 -> B1：外部 provider 限流，本地模型成功"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reveals technical AI provenance only after authorized users enable expert mode", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        menuKeys: ["knowledge-production"],
+        permissions: [{ code: "knowledge.publish" }],
+      },
+    });
+    mockUseCandidateProvenance.mockReturnValue({
+      data: [
+        {
+          candidateRef: "kv:42:2026.06",
+          aiGenerated: true,
+          producer: "API_MODEL",
+          jobCode: "job-vte-ai",
+          targetPipeline: "TENANT_OVERLAY",
+          domain: "DRUG",
+          modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          riskLevel: "HIGH",
+          producedAt: "2026-06-06T01:05:00Z",
+          producedBy: "ai-factory",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "专家模式" }));
+
+    expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
+    expect(screen.getByText("task-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
     expect(screen.getAllByText("B2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("claude-opus-4").length).toBeGreaterThan(0);
     expect(screen.getByText("prompt:aikstd13-v1")).toBeInTheDocument();
     expect(screen.getByText("tool:submit-candidate-v1")).toBeInTheDocument();
-    expect(screen.getAllByText("置信 0.87").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/source-fragment-candidate/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows the professional asset template matching the candidate domain for completeness review", async () => {

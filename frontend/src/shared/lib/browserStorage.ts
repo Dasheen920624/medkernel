@@ -1,5 +1,9 @@
 const AUTH_SESSION_EVENT_KEY = "medkernel.auth.event";
-const ALLOWED_EXACT_KEYS = new Set(["medkernel.theme.mode", AUTH_SESSION_EVENT_KEY]);
+const ALLOWED_EXACT_KEYS = new Set([
+  "medkernel.theme.mode",
+  "medkernel.expert-mode.enabled",
+  AUTH_SESSION_EVENT_KEY,
+]);
 const SENSITIVE_KEY_PATTERN =
   /(token|secret|password|passwd|api[-_.]?key|authorization|credential|patient|idcard|identity|身份证|患者)/i;
 

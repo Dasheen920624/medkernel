@@ -46,7 +46,9 @@ import {
   type TraceStateTransition,
 } from "@/shared/api/hooks";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -190,7 +192,6 @@ function approvalScopeLabel(approval: ExportApproval) {
 export default function AdminAudit() {
   const [filters, setFilters] = useState<ExperienceFilterValue[]>([]);
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([undefined]);
-  const [expertMode, setExpertMode] = useState(false);
   const [selectedAuditEvent, setSelectedAuditEvent] = useState<AuditEventRow>();
   const [diagnosisTraceId, setDiagnosisTraceId] = useState("");
   const [requestOpen, setRequestOpen] = useState(false);
@@ -207,6 +208,8 @@ export default function AdminAudit() {
   const [reviewForm] = Form.useForm<{ comment: string }>();
 
   const security = useSecurityProfile();
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const canExport = hasPermission(security.data, "list.export");
   const canApproveExport = hasPermission(security.data, "audit.export");
   const currentCursor = cursorHistory[cursorHistory.length - 1];
@@ -665,8 +668,6 @@ export default function AdminAudit() {
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={security.data}
-      expertMode={expertMode}
-      onExpertModeChange={setExpertMode}
       extras={
         canApproveExport ? (
           <Button

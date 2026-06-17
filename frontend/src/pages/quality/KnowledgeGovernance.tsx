@@ -91,6 +91,9 @@ import {
   KNOWLEDGE_TRIAGE_STATE_META,
 } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { ExpertModeToggle } from "@/shared/ui/ExpertModeToggle";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -266,6 +269,15 @@ function fallbackText(provenance: CandidateProvenanceView) {
   return `降级：${provenance.fallbackReason || "已降级，未返回原因"}`;
 }
 
+function hospitalFallbackText(provenance: CandidateProvenanceView) {
+  if (!provenance.fallbackUsed) return "未启用备用生产能力";
+  return "已启用备用生产能力，候选仍需人工复核";
+}
+
+function sourceCitationSummary(value?: string | null) {
+  return value ? "已记录来源引用，审核时以来源锚点为准" : "未返回来源引用";
+}
+
 function productionProgressPercent(
   job: KnowledgeProductionJob | undefined,
   candidateCount: number,
@@ -424,6 +436,9 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   }>();
   const [productionJobForm] = Form.useForm<CreateKnowledgeProductionJobRequest>();
   const security = useSecurityProfile();
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const mayUseExpertMode = canUseExpertMode(security.data);
+  const expertMode = mayUseExpertMode && globalExpertMode;
   const knowledgePackagesQuery = usePackages({
     page: 1,
     size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
@@ -1036,14 +1051,20 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         return (
           <Space direction="vertical" size={2}>
             {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
-            {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
             <Text>{producerLabel(provenance.producer)}</Text>
-            <Text type="secondary">job：{provenance.jobCode}</Text>
-            {provenance.modelVersion ? (
-              <Text type="secondary">模型：{provenance.modelVersion}</Text>
-            ) : null}
             {provenance.confidence !== null && provenance.confidence !== undefined ? (
               <Text type="secondary">{confidenceText(provenance.confidence)}</Text>
+            ) : null}
+            <Text type="secondary">{hospitalFallbackText(provenance)}</Text>
+            <Text type="secondary">{sourceCitationSummary(provenance.sourceCitations)}</Text>
+            {expertMode ? (
+              <>
+                {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
+                <Text type="secondary">job：{provenance.jobCode}</Text>
+                {provenance.modelVersion ? (
+                  <Text type="secondary">模型：{provenance.modelVersion}</Text>
+                ) : null}
+              </>
             ) : null}
           </Space>
         );
@@ -2169,9 +2190,25 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     );
   }
 
+  const expertModeControl = mayUseExpertMode ? (
+    <ExpertModeToggle securityProfile={security.data} />
+  ) : null;
+  const pageExtrasWithExpertMode = expertModeControl ? (
+    <Space wrap>
+      {pageExtras}
+      {expertModeControl}
+    </Space>
+  ) : (
+    pageExtras
+  );
+
   return (
     <>
-      <PageShell title={pageMeta.title} description={pageMeta.description} extras={pageExtras}>
+      <PageShell
+        title={pageMeta.title}
+        description={pageMeta.description}
+        extras={pageExtrasWithExpertMode}
+      >
         {pageContent}
       </PageShell>
 
@@ -2394,40 +2431,59 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                 <Descriptions.Item label="生产器">
                   {producerLabel(provenance.producer)}
                 </Descriptions.Item>
-                <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                <Descriptions.Item label="生产任务">已留痕，审核结论会保留任务证据</Descriptions.Item>
                 <Descriptions.Item label="目标管道">
                   <Space size={4} wrap>
                     <Tag color={meta.color}>{meta.label}</Tag>
                     <Tag>{meta.boundaryLabel}</Tag>
                   </Space>
                 </Descriptions.Item>
-                <Descriptions.Item label="模型策略">
-                  {provenance.modelStrategy || "无"}
-                </Descriptions.Item>
-                <Descriptions.Item label="模型模式">
-                  {provenance.modelMode || "未返回"}
-                </Descriptions.Item>
-                <Descriptions.Item label="模型版本">
-                  {provenance.modelVersion || "未返回"}
-                </Descriptions.Item>
-                <Descriptions.Item label="提示词版本">
-                  {provenance.promptVersion || "未返回"}
-                </Descriptions.Item>
-                <Descriptions.Item label="工具版本">
-                  {provenance.toolVersion || "未返回"}
-                </Descriptions.Item>
-                <Descriptions.Item label="置信 / 降级">
+                <Descriptions.Item label="可信度 / 备用能力">
                   <Space direction="vertical" size={2}>
                     <Text>{confidenceText(provenance.confidence)}</Text>
-                    <Text>{fallbackText(provenance)}</Text>
+                    <Text>{hospitalFallbackText(provenance)}</Text>
                   </Space>
                 </Descriptions.Item>
-                <Descriptions.Item label="来源引用">
-                  {provenance.sourceCitations || "未返回来源引用"}
+                <Descriptions.Item label="来源依据">
+                  {sourceCitationSummary(provenance.sourceCitations)}
                 </Descriptions.Item>
-                <Descriptions.Item label="生产时点 / 人">
-                  {provenance.producedAt ?? "未返回"} / {provenance.producedBy ?? "未返回"}
+                <Descriptions.Item label="生产时点">
+                  {provenance.producedAt ?? "未返回"}
                 </Descriptions.Item>
+                {expertMode ? (
+                  <>
+                    <Descriptions.Item label="生产任务 job">
+                      {provenance.jobCode}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型任务 ID">
+                      {provenance.modelTaskId || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型策略">
+                      {provenance.modelStrategy || "无"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型模式">
+                      {provenance.modelMode || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型版本">
+                      {provenance.modelVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="提示词版本">
+                      {provenance.promptVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="工具版本">
+                      {provenance.toolVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="技术降级原因">
+                      {fallbackText(provenance)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="来源引用原文">
+                      {provenance.sourceCitations || "未返回来源引用"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="生产执行人">
+                      {provenance.producedBy ?? "未返回"}
+                    </Descriptions.Item>
+                  </>
+                ) : null}
               </Descriptions>
             );
           })()}

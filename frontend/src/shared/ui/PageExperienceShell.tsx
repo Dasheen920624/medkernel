@@ -1,21 +1,11 @@
-import { Space, Switch, Typography } from "antd";
+import { Space } from "antd";
 import type { ReactNode } from "react";
 
 import type { SecurityProfile } from "@/shared/api/hooks";
 
+import { ExpertModeToggle } from "./ExpertModeToggle";
 import { PageShell } from "./PageShell";
 import type { RouteExperience } from "./experienceTypes";
-
-const { Text } = Typography;
-const EXPERT_PERMISSIONS = new Set(["advanced.read", "system.debug"]);
-const EXPERT_MENU_KEYS = new Set([
-  "provenance",
-  "graph-explore",
-  "knowledge-production",
-  "ai-workflows",
-  "domestic-check",
-  "dev-console",
-]);
 
 interface PageExperienceShellProps {
   meta: { title: string; experience: RouteExperience };
@@ -30,28 +20,20 @@ interface PageExperienceShellProps {
 export function PageExperienceShell({
   meta,
   securityProfile,
-  expertMode = false,
+  expertMode,
   onExpertModeChange,
   primary,
   extras,
   children,
 }: PageExperienceShellProps) {
-  const mayUseExpertMode =
-    meta.experience.expertContent.length > 0 &&
-    !!securityProfile &&
-    (securityProfile.menuKeys.some((menuKey) => EXPERT_MENU_KEYS.has(menuKey)) ||
-      securityProfile.permissions.some((permission) => EXPERT_PERMISSIONS.has(permission.code)));
-
-  const expertControl = mayUseExpertMode ? (
-    <Space size="small">
-      <Text>专家模式</Text>
-      <Switch
-        aria-label="专家模式"
-        checked={expertMode}
-        onChange={(checked) => onExpertModeChange?.(checked)}
+  const expertControl =
+    meta.experience.expertContent.length > 0 ? (
+      <ExpertModeToggle
+        securityProfile={securityProfile}
+        expertMode={expertMode}
+        onExpertModeChange={onExpertModeChange}
       />
-    </Space>
-  ) : null;
+    ) : null;
 
   return (
     <PageShell

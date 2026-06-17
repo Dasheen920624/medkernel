@@ -34,6 +34,7 @@ import {
   type TermMappingCandidate,
   type TerminologyCandidateGenerationJob,
 } from "@/shared/api/hooks";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 import TerminologyMapping from "./TerminologyMapping";
 
@@ -404,6 +405,7 @@ function renderPage() {
 describe("TerminologyMapping experience sample", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    useExpertModeStore.setState({ enabled: false });
     vi.clearAllMocks();
     configureQuery();
   });

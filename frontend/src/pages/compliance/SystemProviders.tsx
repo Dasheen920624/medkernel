@@ -12,7 +12,6 @@ import {
   theme,
 } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { useState } from "react";
 
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -21,6 +20,8 @@ import { PageState } from "@/shared/ui/PageState";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -92,7 +93,8 @@ export default function SystemProviders() {
   const security = useSecurityProfile();
   const routeAllowed = Boolean(security.data && canAccessRoute(route, security.data));
   const runtime = useRuntimeOperations(routeAllowed);
-  const [expertMode, setExpertMode] = useState(false);
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const { token } = theme.useToken();
 
   if (security.isLoading) {
@@ -164,8 +166,6 @@ export default function SystemProviders() {
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={security.data}
-      expertMode={expertMode}
-      onExpertModeChange={setExpertMode}
       extras={
         <Button
           aria-label="重新探测"

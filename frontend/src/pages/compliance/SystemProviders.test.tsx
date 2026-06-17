@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemProviders from "./SystemProviders";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: vi.fn(),
@@ -114,6 +115,8 @@ describe("SystemProviders", () => {
   const runtimeRefetch = vi.fn();
 
   beforeEach(() => {
+    window.localStorage.clear();
+    useExpertModeStore.setState({ enabled: false });
     vi.clearAllMocks();
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {

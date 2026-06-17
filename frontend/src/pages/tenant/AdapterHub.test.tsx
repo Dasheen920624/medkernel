@@ -38,6 +38,7 @@ import {
   type RegionalSource,
   type SecurityProfile,
 } from "@/shared/api/hooks";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 import AdapterHub from "./AdapterHub";
 
@@ -510,6 +511,8 @@ function renderPage() {
 
 describe("AdapterHub", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    useExpertModeStore.setState({ enabled: false });
     vi.clearAllMocks();
     setupMocks();
   });

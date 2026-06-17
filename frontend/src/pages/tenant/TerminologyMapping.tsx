@@ -60,8 +60,10 @@ import {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -309,7 +311,6 @@ export default function TerminologyMapping() {
   const [request, setRequest] = useState<ExperiencePageRequest>(DEFAULT_REQUEST);
   const [visibleColumnKeys, setVisibleColumnKeys] =
     useState<readonly string[]>(DEFAULT_VISIBLE_COLUMNS);
-  const [expertMode, setExpertMode] = useState(false);
   const [selectionSnapshot, setSelectionSnapshot] = useState<{
     selectedRowKeys: Key[];
     rowCount: number;
@@ -336,6 +337,9 @@ export default function TerminologyMapping() {
   const [rollbackForm] = Form.useForm();
 
   const security = useSecurityProfile();
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const setExpertMode = useExpertModeStore((state) => state.setEnabled);
+  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const canPublish = hasPermission(security.data, "term.publish");
   const query = useTerminologyMappings({
     page: request.pageNumber,
@@ -396,7 +400,7 @@ export default function TerminologyMapping() {
     setVisibleColumnKeys(savedSnapshot.visibleColumnKeys);
     setExpertMode(savedSnapshot.expertMode);
     savedViewApplied.current = true;
-  }, [savedViews.data]);
+  }, [savedViews.data, setExpertMode]);
 
   function snapshot(
     nextFilters = filters,
@@ -831,8 +835,6 @@ export default function TerminologyMapping() {
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={security.data}
-      expertMode={expertMode}
-      onExpertModeChange={setExpertMode}
       primary={
         <Button
           type="primary"
