@@ -26,8 +26,30 @@ public record KnowledgeCandidateReviewRequest(
     @JsonProperty("package_version") String packageVersion,
     @NotNull KnowledgeCandidateReviewDecision decision,
     @Size(max = 500) String reason,
-    VersionPublishEvidence publishEvidence
+    VersionPublishEvidence publishEvidence,
+    KnowledgeReviewFeedbackType feedbackType,
+    KnowledgeReviewFollowupAction followupAction
 ) {
+
+    public KnowledgeCandidateReviewRequest(
+            String requestId,
+            String traceId,
+            String tenantId,
+            String groupId,
+            String hospitalId,
+            String campusId,
+            String siteId,
+            String departmentId,
+            String specialtyId,
+            String userId,
+            List<String> roleCodes,
+            String packageVersion,
+            KnowledgeCandidateReviewDecision decision,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
+        this(requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId, departmentId, specialtyId,
+            userId, roleCodes, packageVersion, decision, reason, publishEvidence, null, null);
+    }
 
     public KnowledgeCandidateReviewRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);

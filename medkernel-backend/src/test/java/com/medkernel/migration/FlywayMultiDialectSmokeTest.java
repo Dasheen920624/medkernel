@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class FlywayMultiDialectSmokeTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 147;
+    private static final int LATEST_MIGRATION_VERSION = 148;
 
     @Test
     @Tag("docker")

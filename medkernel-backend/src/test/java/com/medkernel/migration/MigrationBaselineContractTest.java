@@ -195,7 +195,8 @@ class MigrationBaselineContractTest {
         "V144__data_minimization_policy.sql",
         "V145__engine_data_field_encryption.sql",
         "V146__knowledge_surface_menu_split.sql",
-        "V147__knowledge_candidate_explain_evidence.sql"
+        "V147__knowledge_candidate_explain_evidence.sql",
+        "V148__knowledge_review_feedback_loop.sql"
     );
 
     @Test
@@ -406,6 +407,20 @@ class MigrationBaselineContractTest {
                 .contains("explain_json", "候选生产解释元数据JSON")
                 .contains("模型任务ID", "模式", "版本三元组", "来源引用", "置信", "降级原因")
                 .contains("不保存提示词原文或候选正文");
+        }
+    }
+
+    @Test
+    void knowledgeReviewFeedbackLoopIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V148__knowledge_review_feedback_loop.sql");
+            assertThat(ddl)
+                .as("%s 审核反馈必须结构化登记并只表达回流动作", dialect)
+                .contains("feedback_type", "followup_action")
+                .contains("ACCEPTED", "NOT_ADOPTED", "CONTENT_GAP", "SOURCE_BLANK", "FALSE_POSITIVE")
+                .contains("NONE", "CREATE_REVISION_CANDIDATE", "REQUEST_SOURCE_EVIDENCE",
+                    "MARK_FALSE_POSITIVE", "ARCHIVE_REJECTED")
+                .contains("审核反馈类型", "审核后回流动作");
         }
     }
 
@@ -833,6 +848,7 @@ class MigrationBaselineContractTest {
         "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
+        "ck_review_assignment_feedback_type", "ck_review_assignment_followup_action",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
         "uk_mk_term_high_risk_rule_code", "ck_mk_term_high_risk_rule_type", "ck_mk_term_high_risk_rule_category", "ck_mk_term_high_risk_rule_status",
         "uk_mk_term_candidate_generation_job_code", "ck_mk_term_candidate_generation_job_status",

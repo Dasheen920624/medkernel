@@ -1031,6 +1031,8 @@ class KnowledgeVersionServiceTest {
         verify(reviewAssignmentRepo).save(assignment.capture());
         assertThat(assignment.getValue().reason()).isEqualTo("来源冲突，退回补证");
         assertThat(assignment.getValue().decision()).isEqualTo(KnowledgeCandidateReviewDecision.REJECT);
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.NOT_ADOPTED);
+        assertThat(assignment.getValue().followupAction()).isEqualTo(KnowledgeReviewFollowupAction.ARCHIVE_REJECTED);
         verify(supersessionRepo, never()).save(any());
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
@@ -1066,8 +1068,42 @@ class KnowledgeVersionServiceTest {
         assertThat(assignment.getValue().reason()).isEqualTo("请补充禁忌章节后重提");
         assertThat(assignment.getValue().decision()).isEqualTo(KnowledgeCandidateReviewDecision.RETURN);
         assertThat(assignment.getValue().reviewStatus()).isEqualTo(CandidateReviewStatus.RETURNED);
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.CONTENT_GAP);
+        assertThat(assignment.getValue().followupAction())
+            .isEqualTo(KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE);
         verify(supersessionRepo, never()).save(any());
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void returnCandidateRecordsStructuredFeedbackAndRevisionFollowup() {
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+
+        KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            KnowledgeCandidateReviewDecision.RETURN, "AI 生成内容缺少关键禁忌章节，需回流生产台补齐",
+            VersionPublishEvidence.empty(),
+            KnowledgeReviewFeedbackType.CONTENT_GAP,
+            KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE
+        );
+
+        service.reviewCandidate(88L, returnRequest);
+
+        ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo).save(assignment.capture());
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.CONTENT_GAP);
+        assertThat(assignment.getValue().followupAction())
+            .isEqualTo(KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE);
     }
 
     @Test

@@ -1000,6 +1000,18 @@ export type CandidateReviewStatus =
   | string;
 
 export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT" | "RETURN";
+export type KnowledgeReviewFeedbackType =
+  | "ACCEPTED"
+  | "NOT_ADOPTED"
+  | "CONTENT_GAP"
+  | "SOURCE_BLANK"
+  | "FALSE_POSITIVE";
+export type KnowledgeReviewFollowupAction =
+  | "NONE"
+  | "CREATE_REVISION_CANDIDATE"
+  | "REQUEST_SOURCE_EVIDENCE"
+  | "MARK_FALSE_POSITIVE"
+  | "ARCHIVE_REJECTED";
 
 export interface KnowledgeIdentity {
   id: number;
@@ -1735,6 +1747,8 @@ export function useReviewKnowledgeCandidate() {
         decision: KnowledgeCandidateReviewDecision;
         reason?: string;
         publishEvidence?: VersionPublishEvidence;
+        feedbackType?: KnowledgeReviewFeedbackType;
+        followupAction?: KnowledgeReviewFollowupAction;
       };
       idempotencyKey?: string;
     }) => {

@@ -20,6 +20,7 @@ import {
   Input,
   Modal,
   Progress,
+  Radio,
   Row,
   Select,
   Space,
@@ -67,6 +68,8 @@ import {
   type KnowledgeShadowRun,
   type KnowledgeAssetVersion,
   type KnowledgeCandidateReviewDecision,
+  type KnowledgeReviewFeedbackType,
+  type KnowledgeReviewFollowupAction,
   type KnowledgeDomain,
   type KnowledgeIdentity,
   type KnowledgeCustomization,
@@ -114,6 +117,14 @@ const REVIEW_DECISION_SUCCESS_MESSAGES: Record<KnowledgeCandidateReviewDecision,
   APPROVE: "候选已通过审核并交由权威替换流程",
   RETURN: "候选已退修，退回生产者修订重提",
   REJECT: "候选已驳回并留档",
+};
+
+const REVIEW_FOLLOWUP_BY_FEEDBACK: Record<KnowledgeReviewFeedbackType, KnowledgeReviewFollowupAction> = {
+  ACCEPTED: "NONE",
+  NOT_ADOPTED: "ARCHIVE_REJECTED",
+  CONTENT_GAP: "CREATE_REVISION_CANDIDATE",
+  SOURCE_BLANK: "REQUEST_SOURCE_EVIDENCE",
+  FALSE_POSITIVE: "MARK_FALSE_POSITIVE",
 };
 
 const VERSION_STATUS_LABELS: Record<string, string> = {
@@ -195,6 +206,15 @@ function pipelineMeta(pipeline?: string | null) {
       description: "服务端返回了暂未登记的知识生产管道，请核查配置。",
     }
   );
+}
+
+function feedbackTypeForDecision(
+  decision: KnowledgeCandidateReviewDecision,
+  selected?: KnowledgeReviewFeedbackType,
+): KnowledgeReviewFeedbackType {
+  if (decision === "APPROVE") return "ACCEPTED";
+  if (selected) return selected;
+  return decision === "RETURN" ? "CONTENT_GAP" : "NOT_ADOPTED";
 }
 
 function PipelineBoundaryCard({ title = "双形态知识分区" }: { title?: string }) {
@@ -302,6 +322,7 @@ type ReviewFormValues = {
   signerName?: string;
   signedAt?: string;
   signatureHash?: string;
+  feedbackType?: KnowledgeReviewFeedbackType;
   qualityGates?: string[];
   qualitySummary?: string;
 };
@@ -600,6 +621,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     reviewForm.setFieldsValue({
       packageVersion: defaultReviewPackageVersion,
       reason: "",
+      feedbackType: undefined,
       qualityGates: [],
     });
   }
@@ -620,6 +642,11 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         fields.push("qualityGates");
       }
       const values = await reviewForm.validateFields(fields);
+      const selectedFeedbackType = reviewForm.isFieldTouched("feedbackType")
+        ? (reviewForm.getFieldValue("feedbackType") as KnowledgeReviewFeedbackType | undefined)
+        : undefined;
+      const feedbackType = feedbackTypeForDecision(decision, selectedFeedbackType);
+      const followupAction = REVIEW_FOLLOWUP_BY_FEEDBACK[feedbackType];
       let publishEvidence: VersionPublishEvidence | undefined;
       if (decision === "APPROVE" && publishEvidenceRequired) {
         const signatureId = values.signatureId?.trim();
@@ -660,6 +687,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         request: {
           decision,
           reason: values.reason.trim(),
+          feedbackType,
+          followupAction,
           ...(publishEvidence ? { publishEvidence } : {}),
         },
         idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
@@ -2460,6 +2489,16 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               rules={[{ required: true, message: "请填写审核理由" }]}
             >
               <Input.TextArea rows={4} />
+            </Form.Item>
+            <Form.Item name="feedbackType" label="审核反馈类型">
+              <Radio.Group>
+                <Space wrap>
+                  <Radio value="CONTENT_GAP">内容缺口</Radio>
+                  <Radio value="SOURCE_BLANK">来源空白</Radio>
+                  <Radio value="FALSE_POSITIVE">误报</Radio>
+                  <Radio value="NOT_ADOPTED">不采纳</Radio>
+                </Space>
+              </Radio.Group>
             </Form.Item>
             {publishEvidenceRequired && (
               <>

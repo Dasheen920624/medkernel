@@ -1279,6 +1279,7 @@ describe("KnowledgeGovernance", () => {
     fireEvent.change(screen.getByLabelText("审核理由"), {
       target: { value: "请补充禁忌章节后重提。" },
     });
+    await user.click(screen.getByLabelText("内容缺口"));
     fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
 
     await waitFor(() => {
@@ -1288,6 +1289,8 @@ describe("KnowledgeGovernance", () => {
         request: {
           decision: "RETURN",
           reason: "请补充禁忌章节后重提。",
+          feedbackType: "CONTENT_GAP",
+          followupAction: "CREATE_REVISION_CANDIDATE",
         },
         idempotencyKey: expect.stringContaining("knowledge-review-9001"),
       });
@@ -1308,6 +1311,34 @@ describe("KnowledgeGovernance", () => {
       expect(screen.getByText("请填写审核理由")).toBeInTheDocument();
     });
     expect(reviewCandidate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a candidate with not-adopted feedback when no explicit feedback is selected", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
+      target: { value: "PKG.KNOW.2026.06" },
+    });
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "来源证据与现行权威冲突，当前不采纳。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "驳回候选" }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).toHaveBeenCalledWith({
+        candidateId: 9001,
+        packageVersion: "PKG.KNOW.2026.06",
+        request: {
+          decision: "REJECT",
+          reason: "来源证据与现行权威冲突，当前不采纳。",
+          feedbackType: "NOT_ADOPTED",
+          followupAction: "ARCHIVE_REJECTED",
+        },
+        idempotencyKey: expect.stringContaining("knowledge-review-9001"),
+      });
+    });
   });
 
   it(
@@ -1355,6 +1386,8 @@ describe("KnowledgeGovernance", () => {
           request: {
             decision: "APPROVE",
             reason: "已核对来源锚点和现行版差异，允许替换。",
+            feedbackType: "ACCEPTED",
+            followupAction: "NONE",
             publishEvidence: {
               electronicSignature: {
                 signatureId: "sig-knowledge-2002",
