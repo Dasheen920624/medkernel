@@ -60,6 +60,30 @@ class DomainFacadeApiContractTest {
             .andExpect(jsonPath("$.data.memberFacadeCodes", hasItem("INFECTION-PH-01")));
     }
 
+    @Test
+    void listB0Fixtures_returnsExecutableEvidenceForAllFacadesWithoutModelRequirement() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/domain-facades/b0-fixtures").with(knowledgeGovernorJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(17))
+            .andExpect(jsonPath("$.data[*].code", hasItem("NURSING-01")))
+            .andExpect(jsonPath("$.data[*].status", everyItem(is("PASS"))))
+            .andExpect(jsonPath("$.data[*].b0Executable", everyItem(is(true))))
+            .andExpect(jsonPath("$.data[*].modelRequired", everyItem(is(false))))
+            .andExpect(jsonPath("$.data[*].clinicalContentSeeded", everyItem(is(false))))
+            .andExpect(jsonPath("$.data[*].newBusinessEngineRequired", everyItem(is(false))));
+    }
+
+    @Test
+    void getB0Fixture_declaresSpecialtyExtensionHonestEmptyUntilAssetsExist() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/domain-facades/SPECIALTY-EXT-01/b0-fixture")
+                .with(knowledgeGovernorJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.code").value("SPECIALTY-EXT-01"))
+            .andExpect(jsonPath("$.data.status").value("PASS"))
+            .andExpect(jsonPath("$.data.honestEmptyWhenAssetsMissing").value(true))
+            .andExpect(jsonPath("$.data.assetSeedPolicy").value("NO_SEED_HONEST_EMPTY"));
+    }
+
     private static org.springframework.test.web.servlet.request.RequestPostProcessor knowledgeGovernorJwt() {
         return jwt().jwt(token -> token
             .subject("knowledge-governor")

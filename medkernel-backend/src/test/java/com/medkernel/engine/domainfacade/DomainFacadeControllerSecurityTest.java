@@ -33,6 +33,9 @@ class DomainFacadeControllerSecurityTest {
     @MockBean
     private DomainFacadeCatalogService service;
 
+    @MockBean
+    private DomainFacadeB0FixtureService fixtureService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();

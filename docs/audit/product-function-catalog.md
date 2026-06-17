@@ -408,7 +408,7 @@
 <!-- capability:controller:controller@DeveloperConsoleController decision=KEEP -->
 | `DeveloperConsoleController` | GET /api/v1/system/dev-console/api-contracts | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@DomainFacadeController decision=KEEP -->
-| `DomainFacadeController` | GET /api/v1/engine/domain-facades<br>GET /api/v1/engine/domain-facades/{code} | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `DomainFacadeController` | GET /api/v1/engine/domain-facades<br>GET /api/v1/engine/domain-facades/b0-fixtures<br>GET /api/v1/engine/domain-facades/{code}<br>GET /api/v1/engine/domain-facades/{code}/b0-fixture | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@EmbedEngineController decision=API_ONLY -->
 | `EmbedEngineController` | POST /api/v1/engine/embed/launch-tokens<br>POST /api/v1/engine/embed/launch<br>POST /api/v1/engine/embed/recommendations<br>POST /api/v1/engine/embed/feedback<br>POST /api/v1/engine/embed/origins<br>GET /api/v1/engine/embed/origins | API_ONLY | 第三方接口与嵌入契约 | 仅服务外部系统或嵌入链路，不进入客户主菜单 |
 <!-- capability:controller:controller@EmrLevelController decision=MERGE -->
