@@ -57,6 +57,30 @@ class MedicalRegressionCaseManagementServiceTest {
     }
 
     @Test
+    void createsAiQualityCaseWithTermsForbiddenAssertionsAndMinScore() {
+        MedicalRegressionCaseRequest request = new MedicalRegressionCaseRequest(
+            "recommendation.draft",
+            "terminology",
+            "请输出推荐解释",
+            "建议人工复核",
+            List.of("慢性肾脏病"),
+            List.of("虚构医保编码 ZZZ-2026"),
+            80,
+            null,
+            true,
+            "2026.06",
+            "source-version:77#term",
+            true);
+
+        MedicalRegressionCase created = service.create(request);
+
+        assertThat(created.caseDomain()).isEqualTo("terminology");
+        assertThat(created.expectedTermsJson()).contains("慢性肾脏病");
+        assertThat(created.forbiddenAssertionsJson()).contains("虚构医保编码 ZZZ-2026");
+        assertThat(created.minScore()).isEqualTo(80);
+    }
+
+    @Test
     void rejectsCaseWithoutRealSourceReference() {
         MedicalRegressionCaseRequest request = request("rule.draft", "2026.1", "TODO");
 
@@ -134,8 +158,12 @@ class MedicalRegressionCaseManagementServiceTest {
     private static MedicalRegressionCaseRequest request(String capabilityCode, String caseVersion, String sourceReference) {
         return new MedicalRegressionCaseRequest(
             capabilityCode,
+            "general",
             "请依据真实来源判断候选知识是否必须阻断。",
             "必须阻断",
+            List.of(),
+            List.of(),
+            100,
             "DOSE_LIMIT",
             true,
             caseVersion,
@@ -145,8 +173,8 @@ class MedicalRegressionCaseManagementServiceTest {
 
     private static MedicalRegressionCase caseRow(Long id, String tenantId, String enabledFlag) {
         Instant now = Instant.parse("2026-06-16T00:00:00Z");
-        return new MedicalRegressionCase(id, tenantId, "rule.draft", "输入", "期望",
-            "DOSE_LIMIT", "source-version:77#dose-limit", "Y", "2026.1", enabledFlag,
+        return new MedicalRegressionCase(id, tenantId, "rule.draft", "rule", "输入", "期望",
+            "[]", "[]", 100, "DOSE_LIMIT", "source-version:77#dose-limit", "Y", "2026.1", enabledFlag,
             now, "seed", now, "seed");
     }
 }

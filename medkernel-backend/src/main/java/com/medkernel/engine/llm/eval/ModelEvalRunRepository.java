@@ -1,5 +1,6 @@
 package com.medkernel.engine.llm.eval;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.repository.CrudRepository;
@@ -16,4 +17,10 @@ public interface ModelEvalRunRepository extends CrudRepository<ModelEvalRun, Lon
      */
     Optional<ModelEvalRun> findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
         String tenantId, String providerCode, String modelVersion, String status);
+
+    /**
+     * AI 质量评测趋势查询：按能力码和模型版本取最近运行，服务层负责租户隔离。
+     */
+    List<ModelEvalRun> findTop20ByTenantIdAndCapabilityCodeAndModelVersionOrderByCreatedAtDesc(
+        String tenantId, String capabilityCode, String modelVersion);
 }

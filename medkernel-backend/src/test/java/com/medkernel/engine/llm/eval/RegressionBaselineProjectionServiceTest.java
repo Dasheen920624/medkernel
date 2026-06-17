@@ -67,7 +67,7 @@ class RegressionBaselineProjectionServiceTest {
         ClinicalRedlineRule redline = redline("tenant-A", "redline-dose-limit", "RDL-DOSE-001",
             ClinicalRedlineCategory.DOSE_LIMIT);
         MedicalRegressionCase existing = new MedicalRegressionCase(9L, "tenant-A", "rule.draft",
-            expectedCaseInput(redline), "儿童用药剂量上限需双签", "DOSE_LIMIT",
+            "rule", expectedCaseInput(redline), "儿童用药剂量上限需双签", "[]", "[]", 100, "DOSE_LIMIT",
             "source-version:77#dose-limit", "Y", "2026.1", "Y", Instant.now(),
             "regression-baseline-seeder", Instant.now(), "regression-baseline-seeder");
         when(redlineRepository.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(

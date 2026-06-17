@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,8 +55,8 @@ class ModelEvalServiceTest {
 
     private MedicalRegressionCase aCase() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        return new MedicalRegressionCase(1L, "tenant-1", "rule.draft", "输入", "期望",
-            null, "source-version:1", "N", "v1", "Y", now, "s", now, "s");
+        return new MedicalRegressionCase(1L, "tenant-1", "rule.draft", "general", "输入", "期望",
+            "[]", "[]", 100, null, "source-version:1", "N", "v1", "Y", now, "s", now, "s");
     }
 
     @Test
@@ -88,10 +89,88 @@ class ModelEvalServiceTest {
     }
 
     @Test
+    void runQualityEvaluation_persistsHallucinationFailureAndVersionTriple() {
+        service = new ModelEvalService(caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder);
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        MedicalRegressionCase regCase = new MedicalRegressionCase(
+            7L, "tenant-1", "recommendation.draft", "terminology",
+            "请输出推荐解释", "建议人工复核", "[\"慢性肾脏病\"]",
+            "[\"虚构医保编码 ZZZ-2026\"]", 80, null,
+            "source-version:77#term", "Y", "2026.06", "Y", now, "s", now, "s");
+        when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+                "tenant-1", "recommendation.draft", "Y"))
+            .thenReturn(List.of(regCase));
+
+        ModelEvalRun run = service.runQualityEvaluation(new AiQualityEvalRunRequest(
+            "recommendation.draft",
+            "b0-fixture",
+            "B0-Deterministic-Baseline",
+            "prompt:v1",
+            "tool:v1",
+            List.of(new AiQualityEvalCaseOutput(
+                7L,
+                "建议人工复核。慢性肾脏病。虚构医保编码 ZZZ-2026。",
+                "B0-Deterministic-Baseline",
+                0.88,
+                "source-version:77#term"))));
+
+        assertThat(run.status()).isEqualTo("FAILED");
+        assertThat(run.capabilityCode()).isEqualTo("recommendation.draft");
+        assertThat(run.promptVersion()).isEqualTo("prompt:v1");
+        assertThat(run.toolVersion()).isEqualTo("tool:v1");
+        assertThat(run.hallucinationDetected()).isEqualTo("Y");
+        assertThat(run.qualityScore()).isLessThan(80.0);
+        assertThat(run.terminologyScore()).isEqualTo(100.0);
+        assertThat(run.caseSummaryJson()).contains("HALLUCINATION_FORBIDDEN_ASSERTION");
+    }
+
+    @Test
+    void runQualityEvaluation_rejectsMismatchedOfflineOutputModelVersion() {
+        service = new ModelEvalService(caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder);
+
+        assertThatThrownBy(() -> service.runQualityEvaluation(new AiQualityEvalRunRequest(
+            "recommendation.draft",
+            "b0-fixture",
+            "B0-Deterministic-Baseline",
+            "prompt:v1",
+            "tool:v1",
+            List.of(new AiQualityEvalCaseOutput(
+                7L,
+                "建议人工复核。",
+                "other-model",
+                0.88,
+                "source-version:77#term")))))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("model_version");
+        verify(runRepo, never()).save(any(ModelEvalRun.class));
+    }
+
+    @Test
+    void qualityTrend_returnsRecentQualityRunsForCapabilityAndModelVersion() {
+        Instant newest = Instant.parse("2026-06-14T00:05:00Z");
+        Instant older = Instant.parse("2026-06-14T00:00:00Z");
+        when(runRepo.findTop20ByTenantIdAndCapabilityCodeAndModelVersionOrderByCreatedAtDesc(
+                "tenant-1", "recommendation.draft", "B0-Deterministic-Baseline"))
+            .thenReturn(List.of(
+                trendRun(12L, newest, 96.0, 100.0, "N", "PASSED", "prompt:v2", "tool:v2"),
+                trendRun(11L, older, 72.0, 80.0, "Y", "FAILED", "prompt:v1", "tool:v1")));
+
+        AiQualityTrendResponse trend = service.qualityTrend(
+            "recommendation.draft", "B0-Deterministic-Baseline");
+
+        assertThat(trend.capabilityCode()).isEqualTo("recommendation.draft");
+        assertThat(trend.modelVersion()).isEqualTo("B0-Deterministic-Baseline");
+        assertThat(trend.points()).extracting(AiQualityTrendPoint::runId).containsExactly(12L, 11L);
+        assertThat(trend.points().get(0).qualityScore()).isEqualTo(96.0);
+        assertThat(trend.points().get(1).hallucinationDetected()).isTrue();
+    }
+
+    @Test
     void signOff_pendingReviewBecomesPassedWithReviewer() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", 5, 5, 0, "N", "N", "PENDING_REVIEW",
+            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
+            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
             null, null, now, "s", now, "s")));
 
         ModelEvalRun signed = service.signOff(9L);
@@ -105,7 +184,8 @@ class ModelEvalServiceTest {
     void signOff_nonPendingRejected() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", 5, 4, 1, "N", "N", "FAILED",
+            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
+            5, 4, 1, null, null, "N", "N", "N", "FAILED", "[]",
             null, null, now, "s", now, "s")));
 
         assertThatThrownBy(() -> service.signOff(9L)).isInstanceOf(ApiException.class);
@@ -117,9 +197,28 @@ class ModelEvalServiceTest {
         when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
                 "tenant-1", "ollama-local", "qwen2.5:7b", "PASSED"))
             .thenReturn(Optional.of(new ModelEvalRun(1L, "tenant-1", "ollama-local", "qwen2.5:7b",
-                3, 3, 0, "N", "N", "PASSED", "quality-001", now, now, "s", now, "s")));
+                "rule.draft", "prompt:v1", "tool:v1",
+                3, 3, 0, null, null, "N", "N", "N", "PASSED", "[]",
+                "quality-001", now, now, "s", now, "s")));
 
         assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "qwen2.5:7b")).isTrue();
         assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "other-version")).isFalse();
+    }
+
+    private ModelEvalRun trendRun(
+            Long id,
+            Instant createdAt,
+            double qualityScore,
+            double terminologyScore,
+            String hallucinationDetected,
+            String status,
+            String promptVersion,
+            String toolVersion) {
+        return new ModelEvalRun(
+            id, "tenant-1", "b0-fixture", "B0-Deterministic-Baseline",
+            "recommendation.draft", promptVersion, toolVersion,
+            3, "PASSED".equals(status) ? 3 : 2, "PASSED".equals(status) ? 0 : 1,
+            qualityScore, terminologyScore, "N", "N", hallucinationDetected,
+            status, "[]", null, null, createdAt, "s", createdAt, "s");
     }
 }

@@ -8,7 +8,7 @@
 - 当前本地分支：`codex/knowledge-fullflow-audit-production`；用户要求长任务自主执行到完成，只本地提交，暂不合并远程 `main`。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：国产化真实环境本轮暂不处理，后续全面验收再回到国产 OS/JDK、达梦、金仓、真实国产数据和现场环境。
-- 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不做历史兼容、回灌或旧部署回滚路径。
+- 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不回灌、不依赖旧部署回退路径。
 - 资料库口径：受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均是正式后端；不得把任一种资料后端写成唯一选项。
 - 主计划入口：[`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
 
@@ -32,10 +32,11 @@
   - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
   - DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 Agent/MCP/CLI 的结构化公域资料载荷转入既有获取编排；CLI 已接 `agent fetch-public-material`，MCP 沿动态工具目录暴露；D3/D4/D5 入参拒绝。
 - Phase 5 当前：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵与版本三元组治理。
-  - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略兼容层。
+  - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
   - T5.3 已补 `mk_llm_model_version_bundle` V139 clean baseline、`model_capability_task.tool_version`、ACTIVE 版本包发布/回滚/hash-only 导出、B0 脱敏摘要重放、provider 成功任务真实 prompt/tool/model 三元组记录，以及服务层发布前载荷校验；空版本或空正文不再能先退役旧 ACTIVE。
+  - T5.4 已补 OPT-06 AI 质量评测中心：V126 clean baseline 复用 `mk_llm_regression_case`/`mk_llm_eval_run` 增加质量维度、术语期望、禁用断言、最低分、质量/术语分、幻觉标记、case summary 与 prompt/tool/model 版本趋势；新增 `/api/v1/ai-eval/runs`、`/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出评测；真实领域题库只允许由真实来源导入，不预置伪医学题。
 
 ## 最新验证
 
@@ -47,6 +48,7 @@
 - Phase 5 T5.1 目标验证：`mvn -q -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`、`cd frontend && npm test -- AiWorkflows.test.tsx` 均退出 0。
 - Phase 5 T5.2 提交前验证：`mvn -q -Dtest=ModelGatewayServiceTest#submitTask_policyRateLimitExceededSkipsProviderAndFallsBackToB0 test` 红→绿；`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,OllamaProviderTest,ExternalProviderTest,ModelFallbackMatrixTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`cd frontend && npm test -- AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 - Phase 5 T5.3 提交前验证：`mvn -q -Dtest=ModelVersionGovernanceServiceTest#publishBundleRejectsBlankVersionPayloadBeforeRetiringActiveBundle test` 红→绿；`mvn -q -Dtest=ModelVersionGovernanceServiceTest,ModelVersionGovernanceControllerTest,ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest test`、`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
+- Phase 5 T5.4 提交前验证：AI 质量评测目标测试、V126 五方言迁移契约、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.4 范围旧构造器、旧表名、legacy/backfill/ROLLBACK 扫描无命中。
 
 ## 仍不可宣称
 
@@ -57,7 +59,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5 T5.4：OPT-06 AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。
+1. 继续 Phase 5 T5.5：OPT-09 数据最小化策略引擎（字段白名单、脱敏、审批、模型出域安全）。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

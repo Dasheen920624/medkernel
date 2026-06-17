@@ -16,8 +16,12 @@ public record MedicalRegressionCase(
     @Id Long id,
     @Column("tenant_id") String tenantId,
     @Column("capability_code") String capabilityCode,
+    @Column("case_domain") String caseDomain,
     @Column("case_input") String caseInput,
     @Column("expected_phrase") String expectedPhrase,
+    @Column("expected_terms_json") String expectedTermsJson,
+    @Column("forbidden_assertions_json") String forbiddenAssertionsJson,
+    @Column("min_score") Integer minScore,
     @Column("red_line_type") String redLineType,
     @Column("source_reference") String sourceReference,
     @Column("citation_required") String citationRequired,
@@ -36,5 +40,9 @@ public record MedicalRegressionCase(
 
     public boolean requiresCitation() {
         return "Y".equalsIgnoreCase(citationRequired);
+    }
+
+    public int requiredMinScore() {
+        return minScore == null ? 100 : minScore;
     }
 }

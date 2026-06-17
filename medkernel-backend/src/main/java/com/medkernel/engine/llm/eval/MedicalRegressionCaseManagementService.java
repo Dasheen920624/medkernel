@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MedicalRegressionCaseManagementService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> PLACEHOLDER_REFERENCES = Set.of(
         "todo", "tbd", "n/a", "na", "none", "mock", "fake", "dummy", "placeholder", "<missing>");
 
@@ -81,8 +83,12 @@ public class MedicalRegressionCaseManagementService {
             existing.id(),
             existing.tenantId(),
             existing.capabilityCode(),
+            existing.caseDomain(),
             existing.caseInput(),
             existing.expectedPhrase(),
+            existing.expectedTermsJson(),
+            existing.forbiddenAssertionsJson(),
+            existing.minScore(),
             existing.redLineType(),
             existing.sourceReference(),
             existing.citationRequired(),
@@ -107,8 +113,12 @@ public class MedicalRegressionCaseManagementService {
             id,
             tenantId,
             normalizeCapability(request.capabilityCode()),
+            normalizeCaseDomain(request.caseDomain()),
             requireText(request.caseInput(), "caseInput"),
             requireText(request.expectedPhrase(), "expectedPhrase"),
+            toJsonArray(request.expectedTerms(), "expectedTerms"),
+            toJsonArray(request.forbiddenAssertions(), "forbiddenAssertions"),
+            requireMinScore(request.minScore()),
             optionalText(request.redLineType()).map(value -> value.toUpperCase(Locale.ROOT)).orElse(null),
             requireSourceReference(request.sourceReference()),
             request.citationRequired() ? "Y" : "N",
@@ -166,6 +176,40 @@ public class MedicalRegressionCaseManagementService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "医学回归用例必须绑定真实来源引用");
         }
         return sourceReference;
+    }
+
+    private static String normalizeCaseDomain(String caseDomain) {
+        String normalized = optionalText(caseDomain).orElse("general").toLowerCase(Locale.ROOT);
+        if (normalized.length() > 32) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "caseDomain 最长 32 字符");
+        }
+        return normalized;
+    }
+
+    private static Integer requireMinScore(Integer minScore) {
+        int score = minScore == null ? 100 : minScore;
+        if (score < 0 || score > 100) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "minScore 必须在 0-100 之间");
+        }
+        return score;
+    }
+
+    private static String toJsonArray(List<String> values, String fieldName) {
+        List<String> normalized = normalizeStringList(values, fieldName);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(normalized);
+        } catch (Exception ex) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, fieldName + " 序列化失败");
+        }
+    }
+
+    private static List<String> normalizeStringList(List<String> values, String fieldName) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+            .map(value -> requireText(value, fieldName))
+            .toList();
     }
 
     private static String requireText(String value, String fieldName) {

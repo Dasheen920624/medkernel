@@ -14,23 +14,23 @@
 ## 目标
 **AI 质量评测中心**：字典 / 规则 / 路径 / 推荐 / 解释 / 中文术语回归集 + 幻觉拦截——AI 各能力有统一回归评测平台，质量可量化、幻觉可拦。
 
-## 现状（搬迁时核查 2026-05-31）
-**待建**：D4 [EVAL-01](../D4/EVAL-01.md) 已有业务评估引擎（指标/命中/问题/整改），可复用其骨架。本卡＝建 **AI 维度回归集 + 评测运行 + 幻觉拦截**，与 [LLM-07](LLM-07.md) 同平台（LLM-07 聚焦安全/医学红线，本卡聚焦质量/术语/幻觉广度）。
+## 现状（2026-06-17 核查）
+**后端机制已建**：复用 [LLM-07](LLM-07.md) 同一评测平台，不另造旧表。V126 clean baseline 已扩展 `mk_llm_regression_case` 的 `case_domain`、`expected_terms_json`、`forbidden_assertions_json`、`min_score`，以及 `mk_llm_eval_run` 的 `capability_code`、`prompt_version`、`tool_version`、`quality_score`、`terminology_score`、`hallucination_detected`、`case_summary_json`，五方言一致且中文 COMMENT 完整。新增 `/api/v1/ai-eval/runs` 和 `/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出进入质量评分、术语专项分、幻觉拦截和版本趋势。真实字典/规则/路径/推荐/解释题库必须由真实来源导入，不在卡内编造医学题。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 回归集：字典/规则/路径/推荐/解释/中文术语各有评测集（带期望 + 评分）。
-- [ ] FR-2 评测运行：对能力码批量跑回归出质量分（准确/覆盖/一致）。
-- [ ] FR-3 幻觉拦截：产出含无源断言/编造编码 → 标幻觉、计入失败。
-- [ ] FR-4 中文术语：术语映射/表达的中文规范性专项评测。
-- [ ] FR-5 趋势：版本间质量趋势可比（接 [LLM-04](LLM-04.md) 版本）。
+- [x] FR-1 回归集：字典/规则/路径/推荐/解释/中文术语均可通过 `case_domain` + 真实来源用例建集，带期望、术语期望、禁用断言和最低分；不编造默认医学题。
+- [x] FR-2 评测运行：`AiQualityEvalController` / `ModelEvalService.runQualityEvaluation` 对能力码批量跑回归出质量分。
+- [x] FR-3 幻觉拦截：无源断言/编造编码命中 `HALLUCINATION_*`，标记 `hallucination_detected=Y` 并计入失败。
+- [x] FR-4 中文术语：`expected_terms_json` 形成中文术语专项评分，输出 `terminology_score`。
+- [x] FR-5 趋势：`/api/v1/ai-eval/trends` 按能力码 + 模型版本返回最近质量趋势，绑定 [LLM-04](LLM-04.md) 的 prompt/tool/model 三元组。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`/api/v1/ai-eval/*`（集/运行/结果/趋势）；信封 [BASE-03](../D0/BASE-03.md)；大列表 [API-13](../D0/API-13.md)。
+- 端点：`POST /api/v1/ai-eval/runs`、`GET /api/v1/ai-eval/trends`；信封 [BASE-03](../D0/BASE-03.md)；趋势限定最近 20 条，后续大列表再接 [API-13](../D0/API-13.md)。
 - 状态机：变更（评测运行态）。
 
 ## 数据与迁移
-- `ai_eval_set` / `ai_eval_case` / `ai_eval_run`（结果/分数/幻觉标记），五方言。
+- 复用并扩展 `mk_llm_regression_case` / `mk_llm_eval_run`（结果/分数/幻觉标记/版本趋势），五方言 V126 clean baseline；不新增旧表。
 
 ## 视角清单（11 视角）
 1. 产品架构：AI 质量量化平台。
@@ -50,12 +50,12 @@
 - 本卡落点：AI 各能力统一回归评测 + 幻觉拦截 + 中文术语 + 版本趋势。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：回归出分 + 幻觉被拦。
-- [ ] AC-2（FR-4/5）：中文术语评测 + 版本趋势可比。
+- [x] AC-1（FR-1~3）：回归出分 + 幻觉被拦。
+- [x] AC-2（FR-4/5）：中文术语评测 + 版本趋势可比。
 - T-GATE：后端真实性门禁全绿。
-- B0 验收：★B0 产出可评测出基线分（不依赖 provider）。
+- B0 验收：★B0 产出可通过 `caseOutputs` 离线评测出基线分（不依赖 provider）。
 
 ## 完工证据
-- 代码 permalink：评测集 + 运行 + 幻觉拦截。
-- 测试：回归/幻觉/术语/趋势。
+- 代码 permalink：评测集扩展 + 运行 + 幻觉拦截 + 趋势接口。
+- 测试：`AiQualityEvaluatorTest`、`ModelEvalServiceTest`、`AiQualityEvalControllerSecurityTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`ServiceContractGovernanceTest`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

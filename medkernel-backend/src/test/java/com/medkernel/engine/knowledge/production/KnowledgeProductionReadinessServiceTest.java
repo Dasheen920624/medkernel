@@ -194,7 +194,8 @@ class KnowledgeProductionReadinessServiceTest {
     private MedicalRegressionCase regressionCase() {
         Instant now = Instant.now();
         return new MedicalRegressionCase(
-            1L, TENANT, CAPABILITY, "输入", "期望", null, "source-version:1", "Y",
+            1L, TENANT, CAPABILITY, "general", "输入", "期望", "[]", "[]", 100,
+            null, "source-version:1", "Y",
             "2026.06", "Y", now, "u", now, "u");
     }
 
@@ -202,7 +203,9 @@ class KnowledgeProductionReadinessServiceTest {
         Instant now = Instant.now();
         return new ModelEvalRun(
             1L, TENANT, provider.providerCode(), provider.modelVersion(),
-            1, 1, 0, "N", "N", "PASSED", "reviewer", now, now, "u", now, "u");
+            CAPABILITY, "prompt:v1", "tool:v1",
+            1, 1, 0, 100.0, 100.0, "N", "N", "N", "PASSED", "[]",
+            "reviewer", now, now, "u", now, "u");
     }
 
     private ModelEgressWhitelist whitelist() {

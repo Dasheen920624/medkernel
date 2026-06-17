@@ -2,11 +2,15 @@ package com.medkernel.engine.llm.eval;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
+import com.medkernel.engine.llm.provider.ProviderCompletion;
 import com.medkernel.engine.llm.provider.ProviderRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -67,6 +71,28 @@ public class ModelEvalService {
     }
 
     @Transactional
+    public ModelEvalRun runQualityEvaluation(AiQualityEvalRunRequest request) {
+        String tenantId = requireCurrentTenant();
+        String capabilityCode = requireText(request.capabilityCode(), "capability_code");
+        String providerCode = normalizeOptional(request.providerCode(), "offline-fixture");
+        String modelVersion = requireText(request.modelVersion(), "model_version");
+        String promptVersion = requireText(request.promptVersion(), "prompt_version");
+        String toolVersion = requireText(request.toolVersion(), "tool_version");
+        validateCaseOutputs(modelVersion, request.caseOutputs());
+        List<MedicalRegressionCase> cases =
+            caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capabilityCode, "Y");
+        if (cases.isEmpty()) {
+            return persistQuality(tenantId, providerCode, modelVersion, capabilityCode, promptVersion, toolVersion,
+                new MedicalRegressionEvaluator.QualityEvalVerdict(
+                    0, 0, 0, 0, 0.0, null, false, "FAILED", "[]"));
+        }
+
+        MedicalRegressionEvaluator.QualityEvalVerdict verdict =
+            evaluator.evaluateQuality(cases, qualityRunner(tenantId, providerCode, request.caseOutputs()));
+        return persistQuality(tenantId, providerCode, modelVersion, capabilityCode, promptVersion, toolVersion, verdict);
+    }
+
+    @Transactional
     public ModelEvalRun signOff(Long runId) {
         String tenantId = requireCurrentTenant();
         ModelEvalRun run = runRepo.findById(runId)
@@ -82,8 +108,11 @@ public class ModelEvalService {
         String actor = RequestContext.currentUserId().orElse("system");
         ModelEvalRun signed = runRepo.save(new ModelEvalRun(
             run.id(), run.tenantId(), run.providerCode(), run.modelVersion(),
+            run.capabilityCode(), run.promptVersion(), run.toolVersion(),
             run.totalCases(), run.passedCases(), run.failedCases(),
-            run.fakeCitationDetected(), run.redLineBreach(), "PASSED",
+            run.qualityScore(), run.terminologyScore(),
+            run.fakeCitationDetected(), run.redLineBreach(), run.hallucinationDetected(),
+            "PASSED", run.caseSummaryJson(),
             actor, now, run.createdAt(), run.createdBy(), now, actor));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_eval_run", String.valueOf(runId),
             "专家复核签字放行评测 " + run.providerCode() + "/" + run.modelVersion());
@@ -96,18 +125,121 @@ public class ModelEvalService {
             tenantId, providerCode, modelVersion, "PASSED").isPresent();
     }
 
+    @Transactional(readOnly = true)
+    public AiQualityTrendResponse qualityTrend(String capabilityCode, String modelVersion) {
+        String tenantId = requireCurrentTenant();
+        String normalizedCapability = requireText(capabilityCode, "capability_code");
+        String normalizedModelVersion = requireText(modelVersion, "model_version");
+        List<AiQualityTrendPoint> points = runRepo
+            .findTop20ByTenantIdAndCapabilityCodeAndModelVersionOrderByCreatedAtDesc(
+                tenantId, normalizedCapability, normalizedModelVersion)
+            .stream()
+            .map(this::toTrendPoint)
+            .toList();
+        return new AiQualityTrendResponse(normalizedCapability, normalizedModelVersion, points);
+    }
+
     private ModelEvalRun persist(String tenantId, String providerCode, String modelVersion,
                                  MedicalRegressionEvaluator.EvalVerdict verdict) {
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         ModelEvalRun saved = runRepo.save(new ModelEvalRun(
-            null, tenantId, providerCode, modelVersion,
+            null, tenantId, providerCode, modelVersion, null, null, null,
             verdict.total(), verdict.passed(), verdict.failed(),
-            verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
-            verdict.status(), null, null, now, actor, now, actor));
+            null, null, verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
+            "N", verdict.status(), "[]", null, null, now, actor, now, actor));
         auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", providerCode + "/" + modelVersion,
             "运行医学回归评测 " + providerCode + "/" + modelVersion + " -> " + verdict.status());
         return saved;
+    }
+
+    private ModelEvalRun persistQuality(
+            String tenantId,
+            String providerCode,
+            String modelVersion,
+            String capabilityCode,
+            String promptVersion,
+            String toolVersion,
+            MedicalRegressionEvaluator.QualityEvalVerdict verdict) {
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        ModelEvalRun saved = runRepo.save(new ModelEvalRun(
+            null, tenantId, providerCode, modelVersion, capabilityCode, promptVersion, toolVersion,
+            verdict.total(), verdict.passed(), verdict.failed(),
+            verdict.qualityScore(), verdict.terminologyScore(), "N", "N",
+            verdict.hallucinationDetected() ? "Y" : "N", verdict.status(), verdict.caseSummaryJson(),
+            null, null, now, actor, now, actor));
+        auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", capabilityCode + "/" + modelVersion,
+            "运行 AI 质量评测 " + capabilityCode + "/" + modelVersion + " -> " + verdict.status());
+        return saved;
+    }
+
+    private Function<MedicalRegressionCase, ProviderCompletion> qualityRunner(
+            String tenantId,
+            String providerCode,
+            List<AiQualityEvalCaseOutput> outputs) {
+        Map<Long, AiQualityEvalCaseOutput> outputByCase = outputs.stream()
+            .filter(output -> output.caseId() != null)
+            .collect(Collectors.toMap(AiQualityEvalCaseOutput::caseId, output -> output, (left, right) -> left));
+        if (!outputByCase.isEmpty()) {
+            return regCase -> toCompletion(outputByCase.get(regCase.id()));
+        }
+
+        var resolved = registry.resolveByCode(tenantId, providerCode);
+        if (resolved.isEmpty()) {
+            return ignored -> new ProviderCompletion("", null, null, "[]");
+        }
+        var provider = resolved.get();
+        return regCase -> provider.adapter().complete(provider.config(),
+            new ProviderRequest(regCase.capabilityCode(), regCase.caseInput(), 60_000));
+    }
+
+    private ProviderCompletion toCompletion(AiQualityEvalCaseOutput output) {
+        if (output == null) {
+            return new ProviderCompletion("", null, null, "[]");
+        }
+        return new ProviderCompletion(
+            output.content(),
+            output.modelVersion(),
+            output.confidence(),
+            output.sourceCitations());
+    }
+
+    private AiQualityTrendPoint toTrendPoint(ModelEvalRun run) {
+        return new AiQualityTrendPoint(
+            run.id(),
+            run.createdAt(),
+            run.providerCode(),
+            run.modelVersion(),
+            run.promptVersion(),
+            run.toolVersion(),
+            run.status(),
+            run.qualityScore(),
+            run.terminologyScore(),
+            "Y".equalsIgnoreCase(run.hallucinationDetected()));
+    }
+
+    private void validateCaseOutputs(String modelVersion, List<AiQualityEvalCaseOutput> outputs) {
+        for (AiQualityEvalCaseOutput output : outputs) {
+            if (output.caseId() == null) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "caseOutputs.case_id 不能为空");
+            }
+            String outputModelVersion = normalizeOptional(output.modelVersion(), modelVersion);
+            if (!modelVersion.equals(outputModelVersion)) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "caseOutputs.model_version 必须与 model_version 一致");
+            }
+        }
+    }
+
+    private String requireText(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+        }
+        return value.trim();
+    }
+
+    private String normalizeOptional(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
     private String requireCurrentTenant() {

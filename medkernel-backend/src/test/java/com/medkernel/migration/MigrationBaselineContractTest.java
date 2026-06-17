@@ -206,6 +206,35 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void aiQualityEvaluationFieldsArePersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
+            assertThat(ddl)
+                .as("%s AI 质量评测必须持久化质量维度、幻觉拦截、术语分和版本趋势", dialect)
+                .contains(
+                    "case_domain",
+                    "expected_terms_json",
+                    "forbidden_assertions_json",
+                    "min_score",
+                    "capability_code",
+                    "prompt_version",
+                    "tool_version",
+                    "quality_score",
+                    "terminology_score",
+                    "hallucination_detected",
+                    "case_summary_json",
+                    "ck_mk_llm_regression_case_score",
+                    "ck_mk_llm_eval_run_hallucination",
+                    "ck_mk_llm_eval_run_quality_score",
+                    "idx_mk_llm_regression_case_domain",
+                    "idx_mk_llm_eval_run_capability",
+                    "AI 质量评测维度",
+                    "幻觉拦截",
+                    "术语质量");
+        }
+    }
+
+    @Test
     void terminologyCandidateGenerationJobIsPersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V135__terminology_candidate_generation_job.sql");
@@ -622,7 +651,8 @@ class MigrationBaselineContractTest {
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
-        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup", "idx_mk_llm_enhancement_matrix_status",
+        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_regression_case_domain",
+        "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability", "idx_mk_llm_enhancement_matrix_status",
         "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
         "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
         "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
@@ -876,7 +906,9 @@ class MigrationBaselineContractTest {
         "ck_model_policy_timeout_ms", "ck_model_policy_rate_limit", "uk_model_policy_scope",
         "uk_mk_llm_egress_whitelist", "ck_mk_llm_egress_whitelist_sensitivity", "ck_mk_llm_egress_approval_status",
         "uk_mk_llm_provider_tenant_code", "ck_mk_llm_provider_type", "ck_mk_llm_provider_enabled",
-        "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled", "ck_mk_llm_eval_run_status",
+        "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled",
+        "ck_mk_llm_regression_case_score", "ck_mk_llm_eval_run_status",
+        "ck_mk_llm_eval_run_hallucination", "ck_mk_llm_eval_run_quality_score",
         "uk_mk_llm_enhancement_matrix_point", "ck_mk_llm_enhancement_matrix_status", "ck_mk_llm_enhancement_matrix_enabled",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",

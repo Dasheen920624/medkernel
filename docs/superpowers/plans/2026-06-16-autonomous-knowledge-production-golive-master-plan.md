@@ -190,7 +190,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T5.1 **LLM-01** 固化 provider 无关网关契约，修正"未接 provider"陈旧口径；B0 空候选不写死医学事实。已补 `model_capability_policy` 作用域化 clean baseline、当前组织链继承解析、readiness 同源策略解析和前端策略来源证据列。
   - [x] T5.2 **LLM-02** provider 缺位/断连/限流/结构化失败/出域阻断→B0 降级矩阵验收（接 `ModelFallbackMatrix`）。已补 `fallback_order_json`/`timeout_ms`/`rate_limit_per_minute` clean baseline、发布前顺序校验、B2→B1→B0 逐级尝试、provider HTTP 超时预算、运行时 provider 调用限流和前端降级顺序证据列。
   - [x] T5.3 **LLM-04** prompt/tool/model 版本包 + 三元组绑定 + 重放/回滚/导出（只出 hash）；模型候选必带真实三元组。已完成 `mk_llm_model_version_bundle` V139 clean baseline、任务 `tool_version` 绑定、provider 成功任务真实 prompt/tool/model 三元组记录、B0 脱敏摘要重放、历史版本回滚、hash-only 导出，以及服务层发布前载荷校验，避免绕过 Controller 写入空版本或正文空 hash。
-  - [ ] T5.4 **OPT-06** AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。
+  - [x] T5.4 **OPT-06** AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。已复用 LLM-07 同平台扩展 V126 clean baseline：`case_domain`、术语期望、禁用断言、最低分、质量/术语分、幻觉标记、case summary 和 prompt/tool/model 版本趋势；新增 `/api/v1/ai-eval/runs`、`/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出评测；真实领域题库只允许后续由真实来源导入，不预置伪医学题。
   - [ ] T5.5 **OPT-09** 数据最小化策略引擎（字段白名单+脱敏+审批）。
   - [ ] T5.6 **API-12** 模型能力网关 API 收口勾卡。
   - [ ] T5.7 **候选真实化**：`SourceCandidateGenerator`/`ModelKnowledgeProducer` 用真实锚点 + 模型增强填充逻辑字段（带 AI 标识+锚点+hash+三元组），替换 B0 留白；readiness 未过/provider 失败/schema 不合格→诚实降级不产伪候选。
@@ -223,15 +223,15 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 ### 〈第二大块 · 生产中心(134)上线〉
 
 #### Phase 9 · 生产中心(134)上线（第一次上线 · ops+治理，非纯代码）
-> 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。用户已明确按全新项目发布：发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不做历史数据兼容、不保留旧包袱，发布留痕只记录清库初始化和新版本证据。
-  - [ ] T9.0 清库发布准备：停服务 → 清空数据库/旧制品/旧运行数据 → 从最新迁移基线全新建库 → 核验没有历史数据兼容、回灌或旧部署回滚路径被依赖。
+> 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。用户已明确按全新项目发布：发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不保留旧包袱，发布留痕只记录清库初始化和新版本证据。
+  - [ ] T9.0 清库发布准备：停服务 → 清空数据库/旧制品/旧运行数据 → 从最新迁移基线全新建库 → 核验没有历史数据回灌或旧部署回退路径被依赖。
   - [ ] T9.1 运维准备受管资料库后端（现场本地磁盘、COS/OSS/MinIO 或 HTTPS 网关）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。
-  - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 兼容/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。
+  - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 协议型/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。
   - [ ] T9.3 质量医保治理员复核真实医学基准集 + 专家签字；**实跑一次 PASSED 医学回归评测**（覆盖启用题数）。
   - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。
   - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。
   - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。
-  - [ ] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；不得从旧库回灌历史业务数据，不保留旧部署兼容路径）。
+  - [ ] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；不得从旧库回灌历史业务数据，不保留旧部署过渡路径）。
   - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。
 - **验收**：readiness 全绿 + 一条真实知识端到端上线留证 + 清库初始化记录 + 134 运行 manifest 哈希一致。
 
