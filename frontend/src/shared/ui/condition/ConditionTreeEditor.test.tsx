@@ -60,6 +60,9 @@ describe("ConditionTreeEditor（P1-2 递归条件树组件）", () => {
     render(<Harness initial={initial} />);
     expect(screen.getAllByTestId("condition-group")).toHaveLength(2);
     expect(screen.getAllByTestId("condition-leaf")).toHaveLength(3);
+    expect(screen.getByText("条件根组 · 第 1 层")).toBeInTheDocument();
+    expect(screen.getByText("子条件组 · 第 2 层")).toBeInTheDocument();
+    expect(screen.getAllByText("具体条件").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByTestId("leaf-count").textContent).toBe("3");
   });
 
@@ -67,7 +70,7 @@ describe("ConditionTreeEditor（P1-2 递归条件树组件）", () => {
     const initial = createGroup({ logic: "all", children: [createLeaf({ fact: "x" })] });
     render(<Harness initial={initial} />);
     expect(screen.getByTestId("leaf-count").textContent).toBe("1");
-    fireEvent.click(screen.getAllByLabelText("新增条件")[0]);
+    fireEvent.click(screen.getAllByLabelText("新增具体条件")[0]);
     expect(screen.getByTestId("leaf-count").textContent).toBe("2");
   });
 

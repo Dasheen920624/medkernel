@@ -75,6 +75,10 @@
   border-radius: var(--ant-border-radius-lg);
 }
 
+.conditionCard {
+  border-inline-start: calc(var(--mk-unit) * 4) solid var(--ant-color-info);
+}
+
 .conditionHeader,
 .groupHeader {
   display: flex;
@@ -137,6 +141,17 @@
 
 .readonlyGroup {
   margin-inline-start: calc(var(--mk-unit) * 8);
+}
+
+.rootGroup {
+  border-color: var(--ant-color-info-border);
+}
+
+@media (max-width: 40rem) {
+  .nestedGroup,
+  .readonlyGroup {
+    margin-inline-start: 0;
+  }
 }
 
 .readablePath {
