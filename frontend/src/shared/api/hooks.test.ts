@@ -98,6 +98,10 @@ import {
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useModelTask,
+  useReplayModelTask,
+  useValidateModelPolicy,
+  useSaveModelPolicy,
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
@@ -323,6 +327,125 @@ describe("developer console api hooks", () => {
       clinicalSafetyConfirmed: true,
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(3, "/plugins/plug%2F1:disable");
+  });
+});
+
+describe("model gateway api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.mocked(apiClient.patch).mockReset();
+    vi.mocked(apiClient.delete).mockReset();
+  });
+
+  const replayedTask = {
+    taskId: "task-replay-1",
+    status: "REPLAYED",
+    outputContent: "{\"status\":\"NO_MODEL_PROVIDER\",\"candidates\":[]}",
+    modelMode: "B0",
+    modelVersion: "B0-Deterministic-Baseline",
+    promptVersion: "prompt:extract-v1",
+    toolVersion: "tool:extract-schema-v1",
+    sourceCitations: "[]",
+    confidence: null,
+    riskLevel: "LOW",
+    fallbackUsed: true,
+    fallbackReason: "[LLM-04_REPLAY_FROM=task-1] B0 deterministic replay",
+    timeCostMs: 3,
+    traceId: "trace-replay",
+  };
+
+  it("keeps the model task version triple visible for trace lookup", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: replayedTask } });
+
+    const taskHook = renderApiHook(() => useModelTask("task-1"));
+
+    await waitFor(() => expect(taskHook.result.current.data?.toolVersion).toBe("tool:extract-schema-v1"));
+    expect(taskHook.result.current.data?.promptVersion).toBe("prompt:extract-v1");
+    expect(taskHook.result.current.data?.modelVersion).toBe("B0-Deterministic-Baseline");
+    expect(apiClient.get).toHaveBeenCalledWith("/model-capabilities/tasks/task-1");
+  });
+
+  it("replays deterministic B0 tasks through the gateway replay endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: replayedTask } });
+
+    const replayHook = renderApiHook(() => useReplayModelTask());
+
+    await expect(replayHook.result.current.mutateAsync("task-1")).resolves.toMatchObject({
+      status: "REPLAYED",
+      toolVersion: "tool:extract-schema-v1",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks/task-1/replay");
+  });
+
+  it("validates and saves route policy with explicit fallback budget", async () => {
+    const validationPayload = {
+      capabilityCode: "knowledge.extract",
+      routeStrategy: "EXTERNAL_MODEL",
+      desensitizeStrategy: "MASK_ALL",
+      expectedSchema: "{\"required\":[\"status\",\"candidates\"]}",
+      fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
+      timeoutMs: 1500,
+      rateLimitPerMinute: 20,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { valid: true, message: "策略可用", fallbackAvailable: true } },
+    });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: {
+        data: {
+          capabilityCode: "knowledge.extract",
+          displayName: "电子病历语义实体提取",
+          description: "能力说明",
+          category: "临床智能",
+          routeStrategy: "EXTERNAL_MODEL",
+          desensitizeStrategy: "MASK_ALL",
+          expectedSchema: validationPayload.expectedSchema,
+          fallbackOrder: validationPayload.fallbackOrder,
+          timeoutMs: 1500,
+          rateLimitPerMinute: 20,
+          policyScopeType: "TENANT",
+          policyScopeRef: "tenant-1",
+          inherited: false,
+          configured: true,
+          fallbackAvailable: true,
+          fallbackReason: "已配置降级链路",
+        },
+      },
+    });
+
+    const validateHook = renderApiHook(() => useValidateModelPolicy());
+    await expect(validateHook.result.current.mutateAsync(validationPayload)).resolves.toMatchObject({
+      valid: true,
+      fallbackAvailable: true,
+    });
+
+    const saveHook = renderApiHook(() => useSaveModelPolicy());
+    await expect(saveHook.result.current.mutateAsync({
+      capabilityCode: "knowledge.extract",
+      policy: {
+        routeStrategy: validationPayload.routeStrategy,
+        desensitizeStrategy: validationPayload.desensitizeStrategy,
+        expectedSchema: validationPayload.expectedSchema,
+        fallbackOrder: validationPayload.fallbackOrder,
+        timeoutMs: validationPayload.timeoutMs,
+        rateLimitPerMinute: validationPayload.rateLimitPerMinute,
+      },
+    })).resolves.toMatchObject({
+      capabilityCode: "knowledge.extract",
+      routeStrategy: "EXTERNAL_MODEL",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/policies/validate", validationPayload);
+    expect(apiClient.put).toHaveBeenCalledWith("/model-capabilities/policies/knowledge.extract", {
+      routeStrategy: "EXTERNAL_MODEL",
+      desensitizeStrategy: "MASK_ALL",
+      expectedSchema: validationPayload.expectedSchema,
+      fallbackOrder: validationPayload.fallbackOrder,
+      timeoutMs: 1500,
+      rateLimitPerMinute: 20,
+    });
   });
 });
 

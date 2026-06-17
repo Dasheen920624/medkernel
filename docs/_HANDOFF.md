@@ -39,6 +39,7 @@
   - T5.4 已补 OPT-06 AI 质量评测中心：V126 clean baseline 复用 `mk_llm_regression_case`/`mk_llm_eval_run` 增加质量维度、术语期望、禁用断言、最低分、质量/术语分、幻觉标记、case summary 与 prompt/tool/model 版本趋势；新增 `/api/v1/ai-eval/runs`、`/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出评测；真实领域题库只允许由真实来源导入，不预置伪医学题。
   - T5.5 已补 OPT-09 数据最小化策略引擎：V144 五方言在 `mk_llm_egress_whitelist` 扩展 `desensitization_rules`、`approval_threshold_level`、锁定式 `guardrail_locked_flag`；新增 `/api/v1/data-minimization/policies/model-egress/{capabilityCode}` 与 `/model-egress/approvals` 管理入口，统一复用 `llm.egress.manage` 权限和出域审计表。
   - T5.5 运行时护栏已接入 `ModelEgressGuard`：字段白名单外继续阻断，字段级 `MASK`/`MASK_ALL`/`GENERALIZE`/`NULLIFY`/`NONE` 策略在出域前执行；缺省或异常规则按最严 `MASK_ALL` 处理；审批门槛按 `LOW/MEDIUM/HIGH` 可配置，命中门槛且无有效审批时仍返回 `ENG_LLM_007`，不绕过既有证据链。
+  - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
 
 ## 最新验证
 
@@ -52,6 +53,7 @@
 - Phase 5 T5.3 提交前验证：`mvn -q -Dtest=ModelVersionGovernanceServiceTest#publishBundleRejectsBlankVersionPayloadBeforeRetiringActiveBundle test` 红→绿；`mvn -q -Dtest=ModelVersionGovernanceServiceTest,ModelVersionGovernanceControllerTest,ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest test`、`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 - Phase 5 T5.4 提交前验证：AI 质量评测目标测试、V126 五方言迁移契约、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.4 范围旧构造器、旧表名、legacy/backfill/ROLLBACK 扫描无命中。
 - Phase 5 T5.5 提交前验证：`mvn -q -Dtest=ModelEgressGuardTest,ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；OPT-09 旧 pending 口径、T5.5 未完成勾选、旧迁移版本哨兵、旧 data-min-policy 路径扫描无命中。
+- Phase 5 T5.6 提交前验证：`cd frontend && npm test -- hooks.test.ts` 红灯命中缺失 `useReplayModelTask` 后转绿；`cd frontend && npm run typecheck`、`mvn -q -Dtest=ModelGatewayServiceTest test`、`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,ModelCapabilityDefinitionRepositoryTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；API-12/LLM-01 pending 口径和前端缺失 `toolVersion` 扫描无命中。
 
 ## 仍不可宣称
 
@@ -62,7 +64,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5 T5.6：API-12 模型能力网关 API 收口勾卡；核对 API-12/LLM-01 卡片、服务契约、OpenAPI 暴露、权限与前端消费口径，发现不达标处直接 TDD 修复。
+1. 继续 Phase 5 T5.7：候选真实化；核对 `SourceCandidateGenerator`/`ModelKnowledgeProducer`、AIK-STD-13、readiness、模型任务三元组与真实锚点链路，让模型增强只产带 AI 标识、锚点、hash、三元组和门禁证据的候选；readiness 未过/provider 失败/schema 不合格必须诚实降级且不产伪候选。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

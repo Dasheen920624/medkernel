@@ -22,6 +22,7 @@
 - 本卡的“网关可调用”不等于“知识生产可正式模型生成”：P6、文献资料库、真实基准集、凭据引用和独立验收仍是 readiness 的强阻断项。
 - LLM-02 降级矩阵已把 provider 缺位、策略限流/provider 429、超时、结构化失败、断连、出域阻断归因到稳定 `fallbackReason`；T5.2 已新增可配置 `fallback_order_json`/`timeout_ms`/`rate_limit_per_minute`，支持 B2→B1→B0 逐级尝试。LLM-04 版本包已让 provider 成功任务绑定 prompt/tool/model 三元组。
 - 2026-06-17 T5.1：模型策略改为 `scope_type/scope_ref` clean baseline（134 清库初始化，不保留旧 `tenant+capability` 唯一策略），`ModelPolicyScope` 按当前组织链由近到远继承到租户；`getStatus` 返回策略来源和是否继承，知识生产 readiness 使用同一解析器，前端 AI 工作流页展示策略来源。
+- 2026-06-17 T5.6：API-12 收口复核确认 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI 契约、前端共享 hook 与三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook，不改变正式知识生产 readiness 阻断。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 路由裁决：按策略 `BASELINE/LOCAL_MODEL/EXTERNAL_MODEL/DISABLED` 选路；无 provider → B0。
@@ -32,7 +33,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 对外契约见 [API-12](API-12.md)；本卡为其 service 实现。
+- 对外契约见 [API-12](API-12.md)；本卡为其 service 实现，并向任务响应稳定返回 prompt/tool/model 三元组。
 - 状态机：变更（任务态）+ 配置（策略态）。
 - 错误码：`ENG_LLM_001/002/004`；traceId 透传。
 
@@ -64,5 +65,5 @@
 
 ## 完工证据
 - 代码 permalink：`engine/llm/ModelGatewayService` + 策略继承 + 去硬编码 B0。
-- 测试：`mvn -q -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；`cd frontend && npm test -- AiWorkflows.test.tsx`。
+- 测试：`mvn -q -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；`cd frontend && npm test -- AiWorkflows.test.tsx`；T5.6 追加 `mvn -q -Dtest=ModelGatewayServiceTest test` 与 `cd frontend && npm test -- hooks.test.ts`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

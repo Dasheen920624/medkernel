@@ -616,6 +616,32 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void getTask_crossTenantRejectsWithTenantForbidden() {
+        when(taskRepo.findByTaskId("task-other"))
+            .thenReturn(Optional.of(storedTask("task-other", "tenant-2")));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.getTask("task-other"));
+
+        assertEquals(ErrorCode.TENANT_FORBIDDEN, ex.errorCode());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+        verify(auditRecorder, never()).record(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void retryTask_crossTenantRejectsBeforeResubmissionAndAudit() {
+        when(taskRepo.findByTaskId("task-other"))
+            .thenReturn(Optional.of(storedTask("task-other", "tenant-2")));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.retryTask("task-other"));
+
+        assertEquals(ErrorCode.TENANT_FORBIDDEN, ex.errorCode());
+        verify(policyRepo, never())
+            .findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(anyString(), anyString(), anyString(), anyString());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+        verify(auditRecorder, never()).record(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void submitTask_withHealthyExternalProvider_passesEgressThenProducesRealB2Output() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -807,5 +833,34 @@ class ModelGatewayServiceTest {
     private static String b0Output(String capabilityCode) {
         return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
             + "\",\"candidates\":[],\"message\":\"当前未接入可用模型 provider，未生成候选内容\"}";
+    }
+
+    private static ModelCapabilityTask storedTask(String taskId, String tenantId) {
+        Instant now = Instant.parse("2026-06-16T01:00:00Z");
+        return new ModelCapabilityTask(
+            41L,
+            taskId,
+            tenantId,
+            "knowledge.extract",
+            "hash",
+            "已脱敏输入摘要",
+            b0Output("knowledge.extract"),
+            "B0",
+            "B0-Deterministic-Baseline",
+            "prompt:extract-v1",
+            "tool:extract-schema-v1",
+            "[]",
+            null,
+            "LOW",
+            true,
+            "[LLM-02:POLICY_BASELINE] B0 -> B0：策略显式指定 B0 基线",
+            12L,
+            "DEGRADED",
+            "trace-original",
+            now,
+            "ops",
+            now,
+            "ops"
+        );
     }
 }

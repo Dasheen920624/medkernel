@@ -8411,6 +8411,7 @@ export interface ModelTaskResponse {
   modelMode: string;
   modelVersion: string;
   promptVersion: string;
+  toolVersion: string;
   sourceCitations: string;
   confidence: number | null;
   riskLevel: string;
@@ -8556,7 +8557,19 @@ export function useRetryModelTask() {
   });
 }
 
-// 12. 发布前校验策略的合法性与可用降级判定
+// 12. 按 task_id 重放 B0 确定性任务，供审计复现版本三元组
+export function useReplayModelTask() {
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const { data } = await apiClient.post<{ data: ModelTaskResponse }>(
+        `/model-capabilities/tasks/${taskId}/replay`,
+      );
+      return data.data;
+    },
+  });
+}
+
+// 13. 发布前校验策略的合法性与可用降级判定
 export function useValidateModelPolicy() {
   return useMutation({
     mutationFn: async (payload: ModelPolicyValidateRequest) => {
@@ -8569,7 +8582,7 @@ export function useValidateModelPolicy() {
   });
 }
 
-// 13. 保存当前租户指定能力的真实路由、脱敏与结构化输出策略
+// 14. 保存当前租户指定能力的真实路由、脱敏与结构化输出策略
 export function useSaveModelPolicy() {
   const queryClient = useQueryClient();
   return useMutation({
