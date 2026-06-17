@@ -8387,6 +8387,9 @@ export interface ModelCapabilityStatusResponse {
   routeStrategy: "DISABLED" | "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
   desensitizeStrategy: "DEFAULT" | "MASK_ALL" | "NONE" | string;
   expectedSchema: string | null;
+  policyScopeType: string;
+  policyScopeRef: string;
+  inherited: boolean;
   configured: boolean;
   fallbackAvailable: boolean;
   fallbackReason: string;

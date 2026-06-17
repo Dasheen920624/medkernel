@@ -11,6 +11,9 @@ public record ModelCapabilityStatusResponse(
     String routeStrategy,
     String desensitizeStrategy,
     String expectedSchema,
+    String policyScopeType,
+    String policyScopeRef,
+    Boolean inherited,
     Boolean configured,
     Boolean fallbackAvailable,
     String fallbackReason

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.llm.ModelCapabilityPolicy;
 import com.medkernel.engine.llm.ModelCapabilityPolicyRepository;
+import com.medkernel.engine.llm.ModelPolicyScope;
 import com.medkernel.engine.llm.egress.ModelEgressWhitelistRepository;
 import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
@@ -237,7 +238,7 @@ public class KnowledgeProductionReadinessService {
 
     private KnowledgeProductionReadinessItem policyItem(String tenantId, String capability,
                                                         KnowledgeProducer producer) {
-        Optional<ModelCapabilityPolicy> policy = policyRepository.findByTenantIdAndCapabilityCode(tenantId, capability);
+        Optional<ModelCapabilityPolicy> policy = resolvePolicy(tenantId, capability);
         if (policy.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_POLICY",
@@ -255,7 +256,19 @@ public class KnowledgeProductionReadinessService {
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_POLICY",
             "模型能力策略与生产器匹配",
-            "routeStrategy=" + strategy);
+            "routeStrategy=" + strategy + ", scope=" + policy.get().scopeType() + ":" + policy.get().scopeRef());
+    }
+
+    private Optional<ModelCapabilityPolicy> resolvePolicy(String tenantId, String capability) {
+        for (ModelPolicyScope scope : ModelPolicyScope.candidates(RequestContext.currentOrgScope(), tenantId)) {
+            Optional<ModelCapabilityPolicy> policy =
+                policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+                    tenantId, capability, scope.scopeType(), scope.scopeRef());
+            if (policy.isPresent()) {
+                return policy;
+            }
+        }
+        return Optional.empty();
     }
 
     private KnowledgeProductionReadinessItem versionTripleItem(String modelStrategy, ModelProviderConfig provider) {

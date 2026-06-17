@@ -82,6 +82,9 @@ const statusItems = [
     routeStrategy: "BASELINE",
     desensitizeStrategy: "DEFAULT",
     expectedSchema: null,
+    policyScopeType: "TENANT",
+    policyScopeRef: "tenant-1",
+    inherited: false,
     configured: false,
     fallbackAvailable: true,
     fallbackReason: "未配置专属策略，使用系统 B0 基线",
@@ -94,6 +97,9 @@ const statusItems = [
     routeStrategy: "DISABLED",
     desensitizeStrategy: "MASK_ALL",
     expectedSchema: '{"required":["status"]}',
+    policyScopeType: "HOSPITAL",
+    policyScopeRef: "hospital-a",
+    inherited: true,
     configured: true,
     fallbackAvailable: false,
     fallbackReason: "已被路由策略禁用",
@@ -140,6 +146,8 @@ describe("AiWorkflows", () => {
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
+    expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统 B0 基线")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);

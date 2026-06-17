@@ -11,11 +11,17 @@ import org.springframework.stereotype.Repository;
 public interface ModelCapabilityPolicyRepository extends CrudRepository<ModelCapabilityPolicy, Long> {
 
     /**
-      * 根据租户ID和能力编码唯一获取对应的路由策略与脱敏配置。
+      * 根据租户ID、能力编码和组织作用域唯一获取对应的路由策略与脱敏配置。
       *
       * @param tenantId 租户ID
       * @param capabilityCode 能力代码
+      * @param scopeType 作用域类型
+      * @param scopeRef 作用域引用
       * @return 路由脱敏策略
       */
-    Optional<ModelCapabilityPolicy> findByTenantIdAndCapabilityCode(String tenantId, String capabilityCode);
+    Optional<ModelCapabilityPolicy> findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+        String tenantId,
+        String capabilityCode,
+        String scopeType,
+        String scopeRef);
 }

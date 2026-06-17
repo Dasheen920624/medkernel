@@ -79,8 +79,6 @@ class ModelGatewayServiceTest {
 
     @Test
     void getStatus_NoConfig_ReturnsDefaultBaselineWithoutPretendingConfigured() {
-        when(policyRepo.findByTenantIdAndCapabilityCode(eq("tenant-1"), any())).thenReturn(Optional.empty());
-
         List<ModelCapabilityStatusResponse> list = service.getStatus();
         assertNotNull(list);
         assertEquals(8, list.size());
@@ -94,8 +92,45 @@ class ModelGatewayServiceTest {
         assertEquals("BASELINE", discovery.routeStrategy());
         assertEquals("临床知识关联发现", discovery.displayName());
         assertFalse(discovery.configured());
+        assertFalse(discovery.inherited());
+        assertEquals("TENANT", discovery.policyScopeType());
+        assertEquals("tenant-1", discovery.policyScopeRef());
         assertNull(discovery.expectedSchema());
         assertTrue(discovery.fallbackAvailable());
+    }
+
+    @Test
+    void getStatus_ResolvesNearestOrgScopedPolicyAndMarksInheritedSource() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-dept",
+            new OrgScope("tenant-1", "group-a", "hospital-a", "campus-a", null, "dept-cardiology", null, null),
+            "DOCTOR-001"));
+        ModelCapabilityPolicy hospitalPolicy = new ModelCapabilityPolicy(
+            11L, "tenant-1", "knowledge.extract", "HOSPITAL", "hospital-a",
+            "LOCAL_MODEL", "MASK_ALL", "{\"required\":[\"status\",\"candidates\"]}",
+            Instant.now(), "system", Instant.now(), "system"
+        );
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "DEPARTMENT", "dept-cardiology"))
+            .thenReturn(Optional.empty());
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "CAMPUS", "campus-a"))
+            .thenReturn(Optional.empty());
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "HOSPITAL", "hospital-a"))
+            .thenReturn(Optional.of(hospitalPolicy));
+
+        List<ModelCapabilityStatusResponse> list = service.getStatus();
+
+        ModelCapabilityStatusResponse status = list.stream()
+            .filter(item -> "knowledge.extract".equals(item.capabilityCode()))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("LOCAL_MODEL", status.routeStrategy());
+        assertEquals("HOSPITAL", status.policyScopeType());
+        assertEquals("hospital-a", status.policyScopeRef());
+        assertTrue(status.inherited());
+        assertTrue(status.fallbackReason().contains("继承 HOSPITAL:hospital-a"));
     }
 
     @Test
@@ -104,8 +139,6 @@ class ModelGatewayServiceTest {
             "custom.summary", "病历摘要", 5, true);
         when(definitionRepo.findAllByOrderBySortOrderAscCapabilityCodeAsc())
             .thenReturn(List.of(custom));
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "custom.summary"))
-            .thenReturn(Optional.empty());
 
         List<ModelCapabilityStatusResponse> list = service.getStatus();
 
@@ -149,10 +182,11 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_DisabledStrategy_ThrowsException() {
         ModelCapabilityPolicy disabledPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "DISABLED", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "DISABLED", "DEFAULT", null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(disabledPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "测试输入", 60);
@@ -173,16 +207,17 @@ class ModelGatewayServiceTest {
 
         assertEquals(ErrorCode.ENG_LLM_001, ex.errorCode());
         verify(policyRepo, never())
-            .findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract");
+            .findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
     void submitTask_BaselineStrategy_ReturnsHonestEmptyB0Result() {
         ModelCapabilityPolicy baselinePolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "BASELINE", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "BASELINE", "DEFAULT", null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(baselinePolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "提取结构化临床文本信息", 60);
@@ -205,7 +240,8 @@ class ModelGatewayServiceTest {
 
     @Test
     void savePolicy_ValidRequest_PersistsTenantPolicyAndReturnsConfiguredStatus() {
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.empty());
         when(policyRepo.save(any(ModelCapabilityPolicy.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -223,17 +259,22 @@ class ModelGatewayServiceTest {
         assertEquals("MASK_ALL", response.desensitizeStrategy());
         assertEquals("{\"required\":[\"status\",\"candidates\"]}", response.expectedSchema());
         assertTrue(response.configured());
+        assertFalse(response.inherited());
+        assertEquals("TENANT", response.policyScopeType());
+        assertEquals("tenant-1", response.policyScopeRef());
 
         ArgumentCaptor<ModelCapabilityPolicy> policyCaptor =
             ArgumentCaptor.forClass(ModelCapabilityPolicy.class);
         verify(policyRepo).save(policyCaptor.capture());
         assertEquals("tenant-1", policyCaptor.getValue().tenantId());
+        assertEquals("TENANT", policyCaptor.getValue().scopeType());
+        assertEquals("tenant-1", policyCaptor.getValue().scopeRef());
         assertEquals("DOCTOR-001", policyCaptor.getValue().createdBy());
         verify(auditRecorder).record(
             AuditAction.UPDATE,
             "model_capability_policy",
             "knowledge.extract",
-            "保存模型能力策略 knowledge.extract"
+            "保存模型能力策略 knowledge.extract scope=TENANT:tenant-1"
         );
     }
 
@@ -250,10 +291,11 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_localModelRoute_honestlyDegradesToB0_noFabrication() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "LOCAL_MODEL", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "LOCAL_MODEL", "DEFAULT", null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "普通脑卒中病历", 60);
@@ -278,10 +320,11 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_externalModelRoute_honestB0_desensitizesInput_neverFabricates() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         // EXTERNAL_MODEL 配置但无 provider：诚实降级 B0，并验证手机号脱敏写入摘要
@@ -310,11 +353,12 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withSatisfiedSchema_passesRealJsonValidation() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"status\",\"candidates\"]}",
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         // B0 空候选信封满足标准 JSON Schema，真实 JSON 校验通过
@@ -331,11 +375,12 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withUnsatisfiableSchema_throwsRealSchemaErrorAndAuditsFailure() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"nonexistent_field\"]}",
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         // required 字段在 B0 输出中不存在 → 真实 JSON Schema 校验失败抛 ENG-LLM-002
@@ -351,10 +396,11 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withNonJsonSchema_rejectsRemovedLooseSyntax() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "required: [entity]",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", "required: [entity]",
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "提取要素", 60);
@@ -407,9 +453,10 @@ class ModelGatewayServiceTest {
     }
 
     private void policy(String strategy) {
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
-                1L, "tenant-1", "knowledge.extract", strategy, "DEFAULT", null,
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", strategy, "DEFAULT", null,
                 Instant.now(), "system", Instant.now(), "system")));
     }
 
@@ -609,9 +656,10 @@ class ModelGatewayServiceTest {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
         resolveProvider("EXTERNAL_MODEL", adapter);
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
-                1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
                 "{\"required\":[\"status\",\"candidates\"]}",
                 Instant.now(), "system", Instant.now(), "system")));
         when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))

@@ -91,11 +91,11 @@ public class ModelGatewayService {
             .filter(ModelCapabilityDefinition::enabled)
             .map(definition -> {
                 String code = definition.capabilityCode();
-                Optional<ModelCapabilityPolicy> policyOpt = policyRepo.findByTenantIdAndCapabilityCode(tenantId, code);
-                if (policyOpt.isPresent()) {
-                    ModelCapabilityPolicy policy = policyOpt.get();
-                    return statusOf(definition, policy, true);
+                PolicyResolution resolution = resolvePolicy(tenantId, code);
+                if (resolution.policy().isPresent()) {
+                    return statusOf(definition, resolution.policy().get(), true, resolution.inherited());
                 }
+                ModelPolicyScope scope = resolution.currentScope();
                 return new ModelCapabilityStatusResponse(
                         code,
                         definition.displayName(),
@@ -104,6 +104,9 @@ public class ModelGatewayService {
                         "BASELINE",
                         "DEFAULT",
                         null,
+                        scope.scopeType(),
+                        scope.scopeRef(),
+                        false,
                         false,
                         true,
                         "未配置专属策略，使用系统 B0 基线"
@@ -190,12 +193,16 @@ public class ModelGatewayService {
 
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
+        ModelPolicyScope scope = currentPolicyScope(tenantId);
         Optional<ModelCapabilityPolicy> existing =
-            policyRepo.findByTenantIdAndCapabilityCode(tenantId, normalizedCapability);
+            policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+                tenantId, normalizedCapability, scope.scopeType(), scope.scopeRef());
         ModelCapabilityPolicy saved = policyRepo.save(new ModelCapabilityPolicy(
             existing.map(ModelCapabilityPolicy::id).orElse(null),
             tenantId,
             normalizedCapability,
+            scope.scopeType(),
+            scope.scopeRef(),
             routeStrategy,
             desensitizeStrategy,
             expectedSchema,
@@ -208,9 +215,9 @@ public class ModelGatewayService {
             AuditAction.UPDATE,
             "model_capability_policy",
             normalizedCapability,
-            "保存模型能力策略 " + normalizedCapability
+            "保存模型能力策略 " + normalizedCapability + " scope=" + scope.label()
         );
-        return statusOf(definition, saved, true);
+        return statusOf(definition, saved, true, false);
     }
 
     /**
@@ -231,10 +238,12 @@ public class ModelGatewayService {
         String taskId = "task-" + UUID.randomUUID().toString().replace("-", "");
 
         // 1. 获取或创建策略配置
-        ModelCapabilityPolicy policy = policyRepo.findByTenantIdAndCapabilityCode(tenantId, capabilityCode)
+        PolicyResolution policyResolution = resolvePolicy(tenantId, capabilityCode);
+        ModelPolicyScope defaultScope = policyResolution.currentScope();
+        ModelCapabilityPolicy policy = policyResolution.policy()
             .orElseGet(() -> new ModelCapabilityPolicy(
-                null, tenantId, capabilityCode, "BASELINE", "DEFAULT", null,
-                Instant.now(), createdBy, Instant.now(), createdBy
+                null, tenantId, capabilityCode, defaultScope.scopeType(), defaultScope.scopeRef(),
+                "BASELINE", "DEFAULT", null, Instant.now(), createdBy, Instant.now(), createdBy
             ));
 
         // 2. 校验策略禁用阻断
@@ -558,8 +567,13 @@ public class ModelGatewayService {
     private ModelCapabilityStatusResponse statusOf(
             ModelCapabilityDefinition definition,
             ModelCapabilityPolicy policy,
-            boolean configured) {
+            boolean configured,
+            boolean inherited) {
         boolean fallbackAvailable = !"DISABLED".equalsIgnoreCase(policy.routeStrategy());
+        String reason = fallbackAvailable ? "正常可用" : "已被路由策略禁用";
+        if (configured && inherited) {
+            reason = reason + "，继承 " + policy.scopeType() + ":" + policy.scopeRef();
+        }
         return new ModelCapabilityStatusResponse(
             policy.capabilityCode(),
             definition.displayName(),
@@ -568,10 +582,42 @@ public class ModelGatewayService {
             policy.routeStrategy(),
             policy.desensitizeStrategy(),
             policy.expectedSchema(),
+            policy.scopeType(),
+            policy.scopeRef(),
+            inherited,
             configured,
             fallbackAvailable,
-            fallbackAvailable ? "正常可用" : "已被路由策略禁用"
+            reason
         );
+    }
+
+    private PolicyResolution resolvePolicy(String tenantId, String capabilityCode) {
+        List<ModelPolicyScope> candidates =
+            ModelPolicyScope.candidates(RequestContext.currentOrgScope(), tenantId);
+        ModelPolicyScope current = candidates.getFirst();
+        for (ModelPolicyScope scope : candidates) {
+            Optional<ModelCapabilityPolicy> policy =
+                policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+                    tenantId, capabilityCode, scope.scopeType(), scope.scopeRef());
+            if (policy.isPresent()) {
+                return new PolicyResolution(policy, current, scope);
+            }
+        }
+        return new PolicyResolution(Optional.empty(), current, null);
+    }
+
+    private ModelPolicyScope currentPolicyScope(String tenantId) {
+        return ModelPolicyScope.current(RequestContext.currentOrgScope(), tenantId);
+    }
+
+    private record PolicyResolution(
+        Optional<ModelCapabilityPolicy> policy,
+        ModelPolicyScope currentScope,
+        ModelPolicyScope matchedScope
+    ) {
+        boolean inherited() {
+            return matchedScope != null && !matchedScope.equals(currentScope);
+        }
     }
 
     private ModelCapabilityDefinition requireEnabledDefinition(String capabilityCode) {

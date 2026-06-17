@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS model_capability_policy (
     id                        BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id                 VARCHAR(64)   NOT NULL,
     capability_code           VARCHAR(64)   NOT NULL,
+    scope_type                VARCHAR(32)   NOT NULL,
+    scope_ref                 VARCHAR(128)  NOT NULL,
     route_strategy            VARCHAR(32)   NOT NULL DEFAULT 'BASELINE',
     desensitize_strategy      VARCHAR(64)   NOT NULL DEFAULT 'DEFAULT',
     expected_schema           TEXT          NULL,
@@ -65,7 +67,17 @@ CREATE TABLE IF NOT EXISTS model_capability_policy (
     created_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
     updated_at                TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
-    CONSTRAINT uk_model_policy_tenant UNIQUE (tenant_id, capability_code)
+    CONSTRAINT ck_model_policy_scope CHECK (scope_type IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','WARD')),
+    CONSTRAINT uk_model_policy_scope UNIQUE (tenant_id, capability_code, scope_type, scope_ref)
 );
+
+COMMENT ON TABLE model_capability_policy IS '场景模型路由与脱敏策略配置表';
+COMMENT ON COLUMN model_capability_policy.tenant_id IS '租户ID';
+COMMENT ON COLUMN model_capability_policy.capability_code IS '能力标识代码';
+COMMENT ON COLUMN model_capability_policy.scope_type IS '策略作用域类型：租户、集团、医院、院区、站点、科室或病区';
+COMMENT ON COLUMN model_capability_policy.scope_ref IS '策略作用域引用ID，按组织继承链逐级解析';
+COMMENT ON COLUMN model_capability_policy.route_strategy IS '模型路由策略(DISABLED禁用,BASELINE基线B0,LOCAL_MODEL本地,EXTERNAL_MODEL外部)';
+COMMENT ON COLUMN model_capability_policy.desensitize_strategy IS '数据脱敏策略代码';
+COMMENT ON COLUMN model_capability_policy.expected_schema IS '期待输出匹配的JSON Schema结构约束';
 
 COMMENT ON TABLE model_capability_definition IS '平台模型能力目录';

@@ -80,7 +80,6 @@ class KnowledgeProductionReadinessServiceTest {
         when(providerRepository.findByTenantIdAndEnabledFlag(TENANT, "Y")).thenReturn(List.of());
         when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
             .thenReturn(List.of());
-        when(policyRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY)).thenReturn(Optional.empty());
 
         KnowledgeProductionReadinessResponse response = service.evaluate(
             KnowledgeProducer.API_MODEL,
@@ -110,7 +109,8 @@ class KnowledgeProductionReadinessServiceTest {
             TENANT, "claude-prod", "claude-opus-4", "PASSED")).thenReturn(Optional.of(evalRun(provider)));
         when(whitelistRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY))
             .thenReturn(Optional.of(whitelist()));
-        when(policyRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY))
+        when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            TENANT, CAPABILITY, "TENANT", TENANT))
             .thenReturn(Optional.of(policy("EXTERNAL_MODEL")));
 
         KnowledgeProductionReadinessResponse response = service.evaluate(
@@ -137,7 +137,8 @@ class KnowledgeProductionReadinessServiceTest {
             .thenReturn(List.of(regressionCase()));
         when(evalRunRepository.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
             TENANT, "ollama-local", "qwen2.5:7b", "PASSED")).thenReturn(Optional.of(evalRun(provider)));
-        when(policyRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY))
+        when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            TENANT, CAPABILITY, "TENANT", TENANT))
             .thenReturn(Optional.of(policy("LOCAL_MODEL")));
 
         KnowledgeProductionReadinessResponse response = service.evaluate(
@@ -164,7 +165,8 @@ class KnowledgeProductionReadinessServiceTest {
             .thenReturn(List.of(regressionCase()));
         when(evalRunRepository.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
             TENANT, "private-box", "mk-local-v1", "PASSED")).thenReturn(Optional.of(evalRun(provider)));
-        when(policyRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY))
+        when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            TENANT, CAPABILITY, "TENANT", TENANT))
             .thenReturn(Optional.of(policy("LOCAL_MODEL")));
 
         KnowledgeProductionReadinessResponse response = service.evaluate(
@@ -210,6 +212,7 @@ class KnowledgeProductionReadinessServiceTest {
 
     private ModelCapabilityPolicy policy(String strategy) {
         Instant now = Instant.now();
-        return new ModelCapabilityPolicy(1L, TENANT, CAPABILITY, strategy, "DEFAULT", null, now, "u", now, "u");
+        return new ModelCapabilityPolicy(
+            1L, TENANT, CAPABILITY, "TENANT", TENANT, strategy, "DEFAULT", null, now, "u", now, "u");
     }
 }

@@ -18,7 +18,7 @@
 **MVP 已建**：`engine/llm/ModelGatewayController`（端点 `/api/v1/model-capabilities/{status,catalog,catalog/{capabilityCode},tasks,tasks/{id},tasks/{id}/retry,policies/validate,policies/{capabilityCode}}`，perm `llm.read`/`llm.execute`/`llm.manage`/`system.manage`，`@DataScope(requireTenant)`）。能力代码、中文名称、说明、分类、顺序和启停统一由关系库 `model_capability_definition` 管理，前端不保留能力目录副本。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 能力状态：`GET /status` 返回租户全部能力码 + 路由策略 + 可用性，无策略时诚实 B0。
+- [ ] FR-1 能力状态：`GET /status` 返回租户全部能力码 + 路由策略 + 可用性 + 生效策略作用域（`policyScopeType/policyScopeRef/inherited`），无策略时诚实 B0。
 - [ ] FR-2 提交任务：`POST /tasks` 入参校验（Bean Validation），返回 `task_id` + mode + fallback + traceId。
 - [ ] FR-3 任务追溯：`GET /tasks/{id}` 跨租户访问拒绝（`TENANT_FORBIDDEN`）。
 - [ ] FR-4 重试：`POST /tasks/{id}/retry` 以原输入重发，留审计。
@@ -28,7 +28,7 @@
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - 端点：见 FR；响应信封 `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
-- DTO：`ModelTaskRequest`(capabilityCode/inputData/desensitizeStrategy/expectedSchema/timeout) · `ModelTaskResponse`(taskId/status/mode/fallbackUsed/riskLevel/traceId…)。
+- DTO：`ModelCapabilityStatusResponse`(capabilityCode/routeStrategy/policyScopeType/policyScopeRef/inherited/fallbackAvailable…) · `ModelTaskRequest`(capabilityCode/inputData/desensitizeStrategy/expectedSchema/timeout) · `ModelTaskResponse`(taskId/status/mode/fallbackUsed/riskLevel/traceId…)。
 - 状态机：变更（任务 PENDING→DEGRADED/SUCCESS/FAILED）。
 - 幂等 / 错误码 / traceId：`ENG_LLM_001` 能力禁用 · `002` schema 校验失败 · `004` 任务不存在 · `TENANT_FORBIDDEN`；traceId 全链路透传。
 

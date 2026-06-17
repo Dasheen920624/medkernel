@@ -31,6 +31,9 @@
   - V143 五方言新增调度字段：`schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧数据回填。
   - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
   - DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 Agent/MCP/CLI 的结构化公域资料载荷转入既有获取编排；CLI 已接 `agent fetch-public-material`，MCP 沿动态工具目录暴露；D3/D4/D5 入参拒绝。
+- Phase 5 当前：LLM-01 模型网关契约首片。
+  - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略兼容层。
+  - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
 
 ## 最新验证
 
@@ -39,6 +42,7 @@
 - Phase 4 调度目标验证：`mvn -q -Dtest=DefaultRuntimeTaskExecutorTest,AcquisitionRuntimeTaskHandlerTest,AcquisitionScheduleWorkerTest,AcquisitionScheduleSchedulerTest,KnowledgeAcquisitionSourceRepositoryTest,AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,SystemConfigServiceTest#runtimeKnowledgeAcquisitionScheduleIntervalReadsConfigCenterAndFallsBackSafely,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
 - Phase 4 调度提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 - Phase 4 Agent 取数提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check`、`cd cli && npm test`、`cd mcp-server && npm test` 均退出 0；旧状态扫描无命中。
+- Phase 5 T5.1 目标验证：`mvn -q -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`、`cd frontend && npm test -- AiWorkflows.test.tsx` 均退出 0。
 
 ## 仍不可宣称
 
@@ -49,7 +53,7 @@
 
 ## 下一步
 
-1. 继续 Phase 5：模型增强与出域最小化证据（保持公域资料只产候选、不产事实）。
+1. 继续 Phase 5 T5.2：provider 缺位/断连/限流/结构化失败/出域阻断的 `ModelFallbackMatrix` 全矩阵验收（保持公域资料只产候选、不产事实）。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

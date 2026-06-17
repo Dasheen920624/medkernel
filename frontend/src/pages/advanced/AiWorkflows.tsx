@@ -36,6 +36,16 @@ const desensitizeStrategyView: Record<string, string> = {
   NONE: "未启用脱敏",
 };
 
+const policyScopeView: Record<string, string> = {
+  TENANT: "租户",
+  GROUP: "集团",
+  HOSPITAL: "医院",
+  CAMPUS: "院区",
+  SITE: "站点",
+  DEPARTMENT: "科室",
+  WARD: "病区",
+};
+
 function routeView(routeStrategy: string) {
   return (
     routeStrategyView[routeStrategy] ?? {
@@ -56,6 +66,7 @@ function availabilityView(item: ModelCapabilityStatusResponse) {
 }
 
 function capabilityDetails(item: ModelCapabilityStatusResponse) {
+  const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   return (
     <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
       <Descriptions.Item label="能力代码">
@@ -67,7 +78,10 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
           customerEnumLabel(item.desensitizeStrategy)}
       </Descriptions.Item>
       <Descriptions.Item label="服务空间专属配置">
-        {item.configured ? "已配置" : "使用系统默认"}
+        {item.configured ? (item.inherited ? "继承配置" : "当前作用域配置") : "使用系统默认"}
+      </Descriptions.Item>
+      <Descriptions.Item label="策略作用域">
+        <Text code>{scopeLabel}</Text>
       </Descriptions.Item>
       <Descriptions.Item label="结构约束">
         {item.expectedSchema ? "已配置 JSON Schema" : "未配置"}
@@ -154,6 +168,25 @@ export default function AiWorkflows() {
       key: "expectedSchema",
       width: 120,
       render: (value: string | null) => (value ? "已配置" : "未配置"),
+    },
+    {
+      title: "策略来源",
+      key: "policyScope",
+      width: 180,
+      render: (_value, item) => {
+        const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
+        const modeLabel = item.configured
+          ? item.inherited
+            ? "继承配置"
+            : "当前作用域配置"
+          : "系统默认";
+        return (
+          <div className={styles.statusCell}>
+            <Tag color={item.configured ? "processing" : "default"}>{modeLabel}</Tag>
+            <Text code>{scopeLabel}</Text>
+          </div>
+        );
+      },
     },
     {
       title: "当前状态",

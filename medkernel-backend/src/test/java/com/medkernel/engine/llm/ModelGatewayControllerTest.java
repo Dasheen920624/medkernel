@@ -79,6 +79,9 @@ class ModelGatewayControllerTest {
             "BASELINE",
             "DEFAULT",
             null,
+            "TENANT",
+            "tenant-1",
+            false,
             false,
             true,
             "正常可用"
@@ -269,6 +272,9 @@ class ModelGatewayControllerTest {
             "BASELINE",
             "MASK_ALL",
             "{\"required\":[\"status\",\"candidates\"]}",
+            "TENANT",
+            "tenant-1",
+            false,
             true,
             true,
             "正常可用"

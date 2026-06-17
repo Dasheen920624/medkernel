@@ -187,7 +187,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **验收**：自主抓 allowlisted 公域→资料库→候选入审核链；形态/出域/license/robots 合规留证；Agent 工具越权（患者数据/D5/非公域）拒；全程 AI 只产候选、专家审核、不臆造来源。
 
 #### Phase 5 · 模型增强全实现（X-LLM 收口，5d）
-  - [ ] T5.1 **LLM-01** 固化 provider 无关网关契约，修正"未接 provider"陈旧口径；B0 空候选不写死医学事实。
+  - [x] T5.1 **LLM-01** 固化 provider 无关网关契约，修正"未接 provider"陈旧口径；B0 空候选不写死医学事实。已补 `model_capability_policy` 作用域化 clean baseline、当前组织链继承解析、readiness 同源策略解析和前端策略来源证据列。
   - [ ] T5.2 **LLM-02** provider 缺位/断连/限流/结构化失败/出域阻断→B0 降级矩阵验收（接 `ModelFallbackMatrix`）。
   - [ ] T5.3 **LLM-04** prompt/tool/model 版本包 + 三元组绑定 + 重放/回滚/导出（只出 hash）；模型候选必带真实三元组。
   - [ ] T5.4 **OPT-06** AI 质量评测中心（字典/规则/路径/推荐/解释/术语回归集 + 幻觉拦截）。
