@@ -60,6 +60,10 @@
 - 知识生产中心在 readiness/job 主证据可读取时，候选血缘、门禁结果、8 态分流、影子评测、共存替换提醒任一下游 evidence 查询失败，会显示“生产证据部分读取失败”和分项错误；页面不展示 AI 生成按钮，也不以空表掩盖断连。
 - 本轮为 DEGRADE-01 预验收口，仍不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
 
+**2026-06-17 T6.1 院内上传覆盖接线（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `DocumentParseController` 院内 multipart 上传入口复用 AIK-STD-02 解析和 P1 受管资料库；成功解析后可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `CandidateGenerationRequest(..., TENANT_OVERLAY, ...)`。
+- T6.1 未新增候选表、不新增平台主源写入口；院内上传候选仍走 `CandidateGenerationOrchestrationService → KnowledgeProductionOrchestrationService.submitCandidate`，继续受双形态隔离、门禁、8 态、影子评测和会签路由约束。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。
 - [ ] FR-2 四生产器可插拔：① API 大模型自主（B2 外部，经 [LLM-01](LLM-01.md) 网关）② Agent 工具协助（经 [DATASVC-01](DATASVC-01.md) MCP/CLI 回写，契约见 [AIK-STD-14](AIK-STD-14.md)）③ 本地大模型（B1 本地/国产化）④ 人工录入/批量导入；新增生产器不破坏框架。

@@ -17,6 +17,9 @@ import com.medkernel.engine.knowledge.SourceVersionRepository;
 import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
 import com.medkernel.engine.knowledge.material.DocumentMaterialStoreRequest;
 import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.GenerationItem;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -45,6 +48,7 @@ public class DocumentParseOrchestrationService {
     private final List<DocumentParser> parsers;
     private final ParsedDocumentMaterializer materializer;
     private final DocumentMaterialStoragePort materialStorage;
+    private final CandidateGenerationOrchestrationService candidateGeneration;
     private final AuditRecorder auditRecorder;
 
     public DocumentParseOrchestrationService(DocParseJobRepository jobRepository,
@@ -53,6 +57,7 @@ public class DocumentParseOrchestrationService {
                                              List<DocumentParser> parsers,
                                              ParsedDocumentMaterializer materializer,
                                              DocumentMaterialStoragePort materialStorage,
+                                             CandidateGenerationOrchestrationService candidateGeneration,
                                              AuditRecorder auditRecorder) {
         this.jobRepository = jobRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
@@ -60,6 +65,7 @@ public class DocumentParseOrchestrationService {
         this.parsers = parsers;
         this.materializer = materializer;
         this.materialStorage = materialStorage;
+        this.candidateGeneration = candidateGeneration;
         this.auditRecorder = auditRecorder;
     }
 
@@ -116,6 +122,21 @@ public class DocumentParseOrchestrationService {
         auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", jobCode,
             "文档解析成功：章节 " + result.sectionCount() + " 片段 " + result.fragmentCount());
         return done;
+    }
+
+    @Transactional
+    public DocumentParseResponse submitTenantUpload(DocumentParseRequest request,
+                                                    DocumentUploadGenerationRequest generation) {
+        validateUploadGeneration(generation);
+        DocParseJob parseJob = submit(request);
+        if (generation == null
+            || parseJob.status() != ParseJobStatus.SUCCEEDED
+            || parseJob.resultSourceVersionId() == null) {
+            return new DocumentParseResponse(parseJob, null);
+        }
+        GenerationSummary summary =
+            candidateGeneration.generate(generation.toCandidateGenerationRequest(parseJob.resultSourceVersionId()));
+        return new DocumentParseResponse(parseJob, summary);
     }
 
     @Transactional
@@ -198,6 +219,25 @@ public class DocumentParseOrchestrationService {
         auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", pending.jobCode(),
             "文档解析失败：" + error);
         return failed;
+    }
+
+    private static void validateUploadGeneration(DocumentUploadGenerationRequest generation) {
+        if (generation == null) {
+            return;
+        }
+        if (generation.domain() == null || generation.items() == null || generation.items().isEmpty()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内上传候选生成计划须声明领域和至少一个生成项");
+        }
+        for (GenerationItem item : generation.items()) {
+            if (item == null || item.assetType() == null || item.target() == null) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "院内上传候选生成项须声明资产类型和物化目标");
+            }
+            try {
+                item.target().validate();
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, exception.getMessage());
+            }
+        }
     }
 
     /**

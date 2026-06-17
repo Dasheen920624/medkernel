@@ -198,7 +198,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 - **验收**：配齐前置后模型真产候选进统一链 + 缺任一前置结构化阻断 + 降级矩阵全绿 + 候选无伪造。
 
 #### Phase 6 · 院内覆盖管道全实现（4d）
-  - [ ] T6.1 院内上传增强：`DocumentParseController` 上传接 P1 存储层（原件落本租户 scope）；候选归院内覆盖。
+  - [x] T6.1 院内上传增强：`DocumentParseController` 上传接 P1 存储层（原件落本租户 scope）；候选归院内覆盖。已新增 multipart `documents:upload-parse`，上传原件复用 P1 资料库存储与解析，`scopeKey=tenantId`；上传后的生成计划不暴露平台主源管道，后端固定转为 `TENANT_OVERLAY` 后进入统一候选生成/门禁/分流/影子/审核链。
   - [ ] T6.2 本地模型生产器（生产器③）：`ModelKnowledgeProducer` 本地 provider 路径（Ollama/国产化不出网），归院内覆盖，运行侧可用。
   - [ ] T6.3 双形态隔离强化测试：院内候选禁反写 t-1；客户对主源只读；复核 AIK-STD-13 FR-4/FR-7。
   - [ ] T6.4 **DATASVC-01 剩余**：D3/D4 字段级加密落地 + AC 收口；MCP/CLI 不绕治理复核。

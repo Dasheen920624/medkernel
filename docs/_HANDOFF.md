@@ -42,6 +42,8 @@
   - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
   - T5.7 已补候选真实化语义：`ModelKnowledgeProducer` 成功模型输出只产 DRAFT 候选并走同一门禁/分流/影子/提交链；payload 不落生产提示正文，仅落 `promptInputHash`、AI 标识、任务 ID、模型模式、prompt/tool/model 三元组、来源引用、模型输出和真实内容 hash；B2→B1 本地模型真实成功可入链并保留 fallback 证据，B0/非成功/readiness 未齐/schema 不合格仍跳过或阻断不产伪候选。
   - T5.8 已补降级路径预验证：非成功 B2/B1 模型任务返回诚实 `status/mode` 跳过原因，不再误写成 B0 降级；真正 B0 仍明确标注 B0。知识生产中心 readiness/job 主证据可见时，候选血缘、门禁、8 态、影子评测、共存提醒任一下游 evidence 读取失败会显示“生产证据部分读取失败”与分项错误，不用空表掩盖断连。
+- Phase 6 当前：院内覆盖管道全实现。
+  - T6.1 已补院内上传增强：`DocumentParseController` 新增 multipart `POST /api/v1/engine/knowledge/documents:upload-parse`；上传原件复用 AIK-STD-02 解析与 P1 受管资料库存储，`DocumentMaterialStoreRequest.scopeKey=tenantId`，不落临时目录；可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `TENANT_OVERLAY` 候选生成请求，继续走门禁、8 态、影子评测和审核链，不新增平台主源写入口。
 
 ## 最新验证
 
@@ -58,6 +60,7 @@
 - Phase 5 T5.6 提交前验证：`cd frontend && npm test -- hooks.test.ts` 红灯命中缺失 `useReplayModelTask` 后转绿；`cd frontend && npm run typecheck`、`mvn -q -Dtest=ModelGatewayServiceTest test`、`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,ModelCapabilityDefinitionRepositoryTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；API-12/LLM-01 pending 口径和前端缺失 `toolVersion` 扫描无命中。
 - Phase 5 T5.7 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 prompt 原文落 payload 与 B1 fallback 被跳过后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.7 未勾、prompt 原文落候选 payload、B1 fallback 误跳过旧口径扫描无命中。
 - Phase 5 T5.8 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 provider 非成功 B2 被误写 B0 降级后转绿；`cd frontend && npm test -- KnowledgeGovernance.test.tsx` 红灯命中下游 evidence 失败无局部告警后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest,ModelGatewayServiceTest,ModelFallbackMatrixTest test`、`cd frontend && npm test -- KnowledgeGovernance.test.tsx AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0。
+- Phase 6 T6.1 提交前验证：`mvn -q -Dtest=DocumentParseOrchestrationServiceTest test` 红灯命中缺失院内上传响应/生成计划/服务方法后转绿；`mvn -q -Dtest=DocumentParseControllerSecurityTest test` 红灯命中缺失 multipart 上传端点后转绿；`mvn -q -Dtest=DocumentParseIntegrationTest,CandidateGenerationIntegrationTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,CandidateGenerationOrchestrationServiceTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,DocumentParseIntegrationTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 
 ## 仍不可宣称
 
@@ -68,7 +71,7 @@
 
 ## 下一步
 
-1. 继续 Phase 6 T6.1：院内上传增强；核查 `DocumentParseController` 上传是否接 P1 受管资料库存储层，确保原件落本租户 scope、解析出的候选归院内覆盖管道且不反写平台主源。
+1. 继续 Phase 6 T6.2：本地模型生产器；核查 `ModelKnowledgeProducer` 本地 provider 路径是否明确只走本地/国产化不出网，候选归院内覆盖，运行侧在无外部模型时可用且不伪造候选。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

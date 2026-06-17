@@ -343,7 +343,7 @@ public final class ServiceContractCatalog {
             permissions("knowledge.read", "knowledge.write"),
             audits(
                 audit(AuditAction.EXECUTE, "mk_doc_parse_job",
-                    "解析受控来源文档并物化带锚点片段"),
+                    "解析或院内上传受控来源文档并物化带锚点片段"),
                 audit(AuditAction.EXPORT, "mk_knowledge_material_object",
                     "读取受管资料库文档原件并复核指纹"))),
         contract("knowledge-production", "知识生产编排服务",

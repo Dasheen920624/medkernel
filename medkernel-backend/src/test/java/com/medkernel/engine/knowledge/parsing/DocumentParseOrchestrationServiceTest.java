@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,15 @@ import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
 import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
 import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
+import com.medkernel.engine.knowledge.production.KnowledgeDomain;
+import com.medkernel.engine.knowledge.production.MaterializationTarget;
+import com.medkernel.engine.knowledge.production.NewIdentitySpec;
+import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
+import com.medkernel.engine.knowledge.production.generation.GenerationItem;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -42,6 +52,7 @@ class DocumentParseOrchestrationServiceTest {
     @Mock SourceVersionRepository sourceVersionRepository;
     @Mock ParsedDocumentMaterializer materializer;
     @Mock DocumentMaterialStoragePort materialStorage;
+    @Mock CandidateGenerationOrchestrationService candidateGeneration;
     @Mock AuditRecorder auditRecorder;
 
     private DocumentParseOrchestrationService service;
@@ -50,7 +61,8 @@ class DocumentParseOrchestrationServiceTest {
     void setUp() {
         service = new DocumentParseOrchestrationService(
             jobRepository, sourceDocumentRepository, sourceVersionRepository,
-            List.of(new StructuredTextDocumentParser()), materializer, materialStorage, auditRecorder);
+            List.of(new StructuredTextDocumentParser()), materializer, materialStorage,
+            candidateGeneration, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "user-001"));
         org.mockito.Mockito.lenient().when(jobRepository.save(any())).thenAnswer(i -> {
             DocParseJob j = i.getArgument(0);
@@ -110,6 +122,47 @@ class DocumentParseOrchestrationServiceTest {
                 && request.fileName().equals("g.txt")
                 && request.sourceChannel().equals("DOC_PARSE")
                 && request.bytes().length > 0));
+    }
+
+    @Test
+    void tenantUploadParsesThroughManagedStorageThenGeneratesTenantOverlayCandidate() {
+        when(sourceDocumentRepository.findByTenantIdAndId("tenant-1", 5L))
+            .thenReturn(Optional.of(stubDoc()));
+        when(materialStorage.store(any())).thenReturn(new StoredDocumentMaterial(
+            12L,
+            "tenant-1",
+            "tenant-1",
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/"
+                + "0d/0d0d/g.txt",
+            "a".repeat(64),
+            "text/plain; charset=UTF-8",
+            42L,
+            "LOCAL_FILE"));
+        when(materializer.materialize(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(new MaterializationResult(99L, 1, 2));
+        GenerationSummary generationSummary = new GenerationSummary(List.of(), List.of(), List.of());
+        when(candidateGeneration.generate(any())).thenReturn(generationSummary);
+
+        DocumentParseResponse response = service.submitTenantUpload(
+            req("# 总则\n成人适用。\n", DocumentFormat.STRUCTURED_TEXT),
+            new DocumentUploadGenerationRequest(KnowledgeDomain.CLINICAL, List.of(new GenerationItem(
+                VersionedAssetType.RULE,
+                new MaterializationTarget(null, new NewIdentitySpec(
+                    com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
+                    "院内高血压规则",
+                    "LOCAL-HTN-RULE"))))));
+
+        assertThat(response.parseJob().status()).isEqualTo(ParseJobStatus.SUCCEEDED);
+        assertThat(response.generationSummary()).isSameAs(generationSummary);
+        ArgumentCaptor<CandidateGenerationRequest> generation =
+            ArgumentCaptor.forClass(CandidateGenerationRequest.class);
+        verify(candidateGeneration).generate(generation.capture());
+        assertThat(generation.getValue().sourceVersionId()).isEqualTo(99L);
+        assertThat(generation.getValue().targetPipeline()).isEqualTo(TargetPipeline.TENANT_OVERLAY);
+        verify(materialStorage).store(org.mockito.ArgumentMatchers.argThat(request ->
+            request.scopeKey().equals("tenant-1")
+                && request.tenantId().equals("tenant-1")
+                && request.sourceChannel().equals("DOC_PARSE")));
     }
 
     @Test
