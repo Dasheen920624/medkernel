@@ -8,6 +8,7 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceType;
+import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 
 /**
  * AIK-STD-14 公域资料来源白名单。只有启用、已审批、许可允许且 robots 策略允许的来源可被抓取。
@@ -30,6 +31,12 @@ public record KnowledgeAcquisitionSource(
     @Column("enabled_flag") String enabledFlag,
     @Column("approved_by") String approvedBy,
     @Column("approved_at") Instant approvedAt,
+    @Column("schedule_enabled_flag") String scheduleEnabledFlag,
+    @Column("schedule_interval_minutes") Integer scheduleIntervalMinutes,
+    @Column("next_check_at") Instant nextCheckAt,
+    @Column("last_check_at") Instant lastCheckAt,
+    @Column("default_format") DocumentFormat defaultFormat,
+    @Column("generation_plan_json") String generationPlanJson,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
@@ -41,5 +48,14 @@ public record KnowledgeAcquisitionSource(
             && approvedAt != null
             && licensePolicy != null && licensePolicy.isPermitted()
             && robotsPolicy != null && robotsPolicy.allowsFetch();
+    }
+
+    public boolean isScheduleReady() {
+        return isEffective()
+            && "Y".equalsIgnoreCase(scheduleEnabledFlag)
+            && scheduleIntervalMinutes != null
+            && scheduleIntervalMinutes > 0
+            && baseUrl != null && !baseUrl.isBlank()
+            && defaultFormat != null;
     }
 }

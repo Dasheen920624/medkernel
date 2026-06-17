@@ -23,28 +23,31 @@
 - Phase 3：AI 工厂收口。
   - AIK-STD-05/08/09/10/11/03/07 关键后端与前端证据面已补：结构化红线、8 态分流、差异/过期任务、原子替换影响任务、知识包装配、术语候选生成入口、Agent 进度/中止和共存对照。
   - `KnowledgeVersionService.activate` 替换 ACTIVE 时落 `SUPERSEDED_REPLACEMENT` 失效证据并派医师复核、包补同步、同步告警三类任务；高危 `WITHDRAWN` 仍禁止一键回滚。
-- Phase 4 首片：自主公域知识获取后端最小闭环。
+- Phase 4 当前：自主公域知识获取后端闭环。
   - 新增 `engine.knowledge.acquisition`：`AcquisitionOrchestrationService` 仅允许 `PRODUCTION_CENTER` 手动触发；URL 必须命中已审批 allowlist、HTTPS、许可 `PERMITTED` 且 robots 策略允许。
   - V142 五方言新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`，记录域名、A-E 权威、许可、robots 策略、审批人、真实 URL、抓取时点、sha256、资料 URI、解析 job 和状态。
   - `WebContentFetcher` / `RestWebContentFetcher` 真实抓取公开资料；获取内容进入既有 AIK-STD-02 解析链路和 P1 受管资料库，不新造存储。
   - 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，服务契约、产品功能目录和领域表归属已同步；请求可携带可选 `generation` 计划，把成功解析或重复复用的 `SourceVersion` 接入统一候选生成/审核池。
+  - V143 五方言新增调度字段：`schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧数据回填。
+  - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
 
 ## 最新验证
 
 - Phase 3 收口后：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`git diff --check` 均曾退出 0。
 - Phase 4 首片目标验证：`mvn -q -Dtest=AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
-- Phase 4 首片提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
+- Phase 4 调度目标验证：`mvn -q -Dtest=DefaultRuntimeTaskExecutorTest,AcquisitionRuntimeTaskHandlerTest,AcquisitionScheduleWorkerTest,AcquisitionScheduleSchedulerTest,KnowledgeAcquisitionSourceRepositoryTest,AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,SystemConfigServiceTest#runtimeKnowledgeAcquisitionScheduleIntervalReadsConfigCenterAndFallsBackSafely,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
+- Phase 4 调度提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
 
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
 - 不得宣称 134 已部署最新主线：未进入 P9 并完成清库全新初始化、部署和 readiness 留证前不得冒领。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
-- 不得宣称 Phase 4 全部完成：手动公域获取→解析→可选候选生成触发已完成；自动调度、失败补偿/死信、MCP/CLI `fetchPublicMaterial` 和更细出域审批证据仍待做。
+- 不得宣称 Phase 4 全部完成：手动/调度公域获取→解析→可选候选生成触发已完成；MCP/CLI `fetchPublicMaterial` 和更细出域审批证据仍待做。
 
 ## 下一步
 
-1. 继续 Phase 4：做自主调度/失败补偿/死信（T4.5）和 MCP/CLI `fetchPublicMaterial`（T4.6），保持公域资料只产候选、不产事实。
+1. 继续 Phase 4：做 MCP/CLI `fetchPublicMaterial`（T4.6），保持公域资料只产候选、不产事实。
 2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
 3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
 

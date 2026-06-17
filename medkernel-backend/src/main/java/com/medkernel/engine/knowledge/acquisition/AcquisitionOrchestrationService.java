@@ -85,6 +85,16 @@ public class AcquisitionOrchestrationService {
 
     @Transactional
     public KnowledgeAcquisitionRunResponse run(KnowledgeAcquisitionRunRequest request) {
+        return runWithTrigger(request, AcquisitionTriggerType.MANUAL);
+    }
+
+    @Transactional
+    public KnowledgeAcquisitionRunResponse runScheduled(KnowledgeAcquisitionRunRequest request) {
+        return runWithTrigger(request, AcquisitionTriggerType.SCHEDULED);
+    }
+
+    private KnowledgeAcquisitionRunResponse runWithTrigger(KnowledgeAcquisitionRunRequest request,
+                                                           AcquisitionTriggerType triggerType) {
         String tenantId = requireCurrentTenant();
         String actor = RequestContext.currentUserId().orElse(null);
         Instant now = Instant.now();
@@ -95,7 +105,7 @@ public class AcquisitionOrchestrationService {
 
         if (deploymentFormService.currentForm() != DeploymentForm.PRODUCTION_CENTER) {
             return saveBlocked(tenantId, runCode, null, request, domain,
-                "公域资料获取仅允许 PRODUCTION_CENTER 运行，本实例不是生产中心", actor, now);
+                "公域资料获取仅允许 PRODUCTION_CENTER 运行，本实例不是生产中心", actor, now, triggerType);
         }
 
         KnowledgeAcquisitionSource source = sourceRepository
@@ -103,20 +113,20 @@ public class AcquisitionOrchestrationService {
             .orElse(null);
         if (source == null) {
             return saveBlocked(tenantId, runCode, null, request, domain,
-                "来源未进入公域获取白名单：" + request.sourceCode(), actor, now);
+                "来源未进入公域获取白名单：" + request.sourceCode(), actor, now, triggerType);
         }
         String sourceDomain = normalizeDomain(source.domain());
         if (!source.isEffective()) {
             return saveBlocked(tenantId, runCode, source, request, domain,
-                "来源未启用、未审批、许可不允许或 robots 策略不允许：" + request.sourceCode(), actor, now);
+                "来源未启用、未审批、许可不允许或 robots 策略不允许：" + request.sourceCode(), actor, now, triggerType);
         }
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
             return saveBlocked(tenantId, runCode, source, request, domain,
-                "公域资料获取仅允许 HTTPS URL", actor, now);
+                "公域资料获取仅允许 HTTPS URL", actor, now, triggerType);
         }
         if (!matchesDomain(domain, sourceDomain)) {
             return saveBlocked(tenantId, runCode, source, request, domain,
-                "URL 域名不在来源白名单：" + domain, actor, now);
+                "URL 域名不在来源白名单：" + domain, actor, now, triggerType);
         }
 
         FetchedWebContent fetched;
@@ -124,12 +134,12 @@ public class AcquisitionOrchestrationService {
             fetched = fetcher.fetch(uri);
         } catch (RuntimeException exception) {
             return saveFailed(tenantId, runCode, source, request, domain, null, null,
-                null, null, null, "公域资料抓取失败：" + exception.getMessage(), actor, now);
+                null, null, null, "公域资料抓取失败：" + exception.getMessage(), actor, now, triggerType);
         }
         String effectiveDomain = normalizeHost(fetched.effectiveUri().getHost());
         if (!matchesDomain(effectiveDomain, sourceDomain)) {
             return saveBlocked(tenantId, runCode, source, request, domain,
-                "重定向域名不在来源白名单：" + effectiveDomain, actor, now);
+                "重定向域名不在来源白名单：" + effectiveDomain, actor, now, triggerType);
         }
         byte[] bytes = fetched.bytes();
         String sourceHash = Sha256ContentHash.sha256Bytes(bytes, "公域资料原文不能为空");
@@ -145,12 +155,12 @@ public class AcquisitionOrchestrationService {
             } catch (RuntimeException exception) {
                 return saveFailed(tenantId, runCode, source, request, domain, fetched.fetchedAt(), sourceHash,
                     (long) bytes.length, contentType(fetched, request.format()), null,
-                    "候选生成失败：" + exception.getMessage(), actor, now);
+                    "候选生成失败：" + exception.getMessage(), actor, now, triggerType);
             }
             KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
                 KnowledgeAcquisitionRunStatus.DUPLICATE, fetched.fetchedAt(), sourceHash, (long) bytes.length,
                 contentType(fetched, request.format()), version.fileUri(), sourceDocument.id(), version.id(),
-                null, null, actor, now);
+                null, null, actor, now, triggerType);
             auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
                 "公域资料重复复用：" + source.sourceCode());
             return KnowledgeAcquisitionRunResponse.from(run, generationSummary);
@@ -165,7 +175,7 @@ public class AcquisitionOrchestrationService {
         if (parseJob.status() != ParseJobStatus.SUCCEEDED || parseJob.resultSourceVersionId() == null) {
             return saveFailed(tenantId, runCode, source, request, domain, fetched.fetchedAt(), sourceHash,
                 (long) bytes.length, contentType(fetched, request.format()), parseJob.jobCode(),
-                "文档解析失败：" + parseJob.errorMessage(), actor, now);
+                "文档解析失败：" + parseJob.errorMessage(), actor, now, triggerType);
         }
         SourceVersion sourceVersion = sourceVersions
             .findByTenantIdAndId(tenantId, parseJob.resultSourceVersionId())
@@ -176,12 +186,12 @@ public class AcquisitionOrchestrationService {
         } catch (RuntimeException exception) {
             return saveFailed(tenantId, runCode, source, request, domain, fetched.fetchedAt(), sourceHash,
                 (long) bytes.length, contentType(fetched, request.format()), parseJob.jobCode(),
-                "候选生成失败：" + exception.getMessage(), actor, now);
+                "候选生成失败：" + exception.getMessage(), actor, now, triggerType);
         }
         KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
             KnowledgeAcquisitionRunStatus.SUCCEEDED, fetched.fetchedAt(), sourceHash, (long) bytes.length,
             contentType(fetched, request.format()), sourceVersion.fileUri(), sourceDocument.id(), sourceVersion.id(),
-            parseJob.jobCode(), null, actor, now);
+            parseJob.jobCode(), null, actor, now, triggerType);
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
             "公域资料获取成功：" + source.sourceCode());
         return KnowledgeAcquisitionRunResponse.from(run, generationSummary);
@@ -213,10 +223,11 @@ public class AcquisitionOrchestrationService {
                                                         KnowledgeAcquisitionSource source,
                                                         KnowledgeAcquisitionRunRequest request,
                                                         String domain, String reason,
-                                                        String actor, Instant now) {
+                                                        String actor, Instant now,
+                                                        AcquisitionTriggerType triggerType) {
         KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
             KnowledgeAcquisitionRunStatus.BLOCKED, null, null, null, null, null, null, null,
-            null, reason, actor, now);
+            null, reason, actor, now, triggerType);
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
             "公域资料获取被阻断：" + reason);
         return KnowledgeAcquisitionRunResponse.from(run);
@@ -227,10 +238,11 @@ public class AcquisitionOrchestrationService {
                                                        KnowledgeAcquisitionRunRequest request,
                                                        String domain, Instant fetchedAt, String sourceHash,
                                                        Long byteSize, String contentType, String parseJobCode,
-                                                       String reason, String actor, Instant now) {
+                                                       String reason, String actor, Instant now,
+                                                       AcquisitionTriggerType triggerType) {
         KnowledgeAcquisitionRun run = saveRun(tenantId, runCode, source, request, domain,
             KnowledgeAcquisitionRunStatus.FAILED, fetchedAt, sourceHash, byteSize, contentType, null,
-            null, null, parseJobCode, reason, actor, now);
+            null, null, parseJobCode, reason, actor, now, triggerType);
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_acquisition_run", runCode,
             "公域资料获取失败：" + reason);
         return KnowledgeAcquisitionRunResponse.from(run);
@@ -241,7 +253,8 @@ public class AcquisitionOrchestrationService {
                                             KnowledgeAcquisitionRunStatus status, Instant fetchedAt,
                                             String sourceHash, Long byteSize, String contentType,
                                             String materialFileUri, Long sourceDocumentId, Long sourceVersionId,
-                                            String parseJobCode, String failureReason, String actor, Instant now) {
+                                            String parseJobCode, String failureReason, String actor, Instant now,
+                                            AcquisitionTriggerType triggerType) {
         return runRepository.save(new KnowledgeAcquisitionRun(
             null,
             tenantId,
@@ -250,7 +263,7 @@ public class AcquisitionOrchestrationService {
             request.sourceCode(),
             request.url(),
             domain,
-            AcquisitionTriggerType.MANUAL,
+            triggerType,
             status,
             fetchedAt,
             sourceHash,

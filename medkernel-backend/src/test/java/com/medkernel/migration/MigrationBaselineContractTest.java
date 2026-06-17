@@ -190,7 +190,8 @@ class MigrationBaselineContractTest {
         "V139__mk_llm_model_version_bundle.sql",
         "V140__knowledge_diff_expiry_task.sql",
         "V141__aik_pack_job.sql",
-        "V142__knowledge_acquisition.sql"
+        "V142__knowledge_acquisition.sql",
+        "V143__knowledge_acquisition_schedule.sql"
     );
 
     @Test
@@ -305,6 +306,21 @@ class MigrationBaselineContractTest {
                     "idx_mk_knowledge_acquisition_source_domain",
                     "idx_mk_knowledge_acquisition_run_status")
                 .contains("AIK-STD-14 公域资料来源白名单", "公域资料获取运行账本");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionScheduleIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V143__knowledge_acquisition_schedule.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-14 公域资料调度必须持久化到期策略和默认生成计划", dialect)
+                .contains("schedule_enabled_flag", "schedule_interval_minutes", "next_check_at",
+                    "last_check_at", "default_format", "generation_plan_json")
+                .contains("ck_mk_knowledge_acquisition_source_schedule",
+                    "ck_mk_knowledge_acquisition_interval",
+                    "idx_mk_knowledge_acquisition_schedule_due")
+                .contains("公域资料自动获取调度", "候选生成计划 JSON");
         }
     }
 
@@ -511,6 +527,7 @@ class MigrationBaselineContractTest {
         "idx_aik_pack_job_package", "idx_aik_pack_job_status",
         "idx_mk_knowledge_acquisition_source_domain", "idx_mk_knowledge_acquisition_source_status",
         "idx_mk_knowledge_acquisition_run_status", "idx_mk_knowledge_acquisition_run_source",
+        "idx_mk_knowledge_acquisition_schedule_due",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
         "idx_candidate_classification_identity", "idx_candidate_classification_status",
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
@@ -718,6 +735,8 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_acquisition_license_policy", "ck_mk_knowledge_acquisition_robots_policy",
         "uk_mk_knowledge_acquisition_run_code", "ck_mk_knowledge_acquisition_run_trigger",
         "ck_mk_knowledge_acquisition_run_status", "fk_mk_knowledge_acquisition_run_source",
+        "ck_mk_knowledge_acquisition_source_schedule", "ck_mk_knowledge_acquisition_interval",
+        "ck_mk_knowledge_acquisition_default_format",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
         "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
@@ -1126,7 +1145,8 @@ class MigrationBaselineContractTest {
         Map.entry("knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
         Map.entry("expiry_task", Set.of("task_type", "status", "review_due_at")),
         Map.entry("aik_pack_job", Set.of("status", "manifest_sha256")),
-        Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy", "enabled_flag")),
+        Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy",
+            "enabled_flag", "schedule_enabled_flag", "next_check_at")),
         Map.entry("mk_knowledge_acquisition_run", Set.of("status", "source_hash", "material_file_uri")),
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),

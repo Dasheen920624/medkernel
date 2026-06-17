@@ -433,6 +433,50 @@ class SystemConfigServiceTest {
     }
 
     @Test
+    void runtimeKnowledgeAcquisitionScheduleIntervalReadsConfigCenterAndFallsBackSafely() {
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY,
+                "60000",
+                "INTEGER",
+                "公域资料获取调度扫描间隔",
+                "MEDIUM",
+                "平台知识治理组",
+                "控制 AIK-STD-14 公域资料来源到期扫描间隔。",
+                "API",
+                false,
+                true,
+                3,
+                null)));
+
+        assertThat(service.runtimeKnowledgeAcquisitionScheduleIntervalMs()).isEqualTo(60_000L);
+
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY,
+                "not-a-number",
+                "INTEGER",
+                "公域资料获取调度扫描间隔",
+                "MEDIUM",
+                "平台知识治理组",
+                "控制 AIK-STD-14 公域资料来源到期扫描间隔。",
+                "API",
+                false,
+                true,
+                4,
+                null)));
+
+        assertThat(service.runtimeKnowledgeAcquisitionScheduleIntervalMs())
+            .isEqualTo(SystemConfigService.DEFAULT_KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS);
+    }
+
+    @Test
     void runtimeClinicalEventSyncTimeoutReadsConfigCenterAndFallsBackSafely() {
         ClinicalEventWorkerSettings settings = new ClinicalEventWorkerSettings() {
             @Override

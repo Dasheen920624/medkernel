@@ -64,6 +64,9 @@ public class SystemConfigService {
     public static final String KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY =
         "medkernel.knowledge.retirement-interval-ms";
     public static final long DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS = 300_000L;
+    public static final String KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY =
+        "medkernel.knowledge.acquisition.schedule-interval-ms";
+    public static final long DEFAULT_KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS = 300_000L;
     public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
     public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI = "";
@@ -440,6 +443,12 @@ public class SystemConfigService {
         return readRuntimeLongConfig(
             KNOWLEDGE_RETIREMENT_INTERVAL_MS_KEY,
             DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS).value();
+    }
+
+    public long runtimeKnowledgeAcquisitionScheduleIntervalMs() {
+        return readRuntimeLongConfig(
+            KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY,
+            DEFAULT_KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS).value();
     }
 
     public String runtimeKnowledgeLiteratureMaterialRootUri() {

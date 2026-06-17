@@ -337,7 +337,7 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/knowledge/acquisition",
             permissions("knowledge.read", "knowledge.write"),
             audits(audit(AuditAction.EXECUTE, "mk_knowledge_acquisition_run",
-                "运行公域资料获取并记录 URL、许可、robots 策略、原文指纹和解析结果"))),
+                "运行手动或调度公域资料获取并记录 URL、许可、robots 策略、原文指纹和解析结果"))),
         contract("knowledge-doc-parse", "文档解析服务",
             "com.medkernel.engine.knowledge.parsing.DocumentParseController", "/api/v1/engine/knowledge",
             permissions("knowledge.read", "knowledge.write"),

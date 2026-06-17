@@ -105,6 +105,12 @@ class AcquisitionOrchestrationServiceTest {
             "Y",
             "super-admin",
             Instant.parse("2026-06-17T00:00:00Z"),
+            "N",
+            null,
+            null,
+            null,
+            null,
+            null,
             Instant.EPOCH,
             "super-admin",
             Instant.EPOCH,
@@ -144,6 +150,22 @@ class AcquisitionOrchestrationServiceTest {
         ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
         verify(runRepository).save(saved.capture());
         assertThat(saved.getValue().status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
+        assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
+    }
+
+    @Test
+    void runScheduledRecordsScheduledTriggerWhenBlockedBeforeFetching() {
+        when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
+
+        KnowledgeAcquisitionRunResponse response =
+            service.runScheduled(request("https://guideline.example.org/htn.txt"));
+
+        assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
+        verify(fetcher, never()).fetch(any());
+
+        ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
+        verify(runRepository).save(saved.capture());
+        assertThat(saved.getValue().triggerType()).isEqualTo(AcquisitionTriggerType.SCHEDULED);
         assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
     }
 
