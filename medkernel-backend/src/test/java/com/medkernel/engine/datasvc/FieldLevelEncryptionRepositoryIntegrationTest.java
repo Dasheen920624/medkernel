@@ -53,7 +53,20 @@ class FieldLevelEncryptionRepositoryIntegrationTest {
             });
         assertThat(encryptedFields.findByTenantIdAndSearchHash("tenant-other", field.searchHash())).isEmpty();
         assertThat(fieldPolicies.findByTenantIdAndFieldPath(TENANT, policy.fieldPath()))
-            .contains(policy);
+            .hasValueSatisfying(saved -> {
+                assertThat(saved.id()).isEqualTo(policy.id());
+                assertThat(saved.tenantId()).isEqualTo(policy.tenantId());
+                assertThat(saved.fieldPath()).isEqualTo(policy.fieldPath());
+                assertThat(saved.dataLevel()).isEqualTo(policy.dataLevel());
+                assertThat(saved.encryptionRequiredFlag()).isEqualTo(policy.encryptionRequiredFlag());
+                assertThat(saved.allowedChannel()).isEqualTo(policy.allowedChannel());
+                assertThat(saved.status()).isEqualTo(policy.status());
+                assertThat(saved.createdBy()).isEqualTo(policy.createdBy());
+                assertThat(saved.updatedBy()).isEqualTo(policy.updatedBy());
+                assertThat(saved.traceId()).isEqualTo(policy.traceId());
+                assertThat(saved.createdAt()).isNotNull();
+                assertThat(saved.updatedAt()).isNotNull();
+            });
         assertThat(fieldPolicies.findByTenantIdAndDataLevelAndStatus(TENANT, EngineDataLevel.D4, "ACTIVE"))
             .extracting(EngineDataFieldPolicy::fieldPath)
             .contains(policy.fieldPath());

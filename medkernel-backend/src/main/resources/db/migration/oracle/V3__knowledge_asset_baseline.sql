@@ -60,8 +60,7 @@ CREATE TABLE mk_knowledge_material_object (
     CONSTRAINT ck_mk_knowledge_material_object_backend CHECK (storage_backend IN ('LOCAL_FILE','REMOTE_URI'))
 );
 
-CREATE INDEX idx_mk_knowledge_material_object_lookup
-    ON mk_knowledge_material_object (tenant_id, scope_key, sha256);
+-- Oracle 已为同列唯一约束建立索引，不重复创建等价普通索引。
 COMMENT ON TABLE mk_knowledge_material_object IS '知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节';
 COMMENT ON COLUMN mk_knowledge_material_object.file_uri IS '受管资料库 URI，可为现场 file、本地网关或对象存储 URI，禁止伪造临时路径';
 COMMENT ON COLUMN mk_knowledge_material_object.sha256 IS '原件字节 SHA-256 指纹，用于取回校验和重复入库幂等';
