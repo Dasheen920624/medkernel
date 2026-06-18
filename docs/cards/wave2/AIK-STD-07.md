@@ -17,7 +17,7 @@
 ## 现状（核查 2026-06-17）
 承载＝D2 [PKG-01](../D2/PKG-01.md) 包发布引擎（导入/导出/校验/灰度/全量/同步/回滚）已建；本卡后端已补「已审知识资产 → 包」装配：
 - `POST /api/v1/engine/pkg/packages/aik` 只接受当前租户 `ACTIVE` 知识版本 ID，生成 `knowledge_package` 草稿与 `package_item`。
-- V141 五方言新增 `aik_pack_job`，保存资产 manifest、`manifest_sha256`、包引用和作业状态。
+- V141 五方言新增 `mk_aik_pack_job`，保存资产 manifest、`manifest_sha256`、包引用和作业状态。
 - 发布仍复用 PKG-01 `/release|/sync|/rollback`；`PackageSyncRequest.adapterIds=[]` 会落 `ReleasePlanStatus.NOT_SYNCED`，不再伪造成功。
 - 前端批量装配入口仍归 Phase 8/T3.5 体验收尾；当前后端 API 可被生产编排、CLI 或前端调用。
 
@@ -29,7 +29,7 @@
 - [x] FR-5 证据：同步留真实证据（清单 hash + 时点）。
 
 ## 接口 / 数据契约
-- 复用 PKG-01 包/同步表 + `aik_pack_job`（资产清单/包 ref/状态），五方言。
+- 复用 PKG-01 包/同步表 + `mk_aik_pack_job`（资产清单/包 ref/状态），五方言。
 - 新增 `AikPackageBuildRequest` / `AikPackageBuildResponse`：标准上下文 + `packageCode` / `packageVersion` / `assetVersionIds[]`，响应 `jobId`、包草稿、`itemCount`、`manifestSha256`。
 
 ## 视角清单（11 视角）

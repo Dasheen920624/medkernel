@@ -143,7 +143,7 @@ class AikKnowledgePackageServiceTest {
         ));
         verify(auditRecorder).record(
             AuditAction.CREATE,
-            "aik_pack_job",
+            "mk_aik_pack_job",
             response.jobId(),
             "装配 AIK 知识包草稿: AI 工厂首发知识包 (2026.06.1)，资产数 2"
         );

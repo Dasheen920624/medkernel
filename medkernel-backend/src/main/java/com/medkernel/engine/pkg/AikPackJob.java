@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * AIK 生成资产到知识包的装配作业台账。
  */
-@Table("aik_pack_job")
+@Table("mk_aik_pack_job")
 public record AikPackJob(
     @Id Long id,
     @Column("job_id") String jobId,

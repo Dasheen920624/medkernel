@@ -18,6 +18,11 @@ import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import { downloadDomesticCompatibilityReport, useRuntimeOperations } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeDomesticCheckItem } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  appendBrowserCompatibilityEvidence,
+  probeBrowserCompatibility,
+  type BrowserCompatibilityItem,
+} from "@/shared/lib/browserCompatibility";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -59,10 +64,18 @@ const CHECK_COLOR: Record<string, string> = {
 
 type CompatibilityFilter = "ALL" | "ISSUES" | "UNKNOWN";
 
+function browserAlertType(status: string): "success" | "warning" | "error" {
+  if (status === "PASS") {
+    return "success";
+  }
+  return status === "WARN" ? "warning" : "error";
+}
+
 export default function DomesticCheck() {
   const runtime = useRuntimeOperations();
   const [filter, setFilter] = useState<CompatibilityFilter>("ALL");
   const [exporting, setExporting] = useState(false);
+  const [browserCompatibility, setBrowserCompatibility] = useState(probeBrowserCompatibility);
 
   if (runtime.isLoading) {
     return (
@@ -119,11 +132,17 @@ export default function DomesticCheck() {
   const exportReport = async () => {
     setExporting(true);
     try {
-      const report = await downloadDomesticCompatibilityReport();
+      const serverReport = await downloadDomesticCompatibilityReport();
+      const report = await appendBrowserCompatibilityEvidence(serverReport, browserCompatibility);
       triggerBlobDownload(report, "medkernel-domestic-check.txt");
     } finally {
       setExporting(false);
     }
+  };
+
+  const refreshChecks = () => {
+    setBrowserCompatibility(probeBrowserCompatibility());
+    void runtime.refetch();
   };
 
   return (
@@ -136,7 +155,7 @@ export default function DomesticCheck() {
         </Button>
       }
       primary={
-        <Button type="primary" icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
+        <Button type="primary" icon={<ReloadOutlined />} onClick={refreshChecks}>
           重新自检
         </Button>
       }
@@ -171,6 +190,44 @@ export default function DomesticCheck() {
           message={`国产化自检：${CHECK_LABEL[compatibility.overallStatus] ?? compatibility.overallStatus}`}
           description={`${compatibility.summary}；自检时间：${compatibility.checkedAt || data.generatedAt}`}
         />
+
+        <Card title="当前浏览器能力预检">
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Alert
+              type={browserAlertType(browserCompatibility.overallStatus)}
+              showIcon
+              message={browserCompatibility.summary}
+              description={browserCompatibility.disclaimer}
+            />
+            <Table<BrowserCompatibilityItem>
+              rowKey="key"
+              dataSource={browserCompatibility.items}
+              pagination={false}
+              scroll={{ x: "max-content" }}
+              columns={[
+                { title: "Web 能力", dataIndex: "displayName" },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  render: (status) => (
+                    <Tag color={CHECK_COLOR[status] ?? "default"}>
+                      {CHECK_LABEL[status] ?? customerEnumLabel(status)}
+                    </Tag>
+                  ),
+                },
+                {
+                  title: "重要性",
+                  dataIndex: "required",
+                  render: (required) => (required ? "关键能力" : "增强能力"),
+                },
+                {
+                  title: "建议",
+                  render: (_, item) => (item.supported ? "无需处理" : item.recommendation),
+                },
+              ]}
+            />
+          </Space>
+        </Card>
 
         <Card title="目标环境">
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>

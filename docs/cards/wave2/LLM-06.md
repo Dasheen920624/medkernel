@@ -31,7 +31,7 @@
 
 ## 数据与迁移
 - 复用 KNOW-01 `source_document/source_version/source_fragment` 作为受控源，不新建 `knowledge_discovery_source`。
-- `mk_knowledge_discovery_run`（检索时点/源版本/结果 hash），五方言；AIK-STD-08 另有 `knowledge_diff` + `expiry_task`。
+- `mk_knowledge_discovery_run`（检索时点/源版本/结果 hash），五方言；AIK-STD-08 另有 `mk_knowledge_diff` + `mk_knowledge_expiry_task`。
 
 ## 视角清单（11 视角）
 1. 产品架构：知识探索的受控入口。

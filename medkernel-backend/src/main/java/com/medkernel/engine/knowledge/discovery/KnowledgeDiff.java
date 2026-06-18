@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>只记录新增、修订、废止差异和来源依据，不自动写入权威版本或替换现行知识。
  */
-@Table("knowledge_diff")
+@Table("mk_knowledge_diff")
 public record KnowledgeDiff(
     @Id Long id,
     @Column("tenant_id") String tenantId,

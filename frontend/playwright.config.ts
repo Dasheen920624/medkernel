@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const domesticChromiumSimulation = {
+  ...devices['Desktop Chrome'],
+  userAgent:
+    'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 UOSBrowser/6.0',
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -20,6 +26,10 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: '国产 Chromium 内核仿真（非现场认证）',
+      use: domesticChromiumSimulation,
     },
   ],
   webServer: [

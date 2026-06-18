@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 
 import KnowledgeGovernance, {
@@ -529,10 +529,15 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("KnowledgeGovernance", () => {
   it(
     "lets a medical institution derive a governed local draft from platform knowledge",
     async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const user = userEvent.setup();
       mockUseSecurityProfile.mockReturnValue({
         data: {
@@ -599,6 +604,11 @@ describe("KnowledgeGovernance", () => {
           reason: "适配本院诊疗流程",
         }),
       );
+      expect(
+        consoleError.mock.calls.some(([message]) =>
+          String(message).includes("Instance created by `useForm` is not connected"),
+        ),
+      ).toBe(false);
     },
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
@@ -945,9 +955,7 @@ describe("KnowledgeGovernance", () => {
       }),
     );
     expect(screen.getByText("批处置候选 1 条")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "批量通过候选（高风险已锁定）" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "批量通过候选（高风险已锁定）" })).toBeDisabled();
     expect(screen.getByText("高风险或双签候选必须逐条进入审核台确认")).toBeInTheDocument();
   });
 
@@ -1230,12 +1238,8 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("AI 生产来源溯源")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖")).toBeInTheDocument();
     expect(screen.getAllByText("置信 0.87").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("已启用备用生产能力，候选仍需人工复核").length).toBeGreaterThan(
-      0,
-    );
-    expect(
-      screen.getAllByText("已记录来源引用，审核时以来源锚点为准").length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("已启用备用生产能力，候选仍需人工复核").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已记录来源引用，审核时以来源锚点为准").length).toBeGreaterThan(0);
     expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
     expect(screen.queryByText("task-vte-ai")).not.toBeInTheDocument();
     expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();

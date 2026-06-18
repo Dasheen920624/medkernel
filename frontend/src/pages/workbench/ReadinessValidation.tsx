@@ -329,11 +329,18 @@ function buildKnowledgeReadinessItem(item: KnowledgeProductionReadinessItem): Se
     key: `knowledge-${code}`,
     item: KNOWLEDGE_READINESS_LABEL[code] ?? code,
     source: "知识生产 readiness",
-    status: item.ready ? "ready" : item.required ? "blocked" : "disabled",
+    status: knowledgeReadinessStatus(item),
     reason: item.evidence ? `${item.message}（${item.evidence}）` : item.message,
     repairPath: KNOWLEDGE_READINESS_REPAIR_PATH[code] ?? "/security/baseline",
     partial: false,
   };
+}
+
+function knowledgeReadinessStatus(item: KnowledgeProductionReadinessItem): SelfCheckItem["status"] {
+  if (item.ready) {
+    return "ready";
+  }
+  return item.required ? "blocked" : "disabled";
 }
 
 function buildKnowledgeReadinessUnavailableItem(error: unknown): SelfCheckItem {

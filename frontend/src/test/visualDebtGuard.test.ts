@@ -28,12 +28,12 @@ function listSourceFiles(dir: string): string[] {
   });
 }
 
-function listModuleCssFiles(dir: string): string[] {
+function listCssFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const fullPath = join(dir, entry);
     const stat = statSync(fullPath);
-    if (stat.isDirectory()) return listModuleCssFiles(fullPath);
-    return entry.endsWith(".module.css") ? [fullPath] : [];
+    if (stat.isDirectory()) return listCssFiles(fullPath);
+    return entry.endsWith(".css") ? [fullPath] : [];
   });
 }
 
@@ -75,8 +75,8 @@ describe("前端视觉债、存储与外部连接门禁", () => {
     }
   });
 
-  it("CSS Modules 只能引用设计 token，不写硬编码颜色或 px", () => {
-    const violations = listModuleCssFiles(SRC_ROOT)
+  it("全部生产 CSS 只能引用设计 token，不写硬编码颜色或 px", () => {
+    const violations = listCssFiles(SRC_ROOT)
       .map((file) => ({
         file: relative(SRC_ROOT, file).replace(/\\/g, "/"),
         content: readFileSync(file, "utf8"),

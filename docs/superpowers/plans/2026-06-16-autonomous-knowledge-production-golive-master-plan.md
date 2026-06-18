@@ -167,8 +167,8 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 
 #### Phase 3 · AI 工厂收尾（5d）
   - [x] T3.1 **AIK-STD-05 深临床逻辑**：红线/剂量/高危**逐条命中**结构化 payload（接 `ClinicalRedlineService` 真实匹配）+ 冲突仲裁逐条留证；去重由 AIK-STD-10 生成期分流跳过重复入审，冲突/升级/降级接 AIK-STD-09 原子替换、影响任务和回滚链，当前切片已收口。
-  - [x] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`knowledge_diff` + `expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。已实现 `KnowledgeDiffDetectionService`、`DiscoveryRequest.targetIdentityId` / 响应 `diffs[]`，来源废止建 `SOURCE_DEPRECATED` 任务，复审超期建 `REVIEW_OVERDUE` 任务；同指纹超期不落伪 `REVISED` 差异。
-  - [x] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。已新增 `POST /api/v1/engine/pkg/packages/aik`、`aik_pack_job` V141 五方言、manifest hash 证据；发布仍走 PKG-01，空 `adapterIds` 真实返回 `NOT_SYNCED` 且不触发发布端口。
+  - [x] T3.2 **AIK-STD-08 差异检测 + 过期治理**（新建）：`mk_knowledge_diff` + `mk_knowledge_expiry_task` 五方言；接 `DiscoveryOrchestrationService`；不自动替换只提候选；无更新诚实空。已实现 `KnowledgeDiffDetectionService`、`DiscoveryRequest.targetIdentityId` / 响应 `diffs[]`，来源废止建 `SOURCE_DEPRECATED` 任务，复审超期建 `REVIEW_OVERDUE` 任务；同指纹超期不落伪 `REVISED` 差异。
+  - [x] T3.3 **AIK-STD-07 知识包生成 + 院内同步**（新建）：接 PKG-01，ACTIVE 资产打包→校验→灰度/全量→同步（无通道 NOT_SYNCED 不伪造）。已新增 `POST /api/v1/engine/pkg/packages/aik`、`mk_aik_pack_job` V141 五方言、manifest hash 证据；发布仍走 PKG-01，空 `adapterIds` 真实返回 `NOT_SYNCED` 且不触发发布端口。
   - [x] T3.4 **AIK-STD-03 术语勾卡**（已实质建成 TERM-01+`TerminologyCandidateGenerationJob`，本轮补前端生成入口、任务追踪、服务契约审计点并勾卡）。
   - [x] T3.5 **前端 Chunk7**：triage 8 态队列 + 影子展示 + 共存左右对照高亮 + Agent 进度可视/可中止 + 审后任务化提醒。
 - **验收**：各卡 FR 真实勾全（无虚勾）；差异/过期不自动替换、诚实空；包无通道 NOT_SYNCED。
@@ -217,7 +217,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T8.3 双形态一眼可辨（主源 vs 院内覆盖 颜色/徽标/分区）。已补平台主源/院内覆盖元数据与常驻分区卡：机构知识页空数据态也显示“平台主源只读 / 院内覆盖可治理”，生产中心按平台主源只读发布账本与院内覆盖本机构治理分区展示 job 管道、审计溯源和候选证据；同类扫描确认知识审核台未再承载机构维护或生产工作台，跨域 `/clinical/followup` 模板治理混放保持后续拆分项。
   - [x] T8.4 可信解释贯穿（每条 AI 产物标 AI生成/来源锚点/版本/模型模式/置信降级）。已补候选生产血缘 `explain_json` 最小化解释元数据：提交候选只白名单保存模型任务 ID、模型模式、prompt/tool/model 版本、来源引用、置信和降级原因，不保存提示词原文或候选正文；溯源接口和审核台候选来源列/AI 生产来源抽屉贯穿展示 AI 标识、模型模式、版本、来源引用、置信和降级状态，坏 JSON 诚实降级为空解释；V147 五方言和迁移契约同步。
   - [x] T8.5 反馈回流闭环（采纳/不采纳/误报/空白→新候选或治理任务）。已补 `mk_knowledge_review_assignment.feedback_type/followup_action` V148 五方言与 CHECK：审核台仅登记结构化反馈和建议后续动作，不直接生产新知识；服务端为历史调用兜底映射 `APPROVE→ACCEPTED/NONE`、`RETURN→CONTENT_GAP/CREATE_REVISION_CANDIDATE`、`REJECT→NOT_ADOPTED/ARCHIVE_REJECTED`，并支持 `SOURCE_BLANK/REQUEST_SOURCE_EVIDENCE`、`FALSE_POSITIVE/MARK_FALSE_POSITIVE`；前端审核抽屉提交结构化反馈。同步审计：知识域入口已拆出审核台、机构知识、诊断知识维护和知识生产；剩余代码层多模式组件与跨域 `/clinical/followup` 运行/模板治理混放列入后续 IA 拆分，不并入本次知识生产链路提交。
-  - [ ] T8.6 降级六态 + 医院语言文案（不暴露黑话）+ 老年≥16pt + 5 主题 + 国产浏览器 + 移动端 + 技术对象专家模式默认折叠。已推进首片：知识审核 AI 溯源普通模式改为医院语言，只展示 AI/人工、生产器、可信度、备用生产能力、来源依据和生产时点；job、模型任务、策略、模型模式、prompt/tool/model 版本、来源引用原文与技术降级原因只在授权专家模式展示。新增全局 `useExpertModeStore` + 共享 `ExpertModeToggle`，`PageExperienceShell`、知识审核、系统依赖、审计、术语映射、适配器中心共用一个专家模式偏好。已推进二片：规则/路径编辑器内 L3 入口改名为“L3 DSL 编辑模式”与“L3 技术视图”，不再混用全局专家模式；规则/路径条件树增强“条件根组 / 子条件组 / 具体条件”层级区分与移动端缩进降级。已推进三片：共享六态错误/部分成功、异步导出、工作台部分来源、服务机构生命周期、批量创作抽屉与 `getApiErrorMessage` 统一医院语言兜底，不向界面暴露 `/api`、`ECONNREFUSED`、本机地址、SQL/Exception/stack 等技术细节，追踪号统一中文展示。剩余：国产浏览器专项、老年字号全链核验和更多页面移动端抽样。
+  - [x] T8.6 降级六态 + 医院语言文案（不暴露黑话）+ 老年≥16pt + 5 主题 + 国产浏览器 + 移动端 + 技术对象专家模式默认折叠。知识审核 AI 溯源普通模式只展示医院语言，技术字段仅在授权专家模式显示；共享六态错误、部分成功、异步导出和工作台等入口统一脱敏原始接口/连接/异常文本。规则/路径 L3 DSL 与全局专家模式语义分离，条件层级和窄屏边界清晰。前端 lint 固化零 warning，全量生产 CSS 纳入 token/固定 px 门禁；elder 实测 `--ant-font-size >= 21.333px`、`--ant-font-size-sm >= 20px`，表单实际字号不低于 16pt。新增只读浏览器能力预检，按 Web 能力给出通过/警告/失败，不以 User-Agent 冒充国产认证，报告不含凭据、令牌或患者数据；5 主题、390px 无根节点横向溢出、Chromium 与“国产 Chromium 内核仿真（非现场认证）”自动化均已通过。真实目标国产浏览器现场确认保留在 P9 部署验收，不作为软件门禁的伪造证据。
 - **验收**：体验门禁通过；INFRA-07 全页可打开 E2E（机器层，部署前）。
 
 ### 〈第二大块 · 生产中心(134)上线〉

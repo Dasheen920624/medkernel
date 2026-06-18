@@ -13,7 +13,7 @@ import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
  *
  * <p>来源废止或复审超期只触发任务和审计依据，不直接撤回或替换临床权威版本。
  */
-@Table("expiry_task")
+@Table("mk_knowledge_expiry_task")
 public record ExpiryTask(
     @Id Long id,
     @Column("tenant_id") String tenantId,

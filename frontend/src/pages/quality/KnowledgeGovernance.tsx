@@ -122,7 +122,10 @@ const REVIEW_DECISION_SUCCESS_MESSAGES: Record<KnowledgeCandidateReviewDecision,
   REJECT: "候选已驳回并留档",
 };
 
-const REVIEW_FOLLOWUP_BY_FEEDBACK: Record<KnowledgeReviewFeedbackType, KnowledgeReviewFollowupAction> = {
+const REVIEW_FOLLOWUP_BY_FEEDBACK: Record<
+  KnowledgeReviewFeedbackType,
+  KnowledgeReviewFollowupAction
+> = {
   ACCEPTED: "NONE",
   NOT_ADOPTED: "ARCHIVE_REJECTED",
   CONTENT_GAP: "CREATE_REVISION_CANDIDATE",
@@ -536,8 +539,15 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   }, [selectedProductionJobCode]);
 
   useEffect(() => {
+    if (mode !== "production") return;
     productionJobForm.setFieldsValue({ targetPipeline: defaultProductionTargetPipeline });
-  }, [defaultProductionTargetPipeline, productionJobForm]);
+  }, [defaultProductionTargetPipeline, mode, productionJobForm]);
+
+  useEffect(() => {
+    if (!customizeIdentity) return;
+    customizeForm.resetFields();
+    customizeForm.setFieldsValue({ applicableScope: "ALL" });
+  }, [customizeForm, customizeIdentity]);
 
   useEffect(() => {
     if (identities.length === 0) {
@@ -618,6 +628,15 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     }));
   const defaultReviewPackageVersion =
     reviewPackageOptions.length === 1 ? reviewPackageOptions[0].value : undefined;
+  useEffect(() => {
+    if (!selectedCandidateId) return;
+    reviewForm.setFieldsValue({
+      packageVersion: defaultReviewPackageVersion,
+      reason: "",
+      feedbackType: undefined,
+      qualityGates: [],
+    });
+  }, [defaultReviewPackageVersion, reviewForm, selectedCandidateId]);
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
   const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
@@ -633,12 +652,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
 
   function openCandidate(candidate: KnowledgeAssetVersion) {
     setSelectedCandidateId(candidate.id);
-    reviewForm.setFieldsValue({
-      packageVersion: defaultReviewPackageVersion,
-      reason: "",
-      feedbackType: undefined,
-      qualityGates: [],
-    });
   }
 
   async function reviewCandidate(decision: KnowledgeCandidateReviewDecision) {
@@ -802,8 +815,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         reason: values.reason.trim(),
       });
       message.success("已从平台标准创建机构定制草稿");
-      setCustomizeIdentity(undefined);
       customizeForm.resetFields();
+      setCustomizeIdentity(undefined);
     } catch (error) {
       message.error(getApiErrorMessage(error, "创建机构知识定制失败"));
     }
@@ -854,8 +867,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         });
         message.success("已恢复使用平台标准，历史定制继续保留");
       }
-      setCustomizationAction(undefined);
       customizationActionForm.resetFields();
+      setCustomizationAction(undefined);
     } catch (error) {
       message.error(
         getApiErrorMessage(
@@ -945,7 +958,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               icon={<BranchesOutlined />}
               onClick={() => {
                 setCustomizeIdentity(record);
-                customizeForm.setFieldsValue({ applicableScope: "ALL" });
               }}
             >
               定制为本机构版本
@@ -966,7 +978,9 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
           <Text strong>{record.subject}</Text>
           <Text type="secondary">{record.identityCode}</Text>
           <Space size={4} wrap>
-            <Tag color={PIPELINE_META.PLATFORM_SOURCE.color}>{PIPELINE_META.PLATFORM_SOURCE.label}</Tag>
+            <Tag color={PIPELINE_META.PLATFORM_SOURCE.color}>
+              {PIPELINE_META.PLATFORM_SOURCE.label}
+            </Tag>
             <Tag>{PIPELINE_META.PLATFORM_SOURCE.boundaryLabel}</Tag>
           </Space>
         </Space>
@@ -1001,7 +1015,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
             icon={<BranchesOutlined />}
             onClick={() => {
               setCustomizeIdentity(record);
-              customizeForm.setFieldsValue({ applicableScope: "ALL" });
             }}
           >
             定制为本机构版本
@@ -1525,7 +1538,9 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       productionCandidates.find(
         (candidate) => candidate.candidateRef === selectedProductionCandidateRef,
       ) ?? productionCandidates[0];
-    const selectedProductionBatch = selectedProductionCandidate ? [selectedProductionCandidate] : [];
+    const selectedProductionBatch = selectedProductionCandidate
+      ? [selectedProductionCandidate]
+      : [];
     const batchApprovalLocked = selectedProductionBatch.some(
       (candidate) => candidate.riskLevel === "HIGH" || candidate.routing?.requiresDualSign,
     );
@@ -1877,11 +1892,11 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               <Button
                 type="primary"
                 disabled={
-                  batchApprovalLocked || selectedProductionBatch.length === 0 || !canPublishKnowledge
+                  batchApprovalLocked ||
+                  selectedProductionBatch.length === 0 ||
+                  !canPublishKnowledge
                 }
-                aria-label={
-                  batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"
-                }
+                aria-label={batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
               >
                 {batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
               </Button>
@@ -1903,7 +1918,9 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Space size={4} wrap>
-            <Tag color={PIPELINE_META.TENANT_OVERLAY.color}>{PIPELINE_META.TENANT_OVERLAY.label}</Tag>
+            <Tag color={PIPELINE_META.TENANT_OVERLAY.color}>
+              {PIPELINE_META.TENANT_OVERLAY.label}
+            </Tag>
             <Tag>{PIPELINE_META.TENANT_OVERLAY.boundaryLabel}</Tag>
           </Space>
           <Tag color="cyan">{knowledgeSourceLabel(record.sourceType)}</Tag>
@@ -2220,8 +2237,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         confirmLoading={createCustomization.isPending}
         onOk={() => customizeForm.submit()}
         onCancel={() => {
-          setCustomizeIdentity(undefined);
           customizeForm.resetFields();
+          setCustomizeIdentity(undefined);
         }}
         destroyOnClose
       >
@@ -2269,8 +2286,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         confirmLoading={publishCustomization.isPending || restorePlatformKnowledge.isPending}
         onOk={() => customizationActionForm.submit()}
         onCancel={() => {
-          setCustomizationAction(undefined);
           customizationActionForm.resetFields();
+          setCustomizationAction(undefined);
         }}
         destroyOnClose
       >
@@ -2431,7 +2448,9 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                 <Descriptions.Item label="生产器">
                   {producerLabel(provenance.producer)}
                 </Descriptions.Item>
-                <Descriptions.Item label="生产任务">已留痕，审核结论会保留任务证据</Descriptions.Item>
+                <Descriptions.Item label="生产任务">
+                  已留痕，审核结论会保留任务证据
+                </Descriptions.Item>
                 <Descriptions.Item label="目标管道">
                   <Space size={4} wrap>
                     <Tag color={meta.color}>{meta.label}</Tag>
@@ -2452,9 +2471,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                 </Descriptions.Item>
                 {expertMode ? (
                   <>
-                    <Descriptions.Item label="生产任务 job">
-                      {provenance.jobCode}
-                    </Descriptions.Item>
+                    <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
                     <Descriptions.Item label="模型任务 ID">
                       {provenance.modelTaskId || "未返回"}
                     </Descriptions.Item>

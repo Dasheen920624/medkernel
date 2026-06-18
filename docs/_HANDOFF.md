@@ -7,7 +7,7 @@
 - 最新主线：`origin/main=8520b741`，已包含 #634「自主公域知识生产 + AI 工厂收尾 + 整体上线主计划」。
 - 当前本地分支：`codex/knowledge-fullflow-audit-production`；用户要求长任务自主执行到完成，只本地提交，暂不合并远程 `main`。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
-- 国产化边界：国产化真实环境本轮暂不处理，后续全面验收再回到国产 OS/JDK、达梦、金仓、真实国产数据和现场环境。
+- 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不回灌、不依赖旧部署回退路径。
 - 资料库口径：受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均是正式后端；不得把任一种资料后端写成唯一选项。
 - 主计划入口：[`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
@@ -51,7 +51,7 @@
   - 新增 `engine.domainfacade` 只读目录：17 张 X-DOMAIN 卡按总计划顺序声明共享引擎链路、依赖卡、B0 工作流摘要、服务包成员、模型可选、不预填真实医学内容、不新增领域专属业务引擎。
   - 新增 `/api/v1/engine/domain-facades`、`/{code}`、`/b0-fixtures` 与 `/{code}/b0-fixture`，受 `knowledge.read` 与租户 DataScope 约束；B0 fixture 证据逐门面返回共享处理器、确定性路由、模型非必需、未预填医学内容、服务包成员可解析和扩展专科诚实空态；服务契约和产品功能目录已同步。
   - T7.2 已补 KNOWGEN 资产类型专用代码骨架：`FORMULA` 评分/计算器模板接入 `SourceCandidateGenerator` B0 候选生成；RULE 模板新增测试病例结构；新增 `KnowgenSpecializedAssetSkeletonRegistry` / `KnowgenSpecializedPayloadValidator` 覆盖 KNOWGEN-16/04/18/20/19；`ClinicalFormulaCalculatorService` 用传入公式定义确定性复算，不内置医学常量、不预填真实医学内容。
-- Phase 8 当前已完成 T8.1/T8.2/T8.3/T8.4/T8.5：菜单 IA 双产品面 + 生产者工作台 + 双形态一眼可辨 + AI 产物可信解释贯穿 + 审核反馈回流。
+- Phase 8 已完成 T8.1–T8.6：菜单 IA 双产品面 + 生产者工作台 + 双形态一眼可辨 + AI 产物可信解释贯穿 + 审核反馈回流 + 上线体验收口。
   - 审核台 `/knowledge/governance` 只保留候选审核/发布边界，要求 `knowledge.review`；实施运维员不再进入审核台。
   - 机构知识独立为 `/knowledge/institution`，承载从平台标准派生机构版本、机构覆盖血缘和恢复平台标准；不再藏在审核页签里。
   - 知识生产独立为一级域 `/knowledge/production`，模型能力 `/advanced/ai-workflows` 改名并迁入“知识生产”；临床运行角色不可见，实施/集成运维员通过生产面查看 readiness/job/模型能力。
@@ -63,10 +63,14 @@
   - T8.6 首片已推进：知识审核 AI 溯源默认改为医院语言，不再暴露 job、模型任务、策略、模型模式、prompt/tool/model 版本、来源引用原文和技术降级原因；授权专家模式下才展示技术字段。新增全局 `useExpertModeStore` 与共享 `ExpertModeToggle`，`PageExperienceShell`、知识审核、系统依赖、审计、术语映射和适配器中心共用一个专家模式偏好。
   - T8.6 二片已推进：规则/路径编辑器内 L3 入口按语义拆名为“L3 DSL 编辑模式”（创建/编辑）与“L3 技术视图”（详情只读），不再混用全局“专家模式”；规则编辑器与路径共享条件树统一展示“条件根组 · 第 1 层 / 子条件组 · 第 N 层 / 具体条件”，新增具体条件按钮和蓝/绿层级边界，窄屏取消子组横向缩进以保留移动端可读性。全局“专家模式”剩余入口仅保留在共享 `ExpertModeToggle` 及其消费页；`TenantOnboarding.branding.expertMode` 属于租户品牌/配置字段，不并入个人全局可见性偏好。
   - T8.6 三片已推进：共享六态错误、部分成功、异步导出、工作台部分来源、服务机构生命周期和批量创作抽屉统一接入 `customerSafeDisplayText` / `getApiErrorMessage` 医院语言兜底；界面不再暴露 `/api`、`ECONNREFUSED`、本机地址、SQL/Exception/stack 等技术细节，追踪号统一以“追踪号”展示；中文业务校验仍保留原文。
+  - T8.6 最终片已完成：前端 lint 固化 `--max-warnings=0`，4 处嵌套三元重构为顺序分支；Stylelint 与视觉债门禁覆盖全部生产 CSS，全局固定字号/间距改用 Ant Design 与 `--mk-unit` token。elder 实测基础字号不低于 21.333px、小字号不低于 20px、表单实际字号不低于 16pt；5 主题均可达，390px 登录页无根节点横向溢出且无 console error。
+  - 国产化自检新增只读浏览器能力预检：检查 ES modules、Fetch、AbortController、URL、TextEncoder、Web Crypto、matchMedia、ResizeObserver、CSS Grid/CSS variables，报告不携带凭据、Cookie、令牌或患者数据；自动化新增“国产 Chromium 内核仿真（非现场认证）”，只验证内核能力，不把 User-Agent 当作国产浏览器认证。
+  - 上线前迁移命名门禁修复：V140/V141 的 `knowledge_diff`、`expiry_task`、`aik_pack_job` 统一为 `mk_knowledge_diff`、`mk_knowledge_expiry_task`、`mk_aik_pack_job`，五方言、Java 实体、审计资源、服务/领域契约、测试和卡片同改。项目尚未部署且 P9 明确清库全新初始化，因此不增加兼容迁移或旧表回填。
   - 同类问题审计结论：知识域产品入口已拆出审核台 / 机构知识 / 诊断知识维护 / 知识生产；当前剩余是代码层 `KnowledgeGovernance.tsx` 多模式复用，可后续按组件 ownership 拆细。跨域 `/clinical/followup` 仍混有运行侧随访协同与治理侧模板治理，属于临床协同与配置治理 IA 拆分任务，不并入本次知识生产链路提交；后续应按“运行只做运行，模板治理独立归知识/配置治理”拆分。
 
 ## 最新验证
 
+- Phase 8 T8.6 最终收口验证：`cd frontend && npm run verify && npm run build` 退出 0，前端 97 files / 783 tests 全绿且 lint warning=0；`npx playwright test e2e/theme-mobile-browser-compatibility.spec.ts --project=chromium --project='国产 Chromium 内核仿真（非现场认证）'` 4 tests 通过，覆盖 5 主题、elder ≥16pt、390px 无根节点横向溢出和 console error=0。`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 460 suites / 2892 tests，0 failures、0 errors、7 skipped；H2 从空库成功应用并验证 148 版迁移。`cd cli && npm test` 30 tests、`cd mcp-server && npm test` 16 tests 通过。部署合同、发布包合同、真实性全量扫描、配置清单、迁移 changed 扫描、中文 Javadoc/迁移注释、B0、产品目录导出检查和 `git diff --check` 均退出 0。
 - Phase 8 T8.6 三片验证：TDD 红灯先命中 `ServerDataTable` 整页错误/部分失败、`PageState` 部分失败、`AsyncExportAction` 导出失败、`TenantLifecyclePanel` 生命周期读取失败、`WorkbenchPanel` 部分来源失败、`AuthoringBatchDrawer` 批量 API 失败和 `getApiErrorMessage` 原始接口/连接错误直出后转绿；`cd frontend && npm test -- --run src/shared/api/errors.test.ts src/shared/api/mutation.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/ui/PageState.test.tsx src/shared/ui/AsyncExportAction.test.tsx src/shared/ui/ServerDataTable.test.tsx src/features/tenant-lifecycle/TenantLifecyclePanel.test.tsx src/widgets/WorkbenchPanel.test.tsx` 50 tests 通过；`cd frontend && npm test -- --run` 96 files / 778 tests 通过；`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 4 个嵌套三元 warning。浏览器烟测 `/workbench`、`/terminology/mapping` 和 390px `/terminology/mapping` 在无后端授权态均非空渲染医院语言“暂时无法核验权限”，UI 无原始接口/连接文本、console error=0；Vite 代理日志按预期记录本机后端未启动的 `ECONNREFUSED`，未泄露到页面。
 - Phase 8 T8.6 二片验证：`cd frontend && npm test -- --run src/shared/ui/condition/ConditionTreeEditor.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning。TDD 红灯先命中缺少“条件根组 · 第 1 层 / 具体条件 / 新增具体条件”和旧 `专家模式` 开关名后转绿；浏览器烟测 `/rule/definitions` 与 `/pathway/templates` 在桌面与 390px 窄屏无后端授权态均非空渲染“暂时无法核验权限”，console error=0。
 - Phase 8 T8.6 首片验证：`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/shared/lib/browserStorage.test.ts src/shared/lib/expertModeStore.test.ts src/shared/ui/PageExperienceShell.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/tenant/TerminologyMapping.test.tsx src/pages/tenant/AdapterHub.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/governance` 在无后端授权态非空渲染“知识审核与发布/权限”且 console error=0。
@@ -104,9 +108,9 @@
 
 ## 下一步
 
-1. 继续 Phase 8：推进 T8.6 剩余验收与优化，重点是国产浏览器专项、老年字号全链核验和更多页面移动端抽样；保持审核台只做审核、生产台只做生产。
-2. 每个切片仍按 TDD：先失败测试 → 实现 → 验绿 → 门禁 → 本地提交。
-3. 新增表/端点继续同步五方言迁移、领域归属、服务契约、产品目录和中文注释门禁。
+1. 完成 T8.6 本地提交后进入 Phase 9：先按 T9.0 核查 134 发布脚本、远端服务/数据库/制品/运行数据清理边界和全新初始化路径，再执行第一次上线。
+2. 134 部署前继续只做本地提交，不 push、不建远程 PR；134 部署、readiness 和真实小样本闭环留证完成后，再统一远程 PR 合并 `main`。
+3. P9 现场证据必须如实区分自动化预检、真实 provider/凭据/医学评测、真实国产浏览器和远端运行 manifest，不以仿真代替现场通过。
 
 ## 常用指针
 

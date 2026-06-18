@@ -452,7 +452,7 @@ public final class ServiceContractCatalog {
                 "rule.publish", "knowledge.publish", "evaluation.publish"),
             audits(
                 audit(AuditAction.CREATE, "knowledge_package", "创建配置包和包条目"),
-                audit(AuditAction.CREATE, "aik_pack_job", "装配 AIK 已审知识资产为配置包草稿"),
+                audit(AuditAction.CREATE, "mk_aik_pack_job", "装配 AIK 已审知识资产为配置包草稿"),
                 audit(AuditAction.PERMISSION_CHANGE, "package_entitlement", "开通、续期和撤销受限平台包授权"),
                 audit(AuditAction.EXPORT, "knowledge_package", "导出差异和离线包"),
                 audit(AuditAction.IMPORT, "knowledge_package", "导入离线包"),

@@ -155,7 +155,7 @@ public class AikKnowledgePackageService {
         ));
         auditRecorder.record(
             AuditAction.CREATE,
-            "aik_pack_job",
+            "mk_aik_pack_job",
             jobId,
             "装配 AIK 知识包草稿: " + name + " (" + packageVersion + ")，资产数 " + manifestItems.size()
         );

@@ -69,6 +69,13 @@ function fallbackOrderLabel(order: string[]) {
   return order.map((strategy) => routeView(strategy).label).join(" → ");
 }
 
+function configurationModeLabel(item: ModelCapabilityStatusResponse) {
+  if (!item.configured) {
+    return "系统默认";
+  }
+  return item.inherited ? "继承配置" : "当前作用域配置";
+}
+
 function capabilityDetails(item: ModelCapabilityStatusResponse) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   return (
@@ -81,9 +88,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
         {desensitizeStrategyView[item.desensitizeStrategy] ??
           customerEnumLabel(item.desensitizeStrategy)}
       </Descriptions.Item>
-      <Descriptions.Item label="服务空间专属配置">
-        {item.configured ? (item.inherited ? "继承配置" : "当前作用域配置") : "使用系统默认"}
-      </Descriptions.Item>
+      <Descriptions.Item label="服务空间专属配置">{configurationModeLabel(item)}</Descriptions.Item>
       <Descriptions.Item label="策略作用域">
         <Text code>{scopeLabel}</Text>
       </Descriptions.Item>
@@ -194,11 +199,7 @@ export default function AiWorkflows() {
       width: 180,
       render: (_value, item) => {
         const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
-        const modeLabel = item.configured
-          ? item.inherited
-            ? "继承配置"
-            : "当前作用域配置"
-          : "系统默认";
+        const modeLabel = configurationModeLabel(item);
         return (
           <div className={styles.statusCell}>
             <Tag color={item.configured ? "processing" : "default"}>{modeLabel}</Tag>

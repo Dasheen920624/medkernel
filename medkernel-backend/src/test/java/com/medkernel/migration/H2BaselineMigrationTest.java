@@ -111,7 +111,7 @@ class H2BaselineMigrationTest {
 
         Integer diffAndExpiryTables = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_NAME IN ('KNOWLEDGE_DIFF', 'EXPIRY_TASK')
+            WHERE TABLE_NAME IN ('MK_KNOWLEDGE_DIFF', 'MK_KNOWLEDGE_EXPIRY_TASK')
             """, Integer.class);
         assertThat(diffAndExpiryTables).as("AIK-STD-08 差异与过期治理表").isEqualTo(2);
 

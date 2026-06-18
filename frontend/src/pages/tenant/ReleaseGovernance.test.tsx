@@ -74,7 +74,7 @@ function renderPage() {
   return render(
     <ConfigProvider>
       <AntdApp>
-        <MemoryRouter>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ReleaseGovernance />
         </MemoryRouter>
       </AntdApp>

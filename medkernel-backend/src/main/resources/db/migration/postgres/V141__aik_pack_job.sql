@@ -1,7 +1,7 @@
 -- MedKernel 第二阶段 P2-C · AIK-STD-07 知识包装配作业（PostgreSQL）
 -- 新项目基线：只记录当前 AIK 装配清单与包引用，不做旧包兼容回填。
 
-CREATE TABLE IF NOT EXISTS aik_pack_job (
+CREATE TABLE IF NOT EXISTS mk_aik_pack_job (
     id               BIGSERIAL    PRIMARY KEY,
     job_id           VARCHAR(64)  NOT NULL,
     tenant_id        VARCHAR(64)  NOT NULL,
@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS aik_pack_job (
 );
 
 CREATE INDEX IF NOT EXISTS idx_aik_pack_job_package
-    ON aik_pack_job (tenant_id, package_code, package_version);
+    ON mk_aik_pack_job (tenant_id, package_code, package_version);
 CREATE INDEX IF NOT EXISTS idx_aik_pack_job_status
-    ON aik_pack_job (tenant_id, status, updated_at);
+    ON mk_aik_pack_job (tenant_id, status, updated_at);
 
-COMMENT ON TABLE aik_pack_job IS 'AIK-STD-07 知识包装配作业：记录已审知识资产清单、PKG-01 包引用和清单摘要';
-COMMENT ON COLUMN aik_pack_job.job_id IS 'AIK 装配作业唯一编码';
-COMMENT ON COLUMN aik_pack_job.package_id IS '装配形成的 PKG-01 知识包 ID';
-COMMENT ON COLUMN aik_pack_job.asset_manifest IS '入包知识资产清单 JSON，包含身份、版本和内容指纹';
-COMMENT ON COLUMN aik_pack_job.manifest_sha256 IS '资产清单 SHA-256 摘要';
-COMMENT ON COLUMN aik_pack_job.status IS '装配作业状态：已打包或失败';
+COMMENT ON TABLE mk_aik_pack_job IS 'AIK-STD-07 知识包装配作业：记录已审知识资产清单、PKG-01 包引用和清单摘要';
+COMMENT ON COLUMN mk_aik_pack_job.job_id IS 'AIK 装配作业唯一编码';
+COMMENT ON COLUMN mk_aik_pack_job.package_id IS '装配形成的 PKG-01 知识包 ID';
+COMMENT ON COLUMN mk_aik_pack_job.asset_manifest IS '入包知识资产清单 JSON，包含身份、版本和内容指纹';
+COMMENT ON COLUMN mk_aik_pack_job.manifest_sha256 IS '资产清单 SHA-256 摘要';
+COMMENT ON COLUMN mk_aik_pack_job.status IS '装配作业状态：已打包或失败';

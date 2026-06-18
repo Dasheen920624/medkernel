@@ -298,7 +298,8 @@ class MigrationBaselineContractTest {
             String ddl = readMigration(dialect, "V140__knowledge_diff_expiry_task.sql");
             assertThat(ddl)
                 .as("%s AIK-STD-08 差异检测与过期治理必须持久化", dialect)
-                .contains("knowledge_diff", "expiry_task", "candidate_content_hash", "diff_type",
+                .contains("mk_knowledge_diff", "mk_knowledge_expiry_task",
+                    "candidate_content_hash", "diff_type",
                     "task_type", "review_due_at")
                 .contains("ck_knowledge_diff_type", "ck_expiry_task_type", "ck_expiry_task_status",
                     "idx_knowledge_diff_target", "idx_expiry_task_status")
@@ -312,7 +313,7 @@ class MigrationBaselineContractTest {
             String ddl = readMigration(dialect, "V141__aik_pack_job.sql");
             assertThat(ddl)
                 .as("%s AIK-STD-07 知识包装配作业必须持久化清单、包引用和状态", dialect)
-                .contains("aik_pack_job", "package_id", "asset_manifest", "manifest_sha256", "item_count")
+                .contains("mk_aik_pack_job", "package_id", "asset_manifest", "manifest_sha256", "item_count")
                 .contains("PACKAGED", "FAILED", "uk_aik_pack_job_id", "uk_aik_pack_job_package",
                     "fk_aik_pack_job_package", "ck_aik_pack_job_status", "idx_aik_pack_job_package")
                 .contains("AIK-STD-07 知识包装配作业", "PKG-01 包引用");
@@ -511,7 +512,8 @@ class MigrationBaselineContractTest {
         "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
-        "knowledge_diff", "expiry_task", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
+        "mk_knowledge_diff", "mk_knowledge_expiry_task",
+        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "mk_engine_data_export_job", "mk_engine_data_encrypted_field", "mk_engine_data_field_policy",
         "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
@@ -539,7 +541,8 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "aik_pack_job", "mk_term_mapping_snapshot", "mk_knowledge_customization",
+        "knowledge_package", "package_item", "mk_aik_pack_job",
+        "mk_term_mapping_snapshot", "mk_knowledge_customization",
         "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
         "mk_identity_person_import_job", "mk_identity_person_import_row",
         "mk_pkg_package_entitlement", "release_plan", "sync_log",
@@ -1100,7 +1103,8 @@ class MigrationBaselineContractTest {
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_engine_data_export_job", "mk_engine_data_encrypted_field",
         "mk_engine_data_field_policy", "mk_knowledge_discovery_run",
-        "knowledge_diff", "expiry_task", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
+        "mk_knowledge_diff", "mk_knowledge_expiry_task",
+        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
         "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -1127,7 +1131,7 @@ class MigrationBaselineContractTest {
         "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "aik_pack_job", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
         "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
@@ -1158,7 +1162,7 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
-        "expiry_task",
+        "mk_knowledge_expiry_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment", "mk_knowledge_production_job",
         "mk_engine_data_field_policy",
         "mk_doc_parse_job", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
@@ -1178,7 +1182,7 @@ class MigrationBaselineContractTest {
         "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review",
-        "knowledge_package", "package_item", "aik_pack_job", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
         "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
@@ -1247,9 +1251,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_knowledge_material_object", Set.of("sha256", "storage_backend")),
         Map.entry("knowledge_identity", Set.of("status")),
         Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
-        Map.entry("knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
-        Map.entry("expiry_task", Set.of("task_type", "status", "review_due_at")),
-        Map.entry("aik_pack_job", Set.of("status", "manifest_sha256")),
+        Map.entry("mk_knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
+        Map.entry("mk_knowledge_expiry_task", Set.of("task_type", "status", "review_due_at")),
+        Map.entry("mk_aik_pack_job", Set.of("status", "manifest_sha256")),
         Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy",
             "enabled_flag", "schedule_enabled_flag", "next_check_at")),
         Map.entry("mk_knowledge_acquisition_run", Set.of("status", "source_hash", "material_file_uri")),

@@ -32,7 +32,9 @@ class MenuPermissionCatalogTest {
         "insurance-audit",
         "qc-eval-sets",
         "knowledge-governance",
+        "institution-knowledge",
         "diagnosis-knowledge",
+        "knowledge-production",
         "admin-users",
         "identity-bindings",
         "admin-audit",
@@ -54,7 +56,7 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(32)
+            .hasSize(34)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -66,7 +68,7 @@ class MenuPermissionCatalogTest {
     void catalogLocksPrimaryHeaderAndProfilePlacements() {
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(30);
+            .hasSize(32);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
@@ -78,7 +80,7 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
-    void catalogLocksSevenDomainOwnership() {
+    void catalogLocksEightDomainOwnership() {
         Map<String, Set<String>> menusBySection = MenuPermissionCatalog.allMenus().stream()
             .filter(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
             .collect(Collectors.groupingBy(
@@ -89,8 +91,10 @@ class MenuPermissionCatalogTest {
             "workbench", Set.of("workbench"),
             "organization-people", Set.of("tenant-onboarding", "admin-users", "identity-bindings"),
             "knowledge-governance", Set.of(
-                "knowledge-governance", "diagnosis-knowledge", "config-packages", "terminology-mapping",
-                "rule-definitions", "pathway-templates", "provenance", "graph-explore", "ai-workflows"),
+                "knowledge-governance", "institution-knowledge", "diagnosis-knowledge",
+                "config-packages", "terminology-mapping", "rule-definitions", "pathway-templates",
+                "provenance", "graph-explore"),
+            "knowledge-production", Set.of("knowledge-production", "ai-workflows"),
             "clinical-collaboration", Set.of(
                 "mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup",
                 "sandbox"),

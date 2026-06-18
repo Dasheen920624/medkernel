@@ -344,7 +344,7 @@ describe("model gateway api hooks", () => {
   const replayedTask = {
     taskId: "task-replay-1",
     status: "REPLAYED",
-    outputContent: "{\"status\":\"NO_MODEL_PROVIDER\",\"candidates\":[]}",
+    outputContent: '{"status":"NO_MODEL_PROVIDER","candidates":[]}',
     modelMode: "B0",
     modelVersion: "B0-Deterministic-Baseline",
     promptVersion: "prompt:extract-v1",
@@ -363,7 +363,9 @@ describe("model gateway api hooks", () => {
 
     const taskHook = renderApiHook(() => useModelTask("task-1"));
 
-    await waitFor(() => expect(taskHook.result.current.data?.toolVersion).toBe("tool:extract-schema-v1"));
+    await waitFor(() =>
+      expect(taskHook.result.current.data?.toolVersion).toBe("tool:extract-schema-v1"),
+    );
     expect(taskHook.result.current.data?.promptVersion).toBe("prompt:extract-v1");
     expect(taskHook.result.current.data?.modelVersion).toBe("B0-Deterministic-Baseline");
     expect(apiClient.get).toHaveBeenCalledWith("/model-capabilities/tasks/task-1");
@@ -414,7 +416,7 @@ describe("model gateway api hooks", () => {
       capabilityCode: "knowledge.extract",
       routeStrategy: "EXTERNAL_MODEL",
       desensitizeStrategy: "MASK_ALL",
-      expectedSchema: "{\"required\":[\"status\",\"candidates\"]}",
+      expectedSchema: '{"required":["status","candidates"]}',
       fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
       timeoutMs: 1500,
       rateLimitPerMinute: 20,
@@ -446,28 +448,35 @@ describe("model gateway api hooks", () => {
     });
 
     const validateHook = renderApiHook(() => useValidateModelPolicy());
-    await expect(validateHook.result.current.mutateAsync(validationPayload)).resolves.toMatchObject({
-      valid: true,
-      fallbackAvailable: true,
-    });
+    await expect(validateHook.result.current.mutateAsync(validationPayload)).resolves.toMatchObject(
+      {
+        valid: true,
+        fallbackAvailable: true,
+      },
+    );
 
     const saveHook = renderApiHook(() => useSaveModelPolicy());
-    await expect(saveHook.result.current.mutateAsync({
-      capabilityCode: "knowledge.extract",
-      policy: {
-        routeStrategy: validationPayload.routeStrategy,
-        desensitizeStrategy: validationPayload.desensitizeStrategy,
-        expectedSchema: validationPayload.expectedSchema,
-        fallbackOrder: validationPayload.fallbackOrder,
-        timeoutMs: validationPayload.timeoutMs,
-        rateLimitPerMinute: validationPayload.rateLimitPerMinute,
-      },
-    })).resolves.toMatchObject({
+    await expect(
+      saveHook.result.current.mutateAsync({
+        capabilityCode: "knowledge.extract",
+        policy: {
+          routeStrategy: validationPayload.routeStrategy,
+          desensitizeStrategy: validationPayload.desensitizeStrategy,
+          expectedSchema: validationPayload.expectedSchema,
+          fallbackOrder: validationPayload.fallbackOrder,
+          timeoutMs: validationPayload.timeoutMs,
+          rateLimitPerMinute: validationPayload.rateLimitPerMinute,
+        },
+      }),
+    ).resolves.toMatchObject({
       capabilityCode: "knowledge.extract",
       routeStrategy: "EXTERNAL_MODEL",
     });
 
-    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/policies/validate", validationPayload);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/model-capabilities/policies/validate",
+      validationPayload,
+    );
     expect(apiClient.put).toHaveBeenCalledWith("/model-capabilities/policies/knowledge.extract", {
       routeStrategy: "EXTERNAL_MODEL",
       desensitizeStrategy: "MASK_ALL",

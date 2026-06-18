@@ -15,7 +15,7 @@
 **最新知识探索 + 差异检测 + 过期治理**：探索受控来源的更新，与现行权威差异检测，过期资产标记并触发复核，不自动替换。
 
 ## 现状（核查 2026-06-16）
-已接 [LLM-06](LLM-06.md) 来源探索编排：`DiscoveryRequest.targetIdentityId` 绑定现行知识身份后，候选进入 `KnowledgeDiffDetectionService` 做 B0 确定性比对；新增 `knowledge_diff` + `expiry_task` 五方言基线。差异/过期只留台账和复核任务，不自动替换权威版本；同指纹无更新返回诚实空态，若现行版本超期则只建过期复核任务，不伪造修订差异。
+已接 [LLM-06](LLM-06.md) 来源探索编排：`DiscoveryRequest.targetIdentityId` 绑定现行知识身份后，候选进入 `KnowledgeDiffDetectionService` 做 B0 确定性比对；新增 `mk_knowledge_diff` + `mk_knowledge_expiry_task` 五方言基线。差异/过期只留台账和复核任务，不自动替换权威版本；同指纹无更新返回诚实空态，若现行版本超期则只建过期复核任务，不伪造修订差异。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 探索：触发式探索受控来源更新（接 [LLM-06](LLM-06.md)）。
@@ -25,7 +25,7 @@
 - [x] FR-5 诚实：无更新诚实空态，不臆造差异。
 
 ## 接口 / 数据契约
-- `knowledge_diff`（现行/新/差异类型）+ `expiry_task`（过期资产/复核），五方言。
+- `mk_knowledge_diff`（现行/新/差异类型）+ `mk_knowledge_expiry_task`（过期资产/复核），五方言。
 - `POST /api/v1/engine/knowledge/discovery:explore` 请求可带 `targetIdentityId`；响应 `diffs[]` 返回差异检测结果。
 
 ## 视角清单（11 视角）
