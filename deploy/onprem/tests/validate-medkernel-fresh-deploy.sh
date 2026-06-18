@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SCRIPT="$ROOT/deploy/onprem/medkernel-fresh-deploy.sh"
+
+test -f "$SCRIPT"
+bash -n "$SCRIPT"
+
+grep -q -- '--confirm-fresh' "$SCRIPT"
+grep -q -- '--confirm-database' "$SCRIPT"
+grep -q -- '--confirm-prune-backups' "$SCRIPT"
+grep -q 'pg_dump.*--format=custom' "$SCRIPT"
+grep -q 'pg_restore.*--exit-on-error' "$SCRIPT"
+grep -q "grep -c '\\^dist/index.html\\$'" "$SCRIPT"
+! grep -q "grep -q.*dist/index.html" "$SCRIPT"
+grep -q 'systemctl stop "\$SERVICE"' "$SCRIPT"
+grep -q 'dropdb --if-exists "\$DATABASE"' "$SCRIPT"
+grep -q 'createdb --owner="\$DATABASE_OWNER" "\$DATABASE"' "$SCRIPT"
+grep -q '"\$DEPLOY_COMMAND"' "$SCRIPT"
+grep -q -- '--no-rollback' "$SCRIPT"
+grep -q 'destructive_action_performed=true' "$SCRIPT"
+grep -q 'bootstrap_initialized=false' "$SCRIPT"
+grep -q 'runtime-var.tar.gz' "$SCRIPT"
+grep -q 'rm -rf "\$APP_HOME/mock-third-party"' "$SCRIPT"
+
+main_line="$(grep -n '^main()' "$SCRIPT" | cut -d: -f1)"
+backup_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*create_backup$' | head -1 | cut -d: -f1)"
+restore_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*verify_backup_restore$' | head -1 | cut -d: -f1)"
+stop_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*stop_service$' | head -1 | cut -d: -f1)"
+recreate_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*recreate_database$' | head -1 | cut -d: -f1)"
+purge_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*purge_old_runtime$' | head -1 | cut -d: -f1)"
+publish_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*publish_candidate$' | head -1 | cut -d: -f1)"
+verify_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*verify_deployment$' | head -1 | cut -d: -f1)"
+
+test "$backup_line" -lt "$restore_line"
+test "$restore_line" -lt "$stop_line"
+test "$stop_line" -lt "$recreate_line"
+test "$recreate_line" -lt "$purge_line"
+test "$purge_line" -lt "$publish_line"
+test "$publish_line" -lt "$verify_line"
+
+printf 'onprem fresh deployment script contract passed\n'

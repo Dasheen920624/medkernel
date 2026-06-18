@@ -177,3 +177,25 @@ systemctl start medkernel
 ```
 
 当前腾讯云 PostgreSQL 首发不使用该 SQL；PostgreSQL 数据库初始化由服务器首次部署流程和 Flyway 完成。
+
+## PostgreSQL 全新清库发布
+
+只在产品明确要求丢弃旧运行数据、从当前迁移基线重新初始化时使用。脚本先保存数据库、程序、前端、配置与服务文件，并把数据库备份恢复到隔离临时库验证；只有恢复成功后才停服清库。候选必须显式指定，清库后禁用旧程序自动回滚。
+
+```bash
+sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
+  --jar /path/to/medkernel.jar \
+  --frontend /path/to/dist.tar.gz \
+  --source <40位提交哈希> \
+  --expected-flyway-version 148 \
+  --confirm-fresh \
+  --confirm-database medkernel
+```
+
+如果本轮同时要求清理历史发布备份，必须额外给出双重确认；脚本仍会保留本次清库前备份与隔离恢复证据：
+
+```bash
+  --prune-old-backups --confirm-prune-backups
+```
+
+该流程不会删除 `/zoesoft/medkernel/conf`，不会输出环境文件中的密钥、接管码或数据库口令。失败时不得把旧程序包自动恢复到已清空的新数据库；应根据本次备份目录中的 `evidence/` 和服务日志定位问题。
