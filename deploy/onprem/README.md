@@ -2,7 +2,7 @@
 
 适用场景：一台 Linux 服务器承载 Nginx、MedKernel 后端、前端静态资源，并连接本机 PostgreSQL 或现场 Oracle。当前腾讯云轻量服务器采用 PostgreSQL + HTTPS 443；老医院现场仍可通过参数覆盖为 Oracle + HTTPS 8443。
 
-真实口令、JWT 密钥、bootstrap 令牌、数据库密码不写入仓库。它们只存在服务器 `/zoesoft/medkernel/conf/medkernel.env`、`bootstrap-init-token.txt` 或安全凭据清单中。
+真实口令、JWT 密钥、集成凭证密钥、字段级加密密钥、bootstrap 令牌、数据库密码不写入仓库。它们只存在服务器 `/zoesoft/medkernel/conf/medkernel.env`、`bootstrap-init-token.txt` 或安全凭据清单中。
 
 ## 目录内容
 
@@ -181,6 +181,14 @@ systemctl start medkernel
 ## PostgreSQL 全新清库发布
 
 只在产品明确要求丢弃旧运行数据、从当前迁移基线重新初始化时使用。脚本先保存数据库、程序、前端、配置与服务文件，并把数据库备份恢复到隔离临时库验证；只有恢复成功后才停服清库。候选必须显式指定，清库后禁用旧程序自动回滚。
+
+先单独预检生产运行环境。环境文件权限必须为 `600`；JWT、集成凭证、D3/D4 字段级加密和 bootstrap 四类密钥必须各自只配置一次、长度不少于 32 位且不能保留模板占位符。校验只报告键名和错误原因，不输出密钥值：
+
+```bash
+sudo bash deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only
+```
+
+预检通过后再执行全新发布：
 
 ```bash
 sudo bash deploy/onprem/medkernel-fresh-deploy.sh \

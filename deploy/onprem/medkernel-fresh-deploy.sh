@@ -22,6 +22,7 @@ CONFIRM_FRESH=0
 CONFIRM_DATABASE=""
 PRUNE_OLD_BACKUPS=0
 CONFIRM_PRUNE_BACKUPS=0
+VALIDATE_ENVIRONMENT_ONLY=0
 
 BACKUP_DIR=""
 STAGED_JAR=""
@@ -40,6 +41,9 @@ usage() {
 MedKernel PostgreSQL 全新发布
 
 用法：
+  medkernel-fresh-deploy.sh --validate-environment-only
+
+或执行全新发布：
   medkernel-fresh-deploy.sh \
     --jar /path/to/medkernel.jar \
     --frontend /path/to/dist.tar.gz \
@@ -71,6 +75,7 @@ while [ "$#" -gt 0 ]; do
     --confirm-database) CONFIRM_DATABASE="${2:-}"; shift 2 ;;
     --prune-old-backups) PRUNE_OLD_BACKUPS=1; shift ;;
     --confirm-prune-backups) CONFIRM_PRUNE_BACKUPS=1; shift ;;
+    --validate-environment-only) VALIDATE_ENVIRONMENT_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "未知参数：$1" ;;
   esac
@@ -91,6 +96,69 @@ database_query() {
   local database_name="$1"
   local sql="$2"
   run_as_postgres psql -X -v ON_ERROR_STOP=1 -Atq -d "$database_name" -c "$sql"
+}
+
+read_env_value() {
+  local key="$1"
+  awk -v key="$key" '
+    index($0, key "=") == 1 {
+      value = substr($0, length(key) + 2)
+      sub(/\r$/, "", value)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      first = substr(value, 1, 1)
+      last = substr(value, length(value), 1)
+      quote = sprintf("%c", 39)
+      if ((first == "\"" && last == "\"") || (first == quote && last == quote)) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      print value
+      exit
+    }
+  ' "$ENV_FILE"
+}
+
+env_key_count() {
+  local key="$1"
+  awk -v key="$key" 'index($0, key "=") == 1 { count += 1 } END { print count + 0 }' \
+    "$ENV_FILE"
+}
+
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
+require_env_secret() {
+  local key="$1"
+  local minimum_length="$2"
+  local count value
+  count="$(env_key_count "$key")"
+  [ "$count" -eq 1 ] || die "生产环境的 $key 必须且只能配置一次"
+  value="$(read_env_value "$key")"
+  [ -n "$value" ] || die "生产环境缺少 $key"
+  case "$value" in
+    \<*\>|*RANDOM_*|*CHANGE_ME*)
+      die "生产环境的 $key 仍是占位符"
+      ;;
+  esac
+  [ "${#value}" -ge "$minimum_length" ] ||
+    die "生产环境的 $key 长度至少为 $minimum_length 位"
+}
+
+validate_runtime_environment() {
+  local mode
+  [ -f "$ENV_FILE" ] || die "环境文件不存在：$ENV_FILE"
+  mode="$(file_mode "$ENV_FILE")"
+  [ "$mode" = 600 ] || die "环境文件权限必须为 600，当前为 $mode"
+  require_env_secret MEDKERNEL_AUTH_JWT_SECRET 32
+  require_env_secret MEDKERNEL_INTEGRATION_SECRET_KEY 32
+  require_env_secret MEDKERNEL_FIELD_ENCRYPTION_KEY 32
+  require_env_secret MEDKERNEL_BOOTSTRAP_INIT_TOKEN 32
+  ok "生产运行环境预检通过"
 }
 
 cleanup_restore_database() {
@@ -117,7 +185,7 @@ validate_inputs() {
   grep -q '^SuccessExitStatus=143$' "$SERVICE_UNIT" ||
     die "systemd 单元必须把 Java SIGTERM 退出码 143 声明为正常"
   bash -n "$DEPLOY_SCRIPT" || die "服务端发布脚本语法检查失败"
-  [ -f "$ENV_FILE" ] || die "环境文件不存在：$ENV_FILE"
+  validate_runtime_environment
   [ -x "$DEPLOY_COMMAND" ] || die "发布命令不可执行：$DEPLOY_COMMAND"
   [ "$(stat -c %s "$JAR")" -gt 1000000 ] || die "后端候选体积异常"
   [ "$(tar -tzf "$FRONTEND" | grep -c '^dist/index.html$')" -gt 0 ] ||
@@ -364,6 +432,10 @@ verify_deployment() {
 }
 
 main() {
+  if [ "$VALIDATE_ENVIRONMENT_ONLY" -eq 1 ]; then
+    validate_runtime_environment
+    return
+  fi
   validate_inputs
   prepare_backup_directory
   create_backup

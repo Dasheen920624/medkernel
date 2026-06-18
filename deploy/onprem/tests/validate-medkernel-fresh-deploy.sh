@@ -3,9 +3,75 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/deploy/onprem/medkernel-fresh-deploy.sh"
+ENV_TEMPLATE="$ROOT/deploy/onprem/templates/medkernel.env.example"
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 
 test -f "$SCRIPT"
 bash -n "$SCRIPT"
+grep -q '^MEDKERNEL_FIELD_ENCRYPTION_KEY=<RANDOM_32B_BASE64URL>$' "$ENV_TEMPLATE"
+
+mkdir -p "$TMP_ROOT/app/conf"
+cat > "$TMP_ROOT/app/conf/medkernel.env" <<'ENV'
+MEDKERNEL_AUTH_JWT_SECRET=jwt-secret-at-least-thirty-two-bytes
+MEDKERNEL_INTEGRATION_SECRET_KEY=integration-secret-at-least-thirty-two-bytes
+MEDKERNEL_BOOTSTRAP_INIT_TOKEN=bootstrap-token-at-least-thirty-two-bytes
+ENV
+chmod 600 "$TMP_ROOT/app/conf/medkernel.env"
+
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/missing-key.log" 2>&1; then
+  printf 'missing field encryption key was accepted\n' >&2
+  exit 1
+fi
+grep -q 'MEDKERNEL_FIELD_ENCRYPTION_KEY' "$TMP_ROOT/missing-key.log"
+
+printf 'MEDKERNEL_FIELD_ENCRYPTION_KEY=short\n' >> "$TMP_ROOT/app/conf/medkernel.env"
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/short-key.log" 2>&1; then
+  printf 'short field encryption key was accepted\n' >&2
+  exit 1
+fi
+grep -q 'MEDKERNEL_FIELD_ENCRYPTION_KEY' "$TMP_ROOT/short-key.log"
+
+sed -i.bak \
+  's/^MEDKERNEL_FIELD_ENCRYPTION_KEY=.*/MEDKERNEL_FIELD_ENCRYPTION_KEY="<RANDOM_32B_BASE64URL>"/' \
+  "$TMP_ROOT/app/conf/medkernel.env"
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/placeholder-key.log" 2>&1; then
+  printf 'placeholder field encryption key was accepted\n' >&2
+  exit 1
+fi
+grep -q 'MEDKERNEL_FIELD_ENCRYPTION_KEY' "$TMP_ROOT/placeholder-key.log"
+
+printf -v valid_field_secret '%032d' 0
+sed -i.bak \
+  "s/^MEDKERNEL_FIELD_ENCRYPTION_KEY=.*/MEDKERNEL_FIELD_ENCRYPTION_KEY=$valid_field_secret/" \
+  "$TMP_ROOT/app/conf/medkernel.env"
+MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/valid-env.log" 2>&1
+grep -q '生产运行环境预检通过' "$TMP_ROOT/valid-env.log"
+! grep -Fq "$valid_field_secret" "$TMP_ROOT/valid-env.log"
+
+printf -v duplicate_field_secret 'b2%.0s' {1..16}
+printf 'MEDKERNEL_FIELD_ENCRYPTION_KEY=%s\n' "$duplicate_field_secret" \
+  >> "$TMP_ROOT/app/conf/medkernel.env"
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/duplicate-key.log" 2>&1; then
+  printf 'duplicate field encryption key was accepted\n' >&2
+  exit 1
+fi
+grep -q 'MEDKERNEL_FIELD_ENCRYPTION_KEY' "$TMP_ROOT/duplicate-key.log"
+sed -i.bak '$d' "$TMP_ROOT/app/conf/medkernel.env"
+
+chmod 644 "$TMP_ROOT/app/conf/medkernel.env"
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/insecure-mode.log" 2>&1; then
+  printf 'insecure environment file mode was accepted\n' >&2
+  exit 1
+fi
+grep -q '权限必须为 600' "$TMP_ROOT/insecure-mode.log"
+chmod 600 "$TMP_ROOT/app/conf/medkernel.env"
 
 grep -q -- '--confirm-fresh' "$SCRIPT"
 grep -q -- '--confirm-database' "$SCRIPT"
