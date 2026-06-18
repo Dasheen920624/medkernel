@@ -394,7 +394,6 @@ describe("DiagnosisKnowledgePanel", () => {
   });
 
   it("creates a diagnosis asset exactly once", async () => {
-    const user = userEvent.setup();
     const createAsset = mutation();
     createAsset.mutateAsync.mockResolvedValue({
       identity: { ...identity, id: 8 },
@@ -403,7 +402,7 @@ describe("DiagnosisKnowledgePanel", () => {
     hooks.useCreateDiagnosisAsset.mockReturnValue(createAsset);
 
     renderPanel();
-    await user.click(screen.getByRole("button", { name: /新建诊断资产/ }));
+    fireEvent.click(screen.getByRole("button", { name: /新建诊断资产/ }));
 
     fillField("诊断名称", "验收诊断");
     fillField("身份标识", "acceptance-diagnosis");
@@ -417,7 +416,7 @@ describe("DiagnosisKnowledgePanel", () => {
     fillField("证据锚点路径", "section-1");
     fillField("证据锚点名称", "验收标准");
     fillField("诊断依据原文片段", "验收诊断依据原文");
-    await user.click(screen.getByRole("button", { name: "创建草稿" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建草稿" }));
 
     await waitFor(() => {
       expect(createAsset.mutateAsync).toHaveBeenCalledTimes(1);
