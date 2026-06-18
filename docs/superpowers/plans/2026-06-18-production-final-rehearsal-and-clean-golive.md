@@ -311,7 +311,7 @@ Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未�
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/release-freeze.json`
 - Modify: `docs/_HANDOFF.md`
 
-- [ ] **Step 1: 确认工作树和本地提交**
+- [x] **Step 1: 确认工作树和本地提交**
 
 Run:
 
@@ -322,7 +322,7 @@ git log -1 --format='%H'
 
 Expected: 工作树干净；所有实现和证据已本地提交；未 push。
 
-- [ ] **Step 2: 从同一 commit 构建最终制品**
+- [x] **Step 2: 从同一 commit 构建最终制品**
 
 Run:
 
@@ -333,7 +333,7 @@ cd ../frontend && npm ci && npm run build
 
 Expected: exit 0。
 
-- [ ] **Step 3: 固定哈希**
+- [x] **Step 3: 固定哈希**
 
 Run:
 
@@ -345,9 +345,11 @@ git log -1 --format='%H'
 
 Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁移版本和生成时间，不含凭据。
 
-- [ ] **Step 4: 冻结后变更检测**
+- [x] **Step 4: 冻结后变更检测**
 
 任何源码、迁移、依赖锁文件或部署脚本变化都使 `RELEASE_FROZEN` 失效，必须返回 Task 4 重新验证和 Task 5 重新构建。
+
+实际冻结：候选提交为 `1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17`，未 push；后端 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。冻结 JAR SHA-256 为 `dac3adfb67c154604418a6785573222d17c89e8eed518dc8e693b2f082c56b5f`，前端 276 个文件清单 SHA-256 为 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言 760 个迁移文件清单 SHA-256 为 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，最新迁移 V152。精确制品以 0600 权限保存在 git 忽略的 `runtime/release-freeze/1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17/`，冻结证据见 `docs/release/evidence/p9-final-golive-20260618/release-freeze.json`；当前未部署 134。
 
 ### Task 6: 最终清库前安全检查
 

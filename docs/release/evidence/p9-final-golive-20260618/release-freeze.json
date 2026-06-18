@@ -1,0 +1,133 @@
+{
+  "status": "PASSED",
+  "stage": "RELEASE_FROZEN",
+  "generatedAt": "2026-06-18T13:44:24Z",
+  "source": {
+    "branch": "codex/p6-independent-acceptance",
+    "commit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "originMain": "89337fcf7befcf8a0df277319b51f8e349946ecf",
+    "aheadBy": 14,
+    "pushed": false,
+    "workingTreeCleanBeforeBuild": true
+  },
+  "build": {
+    "backend": {
+      "command": "cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean package",
+      "status": "PASSED",
+      "surefireReports": 465,
+      "tests": 2999,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7
+    },
+    "frontend": {
+      "command": "cd frontend && npm ci && npm run build",
+      "status": "PASSED",
+      "viteVersion": "6.4.3",
+      "dependencyVulnerabilities": 0
+    }
+  },
+  "artifacts": {
+    "localFrozenBundle": {
+      "path": "runtime/release-freeze/1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+      "mode": "0600",
+      "manifestAlgorithm": "按文件名排序后，以 LF 拼接“sha256␠␠文件名”并在末尾追加 LF，再计算 SHA-256",
+      "manifestSha256": "ad33ddbdd0e44d0cddd656b0e6b42b5c36a65353c8514aab76cceb34ef23f92b",
+      "files": [
+        {
+          "path": "dist.tar.gz",
+          "sha256": "1369ae6d92529e8286493ba435050ba0d7b35a5e8994092497162d393e588c37"
+        },
+        {
+          "path": "medkernel-deploy.sh",
+          "sha256": "485fe91ce15600282156951b2812658375608ce420f69524d65dc02cd949e207"
+        },
+        {
+          "path": "medkernel-fresh-deploy.sh",
+          "sha256": "b4bff34afc94c81fbde1262d7505e148e0fc9993b7aefd0696c46d5502782287"
+        },
+        {
+          "path": "medkernel.jar",
+          "bytes": 99439621,
+          "sha256": "dac3adfb67c154604418a6785573222d17c89e8eed518dc8e693b2f082c56b5f"
+        },
+        {
+          "path": "medkernel.service",
+          "sha256": "f9e3789cb5d76ef47162af2f9e0a4075115bde33ed444a23c4fc748d63802673"
+        }
+      ]
+    },
+    "frontendDist": {
+      "fileCount": 276,
+      "bytes": 13895008,
+      "manifestAlgorithm": "递归读取 frontend/dist，每个文件计算 SHA-256；按“sha256␠␠相对路径”整行排序，以 LF 拼接并在末尾追加 LF后计算清单 SHA-256",
+      "manifestSha256": "26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742",
+      "indexHtmlSha256": "ae10bb56333dfc4fcfded2d863128e1821c8adb5a09a2335dd74fc76facf44d8",
+      "archiveSha256": "1369ae6d92529e8286493ba435050ba0d7b35a5e8994092497162d393e588c37"
+    }
+  },
+  "migrationSet": {
+    "dialects": [
+      "postgres",
+      "h2",
+      "oracle",
+      "dm",
+      "kingbase"
+    ],
+    "latestVersion": 152,
+    "trackedFiles": 760,
+    "manifestAlgorithm": "对 git 跟踪的 medkernel-backend/src/main/resources/db/migration 文件逐个计算 SHA-256，按“sha256␠␠相对路径”整行排序后以 LF 拼接并在末尾追加 LF",
+    "manifestSha256": "33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3"
+  },
+  "configurationInputs": {
+    "trackedFiles": 22,
+    "manifestAlgorithm": "对下列 git 跟踪文件逐个计算 SHA-256，按“sha256␠␠相对路径”整行排序后以 LF 拼接并在末尾追加 LF",
+    "manifestSha256": "0c81cafc4000443717742d7ca77905d86ac510615d0442a083bae857ad94e0a1",
+    "frontendPackageLockSha256": "591c54a5ebc44067a846a3c2624202a7b50ab3a6ab071a6561574c88eb6637b8",
+    "backendPomSha256": "d19ddf7f11625b1af6b642b3bfb22793999e51ce6312a378ff6dc9af215f2997",
+    "paths": [
+      "deploy/onprem/README.md",
+      "deploy/onprem/medkernel-deploy.sh",
+      "deploy/onprem/medkernel-fresh-deploy.sh",
+      "deploy/onprem/mk-publish.ps1",
+      "deploy/onprem/mk-publish.sh",
+      "deploy/onprem/ollama/MedKernel.Qwen25-1.5B.Modelfile",
+      "deploy/onprem/purge-schema.sql",
+      "deploy/onprem/templates/medkernel.env.example",
+      "deploy/onprem/templates/medkernel.nginx.conf",
+      "deploy/onprem/templates/medkernel.service",
+      "deploy/onprem/tests/validate-medkernel-deploy.sh",
+      "deploy/onprem/tests/validate-medkernel-fresh-deploy.sh",
+      "deploy/onprem/tests/validate-mk-publish-package.sh",
+      "deploy/onprem/tests/validate-ollama-model.sh",
+      "frontend/package-lock.json",
+      "frontend/package.json",
+      "medkernel-backend/pom.xml",
+      "medkernel-backend/src/main/resources/application-container.yml",
+      "medkernel-backend/src/main/resources/application-dev.yml",
+      "medkernel-backend/src/main/resources/application-govcloud.yml",
+      "medkernel-backend/src/main/resources/application-test.yml",
+      "medkernel-backend/src/main/resources/application.yml"
+    ]
+  },
+  "deploymentRule": {
+    "candidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "requiredCheckout": "后续部署必须从该提交的干净 detached worktree 执行，或直接使用 localFrozenBundle 中的精确字节；不得从包含冻结证据提交在内的后续 HEAD 临时重建候选",
+    "invalidatedBy": [
+      "任何生产源码变化",
+      "任何数据库迁移变化",
+      "任何依赖锁文件变化",
+      "任何 deploy/onprem 部署脚本或模板变化",
+      "冻结制品或上述清单任一 SHA-256 不一致"
+    ],
+    "onInvalidation": "返回 Task 4 重新执行完整工程预演，并从新的干净提交重新执行 Task 5"
+  },
+  "safety": {
+    "deployedTo134": false,
+    "providerEnabled": false,
+    "p6Released": false,
+    "expertSignoffAutomated": false,
+    "containsCredentials": false,
+    "containsPatientData": false
+  }
+}
