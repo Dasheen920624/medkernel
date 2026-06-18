@@ -8,10 +8,14 @@
 
 ```text
 deploy/onprem/
+├── ollama/
+│   └── MedKernel.Qwen25-1.5B.Modelfile # 可重放的本地知识草案模型定义
 ├── mk-publish.ps1                 # Windows / PowerShell 一键构建、上传、发布
 ├── mk-publish.sh                  # macOS / Linux 一键构建、上传、发布
 ├── medkernel-deploy.sh            # 服务器端发布/回滚/状态脚本
 ├── purge-schema.sql               # Oracle 首发/灾备清库脚本
+├── tests/
+│   └── validate-ollama-model.sh    # 本地模型定义安全与确定性门禁
 └── templates/
     ├── medkernel.service          # systemd 单元模板
     ├── medkernel.nginx.conf       # nginx HTTPS 模板
@@ -95,6 +99,27 @@ sudo medkernel-deploy --rollback /zoesoft/medkernel/backups/deploy-YYYYmmdd-HHMM
 | HTTPS | 当前腾讯云使用 `443`；老现场可保留 `8443` |
 | 备份目录 | `/zoesoft/medkernel/backups/deploy-*` |
 | 发布日志 | `/zoesoft/medkernel/logs/deploy.log` |
+
+## Ollama 本地知识草案模型
+
+本地模型只生成待独立人工审核的知识草案，不得自动签署评测、审核或发布医学知识。模型定义固定基础模型、采样参数和安全约束；真实权重 digest、provider 配置和版本三元组仍须在目标环境留证，不能只凭模型标签宣告一致。
+
+提交或部署前先执行定义门禁：
+
+```bash
+bash deploy/onprem/tests/validate-ollama-model.sh
+```
+
+目标服务器安装受控 Ollama 后，以服务用户完成模型准备：
+
+```bash
+ollama pull qwen2.5:1.5b
+ollama create medkernel-qwen25:1.5b-v1 \
+  -f deploy/onprem/ollama/MedKernel.Qwen25-1.5B.Modelfile
+ollama show medkernel-qwen25:1.5b-v1 --modelfile
+```
+
+Ollama 仅监听回环地址，模型目录放在受管数据目录。应用侧 provider 完成真实健康检查后仍保持停用，直至当前启用医学基准集评测通过、独立专家签署、能力策略、版本三元组和 P6 验收全部就绪。
 
 ## 首次部署要点
 
