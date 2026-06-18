@@ -483,8 +483,8 @@ class ModelEvalServiceTest {
         MedicalRegressionCase currentCase = aCase();
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
-        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                "tenant-1", "ollama-local", "qwen2.5:7b", "PASSED"))
+        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                "tenant-1", "ollama-local", "qwen2.5:7b", "rule.draft", "PASSED"))
             .thenReturn(Optional.of(new ModelEvalRun(1L, "tenant-1", "ollama-local", "qwen2.5:7b",
                 "rule.draft", "prompt:v1", "tool:v1",
                 1, 1, 0, null, null, "N", "N", "N", "PASSED",
@@ -493,8 +493,12 @@ class ModelEvalServiceTest {
         when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 1L))
             .thenReturn(List.of(passedEvidence(1L, currentCase)));
 
-        assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "qwen2.5:7b")).isTrue();
-        assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "other-version")).isFalse();
+        assertThat(service.isClearedForGoLive(
+            "tenant-1", "ollama-local", "qwen2.5:7b", "rule.draft")).isTrue();
+        assertThat(service.isClearedForGoLive(
+            "tenant-1", "ollama-local", "other-version", "rule.draft")).isFalse();
+        assertThat(service.isClearedForGoLive(
+            "tenant-1", "ollama-local", "qwen2.5:7b", "pathway.draft")).isFalse();
     }
 
     @Test
@@ -503,15 +507,16 @@ class ModelEvalServiceTest {
         MedicalRegressionCase currentCase = aCase();
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
-        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                "tenant-1", "incomplete-provider", "incomplete-model", "PASSED"))
+        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                "tenant-1", "incomplete-provider", "incomplete-model", "rule.draft", "PASSED"))
             .thenReturn(Optional.of(new ModelEvalRun(2L, "tenant-1", "incomplete-provider", "incomplete-model",
                 "rule.draft", null, null, 1, 1, 0, null, null, "N", "N", "N", "PASSED",
                 RegressionBaselineEvidence.toJson(List.of(currentCase)),
                 null, null, null, now, "s", now, "s")));
         when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 2L)).thenReturn(List.of());
 
-        assertThat(service.isClearedForGoLive("tenant-1", "incomplete-provider", "incomplete-model")).isFalse();
+        assertThat(service.isClearedForGoLive(
+            "tenant-1", "incomplete-provider", "incomplete-model", "rule.draft")).isFalse();
     }
 
     @Test
@@ -527,8 +532,8 @@ class ModelEvalServiceTest {
             evaluatedCase.createdAt(), evaluatedCase.createdBy(), evaluatedCase.updatedAt(), evaluatedCase.updatedBy());
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
-        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                "tenant-1", "ollama-local", "qwen2.5:7b", "PASSED"))
+        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                "tenant-1", "ollama-local", "qwen2.5:7b", "rule.draft", "PASSED"))
             .thenReturn(Optional.of(new ModelEvalRun(1L, "tenant-1", "ollama-local", "qwen2.5:7b",
                 "rule.draft", "prompt:v1", "tool:v1",
                 1, 1, 0, null, null, "N", "N", "N", "PASSED",
@@ -536,7 +541,7 @@ class ModelEvalServiceTest {
                 "逐例证据已核查并确认可放行。", "quality-001", now, now, "s", now, "s")));
 
         assertThat(service.isClearedForGoLive(
-            "tenant-1", "ollama-local", "qwen2.5:7b")).isFalse();
+            "tenant-1", "ollama-local", "qwen2.5:7b", "rule.draft")).isFalse();
     }
 
     private ModelEvalRun trendRun(

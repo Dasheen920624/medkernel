@@ -30,7 +30,7 @@ provider 适配、真实健康检查、B0 降级与受控治理入口均已实�
 - `PUT /api/v1/model-providers/{providerCode}`：新增或更新连接材料，始终保存为停用；更新既有配置须提交当前 `expectedVersion`。
 - `GET /api/v1/model-providers/{providerCode}`：读取不含 `credentialRef` 的脱敏治理快照。
 - `POST /api/v1/model-providers/{providerCode}/health-check`：执行真实探活并更新健康状态，不改变启停。
-- `POST /api/v1/model-providers/{providerCode}/enable|disable`：独立高危启停状态机，不接收也不修改连接材料。
+- `POST /api/v1/model-providers/{providerCode}/enable|disable`：独立高危启停状态机，不接收也不修改连接材料；启用必须携带 `capabilityCode`，并精确匹配当前 provider、模型版本、医学基准指纹和已签署评测，停用不依赖能力码。
 - 适配器内嵌 [LLM-01](LLM-01.md) 路由；任务状态与 provider 治理状态分离。
 
 ## 数据与迁移

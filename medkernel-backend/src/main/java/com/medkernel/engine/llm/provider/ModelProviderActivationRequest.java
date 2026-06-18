@@ -8,11 +8,13 @@ import jakarta.validation.constraints.Size;
 /**
  * 模型 provider 高危启停请求。
  *
+ * @param capabilityCode 启用时必须精确匹配已签署评测的模型能力码；停用时可为空
  * @param reason 可审计的启停原因
  * @param expectedVersion 当前关系库乐观锁版本
  * @param confirmedHighRisk 已明确确认高危影响
  */
 public record ModelProviderActivationRequest(
+    @Size(max = 64) String capabilityCode,
     @NotBlank @Size(max = 500) String reason,
     @NotNull @PositiveOrZero Long expectedVersion,
     @NotNull Boolean confirmedHighRisk

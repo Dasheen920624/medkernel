@@ -181,7 +181,7 @@ Expected: 本地 commit 成功；不 push。
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/`
 
-- [ ] **Step 1: 写跨服务集成红测**
+- [x] **Step 1: 写跨服务集成红测**
 
 在隔离测试数据库中构造完整逐例评测，断言：
 
@@ -193,7 +193,7 @@ Expected: 本地 commit 成功；不 push。
 6. 九项全绿后才允许知识生产任务；
 7. 任一版本或基准漂移会重新阻断。
 
-- [ ] **Step 2: 运行红测并确认真实缺口**
+- [x] **Step 2: 运行红测并确认真实缺口**
 
 Run:
 
@@ -204,11 +204,13 @@ mvn -q -Dtest='*Model*IntegrationTest,*KnowledgeProduction*IntegrationTest' test
 
 Expected: 至少一项因缺少跨服务状态机保证失败；不得为转绿而放宽生产门禁。
 
-- [ ] **Step 3: 最小实现根因修复**
+实际红灯：启用请求缺少 `capabilityCode`，生产门此前只按 tenant、provider、modelVersion 查找任意能力的最新已签署评测，存在跨能力误放行缺口。
+
+- [x] **Step 3: 最小实现根因修复**
 
 仅补状态机、事务、版本匹配、审计或错误语义缺口；不新增测试专用生产接口，不新增绕过专家签署的配置。
 
-- [ ] **Step 4: 目标测试与全量测试转绿**
+- [x] **Step 4: 目标测试与全量测试转绿**
 
 Run:
 
@@ -220,7 +222,9 @@ MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 5: 本地提交**
+实际验证：目标集成测试、相关 service/security 测试、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 均退出 0；全量汇总为 465 份 Surefire 报告、2999 tests、0 failures、0 errors、7 skipped。`mvn -q -DskipTests package`、38 项真实性/配置边界/迁移规约守卫自测、三项 changed 扫描、中文注释、B0、产品目录与差异门禁均退出 0。
+
+- [x] **Step 5: 本地提交**
 
 Run:
 

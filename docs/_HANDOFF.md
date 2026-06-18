@@ -102,6 +102,7 @@
 - T9.8 只读预检器已在当前 134 实跑：服务 health 与 `WHO-CHB-GUIDELINE-2024` 来源治理通过，9 闸仍为 5/9，裁决 `BLOCKED`；请求账本仅含 1 次登录 POST 与安全画像、health、readiness、来源清单 4 次 GET，业务写请求为 0，脱敏证据以 `0600` 原子写入 `/tmp/p9-t98-readiness-preflight.json`。该预检不签专家、不启用 provider、不翻 P6、不创建候选。
 - T9.8 只读预检提交前验证：10 项预检单测、24 项真实性门禁自测与 changed 扫描、B0、中文注释、产品目录、Prettier、Node 语法、`git diff --check`、TLS/HTTP 方法边界和新增脚本高置信敏感信息扫描均退出 0；新增 URL 边界拒绝内嵌凭据、查询串与片段，HTTP 非 2xx 与坏 JSON 均诚实阻断且不回显响应正文或登录凭据。
 - 模型 provider 受控启停提交前验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 重新执行并 exit 0，464 份 Surefire 报告共 2998 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V152；7 个跳过项均为显式环境假设，其中 3 个首发空 PostgreSQL 用例与 PostgreSQL/Oracle 真实迁移烟测因 Docker 不可用跳过，2 个 10 万级真实方言压测因开关未启用跳过。`mvn -q -DskipTests package` exit 0，候选 JAR SHA-256=`aa44d20ec9d030aa444f546c7af7ef5e24ba4520f84839397f8bcb4961ef6dcd`。真实性 24 项自测、配置边界 2 项自测、迁移规约 12 项自测、三项 changed 扫描、B0、中文注释、产品目录和 `git diff --check` 均 exit 0；自审确认 PUT 不含直接启用字段、治理响应不暴露 `credentialRef`、外部 provider 强制 HTTPS、无 TLS 绕过，且本切片未连接或修改 134、未签专家、未启用 provider、未翻 P6。
+- 正式放行状态机已在隔离 H2 以跨服务集成测试锁定：`PENDING_REVIEW`、能力不匹配、基准漂移、版本漂移均 fail-closed；真实持久化逐例证据由独立 `QUALITY_GOVERNOR` 签署后，仅精确匹配 tenant、provider、modelVersion、capability 与当前基准指纹的启用请求可通过；P6=false 时严格为 8/9，仅内置 `SYSTEM_SUPERADMIN` 可放行为 9/9。TDD 红灯确认旧启用合同缺少 `capabilityCode` 且评测门会错误复用其他能力的签署结果，现已改为能力级精确查询。目标集成与相关单测、安全测试均通过；后端全量 `clean test` 为 465 份报告 / 2999 tests、0 failures、0 errors、7 skipped，生产 JAR SHA-256=`7f2c04cbd2910c17dd33c8b9dfe2459fc30172ad6bfc5cc15b14a3aa8b8bde19`，38 项守卫自测、三项 changed 扫描、中文注释、B0、产品目录与差异门禁均退出 0。测试未连接或修改 134，未代签、未启用 provider、未翻 P6。
 - 工程预演总门禁已按 TDD 本地实现：红测先因聚合器缺失以 `ERR_MODULE_NOT_FOUND` 失败，实现后 7 项单测全绿；聚合器仅读取 manifest 显式列出的 `BACKEND_TESTS`、`FRONTEND_GATES`、`CLI_TESTS`、`MCP_TESTS`、`MIGRATIONS`、`T_GATE`、`FRESH_DEPLOY_DRILL`、`BACKUP_RESTORE`、`MODEL_PROVIDER`、`EVALUATION_CASE_EVIDENCE`、`READINESS_PREFLIGHT` 11 类 JSON，缺项、重复、未知、读取失败、非 `PASSED` 或安全数据边界未显式为 false 均输出 `BLOCKED/ENGINEERING`；全绿时只输出 `PASSED/REHEARSAL_READY`，不会输出 `LIVE_ACCEPTED`。默认入口已实跑，因当前尚无完整 `engineering-rehearsal-manifest.json` 诚实返回 `BLOCKED`；该脚本无网络和写入能力，未触碰 134。
 - P6 独立验收授权门已完成实现、代码审查、全量验证和本地提交：通用 `system.manage` 不再足以把 P6 从 `false` 放行为 `true`，必须由已验签的内置 `SYSTEM_SUPERADMIN` authority 执行；MFA、二次确认、原因、乐观锁和审计保持不变。租户级 P6 覆盖、默认种子与直接种子均被服务层拒绝，回滚到 `true` 同样复核超管；关闭为 `false` 保留给完成 MFA 的运维作为快速失败关闭路径。非超管拒绝通过独立子事务写 `outcome=FAILED` 审计，不随业务事务回滚丢失；前端对非超管和租户覆盖均禁用伪编辑入口。该门禁不代表 P6 已放行，134 当前值仍为 `false`。
 - P6 切片最终验证：后端 464 份报告 / 2975 tests，0 failures、0 errors、7 skipped，H2 空库应用并复核 V151，生产 JAR 构建通过；前端 `npm run verify` 与 `npm run test:coverage` 均为 99 files / 795 tests，全量生产构建通过。真实性 24 项自测及 1957 文件全量扫描、B0 96 项自测、配置边界 2 项自测及 1852 文件全量扫描、迁移规约 12 项自测及 755 文件全量扫描、中文注释、产品目录和差异门禁均通过。覆盖率插桩下的诊断资产创建用例保持真实表单校验与条件等待，仅收敛两个按钮交互后连续三轮定向及全量覆盖率通过。
@@ -144,7 +145,7 @@
 
 ## 下一步
 
-1. 按生产全流程长计划进入 Task 3，在隔离测试数据库中用跨服务集成红测锁定“逐例证据完整且真人独立签署后，才能受控启用精确 provider；P6=false 仍阻断；仅内置超管放行后九闸全绿”的正式状态机，不污染 134。
+1. 按生产全流程长计划进入 Task 4，逐类生成后端、前端、CLI、MCP、迁移、T-GATE、新鲜部署、备份恢复、provider、评测证据与 readiness 预检的脱敏工程证据，修复全部可在开发阶段解决的问题，直到聚合器真实达到 `REHEARSAL_READY`。
 2. 保持 134 两个 provider 停用、P6=false；本地切片完成不等于现场状态已改变。
 3. 真实独立医学专家仍须现场逐例复核运行 `3` 或 `4` 并签字；只有签署后，才按顺序启用对应 provider、复核 readiness 其余八项、由内置超管执行 P6 高危放行，再跑真实自主获取→候选→审核→激活小样本。
 

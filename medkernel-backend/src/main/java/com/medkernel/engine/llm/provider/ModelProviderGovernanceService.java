@@ -166,6 +166,7 @@ public class ModelProviderGovernanceService {
             ModelProviderActivationRequest request,
             boolean enabled) {
         String reason = assertActivationConfirmed(request);
+        String capabilityCode = enabled ? requireActivationCapability(request) : null;
         String tenantId = requireCurrentTenant();
         String code = requireText(providerCode, "provider 编码");
         highRiskGuard.assertHighRiskAllowed(HIGH_RISK_RESOURCE_TYPE, code);
@@ -177,7 +178,7 @@ public class ModelProviderGovernanceService {
             return ModelProviderGovernanceView.from(current);
         }
         if (enabled) {
-            assertProviderCanBeEnabled(tenantId, code, current);
+            assertProviderCanBeEnabled(tenantId, code, current, capabilityCode);
         }
 
         Instant now = Instant.now();
@@ -201,7 +202,9 @@ public class ModelProviderGovernanceService {
             AuditAction.UPDATE,
             "mk_llm_provider",
             code,
-            (enabled ? "启用" : "停用") + "模型 provider " + code + "：" + reason);
+            (enabled ? "启用" : "停用") + "模型 provider " + code
+                + (enabled ? "（capability=" + capabilityCode + "）" : "")
+                + "：" + reason);
         return ModelProviderGovernanceView.from(saved);
     }
 
@@ -219,10 +222,20 @@ public class ModelProviderGovernanceService {
         return reason;
     }
 
+    private String requireActivationCapability(ModelProviderActivationRequest request) {
+        if (request.capabilityCode() == null || request.capabilityCode().isBlank()) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "启用模型 provider 必须指定已完成独立签署的 capabilityCode");
+        }
+        return request.capabilityCode().trim().toLowerCase(Locale.ROOT);
+    }
+
     private void assertProviderCanBeEnabled(
             String tenantId,
             String code,
-            ModelProviderConfig current) {
+            ModelProviderConfig current,
+            String capabilityCode) {
         if (!ProviderHealth.HEALTHY.name().equals(current.status())) {
             throw ApiException.conflict("provider 未通过当前真实健康检查，禁止启用");
         }
@@ -230,7 +243,11 @@ public class ModelProviderGovernanceService {
         if (type.external() && !deploymentForm.allowsExternalProvider()) {
             throw new ApiException(ErrorCode.ENG_LLM_009);
         }
-        if (!evalService.isClearedForGoLive(tenantId, code, current.modelVersion())) {
+        if (!evalService.isClearedForGoLive(
+                tenantId,
+                code,
+                current.modelVersion(),
+                capabilityCode)) {
             throw new ApiException(ErrorCode.ENG_LLM_008);
         }
     }

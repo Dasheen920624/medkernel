@@ -29,6 +29,8 @@ import com.medkernel.shared.context.RequestContext;
  */
 class ModelProviderGovernanceServiceTest {
 
+    private static final String CAPABILITY = "rule.draft";
+
     private ModelProviderConfigRepository repo;
     private DeploymentFormService deploymentForm;
     private ModelEvalService evalService;
@@ -67,7 +69,7 @@ class ModelProviderGovernanceServiceTest {
         assertThat(saved.providerType()).isEqualTo("OLLAMA");
         assertThat(saved.enabled()).isFalse();
         assertThat(saved.status()).isEqualTo("NOT_CONNECTED");
-        verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+        verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(deploymentForm, never()).allowsExternalProvider();
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_provider", "ollama-local",
             "保存模型 provider ollama-local");
@@ -195,11 +197,12 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(current));
         when(deploymentForm.allowsExternalProvider()).thenReturn(true);
         when(evalService.isClearedForGoLive(
-            "tenant-1", "external", current.modelVersion())).thenReturn(true);
+            "tenant-1", "external", current.modelVersion(), CAPABILITY)).thenReturn(true);
 
         ModelProviderGovernanceView enabled = service.enableProvider(
             "external",
             new ModelProviderActivationRequest(
+                CAPABILITY,
                 "独立专家评测已签署，按 T9.8 受控启用",
                 5L,
                 true));
@@ -211,15 +214,17 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.UPDATE,
             "mk_llm_provider",
             "external",
-            "启用模型 provider external：独立专家评测已签署，按 T9.8 受控启用");
+            "启用模型 provider external（capability=rule.draft）：独立专家评测已签署，按 T9.8 受控启用");
     }
 
     @Test
     void activationRequiresExplicitConfirmationAndReasonBeforeMfaOrRepositoryAccess() {
         assertError(ErrorCode.VALIDATION_FAILED, () -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest("启用", 5L, false)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, "启用", 5L, false)));
         assertError(ErrorCode.VALIDATION_FAILED, () -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest(" ", 5L, true)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, " ", 5L, true)));
+        assertError(ErrorCode.VALIDATION_FAILED, () -> service.enableProvider(
+            "ollama-local", new ModelProviderActivationRequest(null, "受控启用", 5L, true)));
 
         verify(highRiskGuard, never()).assertHighRiskAllowed(any(), any());
         verify(repo, never()).findByTenantIdAndProviderCode(any(), any());
@@ -231,7 +236,7 @@ class ModelProviderGovernanceServiceTest {
             .when(highRiskGuard).assertHighRiskAllowed("model_provider", "ollama-local");
 
         assertError(ErrorCode.ENG_AUTH_010, () -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest("受控启用", 5L, true)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, "受控启用", 5L, true)));
 
         verify(repo, never()).findByTenantIdAndProviderCode(any(), any());
     }
@@ -242,9 +247,9 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(provider("N", "HEALTHY", 5L)));
 
         assertConflict(() -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest("受控启用", null, true)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, "受控启用", null, true)));
         assertConflict(() -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest("受控启用", 4L, true)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, "受控启用", 4L, true)));
 
         verify(repo, never()).save(any());
     }
@@ -255,9 +260,9 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(provider("N", "NOT_CONNECTED", 5L)));
 
         assertConflict(() -> service.enableProvider(
-            "ollama-local", new ModelProviderActivationRequest("受控启用", 5L, true)));
+            "ollama-local", new ModelProviderActivationRequest(CAPABILITY, "受控启用", 5L, true)));
 
-        verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+        verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(repo, never()).save(any());
     }
 
@@ -269,9 +274,9 @@ class ModelProviderGovernanceServiceTest {
         when(deploymentForm.allowsExternalProvider()).thenReturn(false);
 
         assertError(ErrorCode.ENG_LLM_009, () -> service.enableProvider(
-            "external", new ModelProviderActivationRequest("受控启用", 5L, true)));
+            "external", new ModelProviderActivationRequest(CAPABILITY, "受控启用", 5L, true)));
 
-        verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+        verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(repo, never()).save(any());
     }
 
@@ -282,10 +287,10 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(current));
         when(deploymentForm.allowsExternalProvider()).thenReturn(true);
         when(evalService.isClearedForGoLive(
-            "tenant-1", "external", current.modelVersion())).thenReturn(false);
+            "tenant-1", "external", current.modelVersion(), CAPABILITY)).thenReturn(false);
 
         assertError(ErrorCode.ENG_LLM_008, () -> service.enableProvider(
-            "external", new ModelProviderActivationRequest("受控启用", 5L, true)));
+            "external", new ModelProviderActivationRequest(CAPABILITY, "受控启用", 5L, true)));
 
         verify(repo, never()).save(any());
     }
@@ -297,13 +302,13 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(current));
 
         ModelProviderGovernanceView enabled = service.enableProvider(
-            "external", new ModelProviderActivationRequest("确认保持启用", 5L, true));
+            "external", new ModelProviderActivationRequest(CAPABILITY, "确认保持启用", 5L, true));
 
         assertThat(enabled.enabled()).isTrue();
         assertThat(enabled.version()).isEqualTo(5L);
         verify(repo, never()).save(any());
         verify(deploymentForm, never()).allowsExternalProvider();
-        verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+        verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
@@ -314,13 +319,13 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(current));
 
         ModelProviderGovernanceView disabled = service.disableProvider(
-            "external", new ModelProviderActivationRequest("维护窗口主动停用", 5L, true));
+            "external", new ModelProviderActivationRequest(null, "维护窗口主动停用", 5L, true));
 
         assertThat(disabled.enabled()).isFalse();
         assertThat(disabled.status()).isEqualTo("HEALTHY");
         assertThat(disabled.modelVersion()).isEqualTo(current.modelVersion());
         verify(deploymentForm, never()).allowsExternalProvider();
-        verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+        verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(auditRecorder).record(
             AuditAction.UPDATE,
             "mk_llm_provider",
@@ -335,7 +340,7 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(current));
 
         ModelProviderGovernanceView disabled = service.disableProvider(
-            "external", new ModelProviderActivationRequest("确认保持停用", 5L, true));
+            "external", new ModelProviderActivationRequest(null, "确认保持停用", 5L, true));
 
         assertThat(disabled.enabled()).isFalse();
         verify(repo, never()).save(any());
@@ -348,7 +353,7 @@ class ModelProviderGovernanceServiceTest {
             .thenReturn(Optional.of(externalProvider("N", "HEALTHY", 5L)));
 
         assertConflict(() -> service.disableProvider(
-            "external", new ModelProviderActivationRequest("确认保持停用", 4L, true)));
+            "external", new ModelProviderActivationRequest(null, "确认保持停用", 4L, true)));
 
         verify(repo, never()).save(any());
     }

@@ -53,6 +53,7 @@ class ModelProviderControllerSecurityTest {
 
     private static final String ACTIVATION_BODY = """
         {
+          "capabilityCode": "rule.draft",
           "reason": "按变更单受控启停",
           "expectedVersion": 5,
           "confirmedHighRisk": true

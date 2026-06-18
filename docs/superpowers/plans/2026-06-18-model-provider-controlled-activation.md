@@ -165,7 +165,7 @@ void newProviderIsAlwaysSavedDisabledAndDoesNotConsultEvaluationGate() {
 
     assertThat(saved.enabled()).isFalse();
     assertThat(saved.status()).isEqualTo("NOT_CONNECTED");
-    verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+    verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
 }
 
 @Test
@@ -435,11 +435,12 @@ void enableRequiresHealthyCurrentVersionPassedEvaluationAndMfa() {
         .thenReturn(Optional.of(current));
     when(deploymentForm.allowsExternalProvider()).thenReturn(true);
     when(evalService.isClearedForGoLive(
-        "tenant-1", "external", current.modelVersion())).thenReturn(true);
+        "tenant-1", "external", current.modelVersion(), "rule.draft")).thenReturn(true);
 
     ModelProviderGovernanceView enabled = service.enableProvider(
         "external",
         new ModelProviderActivationRequest(
+            "rule.draft",
             "独立专家评测已签署，按 T9.8 受控启用",
             5L,
             true));
@@ -450,7 +451,7 @@ void enableRequiresHealthyCurrentVersionPassedEvaluationAndMfa() {
         AuditAction.UPDATE,
         "mk_llm_provider",
         "external",
-        "启用模型 provider external：独立专家评测已签署，按 T9.8 受控启用");
+        "启用模型 provider external（capability=rule.draft）：独立专家评测已签署，按 T9.8 受控启用");
 }
 ```
 
@@ -484,6 +485,7 @@ Expected: FAIL，原因是 activation DTO、MFA 依赖和启停方法尚不存�
 
 ```java
 public record ModelProviderActivationRequest(
+    @Size(max = 64) String capabilityCode,
     @NotBlank @Size(max = 500) String reason,
     @NotNull @PositiveOrZero Long expectedVersion,
     @NotNull Boolean confirmedHighRisk
@@ -530,6 +532,7 @@ if (current.enabled() == enabled) {
     return ModelProviderGovernanceView.from(current);
 }
 if (enabled) {
+    String capabilityCode = requireActivationCapability(request);
     if (!ProviderHealth.HEALTHY.name().equals(current.status())) {
         throw ApiException.conflict("provider 未通过当前真实健康检查，禁止启用");
     }
@@ -538,7 +541,7 @@ if (enabled) {
         throw new ApiException(ErrorCode.ENG_LLM_009);
     }
     if (!evalService.isClearedForGoLive(
-            tenantId, code, current.modelVersion())) {
+            tenantId, code, current.modelVersion(), capabilityCode)) {
         throw new ApiException(ErrorCode.ENG_LLM_008);
     }
 }

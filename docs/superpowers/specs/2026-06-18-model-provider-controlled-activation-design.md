@@ -109,13 +109,16 @@ POST /api/v1/model-providers/{providerCode}/disable
 
 ```json
 {
+  "capabilityCode": "rule.draft",
   "reason": "医学评测已由独立专家签署，按 T9.8 受控启用",
   "expectedVersion": 4,
   "confirmedHighRisk": true
 }
 ```
 
-`reason` 必填且不超过 500 字，`expectedVersion` 必填且非负，`confirmedHighRisk` 必须为 `true`。
+启用时 `capabilityCode` 必填且必须精确匹配当前 provider、模型版本、医学基准指纹和已签署评测；
+停用时该字段可为空。`reason` 必填且不超过 500 字，`expectedVersion` 必填且非负，
+`confirmedHighRisk` 必须为 `true`。
 
 ## 5. 状态机与校验顺序
 
