@@ -1,20 +1,18 @@
 {
-  "status": "INVALIDATED",
-  "stage": "REHEARSAL_READY",
-  "generatedAt": "2026-06-18T13:44:24Z",
-  "invalidatedAt": "2026-06-18T14:05:31Z",
-  "invalidation": {
-    "detectedAtTask": "Task 6",
-    "reason": "最终清库脚本缺少目标主机强制匹配护栏；部署脚本已在 c70787c906bce47dcff6b392624f22f93d206fcf 修复",
-    "supersededCandidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
-    "deploymentAllowed": false,
-    "requiredAction": "返回 Task 4 完整回归并从新候选重新执行 Task 5"
+  "status": "PASSED",
+  "stage": "RELEASE_FROZEN",
+  "generatedAt": "2026-06-18T14:17:16Z",
+  "supersedes": {
+    "candidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "reason": "历史候选的最终清库脚本缺少目标主机强制匹配护栏",
+    "invalidatedByCommit": "c70787c906bce47dcff6b392624f22f93d206fcf",
+    "deploymentAllowed": false
   },
   "source": {
     "branch": "codex/p6-independent-acceptance",
-    "commit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "commit": "95b53321c7baeb4e05e70b62834074fc59df323e",
     "originMain": "89337fcf7befcf8a0df277319b51f8e349946ecf",
-    "aheadBy": 14,
+    "aheadBy": 17,
     "pushed": false,
     "workingTreeCleanBeforeBuild": true
   },
@@ -37,14 +35,14 @@
   },
   "artifacts": {
     "localFrozenBundle": {
-      "path": "runtime/release-freeze/1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+      "path": "runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e",
       "mode": "0600",
       "manifestAlgorithm": "按文件名排序后，以 LF 拼接“sha256␠␠文件名”并在末尾追加 LF，再计算 SHA-256",
-      "manifestSha256": "ad33ddbdd0e44d0cddd656b0e6b42b5c36a65353c8514aab76cceb34ef23f92b",
+      "manifestSha256": "18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c",
       "files": [
         {
           "path": "dist.tar.gz",
-          "sha256": "1369ae6d92529e8286493ba435050ba0d7b35a5e8994092497162d393e588c37"
+          "sha256": "5b289a361ad74d29207f8fb5a82a9ddd40458e40b0edd88b946097073b633e30"
         },
         {
           "path": "medkernel-deploy.sh",
@@ -52,12 +50,12 @@
         },
         {
           "path": "medkernel-fresh-deploy.sh",
-          "sha256": "b4bff34afc94c81fbde1262d7505e148e0fc9993b7aefd0696c46d5502782287"
+          "sha256": "59335e94fac0d24dde925f7ff34955fbb365da5f3b2e35338104ff82ae3da7a5"
         },
         {
           "path": "medkernel.jar",
           "bytes": 99439621,
-          "sha256": "dac3adfb67c154604418a6785573222d17c89e8eed518dc8e693b2f082c56b5f"
+          "sha256": "ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a"
         },
         {
           "path": "medkernel.service",
@@ -68,10 +66,10 @@
     "frontendDist": {
       "fileCount": 276,
       "bytes": 13895008,
-      "manifestAlgorithm": "递归读取 frontend/dist，每个文件计算 SHA-256；按“sha256␠␠相对路径”整行排序，以 LF 拼接并在末尾追加 LF后计算清单 SHA-256",
+      "manifestAlgorithm": "递归读取 frontend/dist，每个文件计算 SHA-256；按“sha256␠␠frontend/dist/仓库相对路径”整行排序，以 LF 拼接并在末尾追加 LF 后计算清单 SHA-256",
       "manifestSha256": "26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742",
       "indexHtmlSha256": "ae10bb56333dfc4fcfded2d863128e1821c8adb5a09a2335dd74fc76facf44d8",
-      "archiveSha256": "1369ae6d92529e8286493ba435050ba0d7b35a5e8994092497162d393e588c37"
+      "archiveSha256": "5b289a361ad74d29207f8fb5a82a9ddd40458e40b0edd88b946097073b633e30"
     }
   },
   "migrationSet": {
@@ -90,7 +88,7 @@
   "configurationInputs": {
     "trackedFiles": 22,
     "manifestAlgorithm": "对下列 git 跟踪文件逐个计算 SHA-256，按“sha256␠␠相对路径”整行排序后以 LF 拼接并在末尾追加 LF",
-    "manifestSha256": "0c81cafc4000443717742d7ca77905d86ac510615d0442a083bae857ad94e0a1",
+    "manifestSha256": "2b45cb098ba9f0f15e6f6fc63575c72608713d5f65226cd876c260df11e38ba9",
     "frontendPackageLockSha256": "591c54a5ebc44067a846a3c2624202a7b50ab3a6ab071a6561574c88eb6637b8",
     "backendPomSha256": "d19ddf7f11625b1af6b642b3bfb22793999e51ce6312a378ff6dc9af215f2997",
     "paths": [
@@ -119,7 +117,7 @@
     ]
   },
   "deploymentRule": {
-    "candidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "candidateCommit": "95b53321c7baeb4e05e70b62834074fc59df323e",
     "requiredCheckout": "后续部署必须从该提交的干净 detached worktree 执行，或直接使用 localFrozenBundle 中的精确字节；不得从包含冻结证据提交在内的后续 HEAD 临时重建候选",
     "invalidatedBy": [
       "任何生产源码变化",

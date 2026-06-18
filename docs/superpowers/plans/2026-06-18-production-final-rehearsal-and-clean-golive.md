@@ -311,7 +311,7 @@ Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未�
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/release-freeze.json`
 - Modify: `docs/_HANDOFF.md`
 
-- [ ] **Step 1: 确认工作树和本地提交**
+- [x] **Step 1: 确认工作树和本地提交**
 
 Run:
 
@@ -322,7 +322,7 @@ git log -1 --format='%H'
 
 Expected: 工作树干净；所有实现和证据已本地提交；未 push。
 
-- [ ] **Step 2: 从同一 commit 构建最终制品**
+- [x] **Step 2: 从同一 commit 构建最终制品**
 
 Run:
 
@@ -333,7 +333,7 @@ cd ../frontend && npm ci && npm run build
 
 Expected: exit 0。
 
-- [ ] **Step 3: 固定哈希**
+- [x] **Step 3: 固定哈希**
 
 Run:
 
@@ -349,7 +349,7 @@ Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁�
 
 任何源码、迁移、依赖锁文件或部署脚本变化都使 `RELEASE_FROZEN` 失效，必须返回 Task 4 重新验证和 Task 5 重新构建。
 
-冻结状态：历史候选 `1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17` 曾完成同提交构建与哈希固定，但 Task 6 发现最终清库脚本缺少目标主机强制匹配；由于 `deploy/onprem/medkernel-fresh-deploy.sh` 已在 `c70787c9` 变更，该 `RELEASE_FROZEN` 按规则失效，历史冻结制品禁止部署。主机护栏修复后 Task 4 已重跑全绿；待将最新证据本地提交后，必须从新提交重新执行本 Task 的 Step 1–3。当前未部署 134。
+实际重新冻结：新候选提交为 `95b53321c7baeb4e05e70b62834074fc59df323e`，未 push；后端同提交 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。冻结 JAR SHA-256 为 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端 276 个文件的仓库相对路径清单 SHA-256 为 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言 760 个迁移文件清单 SHA-256 为 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，最新迁移 V152。五个精确制品以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`，整包清单 SHA-256 为 `18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c`。历史候选 `1603b5a7` 已在证据中明确失效且禁止部署；当前未部署 134。
 
 ### Task 6: 最终清库前安全检查
 

@@ -43,7 +43,8 @@
   - 11 类工程证据已归档至 `docs/release/evidence/p9-production-golive-20260618/01-*.json` 至 `11-*.json`；`node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`、安全边界两项均 false。该结论只允许进入候选冻结，不代表正式上线。
   - 冻结前依赖复核发现 `form-data` 生产 high 漏洞和开发工具链审计债，已以本地提交 `13b69304` 升级到安全版本并完成 Vite 6.4.3 / Vitest 3.2.6 兼容回归；前端 99 文件 / 795 tests、typecheck、eslint 零 warning、stylelint、格式、build、生产与开发依赖审计均通过，`DEFER-002` 已关闭。
   - Task 6 安全复核发现最终清库脚本缺少目标主机强制匹配；已以 TDD 在 `c70787c9` 增加 `--expected-host` 精确校验，缺失或不匹配必须在 root、停服和任何破坏性检查前退出。修复后后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests、迁移合同、部署合同、T-GATE 与两类前端依赖审计全部重跑通过。
-  - 历史候选 `1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17` 因部署脚本变更已失效，`release-freeze.json` 已标记 `INVALIDATED`；对应 `runtime/release-freeze/1603.../` 只作历史证据，禁止部署。当前状态回到 `REHEARSAL_READY`，必须在最新证据本地提交后从新候选重建精确冻结制品。
+  - Task 5 已从新候选 `95b53321c7baeb4e05e70b62834074fc59df323e` 重新达到 `RELEASE_FROZEN`，未 push；同提交后端 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端清单 SHA-256 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言迁移清单 SHA-256 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，五文件冻结包清单 SHA-256 `18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c`。
+  - 新精确候选字节以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`；历史 `1603b5a7` 候选仍明确失效、禁止部署。后续只能使用新冻结字节，不得从包含冻结证据提交在内的后续 HEAD 临时重建。
   - 134 清库前非破坏性备份已生成并通过隔离恢复：`/zoesoft/medkernel/backups/p9-final-preclear-20260618-214927`，dump SHA-256 `166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e`，恢复库 Flyway V151、207 张 public 基表且关键计数一致，临时库已删除，`destructive_action_performed=false`。
   - 当前工作机 Docker socket 不可用，V152 PostgreSQL / Oracle Testcontainers 与首发空 PostgreSQL 测试按 assumption skip；H2 已到 V152，五方言静态合同通过，134 既有 PostgreSQL 全新部署/隔离恢复证据复核通过。差额已登记 `DEFER-025`，最终 134 清库前必须关闭 PostgreSQL 空库实跑。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
@@ -153,10 +154,9 @@
 
 ## 下一步
 
-1. 先将主机护栏后的 Task 4 最新证据本地提交，再从该新候选重新执行 Task 5；不得复用已失效的 `1603b5a7` 冻结制品。
-2. 用新冻结制品完成 Task 6 负向参数预检并在 134 临时空 PostgreSQL 库关闭 `DEFER-025`；确认失败均发生在停服前。
-3. Task 7 才按“备份→隔离恢复→停服务→清数据库/旧制品/旧运行数据→最新迁移全新初始化”执行唯一一次正式清库；保持 provider 停用、P6=false，且只能部署届时的新精确冻结制品。
-4. 最终干净正式库重新生成医学评测后，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。上线后不再清库。
+1. 用 `95b53321` 的新冻结制品完成 Task 6 负向参数预检并在 134 临时空 PostgreSQL 库关闭 `DEFER-025`；确认失败均发生在停服前。
+2. Task 7 才按“备份→隔离恢复→停服务→清数据库/旧制品/旧运行数据→最新迁移全新初始化”执行唯一一次正式清库；保持 provider 停用、P6=false，且只能部署 `95b53321` 的精确冻结字节。
+3. 最终干净正式库重新生成医学评测后，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。上线后不再清库。
 
 ## 常用指针
 
