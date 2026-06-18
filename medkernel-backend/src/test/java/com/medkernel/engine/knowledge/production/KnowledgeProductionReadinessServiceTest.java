@@ -127,7 +127,7 @@ class KnowledgeProductionReadinessServiceTest {
 
     @Test
     void localModelDoesNotRequireExternalDeploymentOrEgressWhitelist() {
-        ModelProviderConfig provider = provider("ollama-local", "OLLAMA", "qwen2.5:7b");
+        ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
         when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
@@ -188,6 +188,13 @@ class KnowledgeProductionReadinessServiceTest {
         Instant now = Instant.now();
         return new ModelProviderConfig(
             1L, TENANT, code, type, "https://model.example/v1", "secret-ref",
+            modelVersion, "Y", "HEALTHY", now, "u", now, "u");
+    }
+
+    private ModelProviderConfig localProvider(String code, String modelVersion) {
+        Instant now = Instant.now();
+        return new ModelProviderConfig(
+            1L, TENANT, code, "OLLAMA", "http://127.0.0.1:11434", null,
             modelVersion, "Y", "HEALTHY", now, "u", now, "u");
     }
 

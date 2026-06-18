@@ -158,10 +158,13 @@ public class KnowledgeProductionReadinessService {
                 "模型 provider 未启用或健康状态不是 HEALTHY",
                 config.providerCode() + " status=" + config.status());
         }
-        if (blank(config.endpointUri()) || blank(config.credentialRef()) || blank(config.modelVersion())) {
+        boolean credentialMissing = providerType.external() && blank(config.credentialRef());
+        if (blank(config.endpointUri()) || credentialMissing || blank(config.modelVersion())) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "模型 provider 缺端点、凭据引用或模型版本",
+                providerType.external()
+                    ? "外部模型 provider 缺端点、凭据引用或模型版本"
+                    : "本地模型 provider 缺端点或模型版本",
                 config.providerCode());
         }
         return KnowledgeProductionReadinessItem.pass(

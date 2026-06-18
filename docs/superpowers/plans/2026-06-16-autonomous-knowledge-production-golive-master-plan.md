@@ -225,11 +225,11 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
 #### Phase 9 · 生产中心(134)上线（第一次上线 · ops+治理，非纯代码）
 > 代码无法伪造的真实外部前置——这一步 = "生产中心上线"本身。用户已明确按全新项目发布：发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不保留旧包袱，发布留痕只记录清库初始化和新版本证据。
   - [x] T9.0 清库发布准备：已在 134 完成“备份→隔离恢复验证→停服→重建空库→清旧运行物/旧备份→显式候选发布→独立验收”。数据库从空库迁移至 V148 / 206 张 public 基表，知识身份、版本、包、生产任务、候选和公域获取运行数据均为 0；两条平台用户/角色记录来自 V25/V96 clean baseline，非历史回灌。运行 `8ef5103d6227d371baed829a48f5dda9774071ce` 的 manifest、候选/运行 JAR SHA-256、HTTP/HTTPS readiness、bootstrap 未接管状态和数据库 owner 已一致留证。发布脚本同时补生产密钥独立预检，避免清库后才发现启动配置缺口；T9.7 最新本地提交重发仍单独保持未完成。
-  - [ ] T9.1 运维准备受管资料库后端（现场本地磁盘、COS/OSS/MinIO 或 HTTPS 网关）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。
-  - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 协议型/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。
+  - [x] T9.1 运维准备受管资料库后端（现场本地磁盘、COS/OSS/MinIO 或 HTTPS 网关）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。134 已采用受管本地磁盘，目录权限/服务用户写入探针、配置中心高危变更审计和 readiness 均通过。
+  - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 协议型/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。134 已完成固定版本 Ollama `0.30.9`、回环监听、受管模型目录和 `qwen2.5:0.5b` 真实生成；应用内 provider 登记、健康状态持久化、评测与启用仍待当前切片部署后完成。本地 Ollama 不使用凭据，外部 provider 才强制 `credential_ref`。
   - [ ] T9.3 质量医保治理员复核真实医学基准集 + 专家签字；**实跑一次 PASSED 医学回归评测**（覆盖启用题数）。
-  - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。
-  - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。
+  - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。部署形态已通过配置中心高危确认和审计设置为 `PRODUCTION_CENTER`；其余三项仍待完成。
+  - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。干净库核查发现当前只有查询/运行入口，缺来源登记与独立审批写入口；必须先补真实治理 API，不允许直写数据库冒充审批。
   - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。
   - [ ] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；不得从旧库回灌历史业务数据，不保留旧部署过渡路径）。
   - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。

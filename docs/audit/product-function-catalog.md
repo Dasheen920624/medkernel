@@ -492,7 +492,7 @@
 <!-- capability:controller:controller@ModelEvalController decision=KEEP -->
 | `ModelEvalController` | POST /api/v1/model-evaluations<br>POST /api/v1/model-evaluations/{runId}/sign-off<br>GET /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases:bulk-import<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:enable<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@ModelProviderController decision=KEEP -->
-| `ModelProviderController` | PUT /api/v1/model-providers/{providerCode} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelProviderController` | PUT /api/v1/model-providers/{providerCode}<br>POST /api/v1/model-providers/{providerCode}/health-check | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@MpiController decision=KEEP -->
 | `MpiController` | GET /api/v1/engine/mpi/patients<br>POST /api/v1/engine/mpi/patients<br>GET /api/v1/engine/mpi/patients/{mpiId}<br>GET /api/v1/engine/mpi/stats<br>POST /api/v1/engine/mpi/patients:merge<br>POST /api/v1/engine/mpi/patients/{sourceMpiId}:split<br>GET /api/v1/engine/mpi/merge-reviews<br>POST /api/v1/engine/mpi/merge-reviews/{reviewId}/confirm | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@OrgUnitController decision=KEEP -->

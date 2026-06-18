@@ -19,7 +19,7 @@
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 provider 适配：B1 本地（Ollama/国产化）/ B2 外部（**Claude API · OpenAI 兼容 API** 等）/ Dify 三类可插拔适配器（统一接口）；**生产侧外网可用、运行侧内网禁外部 provider**（双形态）。（`ModelProvider` 抽象+三适配器 Ollama/OpenAI兼容/Claude，HTTP 经 `ModelProviderHttpClient` 注入；`DeploymentFormService` 双形态门禁 `ENG-LLM-009`）
-- [x] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。（`ModelProviderRegistry` 健康检查）
+- [x] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。（`ModelProviderRegistry` 实时探测；`POST /api/v1/model-providers/{providerCode}/health-check` 将 `HEALTHY/NOT_CONNECTED` 持久化到唯一状态源并审计）
 - [x] FR-3 缺位降级：无 provider/断连 → 诚实 B0（[LLM-02](LLM-02.md) 矩阵），不伪造产出。（`submitTask` 缺位/断连/形态禁外部→诚实 B0）
 - [x] FR-4 真实产出：接入后产出标真实 `model_version`/置信度/来源（不再恒 B0）。（`submitTask` 过出域闸→真实产出）
 - [x] FR-5 上线门禁：provider/版本上线前过 [LLM-07](LLM-07.md) 医学回归。（`upsertProvider` 启用须过 `isClearedForGoLive` 否则 `ENG-LLM-008`）
