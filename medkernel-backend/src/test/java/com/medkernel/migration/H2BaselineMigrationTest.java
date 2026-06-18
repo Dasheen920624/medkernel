@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 151;
+    private static final int LATEST_MIGRATION_VERSION = 152;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -102,6 +102,14 @@ class H2BaselineMigrationTest {
               AND COLUMN_NAME IN ('PROMPT_VERSION', 'TOOL_VERSION', 'MODEL_VERSION', 'PROMPT_HASH', 'TOOL_HASH', 'MODEL_HASH')
             """, Integer.class);
         assertThat(modelVersionBundleColumns).as("LLM-04 版本三元组版本包列").isEqualTo(6);
+
+        Integer providerLockVersionColumns = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MK_LLM_PROVIDER'
+              AND COLUMN_NAME = 'LOCK_VERSION'
+              AND IS_NULLABLE = 'NO'
+            """, Integer.class);
+        assertThat(providerLockVersionColumns).as("模型 provider 乐观锁列").isEqualTo(1);
 
         String hash = "a".repeat(64);
         int activeBundleInserted = jdbc.update("""

@@ -199,7 +199,8 @@ class MigrationBaselineContractTest {
         "V148__knowledge_review_feedback_loop.sql",
         "V149__knowledge_acquisition_source_lock.sql",
         "V150__model_version_active_scope_unique.sql",
-        "V151__model_eval_review_evidence.sql"
+        "V151__model_eval_review_evidence.sql",
+        "V152__model_provider_lock_version.sql"
     );
 
     @Test
@@ -468,6 +469,17 @@ class MigrationBaselineContractTest {
                 .contains("'menu.model-evaluation-review'", "'MENU'",
                     "'model-evaluation-review'", "'查看医学回归复核'")
                 .contains("逐用例不可变证据", "专家复核意见");
+        }
+    }
+
+    @Test
+    void modelProviderLockVersionIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V152__model_provider_lock_version.sql");
+            assertThat(ddl)
+                .as("%s 模型 provider 配置、探活与启停必须防止并发覆盖", dialect)
+                .contains("mk_llm_provider", "lock_version", "DEFAULT 0", "NOT NULL")
+                .contains("模型 provider 治理并发版本号");
         }
     }
 

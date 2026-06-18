@@ -25,7 +25,7 @@
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderConfigRepositoryTest.java`
 - Modify: all 12 `new ModelProviderConfig(...)` call sites found by `rg -n "new ModelProviderConfig\\(" medkernel-backend/src`
 
-- [ ] **Step 1: 写迁移红测**
+- [x] **Step 1: 写迁移红测**
 
 在 `MigrationBaselineContractTest` 的权威迁移序列追加：
 
@@ -59,7 +59,7 @@ Integer lockVersionColumns = jdbc.queryForObject("""
 assertThat(lockVersionColumns).as("模型 provider 乐观锁列").isEqualTo(1);
 ```
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -70,7 +70,7 @@ mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test
 
 Expected: FAIL，原因是 V152 尚不存在且 H2 只能迁移至 V151。
 
-- [ ] **Step 3: 增加五方言迁移**
+- [x] **Step 3: 增加五方言迁移**
 
 H2/PostgreSQL/Kingbase：
 
@@ -91,7 +91,7 @@ ALTER TABLE mk_llm_provider ADD (
 COMMENT ON COLUMN mk_llm_provider.lock_version IS '模型 provider 治理并发版本号，防止配置、探活与启停相互覆盖';
 ```
 
-- [ ] **Step 4: 实体增加 `@Version`**
+- [x] **Step 4: 实体增加 `@Version`**
 
 在 `ModelProviderConfig` 导入：
 
@@ -107,7 +107,7 @@ import org.springframework.data.annotation.Version;
 
 更新全部构造调用：生产代码保存已有行时传 `current.version()`，新建传 `null`；测试夹具使用 `0L`。
 
-- [ ] **Step 5: 增加真实仓储并发测试**
+- [x] **Step 5: 增加真实仓储并发测试**
 
 在 `ModelProviderConfigRepositoryTest` 用真实 H2 仓储读取同一行两次，先保存第一份，再保存第二份陈旧快照：
 
@@ -125,7 +125,7 @@ assertThatThrownBy(() -> repository.save(copyWithStatus(stale, "NOT_CONNECTED"))
 
 同时断言第一次保存后的 `version` 大于原版本。
 
-- [ ] **Step 6: 运行迁移与 provider 现有测试**
+- [x] **Step 6: 运行迁移与 provider 现有测试**
 
 Run:
 
@@ -144,7 +144,7 @@ Expected: PASS，H2 从空库迁移至 V152。
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderGovernanceServiceTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderControllerSecurityTest.java`
 
-- [ ] **Step 1: 写配置语义红测**
+- [x] **Step 1: 写配置语义红测**
 
 把旧“PUT 可直接启用”测试替换为：
 
@@ -200,7 +200,7 @@ void existingProviderUpdateRequiresMatchingVersionAndForcesDisabled() {
 - 外部 provider 的 `credentialRef` 不匹配 `[A-Z][A-Z0-9_]{2,127}`；
 - Ollama 允许空 `credentialRef`。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -211,7 +211,7 @@ mvn -q -Dtest=ModelProviderGovernanceServiceTest test
 
 Expected: FAIL，原因是请求仍含 `enabled` 且服务仍允许 PUT 直接启用。
 
-- [ ] **Step 3: 收紧请求 DTO**
+- [x] **Step 3: 收紧请求 DTO**
 
 将请求改为：
 
@@ -235,7 +235,7 @@ public record ModelProviderUpsertRequest(
 }
 ```
 
-- [ ] **Step 4: 实现配置校验与停用保存**
+- [x] **Step 4: 实现配置校验与停用保存**
 
 `upsertProvider` 按以下结构实现：
 
@@ -302,7 +302,7 @@ if (current != null && !Objects.equals(current.version(), expectedVersion)) {
 
 捕获 `OptimisticLockingFailureException` 并转换为相同冲突。
 
-- [ ] **Step 5: 运行配置测试转绿**
+- [x] **Step 5: 运行配置测试转绿**
 
 Run:
 
@@ -322,7 +322,7 @@ Expected: PASS。
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderGovernanceServiceTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderControllerSecurityTest.java`
 
-- [ ] **Step 1: 写快照红测**
+- [x] **Step 1: 写快照红测**
 
 服务测试：
 
@@ -348,7 +348,7 @@ mockMvc.perform(get("/api/v1/model-providers/ollama-local")
     .andExpect(status().isOk());
 ```
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -359,7 +359,7 @@ mvn -q -Dtest=ModelProviderGovernanceServiceTest,ModelProviderControllerSecurity
 
 Expected: FAIL，原因是 view、service 方法与 GET 端点尚不存在。
 
-- [ ] **Step 3: 实现脱敏 view**
+- [x] **Step 3: 实现脱敏 view**
 
 ```java
 public record ModelProviderGovernanceView(
@@ -392,7 +392,7 @@ public record ModelProviderGovernanceView(
 
 `ModelProviderGovernanceService.getProvider` 按当前 tenant + provider code 精确读取，未找到返回 404。
 
-- [ ] **Step 4: 增加 GET 控制器**
+- [x] **Step 4: 增加 GET 控制器**
 
 ```java
 @GetMapping("/{providerCode}")
@@ -403,7 +403,7 @@ public ApiResult<ModelProviderGovernanceView> getProvider(
 }
 ```
 
-- [ ] **Step 5: 运行快照测试转绿**
+- [x] **Step 5: 运行快照测试转绿**
 
 Run:
 
@@ -423,7 +423,7 @@ Expected: PASS，响应 JSON 不出现 `credentialRef`。
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderGovernanceServiceTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ModelProviderControllerSecurityTest.java`
 
-- [ ] **Step 1: 写启停红测**
+- [x] **Step 1: 写启停红测**
 
 给 service 注入 `HighRiskChangeGuard`，覆盖：
 
@@ -469,7 +469,7 @@ void enableRequiresHealthyCurrentVersionPassedEvaluationAndMfa() {
 - 已停用但版本漂移仍冲突；
 - 健康检查保存时递增版本且不改启停。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -480,7 +480,7 @@ mvn -q -Dtest=ModelProviderGovernanceServiceTest test
 
 Expected: FAIL，原因是 activation DTO、MFA 依赖和启停方法尚不存在。
 
-- [ ] **Step 3: 实现 activation DTO**
+- [x] **Step 3: 实现 activation DTO**
 
 ```java
 public record ModelProviderActivationRequest(
@@ -490,7 +490,7 @@ public record ModelProviderActivationRequest(
 ) {}
 ```
 
-- [ ] **Step 4: 实现启停核心**
+- [x] **Step 4: 实现启停核心**
 
 服务构造器新增：
 
@@ -556,7 +556,7 @@ return ModelProviderGovernanceView.from(saved);
 
 `assertActivationConfirmed` 在访问仓储前拒绝未确认或空原因。
 
-- [ ] **Step 5: 增加 enable/disable 控制器**
+- [x] **Step 5: 增加 enable/disable 控制器**
 
 ```java
 @PostMapping("/{providerCode}/enable")
@@ -578,7 +578,7 @@ public ApiResult<ModelProviderGovernanceView> disableProvider(
 
 控制器测试验证临床用户 403、集成运维员 200、缺 request 字段 400。
 
-- [ ] **Step 6: 运行启停测试转绿**
+- [x] **Step 6: 运行启停测试转绿**
 
 Run:
 
@@ -598,7 +598,7 @@ Expected: PASS。
 - Modify: `docs/_HANDOFF.md`
 - Modify: `docs/superpowers/plans/2026-06-18-model-provider-controlled-activation.md`
 
-- [ ] **Step 1: 跑 provider + 迁移 + 合同目标套件**
+- [x] **Step 1: 跑 provider + 迁移 + 合同目标套件**
 
 Run:
 
@@ -609,7 +609,7 @@ mvn -q -Dtest=ModelProviderGovernanceServiceTest,ModelProviderControllerSecurity
 
 Expected: PASS；Docker 不可用时 PostgreSQL/Oracle smoke 只能按测试既有 Assumption 跳过，不得写成通过。
 
-- [ ] **Step 2: 同步产品与卡片**
+- [x] **Step 2: 同步产品与卡片**
 
 Run:
 
@@ -627,7 +627,7 @@ node scripts/audit/export-product-capabilities.mjs
 
 主计划与 `_HANDOFF.md` 记录该切片只完成安全入口，不代表 134 provider 已启用。
 
-- [ ] **Step 3: 后端全量验证**
+- [x] **Step 3: 后端全量验证**
 
 Run:
 
@@ -639,7 +639,7 @@ mvn -q -DskipTests package
 
 Expected: 全量测试 0 failures / 0 errors；H2 空库迁移至 V152；生产 JAR 构建成功。
 
-- [ ] **Step 4: T-GATE 与差异验证**
+- [x] **Step 4: T-GATE 与差异验证**
 
 Run:
 
@@ -658,7 +658,7 @@ git diff --check
 
 Expected: 全部退出 0。
 
-- [ ] **Step 5: 自审**
+- [x] **Step 5: 自审**
 
 确认：
 
@@ -670,7 +670,7 @@ Expected: 全部退出 0。
 - V152 五方言一致且中文 COMMENT 完整；
 - 134 状态未被修改。
 
-- [ ] **Step 6: 本地提交**
+- [x] **Step 6: 本地提交**
 
 ```bash
 git add medkernel-backend docs

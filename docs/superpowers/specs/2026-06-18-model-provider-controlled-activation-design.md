@@ -122,7 +122,7 @@ POST /api/v1/model-providers/{providerCode}/disable
 ### 5.1 配置
 
 1. 读取当前租户和 actor。
-2. 校验 provider code、类型、端点、模型版本和凭据引用格式。端点必须为绝对 HTTP(S) URL，禁止内嵌用户名、密码、查询串和片段；外部 provider 的凭据字段只接受环境变量键名（`[A-Z][A-Z0-9_]{2,127}`），不得接受疑似明文密钥，本地无凭据 provider 可为空。
+2. 校验 provider code、类型、端点、模型版本和凭据引用格式。端点必须为绝对 HTTP(S) URL，禁止内嵌用户名、密码、查询串和片段；B2 外部 provider 强制 HTTPS，仅 B1 Ollama 允许受控内网 HTTP；外部 provider 的凭据字段只接受环境变量键名（`[A-Z][A-Z0-9_]{2,127}`），不得接受疑似明文密钥，本地无凭据 provider 可为空。
 3. 新建时拒绝携带 `expectedVersion`；更新时要求与当前 `lock_version` 精确一致。
 4. 保存为 `enabled_flag=N`。
 5. 连接材料变化则状态为 `NOT_CONNECTED`；未变化保留当前状态。

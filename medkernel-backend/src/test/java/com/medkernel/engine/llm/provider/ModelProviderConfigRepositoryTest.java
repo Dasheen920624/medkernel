@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.provider;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -37,7 +39,7 @@ class ModelProviderConfigRepositoryTest {
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
             "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
-            now, "system", now, "system"));
+            now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndProviderCode("tenant-1", "ollama-local"))
             .isPresent()
@@ -55,16 +57,58 @@ class ModelProviderConfigRepositoryTest {
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
             "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
-            now, "system", now, "system"));
+            now, "system", now, "system", null));
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "claude-prod", "CLAUDE",
             "https://api.anthropic.com", "cred-ref-1", "claude-opus-4-8", "N", "NOT_CONNECTED",
-            now, "system", now, "system"));
+            now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndEnabledFlag("tenant-1", "Y"))
             .hasSize(1)
             .first()
             .extracting(ModelProviderConfig::providerCode)
             .isEqualTo("ollama-local");
+    }
+
+    @Test
+    void rejectsStaleProviderSnapshotWithOptimisticLock() {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        repository.save(new ModelProviderConfig(
+            null, "tenant-1", "ollama-local", "OLLAMA",
+            "http://127.0.0.1:11434", null, "qwen2.5:7b", "N", "NOT_CONNECTED",
+            now, "system", now, "system", null));
+
+        ModelProviderConfig first = repository
+            .findByTenantIdAndProviderCode("tenant-1", "ollama-local")
+            .orElseThrow();
+        ModelProviderConfig stale = repository
+            .findByTenantIdAndProviderCode("tenant-1", "ollama-local")
+            .orElseThrow();
+
+        ModelProviderConfig updated = repository.save(withStatus(first, "HEALTHY"));
+
+        assertThat(updated.version()).isGreaterThan(first.version());
+        assertThatThrownBy(() -> repository.save(withStatus(stale, "NOT_CONNECTED")))
+            .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    private static ModelProviderConfig withStatus(
+            ModelProviderConfig config,
+            String status) {
+        return new ModelProviderConfig(
+            config.id(),
+            config.tenantId(),
+            config.providerCode(),
+            config.providerType(),
+            config.endpointUri(),
+            config.credentialRef(),
+            config.modelVersion(),
+            config.enabledFlag(),
+            status,
+            config.createdAt(),
+            config.createdBy(),
+            Instant.parse("2026-06-14T00:01:00Z"),
+            "system",
+            config.version());
     }
 }

@@ -5,12 +5,12 @@
 ## 当前真相
 
 - 最新主线：`origin/main=89337fcf`，#635「收口自主知识生产与 134 上线证据」已通过 8 项 PR CI 并 squash 合并；远程功能分支已删除。
-- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；P6 设计 `ee6a76d6`、覆盖率稳定性 `3bdf7d01`、授权门 `f0af97b3`、T9.8 只读预检设计 `8e3e2c28`、计划 `fef9c55c` 与实现均已本地提交，尚未推送。
+- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；P6 授权门、T9.8 只读预检和模型 provider 受控启停切片均已本地收口，尚未推送。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不回灌、不依赖旧部署回退路径。
 - 资料库口径：受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均是正式后端；不得把任一种资料后端写成唯一选项。
-- 主计划入口：[`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
+- 当前执行清单：[`docs/superpowers/plans/2026-06-18-production-final-rehearsal-and-clean-golive.md`](superpowers/plans/2026-06-18-production-final-rehearsal-and-clean-golive.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
 
 ## 本地已完成
 
@@ -37,6 +37,7 @@
   - T9.5 本地切片已补来源治理闭环：`knowledge.write` 只保存停用草稿，专用高风险权限 `knowledge.acquisition.approve` 经 MFA 与职责分离审批/停用；任何编辑撤销旧审批。知识生产页同步提供来源清单、显式许可/robots 裁决和分权操作面。
   - 抓取边界已加固：请求前拒绝任一私网/保留 DNS 解析地址，禁止自动重定向，响应上限 32 MiB；V149 五方言增加 `lock_version`，治理写入和调度 claim 共用版本栅栏，陈旧快照不能覆盖最新决策。
 - Phase 5 已收口：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵、版本三元组、质量评测、出域最小化、候选真实化与降级路径预验。
+  - 模型 provider 治理已补独立安全入口：V152 五方言为 `mk_llm_provider` 增加 `lock_version`；配置 PUT 永远保存为停用并拒绝危险 URL/非法凭据引用，所有治理响应只返回脱敏快照。启停只改变 `enabled_flag`，要求 MFA、二次确认、原因、当前版本；启用还必须满足真实 `HEALTHY`、部署形态允许和已签署医学评测，重复启停在版本匹配时幂等、版本漂移仍冲突。该切片未部署 134、未签专家、未启用 provider、未翻 P6。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
@@ -100,6 +101,7 @@
 - 知识生产 readiness 当前 5/9：`LITERATURE_ROOT`、`DEPLOYMENT_FORM`、`REGRESSION_BASELINE`、`EGRESS_GOVERNANCE`、`MODEL_POLICY` 通过；`MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE` 因 provider 未启用/未签署而阻断，`P6_ACCEPTANCE` 尚未放行。不得在专家签署前启用 provider 或翻 P6。
 - T9.8 只读预检器已在当前 134 实跑：服务 health 与 `WHO-CHB-GUIDELINE-2024` 来源治理通过，9 闸仍为 5/9，裁决 `BLOCKED`；请求账本仅含 1 次登录 POST 与安全画像、health、readiness、来源清单 4 次 GET，业务写请求为 0，脱敏证据以 `0600` 原子写入 `/tmp/p9-t98-readiness-preflight.json`。该预检不签专家、不启用 provider、不翻 P6、不创建候选。
 - T9.8 只读预检提交前验证：10 项预检单测、24 项真实性门禁自测与 changed 扫描、B0、中文注释、产品目录、Prettier、Node 语法、`git diff --check`、TLS/HTTP 方法边界和新增脚本高置信敏感信息扫描均退出 0；新增 URL 边界拒绝内嵌凭据、查询串与片段，HTTP 非 2xx 与坏 JSON 均诚实阻断且不回显响应正文或登录凭据。
+- 模型 provider 受控启停提交前验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 重新执行并 exit 0，464 份 Surefire 报告共 2998 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V152；7 个跳过项均为显式环境假设，其中 3 个首发空 PostgreSQL 用例与 PostgreSQL/Oracle 真实迁移烟测因 Docker 不可用跳过，2 个 10 万级真实方言压测因开关未启用跳过。`mvn -q -DskipTests package` exit 0，候选 JAR SHA-256=`aa44d20ec9d030aa444f546c7af7ef5e24ba4520f84839397f8bcb4961ef6dcd`。真实性 24 项自测、配置边界 2 项自测、迁移规约 12 项自测、三项 changed 扫描、B0、中文注释、产品目录和 `git diff --check` 均 exit 0；自审确认 PUT 不含直接启用字段、治理响应不暴露 `credentialRef`、外部 provider 强制 HTTPS、无 TLS 绕过，且本切片未连接或修改 134、未签专家、未启用 provider、未翻 P6。
 - P6 独立验收授权门已完成实现、代码审查、全量验证和本地提交：通用 `system.manage` 不再足以把 P6 从 `false` 放行为 `true`，必须由已验签的内置 `SYSTEM_SUPERADMIN` authority 执行；MFA、二次确认、原因、乐观锁和审计保持不变。租户级 P6 覆盖、默认种子与直接种子均被服务层拒绝，回滚到 `true` 同样复核超管；关闭为 `false` 保留给完成 MFA 的运维作为快速失败关闭路径。非超管拒绝通过独立子事务写 `outcome=FAILED` 审计，不随业务事务回滚丢失；前端对非超管和租户覆盖均禁用伪编辑入口。该门禁不代表 P6 已放行，134 当前值仍为 `false`。
 - P6 切片最终验证：后端 464 份报告 / 2975 tests，0 failures、0 errors、7 skipped，H2 空库应用并复核 V151，生产 JAR 构建通过；前端 `npm run verify` 与 `npm run test:coverage` 均为 99 files / 795 tests，全量生产构建通过。真实性 24 项自测及 1957 文件全量扫描、B0 96 项自测、配置边界 2 项自测及 1852 文件全量扫描、迁移规约 12 项自测及 755 文件全量扫描、中文注释、产品目录和差异门禁均通过。覆盖率插桩下的诊断资产创建用例保持真实表单校验与条件等待，仅收敛两个按钮交互后连续三轮定向及全量覆盖率通过。
 - Phase 9 生产模型与证据收口验证：Ollama 定义先以缺文件红灯失败，再补受控 Modelfile 与校验脚本转绿并接入 CI；三套 on-prem 发布合同和脚本语法通过。前端 `npm run verify` 为 98 files / 788 tests 全绿；后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 为 2955 tests、0 failures、0 errors、7 skipped；真实性全量 1948 文件、配置边界全量 1844 文件、迁移规约全量 750 文件、中文注释、B0、产品目录、证据 JSON 与 `git diff --check` 均通过。
@@ -141,8 +143,8 @@
 
 ## 下一步
 
-1. 设计“专家签署后才可执行”的受控状态变更与小样本闭环，继续保持默认不执行，不改 134 的 P6 当前值、不推远程。
-2. 继续核查 T9.8 中不依赖专家签署即可提前消除的工程风险，优先补负向门禁、证据原子性和失败恢复。
+1. 按生产全流程长计划进入 Task 2，以 TDD 建立纯只读工程预演聚合器；缺后端、前端、CLI、MCP、迁移、T-GATE、清库预演、备份恢复、provider、逐例评测或只读预检任一证据时必须输出 `BLOCKED`，只能在工程条件齐备时标记 `REHEARSAL_READY`。
+2. 保持 134 两个 provider 停用、P6=false；本地切片完成不等于现场状态已改变。
 3. 真实独立医学专家仍须现场逐例复核运行 `3` 或 `4` 并签字；只有签署后，才按顺序启用对应 provider、复核 readiness 其余八项、由内置超管执行 P6 高危放行，再跑真实自主获取→候选→审核→激活小样本。
 
 ## 常用指针
