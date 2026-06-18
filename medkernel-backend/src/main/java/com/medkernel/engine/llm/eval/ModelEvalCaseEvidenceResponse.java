@@ -2,7 +2,9 @@ package com.medkernel.engine.llm.eval;
 
 import java.util.List;
 
-/** 独立专家可核查的医学回归单用例证据。 */
+/**
+ * 独立专家可核查的医学回归单用例证据。
+ */
 public record ModelEvalCaseEvidenceResponse(
     Long evidenceId,
     Long regressionCaseId,

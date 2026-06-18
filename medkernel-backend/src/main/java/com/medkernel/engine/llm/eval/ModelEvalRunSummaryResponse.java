@@ -2,7 +2,9 @@ package com.medkernel.engine.llm.eval;
 
 import java.time.Instant;
 
-/** 医学回归评测运行安全摘要，不暴露租户字段或模型凭据。 */
+/**
+ * 医学回归评测运行安全摘要，不暴露租户字段或模型凭据。
+ */
 public record ModelEvalRunSummaryResponse(
     Long runId,
     String providerCode,
