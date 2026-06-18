@@ -357,6 +357,7 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.MENU_KNOWLEDGE_GOVERNANCE)
             .doesNotContain(
                 PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE,
                 PermissionCode.MENU_ADMIN_USERS,
                 PermissionCode.ENV_EMERGENCY);
     }

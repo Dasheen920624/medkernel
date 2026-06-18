@@ -196,7 +196,8 @@ class MigrationBaselineContractTest {
         "V145__engine_data_field_encryption.sql",
         "V146__knowledge_surface_menu_split.sql",
         "V147__knowledge_candidate_explain_evidence.sql",
-        "V148__knowledge_review_feedback_loop.sql"
+        "V148__knowledge_review_feedback_loop.sql",
+        "V149__knowledge_acquisition_source_lock.sql"
     );
 
     @Test
@@ -422,6 +423,17 @@ class MigrationBaselineContractTest {
                 .contains("NONE", "CREATE_REVISION_CANDIDATE", "REQUEST_SOURCE_EVIDENCE",
                     "MARK_FALSE_POSITIVE", "ARCHIVE_REJECTED")
                 .contains("审核反馈类型", "审核后回流动作");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionSourceOptimisticLockIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V149__knowledge_acquisition_source_lock.sql");
+            assertThat(ddl)
+                .as("%s 公域来源审批必须防止并发草稿覆盖治理决定", dialect)
+                .contains("mk_knowledge_acquisition_source", "lock_version", "DEFAULT 0", "NOT NULL")
+                .contains("防止草稿更新、审批和停用相互覆盖");
         }
     }
 

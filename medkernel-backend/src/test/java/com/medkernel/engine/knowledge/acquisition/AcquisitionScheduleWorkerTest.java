@@ -45,7 +45,7 @@ class AcquisitionScheduleWorkerTest {
     void submitsDueSourcesAsTenantScopedRuntimeBatchTaskAndAdvancesSchedule() throws Exception {
         KnowledgeAcquisitionSource due = scheduledSource("tenant-A", "NHC-HTN", "https://guideline.example.org/htn.txt");
         when(repository.findDueForSchedule(any(), anyInt())).thenReturn(List.of(due));
-        when(repository.markScheduleSubmitted(any(), any(), any(), any(), any())).thenReturn(1);
+        when(repository.markScheduleSubmitted(any(), any(), any(), any(), any(), any())).thenReturn(1);
         AtomicReference<String> submittedTenant = new AtomicReference<>();
         when(tasks.submit(any())).thenAnswer(invocation -> {
             submittedTenant.set(RequestContext.currentOrgScope().tenantId());
@@ -62,6 +62,7 @@ class AcquisitionScheduleWorkerTest {
         verify(repository).markScheduleSubmitted(
             org.mockito.ArgumentMatchers.eq("tenant-A"),
             org.mockito.ArgumentMatchers.eq(11L),
+            org.mockito.ArgumentMatchers.eq(0L),
             any(Instant.class),
             any(Instant.class),
             org.mockito.ArgumentMatchers.eq("knowledge-acquisition-scheduler"));
@@ -85,7 +86,7 @@ class AcquisitionScheduleWorkerTest {
     void skipsSourceWhenAtomicScheduleClaimFails() {
         KnowledgeAcquisitionSource due = scheduledSource("tenant-A", "NHC-HTN", "https://guideline.example.org/htn.txt");
         when(repository.findDueForSchedule(any(), anyInt())).thenReturn(List.of(due));
-        when(repository.markScheduleSubmitted(any(), any(), any(), any(), any())).thenReturn(0);
+        when(repository.markScheduleSubmitted(any(), any(), any(), any(), any(), any())).thenReturn(0);
 
         AcquisitionScheduleSummary summary = worker.pollOnce();
 
@@ -139,7 +140,8 @@ class AcquisitionScheduleWorkerTest {
             Instant.EPOCH,
             "super-admin",
             Instant.EPOCH,
-            "super-admin");
+            "super-admin",
+            0L);
     }
 
     private RuntimeTaskResponse taskResponse(String taskId) {

@@ -956,6 +956,121 @@ function compactOneBasedPageParams<T extends { page?: number }>(params: T): Part
 
 const KNOWLEDGE_API_ROOT = "/engine/knowledge";
 const KNOWLEDGE_PRODUCTION_API_ROOT = "/engine/knowledge-production";
+const KNOWLEDGE_ACQUISITION_API_ROOT = "/engine/knowledge/acquisition";
+
+export interface KnowledgeAcquisitionSource {
+  id: number;
+  tenantId: string;
+  sourceCode: string;
+  domain: string;
+  baseUrl: string;
+  sourceType: string;
+  authorityLevel: string;
+  authorityBasis: string;
+  title: string;
+  publisher: string;
+  license: string;
+  licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN" | string;
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH" | string;
+  enabledFlag: "Y" | "N" | string;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  scheduleEnabledFlag: "Y" | "N" | string;
+  scheduleIntervalMinutes?: number | null;
+  nextCheckAt?: string | null;
+  lastCheckAt?: string | null;
+  defaultFormat?: string | null;
+  generationPlanJson?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+  version: number;
+}
+
+export interface KnowledgeAcquisitionSourceDraftRequest {
+  domain: string;
+  baseUrl: string;
+  sourceType: string;
+  authorityLevel: string;
+  authorityBasis: string;
+  title: string;
+  publisher: string;
+  license: string;
+  licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN";
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH";
+  scheduleEnabled: boolean;
+  scheduleIntervalMinutes?: number;
+  defaultFormat?: string;
+  generationPlan?: Record<string, unknown>;
+}
+
+export interface KnowledgeAcquisitionSourcesParams {
+  page?: number;
+  size?: number;
+}
+
+export function useKnowledgeAcquisitionSources(params: KnowledgeAcquisitionSourcesParams = {}) {
+  const requestParams = compactOneBasedPageParams({
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  });
+  return useQuery({
+    queryKey: ["knowledge-acquisition", "sources", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeAcquisitionSource> }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSaveKnowledgeAcquisitionSourceDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      sourceCode,
+      request,
+    }: {
+      sourceCode: string;
+      request: KnowledgeAcquisitionSourceDraftRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: KnowledgeAcquisitionSource }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources/${encodeURIComponent(sourceCode)}`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["knowledge-acquisition", "sources"] });
+    },
+  });
+}
+
+function useKnowledgeAcquisitionSourceStatusMutation(action: "approval" | "disable") {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeAcquisitionSource }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources/${encodeURIComponent(sourceCode)}/${action}`,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["knowledge-acquisition", "sources"] });
+    },
+  });
+}
+
+export function useApproveKnowledgeAcquisitionSource() {
+  return useKnowledgeAcquisitionSourceStatusMutation("approval");
+}
+
+export function useDisableKnowledgeAcquisitionSource() {
+  return useKnowledgeAcquisitionSourceStatusMutation("disable");
+}
 
 export type KnowledgeDomain =
   | "GUIDELINE"

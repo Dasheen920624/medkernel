@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge.acquisition;
 import java.time.Instant;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -40,7 +41,8 @@ public record KnowledgeAcquisitionSource(
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
-    @Column("updated_by") String updatedBy
+    @Column("updated_by") String updatedBy,
+    @Version @Column("lock_version") Long version
 ) {
     public boolean isEffective() {
         return "Y".equalsIgnoreCase(enabledFlag)

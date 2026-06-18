@@ -50,9 +50,11 @@ public interface KnowledgeAcquisitionSourceRepository extends ListCrudRepository
         SET last_check_at = :now,
             next_check_at = :nextCheckAt,
             updated_at = :now,
-            updated_by = :actor
+            updated_by = :actor,
+            lock_version = lock_version + 1
         WHERE tenant_id = :tenantId
           AND id = :id
+          AND lock_version = :expectedVersion
           AND schedule_enabled_flag = 'Y'
           AND enabled_flag = 'Y'
           AND approved_by IS NOT NULL
@@ -65,5 +67,6 @@ public interface KnowledgeAcquisitionSourceRepository extends ListCrudRepository
           AND base_url <> ''
           AND (next_check_at IS NULL OR next_check_at <= :now)
         """)
-    int markScheduleSubmitted(String tenantId, Long id, Instant now, Instant nextCheckAt, String actor);
+    int markScheduleSubmitted(String tenantId, Long id, Long expectedVersion,
+                              Instant now, Instant nextCheckAt, String actor);
 }

@@ -1,6 +1,7 @@
 package com.medkernel.engine.knowledge.acquisition;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.context.TestPropertySource;
 
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
@@ -49,12 +51,50 @@ class KnowledgeAcquisitionSourceRepositoryTest {
         Instant now = Instant.parse("2026-06-17T03:00:00Z");
 
         int updated = repository.markScheduleSubmitted(
-            saved.tenantId(), saved.id(), now, now.plusSeconds(3600), "knowledge-acquisition-scheduler");
+            saved.tenantId(), saved.id(), saved.version(), now, now.plusSeconds(3600),
+            "knowledge-acquisition-scheduler");
 
         assertThat(updated).isZero();
         assertThat(repository.findById(saved.id())).get()
             .extracting(KnowledgeAcquisitionSource::lastCheckAt)
             .isNull();
+    }
+
+    @Test
+    void staleGovernanceSnapshotCannotOverwriteNewerDecision() {
+        KnowledgeAcquisitionSource saved = repository.save(scheduledSource());
+        KnowledgeAcquisitionSource first = repository.findById(saved.id()).orElseThrow();
+        KnowledgeAcquisitionSource stale = repository.findById(saved.id()).orElseThrow();
+
+        repository.save(copyWithTitle(first, "先提交的治理决定"));
+
+        assertThatThrownBy(() -> repository.save(copyWithTitle(stale, "陈旧治理决定")))
+            .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    @Test
+    void scheduleClaimInvalidatesGovernanceSnapshotReadBeforeClaim() {
+        KnowledgeAcquisitionSource saved = repository.save(scheduledSource());
+        KnowledgeAcquisitionSource stale = repository.findById(saved.id()).orElseThrow();
+        Instant now = Instant.parse("2026-06-17T03:00:00Z");
+
+        int updated = repository.markScheduleSubmitted(
+            saved.tenantId(), saved.id(), saved.version(), now, now.plusSeconds(3600),
+            "knowledge-acquisition-scheduler");
+
+        assertThat(updated).isOne();
+        assertThatThrownBy(() -> repository.save(copyWithTitle(stale, "覆盖调度状态的陈旧决定")))
+            .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    private KnowledgeAcquisitionSource copyWithTitle(KnowledgeAcquisitionSource source, String title) {
+        return new KnowledgeAcquisitionSource(
+            source.id(), source.tenantId(), source.sourceCode(), source.domain(), source.baseUrl(),
+            source.sourceType(), source.authorityLevel(), source.authorityBasis(), title, source.publisher(),
+            source.license(), source.licensePolicy(), source.robotsPolicy(), source.enabledFlag(),
+            source.approvedBy(), source.approvedAt(), source.scheduleEnabledFlag(), source.scheduleIntervalMinutes(),
+            source.nextCheckAt(), source.lastCheckAt(), source.defaultFormat(), source.generationPlanJson(),
+            source.createdAt(), source.createdBy(), Instant.now(), "concurrent-editor", source.version());
     }
 
     private KnowledgeAcquisitionSource scheduledSource() {
@@ -85,6 +125,7 @@ class KnowledgeAcquisitionSourceRepositoryTest {
             approvedAt,
             "super-admin",
             approvedAt,
-            "super-admin");
+            "super-admin",
+            null);
     }
 }

@@ -100,6 +100,7 @@ public final class DefaultPermissionPolicy {
         EnumSet<PermissionCode> permissions = allNonEmergencyPermissions();
         permissions.remove(PLATFORM_PUBLISH);
         permissions.remove(SYSTEM_MANAGE);
+        permissions.remove(KNOWLEDGE_ACQUISITION_APPROVE);
         return withOnlyMenus(permissions,
             MENU_WORKBENCH,
             MENU_TENANT_ONBOARDING,

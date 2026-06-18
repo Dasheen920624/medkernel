@@ -99,6 +99,8 @@ import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
 
+import AcquisitionSourceGovernancePanel from "./AcquisitionSourceGovernancePanel";
+
 const { Text, Title } = Typography;
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
@@ -506,6 +508,10 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     security.data?.permissions.some((permission) => permission.code === "knowledge.write");
   const canWriteKnowledge =
     security.data?.permissions.some((permission) => permission.code === "knowledge.write") ?? false;
+  const canApproveAcquisitionSource =
+    security.data?.permissions.some(
+      (permission) => permission.code === "knowledge.acquisition.approve",
+    ) ?? false;
   const canPublishKnowledge =
     security.data?.permissions.some((permission) => permission.code === "knowledge.publish") ??
     false;
@@ -1466,12 +1472,19 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     </Card>
   );
   const productionPipelinePartition = <PipelineBoundaryCard title="双形态生产分区" />;
+  const productionAcquisitionGovernance = (
+    <AcquisitionSourceGovernancePanel
+      canWrite={canWriteKnowledge}
+      canApprove={canApproveAcquisitionSource}
+    />
+  );
 
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionAcquisitionGovernance}
         {productionPipelinePartition}
         <PageState state="loading" title="正在读取知识生产中心" />
       </Space>
@@ -1480,6 +1493,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionAcquisitionGovernance}
         {productionPipelinePartition}
         <PageState
           state="error"
@@ -1499,6 +1513,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionAcquisitionGovernance}
         {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Table
@@ -1608,6 +1623,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {productionWorkbench}
+        {productionAcquisitionGovernance}
         {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Space direction="vertical" size="middle" className="mk-full-width">

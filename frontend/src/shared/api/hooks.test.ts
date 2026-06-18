@@ -89,6 +89,10 @@ import {
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
   useCreateKnowledgeProductionJob,
+  useApproveKnowledgeAcquisitionSource,
+  useDisableKnowledgeAcquisitionSource,
+  useKnowledgeAcquisitionSources,
+  useSaveKnowledgeAcquisitionSourceDraft,
   useKnowledgeProductionCandidates,
   useCancelKnowledgeProductionJob,
   useKnowledgeProductionGateResults,
@@ -4061,6 +4065,82 @@ describe("knowledge review api helpers", () => {
     expect(response).toBe(cancelledJob);
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/knowledge-production/jobs/job-ai-1/cancel",
+    );
+  });
+
+  it("governs public knowledge acquisition sources through dedicated endpoints", async () => {
+    const source = {
+      id: 17,
+      tenantId: "tenant-A",
+      sourceCode: "NHC-GUIDELINE",
+      domain: "www.nhc.gov.cn",
+      baseUrl: "https://www.nhc.gov.cn/wjw/index.shtml",
+      sourceType: "GUIDELINE",
+      authorityLevel: "B_GUIDELINE",
+      authorityBasis: "国家卫生健康委官网",
+      title: "国家卫生健康委指南来源",
+      publisher: "国家卫生健康委",
+      license: "公开发布页面，逐条核验使用范围",
+      licensePolicy: "PERMITTED",
+      robotsPolicy: "ALLOW_FETCH",
+      enabledFlag: "N",
+      scheduleEnabledFlag: "N",
+      version: 0,
+    };
+    const sourcePage = {
+      items: [source],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: sourcePage } });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: source } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { ...source, enabledFlag: "Y" } } })
+      .mockResolvedValueOnce({ data: { data: source } });
+
+    const listHook = renderApiHook(() => useKnowledgeAcquisitionSources({ page: 1, size: 20 }));
+    await waitFor(() => expect(listHook.result.current.data).toBe(sourcePage));
+
+    const draftHook = renderApiHook(() => useSaveKnowledgeAcquisitionSourceDraft());
+    await draftHook.result.current.mutateAsync({
+      sourceCode: "NHC-GUIDELINE",
+      request: {
+        domain: "www.nhc.gov.cn",
+        baseUrl: "https://www.nhc.gov.cn/wjw/index.shtml",
+        sourceType: "GUIDELINE",
+        authorityLevel: "B_GUIDELINE",
+        authorityBasis: "国家卫生健康委官网",
+        title: "国家卫生健康委指南来源",
+        publisher: "国家卫生健康委",
+        license: "公开发布页面，逐条核验使用范围",
+        licensePolicy: "PERMITTED",
+        robotsPolicy: "ALLOW_FETCH",
+        scheduleEnabled: false,
+      },
+    });
+
+    const approveHook = renderApiHook(() => useApproveKnowledgeAcquisitionSource());
+    await approveHook.result.current.mutateAsync("NHC-GUIDELINE");
+    const disableHook = renderApiHook(() => useDisableKnowledgeAcquisitionSource());
+    await disableHook.result.current.mutateAsync("NHC-GUIDELINE");
+
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/acquisition/sources", {
+      params: { page: 1, size: 20 },
+    });
+    expect(apiClient.put).toHaveBeenCalledWith(
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE",
+      expect.objectContaining({ scheduleEnabled: false }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable",
     );
   });
 

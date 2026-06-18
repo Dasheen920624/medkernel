@@ -8,7 +8,7 @@
 
 - 前端路由：44 项。
 - 后端菜单：34 项。
-- 页面与页内组件：48 项。
+- 页面与页内组件：49 项。
 - 后端控制器：91 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
@@ -18,7 +18,7 @@
 |---|---:|
 | API_ONLY | 7 |
 | KEEP | 83 |
-| MERGE | 47 |
+| MERGE | 48 |
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
@@ -322,6 +322,8 @@
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
 | `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FAcquisitionSourceGovernancePanel.tsx decision=MERGE -->
+| `frontend/src/pages/quality/AcquisitionSourceGovernancePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgeMaintenance.tsx decision=MERGE -->
 | `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgePanel.tsx decision=MERGE -->
@@ -464,7 +466,7 @@
 <!-- capability:controller:controller@KnowledgeVersionController decision=KEEP -->
 | `KnowledgeVersionController` | GET /api/v1/engine/knowledge/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions<br>GET /api/v1/engine/knowledge/versions/{versionId}<br>GET /api/v1/engine/knowledge/review-queue<br>POST /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/submit<br>GET /api/v1/engine/knowledge/identities/{identityId}/versions/{versionId}/replay<br>GET /api/v1/engine/knowledge/identities/{identityId}/candidates<br>POST /api/v1/engine/knowledge/candidates/{candidateId}/review<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@AcquisitionController decision=KEEP -->
-| `AcquisitionController` | POST /api/v1/engine/knowledge/acquisition/runs<br>GET /api/v1/engine/knowledge/acquisition/sources<br>GET /api/v1/engine/knowledge/acquisition/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `AcquisitionController` | POST /api/v1/engine/knowledge/acquisition/runs<br>GET /api/v1/engine/knowledge/acquisition/sources<br>PUT /api/v1/engine/knowledge/acquisition/sources/{sourceCode}<br>POST /api/v1/engine/knowledge/acquisition/sources/{sourceCode}/approval<br>POST /api/v1/engine/knowledge/acquisition/sources/{sourceCode}/disable<br>GET /api/v1/engine/knowledge/acquisition/runs | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiagnosisKnowledgeController decision=KEEP -->
 | `DiagnosisKnowledgeController` | POST /api/v1/engine/knowledge/diagnosis/assets<br>POST /api/v1/engine/knowledge/diagnosis/identities/{identityId}/versions<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/criteria<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/differentials<br>POST /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>GET /api/v1/engine/knowledge/diagnosis/versions/{versionId}/care-pointers<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@DiagnosisAssistController decision=KEEP -->

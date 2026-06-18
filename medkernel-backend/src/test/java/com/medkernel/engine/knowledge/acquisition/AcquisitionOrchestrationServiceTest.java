@@ -114,7 +114,8 @@ class AcquisitionOrchestrationServiceTest {
             Instant.EPOCH,
             "super-admin",
             Instant.EPOCH,
-            "super-admin");
+            "super-admin",
+            0L);
     }
 
     private SourceDocument savedDocument() {

@@ -61,7 +61,8 @@ public class AcquisitionScheduleWorker {
                 continue;
             }
             Instant nextCheckAt = now.plusSeconds(source.scheduleIntervalMinutes().longValue() * 60L);
-            int updated = repository.markScheduleSubmitted(source.tenantId(), source.id(), now, nextCheckAt, ACTOR);
+            int updated = repository.markScheduleSubmitted(
+                source.tenantId(), source.id(), source.version(), now, nextCheckAt, ACTOR);
             if (updated == 0) {
                 skipped++;
                 continue;

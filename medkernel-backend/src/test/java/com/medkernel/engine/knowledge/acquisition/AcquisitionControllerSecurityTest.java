@@ -7,6 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +50,9 @@ class AcquisitionControllerSecurityTest {
     @MockBean
     private AcquisitionOrchestrationService service;
 
+    @MockBean
+    private AcquisitionSourceGovernanceService sourceGovernanceService;
+
     @AfterEach
     void clearContext() {
         RequestContext.clear();
@@ -57,6 +61,22 @@ class AcquisitionControllerSecurityTest {
     private static final String BODY = """
         {"sourceCode":"NHC-HTN","url":"https://guideline.example.org/htn.txt",
          "versionNo":"v2026","format":"STRUCTURED_TEXT"}
+        """;
+
+    private static final String SOURCE_DRAFT_BODY = """
+        {
+          "domain": "www.nhc.gov.cn",
+          "baseUrl": "https://www.nhc.gov.cn/",
+          "sourceType": "GUIDELINE",
+          "authorityLevel": "B_GUIDELINE",
+          "authorityBasis": "国家级官方来源",
+          "title": "公开指南",
+          "publisher": "国家卫生健康委",
+          "license": "公开访问，仅内部留存原件用于锚点和审计",
+          "licensePolicy": "PERMITTED",
+          "robotsPolicy": "ALLOW_FETCH",
+          "scheduleEnabled": false
+        }
         """;
 
     private static KnowledgeAcquisitionRunResponse runResponse() {
@@ -104,7 +124,8 @@ class AcquisitionControllerSecurityTest {
             Instant.EPOCH,
             "super-admin",
             Instant.EPOCH,
-            "super-admin");
+            "super-admin",
+            0L);
     }
 
     private static KnowledgeAcquisitionRun run() {
@@ -218,5 +239,53 @@ class AcquisitionControllerSecurityTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].runCode").value("acq:x"))
             .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void knowledgeGovernorCanSaveSourceDraft() throws Exception {
+        mockMvc.perform(put("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .contentType(MediaType.APPLICATION_JSON).content(SOURCE_DRAFT_BODY))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotSaveSourceDraft() throws Exception {
+        mockMvc.perform(put("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                .contentType(MediaType.APPLICATION_JSON).content(SOURCE_DRAFT_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCannotApproveOrDisableSource() throws Exception {
+        var authentication = jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                .claim("roles", List.of("knowledge-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval")
+                .with(authentication))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable")
+                .with(authentication))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void systemSuperadminCanApproveAndDisableSource() throws Exception {
+        var authentication = jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                .claim("roles", List.of("system-superadmin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval")
+                .with(authentication))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable")
+                .with(authentication))
+            .andExpect(status().isOk());
     }
 }

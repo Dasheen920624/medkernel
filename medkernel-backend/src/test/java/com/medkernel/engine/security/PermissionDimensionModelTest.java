@@ -109,6 +109,7 @@ class PermissionDimensionModelTest {
         expected.remove(PermissionCode.ENV_EMERGENCY);
         expected.remove(PermissionCode.PLATFORM_PUBLISH);
         expected.remove(PermissionCode.SYSTEM_MANAGE);
+        expected.remove(PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
         expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
@@ -143,7 +144,8 @@ class PermissionDimensionModelTest {
             .doesNotContain(
                 PermissionCode.ENV_EMERGENCY,
                 PermissionCode.PLATFORM_PUBLISH,
-                PermissionCode.SYSTEM_MANAGE);
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
     }
 
     private String invokeDimension(Method dimensionMethod, PermissionCode permission) {

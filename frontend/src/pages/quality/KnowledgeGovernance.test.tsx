@@ -36,6 +36,10 @@ const mockUseKnowledgeProductionShadowRuns = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
 const mockUseCreateKnowledgeProductionJob = vi.fn();
 const mockUseCancelKnowledgeProductionJob = vi.fn();
+const mockUseKnowledgeAcquisitionSources = vi.fn();
+const mockUseSaveKnowledgeAcquisitionSourceDraft = vi.fn();
+const mockUseApproveKnowledgeAcquisitionSource = vi.fn();
+const mockUseDisableKnowledgeAcquisitionSource = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -67,6 +71,10 @@ vi.mock("@/shared/api/hooks", () => ({
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
   useCreateKnowledgeProductionJob: () => mockUseCreateKnowledgeProductionJob(),
   useCancelKnowledgeProductionJob: () => mockUseCancelKnowledgeProductionJob(),
+  useKnowledgeAcquisitionSources: (params: unknown) => mockUseKnowledgeAcquisitionSources(params),
+  useSaveKnowledgeAcquisitionSourceDraft: () => mockUseSaveKnowledgeAcquisitionSourceDraft(),
+  useApproveKnowledgeAcquisitionSource: () => mockUseApproveKnowledgeAcquisitionSource(),
+  useDisableKnowledgeAcquisitionSource: () => mockUseDisableKnowledgeAcquisitionSource(),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -291,6 +299,10 @@ beforeEach(() => {
   mockUseCandidateCoexistence.mockReset();
   mockUseCreateKnowledgeProductionJob.mockReset();
   mockUseCancelKnowledgeProductionJob.mockReset();
+  mockUseKnowledgeAcquisitionSources.mockReset();
+  mockUseSaveKnowledgeAcquisitionSourceDraft.mockReset();
+  mockUseApproveKnowledgeAcquisitionSource.mockReset();
+  mockUseDisableKnowledgeAcquisitionSource.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
     data: assetTemplates,
@@ -454,6 +466,25 @@ beforeEach(() => {
   });
   mockUseCancelKnowledgeProductionJob.mockReturnValue({
     mutateAsync: cancelProductionJob,
+    isPending: false,
+  });
+  mockUseKnowledgeAcquisitionSources.mockReturnValue({
+    data: customizationPage(),
+    isLoading: false,
+    isError: false,
+    error: undefined,
+    refetch: vi.fn(),
+  });
+  mockUseSaveKnowledgeAcquisitionSourceDraft.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
+  mockUseApproveKnowledgeAcquisitionSource.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
+  mockUseDisableKnowledgeAcquisitionSource.mockReturnValue({
+    mutateAsync: vi.fn(),
     isPending: false,
   });
   mockUseKnowledgeCandidates.mockReturnValue({
@@ -904,7 +935,9 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeProductionTriageResults).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionShadowRuns).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseCandidateCoexistence).toHaveBeenCalledWith("kv:42:2026.06");
+    expect(mockUseKnowledgeAcquisitionSources).toHaveBeenCalledWith({ page: 1, size: 20 });
 
+    expect(screen.getByText("公域来源治理")).toBeInTheDocument();
     expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
     expect(screen.getByText("P6 独立验收未放行")).toBeInTheDocument();
     expect(screen.getByText("生产 job")).toBeInTheDocument();

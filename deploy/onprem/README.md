@@ -197,7 +197,7 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --service-unit /path/to/medkernel.service \
   --deploy-script /path/to/medkernel-deploy.sh \
   --source <40位提交哈希> \
-  --expected-flyway-version 148 \
+  --expected-flyway-version 149 \
   --confirm-fresh \
   --confirm-database medkernel
 ```

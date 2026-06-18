@@ -4,7 +4,9 @@ import jakarta.validation.Valid;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,9 +28,12 @@ import com.medkernel.shared.datascope.DataScope;
 public class AcquisitionController {
 
     private final AcquisitionOrchestrationService service;
+    private final AcquisitionSourceGovernanceService sourceGovernanceService;
 
-    public AcquisitionController(AcquisitionOrchestrationService service) {
+    public AcquisitionController(AcquisitionOrchestrationService service,
+                                 AcquisitionSourceGovernanceService sourceGovernanceService) {
         this.service = service;
+        this.sourceGovernanceService = sourceGovernanceService;
     }
 
     /** 触发一次公域资料获取：白名单门禁 → 真实抓取 → 解析入受控来源。 */
@@ -45,6 +50,29 @@ public class AcquisitionController {
             @RequestParam(required = false, defaultValue = "1") int page,
             @RequestParam(required = false, defaultValue = "20") int size) {
         return ApiResult.ok(service.listSources(page, size));
+    }
+
+    /** 登记或更新来源待审批草稿；服务层强制停用并撤销旧审批。 */
+    @PutMapping("/sources/{sourceCode}")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<KnowledgeAcquisitionSource> saveSourceDraft(
+            @PathVariable String sourceCode,
+            @Valid @RequestBody AcquisitionSourceDraftRequest request) {
+        return ApiResult.ok(sourceGovernanceService.saveDraft(sourceCode, request));
+    }
+
+    /** 经 MFA 和职责分离校验后审批并启用来源。 */
+    @PostMapping("/sources/{sourceCode}/approval")
+    @PreAuthorize("@perm.has('knowledge.acquisition.approve')")
+    public ApiResult<KnowledgeAcquisitionSource> approveSource(@PathVariable String sourceCode) {
+        return ApiResult.ok(sourceGovernanceService.approve(sourceCode));
+    }
+
+    /** 高权限停用来源及其自动调度，保留历史审批证据。 */
+    @PostMapping("/sources/{sourceCode}/disable")
+    @PreAuthorize("@perm.has('knowledge.acquisition.approve')")
+    public ApiResult<KnowledgeAcquisitionSource> disableSource(@PathVariable String sourceCode) {
+        return ApiResult.ok(sourceGovernanceService.disable(sourceCode));
     }
 
     /** 分页查询公域资料获取运行账本。 */

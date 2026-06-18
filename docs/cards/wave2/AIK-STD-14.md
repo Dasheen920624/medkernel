@@ -36,6 +36,12 @@
 - `AcquisitionScheduleScheduler` 动态读取配置中心扫描间隔；`AcquisitionScheduleWorker` 原子推进到期来源并按租户提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务，`AcquisitionRuntimeTaskHandler` 调 `runScheduled`，失败项进入 SYS-05 重试/死信证据，不另造队列。
 - DATASVC 受控工具目录新增 `fetchPublicMaterial`（D1 / `knowledge.write`）：payload 显式携带 `sourceCode`、`url`、`versionNo`、`format`、`dataLevel` 与可选 `generation`；服务层拒 D3/D4/D5，经既有 `AcquisitionOrchestrationService.run` 执行，不直连库、不绕资料库/解析/候选审核链。CLI 已接 `medkernel agent fetch-public-material '<payloadJson>'`；MCP 继续通过动态 `tools/list`/`tools/call` 暴露后端真实目录。
 
+**2026-06-18 Phase9（来源治理与抓取边界加固，本地待 134 发布）**：
+- 新增来源草稿、审批启用、停用 API。`knowledge.write` 只能保存停用草稿；`knowledge.acquisition.approve` 为专用高风险权限，审批必须通过 MFA 且审批人不能是最后编辑人。任何实质编辑都会停用来源并清除旧审批，重复审批保持幂等。
+- 知识生产页新增“公域来源治理”操作面，许可与 robots 裁决不设默认值；只读、登记、独立审批按钮按真实权限展示，加载、失败、空、正常状态均诚实呈现。
+- `RestWebContentFetcher` 禁止自动重定向、单响应上限 32 MiB；安全解析器校验全部 DNS 地址并把同一批已验证地址直接交给连接管理器，连接阶段不再二次解析。任一地址命中回环、链路本地、内网、共享地址、文档/保留地址或 IPv6 ULA 时拒绝，阻断重定向 SSRF、DNS 混合解析、校验/连接时序窗口和无界响应。
+- V149 五方言为来源表增加 `lock_version`；治理保存与调度原子 claim 共用乐观锁版本，旧快照不能覆盖审批决定或调度时间。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务规格：Agent 收到结构化任务（来源范围 + 目标资产类型 + 目标管道 + 输出 schema + 约束）；任务由 [AIK-STD-13](AIK-STD-13.md) 编排层下发。
 - [ ] FR-2 结构化候选回写（PR1 后端/CLI/MCP 已接线）：Agent 经 MCP/CLI 回写候选，必带**引用锚点**（来源片段 + 偏移，[AIK-STD-02](AIK-STD-02.md)）+ 内容 hash + AI 生成标识；不合 schema 拒收。
@@ -47,7 +53,7 @@
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - Agent 侧不新增直连 API，**复用 [DATASVC-01](DATASVC-01.md) MCP 工具**（`searchKnowledge`/`checkKnowledgeExistence`/…）读来源 + 受控回写工具 `submitProductionCandidate`（带 schema 校验、锚点必填、归属管道、幂等键）+ 受控取数工具 `fetchPublicMaterial`（只触发 allowlisted 公域资料获取）。
-- 公域取数后端入口：`POST /api/v1/engine/knowledge/acquisition/runs` 手动触发 allowlisted 公开资料获取，可选 `generation` 计划声明目标管道、领域和资产物化目标；`GET /api/v1/engine/knowledge/acquisition/sources` 与 `/runs` 查询白名单和运行账本。MCP/CLI `fetchPublicMaterial` 只经 DATASVC 受控工具调用该编排，不允许绕过解析和候选审核链。
+- 公域取数后端入口：`POST /api/v1/engine/knowledge/acquisition/runs` 手动触发 allowlisted 公开资料获取，可选 `generation` 计划声明目标管道、领域和资产物化目标；`GET /api/v1/engine/knowledge/acquisition/sources` 与 `/runs` 查询白名单和运行账本。`PUT /sources/{sourceCode}` 仅登记停用草稿；`POST /sources/{sourceCode}/approval` 与 `/disable` 使用专用 `knowledge.acquisition.approve` 权限、MFA 和职责分离治理。MCP/CLI `fetchPublicMaterial` 只经 DATASVC 受控工具调用获取编排，不允许绕过来源审批、解析和候选审核链。
 - CLI：`medkernel agent submit-candidate '<payloadJson>' --purpose 'Agent 受控回写'`，payload 为 `AgentProductionCandidatePayload` JSON；`medkernel agent fetch-public-material '<payloadJson>' --purpose 'Agent 受控获取公域资料'`，payload 为 `AgentPublicMaterialFetchPayload` JSON。
 - MCP：`tools/list` 暴露 `payload` object schema，`tools/call` 以 `{purpose,payload}` 调 `submitProductionCandidate` 或 `fetchPublicMaterial`。
 - 任务下发/回写经 [AIK-STD-13](AIK-STD-13.md) 编排层 job 接口。
@@ -59,6 +65,7 @@
 - 复用 [AIK-STD-13](AIK-STD-13.md) `knowledge_production_job` + 候选血缘（生产器=AGENT）；Agent 会话审计（调用方/工具/用途/提示词版本/输出 hash）复用 [BASE-04](../D0/BASE-04.md) + [LLM-04](LLM-04.md) 版本治理。
 - Phase4 公域取数新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`（V142 五方言），只记录公开来源白名单和获取运行账本，不成为权威知识表。
 - V143 五方言在 `mk_knowledge_acquisition_source` 上新增自动调度字段和到期索引；调度只提交 SYS-05 任务，失败补偿/死信沿用 `sys_task` / `sys_task_dead_letter`。
+- V149 五方言在 `mk_knowledge_acquisition_source` 上新增非空 `lock_version`，来源治理与调度 claim 均推进版本，阻断陈旧治理快照覆盖最新状态。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：Agent 作为生产器②接入编排层的受控协议。
@@ -79,7 +86,7 @@
 
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：Agent 收任务、经受控工具回写候选，锚点/hash/AI 标识齐全；不合 schema 拒收。
-- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。当前后端公域取数已阻断非生产中心、非白名单域、未许可/robots 不允许来源，并把手动/调度/MCP/CLI `fetchPublicMaterial` 获取结果接入候选审核链；真实生产中心的更细出域审批证据仍留 P5/P9 验证。
+- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。当前后端公域取数已阻断非生产中心、非白名单域、未许可/robots 不允许来源、私网/保留地址、自动重定向与超大响应；来源登记与 MFA 独立审批 API 已本地完成，并把手动/调度/MCP/CLI `fetchPublicMaterial` 获取结果接入候选审核链。134 真实来源审批与出域证据仍留 T9.5/T9.8 验证。
 - [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。当前前端已补进度可视和中止；纠偏、会话级 prompt/tool 版本审计与可重放仍未勾满。
 - 关联 A1–A9 剧本：A9 AI 知识审核（Agent 候选入审）。
 - T-GATE：后端真实性门禁全绿（候选真实锚点、无伪造）。
@@ -87,5 +94,5 @@
 
 ## 完工证据
 - 代码 permalink：Agent 接入协议 + 受控回写工具 + 沙箱无患者数据门禁 + 人在环审计/可重放。
-- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、`fetchPublicMaterial` D5 拒绝与 CLI/MCP 受控派发、进度可视/中止、审计可重放、关 Agent 降级；`KnowledgeGovernance.test.tsx` 覆盖前端 Agent 进度与中止。
+- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、来源草稿/职责分离/MFA/权限、DNS 与重定向 SSRF、响应上限、调度乐观锁、`fetchPublicMaterial` D5 拒绝与 CLI/MCP 受控派发、进度可视/中止、审计可重放、关 Agent 降级；`KnowledgeGovernance.test.tsx` 与 `AcquisitionSourceGovernancePanel.test.tsx` 覆盖前端生产入口和来源治理操作面。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
