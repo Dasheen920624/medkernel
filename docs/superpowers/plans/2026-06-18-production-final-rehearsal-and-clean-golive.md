@@ -120,11 +120,11 @@ Expected: 本地 commit 成功；不 push、不部署 134。
 - Modify or Create: `scripts/drill/p9-engineering-rehearsal-check.mjs`
 - Create: `scripts/drill/p9-engineering-rehearsal-check.test.mjs`
 
-- [ ] **Step 1: 写预演聚合器红测**
+- [x] **Step 1: 写预演聚合器红测**
 
 测试要求输入证据必须精确包含后端、前端、CLI、MCP、迁移、T-GATE、清库预演、备份恢复、provider、评测逐例证据和只读预检；缺一项或任一项非 `PASSED` 时输出 `BLOCKED`。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -134,7 +134,7 @@ node --test scripts/drill/p9-engineering-rehearsal-check.test.mjs
 
 Expected: FAIL，原因是聚合器尚未实现。
 
-- [ ] **Step 3: 实现纯只读聚合器**
+- [x] **Step 3: 实现纯只读聚合器**
 
 聚合器只读取显式 JSON 路径，输出：
 
@@ -151,7 +151,7 @@ Expected: FAIL，原因是聚合器尚未实现。
 
 禁止发网络请求、禁止修改 134、禁止把 `PENDING_REVIEW` 记为真人签署通过。
 
-- [ ] **Step 4: 单测转绿并执行当前证据聚合**
+- [x] **Step 4: 单测转绿并执行当前证据聚合**
 
 Run:
 
@@ -162,7 +162,7 @@ node scripts/drill/p9-engineering-rehearsal-check.mjs
 
 Expected: 单测通过；当前生产证据因真人签署未完成可以显示 `REHEARSAL_READY`，但不得显示 `LIVE_ACCEPTED`。
 
-- [ ] **Step 5: 本地提交**
+- [x] **Step 5: 本地提交**
 
 Run:
 
