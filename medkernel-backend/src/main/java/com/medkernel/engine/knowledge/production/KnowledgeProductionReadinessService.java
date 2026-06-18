@@ -16,6 +16,7 @@ import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.ModelEvalRun;
 import com.medkernel.engine.llm.eval.ModelEvalRunRepository;
+import com.medkernel.engine.llm.eval.RegressionBaselineEvidence;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ModelProviderConfig;
@@ -79,7 +80,7 @@ public class KnowledgeProductionReadinessService {
         List<MedicalRegressionCase> cases =
             regressionCaseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capability, "Y");
         items.add(regressionBaselineItem(capability, cases));
-        items.add(evaluationItem(tenantId, provider, cases));
+        items.add(evaluationItem(tenantId, capability, provider, cases));
         items.add(egressItem(tenantId, capability, provider));
         items.add(policyItem(tenantId, capability, targetProducer));
         items.add(versionTripleItem(modelStrategy, provider.orElse(null)));
@@ -188,6 +189,7 @@ public class KnowledgeProductionReadinessService {
     }
 
     private KnowledgeProductionReadinessItem evaluationItem(String tenantId,
+                                                            String capability,
                                                             Optional<ModelProviderConfig> provider,
                                                             List<MedicalRegressionCase> cases) {
         if (provider.isEmpty()) {
@@ -198,13 +200,15 @@ public class KnowledgeProductionReadinessService {
         }
         ModelProviderConfig config = provider.get();
         Optional<ModelEvalRun> run = evalRunRepository
-            .findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                tenantId, config.providerCode(), config.modelVersion(), "PASSED");
-        if (run.isEmpty() || run.get().totalCases() < 1) {
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                tenantId, config.providerCode(), config.modelVersion(), capability, "PASSED");
+        if (run.isEmpty()
+            || !capability.equals(run.get().capabilityCode())
+            || run.get().totalCases() < 1) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "provider/模型版本未找到 PASSED 医学回归评测",
-                config.providerCode() + "/" + config.modelVersion());
+                "provider/模型版本未找到当前能力的 PASSED 医学回归评测",
+                config.providerCode() + "/" + config.modelVersion() + "/" + capability);
         }
         int expectedCases = cases == null ? 0 : cases.size();
         if (expectedCases > 0 && run.get().totalCases() < expectedCases) {
@@ -212,6 +216,12 @@ public class KnowledgeProductionReadinessService {
                 "MODEL_EVALUATION",
                 "最近 PASSED 评测覆盖用例数少于当前启用基准集",
                 "passedRunCases=" + run.get().totalCases() + ", currentCases=" + expectedCases);
+        }
+        if (!RegressionBaselineEvidence.matches(run.get().caseSummaryJson(), cases)) {
+            return KnowledgeProductionReadinessItem.block(
+                "MODEL_EVALUATION",
+                "最近 PASSED 评测绑定的医学基准集已变化，必须重新评测",
+                "runId=" + run.get().id() + ", currentCases=" + expectedCases);
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_EVALUATION",

@@ -3,8 +3,8 @@ package com.medkernel.engine.knowledge.production.shadow;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +28,7 @@ public class KnowledgeShadowEvaluationService {
 
     public static final String SHADOW_GATE_CODE = "SHADOW_EVAL";
     private static final String ENABLED = "Y";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final MedicalRegressionCaseRepository caseRepository;
     private final MedicalRegressionEvaluator evaluator;
@@ -107,8 +108,8 @@ public class KnowledgeShadowEvaluationService {
         if (candidate.sources().isEmpty()) {
             return "[]";
         }
-        return candidate.sources().stream()
+        return OBJECT_MAPPER.valueToTree(candidate.sources().stream()
             .map(AssetSourceRef::sourceRef)
-            .collect(Collectors.joining(",", "[", "]"));
+            .toList()).toString();
     }
 }

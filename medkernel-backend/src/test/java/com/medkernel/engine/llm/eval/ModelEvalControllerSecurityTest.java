@@ -117,6 +117,26 @@ class ModelEvalControllerSecurityTest {
             .andExpect(status().isOk());
     }
 
+    @Test
+    void qualityGovernorCanSignOffPendingEvaluation() throws Exception {
+        mockMvc.perform(post("/api/v1/model-evaluations/9/sign-off")
+                .with(jwt().jwt(token -> token
+                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void platformGovernanceAdminCannotReplaceExpertSignOff() throws Exception {
+        mockMvc.perform(post("/api/v1/model-evaluations/9/sign-off")
+                .with(jwt().jwt(token -> token
+                    .subject("platform-admin").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("platform-governance-admin")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"))))
+            .andExpect(status().isForbidden());
+    }
+
     private static String caseBody() {
         return """
             {

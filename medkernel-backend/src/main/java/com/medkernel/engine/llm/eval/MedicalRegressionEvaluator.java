@@ -55,10 +55,11 @@ public class MedicalRegressionEvaluator {
             if (regCase.redLine()) {
                 hasRedLineCase = true;
             }
-            ProviderCompletion completion = runner.apply(regCase);
+            ProviderCompletion completion = normalizeCompletion(runner.apply(regCase));
             boolean expectedHit = completion.content() != null
                 && completion.content().contains(regCase.expectedPhrase());
-            boolean citationMissing = regCase.requiresCitation() && !hasRealCitation(completion.sourceCitations());
+            boolean citationMissing = regCase.requiresCitation()
+                && !hasRealCitation(completion, regCase.sourceReference());
 
             boolean casePassed = expectedHit && !citationMissing;
             if (casePassed) {
@@ -91,7 +92,7 @@ public class MedicalRegressionEvaluator {
         List<Map<String, Object>> summaries = new ArrayList<>();
 
         for (MedicalRegressionCase regCase : cases) {
-            ProviderCompletion completion = runner.apply(regCase);
+            ProviderCompletion completion = normalizeCompletion(runner.apply(regCase));
             CaseQuality quality = evaluateCase(regCase, completion);
             scoreTotal += quality.score();
             if (quality.terminologyScore() != null) {
@@ -143,7 +144,7 @@ public class MedicalRegressionEvaluator {
 
         if (regCase.requiresCitation()) {
             checks++;
-            if (hasRealCitation(completion.sourceCitations())) {
+            if (hasRealCitation(completion, regCase.sourceReference())) {
                 hits++;
             } else {
                 reasons.add("HALLUCINATION_MISSING_SOURCE");
@@ -189,16 +190,68 @@ public class MedicalRegressionEvaluator {
     }
 
     /**
-     * 引用真实性最小核验：要求引用的用例须带非空引用方可回溯。
+     * 引用真实性核验：要求引用的用例必须精确命中该用例登记的真实来源引用。
      *
-     * <p>当前以「缺引用」为不可回溯（造假/缺失同判 FAIL）；接入来源登记后可升级为逐条回溯核验。
+     * <p>支持单个原始引用或 JSON 字符串数组；其他来源、空值和畸形 JSON 均不可回溯。
      */
-    private boolean hasRealCitation(String sourceCitations) {
-        if (sourceCitations == null) {
+    private boolean hasRealCitation(ProviderCompletion completion, String expectedSourceReference) {
+        if (completion == null
+            || expectedSourceReference == null
+            || expectedSourceReference.isBlank()) {
+            return false;
+        }
+        String expected = expectedSourceReference.trim();
+        if (containsExactReference(completion.content(), expected)) {
+            return true;
+        }
+        String sourceCitations = completion.sourceCitations();
+        if (sourceCitations == null || sourceCitations.isBlank()) {
             return false;
         }
         String trimmed = sourceCitations.trim();
-        return !trimmed.isEmpty() && !"[]".equals(trimmed);
+        if (trimmed.equals(expected)) {
+            return true;
+        }
+        try {
+            return OBJECT_MAPPER.readValue(trimmed, STRING_LIST).stream()
+                .filter(value -> value != null)
+                .map(String::trim)
+                .anyMatch(expected::equals);
+        } catch (Exception invalidCitationJson) {
+            return false;
+        }
+    }
+
+    private boolean containsExactReference(String content, String expected) {
+        if (content == null || content.isBlank()) {
+            return false;
+        }
+        int fromIndex = 0;
+        while (fromIndex <= content.length() - expected.length()) {
+            int index = content.indexOf(expected, fromIndex);
+            if (index < 0) {
+                return false;
+            }
+            int end = index + expected.length();
+            boolean leftBoundary = index == 0 || !isReferenceCharacter(content.charAt(index - 1));
+            boolean rightBoundary = end == content.length() || !isReferenceCharacter(content.charAt(end));
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            fromIndex = index + 1;
+        }
+        return false;
+    }
+
+    private boolean isReferenceCharacter(char value) {
+        return Character.isLetterOrDigit(value)
+            || "._:/#?&=%+-".indexOf(value) >= 0;
+    }
+
+    private ProviderCompletion normalizeCompletion(ProviderCompletion completion) {
+        return completion == null
+            ? new ProviderCompletion("", null, null, "[]")
+            : completion;
     }
 
     private List<String> readStringList(String json) {

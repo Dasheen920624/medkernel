@@ -50,7 +50,7 @@ public class ModelEvalController {
      * 专家复核签字放行一条待复核（{@code PENDING_REVIEW}）评测运行（高风险换版）。
      */
     @PostMapping("/{runId}/sign-off")
-    @PreAuthorize("@perm.has('llm.eval.manage')")
+    @PreAuthorize("@perm.has('llm.eval.manage') and hasRole('QUALITY_GOVERNOR')")
     public ApiResult<ModelEvalRun> signOff(@PathVariable Long runId) {
         return ApiResult.ok(service.signOff(runId));
     }

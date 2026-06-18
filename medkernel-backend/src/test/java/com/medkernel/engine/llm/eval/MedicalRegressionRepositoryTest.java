@@ -85,7 +85,7 @@ class MedicalRegressionRepositoryTest {
     }
 
     @Test
-    void evalRunFoundByProviderVersionStatus() {
+    void evalRunFoundByProviderVersionCapabilityAndStatus() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         runRepo.save(new ModelEvalRun(null, "tenant-1", "claude-prod", "claude-opus-4-8",
             "rule.draft", "prompt:v1", "tool:v1",
@@ -98,5 +98,39 @@ class MedicalRegressionRepositoryTest {
             .get()
             .extracting(ModelEvalRun::passedCases)
             .isEqualTo(10);
+        assertThat(runRepo
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                "tenant-1", "claude-prod", "claude-opus-4-8", "rule.draft", "PASSED"))
+            .isPresent();
+        assertThat(runRepo
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                "tenant-1", "claude-prod", "claude-opus-4-8", "pathway.draft", "PASSED"))
+            .isEmpty();
+    }
+
+    @Test
+    void pendingSignOffIsAtomicAndCannotOverwriteFirstReviewer() {
+        Instant createdAt = Instant.parse("2026-06-14T00:00:00Z");
+        ModelEvalRun pending = runRepo.save(new ModelEvalRun(
+            null, "tenant-1", "ollama-local", "qwen2.5:0.5b",
+            "rule.draft", "prompt:v1", "tool:v1",
+            3, 3, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "{}",
+            null, null, createdAt, "author", createdAt, "author"));
+        Instant firstSignedAt = Instant.parse("2026-06-14T00:01:00Z");
+        Instant secondSignedAt = Instant.parse("2026-06-14T00:02:00Z");
+
+        assertThat(runRepo.signOffPending(
+            pending.id(), "tenant-1", "reviewer-1", firstSignedAt)).isEqualTo(1);
+        assertThat(runRepo.signOffPending(
+            pending.id(), "tenant-1", "reviewer-2", secondSignedAt)).isZero();
+
+        assertThat(runRepo.findById(pending.id()))
+            .isPresent()
+            .get()
+            .satisfies(run -> {
+                assertThat(run.status()).isEqualTo("PASSED");
+                assertThat(run.reviewer()).isEqualTo("reviewer-1");
+                assertThat(run.signedAt()).isEqualTo(firstSignedAt);
+            });
     }
 }

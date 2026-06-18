@@ -20,6 +20,8 @@
 - Phase 2：真实医学回归基线与 readiness。
   - 启动期从 OPT-04 ACTIVE 已审红线投影回归基线，不编医学题/答案；`mk_llm_regression_case.source_reference`、维护端点和前端 readiness 已补。
   - `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补真实基线，不绕过闸门。
+  - T9 上线核查已补严评测证据链：普通评测运行持久化真实 `capabilityCode` 与完整启用基准集 SHA-256 指纹，请求模型版本必须等于 provider 当前配置，provider 返回模型版本漂移则整次评测失败；provider 启用门和 readiness 均复核当前能力/基准指纹，其他能力或同题数旧基准的 `PASSED` 不能串线。
+  - 引用从“非空即真”改为逐用例精确匹配已登记 `sourceReference`；本地 provider 只有在正文真实输出该精确引用时才提取为证据，其他来源仍判假引用。高风险 `sign-off` 仅质量与医保治理员可执行，服务层强制签字人与评测执行人分离、签字账号已绑定 MFA，并以状态条件更新阻断并发覆盖；平台管理员不能替代专家复核。真实专家身份仍须现场提供，自动化不得冒充。
 - Phase 3：AI 工厂收口。
   - AIK-STD-05/08/09/10/11/03/07 关键后端与前端证据面已补：结构化红线、8 态分流、差异/过期任务、原子替换影响任务、知识包装配、术语候选生成入口、Agent 进度/中止和共存对照。
   - `KnowledgeVersionService.activate` 替换 ACTIVE 时落 `SUPERSEDED_REPLACEMENT` 失效证据并派医师复核、包补同步、同步告警三类任务；高危 `WITHDRAWN` 仍禁止一键回滚。
@@ -69,7 +71,7 @@
   - 国产化自检新增只读浏览器能力预检：检查 ES modules、Fetch、AbortController、URL、TextEncoder、Web Crypto、matchMedia、ResizeObserver、CSS Grid/CSS variables，报告不携带凭据、Cookie、令牌或患者数据；自动化新增“国产 Chromium 内核仿真（非现场认证）”，只验证内核能力，不把 User-Agent 当作国产浏览器认证。
   - 上线前迁移命名门禁修复：V140/V141 的 `knowledge_diff`、`expiry_task`、`aik_pack_job` 统一为 `mk_knowledge_diff`、`mk_knowledge_expiry_task`、`mk_aik_pack_job`，五方言、Java 实体、审计资源、服务/领域契约、测试和卡片同改。项目尚未部署且 P9 明确清库全新初始化，因此不增加兼容迁移或旧表回填。
   - 同类问题审计结论：知识域产品入口已拆出审核台 / 机构知识 / 诊断知识维护 / 知识生产；当前剩余是代码层 `KnowledgeGovernance.tsx` 多模式复用，可后续按组件 ownership 拆细。跨域 `/clinical/followup` 仍混有运行侧随访协同与治理侧模板治理，属于临床协同与配置治理 IA 拆分任务，不并入本次知识生产链路提交；后续应按“运行只做运行，模板治理独立归知识/配置治理”拆分。
-- Phase 9 T9.0/T9.1 已在 134 完成全新清库初始化与受管资料库配置：数据库仍为 Flyway V148 / 206 张 public 基表，未回灌历史业务数据；受管根为平台租户独立目录，部署形态为 `PRODUCTION_CENTER`。当前远端运行 `9f157dcae0b97638bfe4ef7266832b9afadb1d31`，readiness 正常。
+- Phase 9 T9.0/T9.1 已在 134 完成全新清库初始化与受管资料库配置：数据库已迁移至 Flyway V149 / 206 张 public 基表，未回灌历史业务数据；受管根为平台租户独立目录，部署形态为 `PRODUCTION_CENTER`。`bf2fa6dd351e6d369c9043040874a0d8f0e2bbcc` 已发布，发布时 HTTP/HTTPS readiness、manifest/JAR SHA 与服务零重启均通过；随后 134 直连发生超时，当前可用性必须恢复后重新确认，不能沿用旧探针冒充在线。
 - T9.2 已在 134 安装固定版本 Ollama `0.30.9`，仅回环监听并完成 `qwen2.5:0.5b` 真实推理；通过应用真实 API 登记 `ollama-qwen25-05b` 并持久化 HEALTHY，当前保持停用，须待真实医学评测、能力策略与版本三元组闭环后再启用。
 
 ## 最新验证
@@ -82,8 +84,12 @@
 - Phase 9 T9.1 已完成：134 受管本地资料根 `/zoesoft/medkernel/data/platform-knowledge/t-1/literature-materials` 为 `750 medkernel:medkernel`，服务用户真实写探针通过；配置中心已把 `medkernel.knowledge.literature.material-root-uri` 设置为对应 `file://` URI，高危确认、版本校验和审计均经真实 API 完成，readiness 的 `LITERATURE_ROOT` 已通过。
 - Phase 9 T9.2 运行时前置已完成、应用治理仍在推进：134 已固定安装 Ollama `0.30.9`，仅监听 `127.0.0.1:11434`，以独立 `ollama` 用户运行，模型目录位于 `/zoesoft/medkernel/data/ollama/models`，云功能关闭、单模型单并发；`qwen2.5:0.5b` digest=`a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67` 已通过官方 digest 校验并真实生成 `LOCAL_MODEL_READY`。应用内已通过真实 API 登记 `ollama-qwen25-05b` 并持久化 `HEALTHY`，当前保持停用；真实医学评测、能力策略、版本三元组和启用仍未完成，因此 T9.2 仍不得宣称完成。
 - Phase 9 T9.4 已完成部署形态子项：配置中心已把 `medkernel.deployment.form` 设置为 `PRODUCTION_CENTER`，高危确认和审计留痕真实完成；出域白名单、能力策略和 prompt/tool/model 版本三元组仍待后续子项。
-- Phase 9 T9.5 本地产品闭环已补齐：知识治理员只能登记停用草稿，平台治理管理员持专用高风险权限经 MFA 且与最后编辑人分离后审批启用；编辑撤销旧审批，停用关闭自动调度并保留历史证据。连接使用同一次安全 DNS 解析结果，拒绝私网/保留地址、自动重定向和超过 32 MiB 的响应；V149 乐观锁阻断治理与调度并发覆盖。该切片尚未发布到 134，也未完成真实双账号来源审批，因此 T9.5 仍保持未完成。
+- Phase 9 T9.5 产品闭环已随 `bf2fa6dd` 发布到 134：知识治理员只能登记停用草稿，平台治理管理员持专用高风险权限经 MFA 且与最后编辑人分离后审批启用；编辑撤销旧审批，停用关闭自动调度并保留历史证据。连接使用同一次安全 DNS 解析结果，拒绝私网/保留地址、自动重定向和超过 32 MiB 的响应；V149 乐观锁阻断治理与调度并发覆盖。WHO 起步源已完成官方 PDF/许可/robots 本地核验，但因 134 后续直连超时，真实双账号 API 审批尚未执行，T9.5 仍未完成。
 - Phase 9 T9.5 提交前验证：前端 `npm run verify` 退出 0（98 files / 788 tests，lint、stylelint、格式和类型检查全绿）；后端先以全量测试命中迁移烟测版本哨兵仍为 148，修正为 149 后 `mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 与 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 均退出 0（2919 tests，0 failures、0 errors、7 skipped，H2 空库迁移至 V149）。真实性全量 1944 文件、配置边界全量 1840 文件、迁移 changed 70 文件、中文注释、B0、产品目录一致性和 `git diff --check` 均退出 0。
+- Phase 9 T9.5 发布验证：`bf2fa6dd351e6d369c9043040874a0d8f0e2bbcc` 经 `mk-publish.sh --strict-host-key` 完整重建并发布；manifest source/commit 均为该全哈希，运行 JAR SHA-256=`57f9bd1c4b673977430d890514d02334225b8d699241427278a399eadf97f9e5`，服务 active、`NRestarts=0`、HTTP/HTTPS readiness 均为 `UP`，Flyway 当前/最新均为 149。
+- Phase 9 T9.3 门禁加固验证：先以失败测试复现同人自签、无 MFA、非质量治理角色签字、服务层绕过角色门禁、并发签字覆盖、普通评测不落能力码、跨能力 `PASSED` 串线、同题数基准内容变化仍复用旧结果、请求模型版本冒名、provider 返回模型版本漂移，以及任意非空/其他来源引用冒充真实引用；实现后相关定向套件退出 0。`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 全量 2939 tests，0 failures、0 errors、7 skipped；H2 空库迁移至 V149。真实性全量 1945 文件、配置边界全量 1841 文件、迁移规约全量 745 文件、中文注释、B0、产品目录一致性和 `git diff --check` 均退出 0。
+- WHO 起步源本地核验：官方 PDF `Guidelines for the prevention, diagnosis, care and treatment for people with chronic hepatitis B infection` 共 275 页，SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`；来源页标注 `CC BY-NC-SA 3.0 IGO`，`iris.who.int/robots.txt` 明确允许 `/server/api/core/bitstreams`。已渲染复核 PDF 第 34/36 页的推荐摘要，尚未把任何自动化操作者冒充医学专家。
+- 134 当前连接诊断：Clash Verge TUN 日志显示 `match IPCIDR/192.168.0.0/16` 后走 `DIRECT`，但物理接口 `en1` 到 `192.168.8.134:22` 为 `i/o timeout`；SSH 客户端与 HTTPS 均在协议握手前失败。当前 Wi-Fi 为 `192.168.5.35`，本机无免密 sudo，未擅自切换网络或停用用户代理；远端业务状态等待网络/主机恢复后重新核实。
 - Phase 8 T8.6 最终收口验证：`cd frontend && npm run verify && npm run build` 退出 0，前端 97 files / 783 tests 全绿且 lint warning=0；`npx playwright test e2e/theme-mobile-browser-compatibility.spec.ts --project=chromium --project='国产 Chromium 内核仿真（非现场认证）'` 4 tests 通过，覆盖 5 主题、elder ≥16pt、390px 无根节点横向溢出和 console error=0。`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 460 suites / 2892 tests，0 failures、0 errors、7 skipped；H2 从空库成功应用并验证 148 版迁移。`cd cli && npm test` 30 tests、`cd mcp-server && npm test` 16 tests 通过。部署合同、发布包合同、真实性全量扫描、配置清单、迁移 changed 扫描、中文 Javadoc/迁移注释、B0、产品目录导出检查和 `git diff --check` 均退出 0。
 - Phase 8 T8.6 三片验证：TDD 红灯先命中 `ServerDataTable` 整页错误/部分失败、`PageState` 部分失败、`AsyncExportAction` 导出失败、`TenantLifecyclePanel` 生命周期读取失败、`WorkbenchPanel` 部分来源失败、`AuthoringBatchDrawer` 批量 API 失败和 `getApiErrorMessage` 原始接口/连接错误直出后转绿；`cd frontend && npm test -- --run src/shared/api/errors.test.ts src/shared/api/mutation.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/ui/PageState.test.tsx src/shared/ui/AsyncExportAction.test.tsx src/shared/ui/ServerDataTable.test.tsx src/features/tenant-lifecycle/TenantLifecyclePanel.test.tsx src/widgets/WorkbenchPanel.test.tsx` 50 tests 通过；`cd frontend && npm test -- --run` 96 files / 778 tests 通过；`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 4 个嵌套三元 warning。浏览器烟测 `/workbench`、`/terminology/mapping` 和 390px `/terminology/mapping` 在无后端授权态均非空渲染医院语言“暂时无法核验权限”，UI 无原始接口/连接文本、console error=0；Vite 代理日志按预期记录本机后端未启动的 `ECONNREFUSED`，未泄露到页面。
 - Phase 8 T8.6 二片验证：`cd frontend && npm test -- --run src/shared/ui/condition/ConditionTreeEditor.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning。TDD 红灯先命中缺少“条件根组 · 第 1 层 / 具体条件 / 新增具体条件”和旧 `专家模式` 开关名后转绿；浏览器烟测 `/rule/definitions` 与 `/pathway/templates` 在桌面与 390px 窄屏无后端授权态均非空渲染“暂时无法核验权限”，console error=0。
@@ -116,7 +122,7 @@
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
-- 不得宣称 134 已部署当前本地最新提交：远端当前为 `9f157dca`，V149 来源治理/SSRF/前端操作面仍在本地未提交切片；T9.2–T9.8 现场前置也尚未闭环。
+- 不得宣称 134 已部署当前本地最新提交：远端最后确认发布的是 `bf2fa6dd`；当前本地新增评测能力隔离、基准指纹、精确来源引用、模型版本绑定和独立 MFA 签字加固尚未发布。134 经 Clash TUN 直连日志确认 `DIRECT ... 192.168.8.134:22 i/o timeout`，SSH/HTTPS 都未抵达协议握手，恢复后必须重新探针、重发最新全哈希并复核 manifest。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
@@ -124,7 +130,7 @@
 
 1. 从当前本地全哈希增量发布到 134，确认 manifest/JAR 哈希、readiness 与 Flyway V149 一致；继续不 push、不建远程 PR。
 2. 通过真实 API 创建知识治理员账号，以不同账号完成 allowlist 起步集草稿登记、MFA 独立审批与停用负向验证；不得直写数据库。
-3. 继续 T9.3–T9.6 真实医学评测、能力策略、版本三元组和 P6 独立验收；按 T9.7 最终全哈希重发。T9.8 必须以真实 readiness 9 闸和一条自主获取→候选→审核→激活小样本闭环留证，之后才统一远程 PR 合并 `main`。
+3. 当前评测门禁加固已完成全量测试/T-GATE；134 恢复后按最新本地全哈希重发，再执行 WHO 双账号来源审批、来源化真实医学评测、能力策略、版本三元组和 P6 独立验收。T9.8 必须以真实 readiness 9 闸和一条自主获取→候选→审核→激活小样本闭环留证，之后才统一远程 PR 合并 `main`。
 
 ## 常用指针
 

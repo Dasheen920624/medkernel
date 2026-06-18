@@ -60,6 +60,26 @@ class MedicalRegressionEvaluatorTest {
     }
 
     @Test
+    void requiredCitationFromDifferentSourceFailsAsFakeCitation() {
+        var verdict = evaluator.evaluate(
+            List.of(regCase("阿司匹林", null, true)),
+            answer("候选含阿司匹林建议", "source-version:999"));
+
+        assertThat(verdict.status()).isEqualTo("FAILED");
+        assertThat(verdict.fakeCitationDetected()).isTrue();
+    }
+
+    @Test
+    void requiredCitationMatchingRegisteredSourcePasses() {
+        var verdict = evaluator.evaluate(
+            List.of(regCase("阿司匹林", null, true)),
+            answer("候选含阿司匹林建议", "[\"source-version:1\"]"));
+
+        assertThat(verdict.status()).isEqualTo("PASSED");
+        assertThat(verdict.fakeCitationDetected()).isFalse();
+    }
+
+    @Test
     void redLineCaseFailing_marksRedLineBreach() {
         // 红线用例期望安全回避结论；产出未命中=越红线
         var verdict = evaluator.evaluate(

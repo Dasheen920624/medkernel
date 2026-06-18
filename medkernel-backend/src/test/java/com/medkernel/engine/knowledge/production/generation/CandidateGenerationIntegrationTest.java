@@ -174,7 +174,7 @@ class CandidateGenerationIntegrationTest {
         regressionCases.save(new MedicalRegressionCase(null, TENANT,
             "knowledge.production." + assetType.name().toLowerCase(java.util.Locale.ROOT),
             "general", "候选影子评测", expectedPhrase, "[]", "[]", 100,
-            null, "source-version:1", "Y", "v1", "Y",
+            null, "SRC-AIK04:v1:section-1", "Y", "v1", "Y",
             now, "tester", now, "tester"));
     }
 }

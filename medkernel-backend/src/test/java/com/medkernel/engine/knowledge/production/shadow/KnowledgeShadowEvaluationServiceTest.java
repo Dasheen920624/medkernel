@@ -112,6 +112,20 @@ class KnowledgeShadowEvaluationServiceTest {
         assertThat(saved.basis()).contains("未达标");
     }
 
+    @Test
+    void citationFromDifferentSourceCannotPassShadowEvaluation() {
+        when(cases.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+            "tenant-a", "knowledge.production.rule", "Y")).thenReturn(List.of(
+            regressionCase("knowledge.production.rule", "血压≥140/90", null, "Y", "OTHER:v1:section-9")));
+
+        KnowledgeShadowDecision decision = service.evaluate(candidate("血压≥140/90 诊断高血压。"),
+            new KnowledgeShadowContext("tenant-a", "job-1", 10L, VersionedAssetType.RULE));
+
+        assertThat(decision.readyForReview()).isFalse();
+        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.FAILED);
+        assertThat(savedRun().basis()).contains("假引用=true");
+    }
+
     private KnowledgeShadowRun savedRun() {
         ArgumentCaptor<KnowledgeShadowRun> captor = ArgumentCaptor.forClass(KnowledgeShadowRun.class);
         org.mockito.Mockito.verify(runs).save(captor.capture());
@@ -129,8 +143,14 @@ class KnowledgeShadowEvaluationServiceTest {
 
     private MedicalRegressionCase regressionCase(String capabilityCode, String expected,
                                                  String redLineType, String citationRequired) {
+        return regressionCase(capabilityCode, expected, redLineType, citationRequired, "SRC:v1:section-1");
+    }
+
+    private MedicalRegressionCase regressionCase(String capabilityCode, String expected,
+                                                 String redLineType, String citationRequired,
+                                                 String sourceReference) {
         return new MedicalRegressionCase(null, "tenant-a", capabilityCode, "general", "输入", expected,
-            "[]", "[]", 100, redLineType, "source-version:1", citationRequired, "v1", "Y",
+            "[]", "[]", 100, redLineType, sourceReference, citationRequired, "v1", "Y",
             Instant.EPOCH, "seed", Instant.EPOCH, "seed");
     }
 }

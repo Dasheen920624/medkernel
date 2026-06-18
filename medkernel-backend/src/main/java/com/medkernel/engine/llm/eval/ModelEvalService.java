@@ -3,6 +3,7 @@ package com.medkernel.engine.llm.eval;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -12,10 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
 import com.medkernel.engine.llm.provider.ProviderRequest;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -28,46 +32,68 @@ import com.medkernel.shared.context.RequestContext;
 @Service
 public class ModelEvalService {
 
+    private static final String SIGN_OFF_RESOURCE_TYPE = "model_eval_sign_off";
+
     private final MedicalRegressionCaseRepository caseRepo;
     private final ModelEvalRunRepository runRepo;
     private final MedicalRegressionEvaluator evaluator;
     private final ModelProviderRegistry registry;
     private final AuditRecorder auditRecorder;
+    private final HighRiskChangeGuard highRiskChangeGuard;
 
     public ModelEvalService(MedicalRegressionCaseRepository caseRepo,
                             ModelEvalRunRepository runRepo,
                             MedicalRegressionEvaluator evaluator,
                             ModelProviderRegistry registry,
-                            AuditRecorder auditRecorder) {
+                            AuditRecorder auditRecorder,
+                            HighRiskChangeGuard highRiskChangeGuard) {
         this.caseRepo = caseRepo;
         this.runRepo = runRepo;
         this.evaluator = evaluator;
         this.registry = registry;
         this.auditRecorder = auditRecorder;
+        this.highRiskChangeGuard = highRiskChangeGuard;
     }
 
     @Transactional
     public ModelEvalRun runEvaluation(String providerCode, String modelVersion, String capabilityCode) {
         String tenantId = requireCurrentTenant();
+        String normalizedProviderCode = requireText(providerCode, "provider_code");
+        String normalizedModelVersion = requireText(modelVersion, "model_version");
+        String normalizedCapabilityCode = requireText(capabilityCode, "capability_code");
         List<MedicalRegressionCase> cases =
-            caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capabilityCode, "Y");
+            caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, normalizedCapabilityCode, "Y");
         if (cases.isEmpty()) {
             // 无医学基准集不得自动认证（铁律 #1/#3），如实记 FAILED。
-            return persist(tenantId, providerCode, modelVersion,
+            return persist(tenantId, normalizedProviderCode, normalizedModelVersion, normalizedCapabilityCode, cases,
                 new MedicalRegressionEvaluator.EvalVerdict(0, 0, 0, false, false, "FAILED"));
         }
 
-        var resolved = registry.resolveByCode(tenantId, providerCode);
+        var resolved = registry.resolveByCode(tenantId, normalizedProviderCode);
         if (resolved.isEmpty()) {
-            return persist(tenantId, providerCode, modelVersion,
+            return persist(tenantId, normalizedProviderCode, normalizedModelVersion, normalizedCapabilityCode, cases,
                 new MedicalRegressionEvaluator.EvalVerdict(cases.size(), 0, cases.size(), false, false, "FAILED"));
         }
         var provider = resolved.get();
+        String configuredModelVersion = requireText(provider.config().modelVersion(), "provider.model_version");
+        if (!normalizedModelVersion.equals(configuredModelVersion)) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "评测模型版本与 provider 当前配置不一致");
+        }
 
         MedicalRegressionEvaluator.EvalVerdict verdict = evaluator.evaluate(cases,
-            regCase -> provider.adapter().complete(provider.config(),
-                new ProviderRequest(regCase.capabilityCode(), regCase.caseInput(), 60_000)));
-        return persist(tenantId, providerCode, modelVersion, verdict);
+            regCase -> requireEvaluatedModelVersion(
+                provider.adapter().complete(provider.config(),
+                    new ProviderRequest(regCase.capabilityCode(), regCase.caseInput(), 60_000)),
+                normalizedModelVersion));
+        return persist(
+            tenantId,
+            normalizedProviderCode,
+            normalizedModelVersion,
+            normalizedCapabilityCode,
+            cases,
+            verdict);
     }
 
     @Transactional
@@ -95,6 +121,9 @@ public class ModelEvalService {
     @Transactional
     public ModelEvalRun signOff(Long runId) {
         String tenantId = requireCurrentTenant();
+        if (!AuthenticatedRoleGuard.has(RoleCode.QUALITY_GOVERNOR)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "仅质量治理员可执行专家复核签字");
+        }
         ModelEvalRun run = runRepo.findById(runId)
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "评测运行不存在: " + runId));
         if (!tenantId.equals(run.tenantId())) {
@@ -104,16 +133,24 @@ public class ModelEvalService {
             throw new ApiException(ErrorCode.ENG_LLM_008,
                 "仅待复核（PENDING_REVIEW）评测可签字放行，当前状态: " + run.status());
         }
-        Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
-        ModelEvalRun signed = runRepo.save(new ModelEvalRun(
+        if (actor.equals(run.createdBy())) {
+            throw ApiException.conflict("专家签字人与评测执行人必须分离");
+        }
+        highRiskChangeGuard.assertHighRiskAllowed(SIGN_OFF_RESOURCE_TYPE, String.valueOf(runId));
+        Instant now = Instant.now();
+        int updated = runRepo.signOffPending(runId, tenantId, actor, now);
+        if (updated != 1) {
+            throw ApiException.conflict("评测复核状态已被其他请求处理，请刷新后重试");
+        }
+        ModelEvalRun signed = new ModelEvalRun(
             run.id(), run.tenantId(), run.providerCode(), run.modelVersion(),
             run.capabilityCode(), run.promptVersion(), run.toolVersion(),
             run.totalCases(), run.passedCases(), run.failedCases(),
             run.qualityScore(), run.terminologyScore(),
             run.fakeCitationDetected(), run.redLineBreach(), run.hallucinationDetected(),
             "PASSED", run.caseSummaryJson(),
-            actor, now, run.createdAt(), run.createdBy(), now, actor));
+            actor, now, run.createdAt(), run.createdBy(), now, actor);
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_eval_run", String.valueOf(runId),
             "专家复核签字放行评测 " + run.providerCode() + "/" + run.modelVersion());
         return signed;
@@ -121,8 +158,27 @@ public class ModelEvalService {
 
     @Transactional(readOnly = true)
     public boolean isClearedForGoLive(String tenantId, String providerCode, String modelVersion) {
-        return runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-            tenantId, providerCode, modelVersion, "PASSED").isPresent();
+        Optional<ModelEvalRun> run = runRepo
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
+                tenantId, providerCode, modelVersion, "PASSED");
+        if (run.isEmpty() || run.get().capabilityCode() == null || run.get().capabilityCode().isBlank()) {
+            return false;
+        }
+        List<MedicalRegressionCase> currentCases = caseRepo
+            .findByTenantIdAndCapabilityCodeAndEnabledFlag(
+                tenantId, run.get().capabilityCode(), "Y");
+        if (currentCases.isEmpty()
+            || run.get().totalCases() != currentCases.size()
+            || run.get().passedCases() != currentCases.size()
+            || run.get().failedCases() != 0
+            || !RegressionBaselineEvidence.matches(run.get().caseSummaryJson(), currentCases)) {
+            return false;
+        }
+        boolean requiresExpertSignOff = currentCases.stream().anyMatch(MedicalRegressionCase::redLine);
+        return !requiresExpertSignOff
+            || (run.get().reviewer() != null
+                && !run.get().reviewer().isBlank()
+                && run.get().signedAt() != null);
     }
 
     @Transactional(readOnly = true)
@@ -140,17 +196,28 @@ public class ModelEvalService {
     }
 
     private ModelEvalRun persist(String tenantId, String providerCode, String modelVersion,
+                                 String capabilityCode,
+                                 List<MedicalRegressionCase> cases,
                                  MedicalRegressionEvaluator.EvalVerdict verdict) {
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         ModelEvalRun saved = runRepo.save(new ModelEvalRun(
-            null, tenantId, providerCode, modelVersion, null, null, null,
+            null, tenantId, providerCode, modelVersion, capabilityCode, null, null,
             verdict.total(), verdict.passed(), verdict.failed(),
             null, null, verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
-            "N", verdict.status(), "[]", null, null, now, actor, now, actor));
+            "N", verdict.status(), RegressionBaselineEvidence.toJson(cases),
+            null, null, now, actor, now, actor));
         auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", providerCode + "/" + modelVersion,
             "运行医学回归评测 " + providerCode + "/" + modelVersion + " -> " + verdict.status());
         return saved;
+    }
+
+    private ProviderCompletion requireEvaluatedModelVersion(ProviderCompletion completion,
+                                                              String expectedModelVersion) {
+        if (completion == null || !expectedModelVersion.equals(completion.modelVersion())) {
+            return new ProviderCompletion("", null, null, "[]");
+        }
+        return completion;
     }
 
     private ModelEvalRun persistQuality(
