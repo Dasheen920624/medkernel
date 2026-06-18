@@ -439,9 +439,11 @@ Expected: 知识生产任务、候选、评测运行、签署、获取运行和�
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/formal-pre-signoff/`
 - Modify: `docs/_HANDOFF.md`
 
-- [ ] **Step 1: 完成首发管理员接管与 MFA**
+- [x] **Step 1: 完成首发管理员接管与 MFA**
 
 使用正式受控账号完成首次接管、强制改密、MFA 绑定和独立重登录；凭据不写入仓库或证据。
+
+实际结果：`2026-06-18T22:56:57+08:00` 在 134 使用现场随机强口令完成 `platform-owner` 首发接管、强制改密、TOTP MFA 绑定、全新 Cookie 会话独立重登录和 MFA 再验证；`security/me` 确认唯一 `system-superadmin` 角色、`mustChangePwd=false`、`mfaRequired=true`、`mfaBound=true`。凭据仅保存在 134 的 `0600 root:root` 受控文件中，未写入仓库、证据或命令输出；一次性 token 文件与环境键均已销毁。接管前后服务 MainPID 不变、`NRestarts=0`、readiness 200，Provider 行仍为 0、P6=false、备份仍仅 1 份，未触发专家签署。
 
 - [ ] **Step 2: 配置正式运行前置**
 
