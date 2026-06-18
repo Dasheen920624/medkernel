@@ -445,11 +445,13 @@ Expected: 知识生产任务、候选、评测运行、签署、获取运行和�
 
 实际结果：`2026-06-18T22:56:57+08:00` 在 134 使用现场随机强口令完成 `platform-owner` 首发接管、强制改密、TOTP MFA 绑定、全新 Cookie 会话独立重登录和 MFA 再验证；`security/me` 确认唯一 `system-superadmin` 角色、`mustChangePwd=false`、`mfaRequired=true`、`mfaBound=true`。凭据仅保存在 134 的 `0600 root:root` 受控文件中，未写入仓库、证据或命令输出；一次性 token 文件与环境键均已销毁。接管前后服务 MainPID 不变、`NRestarts=0`、readiness 200，Provider 行仍为 0、P6=false、备份仍仅 1 份，未触发专家签署。
 
-- [ ] **Step 2: 配置正式运行前置**
+- [x] **Step 2: 配置正式运行前置**
 
 配置受管资料库、`PRODUCTION_CENTER`、受控来源、provider、出域策略、能力策略和 prompt/tool/model 版本三元组。
 
 Expected: provider 仅 HEALTHY 但保持停用；P6=false。
+
+实际结果：`2026-06-18T23:31:11+08:00` 已完成 `SYSTEM` 作用域受管资料根（配置版本 2、目录 `0750 medkernel:medkernel`、服务用户写探针通过并删除）和 `PRODUCTION_CENTER`（版本 2）；独立来源治理员 `knowledge-source-steward` 已强制改密、绑定 MFA 并独立重登录，安全画像仅具 `knowledge.write`、不具 `knowledge.acquisition.approve`。治理员登记 WHO 2024 慢性乙肝指南来源，`platform-owner` 独立审批，许可为 `CC BY-NC-SA 3.0 IGO`、robots=`ALLOW_FETCH`、调度关闭。两个 Provider 均为 `HEALTHY` 且停用：外部 `external-mimo-v25/mimo-v2.5`、本地 `ollama-qwen25-15b/medkernel-qwen25:1.5b-v1`；外部 HTTPS、受控凭据环境映射、`rule.draft` 出域白名单/MASK_ALL/高风险护栏、租户能力策略和 ACTIVE prompt/tool/model 三元组均复核一致。当前 readiness 为 4/9，Provider 启用、正式基准、正式评测、版本联动和 P6 按顺序保持关闭，P6=false、评测用例/运行均为 0、服务 `MainPID=595415` / `NRestarts=0`、备份仅 1 份。配置过程中发现并纠正角色响应字段、配置版本列和 Bash 全局 `MODEL` 变量污染；外部 Provider 的临时错配发生在两个 Provider 均停用且零模型调用期间，更正后重新健康检查并与 ACTIVE bundle 精确匹配。WHO 全量 PDF 本次下载在 `1826792/3515427` bytes 超时且临时文件已删除，未伪造当前 SHA 通过；Step 3 正式评测前必须续传完成并重新核验历史期望 SHA-256 `e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`。
 
 - [ ] **Step 3: 运行正式医学评测**
 

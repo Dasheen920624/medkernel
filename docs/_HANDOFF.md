@@ -109,8 +109,8 @@
 - V151 医学回归逐例复核闭环、旧 134 发布证据与全仓修复已通过 #635 合入 `main=89337fcf`；其 `09306b...` manifest、旧 JAR 与 V151 运行事实已被最终清库部署取代，只作历史证据。
 - V151 发布后已分别重跑固定本地模型和用户提供的外网模型：运行 `3`、`4` 均为 1/1、`PENDING_REVIEW`，各有 1 条逐例不可变证据，`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`；来源精确核验、期望命中、无红线突破。两个 provider 均保持 HEALTHY、停用，未自动上线、未代签。
 - WHO 起步源、医学基准与运行 `3`、`4` 曾进入旧 134 治理链，但已随最终清库归零；不得复用旧运行签署，必须在干净正式库重建来源、基准和评测，且仍禁止自动化冒充医学专家。
-- 134 权威目标为公网 `193.112.107.134`。当前远端 manifest source/commit 为 `95b53321c7baeb4e05e70b62834074fc59df323e`，JAR SHA-256=`ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，Flyway V152、服务 active/enabled 且 `NRestarts=0`，内部/HTTPS/公网 readiness 均为 200；bootstrap 已由受控 `system-superadmin` 完成接管，正式运行前置配置尚未重建。
-- 清库前知识生产 readiness 5/9 与 T9.8 `BLOCKED` 只读预检均为历史证据；当前 clean baseline 已完成管理员接管，尚未完成资料库、来源、Provider、评测、版本三元组和策略重建，P6=false。不得在专家签署前启用 Provider 或翻 P6。
+- 134 权威目标为公网 `193.112.107.134`。当前远端 manifest source/commit 为 `95b53321c7baeb4e05e70b62834074fc59df323e`，JAR SHA-256=`ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，Flyway V152、服务 active/enabled，`MainPID=595415`、`NRestarts=0`，内部/HTTPS/公网 readiness 均为 200；bootstrap 已由受控 `system-superadmin` 完成接管，正式运行前置配置已重建。
+- Task 8 Step 2 已完成：`SYSTEM` 作用域受管资料根和 `PRODUCTION_CENTER` 均为配置版本 2；独立来源治理员 `knowledge-source-steward` 已完成改密/MFA/独立重登录，具 `knowledge.write` 且不具来源审批权限。其登记的 `WHO-CHB-GUIDELINE-2024` 已由 `platform-owner` 独立审批；两个正式 Provider 均为 `HEALTHY` 且停用，外部型号与 ACTIVE 版本三元组精确为 `mimo-v2.5`，出域/能力策略已重建。当前 clean baseline readiness 为 4/9，仅通过资料根、部署形态、出域治理和能力策略；正式基准/评测仍为 0，Provider 启用、版本联动和 P6 按序保持关闭，P6=false。WHO PDF 当前全量重下载在 `1826792/3515427` bytes 超时且未保留残片，Step 3 前必须续传完成并重新核验 SHA；不得复用历史 SHA 冒充本次通过。
 - T9.8 只读预检提交前验证：10 项预检单测、24 项真实性门禁自测与 changed 扫描、B0、中文注释、产品目录、Prettier、Node 语法、`git diff --check`、TLS/HTTP 方法边界和新增脚本高置信敏感信息扫描均退出 0；新增 URL 边界拒绝内嵌凭据、查询串与片段，HTTP 非 2xx 与坏 JSON 均诚实阻断且不回显响应正文或登录凭据。
 - 模型 provider 受控启停提交前验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 重新执行并 exit 0，464 份 Surefire 报告共 2998 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V152；7 个跳过项均为显式环境假设，其中 3 个首发空 PostgreSQL 用例与 PostgreSQL/Oracle 真实迁移烟测因 Docker 不可用跳过，2 个 10 万级真实方言压测因开关未启用跳过。`mvn -q -DskipTests package` exit 0，候选 JAR SHA-256=`aa44d20ec9d030aa444f546c7af7ef5e24ba4520f84839397f8bcb4961ef6dcd`。真实性 24 项自测、配置边界 2 项自测、迁移规约 12 项自测、三项 changed 扫描、B0、中文注释、产品目录和 `git diff --check` 均 exit 0；自审确认 PUT 不含直接启用字段、治理响应不暴露 `credentialRef`、外部 provider 强制 HTTPS、无 TLS 绕过，且本切片未连接或修改 134、未签专家、未启用 provider、未翻 P6。
 - 正式放行状态机已在隔离 H2 以跨服务集成测试锁定：`PENDING_REVIEW`、能力不匹配、基准漂移、版本漂移均 fail-closed；真实持久化逐例证据由独立 `QUALITY_GOVERNOR` 签署后，仅精确匹配 tenant、provider、modelVersion、capability 与当前基准指纹的启用请求可通过；P6=false 时严格为 8/9，仅内置 `SYSTEM_SUPERADMIN` 可放行为 9/9。TDD 红灯确认旧启用合同缺少 `capabilityCode` 且评测门会错误复用其他能力的签署结果，现已改为能力级精确查询。目标集成与相关单测、安全测试均通过；后端全量 `clean test` 为 465 份报告 / 2999 tests、0 failures、0 errors、7 skipped，生产 JAR SHA-256=`7f2c04cbd2910c17dd33c8b9dfe2459fc30172ad6bfc5cc15b14a3aa8b8bde19`，38 项守卫自测、三项 changed 扫描、中文注释、B0、产品目录与差异门禁均退出 0。测试未连接或修改 134，未代签、未启用 provider、未翻 P6。
@@ -156,9 +156,9 @@
 
 ## 下一步
 
-1. Task 7 已达到 `FRESH_DEPLOYED`；先归档并本地提交正式清库证据，不 push，上线后不再清库。
-2. Task 8 在干净正式库完成首发管理员接管、强制改密/MFA/独立重登录，并重建受管资料库、来源、两个正式 Provider、出域/能力策略和版本三元组；Provider 只允许 HEALTHY 且停用，P6=false。
-3. 重新生成正式医学评测后停止在 `AWAITING_EXPERT_SIGNOFF`，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 Provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。
+1. Task 8 Step 3 先续传 WHO 正式 PDF、核验当前完整 SHA 并从真实来源重建正式回归基准，再以两个精确 Provider/模型版本生成逐例完整且 `PENDING_REVIEW` 的正式评测；全过程保持 Provider 停用、P6=false。
+2. 运行 T9.8 只读预检，确认只剩真实专家签署及其后置启用门禁，阶段停在 `AWAITING_EXPERT_SIGNOFF`；不得自动化代签。
+3. 真实独立医学专家逐例签署后，才按顺序启用对应 Provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环；134 上线后不再清库，正式验收通过前不 push。
 
 ## 常用指针
 
