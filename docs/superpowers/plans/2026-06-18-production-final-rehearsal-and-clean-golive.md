@@ -453,13 +453,15 @@ Expected: provider 仅 HEALTHY 但保持停用；P6=false。
 
 实际结果：`2026-06-18T23:31:11+08:00` 已完成 `SYSTEM` 作用域受管资料根（配置版本 2、目录 `0750 medkernel:medkernel`、服务用户写探针通过并删除）和 `PRODUCTION_CENTER`（版本 2）；独立来源治理员 `knowledge-source-steward` 已强制改密、绑定 MFA 并独立重登录，安全画像仅具 `knowledge.write`、不具 `knowledge.acquisition.approve`。治理员登记 WHO 2024 慢性乙肝指南来源，`platform-owner` 独立审批，许可为 `CC BY-NC-SA 3.0 IGO`、robots=`ALLOW_FETCH`、调度关闭。两个 Provider 均为 `HEALTHY` 且停用：外部 `external-mimo-v25/mimo-v2.5`、本地 `ollama-qwen25-15b/medkernel-qwen25:1.5b-v1`；外部 HTTPS、受控凭据环境映射、`rule.draft` 出域白名单/MASK_ALL/高风险护栏、租户能力策略和 ACTIVE prompt/tool/model 三元组均复核一致。当前 readiness 为 4/9，Provider 启用、正式基准、正式评测、版本联动和 P6 按顺序保持关闭，P6=false、评测用例/运行均为 0、服务 `MainPID=595415` / `NRestarts=0`、备份仅 1 份。配置过程中发现并纠正角色响应字段、配置版本列和 Bash 全局 `MODEL` 变量污染；外部 Provider 的临时错配发生在两个 Provider 均停用且零模型调用期间，更正后重新健康检查并与 ACTIVE bundle 精确匹配。WHO 全量 PDF 本次下载在 `1826792/3515427` bytes 超时且临时文件已删除，未伪造当前 SHA 通过；Step 3 正式评测前必须续传完成并重新核验历史期望 SHA-256 `e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`。
 
-- [ ] **Step 3: 运行正式医学评测**
+- [x] **Step 3: 运行正式医学评测**
 
 使用当前正式启用基准和精确模型版本执行评测。
 
 Expected: 状态 `PENDING_REVIEW`；逐例证据完整、基准当前、来源引用精确、无红线失败、`reviewable=true`。
 
-- [ ] **Step 4: 执行只读预检**
+实际结果：WHO 正式 PDF 已以 Range GET 完整下载到受管资料根，长度 `3515427` bytes、SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`，文件 `0640 medkernel:medkernel`；PDF 共 275 页，已提取并渲染目视核验第 36 页的首选抗病毒方案原文。干净正式库新增唯一来源化红线用例 `1`（`rule.draft` / `medication-safety` / `who-chb-2024-v1` / `WHO IRIS 10665/376353`），最低分 100、要求精确引用。运行 `1`（Ollama）与 `2`（外部 MIMO）均真实得到 1/1、`PENDING_REVIEW`，各保存 1 条逐例不可变证据；`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`，无假引用、红线突破或幻觉标记，无 reviewer / signedAt。证据只保留原文和输出 SHA-256，未自动签署。
+
+- [x] **Step 4: 执行只读预检**
 
 Run:
 
@@ -469,9 +471,13 @@ node scripts/drill/p9-t98-readiness-preflight.mjs
 
 Expected: `BLOCKED`，且只因专家签署、provider 启用、版本联动和 P6 等尚未执行的正式门禁；业务写请求为 0。
 
-- [ ] **Step 5: 标记 `AWAITING_EXPERT_SIGNOFF`**
+实际结果：通过 SSH 只读隧道和内存文件描述符受控读取 134 凭据运行预检器，凭据未落本机文件或输出；脚本按预期 exit 1 / `BLOCKED`。九闸当前 5/9，资料根、部署形态、正式回归基准、出域治理和模型策略通过；仅 `MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE`、`P6_ACCEPTANCE` 阻断，分别对应专家签署后的 Provider 启用、`PASSED` 评测、启用态版本联动和超管 P6 放行。另两条失败为聚合非全绿及停用 Provider 不回显 providerCode 的派生裁决，不是新增业务闸。请求仅 1 次登录会话 POST 和 4 次 GET，业务写、启用、签署及 P6 写请求均为 0。
+
+- [x] **Step 5: 标记 `AWAITING_EXPERT_SIGNOFF`**
 
 此时开发可自动完成的工作结束，但长任务不结束；不得代签、不得提前启用 provider、不得提前开启 P6。
+
+实际结果：阶段已标记为 `AWAITING_EXPERT_SIGNOFF`，并生成真人独立医学专家签署清单。运行 `1`、`2` 保持 `PENDING_REVIEW`，两个 Provider 保持停用，P6=false；长任务继续等待真实独立医学专家逐例复核与签署。
 
 ### Task 9: 真人独立医学专家正式签署
 

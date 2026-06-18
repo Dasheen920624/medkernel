@@ -1,0 +1,82 @@
+{
+  "status": "BLOCKED",
+  "stage": "AWAITING_EXPERT_SIGNOFF",
+  "startedAt": "2026-06-18T23:44:22.795+08:00",
+  "finishedAt": "2026-06-18T23:44:23.583+08:00",
+  "environment": "134-production-center",
+  "command": "node scripts/drill/p9-t98-readiness-preflight.mjs",
+  "expectedBlockedOutcome": true,
+  "scriptExitCode": 1,
+  "serviceHealth": {
+    "status": "UP",
+    "ready": true,
+    "httpStatus": 200
+  },
+  "session": {
+    "userId": "platform-owner",
+    "tenantId": "t-1",
+    "roles": [
+      "system-superadmin"
+    ]
+  },
+  "sourceReadiness": {
+    "ready": true,
+    "sourceCode": "WHO-CHB-GUIDELINE-2024",
+    "enabled": true,
+    "independentApprovalPresent": true,
+    "licensePolicy": "PERMITTED",
+    "robotsPolicy": "ALLOW_FETCH"
+  },
+  "knowledgeReadiness": {
+    "ready": false,
+    "modelInvocationAllowed": false,
+    "gateCount": 9,
+    "passedCount": 5,
+    "passed": [
+      "LITERATURE_ROOT",
+      "DEPLOYMENT_FORM",
+      "REGRESSION_BASELINE",
+      "EGRESS_GOVERNANCE",
+      "MODEL_POLICY"
+    ],
+    "blocked": [
+      {
+        "code": "MODEL_PROVIDER",
+        "reason": "专家签署前 Provider 按顺序保持停用"
+      },
+      {
+        "code": "MODEL_EVALUATION",
+        "reason": "两条完整运行均为 PENDING_REVIEW，尚无真人签署 PASSED 运行"
+      },
+      {
+        "code": "VERSION_TRIPLE",
+        "reason": "Provider 停用时不建立正式调用版本联动"
+      },
+      {
+        "code": "P6_ACCEPTANCE",
+        "reason": "P6 独立验收按顺序保持 false"
+      }
+    ],
+    "derivedFailures": [
+      "readiness 聚合状态不是全绿",
+      "停用 Provider 不回显 providerCode，严格上下文比较按预期失败"
+    ]
+  },
+  "requests": {
+    "total": 5,
+    "loginSessionPosts": 1,
+    "readOnlyGets": 4,
+    "businessWriteRequests": 0,
+    "enableRequests": 0,
+    "signOffRequests": 0,
+    "p6WriteRequests": 0
+  },
+  "safetyBoundary": {
+    "enabledProviderCount": 0,
+    "p6IndependentAcceptance": false,
+    "automatedExpertSignOff": false,
+    "expertSignoffAttempted": false
+  },
+  "containsCredentials": false,
+  "containsPatientData": false
+}

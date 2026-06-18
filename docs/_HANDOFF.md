@@ -50,6 +50,7 @@
   - 必须保留的现场偏差：首次空库尝试因 systemd 的生产 EnvironmentFile 覆盖临时数据库 URL，候选进程在正式端口冲突退出前误将正式库从 V151 前向迁移到 V152。V152 只新增 `mk_llm_provider.lock_version` 默认 0，未删除业务数据、未替换运行制品、未重启正式服务；偏差后即时核验仍为旧 JAR `67ae7820...`、MainPID `526720`、`NRestarts=0`、readiness 200，三条 Provider 全停用、P6=false。纠正后使用唯一隔离的 0600 环境文件完成真实空库验证；不得把本次事实写成“正式库未修改”。
   - Task 7 已达到 `FRESH_DEPLOYED`：`2026-06-18T22:43:31+08:00` 即时备份与隔离恢复通过后，唯一一次正式执行停服、重建空库、清旧运行物和历史备份并安装 `95b53321c7baeb4e05e70b62834074fc59df323e` 冻结候选。运行 JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，内部/HTTPS/公网 readiness 200，Flyway V152 / 207 张 public 基表、owner=`medkernel`，服务 active/enabled、`NRestarts=0`。知识、候选、获取、评测、Provider、版本包关键表均为 0，P6=false，bootstrap `initialized=false`；当前只保留本次清库前备份 `p9-fresh-preclear-95b53321c7ba-20260618-224330`，dump SHA-256 `6cb33efcfdbbf617127e50d03621e70b8951ddeeb3a566191cbbaa8cb544cff2`。
   - Task 8 Step 1 已完成：134 以正式受控账号 `platform-owner` 完成首次接管、强制改密、TOTP MFA 绑定、独立重登录与 MFA 再验证；`security/me` 确认唯一 `system-superadmin`、`mustChangePwd=false`、`mfaRequired=true`、`mfaBound=true`。凭据只保存在 134 的 `0600 root:root` 受控文件，未进入仓库或证据；bootstrap token 投递文件和环境键均已销毁。接管前后 MainPID 均为 `595415`、`NRestarts=0`、readiness 200，Provider 仍为 0、P6=false、备份仍仅 1 份，未触发专家签署。
+  - Task 8 Step 3–5 已完成：WHO 正式 PDF 当前完整下载为 3,515,427 bytes，SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`，并对第 36 页来源原文做提取和渲染目视核验；干净正式库唯一用例 `1` 绑定 `rule.draft` / `medication-safety` / `who-chb-2024-v1` / `WHO IRIS 10665/376353`。正式运行 `1`（Ollama）与 `2`（外部 MIMO）均真实 1/1、`PENDING_REVIEW`，逐例证据完整、基准当前、可复核，无假引用、红线突破、reviewer 或 signedAt。T9.8 只读预检按预期 `BLOCKED`，九闸 5/9，仅剩签署后的 Provider、评测 PASSED、版本联动和 P6 四闸；业务写请求为 0。阶段为 `AWAITING_EXPERT_SIGNOFF`，自动化不得继续 Task 9 签署。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
@@ -156,9 +157,9 @@
 
 ## 下一步
 
-1. Task 8 Step 3 先续传 WHO 正式 PDF、核验当前完整 SHA 并从真实来源重建正式回归基准，再以两个精确 Provider/模型版本生成逐例完整且 `PENDING_REVIEW` 的正式评测；全过程保持 Provider 停用、P6=false。
-2. 运行 T9.8 只读预检，确认只剩真实专家签署及其后置启用门禁，阶段停在 `AWAITING_EXPERT_SIGNOFF`；不得自动化代签。
-3. 真实独立医学专家逐例签署后，才按顺序启用对应 Provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环；134 上线后不再清库，正式验收通过前不 push。
+1. 由真实独立医学专家按 `docs/release/evidence/p9-final-golive-20260618/expert-signoff/README.md` 核验真实身份/岗位、`QUALITY_GOVERNOR`、MFA 和职责分离，再逐例复核运行 `1`、`2`；自动化不得创建虚假专家身份、代填意见或代签。
+2. 两个运行均由专家认可并分别转为 `PASSED` 后，先核验不可覆盖的签署审计，再按当前乐观锁版本受控启用精确 Provider；P6 仍保持 false 时复核八闸全绿。
+3. 最后由内置超管执行 P6 高危放行，九闸全绿后跑低风险真实小样本闭环；134 上线后不再清库，正式验收通过前不 push。
 
 ## 常用指针
 
