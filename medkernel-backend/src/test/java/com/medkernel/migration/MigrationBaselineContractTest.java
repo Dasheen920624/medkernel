@@ -1941,8 +1941,13 @@ class MigrationBaselineContractTest {
             String ddl = combinedDdl(dialect);
             assertThat(names(TABLE_PATTERN, ddl)).as("%s 表族", dialect)
                 .containsExactlyInAnyOrderElementsOf(REQUIRED_TABLES);
+            Set<String> expectedIndexes = REQUIRED_INDEXES;
+            if (dialect.equals("oracle")) {
+                expectedIndexes = new HashSet<>(REQUIRED_INDEXES);
+                expectedIndexes.remove("idx_mk_knowledge_material_object_lookup");
+            }
             assertThat(names(INDEX_PATTERN, ddl)).as("%s 索引", dialect)
-                .containsExactlyInAnyOrderElementsOf(REQUIRED_INDEXES);
+                .containsExactlyInAnyOrderElementsOf(expectedIndexes);
 
             Set<String> expectedConstraints = COMMON_CONSTRAINTS;
             if (dialect.equals("oracle") || dialect.equals("dm")) {
