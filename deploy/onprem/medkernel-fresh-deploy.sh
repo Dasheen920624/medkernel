@@ -183,7 +183,7 @@ verify_backup_restore() {
   run_as_postgres dropdb --if-exists "$RESTORE_DATABASE"
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$RESTORE_DATABASE"
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
-    --dbname "$RESTORE_DATABASE" "$BACKUP_DIR/database/medkernel.dump"
+    --dbname "$RESTORE_DATABASE" < "$BACKUP_DIR/database/medkernel.dump"
 
   restored_tables="$(
     database_query "$RESTORE_DATABASE" \
