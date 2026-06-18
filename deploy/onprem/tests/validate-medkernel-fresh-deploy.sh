@@ -75,6 +75,7 @@ chmod 600 "$TMP_ROOT/app/conf/medkernel.env"
 
 grep -q -- '--confirm-fresh' "$SCRIPT"
 grep -q -- '--confirm-database' "$SCRIPT"
+grep -q -- '--expected-host' "$SCRIPT"
 grep -q -- '--confirm-prune-backups' "$SCRIPT"
 grep -q -- '--service-unit' "$SCRIPT"
 grep -q -- '--deploy-script' "$SCRIPT"
@@ -94,6 +95,35 @@ grep -q 'destructive_action_performed=true' "$SCRIPT"
 grep -q 'bootstrap_initialized=false' "$SCRIPT"
 grep -q 'runtime-var.tar.gz' "$SCRIPT"
 grep -q 'rm -rf "\$APP_HOME/mock-third-party"' "$SCRIPT"
+
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" \
+    --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
+    --expected-flyway-version 152 \
+    --confirm-fresh \
+    --confirm-database medkernel \
+    >"$TMP_ROOT/missing-host.log" 2>&1; then
+  printf 'missing target host was accepted\n' >&2
+  exit 1
+fi
+grep -q '缺少 --expected-host' "$TMP_ROOT/missing-host.log"
+
+if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
+  bash "$SCRIPT" \
+    --expected-host medkernel-host-that-must-not-match \
+    --jar "$TMP_ROOT/missing.jar" \
+    --frontend "$TMP_ROOT/missing-dist.tar.gz" \
+    --service-unit "$TMP_ROOT/missing.service" \
+    --deploy-script "$TMP_ROOT/missing-deploy.sh" \
+    --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
+    --expected-flyway-version 152 \
+    --confirm-fresh \
+    --confirm-database medkernel \
+    >"$TMP_ROOT/host-mismatch.log" 2>&1; then
+  printf 'mismatched target host was accepted\n' >&2
+  exit 1
+fi
+grep -q '目标主机不匹配' "$TMP_ROOT/host-mismatch.log"
 
 main_line="$(grep -n '^main()' "$SCRIPT" | cut -d: -f1)"
 backup_line="$(tail -n "+$main_line" "$SCRIPT" | grep -n '^[[:space:]]*create_backup$' | head -1 | cut -d: -f1)"

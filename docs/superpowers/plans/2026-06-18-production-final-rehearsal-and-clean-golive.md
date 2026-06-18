@@ -355,7 +355,7 @@ Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁�
 
 **Files:**
 - Modify: `deploy/onprem/tests/validate-medkernel-fresh-deploy.sh`
-- Modify: `deploy/onprem/mk-fresh-deploy.sh`
+- Modify: `deploy/onprem/medkernel-fresh-deploy.sh`
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/pre-clear/`
 
 - [ ] **Step 1: 验证发布脚本**
@@ -366,7 +366,7 @@ Run:
 bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh
 bash deploy/onprem/tests/validate-medkernel-deploy.sh
 bash deploy/onprem/tests/validate-mk-publish-package.sh
-bash -n deploy/onprem/mk-fresh-deploy.sh
+bash -n deploy/onprem/medkernel-fresh-deploy.sh
 bash -n deploy/onprem/mk-publish.sh
 ```
 
