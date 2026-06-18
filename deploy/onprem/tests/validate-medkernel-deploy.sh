@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/deploy/onprem/medkernel-deploy.sh"
+SERVICE_UNIT="$ROOT/deploy/onprem/templates/medkernel.service"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -25,5 +26,6 @@ else
 fi
 test "$mode" = "600"
 ! grep -q 'FreshRuntimeToken_20260612' /tmp/medkernel-onprem-deploy-test.log
+grep -q '^SuccessExitStatus=143$' "$SERVICE_UNIT"
 
 printf 'onprem deployment script contract passed\n'

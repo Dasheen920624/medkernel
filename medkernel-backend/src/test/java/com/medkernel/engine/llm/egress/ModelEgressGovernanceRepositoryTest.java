@@ -45,6 +45,7 @@ class ModelEgressGovernanceRepositoryTest {
         whitelistRepository.save(new ModelEgressWhitelist(
             null, "tenant-1", "knowledge.extract",
             "[\"clinicalText\"]", "HIGH",
+            "{\"clinicalText\":\"GENERALIZE\"}", "MEDIUM", "Y",
             now, "tester", now, "tester"));
 
         assertThat(whitelistRepository.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
@@ -53,6 +54,9 @@ class ModelEgressGovernanceRepositoryTest {
             .satisfies(saved -> {
                 assertThat(saved.allowedFields()).isEqualTo("[\"clinicalText\"]");
                 assertThat(saved.sensitivityLevel()).isEqualTo("HIGH");
+                assertThat(saved.desensitizationRules()).isEqualTo("{\"clinicalText\":\"GENERALIZE\"}");
+                assertThat(saved.approvalThresholdLevel()).isEqualTo("MEDIUM");
+                assertThat(saved.guardrailLockedFlag()).isEqualTo("Y");
             });
     }
 

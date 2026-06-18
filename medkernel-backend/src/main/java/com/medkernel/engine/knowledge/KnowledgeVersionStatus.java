@@ -32,7 +32,8 @@ public enum KnowledgeVersionStatus {
 
     /** 该状态版本是否可被审核激活 */
     public boolean isActivatable() {
-        return this == UNDER_REVIEW || this == CANDIDATE || this == PENDING_REPLACEMENT_REVIEW;
+        return this == UNDER_REVIEW || this == CANDIDATE || this == PENDING_REPLACEMENT_REVIEW
+            || this == SUPERSEDED;
     }
 
     /** 该状态版本是否当前可作为临床决策依据 */

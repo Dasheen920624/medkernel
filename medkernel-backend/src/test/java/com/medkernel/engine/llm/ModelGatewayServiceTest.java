@@ -79,8 +79,6 @@ class ModelGatewayServiceTest {
 
     @Test
     void getStatus_NoConfig_ReturnsDefaultBaselineWithoutPretendingConfigured() {
-        when(policyRepo.findByTenantIdAndCapabilityCode(eq("tenant-1"), any())).thenReturn(Optional.empty());
-
         List<ModelCapabilityStatusResponse> list = service.getStatus();
         assertNotNull(list);
         assertEquals(8, list.size());
@@ -94,8 +92,46 @@ class ModelGatewayServiceTest {
         assertEquals("BASELINE", discovery.routeStrategy());
         assertEquals("临床知识关联发现", discovery.displayName());
         assertFalse(discovery.configured());
+        assertFalse(discovery.inherited());
+        assertEquals("TENANT", discovery.policyScopeType());
+        assertEquals("tenant-1", discovery.policyScopeRef());
         assertNull(discovery.expectedSchema());
         assertTrue(discovery.fallbackAvailable());
+    }
+
+    @Test
+    void getStatus_ResolvesNearestOrgScopedPolicyAndMarksInheritedSource() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-dept",
+            new OrgScope("tenant-1", "group-a", "hospital-a", "campus-a", null, "dept-cardiology", null, null),
+            "DOCTOR-001"));
+        ModelCapabilityPolicy hospitalPolicy = new ModelCapabilityPolicy(
+            11L, "tenant-1", "knowledge.extract", "HOSPITAL", "hospital-a",
+            "LOCAL_MODEL", "MASK_ALL", "{\"required\":[\"status\",\"candidates\"]}",
+            null, null, null,
+            Instant.now(), "system", Instant.now(), "system"
+        );
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "DEPARTMENT", "dept-cardiology"))
+            .thenReturn(Optional.empty());
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "CAMPUS", "campus-a"))
+            .thenReturn(Optional.empty());
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "HOSPITAL", "hospital-a"))
+            .thenReturn(Optional.of(hospitalPolicy));
+
+        List<ModelCapabilityStatusResponse> list = service.getStatus();
+
+        ModelCapabilityStatusResponse status = list.stream()
+            .filter(item -> "knowledge.extract".equals(item.capabilityCode()))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("LOCAL_MODEL", status.routeStrategy());
+        assertEquals("HOSPITAL", status.policyScopeType());
+        assertEquals("hospital-a", status.policyScopeRef());
+        assertTrue(status.inherited());
+        assertTrue(status.fallbackReason().contains("继承 HOSPITAL:hospital-a"));
     }
 
     @Test
@@ -104,8 +140,6 @@ class ModelGatewayServiceTest {
             "custom.summary", "病历摘要", 5, true);
         when(definitionRepo.findAllByOrderBySortOrderAscCapabilityCodeAsc())
             .thenReturn(List.of(custom));
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "custom.summary"))
-            .thenReturn(Optional.empty());
 
         List<ModelCapabilityStatusResponse> list = service.getStatus();
 
@@ -149,10 +183,12 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_DisabledStrategy_ThrowsException() {
         ModelCapabilityPolicy disabledPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "DISABLED", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "DISABLED", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(disabledPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "测试输入", 60);
@@ -173,16 +209,18 @@ class ModelGatewayServiceTest {
 
         assertEquals(ErrorCode.ENG_LLM_001, ex.errorCode());
         verify(policyRepo, never())
-            .findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract");
+            .findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
     void submitTask_BaselineStrategy_ReturnsHonestEmptyB0Result() {
         ModelCapabilityPolicy baselinePolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "BASELINE", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "BASELINE", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(baselinePolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "提取结构化临床文本信息", 60);
@@ -205,7 +243,8 @@ class ModelGatewayServiceTest {
 
     @Test
     void savePolicy_ValidRequest_PersistsTenantPolicyAndReturnsConfiguredStatus() {
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.empty());
         when(policyRepo.save(any(ModelCapabilityPolicy.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -214,7 +253,10 @@ class ModelGatewayServiceTest {
             new ModelPolicyUpsertRequest(
                 "BASELINE",
                 "MASK_ALL",
-                "{\"required\":[\"status\",\"candidates\"]}"
+                "{\"required\":[\"status\",\"candidates\"]}",
+                List.of("BASELINE"),
+                2_000,
+                60
             )
         );
 
@@ -222,18 +264,29 @@ class ModelGatewayServiceTest {
         assertEquals("BASELINE", response.routeStrategy());
         assertEquals("MASK_ALL", response.desensitizeStrategy());
         assertEquals("{\"required\":[\"status\",\"candidates\"]}", response.expectedSchema());
+        assertEquals(List.of("BASELINE"), response.fallbackOrder());
+        assertEquals(2_000, response.timeoutMs());
+        assertEquals(60, response.rateLimitPerMinute());
         assertTrue(response.configured());
+        assertFalse(response.inherited());
+        assertEquals("TENANT", response.policyScopeType());
+        assertEquals("tenant-1", response.policyScopeRef());
 
         ArgumentCaptor<ModelCapabilityPolicy> policyCaptor =
             ArgumentCaptor.forClass(ModelCapabilityPolicy.class);
         verify(policyRepo).save(policyCaptor.capture());
         assertEquals("tenant-1", policyCaptor.getValue().tenantId());
+        assertEquals("TENANT", policyCaptor.getValue().scopeType());
+        assertEquals("tenant-1", policyCaptor.getValue().scopeRef());
+        assertEquals("[\"BASELINE\"]", policyCaptor.getValue().fallbackOrderJson());
+        assertEquals(2_000, policyCaptor.getValue().timeoutMs());
+        assertEquals(60, policyCaptor.getValue().rateLimitPerMinute());
         assertEquals("DOCTOR-001", policyCaptor.getValue().createdBy());
         verify(auditRecorder).record(
             AuditAction.UPDATE,
             "model_capability_policy",
             "knowledge.extract",
-            "保存模型能力策略 knowledge.extract"
+            "保存模型能力策略 knowledge.extract scope=TENANT:tenant-1"
         );
     }
 
@@ -241,34 +294,53 @@ class ModelGatewayServiceTest {
     void savePolicy_InvalidRoute_DoesNotPersist() {
         assertThrows(ApiException.class, () -> service.savePolicy(
             "knowledge.extract",
-            new ModelPolicyUpsertRequest("UNKNOWN", "DEFAULT", null)
+            new ModelPolicyUpsertRequest("UNKNOWN", "DEFAULT", null, null, null, null)
         ));
 
         verify(policyRepo, never()).save(any(ModelCapabilityPolicy.class));
     }
 
     @Test
+    void validatePolicy_InvalidFallbackOrderRejectsUnsafeChain() {
+        ModelPolicyValidateResponse resp = service.validatePolicy(new ModelPolicyValidateRequest(
+            "knowledge.extract",
+            "EXTERNAL_MODEL",
+            "DEFAULT",
+            "{\"required\":[\"status\"]}",
+            List.of("EXTERNAL_MODEL", "BASELINE", "LOCAL_MODEL"),
+            2_000,
+            30
+        ));
+
+        assertFalse(resp.valid());
+        assertTrue(resp.message().contains("fallback_order"));
+    }
+
+    @Test
     void submitTask_localModelRoute_honestlyDegradesToB0_noFabrication() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "LOCAL_MODEL", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "LOCAL_MODEL", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "普通脑卒中病历", 60);
         ModelTaskResponse resp = service.submitTask(req);
 
         assertNotNull(resp);
-        // 未接入真实 provider → 诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
+        // 未发布 ACTIVE 版本包 → 在 provider 解析前诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
         assertEquals("DEGRADED", resp.status());
         assertEquals("B0", resp.modelMode());
         assertTrue(resp.fallbackUsed());
         assertEquals("B0-Deterministic-Baseline", resp.modelVersion());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
-        assertTrue(resp.fallbackReason().contains("B1"));
+        assertTrue(resp.fallbackReason().contains("ACTIVE"));
+        assertTrue(resp.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
         // 反例：杜绝旧实现伪造的本地模型版本与字段
         assertNotEquals("MedKernel-Local-Cognitive-v1", resp.modelVersion());
         assertFalse(resp.outputContent().contains("local_enhanced"));
@@ -278,13 +350,15 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_externalModelRoute_honestB0_desensitizesInput_neverFabricates() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", null,
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", null,
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
-        // EXTERNAL_MODEL 配置但无 provider：诚实降级 B0，并验证手机号脱敏写入摘要
+        // EXTERNAL_MODEL 配置但无 ACTIVE 版本包：诚实降级 B0，并验证手机号脱敏写入摘要
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "张医生的手机是13988888888", 60);
 
         ModelTaskResponse resp = service.submitTask(req);
@@ -294,8 +368,9 @@ class ModelGatewayServiceTest {
         assertTrue(resp.fallbackUsed());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
-        assertTrue(resp.fallbackReason().contains("B2"));
+        assertTrue(resp.fallbackReason().contains("ACTIVE"));
+        assertTrue(resp.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
 
         // 反例（医疗安全红线）：绝不出现伪造的外部模型版本 / 编造引文 / 编造患者
         assertNotEquals("MedKernel-Cognitive-LLM-v2", resp.modelVersion());
@@ -310,11 +385,13 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withSatisfiedSchema_passesRealJsonValidation() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"status\",\"candidates\"]}",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         // B0 空候选信封满足标准 JSON Schema，真实 JSON 校验通过
@@ -331,11 +408,13 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withUnsatisfiableSchema_throwsRealSchemaErrorAndAuditsFailure() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
             "{\"required\":[\"nonexistent_field\"]}",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         // required 字段在 B0 输出中不存在 → 真实 JSON Schema 校验失败抛 ENG-LLM-002
@@ -351,10 +430,12 @@ class ModelGatewayServiceTest {
     @Test
     void submitTask_withNonJsonSchema_rejectsRemovedLooseSyntax() {
         ModelCapabilityPolicy modelPolicy = new ModelCapabilityPolicy(
-            1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "required: [entity]",
+            1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT", "required: [entity]",
+            null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "提取要素", 60);
@@ -368,7 +449,7 @@ class ModelGatewayServiceTest {
     @Test
     void validatePolicy_InvalidSchema_ReturnsInvalid() {
         ModelPolicyValidateRequest req = new ModelPolicyValidateRequest(
-            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "invalid_non_json_schema"
+            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "invalid_non_json_schema", null, null, null
         );
 
         ModelPolicyValidateResponse resp = service.validatePolicy(req);
@@ -379,7 +460,7 @@ class ModelGatewayServiceTest {
     @Test
     void validatePolicy_Valid_ReturnsOk() {
         ModelPolicyValidateRequest req = new ModelPolicyValidateRequest(
-            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "{\"required\":[\"entity\"]}"
+            "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT", "{\"required\":[\"entity\"]}", null, null, null
         );
 
         ModelPolicyValidateResponse resp = service.validatePolicy(req);
@@ -398,18 +479,32 @@ class ModelGatewayServiceTest {
     }
 
     private void resolveProvider(String strategy, com.medkernel.engine.llm.provider.ModelProvider adapter) {
+        String modelVersion = adapter.type() == com.medkernel.engine.llm.provider.ProviderType.OLLAMA
+            ? "qwen2.5:7b"
+            : "claude-opus-4-8";
+        resolveProvider(strategy, adapter, modelVersion);
+    }
+
+    private void resolveProvider(String strategy,
+                                 com.medkernel.engine.llm.provider.ModelProvider adapter,
+                                 String modelVersion) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         com.medkernel.engine.llm.provider.ModelProviderConfig config =
             new com.medkernel.engine.llm.provider.ModelProviderConfig(1L, "tenant-1", "p1",
-                adapter.type().name(), "http://x", null, "v1", "Y", "HEALTHY", now, "s", now, "s");
+                adapter.type().name(), "http://x", null, modelVersion, "Y", "HEALTHY", now, "s", now, "s");
         when(providerRegistry.resolve("tenant-1", strategy)).thenReturn(Optional.of(
             new com.medkernel.engine.llm.provider.ModelProviderRegistry.ResolvedProvider(adapter, config)));
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE"))
+            .thenReturn(Optional.of(versionBundle(modelVersion)));
     }
 
     private void policy(String strategy) {
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
-                1L, "tenant-1", "knowledge.extract", strategy, "DEFAULT", null,
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", strategy, "DEFAULT", null,
+                null, null, null,
                 Instant.now(), "system", Instant.now(), "system")));
     }
 
@@ -428,6 +523,20 @@ class ModelGatewayServiceTest {
         assertEquals("qwen2.5:7b", resp.modelVersion());
         assertFalse(resp.fallbackUsed());
         assertTrue(resp.outputContent().contains("候选：高血压病史"));
+    }
+
+    @Test
+    void submitTask_requiredLocalRouteRejectsExternalPolicyWithoutProviderResolution() {
+        policy("EXTERNAL_MODEL");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60, "LOCAL_MODEL", "ollama-hospital")));
+
+        assertEquals(ErrorCode.BAD_REQUEST, ex.errorCode());
+        assertTrue(ex.getMessage().contains("LOCAL_MODEL"));
+        assertTrue(ex.getMessage().contains("EXTERNAL_MODEL"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
     }
 
     @Test
@@ -535,6 +644,32 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void getTask_crossTenantRejectsWithTenantForbidden() {
+        when(taskRepo.findByTaskId("task-other"))
+            .thenReturn(Optional.of(storedTask("task-other", "tenant-2")));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.getTask("task-other"));
+
+        assertEquals(ErrorCode.TENANT_FORBIDDEN, ex.errorCode());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+        verify(auditRecorder, never()).record(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void retryTask_crossTenantRejectsBeforeResubmissionAndAudit() {
+        when(taskRepo.findByTaskId("task-other"))
+            .thenReturn(Optional.of(storedTask("task-other", "tenant-2")));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.retryTask("task-other"));
+
+        assertEquals(ErrorCode.TENANT_FORBIDDEN, ex.errorCode());
+        verify(policyRepo, never())
+            .findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(anyString(), anyString(), anyString(), anyString());
+        verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
+        verify(auditRecorder, never()).record(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void submitTask_withHealthyExternalProvider_passesEgressThenProducesRealB2Output() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -553,6 +688,129 @@ class ModelGatewayServiceTest {
         assertFalse(resp.fallbackUsed());
         // B2 外调必先过出域闸
         verify(egressGuard).prepareEgress(eq("tenant-1"), eq("knowledge.extract"), anyString(), anyString(), any());
+    }
+
+    @Test
+    void submitTask_externalEmptyMinimizedPayloadNeverFallsBackToOriginalPrompt() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter, "claude-opus-4-8");
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{}", java.util.List.of(), "hash-empty"));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "claude-opus-4-8", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "不得绕过白名单的原始文本", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_providerReturnedModelVersionDriftDegradesToB0() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "漂移模型输出", "qwen2.5:14b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("模型版本"));
+    }
+
+    @Test
+    void submitTask_providerReturnedBlankContentDegradesToB0() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "  ", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("补全内容"));
+    }
+
+    @Test
+    void submitTask_activeVersionBundleMismatchSkipsProvider() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE"))
+            .thenReturn(Optional.of(versionBundle("qwen2.5:14b")));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_withoutActiveVersionBundle_degradesBeforeProviderResolution() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE")).thenReturn(Optional.empty());
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("ACTIVE"));
+        assertTrue(response.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_malformedActiveVersionBundle_degradesBeforeProviderResolution() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        ModelVersionBundle malformed = versionBundle("qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE")).thenReturn(Optional.of(new ModelVersionBundle(
+                malformed.id(), malformed.tenantId(), malformed.capabilityCode(),
+                malformed.promptVersion(), "not-sha256", malformed.toolVersion(), malformed.toolHash(),
+                malformed.modelVersion(), malformed.modelHash(), malformed.status(), malformed.activeScopeKey(),
+                malformed.effectiveAt(), malformed.retiredAt(), malformed.createdAt(), malformed.createdBy(),
+                malformed.updatedAt(), malformed.updatedBy())));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("ACTIVE 版本包不可执行"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(adapter, never()).complete(any(), any());
     }
 
     @Test
@@ -605,20 +863,85 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_externalRateLimitedFallsBackToHealthyLocalBeforeB0ByConfiguredOrder() {
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1",
+                "EXTERNAL_MODEL", "DEFAULT", null,
+                "[\"EXTERNAL_MODEL\",\"LOCAL_MODEL\",\"BASELINE\"]", 1_500, 20,
+                Instant.now(), "system", Instant.now(), "system")));
+        var external = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        var local = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("EXTERNAL_MODEL", external);
+        resolveProvider("LOCAL_MODEL", local, "claude-opus-4-8");
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-chain"));
+        when(external.complete(any(), any()))
+            .thenThrow(new ApiException(ErrorCode.TOO_MANY_REQUESTS, "429"));
+        when(local.complete(any(), argThat(request -> request.timeoutMs() == 1_500)))
+            .thenReturn(new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "本地候选", "claude-opus-4-8", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("SUCCEEDED", resp.status());
+        assertEquals("B1", resp.modelMode());
+        assertEquals("claude-opus-4-8", resp.modelVersion());
+        assertTrue(resp.fallbackUsed());
+        assertTrue(resp.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
+        assertTrue(resp.fallbackReason().contains("B2 -> B1"));
+        assertFalse(resp.fallbackReason().contains("B2 -> B0"));
+        verify(providerRegistry).resolve("tenant-1", "EXTERNAL_MODEL");
+        verify(providerRegistry).resolve("tenant-1", "LOCAL_MODEL");
+    }
+
+    @Test
+    void submitTask_policyRateLimitExceededSkipsProviderAndFallsBackToB0() {
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1",
+                "LOCAL_MODEL", "DEFAULT", null,
+                "[\"LOCAL_MODEL\",\"BASELINE\"]", 2_000, 1,
+                Instant.now(), "system", Instant.now(), "system")));
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion("本地候选", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse first = service.submitTask(new ModelTaskRequest("knowledge.extract", "第一次", 60));
+        ModelTaskResponse second = service.submitTask(new ModelTaskRequest("knowledge.extract", "第二次", 60));
+
+        assertEquals("SUCCEEDED", first.status());
+        assertEquals("B1", first.modelMode());
+        assertEquals("DEGRADED", second.status());
+        assertEquals("B0", second.modelMode());
+        assertTrue(second.fallbackUsed());
+        assertTrue(second.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
+        assertTrue(second.fallbackReason().contains("B1 -> B0"));
+        verify(adapter, times(1)).complete(any(), any());
+    }
+
+    @Test
     void submitTask_providerStructuredOutputInvalid_degradesToB0AndPersistsMatrixReason() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
         resolveProvider("EXTERNAL_MODEL", adapter);
-        when(policyRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(new ModelCapabilityPolicy(
-                1L, "tenant-1", "knowledge.extract", "EXTERNAL_MODEL", "DEFAULT",
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "EXTERNAL_MODEL", "DEFAULT",
                 "{\"required\":[\"status\",\"candidates\"]}",
+                null, null, null,
                 Instant.now(), "system", Instant.now(), "system")));
         when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
             .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
                 "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-schema"));
         when(adapter.complete(any(), any())).thenReturn(
-            new com.medkernel.engine.llm.provider.ProviderCompletion("{\"raw\":\"无结构\"}", "claude-opus-4", null, "[]"));
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "{\"raw\":\"无结构\"}", "claude-opus-4-8", null, "[]"));
 
         ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
 
@@ -650,17 +973,51 @@ class ModelGatewayServiceTest {
     }
 
     private static ModelVersionBundle versionBundle() {
+        return versionBundle("qwen2.5:7b");
+    }
+
+    private static ModelVersionBundle versionBundle(String modelVersion) {
         Instant now = Instant.parse("2026-06-16T00:00:00Z");
+        String hash = "a".repeat(64);
         return new ModelVersionBundle(
             1L, "tenant-1", "knowledge.extract",
-            "prompt:extract-v2", "p-hash",
-            "tool:extract-schema-v3", "t-hash",
-            "model:qwen2.5:7b", "m-hash",
-            "ACTIVE", now, null, now, "ops", now, "ops");
+            "prompt:extract-v2", hash,
+            "tool:extract-schema-v3", hash,
+            modelVersion, hash,
+            "ACTIVE", "tenant-1|knowledge.extract", now, null, now, "ops", now, "ops");
     }
 
     private static String b0Output(String capabilityCode) {
         return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
             + "\",\"candidates\":[],\"message\":\"当前未接入可用模型 provider，未生成候选内容\"}";
+    }
+
+    private static ModelCapabilityTask storedTask(String taskId, String tenantId) {
+        Instant now = Instant.parse("2026-06-16T01:00:00Z");
+        return new ModelCapabilityTask(
+            41L,
+            taskId,
+            tenantId,
+            "knowledge.extract",
+            "hash",
+            "已脱敏输入摘要",
+            b0Output("knowledge.extract"),
+            "B0",
+            "B0-Deterministic-Baseline",
+            "prompt:extract-v1",
+            "tool:extract-schema-v1",
+            "[]",
+            null,
+            "LOW",
+            true,
+            "[LLM-02:POLICY_BASELINE] B0 -> B0：策略显式指定 B0 基线",
+            12L,
+            "DEGRADED",
+            "trace-original",
+            now,
+            "ops",
+            now,
+            "ops"
+        );
     }
 }

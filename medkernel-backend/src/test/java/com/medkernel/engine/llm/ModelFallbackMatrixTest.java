@@ -46,6 +46,20 @@ class ModelFallbackMatrixTest {
     }
 
     @Test
+    void externalModelCanFallBackToLocalModelWhenOrderAllowsIntermediateLevel() {
+        ModelFallbackDecision decision =
+            matrix.decide("EXTERNAL_MODEL", "LOCAL_MODEL", ModelFallbackTrigger.PROVIDER_RATE_LIMITED, "429");
+
+        assertThat(decision.sourceMode()).isEqualTo("B2");
+        assertThat(decision.fallbackMode()).isEqualTo("B1");
+        assertThat(decision.fallbackUsed()).isTrue();
+        assertThat(decision.reason())
+            .contains("PROVIDER_RATE_LIMITED")
+            .contains("B2 -> B1")
+            .doesNotContain("B0 确定性基线");
+    }
+
+    @Test
     void baselineRouteUsesExplicitB0Reason() {
         ModelFallbackDecision decision =
             matrix.decide("BASELINE", ModelFallbackTrigger.POLICY_BASELINE, "策略指定");

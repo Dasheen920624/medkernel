@@ -21,3 +21,51 @@
 .logic {
   width: 8.125rem;
 }
+
+.rootGroupCard {
+  background: var(--ant-color-bg-container);
+  border-color: var(--ant-color-info-border);
+}
+
+.nestedGroupCard {
+  margin-inline-start: 1rem;
+  background: var(--ant-color-success-bg);
+  border-color: var(--ant-color-success-border);
+  border-inline-start: 0.25rem solid var(--ant-color-success);
+}
+
+.conditionLeaf,
+.fragmentLeaf {
+  padding: 0.75rem;
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.conditionLeaf {
+  border-inline-start: 0.25rem solid var(--ant-color-info);
+}
+
+.fragmentLeaf {
+  border-inline-start: 0.25rem solid var(--ant-color-success);
+}
+
+.nodeHint {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+@media (max-width: 40rem) {
+  .nestedGroupCard {
+    margin-inline-start: 0;
+  }
+
+  .label,
+  .fact,
+  .operator,
+  .kind,
+  .value,
+  .logic {
+    width: 100%;
+  }
+}

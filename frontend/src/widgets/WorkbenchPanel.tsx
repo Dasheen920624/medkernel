@@ -28,7 +28,11 @@ import {
   type SecurityProfile,
 } from "@/shared/api/hooks";
 import { parseApiError } from "@/shared/api/errors";
-import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+  customerSafeDisplayText,
+} from "@/shared/config/customerLabels";
 import {
   findProductRoleJourney,
   type ProductRoleAction,
@@ -135,7 +139,10 @@ export function WorkbenchPanel() {
         <PageState
           state="error"
           title="暂时无法核验权限"
-          description={parsed.message}
+          description={customerSafeDisplayText(
+            parsed.message,
+            "暂时无法核验当前角色，请重试或联系信息科。",
+          )}
           traceId={parsed.traceId}
         />
       </PageShell>
@@ -875,7 +882,9 @@ function SourceCard<T>({
         extra={<Tag color="warning">降级</Tag>}
       >
         <Space direction="vertical" size="small">
-          <Text>{parsed.message}</Text>
+          <Text>
+            {customerSafeDisplayText(parsed.message, `${title}暂时不可用，请重试或联系信息科。`)}
+          </Text>
           {parsed.traceId ? <Text type="secondary">{parsed.traceId}</Text> : null}
           {drilldownAction}
         </Space>
@@ -932,7 +941,10 @@ function GovernanceSlices({
         <PageState
           state="error"
           title="治理切片暂时不可用"
-          description={parsed.message}
+          description={customerSafeDisplayText(
+            parsed.message,
+            "治理切片暂时不可用，请重试或联系信息科。",
+          )}
           traceId={parsed.traceId}
         />
       </Card>
@@ -1037,7 +1049,11 @@ function PartialSourceAlert({
         <Space direction="vertical" size={2}>
           {failures.map((failure) => (
             <Text key={failure.name}>
-              {failure.name}：{failure.message}
+              {failure.name}：
+              {customerSafeDisplayText(
+                failure.message,
+                `${failure.name}暂时不可用，请重试或联系信息科。`,
+              )}
               {failure.traceId ? `（${failure.traceId}）` : ""}
             </Text>
           ))}
@@ -1074,7 +1090,13 @@ function collectFailures(
   return sources.flatMap(([name, query]) => {
     if (!query?.isError) return [];
     const parsed = parseApiError(query.error, `${name}暂时不可用`);
-    return [{ name, message: parsed.message, traceId: parsed.traceId }];
+    return [
+      {
+        name,
+        message: customerSafeDisplayText(parsed.message, `${name}暂时不可用，请重试或联系信息科。`),
+        traceId: parsed.traceId,
+      },
+    ];
   });
 }
 

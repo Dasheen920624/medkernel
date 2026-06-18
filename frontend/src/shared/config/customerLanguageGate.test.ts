@@ -3,7 +3,12 @@ import { extname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-import { customerDisplayText, customerEnumLabel } from "./customerLabels";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+  customerSafeDisplayText,
+  hasTechnicalDetailText,
+} from "./customerLabels";
 
 const sourceRoot = resolve(process.cwd(), "src");
 const scanRoots = [
@@ -39,6 +44,18 @@ describe("customer language gate", () => {
     expect(customerDisplayText("HIS 适配器仍为 NOT_CONNECTED")).toBe("HIS 适配器仍为 未接通");
     expect(customerDisplayText("权限维度 ASSET 缺少授权")).toBe("权限维度 治理资产 缺少授权");
     expect(customerDisplayText("MEDIUM")).toBe("中风险");
+  });
+
+  it("replaces raw technical details with customer-safe fallback text", () => {
+    const rawError = "GET /api/v1/terminology failed: ECONNREFUSED 127.0.0.1:8080";
+
+    expect(hasTechnicalDetailText(rawError)).toBe(true);
+    expect(customerSafeDisplayText(rawError, "数据读取失败，请联系信息科。")).toBe(
+      "数据读取失败，请联系信息科。",
+    );
+    expect(customerSafeDisplayText("HIS 适配器仍为 NOT_CONNECTED", "数据读取失败")).toBe(
+      "HIS 适配器仍为 未接通",
+    );
   });
 
   it("keeps raw technical tokens out of customer-visible source strings", () => {

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,29 @@ class ModelProviderRegistryTest {
             .isPresent()
             .get()
             .satisfies(r -> assertThat(r.adapter().type()).isEqualTo(ProviderType.OLLAMA));
+    }
+
+    @Test
+    void localModelResolvesRequestedProviderCodeOnly() {
+        ModelProviderConfig requested = cfg("ollama-hospital", "OLLAMA");
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "ollama-hospital"))
+            .thenReturn(Optional.of(requested));
+
+        assertThat(registry.resolve("tenant-1", "LOCAL_MODEL", "ollama-hospital"))
+            .isPresent()
+            .get()
+            .satisfies(r -> {
+                assertThat(r.config().providerCode()).isEqualTo("ollama-hospital");
+                assertThat(r.adapter().type()).isEqualTo(ProviderType.OLLAMA);
+            });
+    }
+
+    @Test
+    void localModelRejectsRequestedExternalProviderCode() {
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "claude-prod"))
+            .thenReturn(Optional.of(cfg("claude-prod", "CLAUDE")));
+
+        assertThat(registry.resolve("tenant-1", "LOCAL_MODEL", "claude-prod")).isEmpty();
     }
 
     @Test

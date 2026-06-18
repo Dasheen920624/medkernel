@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 /**
@@ -40,7 +39,7 @@ public record PackageSyncRequest(
 
     String scopeValue,
 
-    @NotEmpty(message = "发布适配器列表不能为空")
+    @NotNull(message = "发布适配器列表不能为空")
     List<String> adapterIds,
 
     VersionPublishEvidence publishEvidence

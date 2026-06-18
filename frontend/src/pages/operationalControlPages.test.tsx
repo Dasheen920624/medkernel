@@ -39,6 +39,7 @@ import type {
   RuntimeOperationsSnapshot,
   SecurityProfile,
 } from "@/shared/api/hooks";
+import * as browserCompatibility from "@/shared/lib/browserCompatibility";
 
 vi.mock("@/shared/api/hooks", () => ({
   downloadDomesticCompatibilityReport: vi.fn(),
@@ -569,6 +570,23 @@ describe("operational control pages", () => {
   it("renders domestic compatibility evidence from the runtime operations snapshot", async () => {
     const user = userEvent.setup();
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(browserCompatibility, "probeBrowserCompatibility").mockReturnValue(
+      browserCompatibility.evaluateBrowserCompatibility(
+        {
+          esModules: true,
+          fetch: true,
+          abortController: true,
+          url: true,
+          textEncoder: true,
+          webCrypto: true,
+          matchMedia: true,
+          resizeObserver: true,
+          cssGrid: true,
+          cssVariables: true,
+        },
+        "2026-06-18T00:00:00Z",
+      ),
+    );
     renderPage(<DomesticCheck />);
 
     expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
@@ -583,6 +601,10 @@ describe("operational control pages", () => {
     expect(screen.getAllByText(/不标记通过/).length).toBeGreaterThan(0);
     expect(screen.getByText("国产浏览器")).toBeInTheDocument();
     expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
+    expect(screen.getByText("关键与增强 Web 能力均可用。")).toBeInTheDocument();
+    expect(screen.getByText("自动化能力预检不替代目标国产浏览器现场确认。")).toBeInTheDocument();
+    expect(screen.getByText("Web Crypto")).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /导出报告/ }));

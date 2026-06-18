@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 
 /**
  * B2 外部 provider 适配器单元测试（LLM-08）：OpenAI 兼容 + Claude。凭据经解析器，密钥不落库。
@@ -52,11 +53,11 @@ class ExternalProviderTest {
     @Test
     void openAiParsesRealCompletion() {
         when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("sk-secret"));
-        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), contains("gpt-4o")))
+        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), contains("gpt-4o"), eq(45_000)))
             .thenReturn("{\"model\":\"gpt-4o\",\"choices\":[{\"message\":{\"content\":\"候选内容\"}}]}");
 
         ProviderCompletion c = openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
-            new ProviderRequest("knowledge.extract", "提取要素"));
+            new ProviderRequest("knowledge.extract", "提取要素", 45_000));
 
         assertThat(c.content()).contains("候选内容");
         assertThat(c.modelVersion()).isEqualTo("gpt-4o");
@@ -65,14 +66,54 @@ class ExternalProviderTest {
     @Test
     void claudeParsesRealCompletion() {
         when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("sk-ant"));
-        when(http.post(eq("https://api.example.com/v1/messages"), any(), contains("claude-opus-4-8")))
+        when(http.post(eq("https://api.example.com/v1/messages"), any(), contains("claude-opus-4-8"), eq(45_000)))
             .thenReturn("{\"model\":\"claude-opus-4-8\",\"content\":[{\"type\":\"text\",\"text\":\"候选内容\"}]}");
 
         ProviderCompletion c = claude.complete(config("CLAUDE", "claude-opus-4-8"),
-            new ProviderRequest("knowledge.extract", "提取要素"));
+            new ProviderRequest("knowledge.extract", "提取要素", 45_000));
 
         assertThat(c.content()).contains("候选内容");
         assertThat(c.modelVersion()).isEqualTo("claude-opus-4-8");
+    }
+
+    @Test
+    void externalProvidersRejectResponseWithoutActualModelVersion() {
+        when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("secret"));
+        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"choices\":[{\"message\":{\"content\":\"候选内容\"}}]}");
+        when(http.post(eq("https://api.example.com/v1/messages"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"content\":[{\"type\":\"text\",\"text\":\"候选内容\"}]}");
+
+        assertThatThrownBy(() -> openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+        assertThatThrownBy(() -> claude.complete(config("CLAUDE", "claude-opus-4-8"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+    }
+
+    @Test
+    void externalProvidersRejectEmptyCompletionContent() {
+        when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("secret"));
+        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"model\":\"gpt-4o\",\"choices\":[{\"message\":{\"content\":\"  \"}}]}");
+        when(http.post(eq("https://api.example.com/v1/messages"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"model\":\"claude-opus-4-8\",\"content\":[{\"type\":\"text\",\"text\":\"\"}]}");
+
+        assertThatThrownBy(() -> openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+        assertThatThrownBy(() -> claude.complete(config("CLAUDE", "claude-opus-4-8"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
     }
 
     @Test
@@ -81,14 +122,14 @@ class ExternalProviderTest {
 
         assertThat(claude.checkHealth(config("CLAUDE", "claude-opus-4-8"))).isEqualTo(ProviderHealth.NOT_CONNECTED);
         assertThatThrownBy(() -> openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
-                new ProviderRequest("knowledge.extract", "x")))
+                new ProviderRequest("knowledge.extract", "x", 45_000)))
             .isInstanceOf(ApiException.class);
     }
 
     @Test
     void healthNotConnectedOnTransportError() {
         when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("sk"));
-        when(http.get(anyString(), any())).thenThrow(new RuntimeException("timeout"));
+        when(http.get(anyString(), any(), eq(5_000))).thenThrow(new RuntimeException("timeout"));
         assertThat(openai.checkHealth(config("OPENAI_COMPATIBLE", "gpt-4o"))).isEqualTo(ProviderHealth.NOT_CONNECTED);
     }
 }

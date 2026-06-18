@@ -134,9 +134,8 @@ public class KnowledgeProductionController {
     public ApiResult<KnowledgeProductionReadinessResponse> readiness(
             @RequestParam(required = false, defaultValue = "API_MODEL") KnowledgeProducer producer,
             @RequestParam(required = false) String capabilityCode,
-            @RequestParam(required = false) String providerCode,
-            @RequestParam(required = false) String modelStrategy) {
-        return ApiResult.ok(readinessService.evaluate(producer, capabilityCode, providerCode, modelStrategy));
+            @RequestParam(required = false) String providerCode) {
+        return ApiResult.ok(readinessService.evaluate(producer, capabilityCode, providerCode));
     }
 
     /** 完成 job（FR-1）。 */

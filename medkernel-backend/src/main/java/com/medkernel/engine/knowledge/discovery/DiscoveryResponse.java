@@ -19,6 +19,7 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
  * @param candidateCount 产出候选数
  * @param resultHash 结果集真实指纹（可复算核验）
  * @param candidates 候选信封（DRAFT）
+ * @param diffs 与目标现行知识身份的差异检测结果；未绑定目标身份时为空列表
  */
 public record DiscoveryResponse(
     String runCode,
@@ -28,6 +29,11 @@ public record DiscoveryResponse(
     int hitCount,
     int candidateCount,
     String resultHash,
-    List<KnowledgeAssetEnvelope> candidates
+    List<KnowledgeAssetEnvelope> candidates,
+    List<KnowledgeDiffDetection> diffs
 ) {
+    public DiscoveryResponse {
+        candidates = candidates == null ? List.of() : List.copyOf(candidates);
+        diffs = diffs == null ? List.of() : List.copyOf(diffs);
+    }
 }

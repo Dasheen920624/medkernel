@@ -60,7 +60,7 @@ class D0DomainAcceptanceTest {
                 .as("%s 必须具备菜单、动作、数据和环境权限；无资产职责的角色不得被迫扩权", role.code())
                 .contains("MENU", "ACTION", "DATA", "ENVIRONMENT");
             assertThat(textValues(data.path("menuKeys")))
-                .as("%s 入口必须来自 30+1+1 导航权限目录", role.code())
+                .as("%s 入口必须来自 33+1+1 导航权限目录", role.code())
                 .isNotEmpty()
                 .contains("workbench")
                 .doesNotContain("pilot-setup", "clinical-run", "quality-improve", "compliance-ops",
@@ -74,11 +74,11 @@ class D0DomainAcceptanceTest {
     }
 
     @Test
-    void d0LockedMenuCatalogMatchesSevenDomainsAndExplicitPlacements() {
-        assertThat(MenuPermissionCatalog.allMenus()).hasSize(32);
+    void d0LockedMenuCatalogMatchesEightDomainsAndExplicitPlacements() {
+        assertThat(MenuPermissionCatalog.allMenus()).hasSize(35);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(30);
+            .hasSize(33);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .hasSize(1);

@@ -101,7 +101,7 @@ describe("AsyncExportAction", () => {
   it("retries a failed submission using the original snapshot", async () => {
     const onSubmit = vi
       .fn()
-      .mockRejectedValueOnce(new Error("服务暂时不可用"))
+      .mockRejectedValueOnce(new Error("GET /api/v1/exports failed: ECONNREFUSED 127.0.0.1:8080"))
       .mockResolvedValueOnce({
         jobId: "job-2",
         status: "succeeded",
@@ -111,7 +111,9 @@ describe("AsyncExportAction", () => {
     renderAction({ onSubmit });
 
     await submitExport();
-    expect(await screen.findByText(/服务暂时不可用/)).toBeInTheDocument();
+    expect(await screen.findByText(/导出服务暂时不可用，请重试或联系信息科/)).toBeInTheDocument();
+    expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/exports/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "重试导出" }));
 
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
@@ -119,5 +121,23 @@ describe("AsyncExportAction", () => {
     expect(onSubmit).toHaveBeenNthCalledWith(2, expect.objectContaining(request));
     expect(onSubmit.mock.calls[0][0].idempotencyKey).toBeDefined();
     expect(onSubmit.mock.calls[1][0].idempotencyKey).toBe(onSubmit.mock.calls[0][0].idempotencyKey);
+  });
+
+  it("keeps failed job reason in hospital language", async () => {
+    const onSubmit = vi.fn().mockResolvedValue({
+      jobId: "job-3",
+      status: "failed",
+      submittedAt: "2026-05-26T01:00:00.000Z",
+      submittedBy: "tester",
+      failureReason: "GET /api/v1/exports/job-3 failed: SQLException stack trace",
+    } satisfies AsyncExportJob);
+    renderAction({ onSubmit });
+
+    await submitExport();
+
+    expect(await screen.findByText("导出任务失败")).toBeInTheDocument();
+    expect(screen.getByText(/导出任务未完成，请重试或联系信息科/)).toBeInTheDocument();
+    expect(screen.queryByText(/SQLException/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/exports/)).not.toBeInTheDocument();
   });
 });

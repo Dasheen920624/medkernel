@@ -10,6 +10,7 @@ import {
   Descriptions,
   Form,
   Input,
+  InputNumber,
   Modal,
   Radio,
   Select,
@@ -24,6 +25,7 @@ import {
   CloudUploadOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
@@ -32,6 +34,7 @@ import {
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyKnowledgePackage,
   useConfirmTerminologyCandidate,
+  useGenerateTerminologyCandidates,
   useLargeListExportJob,
   useLocalTerms,
   usePackages,
@@ -46,6 +49,7 @@ import {
   useStandardTerms,
   useSubmitLargeListExport,
   useTerminologyCandidates,
+  useTerminologyCandidateGenerationJob,
   useTerminologyConflicts,
   useTerminologyMappings,
   type MappingConflict,
@@ -56,8 +60,10 @@ import {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -305,7 +311,6 @@ export default function TerminologyMapping() {
   const [request, setRequest] = useState<ExperiencePageRequest>(DEFAULT_REQUEST);
   const [visibleColumnKeys, setVisibleColumnKeys] =
     useState<readonly string[]>(DEFAULT_VISIBLE_COLUMNS);
-  const [expertMode, setExpertMode] = useState(false);
   const [selectionSnapshot, setSelectionSnapshot] = useState<{
     selectedRowKeys: Key[];
     rowCount: number;
@@ -318,17 +323,23 @@ export default function TerminologyMapping() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [lastGenerationJobCode, setLastGenerationJobCode] = useState<string>();
   const [buildOpen, setBuildOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [confirmForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
   const [conflictForm] = Form.useForm();
+  const [generateForm] = Form.useForm();
   const [buildForm] = Form.useForm();
   const [publishForm] = Form.useForm();
   const [rollbackForm] = Form.useForm();
 
   const security = useSecurityProfile();
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const setExpertMode = useExpertModeStore((state) => state.setEnabled);
+  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const canPublish = hasPermission(security.data, "term.publish");
   const query = useTerminologyMappings({
     page: request.pageNumber,
@@ -366,6 +377,8 @@ export default function TerminologyMapping() {
   const confirmCandidate = useConfirmTerminologyCandidate();
   const rejectCandidate = useRejectTerminologyCandidate();
   const resolveConflict = useResolveTerminologyConflict();
+  const generateCandidates = useGenerateTerminologyCandidates();
+  const generationJob = useTerminologyCandidateGenerationJob(lastGenerationJobCode);
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
   const buildPackage = useBuildTerminologyKnowledgePackage();
   const publishPackage = useReleasePackage();
@@ -387,7 +400,7 @@ export default function TerminologyMapping() {
     setVisibleColumnKeys(savedSnapshot.visibleColumnKeys);
     setExpertMode(savedSnapshot.expertMode);
     savedViewApplied.current = true;
-  }, [savedViews.data]);
+  }, [savedViews.data, setExpertMode]);
 
   function snapshot(
     nextFilters = filters,
@@ -677,6 +690,42 @@ export default function TerminologyMapping() {
     conflictForm.resetFields();
   }
 
+  function openGenerateCandidates() {
+    generateForm.setFieldsValue({
+      sourceSystem: getFilterValue(filters, "sourceSystem") ?? localItems[0]?.sourceSystem ?? "",
+      minimumScore: 0.2,
+      semanticAssistEnabled: true,
+    });
+    setGenerateOpen(true);
+  }
+
+  async function submitCandidateGeneration() {
+    let values: {
+      sourceSystem: string;
+      minimumScore?: number;
+      semanticAssistEnabled?: boolean;
+    };
+    try {
+      values = await generateForm.validateFields();
+    } catch {
+      return;
+    }
+    try {
+      const job = await generateCandidates.mutateAsync({
+        packageVersion: requestPackageVersion,
+        sourceSystem: values.sourceSystem.trim(),
+        minimumScore: values.minimumScore ?? 0.2,
+        semanticAssistEnabled: values.semanticAssistEnabled ?? true,
+      });
+      setLastGenerationJobCode(job.jobCode);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "候选生成提交失败，请稍后重试"));
+      return;
+    }
+    setGenerateOpen(false);
+    generateForm.resetFields();
+  }
+
   async function submitOrdinaryBatchConfirmation() {
     if (ordinaryCandidates.length === 0 || highRiskCandidates.length > 0) {
       return;
@@ -786,8 +835,6 @@ export default function TerminologyMapping() {
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={security.data}
-      expertMode={expertMode}
-      onExpertModeChange={setExpertMode}
       primary={
         <Button
           type="primary"
@@ -808,6 +855,14 @@ export default function TerminologyMapping() {
             onSubmit={submitExport.mutateAsync}
             onPoll={pollExport.mutateAsync}
           />
+          <Button
+            aria-label="生成候选"
+            icon={<SyncOutlined aria-hidden="true" />}
+            disabled={!canWrite}
+            onClick={openGenerateCandidates}
+          >
+            生成候选
+          </Button>
           <Button
             aria-label="构建映射包"
             icon={<CheckCircleOutlined aria-hidden="true" />}
@@ -914,6 +969,39 @@ export default function TerminologyMapping() {
                   className={styles.sectionAlert}
                   message="高危近似"
                   description="当前队列包含高危近似候选，系统禁用批量确认；必须逐条二次确认。"
+                />
+              )}
+              {lastGenerationJobCode && (
+                <Alert
+                  type={generationJob.data?.status === "FAILED" ? "error" : "info"}
+                  showIcon
+                  className={styles.sectionAlert}
+                  message={
+                    <Space size="small" wrap>
+                      <Text strong>候选生成任务</Text>
+                      <Text code>{lastGenerationJobCode}</Text>
+                      <Tag>{generationJob.data?.status ?? "PENDING"}</Tag>
+                    </Space>
+                  }
+                  description={
+                    <Space direction="vertical" size={2} className="mk-full-width">
+                      <Text>
+                        已生成 <Text strong>{generationJob.data?.generatedCount ?? 0}</Text> 条候选
+                      </Text>
+                      <Text type="secondary">
+                        {generationJob.data?.candidatePageUri ?? "候选分页入口生成中"}
+                      </Text>
+                    </Space>
+                  }
+                  action={
+                    <Button
+                      size="small"
+                      disabled={generationJob.isLoading}
+                      onClick={() => void generationJob.refetch()}
+                    >
+                      刷新
+                    </Button>
+                  }
                 />
               )}
               <Space direction="vertical" size="middle" className="mk-full-width">
@@ -1087,6 +1175,34 @@ export default function TerminologyMapping() {
             rules={[{ required: true, whitespace: true, message: "请填写裁决依据" }]}
           >
             <Input.TextArea rows={4} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="生成术语候选"
+        open={generateOpen}
+        onCancel={() => setGenerateOpen(false)}
+        onOk={() => void submitCandidateGeneration()}
+        okText="提交生成"
+        destroyOnClose
+      >
+        <Form form={generateForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="sourceSystem"
+            label="来源系统"
+            rules={[{ required: true, whitespace: true, message: "请输入来源系统" }]}
+          >
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item
+            name="minimumScore"
+            label="最低语义分"
+            rules={[{ required: true, message: "请输入最低语义分" }]}
+          >
+            <InputNumber min={0} max={1} step={0.1} className="mk-full-width" />
+          </Form.Item>
+          <Form.Item name="semanticAssistEnabled" valuePropName="checked">
+            <Checkbox>启用语义辅助</Checkbox>
           </Form.Item>
         </Form>
       </Modal>

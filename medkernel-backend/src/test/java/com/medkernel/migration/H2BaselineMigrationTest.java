@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 不依赖 Docker 的 H2 Flyway smoke。
@@ -22,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 139;
+    private static final int LATEST_MIGRATION_VERSION = 151;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -102,12 +103,62 @@ class H2BaselineMigrationTest {
             """, Integer.class);
         assertThat(modelVersionBundleColumns).as("LLM-04 版本三元组版本包列").isEqualTo(6);
 
+        String hash = "a".repeat(64);
+        int activeBundleInserted = jdbc.update("""
+            INSERT INTO mk_llm_model_version_bundle (
+                tenant_id, capability_code, prompt_version, prompt_hash,
+                tool_version, tool_hash, model_version, model_hash, status, active_scope_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "tenant-version", "knowledge.extract", "prompt:v1", hash,
+            "tool:v1", hash, "model:v1", hash, "ACTIVE", "tenant-version|knowledge.extract");
+        assertThat(activeBundleInserted).as("首个 ACTIVE 模型版本包可写入").isEqualTo(1);
+
+        assertThatThrownBy(() -> jdbc.update("""
+            INSERT INTO mk_llm_model_version_bundle (
+                tenant_id, capability_code, prompt_version, prompt_hash,
+                tool_version, tool_hash, model_version, model_hash, status, active_scope_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "tenant-version", "knowledge.extract", "prompt:v2", hash,
+            "tool:v2", hash, "model:v2", hash, "ACTIVE", "tenant-version|knowledge.extract"))
+            .as("同租户同能力不得并存两个 ACTIVE 模型版本包")
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> jdbc.update("""
+            INSERT INTO mk_llm_model_version_bundle (
+                tenant_id, capability_code, prompt_version, prompt_hash,
+                tool_version, tool_hash, model_version, model_hash, status, active_scope_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            """,
+            "tenant-version-2", "knowledge.extract", "prompt:v1", hash,
+            "tool:v1", hash, "model:v1", hash, "ACTIVE"))
+            .as("ACTIVE 模型版本包不得绕过作用域唯一键")
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> jdbc.update("""
+            INSERT INTO mk_llm_model_version_bundle (
+                tenant_id, capability_code, prompt_version, prompt_hash,
+                tool_version, tool_hash, model_version, model_hash, status, active_scope_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "tenant-version", "knowledge.extract", "prompt:v3", hash,
+            "tool:v3", hash, "model:v3", hash, "ACTIVE", "forged-scope-key"))
+            .as("ACTIVE 作用域键必须由租户与能力确定，禁止伪造键绕过唯一约束")
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
         Integer taskToolVersionColumn = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'MODEL_CAPABILITY_TASK'
               AND COLUMN_NAME = 'TOOL_VERSION'
             """, Integer.class);
         assertThat(taskToolVersionColumn).as("模型任务记录 tool_version").isEqualTo(1);
+
+        Integer diffAndExpiryTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN ('MK_KNOWLEDGE_DIFF', 'MK_KNOWLEDGE_EXPIRY_TASK')
+            """, Integer.class);
+        assertThat(diffAndExpiryTables).as("AIK-STD-08 差异与过期治理表").isEqualTo(2);
 
         int nullableConfigInserted = jdbc.update("""
             INSERT INTO mk_config_item (

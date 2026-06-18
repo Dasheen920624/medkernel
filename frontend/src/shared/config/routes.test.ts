@@ -31,16 +31,17 @@ function backendDefaultMenuSnapshots(): Map<string, string[]> {
 
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
-    expect(routeMetas.length).toBeGreaterThanOrEqual(34);
+    expect(routeMetas.length).toBeGreaterThanOrEqual(36);
     expect(findRouteByPath("/terminology/mapping")?.title).toBe("术语与字典");
     expect(findRouteByPath("/advanced/graph")?.placement).toBe("primary");
   });
 
-  it("locks seven stable customer domains and explicit entry placements", () => {
+  it("separates clinical runtime domains from the knowledge production product surface", () => {
     expect(routeSections.map((section) => [section.key, section.label])).toEqual([
       ["workbench", "工作台"],
       ["organization-people", "机构与人员"],
       ["knowledge-governance", "知识治理"],
+      ["knowledge-production", "知识生产"],
       ["clinical-collaboration", "临床协同"],
       ["quality-management", "质量管理"],
       ["compliance-security", "合规安全"],
@@ -55,7 +56,7 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 30,
+      primary: 33,
       header: 1,
       profile: 1,
     });
@@ -96,6 +97,11 @@ describe("route metadata", () => {
       sectionKey: "knowledge-governance",
       placement: "primary",
       menuLabel: "来源与血缘",
+    });
+    expect(findRouteByPath("/advanced/ai-workflows")).toMatchObject({
+      sectionKey: "knowledge-production",
+      placement: "primary",
+      menuLabel: "模型能力",
     });
     expect(findRouteByPath("/advanced/domestic")).toMatchObject({
       sectionKey: "system-operations",
@@ -190,6 +196,18 @@ describe("route metadata", () => {
         }),
         path,
       ).toBe(false);
+    });
+  });
+
+  it("limits medical regression review to the quality governor", () => {
+    const route = findRouteByPath("/qc/model-evaluations");
+
+    expect(route).toMatchObject({
+      menuKey: "model-evaluation-review",
+      sectionKey: "quality-management",
+      requiredPermissions: ["menu.model-evaluation-review", "llm.eval.manage"],
+      requiredRoles: ["quality-governor"],
+      pageType: "review",
     });
   });
 
@@ -613,7 +631,7 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(route, {
         roles: [{ code: "platform-governance-admin" }],
-        permissions: [{ code: "knowledge.read" }],
+        permissions: [{ code: "knowledge.review" }],
         menuKeys: ["knowledge-governance"],
       }),
     ).toBe(true);
@@ -621,22 +639,26 @@ describe("route metadata", () => {
 
   it("allows dedicated knowledge and access responsibilities into their owned pages", () => {
     const knowledgeRoute = findRouteByPath("/knowledge/governance");
+    const productionRoute = findRouteByPath("/knowledge/production");
     const usersRoute = findRouteByPath("/admin/users");
     const identityRoute = findRouteByPath("/security/identity-binding");
 
-    for (const roleCode of [
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "implementation-operator",
-    ]) {
+    for (const roleCode of ["platform-knowledge-governor", "knowledge-governor"]) {
       expect(
         canAccessRoute(knowledgeRoute, {
           roles: [{ code: roleCode }],
-          permissions: [{ code: "knowledge.read" }],
+          permissions: [{ code: "knowledge.review" }],
           menuKeys: ["knowledge-governance"],
         }),
       ).toBe(true);
     }
+    expect(
+      canAccessRoute(productionRoute, {
+        roles: [{ code: "implementation-operator" }],
+        permissions: [{ code: "knowledge.read" }],
+        menuKeys: ["knowledge-production"],
+      }),
+    ).toBe(true);
     expect(
       canAccessRoute(usersRoute, {
         roles: [{ code: "identity-access-admin" }],
@@ -726,30 +748,86 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
-  it("limits AI workflow status to real governance roles with read permission", () => {
+  it("splits review, institution maintenance and production into separate lifecycle entries", () => {
+    expect(findRouteByPath("/knowledge/governance")).toMatchObject({
+      title: "知识审核与发布",
+      sectionKey: "knowledge-governance",
+      menuKey: "knowledge-governance",
+      requiredPermissions: ["menu.knowledge-governance", "knowledge.review"],
+      pageType: "review",
+    });
+    expect(findRouteByPath("/knowledge/institution")).toMatchObject({
+      title: "机构知识",
+      sectionKey: "knowledge-governance",
+      menuKey: "institution-knowledge",
+      requiredPermissions: ["menu.institution-knowledge", "knowledge.write"],
+      pageType: "configuration",
+    });
+    expect(findRouteByPath("/knowledge/production")).toMatchObject({
+      title: "知识生产",
+      sectionKey: "knowledge-production",
+      menuKey: "knowledge-production",
+      requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
+      pageType: "system",
+    });
+  });
+
+  it("keeps knowledge production invisible to clinical runtime roles", () => {
+    const route = findRouteByPath("/knowledge/production");
+
+    expect(route?.requiredRoles).toEqual([
+      "platform-governance-admin",
+      "platform-knowledge-governor",
+      "knowledge-governor",
+      "implementation-operator",
+      "integration-operator",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "knowledge-governor" }],
+        permissions: [{ code: "knowledge.read" }],
+        menuKeys: ["knowledge-production"],
+      }),
+    ).toBe(true);
+    for (const roleCode of [
+      "clinical-governor",
+      "clinical-decision-user",
+      "nursing-collaborator",
+      "medication-safety-user",
+    ]) {
+      expect(
+        canAccessRoute(route, {
+          roles: [{ code: roleCode }],
+          permissions: [{ code: "knowledge.read" }, { code: "llm.read" }],
+          menuKeys: ["knowledge-production", "ai-workflows"],
+        }),
+        `${roleCode} 不应进入知识生产面`,
+      ).toBe(false);
+    }
+  });
+
+  it("limits model capability status to production-surface roles with read permission", () => {
     const route = findRouteByPath("/advanced/ai-workflows");
 
     expect(route?.placement).toBe("primary");
     expect(route?.requiredPermissions).toEqual(["menu.ai-workflows", "llm.read"]);
     expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "integration-operator",
+      "platform-governance-admin",
       "platform-knowledge-governor",
       "knowledge-governor",
-      "clinical-governor",
-      "platform-governance-admin",
-      "organization-admin",
+      "implementation-operator",
+      "integration-operator",
     ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-governor" }],
+        roles: [{ code: "implementation-operator" }],
         permissions: [{ code: "llm.read" }],
         menuKeys: ["ai-workflows"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-governor" }],
         permissions: [{ code: "llm.read" }],
         menuKeys: ["ai-workflows"],
       }),

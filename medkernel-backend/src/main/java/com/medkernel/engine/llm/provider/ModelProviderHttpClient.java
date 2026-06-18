@@ -10,7 +10,7 @@ import java.util.Map;
  */
 public interface ModelProviderHttpClient {
 
-    String post(String url, Map<String, String> headers, String body);
+    String post(String url, Map<String, String> headers, String body, int timeoutMs);
 
-    String get(String url, Map<String, String> headers);
+    String get(String url, Map<String, String> headers, int timeoutMs);
 }

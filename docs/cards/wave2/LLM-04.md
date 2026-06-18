@@ -17,11 +17,14 @@
 ## 现状（搬迁时核查 2026-05-31）
 **部分**：`model_capability_task` 已存 `prompt_version`/`model_version`（当前恒 `baseline`/`B0-Deterministic-Baseline`）。本卡＝建**版本仓**（prompt/tool/model 版本可发布/回滚/导出）+ 任务绑定真实版本三元组 + 重放。复用 [SYS-04](../D2/SYS-04.md) 版本框架而非另起。
 
-## 最新进度（2026-06-16 readiness 前置闸）
-- 知识生产 readiness 已要求模型生产任务传入 `modelStrategy`，并至少声明 `prompt`、`tool`、`model` 三元组；若指定 provider，三元组中的模型版本必须与 provider 当前 `modelVersion` 一致。
+## 最新进度（2026-06-18 T9.4 上线核查）
+- 知识生产 readiness 不接收调用方自由声明的 `modelStrategy`；只查询当前租户与能力码唯一 `ACTIVE` 的 `mk_llm_model_version_bundle`，要求 prompt/tool/model 版本非空、三个内容 hash 均为 64 位 SHA-256，且版本包模型版本与 provider 当前配置精确一致。网关复用同一校验器，版本包缺失或任一字段畸形时在解析 provider 前直接走 B0。
+- V150 五方言新增 `active_scope_key`、状态一致性 CHECK 与唯一约束：`ACTIVE` 版本的作用域键必须非空且精确等于 `tenant_id|capability_code`，`RETIRED` 必须清空，数据库层同时阻断空值、伪造作用域键和并发发布形成同租户同能力多个生效版本。
+- 回滚更新必须且只能命中一个目标版本包；并发状态漂移导致影响行数异常时返回冲突并回滚整个事务，不产生成功审计，也不留下无 ACTIVE 的中间状态。
 - 已新增 `mk_llm_model_version_bundle` V139 五方言版本包表与 `tool_version` 任务列；`ModelVersionGovernanceService/Controller` 支持版本包发布、active 查询、回滚、导出，导出只含版本号与 hash，不泄露提示词正文/工具契约明文；`ModelGatewayService` 在 provider 成功任务上记录 ACTIVE 版本包的 prompt/tool 版本与 provider 返回的真实 modelVersion。
+- `ModelGatewayService` 在真实调用前再次校验 ACTIVE 版本包模型与 provider 配置，在响应后校验 provider 实际返回的 `model` 与配置一致；provider 缺少实际模型字段或发生版本漂移均按调用失败处理并安全降级，禁止适配器用请求配置冒充响应模型。
 - 已新增 `POST /api/v1/model-capabilities/tasks/{id}/replay`：按 `task_id` 取原任务保存的脱敏输入摘要与 prompt/tool/model 三元组执行 B0 确定性重放，生成 `REPLAYED` 任务并审计；B1/B2 provider 任务拒绝伪装成可逐字复现。
-- 仍未完成：版本仓尚未接 SYS-04 发布计划 UI。
+- T5.3 已补服务层防御校验：版本包发布在退役旧 ACTIVE 前校验 prompt/tool/model 版本号与内容载荷，避免绕过 Controller Bean Validation 写入空版本或正文空 hash。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 版本仓：prompt/tool/model 各有版本记录（内容 hash + 生效区间）。
@@ -36,7 +39,7 @@
 - 状态机：配置（版本 草稿→生效→停用）。
 
 ## 数据与迁移
-- `model_prompt_version` / `model_tool_version` / `model_version_registry`（内容 hash + 区间 + 审计），五方言。
+- `mk_llm_model_version_bundle`（内容 hash + 生效/退役时间 + 审计字段）与 `model_capability_task.tool_version`，五方言 V139；V150 以规范化 `active_scope_key` 的等值 CHECK + UNIQUE 在关系库层保证每个 `tenant_id+capability_code` 最多一个 ACTIVE。版本包不保存 prompt 正文、工具契约明文或 provider 凭据。
 
 ## 视角清单（11 视角）
 1. 产品架构：AI 可治理性基础设施。
@@ -45,7 +48,7 @@
 4. 临床医疗安全：可定位某条 AI 建议用的版本，便于事故追溯。
 5. 知识与数据治理：★唯一生效版本（核心 §6）类比用于 prompt/model。
 6. 安全合规与监管：版本变更审计 + 可导出证据。
-7. 集团化与多租户治理：版本按 OrgContext 继承/覆盖。
+7. 集团化与多租户治理：版本包按租户能力隔离；组织级策略继承由 [LLM-01](LLM-01.md) 的能力策略承担。
 8. 集成与互操作：N·A。
 9. 运维 / SRE / 国产化：版本可离线导出/导入。
 10. 质量与真实性审计：★版本三元组真实绑定、不伪造。

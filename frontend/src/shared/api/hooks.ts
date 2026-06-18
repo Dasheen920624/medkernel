@@ -956,6 +956,121 @@ function compactOneBasedPageParams<T extends { page?: number }>(params: T): Part
 
 const KNOWLEDGE_API_ROOT = "/engine/knowledge";
 const KNOWLEDGE_PRODUCTION_API_ROOT = "/engine/knowledge-production";
+const KNOWLEDGE_ACQUISITION_API_ROOT = "/engine/knowledge/acquisition";
+
+export interface KnowledgeAcquisitionSource {
+  id: number;
+  tenantId: string;
+  sourceCode: string;
+  domain: string;
+  baseUrl: string;
+  sourceType: string;
+  authorityLevel: string;
+  authorityBasis: string;
+  title: string;
+  publisher: string;
+  license: string;
+  licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN" | string;
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH" | string;
+  enabledFlag: "Y" | "N" | string;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  scheduleEnabledFlag: "Y" | "N" | string;
+  scheduleIntervalMinutes?: number | null;
+  nextCheckAt?: string | null;
+  lastCheckAt?: string | null;
+  defaultFormat?: string | null;
+  generationPlanJson?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+  version: number;
+}
+
+export interface KnowledgeAcquisitionSourceDraftRequest {
+  domain: string;
+  baseUrl: string;
+  sourceType: string;
+  authorityLevel: string;
+  authorityBasis: string;
+  title: string;
+  publisher: string;
+  license: string;
+  licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN";
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH";
+  scheduleEnabled: boolean;
+  scheduleIntervalMinutes?: number;
+  defaultFormat?: string;
+  generationPlan?: Record<string, unknown>;
+}
+
+export interface KnowledgeAcquisitionSourcesParams {
+  page?: number;
+  size?: number;
+}
+
+export function useKnowledgeAcquisitionSources(params: KnowledgeAcquisitionSourcesParams = {}) {
+  const requestParams = compactOneBasedPageParams({
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+  });
+  return useQuery({
+    queryKey: ["knowledge-acquisition", "sources", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeAcquisitionSource> }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSaveKnowledgeAcquisitionSourceDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      sourceCode,
+      request,
+    }: {
+      sourceCode: string;
+      request: KnowledgeAcquisitionSourceDraftRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: KnowledgeAcquisitionSource }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources/${encodeURIComponent(sourceCode)}`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["knowledge-acquisition", "sources"] });
+    },
+  });
+}
+
+function useKnowledgeAcquisitionSourceStatusMutation(action: "approval" | "disable") {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeAcquisitionSource }>(
+        `${KNOWLEDGE_ACQUISITION_API_ROOT}/sources/${encodeURIComponent(sourceCode)}/${action}`,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["knowledge-acquisition", "sources"] });
+    },
+  });
+}
+
+export function useApproveKnowledgeAcquisitionSource() {
+  return useKnowledgeAcquisitionSourceStatusMutation("approval");
+}
+
+export function useDisableKnowledgeAcquisitionSource() {
+  return useKnowledgeAcquisitionSourceStatusMutation("disable");
+}
 
 export type KnowledgeDomain =
   | "GUIDELINE"
@@ -1000,6 +1115,18 @@ export type CandidateReviewStatus =
   | string;
 
 export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT" | "RETURN";
+export type KnowledgeReviewFeedbackType =
+  | "ACCEPTED"
+  | "NOT_ADOPTED"
+  | "CONTENT_GAP"
+  | "SOURCE_BLANK"
+  | "FALSE_POSITIVE";
+export type KnowledgeReviewFollowupAction =
+  | "NONE"
+  | "CREATE_REVISION_CANDIDATE"
+  | "REQUEST_SOURCE_EVIDENCE"
+  | "MARK_FALSE_POSITIVE"
+  | "ARCHIVE_REJECTED";
 
 export interface KnowledgeIdentity {
   id: number;
@@ -1312,6 +1439,15 @@ export interface CandidateProvenanceView {
   riskLevel?: string | null;
   producedAt?: string | null;
   producedBy?: string | null;
+  modelTaskId?: string | null;
+  modelMode?: string | null;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  toolVersion?: string | null;
+  sourceCitations?: string | null;
+  confidence?: number | null;
+  fallbackUsed?: boolean | null;
+  fallbackReason?: string | null;
 }
 
 /**
@@ -1389,7 +1525,6 @@ export interface KnowledgeProductionReadinessParams {
   producer?: KnowledgeProducer;
   capabilityCode?: string;
   providerCode?: string;
-  modelStrategy?: string;
 }
 
 export type KnowledgeProductionJobStatus =
@@ -1420,9 +1555,23 @@ export interface KnowledgeProductionJob {
   traceId?: string | null;
 }
 
+export type KnowledgeProductionJobResponse = Omit<
+  KnowledgeProductionJob,
+  "id" | "updatedAt" | "updatedBy" | "traceId"
+>;
+
 export interface KnowledgeProductionJobsParams {
   page?: number;
   size?: number;
+}
+
+export interface CreateKnowledgeProductionJobRequest {
+  sourceScope: string;
+  assetType: string;
+  producer: KnowledgeProducer;
+  targetPipeline: KnowledgeProductionJob["targetPipeline"];
+  domain: string;
+  modelStrategy?: string;
 }
 
 export interface ReviewRoutingDecision {
@@ -1491,15 +1640,41 @@ export interface KnowledgeShadowRun {
   createdBy?: string | null;
 }
 
+export interface CandidateCoexistenceVersionSnapshot {
+  versionId?: number | null;
+  versionNo?: string | null;
+  status?: string | null;
+  riskLevel?: string | null;
+  authorityLevel?: string | null;
+  gradeQuality?: string | null;
+  gradeStrength?: string | null;
+  contentHash?: string | null;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  activatedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface CandidateCoexistenceProductionLineage {
+  jobCode?: string | null;
+  assetIdentity?: string | null;
+  producer?: KnowledgeProducer | null;
+  targetPipeline?: "PLATFORM_SOURCE" | "TENANT_OVERLAY" | string | null;
+  domain?: string | null;
+  modelStrategy?: string | null;
+  riskLevel?: string | null;
+  createdAt?: string | null;
+}
+
 export interface CandidateCoexistenceView {
   candidateRef: string;
   identityId?: number | null;
-  candidateVersion?: Record<string, unknown> | null;
-  activeVersion?: Record<string, unknown> | null;
+  candidateVersion?: CandidateCoexistenceVersionSnapshot | null;
+  activeVersion?: CandidateCoexistenceVersionSnapshot | null;
   classification?: string | null;
   reviewStatus?: string | null;
   diffSummary?: string | null;
-  productionLineage?: Record<string, unknown> | null;
+  productionLineage?: CandidateCoexistenceProductionLineage | null;
   candidateExecutable: boolean;
   activeExecutable: boolean;
   approvalOutcome?: string | null;
@@ -1507,12 +1682,14 @@ export interface CandidateCoexistenceView {
   safetyNotice?: string | null;
 }
 
-export function useKnowledgeProductionReadiness(params: KnowledgeProductionReadinessParams = {}) {
+export function useKnowledgeProductionReadiness(
+  params: KnowledgeProductionReadinessParams = {},
+  enabled = true,
+) {
   const requestParams = compactParams({
     producer: params.producer ?? "API_MODEL",
     capabilityCode: params.capabilityCode,
     providerCode: params.providerCode,
-    modelStrategy: params.modelStrategy,
   });
   return useQuery({
     queryKey: ["knowledge-production", "readiness", requestParams],
@@ -1523,6 +1700,7 @@ export function useKnowledgeProductionReadiness(params: KnowledgeProductionReadi
       );
       return data.data;
     },
+    enabled,
   });
 }
 
@@ -1539,6 +1717,54 @@ export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams
         { params: requestParams },
       );
       return data.data;
+    },
+  });
+}
+
+export function useCreateKnowledgeProductionJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: CreateKnowledgeProductionJobRequest) => {
+      const { data } = await apiClient.post<{ data: KnowledgeProductionJobResponse }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
+        compactParams(request),
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "readiness"] }),
+      ]);
+    },
+  });
+}
+
+export function useCancelKnowledgeProductionJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeProductionJobResponse }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode)}/cancel`,
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, jobCode) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "jobs"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "job-candidates", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "gate-results", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "triage-results", jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "shadow-runs", jobCode],
+        }),
+      ]);
     },
   });
 }
@@ -1634,6 +1860,8 @@ export function useReviewKnowledgeCandidate() {
         decision: KnowledgeCandidateReviewDecision;
         reason?: string;
         publishEvidence?: VersionPublishEvidence;
+        feedbackType?: KnowledgeReviewFeedbackType;
+        followupAction?: KnowledgeReviewFollowupAction;
       };
       idempotencyKey?: string;
     }) => {
@@ -8314,6 +8542,120 @@ export function useRunSandboxScenario() {
   });
 }
 
+// ─── 医学回归独立专家复核（LLM-07 / V151）───
+export type ModelEvaluationStatus = "PENDING_REVIEW" | "PASSED" | "FAILED";
+
+export interface ModelEvaluationRunSummary {
+  runId: number;
+  providerCode: string;
+  modelVersion: string;
+  capabilityCode: string;
+  promptVersion: string;
+  toolVersion: string;
+  totalCases: number;
+  passedCases: number;
+  failedCases: number;
+  fakeCitationDetected: boolean;
+  redLineBreach: boolean;
+  hallucinationDetected: boolean;
+  status: ModelEvaluationStatus;
+  reviewer?: string | null;
+  signedAt?: string | null;
+  reviewComment?: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface ModelEvaluationCaseEvidence {
+  evidenceId: number;
+  regressionCaseId: number;
+  caseVersion: string;
+  caseInput: string;
+  expectedPhrase: string;
+  redLineType?: string | null;
+  sourceReference: string;
+  outputContent: string;
+  sourceCitations?: string | null;
+  expectedPhraseHit: boolean;
+  citationRequired: boolean;
+  citationVerified: boolean;
+  redLineCase: boolean;
+  redLineBreach: boolean;
+  passed: boolean;
+  failureReasons: string[];
+}
+
+export interface ModelEvaluationRunDetail {
+  run: ModelEvaluationRunSummary;
+  cases: ModelEvaluationCaseEvidence[];
+  evidenceComplete: boolean;
+  baselineCurrent: boolean;
+  reviewable: boolean;
+  reviewBlockReason?: string | null;
+}
+
+export interface ModelEvaluationRunsParams {
+  status: ModelEvaluationStatus;
+  page: number;
+  size: number;
+}
+
+export function useModelEvaluationRuns(params: ModelEvaluationRunsParams, enabled = true) {
+  return useQuery({
+    queryKey: ["model-evaluations", "runs", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ModelEvaluationRunSummary> }>(
+        "/model-evaluations/runs",
+        { params },
+      );
+      return data.data;
+    },
+    enabled,
+  });
+}
+
+export function useModelEvaluationRunDetail(runId?: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["model-evaluations", "runs", runId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ModelEvaluationRunDetail }>(
+        `/model-evaluations/runs/${runId}`,
+      );
+      return data.data;
+    },
+    enabled: enabled && typeof runId === "number",
+  });
+}
+
+export function useSignOffModelEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      runId,
+      evidenceAcknowledged,
+      reviewComment,
+    }: {
+      runId: number;
+      evidenceAcknowledged: boolean;
+      reviewComment: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: ModelEvaluationRunSummary }>(
+        `/model-evaluations/${runId}/sign-off`,
+        { evidenceAcknowledged, reviewComment },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["model-evaluations", "runs"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["model-evaluations", "runs", variables.runId],
+        }),
+      ]);
+    },
+  });
+}
+
 // ─── 大模型能力网关相关的接口定义 (GA-ENG-API-12) ───
 export interface ModelCapabilityStatusResponse {
   capabilityCode: string;
@@ -8323,6 +8665,12 @@ export interface ModelCapabilityStatusResponse {
   routeStrategy: "DISABLED" | "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
   desensitizeStrategy: "DEFAULT" | "MASK_ALL" | "NONE" | string;
   expectedSchema: string | null;
+  fallbackOrder: string[];
+  timeoutMs: number;
+  rateLimitPerMinute: number | null;
+  policyScopeType: string;
+  policyScopeRef: string;
+  inherited: boolean;
   configured: boolean;
   fallbackAvailable: boolean;
   fallbackReason: string;
@@ -8332,6 +8680,8 @@ export interface ModelTaskRequest {
   capabilityCode: string;
   inputData: string;
   timeoutSeconds?: number;
+  requiredRouteStrategy?: "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
+  providerCode?: string | null;
 }
 
 export interface ModelTaskResponse {
@@ -8341,6 +8691,7 @@ export interface ModelTaskResponse {
   modelMode: string;
   modelVersion: string;
   promptVersion: string;
+  toolVersion: string;
   sourceCitations: string;
   confidence: number | null;
   riskLevel: string;
@@ -8355,6 +8706,9 @@ export interface ModelPolicyValidateRequest {
   routeStrategy: string;
   desensitizeStrategy?: string;
   expectedSchema?: string;
+  fallbackOrder?: string[];
+  timeoutMs?: number;
+  rateLimitPerMinute?: number | null;
 }
 
 export interface ModelPolicyValidateResponse {
@@ -8367,6 +8721,9 @@ export interface ModelPolicyUpsertRequest {
   routeStrategy: string;
   desensitizeStrategy: string;
   expectedSchema?: string;
+  fallbackOrder?: string[];
+  timeoutMs?: number;
+  rateLimitPerMinute?: number | null;
 }
 
 export interface ModelCapabilityDefinition {
@@ -8480,7 +8837,19 @@ export function useRetryModelTask() {
   });
 }
 
-// 12. 发布前校验策略的合法性与可用降级判定
+// 12. 按 task_id 重放 B0 确定性任务，供审计复现版本三元组
+export function useReplayModelTask() {
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const { data } = await apiClient.post<{ data: ModelTaskResponse }>(
+        `/model-capabilities/tasks/${taskId}/replay`,
+      );
+      return data.data;
+    },
+  });
+}
+
+// 13. 发布前校验策略的合法性与可用降级判定
 export function useValidateModelPolicy() {
   return useMutation({
     mutationFn: async (payload: ModelPolicyValidateRequest) => {
@@ -8493,7 +8862,7 @@ export function useValidateModelPolicy() {
   });
 }
 
-// 13. 保存当前租户指定能力的真实路由、脱敏与结构化输出策略
+// 14. 保存当前租户指定能力的真实路由、脱敏与结构化输出策略
 export function useSaveModelPolicy() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -2507,6 +2507,33 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void syncPackageReturnsNotSyncedWhenNoAdapterChannelIsSelected() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-no-channel", "tenant-A", "PKG.COPD", "1.0.1", "无同步通道包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-no-channel", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-no-channel");
+
+        PackageSyncResponse response = service.syncPackage("pkg-no-channel", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of(), List.of("organization-admin")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
+        assertThat(response.logs()).isEmpty();
+        verify(syncPort, never()).sync(any(), any(), any(), any());
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+        verify(releasePort, never()).publish(any());
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        assertThat(planCap.getAllValues()).extracting(ReleasePlan::status)
+            .containsExactly(ReleasePlanStatus.EXECUTING, ReleasePlanStatus.NOT_SYNCED);
+    }
+
+    @Test
     void releasePackageUsesExistingSyncStateMachine() throws Exception {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,

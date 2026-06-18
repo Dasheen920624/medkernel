@@ -46,6 +46,10 @@ public class ModelProviderRegistry {
     }
 
     public Optional<ResolvedProvider> resolve(String tenantId, String routeStrategy) {
+        return resolve(tenantId, routeStrategy, null);
+    }
+
+    public Optional<ResolvedProvider> resolve(String tenantId, String routeStrategy, String providerCode) {
         Set<ProviderType> desired = switch (routeStrategy == null ? "" : routeStrategy.toUpperCase()) {
             case "LOCAL_MODEL" -> LOCAL_TYPES;
             case "EXTERNAL_MODEL" -> EXTERNAL_TYPES;
@@ -60,7 +64,13 @@ public class ModelProviderRegistry {
             return Optional.empty();
         }
 
-        for (ModelProviderConfig config : repository.findByTenantIdAndEnabledFlag(tenantId, "Y")) {
+        List<ModelProviderConfig> candidates = providerCode == null || providerCode.isBlank()
+            ? repository.findByTenantIdAndEnabledFlag(tenantId, "Y")
+            : repository.findByTenantIdAndProviderCode(tenantId, providerCode.trim())
+                .filter(config -> "Y".equalsIgnoreCase(config.enabledFlag()))
+                .stream()
+                .toList();
+        for (ModelProviderConfig config : candidates) {
             ProviderType type = parseType(config.providerType());
             if (type == null || !desired.contains(type)) {
                 continue;

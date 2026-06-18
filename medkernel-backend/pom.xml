@@ -56,6 +56,10 @@
             <artifactId>commons-csv</artifactId>
             <version>1.14.1</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
 
         <!-- 文档解析（AIK-STD-02）：PDFBox 纯 Java 确定性 PDF 文本提取（离线、无模型） -->
         <dependency>

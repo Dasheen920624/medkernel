@@ -35,7 +35,7 @@
 - **候选真实物化**（替换 PR1 暂存桩，使能 FR-3 统一流水线 + FR-5 血缘）：`MaterializingCandidateIntake` 替换 `StagingCandidateIntake`——`SourceReferenceResolver` 解析受控源串引用 `源编码:版本:锚点`→源 FK（**B0 解析不出诚实拒收**）+ `MaterializationTarget`（现有身份 **异或** 新建身份壳 `NewIdentitySpec`，二选一校验，新建 find-or-create + ACTIVE 保守默认）→ 信封经 `KnowledgeVersionService.classifyCandidate` 真实落版本（`PENDING_REPLACEMENT_REVIEW` 待审）/ `CandidateClassification` + **据 PR3 路由建真 `ReviewAssignment`**（归口 ∪ 领域，`LinkedHashSet` 去重）；`classifyCandidate` 接 `ReviewAssignmentPlan`（null 零回归）。
 - **服务端编排合成诚实 API-03 上下文**：编排无 HTTP 入参，`KnowledgeApiContext.validateTenant` 非空闸 → 合成 request_id=`kpm:uuid`、user_id=会话 actor、**package_version=job 编码（真实溯源）**、role_codes=PR3 归口治理角色。真实 H2 端到端集成测试 `CandidateMaterializationIntegrationTest` 锁定（候选→版本/分类/多角色分派全链）。仅覆盖可解析受控源（discovery-origin）。
 **PR5（模型生成 readiness 闸，分支 `codex/wave2-knowledge-model-readiness`）**：
-- 新增 `KnowledgeProductionReadinessService`：正式模型生成知识前只聚合真实前置事实，不调用模型、不造候选；缺文献资料库根地址、部署形态不符、provider 缺失/类型无效/不健康、医学回归基准集为空、provider/模型版本未通过评测、外部出域白名单缺失、能力策略不匹配、prompt/tool/model 三元组缺失或与 provider 模型版本不一致、P6 独立验收未放行时均结构化阻断。
+- 新增 `KnowledgeProductionReadinessService`：正式模型生成知识前只聚合真实前置事实，不调用模型、不造候选；缺文献资料库根地址、部署形态不符、provider 缺失/类型无效/不健康、医学回归基准集为空、**当前能力码与当前完整基准集**的 provider/模型版本未通过评测、外部出域白名单缺失或策略不可执行、能力策略不匹配、当前能力唯一 ACTIVE prompt/tool/model 版本包缺失或与 provider 模型版本不一致、P6 独立验收未放行时均结构化阻断。评测运行保存启用题全部裁决字段的 SHA-256 指纹，readiness 同时复核能力码与指纹；其他能力或题数相同但内容/来源/版本已变化的 `PASSED` 均不能串线放行。外部知识生产白名单必须允许 `prompt`，版本包三个内容 hash 必须是 64 位 SHA-256；调用方自由文本不能替代治理事实。网关复用版本包完整性校验，缺失或畸形时在 provider 解析前 B0，并与三类适配器双层拒绝空补全或响应模型漂移；V150 进一步以规范化作用域键等值 CHECK + UNIQUE 保证每租户每能力最多一个 ACTIVE 版本包。
 - `GET /api/v1/engine/knowledge-production/readiness`（`knowledge.read`）：供知识生产中心/运维只读查看 readiness 阻断项；`LOCAL_MODEL` 不要求外部部署形态和出域白名单，但仍要求受控文献根、健康本地 provider、回归评测、能力策略、版本三元组和 P6 放行。
 - 新配置中心项 `medkernel.knowledge.production.p6-independent-acceptance` 默认 `false`、高风险受保护，仅作为 readiness 阻断事实源，不能替代文献库、provider、评测、出域与审核证据。
 **PR6（模型生产器后端接入，分支 `codex/wave2-knowledge-model-readiness`）**：
@@ -49,6 +49,30 @@
 - `知识审核与发布` 页面新增 `知识生产` tab：展示模型生产 readiness、生产 job、候选血缘、AIK 门禁、8 态分流、影子评测和共存替换提醒；默认选中第一页首个 job，所有数据走 `/engine/knowledge-production/*` 真实只读接口和服务端分页 hook。
 - 页面只展示候选生产证据，不提供 AI 生成/创建候选按钮；readiness 未过时明确提示不得调用模型或伪造候选。
 - **Task 22 验证记录**：后端全量 `mvn test` 2722 通过、前端全量 95 文件/740 用例通过，CLI/MCP 与 changed 门禁均通过；卡片仍不勾 Agent 中止/纠偏等未完成协同控制。
+
+**2026-06-17 T5.7 候选真实化复核（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 的模型候选 payload 已只落 `promptInputHash`，不落生产提示正文；候选 payload 保留 `aiGenerated/modelTaskId/modelMode/modelVersion/promptVersion/toolVersion/sourceCitations/modelOutput` 与真实内容 hash，满足 AI 标识、三元组、锚点与最小化证据。
+- B2 外部失败但 B1 本地模型真实成功时不再被误判为 B0 跳过；候选继续进入同一 `CandidateSafetyGateService → triage → shadow → submitCandidate` 链，并在 payload 中保留 `fallbackUsed/fallbackReason` 降级证据。B0、非 `SUCCEEDED`、readiness 未齐或模型输出非 JSON 对象仍阻断/跳过，不产伪候选。
+- 本轮仅收口模型候选真实化语义，不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
+
+**2026-06-17 T5.8 降级路径预验（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 对非成功 B2/B1 模型任务返回 `模型网关未成功(status=..., mode=...)` 跳过原因，保留 provider 失败码与模型模式；只有真实 B0 模式才写“降级 B0”，避免把 provider 断连/超时伪装成 B0 成功模板链。
+- 知识生产中心在 readiness/job 主证据可读取时，候选血缘、门禁结果、8 态分流、影子评测、共存替换提醒任一下游 evidence 查询失败，会显示“生产证据部分读取失败”和分项错误；页面不展示 AI 生成按钮，也不以空表掩盖断连。
+- 本轮为 DEGRADE-01 预验收口，仍不宣称真实 provider 现场、P6 独立放行、Agent 中止/纠偏或 AIK-STD-13 整卡全部完成。
+
+**2026-06-17 T6.1 院内上传覆盖接线（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `DocumentParseController` 院内 multipart 上传入口复用 AIK-STD-02 解析和 P1 受管资料库；成功解析后可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `CandidateGenerationRequest(..., TENANT_OVERLAY, ...)`。
+- T6.1 未新增候选表、不新增平台主源写入口；院内上传候选仍走 `CandidateGenerationOrchestrationService → KnowledgeProductionOrchestrationService.submitCandidate`，继续受双形态隔离、门禁、8 态、影子评测和会签路由约束。
+
+**2026-06-17 T6.2 本地模型生产器收口（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `ModelKnowledgeProducer` 对 `LOCAL_MODEL` job 增加 producer 层管道守卫：本地模型只允许生成 `TENANT_OVERLAY` 院内覆盖候选，发现平台主源管道在 readiness 和模型网关调用前即返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`。
+- `ModelTaskRequest` 增加可选 `requiredRouteStrategy/providerCode`，知识生产器按 job 类型传入 `LOCAL_MODEL` 或 `EXTERNAL_MODEL`；`ModelGatewayService` 在 provider 解析、脱敏摘要落库和真实调用前校验当前能力策略必须匹配必需路由，策略漂移时拒绝越界调用，不落任务、不外调。
+- `ModelProviderRegistry` 支持按 `routeStrategy + providerCode` 解析指定 provider，并复用部署形态、类型匹配与健康检查；`LOCAL_MODEL` 指定外部 providerCode 时解析为空并回到既有诚实降级/阻断路径，不伪造 B1/B2。
+
+**2026-06-17 T6.3 双形态隔离强化（分支 `codex/knowledge-fullflow-audit-production`）**：
+- `KnowledgeProductionOrchestrationService.submitCandidate` 对 `PLATFORM_SOURCE` job 增加对称守卫：非 `t-1` 候选进入平台主源管道直接返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，不再退化为泛化租户不一致错误；`TENANT_OVERLAY` 反写 `t-1` 守卫保持不变。
+- 新增平台主源正向提交测试：`t-1` 候选进入平台主源管道时保持平台归属并路由 `PLATFORM_KNOWLEDGE_GOVERNOR`；院内覆盖候选仍路由机构知识治理员，FR-7 不路由平台归口。
+- `KnowledgeVersionService` 补客户只读平台主源测试：客户租户可读取平台 effective identity，但不能把平台 `identityId` 当写入目标提交候选；写入必须命中本租户 identity，否则 `NOT_FOUND` 且不读取来源、不保存版本、不触碰平台版本链。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务（job）：可定义 job＝来源范围 + 资产类型 + 生产器 + **目标管道（平台主源 / 院内覆盖）** + 模型策略；可调度、可查进度、可重放、可中止。

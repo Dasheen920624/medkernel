@@ -3775,6 +3775,10 @@ public class PackageEngineService {
         validateReleaseAuthorization(pack, releaseRequest);
 
         assertPackageReadyForRelease(packageId);
+        if (releaseRequest.adapterIds().isEmpty()) {
+            return recordNotSyncedPlanForMissingChannel(
+                tenantId, packageId, releaseRequest, normalizedScope, actor, traceId);
+        }
         EffectivePackageSnapshot effectiveSnapshot = buildEffectiveSnapshot(
             tenantId, pack, releaseRequest.targetOrgUnitId());
         AssetVersion packageAsset = prepareUnifiedPackageRelease(pack);
@@ -3963,7 +3967,40 @@ public class PackageEngineService {
         if (request.reason() == null || request.reason().isBlank()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "发布说明不能为空");
         }
+        if (request.adapterIds() == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "发布适配器列表不能为空");
+        }
         return request;
+    }
+
+    private PackageSyncResponse recordNotSyncedPlanForMissingChannel(
+            String tenantId,
+            String packageId,
+            PackageSyncRequest releaseRequest,
+            ReleaseScope normalizedScope,
+            String actor,
+            String traceId) {
+        ReleasePlan plan = new ReleasePlan(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            packageId,
+            releaseRequest.targetOrgUnitId(),
+            releaseRequest.strategy(),
+            normalizedScope.scopeType(),
+            normalizedScope.scopeValue(),
+            ReleasePlanStatus.EXECUTING,
+            Instant.now(),
+            actor,
+            Instant.now(),
+            actor,
+            traceId
+        );
+        ReleasePlan savedPlan = transactionTemplate.execute(status -> planRepository.save(plan));
+        transactionTemplate.executeWithoutResult(status -> planRepository.save(savedPlan.withStatus(ReleasePlanStatus.NOT_SYNCED)));
+        auditRecorder.record(AuditAction.PUBLISH, "knowledge_package", packageId,
+            "知识包发布计划未接入同步通道，状态为: " + ReleasePlanStatus.NOT_SYNCED);
+        return new PackageSyncResponse(savedPlan.planId(), packageId, ReleasePlanStatus.NOT_SYNCED, List.of());
     }
 
     private AssetVersion prepareUnifiedPackageRelease(KnowledgePackage pack) {

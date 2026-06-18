@@ -88,7 +88,13 @@ import {
   useDeprecateKnowledgeIdentity,
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
+  useCreateKnowledgeProductionJob,
+  useApproveKnowledgeAcquisitionSource,
+  useDisableKnowledgeAcquisitionSource,
+  useKnowledgeAcquisitionSources,
+  useSaveKnowledgeAcquisitionSourceDraft,
   useKnowledgeProductionCandidates,
+  useCancelKnowledgeProductionJob,
   useKnowledgeProductionGateResults,
   useKnowledgeProductionJobs,
   useKnowledgeProductionReadiness,
@@ -97,6 +103,14 @@ import {
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useModelEvaluationRunDetail,
+  useModelEvaluationRuns,
+  useSignOffModelEvaluation,
+  useModelTask,
+  useReplayModelTask,
+  useSubmitModelTask,
+  useValidateModelPolicy,
+  useSaveModelPolicy,
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
@@ -322,6 +336,223 @@ describe("developer console api hooks", () => {
       clinicalSafetyConfirmed: true,
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(3, "/plugins/plug%2F1:disable");
+  });
+});
+
+describe("model gateway api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.mocked(apiClient.patch).mockReset();
+    vi.mocked(apiClient.delete).mockReset();
+  });
+
+  const replayedTask = {
+    taskId: "task-replay-1",
+    status: "REPLAYED",
+    outputContent: '{"status":"NO_MODEL_PROVIDER","candidates":[]}',
+    modelMode: "B0",
+    modelVersion: "B0-Deterministic-Baseline",
+    promptVersion: "prompt:extract-v1",
+    toolVersion: "tool:extract-schema-v1",
+    sourceCitations: "[]",
+    confidence: null,
+    riskLevel: "LOW",
+    fallbackUsed: true,
+    fallbackReason: "[LLM-04_REPLAY_FROM=task-1] B0 deterministic replay",
+    timeCostMs: 3,
+    traceId: "trace-replay",
+  };
+
+  it("keeps the model task version triple visible for trace lookup", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: replayedTask } });
+
+    const taskHook = renderApiHook(() => useModelTask("task-1"));
+
+    await waitFor(() =>
+      expect(taskHook.result.current.data?.toolVersion).toBe("tool:extract-schema-v1"),
+    );
+    expect(taskHook.result.current.data?.promptVersion).toBe("prompt:extract-v1");
+    expect(taskHook.result.current.data?.modelVersion).toBe("B0-Deterministic-Baseline");
+    expect(apiClient.get).toHaveBeenCalledWith("/model-capabilities/tasks/task-1");
+  });
+
+  it("replays deterministic B0 tasks through the gateway replay endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: replayedTask } });
+
+    const replayHook = renderApiHook(() => useReplayModelTask());
+
+    await expect(replayHook.result.current.mutateAsync("task-1")).resolves.toMatchObject({
+      status: "REPLAYED",
+      toolVersion: "tool:extract-schema-v1",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks/task-1/replay");
+  });
+
+  it("submits local model tasks with required route and provider guardrails", async () => {
+    const task = {
+      ...replayedTask,
+      taskId: "task-local-1",
+      status: "SUCCEEDED",
+      modelMode: "B1",
+      modelVersion: "qwen2.5:7b",
+      fallbackUsed: false,
+      fallbackReason: "",
+    };
+    const payload = {
+      capabilityCode: "knowledge.extract",
+      inputData: "院内受控来源摘要",
+      timeoutSeconds: 60,
+      requiredRouteStrategy: "LOCAL_MODEL",
+      providerCode: "ollama-hospital",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: task } });
+
+    const submitHook = renderApiHook(() => useSubmitModelTask());
+
+    await expect(submitHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      taskId: "task-local-1",
+      modelMode: "B1",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
+  });
+
+  it("validates and saves route policy with explicit fallback budget", async () => {
+    const validationPayload = {
+      capabilityCode: "knowledge.extract",
+      routeStrategy: "EXTERNAL_MODEL",
+      desensitizeStrategy: "MASK_ALL",
+      expectedSchema: '{"required":["status","candidates"]}',
+      fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
+      timeoutMs: 1500,
+      rateLimitPerMinute: 20,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { valid: true, message: "策略可用", fallbackAvailable: true } },
+    });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: {
+        data: {
+          capabilityCode: "knowledge.extract",
+          displayName: "电子病历语义实体提取",
+          description: "能力说明",
+          category: "临床智能",
+          routeStrategy: "EXTERNAL_MODEL",
+          desensitizeStrategy: "MASK_ALL",
+          expectedSchema: validationPayload.expectedSchema,
+          fallbackOrder: validationPayload.fallbackOrder,
+          timeoutMs: 1500,
+          rateLimitPerMinute: 20,
+          policyScopeType: "TENANT",
+          policyScopeRef: "tenant-1",
+          inherited: false,
+          configured: true,
+          fallbackAvailable: true,
+          fallbackReason: "已配置降级链路",
+        },
+      },
+    });
+
+    const validateHook = renderApiHook(() => useValidateModelPolicy());
+    await expect(validateHook.result.current.mutateAsync(validationPayload)).resolves.toMatchObject(
+      {
+        valid: true,
+        fallbackAvailable: true,
+      },
+    );
+
+    const saveHook = renderApiHook(() => useSaveModelPolicy());
+    await expect(
+      saveHook.result.current.mutateAsync({
+        capabilityCode: "knowledge.extract",
+        policy: {
+          routeStrategy: validationPayload.routeStrategy,
+          desensitizeStrategy: validationPayload.desensitizeStrategy,
+          expectedSchema: validationPayload.expectedSchema,
+          fallbackOrder: validationPayload.fallbackOrder,
+          timeoutMs: validationPayload.timeoutMs,
+          rateLimitPerMinute: validationPayload.rateLimitPerMinute,
+        },
+      }),
+    ).resolves.toMatchObject({
+      capabilityCode: "knowledge.extract",
+      routeStrategy: "EXTERNAL_MODEL",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/model-capabilities/policies/validate",
+      validationPayload,
+    );
+    expect(apiClient.put).toHaveBeenCalledWith("/model-capabilities/policies/knowledge.extract", {
+      routeStrategy: "EXTERNAL_MODEL",
+      desensitizeStrategy: "MASK_ALL",
+      expectedSchema: validationPayload.expectedSchema,
+      fallbackOrder: validationPayload.fallbackOrder,
+      timeoutMs: 1500,
+      rateLimitPerMinute: 20,
+    });
+  });
+});
+
+describe("medical regression review api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("loads tenant-scoped paged runs and immutable case evidence", async () => {
+    const page = {
+      items: [{ runId: 42, status: "PENDING_REVIEW" }],
+      page: 2,
+      size: 20,
+      total: 21,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    const detail = {
+      run: page.items[0],
+      cases: [{ evidenceId: 501, outputContent: "真实模型输出" }],
+      evidenceComplete: true,
+      baselineCurrent: true,
+      reviewable: true,
+      reviewBlockReason: null,
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: page } })
+      .mockResolvedValueOnce({ data: { data: detail } });
+
+    const runsHook = renderApiHook(() =>
+      useModelEvaluationRuns({ status: "PENDING_REVIEW", page: 2, size: 20 }),
+    );
+    await waitFor(() => expect(runsHook.result.current.data).toEqual(page));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/model-evaluations/runs", {
+      params: { status: "PENDING_REVIEW", page: 2, size: 20 },
+    });
+
+    const detailHook = renderApiHook(() => useModelEvaluationRunDetail(42));
+    await waitFor(() => expect(detailHook.result.current.data).toEqual(detail));
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/model-evaluations/runs/42");
+  });
+
+  it("submits explicit evidence acknowledgement and review comment", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { runId: 42, status: "PASSED" } },
+    });
+    const hook = renderApiHook(() => useSignOffModelEvaluation());
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        runId: 42,
+        evidenceAcknowledged: true,
+        reviewComment: "逐例证据已核查并确认可放行。",
+      });
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/model-evaluations/42/sign-off", {
+      evidenceAcknowledged: true,
+      reviewComment: "逐例证据已核查并确认可放行。",
+    });
   });
 });
 
@@ -3771,7 +4002,6 @@ describe("knowledge review api helpers", () => {
         producer: "API_MODEL",
         capabilityCode: "knowledge-generation",
         providerCode: "provider-openai",
-        modelStrategy: "gpt-pipeline",
       }),
     );
     const jobsHook = renderApiHook(() => useKnowledgeProductionJobs({ page: 1, size: 20 }));
@@ -3794,7 +4024,6 @@ describe("knowledge review api helpers", () => {
         producer: "API_MODEL",
         capabilityCode: "knowledge-generation",
         providerCode: "provider-openai",
-        modelStrategy: "gpt-pipeline",
       },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge-production/jobs", {
@@ -3836,6 +4065,145 @@ describe("knowledge review api helpers", () => {
     expect(shadowHook.result.current.fetchStatus).toBe("idle");
     expect(coexistenceHook.result.current.fetchStatus).toBe("idle");
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("creates a governed knowledge production job through the production endpoint", async () => {
+    const createdJob = {
+      jobCode: "job-new-1",
+      tenantId: "tenant-A",
+      sourceScope: "acquisition-run:guideline-2026",
+      assetType: "KNOWLEDGE",
+      producer: "API_MODEL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      modelStrategy: "gpt-pipeline",
+      status: "PENDING",
+      candidateCount: 0,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: createdJob } });
+
+    const { result } = renderApiHook(() => useCreateKnowledgeProductionJob());
+    let response: unknown;
+    await act(async () => {
+      response = await result.current.mutateAsync({
+        sourceScope: "acquisition-run:guideline-2026",
+        assetType: "KNOWLEDGE",
+        producer: "API_MODEL",
+        targetPipeline: "TENANT_OVERLAY",
+        domain: "GUIDELINE",
+        modelStrategy: "gpt-pipeline",
+      });
+    });
+
+    expect(response).toBe(createdJob);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/knowledge-production/jobs", {
+      sourceScope: "acquisition-run:guideline-2026",
+      assetType: "KNOWLEDGE",
+      producer: "API_MODEL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      modelStrategy: "gpt-pipeline",
+    });
+  });
+
+  it("cancels a running knowledge production job through the governed lifecycle endpoint", async () => {
+    const cancelledJob = {
+      jobCode: "job-ai-1",
+      tenantId: "tenant-A",
+      producer: "AGENT_TOOL",
+      targetPipeline: "TENANT_OVERLAY",
+      domain: "GUIDELINE",
+      status: "CANCELLED",
+      candidateCount: 3,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: cancelledJob } });
+
+    const { result } = renderApiHook(() => useCancelKnowledgeProductionJob());
+    let response: typeof cancelledJob | undefined;
+    await act(async () => {
+      response = await result.current.mutateAsync("job-ai-1");
+    });
+
+    expect(response).toBe(cancelledJob);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge-production/jobs/job-ai-1/cancel",
+    );
+  });
+
+  it("governs public knowledge acquisition sources through dedicated endpoints", async () => {
+    const source = {
+      id: 17,
+      tenantId: "tenant-A",
+      sourceCode: "NHC-GUIDELINE",
+      domain: "www.nhc.gov.cn",
+      baseUrl: "https://www.nhc.gov.cn/wjw/index.shtml",
+      sourceType: "GUIDELINE",
+      authorityLevel: "B_GUIDELINE",
+      authorityBasis: "国家卫生健康委官网",
+      title: "国家卫生健康委指南来源",
+      publisher: "国家卫生健康委",
+      license: "公开发布页面，逐条核验使用范围",
+      licensePolicy: "PERMITTED",
+      robotsPolicy: "ALLOW_FETCH",
+      enabledFlag: "N",
+      scheduleEnabledFlag: "N",
+      version: 0,
+    };
+    const sourcePage = {
+      items: [source],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: sourcePage } });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: source } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { ...source, enabledFlag: "Y" } } })
+      .mockResolvedValueOnce({ data: { data: source } });
+
+    const listHook = renderApiHook(() => useKnowledgeAcquisitionSources({ page: 1, size: 20 }));
+    await waitFor(() => expect(listHook.result.current.data).toBe(sourcePage));
+
+    const draftHook = renderApiHook(() => useSaveKnowledgeAcquisitionSourceDraft());
+    await draftHook.result.current.mutateAsync({
+      sourceCode: "NHC-GUIDELINE",
+      request: {
+        domain: "www.nhc.gov.cn",
+        baseUrl: "https://www.nhc.gov.cn/wjw/index.shtml",
+        sourceType: "GUIDELINE",
+        authorityLevel: "B_GUIDELINE",
+        authorityBasis: "国家卫生健康委官网",
+        title: "国家卫生健康委指南来源",
+        publisher: "国家卫生健康委",
+        license: "公开发布页面，逐条核验使用范围",
+        licensePolicy: "PERMITTED",
+        robotsPolicy: "ALLOW_FETCH",
+        scheduleEnabled: false,
+      },
+    });
+
+    const approveHook = renderApiHook(() => useApproveKnowledgeAcquisitionSource());
+    await approveHook.result.current.mutateAsync("NHC-GUIDELINE");
+    const disableHook = renderApiHook(() => useDisableKnowledgeAcquisitionSource());
+    await disableHook.result.current.mutateAsync("NHC-GUIDELINE");
+
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/acquisition/sources", {
+      params: { page: 1, size: 20 },
+    });
+    expect(apiClient.put).toHaveBeenCalledWith(
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE",
+      expect.objectContaining({ scheduleEnabled: false }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable",
+    );
   });
 
   it("loads the review queue and schedules a governed successor migration", async () => {

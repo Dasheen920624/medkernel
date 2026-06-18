@@ -24,6 +24,12 @@ public record KnowledgeProductionCandidate(
     @Column("candidate_ref") String candidateRef,
     @Column("risk_level") KnowledgeRiskLevel riskLevel,
     @Column("created_at") Instant createdAt,
-    @Column("created_by") String createdBy
+    @Column("created_by") String createdBy,
+    @Column("explain_json") String explainJson
 ) {
+    public KnowledgeProductionCandidate(Long id, String tenantId, String jobCode, String assetIdentity,
+                                        String contentHash, String candidateRef, KnowledgeRiskLevel riskLevel,
+                                        Instant createdAt, String createdBy) {
+        this(id, tenantId, jobCode, assetIdentity, contentHash, candidateRef, riskLevel, createdAt, createdBy, null);
+    }
 }

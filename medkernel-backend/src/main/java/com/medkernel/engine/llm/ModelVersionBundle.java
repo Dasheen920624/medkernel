@@ -23,6 +23,7 @@ public record ModelVersionBundle(
     @Column("model_version") String modelVersion,
     @Column("model_hash") String modelHash,
     String status,
+    @Column("active_scope_key") String activeScopeKey,
     @Column("effective_at") Instant effectiveAt,
     @Column("retired_at") Instant retiredAt,
     @Column("created_at") Instant createdAt,

@@ -12,8 +12,8 @@ import com.medkernel.engine.versioning.VersionedAssetType;
  * 全专业领域标准资产模板注册表（AIK-STD-12 FR-1）。
  *
  * <p>确定性代码态目录，不建表、不做租户自定义（无消费者需要）。覆盖术语/规则/路径/推荐/指标/随访/
- * 护理/报告/中医/医保 + 指南/药品/诊断 共 13 专业。章节为既有专业文书结构标准，供生产/审核对照完整性，
- * 不预填医学内容（守铁律 #1，正文须按真实来源填充）。
+ * 护理/报告/中医/医保 + 指南/药品/诊断 + 评分/计算器骨架。章节为既有专业文书结构标准，
+ * 供生产/审核对照完整性，不预填医学内容（守铁律 #1，正文须按真实来源填充）。
  */
 @Service
 public class ProfessionalAssetTemplateRegistry {
@@ -48,7 +48,8 @@ public class ProfessionalAssetTemplateRegistry {
             opt("mapping", "映射关系"), req("source", "术语来源")),
         structural("RULE", "规则", VersionedAssetType.RULE,
             req("trigger", "触发条件"), req("logic", "判定逻辑"), req("action", "动作建议"),
-            req("risk", "风险级别"), opt("redline", "红线标识"), req("source", "来源依据")),
+            req("risk", "风险级别"), opt("redline", "红线标识"),
+            req("test_cases", "阳性/阴性/边界测试病例"), req("source", "来源依据")),
         structural("PATHWAY", "路径", VersionedAssetType.PATHWAY,
             req("admission", "准入标准"), req("branch", "分型分支"), req("stage", "阶段节点"),
             req("exit", "退出条件"), opt("variance", "变异处理")),
@@ -60,7 +61,10 @@ public class ProfessionalAssetTemplateRegistry {
             req("threshold", "阈值标准"), opt("cycle", "评价周期")),
         structural("FOLLOWUP", "随访", VersionedAssetType.FOLLOWUP,
             req("population", "随访人群"), req("cycle", "随访周期"), req("item", "随访项目"),
-            opt("alert", "异常预警"), opt("return_indication", "回院指针"))
+            opt("alert", "异常预警"), opt("return_indication", "回院指针")),
+        structural("FORMULA", "评分量表与计算器", VersionedAssetType.FORMULA,
+            req("inputs", "输入项与单位"), req("algorithm", "算法表达式"),
+            req("thresholds", "分级阈值"), req("test_vectors", "复算测试向量"), req("source", "来源依据"))
     );
 
     public List<ProfessionalAssetTemplate> listAll() {

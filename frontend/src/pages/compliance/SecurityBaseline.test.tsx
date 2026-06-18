@@ -404,7 +404,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getAllByText("平台知识文献资料库根地址").length).toBeGreaterThan(0);
     expect(screen.getAllByText("未配置").length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/正式知识生产前必须通过配置中心维护对象存储或 HTTPS 网关等受管资料库/),
+      screen.getByText(/正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关/),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "编辑 国密增强" })).toBeDisabled();
 
@@ -461,7 +461,7 @@ describe("SecurityBaseline", () => {
     await user.click(screen.getByRole("button", { name: "编辑 平台知识文献资料库根地址" }));
     const dialog = screen.getByRole("dialog", { name: "编辑系统配置" });
     const yearlyManagedStorageUri =
-      "s3://medkernel-platform-literature/medkernel/platform-knowledge/t-1/literature-materials/2026/";
+      "file:///srv/medkernel/platform-knowledge/t-1/literature-materials/2026/";
     fireEvent.change(within(dialog).getByRole("textbox", { name: "配置值" }), {
       target: { value: yearlyManagedStorageUri },
     });

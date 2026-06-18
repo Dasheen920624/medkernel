@@ -23,6 +23,7 @@ public class OllamaProvider implements ModelProvider {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaProvider.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final int HEALTH_TIMEOUT_MS = 5_000;
 
     private final ModelProviderHttpClient http;
 
@@ -38,7 +39,7 @@ public class OllamaProvider implements ModelProvider {
     @Override
     public ProviderHealth checkHealth(ModelProviderConfig config) {
         try {
-            http.get(baseUri(config) + "/api/tags", Map.of());
+            http.get(baseUri(config) + "/api/tags", Map.of(), HEALTH_TIMEOUT_MS);
             return ProviderHealth.HEALTHY;
         } catch (RuntimeException unreachable) {
             log.warn("Ollama provider 探活失败 code={}：{}", config.providerCode(), unreachable.getMessage());
@@ -56,7 +57,7 @@ public class OllamaProvider implements ModelProvider {
         String raw;
         try {
             raw = http.post(baseUri(config) + "/api/generate",
-                Map.of("Content-Type", "application/json"), payload.toString());
+                Map.of("Content-Type", "application/json"), payload.toString(), request.timeoutMs());
         } catch (RuntimeException callFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_003,
                 "Ollama provider 调用失败 code=" + config.providerCode() + "：" + callFailed.getMessage());
@@ -64,10 +65,13 @@ public class OllamaProvider implements ModelProvider {
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(raw);
-            String content = node.path("response").asText("");
-            String modelVersion = node.path("model").asText(config.modelVersion());
+            String content = ProviderResponseValidator.requireContent(
+                node.path("response").asText(""), config.providerCode());
+            String modelVersion = ProviderResponseValidator.requireModelVersion(node, config.providerCode());
             // Ollama 原生补全不返回置信度/来源引文，诚实置空，绝不伪造。
             return new ProviderCompletion(content, modelVersion, null, "[]");
+        } catch (ApiException protocolInvalid) {
+            throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
                 "Ollama provider 返回无法解析 code=" + config.providerCode());

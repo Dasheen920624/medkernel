@@ -15,16 +15,17 @@
 定义并实现 **B0（无模型确定性）/ B1（本地）/ B2（外部）三级策略**与**故障切换矩阵**：超时 / 限流 / 结构失败 / 断网任一发生即逐级回退到 B0，全程诚实标注。
 
 ## 现状（搬迁时核查 2026-05-31）
-**部分已建**（[LLM-01](LLM-01.md) 已有 B0 回退 + `baselineReason` 归因；[LLM-08](LLM-08.md) 已接 provider 注册、健康解析和外部出域闸）：provider 缺位、部署形态禁外部、出域阻断、provider 调用失败均诚实降级 B0。尚缺系统化 4×3 故障切换矩阵、限流/超时专项归因、可配 fallback order 与全组合验收。本卡＝把切换规则**矩阵化 + 可配 + 可验收**。
+**已建**（[LLM-01](LLM-01.md) 已有 B0 回退 + `fallbackReason` 归因；[LLM-08](LLM-08.md) 已接 provider 注册、健康解析和外部出域闸）：provider 缺位、部署形态禁外部、出域阻断、provider 调用失败均诚实降级。T5.2 已把切换规则**矩阵化 + 可配 + 可验收**。
 
-## 最新进度（2026-06-16 readiness 前置闸）
+## 最新进度（2026-06-17 T5.2）
 - 知识生产 readiness 已把“生成知识前是否允许调用模型”前置化：provider、评测、出域、能力策略、版本三元组、P6 任一不满足即结构化阻断，避免进入运行时后才失败。
-- 已新增 `ModelFallbackMatrix` 与稳定触发码：`PROVIDER_TIMEOUT`、`PROVIDER_RATE_LIMITED`、`STRUCTURED_OUTPUT_FAILED`、`PROVIDER_DISCONNECTED`、`PROVIDER_UNAVAILABLE`、`EGRESS_BLOCKED` 等均归因到 B0；`ModelGatewayService` 已接 provider 缺位、出域阻断、provider 异常、429、结构化失败后 B0 降级，响应仍据实标 `mode/fallbackUsed/fallbackReason`。
-- 已补 `ModelFallbackMatrixTest` 完整 4×3 组合矩阵：`PROVIDER_TIMEOUT`/`PROVIDER_RATE_LIMITED`/`STRUCTURED_OUTPUT_FAILED`/`PROVIDER_DISCONNECTED` × `BASELINE`/`LOCAL_MODEL`/`EXTERNAL_MODEL` 均有稳定归因、B0 结果与 retryable 断言。
-- 仍未完成：可配置 fallback order、超时预算配置。
+- `model_capability_policy` clean baseline 新增 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute`；`/status`、`/policies/validate`、`/policies/{capabilityCode}` 暴露同一策略。
+- `ModelFallbackMatrix` 校验顺序只能从 B2→B1→B0 或 B1→B0 逐级下降，且 `BASELINE` 必须兜底；非法顺序发布前拒绝。
+- `ModelGatewayService` 已按 `fallback_order` 逐级尝试：策略 `rate_limit_per_minute` 超限、provider 429、超时、断连、结构失败、出域阻断后可先落 B1，本地不可用再 B0；响应仍据实标 `mode/fallbackUsed/fallbackReason`，不伪造上一级模型名/置信度/引文。
+- `RestClientModelProviderHttpClient` 依据策略 `timeout_ms` 设置本次 provider HTTP 连接/读取预算；运行时按租户/能力/策略作用域/provider 执行 `rate_limit_per_minute`；前端 AI 工作流页展示降级顺序和调用预算。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 三级策略：每能力码可配首选级别（B2→B1→B0 降级序）。
+- [x] FR-1 三级策略：每能力码可配首选级别（B2→B1→B0 降级序）。
 - [x] FR-2 切换触发：超时 / 限流 429 / 结构化校验失败 / 断网/连接错 → 自动降一级，最终 B0。
 - [x] FR-3 诚实标注：响应据实标 `mode` + `fallbackUsed` + `fallbackReason`（归因到触发条件）。
 - [x] FR-4 矩阵可验收：4 触发 × 3 级别组合有对应用例与期望降级结果。
@@ -32,12 +33,12 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 复用 [API-12](API-12.md) 提交链路；新增切换决策器（service 内）。
+- 复用 [API-12](API-12.md) 提交链路；切换决策器为 `ModelFallbackMatrix`，策略配置随 `ModelCapabilityPolicy` 组织继承。
 - 状态机：变更（任务态含降级路径）。
 - 错误码：复用 `ENG_LLM_*`；新增超时/限流归因码。
 
 ## 数据与迁移
-- 切换策略落 `model_capability_policy`（扩字段 fallback_order/timeout_ms/rate_limit），五方言；或独立 `model_route_matrix` 表。
+- 切换策略落 `model_capability_policy`：`fallback_order_json`、`timeout_ms`、`rate_limit_per_minute`，五方言 V18 clean baseline；不做旧策略兼容回填。
 
 ## 视角清单（11 视角）
 1. 产品架构：可降级是 AI 能力的可用性底线。
@@ -57,7 +58,7 @@
 - 本卡落点：4 触发自动逐级回退 B0、全程诚实标注、可矩阵验收。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~3）：4 触发条件分别触发正确降级 + 诚实归因。（FR-1 可配置 fallback order/预算仍未收口，暂不闭）
+- [x] AC-1（FR-1~3）：4 触发条件分别触发正确降级 + 诚实归因；可配置 fallback order/timeout/rate-limit 预算已收口。
 - [x] AC-2（FR-4）：12 组合矩阵用例全过。
 - 关联 A1–A9 剧本：降级链相关剧本。
 - T-GATE：后端真实性门禁全绿。
@@ -65,5 +66,5 @@
 
 ## 完工证据
 - 代码 permalink：切换决策器 + 矩阵配置。
-- 测试：4×3 矩阵 + 诚实归因 + 断网。
+- 测试：`ModelGatewayServiceTest`、`ModelFallbackMatrixTest`、provider 适配器测试、迁移 smoke；覆盖 4×3 矩阵、B2→B1→B0 顺序、策略限流/provider 429/结构失败/断网/出域阻断诚实归因。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

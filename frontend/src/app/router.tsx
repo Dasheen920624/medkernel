@@ -36,8 +36,11 @@ const QcDashboard = lazy(() => import("@/pages/quality/QcDashboard"));
 const QcAlerts = lazy(() => import("@/pages/quality/QcAlerts"));
 const InsuranceAudit = lazy(() => import("@/pages/quality/InsuranceAudit"));
 const QcEvalSets = lazy(() => import("@/pages/quality/QcEvalSets"));
+const MedicalRegressionReview = lazy(() => import("@/pages/quality/MedicalRegressionReview"));
 const QcEvalResults = lazy(() => import("@/pages/quality/QcEvalResults"));
 const KnowledgeGovernance = lazy(() => import("@/pages/quality/KnowledgeGovernance"));
+const InstitutionKnowledge = lazy(() => import("@/pages/quality/InstitutionKnowledge"));
+const KnowledgeProduction = lazy(() => import("@/pages/quality/KnowledgeProduction"));
 const DiagnosisKnowledgeMaintenance = lazy(
   () => import("@/pages/quality/DiagnosisKnowledgeMaintenance"),
 );
@@ -95,9 +98,12 @@ export function AppRouter() {
           <Route path="/qc/alerts" element={<QcAlerts />} />
           <Route path="/qc/insurance" element={<InsuranceAudit />} />
           <Route path="/qc/eval/sets" element={<QcEvalSets />} />
+          <Route path="/qc/model-evaluations" element={<MedicalRegressionReview />} />
           <Route path="/qc/eval/results" element={<QcEvalResults />} />
           <Route path="/knowledge/governance" element={<KnowledgeGovernance />} />
+          <Route path="/knowledge/institution" element={<InstitutionKnowledge />} />
           <Route path="/knowledge/diagnosis" element={<DiagnosisKnowledgeMaintenance />} />
+          <Route path="/knowledge/production" element={<KnowledgeProduction />} />
 
           {/* 机构与安全治理 */}
           <Route path="/admin/users" element={<AdminUsers />} />

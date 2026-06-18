@@ -17,9 +17,11 @@ class DefaultPermissionPolicyTest {
             "admin-users",
             "identity-bindings",
             "knowledge-governance",
+            "institution-knowledge",
             "diagnosis-knowledge",
             "config-packages",
             "provenance",
+            "knowledge-production",
             "ai-workflows",
             "qc-dashboard",
             "admin-audit",
@@ -31,6 +33,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "institution-knowledge",
             "diagnosis-knowledge",
             "config-packages",
             "terminology-mapping",
@@ -38,6 +41,7 @@ class DefaultPermissionPolicyTest {
             "pathway-templates",
             "provenance",
             "graph-explore",
+            "knowledge-production",
             "ai-workflows",
             "admin-audit")),
         Map.entry(RoleCode.ORGANIZATION_ADMIN, List.of(
@@ -46,6 +50,7 @@ class DefaultPermissionPolicyTest {
             "admin-users",
             "identity-bindings",
             "knowledge-governance",
+            "institution-knowledge",
             "config-packages",
             "rule-definitions",
             "pathway-templates",
@@ -66,6 +71,7 @@ class DefaultPermissionPolicyTest {
         Map.entry(RoleCode.KNOWLEDGE_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "institution-knowledge",
             "diagnosis-knowledge",
             "config-packages",
             "terminology-mapping",
@@ -73,11 +79,13 @@ class DefaultPermissionPolicyTest {
             "pathway-templates",
             "provenance",
             "graph-explore",
+            "knowledge-production",
             "ai-workflows",
             "admin-audit")),
         Map.entry(RoleCode.CLINICAL_GOVERNOR, List.of(
             "workbench",
             "knowledge-governance",
+            "institution-knowledge",
             "diagnosis-knowledge",
             "rule-definitions",
             "pathway-templates",
@@ -132,6 +140,7 @@ class DefaultPermissionPolicyTest {
             "qc-alerts",
             "insurance-audit",
             "qc-eval-sets",
+            "model-evaluation-review",
             "admin-audit")),
         Map.entry(RoleCode.COMPLIANCE_AUDITOR, List.of(
             "workbench",
@@ -142,6 +151,7 @@ class DefaultPermissionPolicyTest {
             "identity-bindings",
             "terminology-mapping",
             "graph-explore",
+            "knowledge-production",
             "ai-workflows",
             "sandbox",
             "admin-audit",
@@ -156,11 +166,11 @@ class DefaultPermissionPolicyTest {
             "tenant-onboarding",
             "admin-users",
             "identity-bindings",
-            "knowledge-governance",
             "config-packages",
             "terminology-mapping",
             "provenance",
             "graph-explore",
+            "knowledge-production",
             "ai-workflows",
             "sandbox",
             "admin-audit",
@@ -348,6 +358,7 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.MENU_KNOWLEDGE_GOVERNANCE)
             .doesNotContain(
                 PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE,
                 PermissionCode.MENU_ADMIN_USERS,
                 PermissionCode.ENV_EMERGENCY);
     }
@@ -468,7 +479,7 @@ class DefaultPermissionPolicyTest {
             .contains(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE)
             .doesNotContain(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
-            .contains(PermissionCode.LLM_EVAL_MANAGE)
+            .contains(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.MENU_MODEL_EVALUATION_REVIEW)
             .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
@@ -479,7 +490,8 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.LLM_PROVIDER_MANAGE,
                 PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_EVAL_MANAGE,
-                PermissionCode.LLM_ENHANCEMENT_MANAGE);
+                PermissionCode.LLM_ENHANCEMENT_MANAGE,
+                PermissionCode.MENU_MODEL_EVALUATION_REVIEW);
     }
 
     @Test

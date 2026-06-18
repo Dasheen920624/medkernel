@@ -21,11 +21,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.knowledge.material.DocumentMaterialResponse;
+import com.medkernel.engine.knowledge.material.DocumentMaterialService;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
@@ -47,6 +51,8 @@ class DocumentParseControllerSecurityTest {
 
     @MockBean
     private DocumentParseOrchestrationService service;
+    @MockBean
+    private DocumentMaterialService materialService;
 
     @AfterEach
     void clearContext() {
@@ -88,6 +94,81 @@ class DocumentParseControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void knowledgeGovernorCanUploadParseIntoTenantOverlayGeneration() throws Exception {
+        when(service.submitTenantUpload(any(), any())).thenReturn(
+            new DocumentParseResponse(stubJob(), new GenerationSummary(List.of(), List.of(), List.of())));
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "院内指南.md", "text/plain", "# 院内指南\n成人适用。".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        MockMultipartFile generation = new MockMultipartFile(
+            "generation", "", "application/json", """
+                {
+                  "domain": "CLINICAL",
+                  "items": [{
+                    "assetType": "RULE",
+                    "target": {
+                      "newIdentity": {
+                        "domain": "GUIDELINE",
+                        "subject": "院内高血压规则",
+                        "identityCode": "LOCAL-HTN-RULE"
+                      }
+                    }
+                  }]
+                }
+                """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/v1/engine/knowledge/documents:upload-parse")
+                .file(file)
+                .file(generation)
+                .param("sourceDocumentId", "5")
+                .param("versionNo", "v1")
+                .param("format", "STRUCTURED_TEXT")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.parseJob.jobCode").value("dpj:x"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotUploadParse() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "院内指南.md", "text/plain", "# 院内指南\n成人适用。".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/v1/engine/knowledge/documents:upload-parse")
+                .file(file)
+                .param("sourceDocumentId", "5")
+                .param("versionNo", "v1")
+                .param("format", "STRUCTURED_TEXT")
+                .with(csrf()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReparse() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x:reparse")
+                .with(csrf()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReparse() throws Exception {
+        when(service.reparse("dpj:x")).thenReturn(stubJob());
+
+        mockMvc.perform(post("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x:reparse")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.jobCode").value("dpj:x"));
     }
 
     @Test
@@ -133,5 +214,36 @@ class DocumentParseControllerSecurityTest {
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadMaterial() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/knowledge/materials/12"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void knowledgeGovernorCanReadMaterial() throws Exception {
+        when(materialService.getMaterial(12L)).thenReturn(new DocumentMaterialResponse(
+            12L,
+            "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/a/doc.txt",
+            "a".repeat(64),
+            "text/plain; charset=UTF-8",
+            6L,
+            "LOCAL_FILE",
+            "DOC_PARSE",
+            Instant.parse("2026-06-16T00:00:00Z"),
+            "u",
+            "5Y6f5paH"));
+
+        mockMvc.perform(get("/api/v1/engine/knowledge/materials/12")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(12))
+            .andExpect(jsonPath("$.data.storageBackend").value("LOCAL_FILE"))
+            .andExpect(jsonPath("$.data.contentBase64").value("5Y6f5paH"));
     }
 }

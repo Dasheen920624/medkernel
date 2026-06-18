@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.provider;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -63,6 +64,26 @@ class ModelProviderControllerSecurityTest {
                     .claim("roles", List.of("integration-operator")))
                     .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotProbeProviderHealth() throws Exception {
+        mockMvc.perform(post("/api/v1/model-providers/ollama-local/health-check")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void integrationOperatorCanProbeProviderHealth() throws Exception {
+        mockMvc.perform(post("/api/v1/model-providers/ollama-local/health-check")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("integration-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 }

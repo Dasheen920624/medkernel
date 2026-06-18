@@ -1124,7 +1124,7 @@ export default function RuleDefinitions() {
         ),
       ),
     );
-    // 仅静默同步，不强制切到 L3 / 不强开专家模式（修复「同步即跳专家模式」）。
+    // 仅静默同步，不强制切到 L3 / 不强开 L3 DSL 编辑模式（修复「同步即跳 L3」）。
     message.success("已从 L2 条件树同步到 L3 DSL");
   };
 
@@ -2252,7 +2252,8 @@ export default function RuleDefinitions() {
       <div key={condition.id} className={styles.conditionCard}>
         <div className={styles.conditionHeader}>
           <Space>
-            <Text strong>{condition.label || "条件"}</Text>
+            <Tag color="blue">具体条件</Tag>
+            <Text strong>{condition.label || "待填写判断条件"}</Text>
             {isClinicalOperator(condition.operator) && <Tag color="volcano">临床算子</Tag>}
           </Space>
           <Button
@@ -2416,10 +2417,16 @@ export default function RuleDefinitions() {
     const depthReached = rootDepth(conditionRoot) >= MAX_TREE_DEPTH;
     // 根组用中性白底；子组按深度加淡绿底 + 左边线 + 缩进，使嵌套层级清晰可读。
     const groupClassName = isRoot ? styles.rootGroup : styles.nestedGroup;
+    const groupLabel = `${isRoot ? "条件根组" : "子条件组"} · 第 ${depth + 1} 层`;
     return (
       <div key={group.id} className={groupClassName}>
         <div className={styles.groupHeader}>
-          <Tag color="green">{isRoot ? "条件根组" : "子条件组"}</Tag>
+          <Space wrap>
+            <Tag color={isRoot ? "geekblue" : "green"}>{groupLabel}</Tag>
+            <Text type="secondary" className={styles.textSmall}>
+              {isRoot ? "整棵条件树的入口" : "先在本组内组合判断，再回到上层"}
+            </Text>
+          </Space>
           <Select
             aria-label="条件组关系"
             size="small"
@@ -2461,10 +2468,10 @@ export default function RuleDefinitions() {
             <Button
               size="small"
               icon={<PlusOutlined />}
-              aria-label="新增条件"
+              aria-label="新增具体条件"
               onClick={() => addLeafToGroup(group.id)}
             >
-              条件
+              具体条件
             </Button>
             <Tooltip title={depthReached ? `已达最大嵌套深度 ${MAX_TREE_DEPTH}` : ""}>
               <Button
@@ -2534,7 +2541,7 @@ export default function RuleDefinitions() {
       let submitRoot: RuleConditionGroup;
       let submitTree: RuleConditionTree;
       try {
-        // 专家模式以 L3 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
+        // L3 DSL 编辑模式以 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
         parsedDsl = createExpertMode
           ? parseRuleJson(dslEditorValue)
           : buildCurrentCreateRuleDsl(values.sourceRef);
@@ -3758,7 +3765,7 @@ export default function RuleDefinitions() {
               {detailRoot ? (
                 renderReadonlyNode(detailRoot)
               ) : (
-                <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 专家视图核查。" />
+                <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 技术视图核查。" />
               )}
               {Boolean(detailDsl) && (
                 <AuthoringReadablePreview
@@ -3815,7 +3822,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本 DSL 无法无损还原为当前 L2 条件树，请在 L3 专家视图核查。"
+              message="该版本 DSL 无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
             />
           ),
         },
@@ -4381,7 +4388,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 JSON 仅保留给 L3 技术核查。"
           />
 
           <div className={styles.conditionCard}>
@@ -4867,7 +4874,7 @@ export default function RuleDefinitions() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="L3 是专家模式，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
+                  message="L3 是受控 DSL 编辑层，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
                   className={styles.marginBottomMd}
                 />
                 <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
@@ -5053,11 +5060,11 @@ export default function RuleDefinitions() {
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">技术 DSL 与解释模板默认隐藏。</Text>
+              <Text type="secondary">技术 DSL 与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
               <Space>
-                <Text>专家模式</Text>
+                <Text>L3 技术视图</Text>
                 <Switch
-                  aria-label="专家模式"
+                  aria-label="L3 技术视图"
                   checked={detailExpertMode}
                   onChange={toggleDetailExpertMode}
                 />
@@ -5224,11 +5231,11 @@ export default function RuleDefinitions() {
           </Row>
 
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
-            <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。</Text>
+            <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入 L3 DSL 编辑模式。</Text>
             <Space>
-              <Text>专家模式</Text>
+              <Text>L3 DSL 编辑模式</Text>
               <Switch
-                aria-label="专家模式"
+                aria-label="L3 DSL 编辑模式"
                 checked={createExpertMode}
                 onChange={toggleCreateExpertMode}
               />

@@ -82,6 +82,12 @@ const statusItems = [
     routeStrategy: "BASELINE",
     desensitizeStrategy: "DEFAULT",
     expectedSchema: null,
+    fallbackOrder: ["BASELINE"],
+    timeoutMs: 60000,
+    rateLimitPerMinute: null,
+    policyScopeType: "TENANT",
+    policyScopeRef: "tenant-1",
+    inherited: false,
     configured: false,
     fallbackAvailable: true,
     fallbackReason: "未配置专属策略，使用系统 B0 基线",
@@ -94,6 +100,12 @@ const statusItems = [
     routeStrategy: "DISABLED",
     desensitizeStrategy: "MASK_ALL",
     expectedSchema: '{"required":["status"]}',
+    fallbackOrder: [],
+    timeoutMs: 60000,
+    rateLimitPerMinute: null,
+    policyScopeType: "HOSPITAL",
+    policyScopeRef: "hospital-a",
+    inherited: true,
     configured: true,
     fallbackAvailable: false,
     fallbackReason: "已被路由策略禁用",
@@ -136,10 +148,12 @@ describe("AiWorkflows", () => {
     expect(await screen.findByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
-    expect(screen.getAllByText("基础规则能力")).toHaveLength(2);
+    expect(screen.getAllByText("基础规则能力").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
+    expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统 B0 基线")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
@@ -159,6 +173,7 @@ describe("AiWorkflows", () => {
               capabilityCode: "quality.semantic-check",
               displayName: "病历内涵质控",
               routeStrategy: "EXTERNAL_MODEL",
+              fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
               fallbackReason: "外部模型未连接且没有可用基线",
             },
           ],

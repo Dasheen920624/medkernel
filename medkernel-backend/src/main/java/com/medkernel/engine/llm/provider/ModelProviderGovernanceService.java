@@ -2,6 +2,7 @@ package com.medkernel.engine.llm.provider;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -29,15 +30,18 @@ public class ModelProviderGovernanceService {
     private final ModelProviderConfigRepository repository;
     private final DeploymentFormService deploymentForm;
     private final ModelEvalService evalService;
+    private final ModelProviderRegistry registry;
     private final AuditRecorder auditRecorder;
 
     public ModelProviderGovernanceService(ModelProviderConfigRepository repository,
                                           DeploymentFormService deploymentForm,
                                           ModelEvalService evalService,
+                                          ModelProviderRegistry registry,
                                           AuditRecorder auditRecorder) {
         this.repository = repository;
         this.deploymentForm = deploymentForm;
         this.evalService = evalService;
+        this.registry = registry;
         this.auditRecorder = auditRecorder;
     }
 
@@ -46,6 +50,8 @@ public class ModelProviderGovernanceService {
         String tenantId = requireCurrentTenant();
         String code = providerCode == null ? "" : providerCode.trim();
         ProviderType type = parseType(request.providerType());
+        String endpointUri = request.endpointUri().trim();
+        String credentialRef = normalizeOptional(request.credentialRef());
         String modelVersion = request.modelVersion().trim();
         boolean enabled = !Boolean.FALSE.equals(request.enabled());
 
@@ -64,22 +70,75 @@ public class ModelProviderGovernanceService {
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         Optional<ModelProviderConfig> existing = repository.findByTenantIdAndProviderCode(tenantId, code);
+        String status = existing
+            .filter(config -> !connectionMaterialChanged(
+                config, type, endpointUri, credentialRef, modelVersion))
+            .map(ModelProviderConfig::status)
+            .orElse("NOT_CONNECTED");
         ModelProviderConfig saved = repository.save(new ModelProviderConfig(
             existing.map(ModelProviderConfig::id).orElse(null),
             tenantId,
             code,
             type.name(),
-            request.endpointUri().trim(),
-            normalizeOptional(request.credentialRef()),
+            endpointUri,
+            credentialRef,
             modelVersion,
             enabled ? "Y" : "N",
-            existing.map(ModelProviderConfig::status).orElse("NOT_CONNECTED"),
+            status,
             existing.map(ModelProviderConfig::createdAt).orElse(now),
             existing.map(ModelProviderConfig::createdBy).orElse(actor),
             now,
             actor));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_provider", code, "保存模型 provider " + code);
         return saved;
+    }
+
+    /**
+     * 对已登记 provider 执行真实连通性探测并持久化健康状态。
+     *
+     * <p>探活不改变启停状态，也不绕过医学回归评测门禁；它只把适配器实时结果写回唯一状态源，
+     * 供 readiness 和运维界面一致读取。
+     */
+    @Transactional
+    public ModelProviderConfig checkHealth(String providerCode) {
+        String tenantId = requireCurrentTenant();
+        String code = providerCode == null ? "" : providerCode.trim();
+        ModelProviderConfig current = repository.findByTenantIdAndProviderCode(tenantId, code)
+            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+        ModelProviderRegistry.ResolvedProvider resolved = registry.resolveByCode(tenantId, code)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.BAD_REQUEST, "模型 provider 类型未注册: " + current.providerType()));
+        ProviderHealth health = resolved.adapter().checkHealth(current);
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        ModelProviderConfig checked = repository.save(new ModelProviderConfig(
+            current.id(),
+            current.tenantId(),
+            current.providerCode(),
+            current.providerType(),
+            current.endpointUri(),
+            current.credentialRef(),
+            current.modelVersion(),
+            current.enabledFlag(),
+            health.name(),
+            current.createdAt(),
+            current.createdBy(),
+            now,
+            actor));
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_provider", code,
+            "探测模型 provider " + code + " status=" + health.name());
+        return checked;
+    }
+
+    private boolean connectionMaterialChanged(ModelProviderConfig current,
+                                              ProviderType type,
+                                              String endpointUri,
+                                              String credentialRef,
+                                              String modelVersion) {
+        return !type.name().equals(current.providerType())
+            || !endpointUri.equals(current.endpointUri())
+            || !Objects.equals(credentialRef, current.credentialRef())
+            || !modelVersion.equals(current.modelVersion());
     }
 
     private ProviderType parseType(String raw) {

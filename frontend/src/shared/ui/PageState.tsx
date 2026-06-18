@@ -1,9 +1,11 @@
 import { CopyOutlined } from "@ant-design/icons";
 import { Button, Result, Space, Spin, Typography } from "antd";
 import type { ReactNode } from "react";
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
 import type { FailureDetail, NonReadyPageStateKind, PageStateKind } from "./PageState.contract";
 
 const { Text } = Typography;
+const PARTIAL_FAILURE_REASON_FALLBACK = "当前项目读取失败，请重试或转人工处理。";
 
 export interface PageStateProps {
   state: PageStateKind;
@@ -92,7 +94,8 @@ export function PageState({
       <Space direction="vertical" size={2}>
         {failureDetails.map((failure) => (
           <Text key={failure.key} type="secondary">
-            {failure.key}：{failure.reason}
+            {failure.key}：
+            {customerSafeDisplayText(failure.reason, PARTIAL_FAILURE_REASON_FALLBACK)}
             {failure.retryable ? "，可重试" : ""}
           </Text>
         ))}

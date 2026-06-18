@@ -89,7 +89,9 @@ class PermissionDimensionModelTest {
                 PermissionCode.MENU_IDENTITY_BINDINGS,
                 PermissionCode.MENU_IMPLEMENTATION_GUIDE,
                 PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+                PermissionCode.MENU_INSTITUTION_KNOWLEDGE,
                 PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE,
+                PermissionCode.MENU_KNOWLEDGE_PRODUCTION,
                 PermissionCode.MENU_CONFIG_PACKAGES,
                 PermissionCode.MENU_QC_DASHBOARD,
                 PermissionCode.MENU_ADMIN_AUDIT,
@@ -107,6 +109,7 @@ class PermissionDimensionModelTest {
         expected.remove(PermissionCode.ENV_EMERGENCY);
         expected.remove(PermissionCode.PLATFORM_PUBLISH);
         expected.remove(PermissionCode.SYSTEM_MANAGE);
+        expected.remove(PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
         expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
@@ -122,6 +125,7 @@ class PermissionDimensionModelTest {
                 PermissionCode.MENU_IDENTITY_BINDINGS,
                 PermissionCode.MENU_IMPLEMENTATION_GUIDE,
                 PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
+                PermissionCode.MENU_INSTITUTION_KNOWLEDGE,
                 PermissionCode.MENU_CONFIG_PACKAGES,
                 // 机构管理员是红线规则唯一职责分离合规发布人，需进入规则配置页推进发布。见 P5-ACT4-02。
                 PermissionCode.MENU_RULE_DEFINITIONS,
@@ -140,7 +144,8 @@ class PermissionDimensionModelTest {
             .doesNotContain(
                 PermissionCode.ENV_EMERGENCY,
                 PermissionCode.PLATFORM_PUBLISH,
-                PermissionCode.SYSTEM_MANAGE);
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
     }
 
     private String invokeDimension(Method dimensionMethod, PermissionCode permission) {

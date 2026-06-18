@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
@@ -33,13 +34,17 @@ class ClinicalRedlineReadinessGateTest {
     @BeforeEach
     void setUp() {
         redlineService = mock(ClinicalRedlineService.class);
-        gate = new ClinicalRedlineReadinessGate(redlineService);
+        gate = new ClinicalRedlineReadinessGate(redlineService, new ObjectMapper());
     }
 
     private KnowledgeAssetEnvelope envelope() {
+        return envelope(PAYLOAD);
+    }
+
+    private KnowledgeAssetEnvelope envelope(String payload) {
         return new KnowledgeAssetEnvelope(VersionedAssetType.RULE, "identity:1", "主题", "v1",
             List.of(), SourceAuthorityLevel.B_GUIDELINE, null, null, KnowledgeRiskLevel.MEDIUM, "t-1",
-            Sha256ContentHash.sha256(PAYLOAD, "x"), PAYLOAD, AssetVersionStatus.DRAFT);
+            Sha256ContentHash.sha256(payload, "x"), payload, AssetVersionStatus.DRAFT);
     }
 
     private ClinicalRedlineResponse redline(ClinicalRedlineCategory category) {
@@ -81,5 +86,89 @@ class ClinicalRedlineReadinessGateTest {
         GateItemResult result = gate.evaluate(envelope(), new GateContext("t-1", "job-1"));
 
         assertThat(result.passed()).isTrue();
+    }
+
+    @Test
+    void failsWhenStructuredPayloadDeclaresActiveRedlineViolation() {
+        when(redlineService.activeCatalog(null)).thenReturn(configuredCatalog());
+        String payload = """
+            {
+              "template": "RULE",
+              "clinicalSafety": {
+                "redlineChecks": [
+                  {
+                    "category": "DOSE_LIMIT",
+                    "redlineKey": "DOSE_LIMIT",
+                    "outcome": "VIOLATION",
+                    "evidenceReference": "source-version:77#dose-limit"
+                  }
+                ]
+              }
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason())
+            .contains("命中临床安全红线")
+            .contains("DOSE_LIMIT")
+            .contains("source-version:77#dose-limit");
+    }
+
+    @Test
+    void failsWhenStructuredPayloadReferencesUnknownActiveRedline() {
+        when(redlineService.activeCatalog(null)).thenReturn(configuredCatalog());
+        String payload = """
+            {
+              "template": "RULE",
+              "clinicalRedlineChecks": [
+                {
+                  "category": "DRUG_INTERACTION",
+                  "redlineKey": "UNKNOWN-DDI",
+                  "outcome": "PASS"
+                }
+              ]
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains("未匹配 ACTIVE 红线").contains("UNKNOWN-DDI");
+    }
+
+    @Test
+    void passesWhenStructuredPayloadDocumentsNoViolationAgainstActiveRedline() {
+        when(redlineService.activeCatalog(null)).thenReturn(configuredCatalog());
+        String payload = """
+            {
+              "template": "RULE",
+              "modelOutput": {
+                "clinicalSafety": {
+                  "redlineChecks": [
+                    {
+                      "category": "ANTIMICROBIAL_RESTRICTION",
+                      "redlineKey": "ANTIMICROBIAL_RESTRICTION",
+                      "outcome": "PASS",
+                      "evidenceReference": "source-version:88#antimicrobial"
+                    }
+                  ]
+                }
+              }
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isTrue();
+    }
+
+    private ClinicalRedlineCatalogResponse configuredCatalog() {
+        return new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.CONFIGURED,
+            ClinicalRedlineCategory.requiredSafetyCategories(),
+            ClinicalRedlineCategory.requiredSafetyCategories().stream().map(this::redline).toList(),
+            "trace");
     }
 }

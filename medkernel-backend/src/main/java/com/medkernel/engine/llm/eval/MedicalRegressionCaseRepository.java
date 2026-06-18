@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.eval;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
@@ -13,4 +14,16 @@ public interface MedicalRegressionCaseRepository extends CrudRepository<MedicalR
 
     List<MedicalRegressionCase> findByTenantIdAndCapabilityCodeAndEnabledFlag(
         String tenantId, String capabilityCode, String enabledFlag);
+
+    Optional<MedicalRegressionCase> findByTenantIdAndCapabilityCodeAndCaseInput(
+        String tenantId, String capabilityCode, String caseInput);
+
+    List<MedicalRegressionCase> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
+
+    List<MedicalRegressionCase> findByTenantIdAndCapabilityCodeOrderByUpdatedAtDesc(
+        String tenantId, String capabilityCode);
+
+    List<MedicalRegressionCase> findByTenantIdAndEnabledFlagOrderByUpdatedAtDesc(String tenantId, String enabledFlag);
+
+    Optional<MedicalRegressionCase> findByIdAndTenantId(Long id, String tenantId);
 }

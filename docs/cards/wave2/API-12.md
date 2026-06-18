@@ -14,26 +14,26 @@
 ## 目标
 对外暴露**统一模型能力网关 API**：能力代码路由、数据脱敏、结构化输出校验、审计留痕、B0 诚实降级——上层业务只调能力码、不直连任何 provider。
 
-## 现状（搬迁时核查 2026-05-31，以 `medkernel-backend` 为准）
-**MVP 已建**：`engine/llm/ModelGatewayController`（端点 `/api/v1/model-capabilities/{status,catalog,catalog/{capabilityCode},tasks,tasks/{id},tasks/{id}/retry,policies/validate,policies/{capabilityCode}}`，perm `llm.read`/`llm.execute`/`llm.manage`/`system.manage`，`@DataScope(requireTenant)`）。能力代码、中文名称、说明、分类、顺序和启停统一由关系库 `model_capability_definition` 管理，前端不保留能力目录副本。
+## 现状（2026-06-17 T5.6 复核，以 `medkernel-backend`/`frontend` 为准）
+**已收口**：`engine/llm/ModelGatewayController` 暴露 `/api/v1/model-capabilities/{status,catalog,catalog/{capabilityCode},tasks,tasks/{id},tasks/{id}/retry,tasks/{id}/replay,policies/validate,policies/{capabilityCode}}`，perm `llm.read`/`llm.execute`/`llm.manage`/`system.manage`，`@DataScope(requireTenant)`。能力代码、中文名称、说明、分类、顺序和启停统一由关系库 `model_capability_definition` 管理，前端不保留能力目录副本；共享 API hook 已覆盖任务追溯、B0 重放、策略校验和策略保存，保留 prompt/tool/model 三元组。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 能力状态：`GET /status` 返回租户全部能力码 + 路由策略 + 可用性，无策略时诚实 B0。
-- [ ] FR-2 提交任务：`POST /tasks` 入参校验（Bean Validation），返回 `task_id` + mode + fallback + traceId。
-- [ ] FR-3 任务追溯：`GET /tasks/{id}` 跨租户访问拒绝（`TENANT_FORBIDDEN`）。
-- [ ] FR-4 重试：`POST /tasks/{id}/retry` 以原输入重发，留审计。
-- [ ] FR-5 策略校验：`POST /policies/validate` 非法能力码/非法 schema 显式报错。
-- [ ] FR-6 能力码目录：能力码可配（不再硬编码），新增能力码不改本契约。
+- [x] FR-1 能力状态：`GET /status` 返回租户全部能力码 + 路由策略 + 可用性 + 生效策略作用域（`policyScopeType/policyScopeRef/inherited`）+ 降级顺序/预算（`fallbackOrder/timeoutMs/rateLimitPerMinute`），无策略时诚实 B0。
+- [x] FR-2 提交任务：`POST /tasks` 入参校验（Bean Validation），返回 `task_id` + mode + fallback + traceId。
+- [x] FR-3 任务追溯：`GET /tasks/{id}` 跨租户访问拒绝（`TENANT_FORBIDDEN`）。
+- [x] FR-4 重试：`POST /tasks/{id}/retry` 以原输入重发，留审计。
+- [x] FR-5 策略校验：`POST /policies/validate` 非法能力码/非法 schema/非法 fallback 顺序显式报错。
+- [x] FR-6 能力码目录：能力码可配（不再硬编码），新增能力码不改本契约。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - 端点：见 FR；响应信封 `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
-- DTO：`ModelTaskRequest`(capabilityCode/inputData/desensitizeStrategy/expectedSchema/timeout) · `ModelTaskResponse`(taskId/status/mode/fallbackUsed/riskLevel/traceId…)。
+- DTO：`ModelCapabilityStatusResponse`(capabilityCode/routeStrategy/policyScopeType/policyScopeRef/inherited/fallbackOrder/timeoutMs/rateLimitPerMinute/fallbackAvailable…) · `ModelTaskRequest`(capabilityCode/inputData/timeout/requiredRouteStrategy/providerCode；requiredRouteStrategy/providerCode 用于知识生产器内部锁定本地或外部 provider 路径，普通调用可空) · `ModelPolicyUpsertRequest`(routeStrategy/desensitizeStrategy/expectedSchema/fallbackOrder/timeoutMs/rateLimitPerMinute) · `ModelTaskResponse`(taskId/status/modelMode/modelVersion/promptVersion/toolVersion/fallbackUsed/riskLevel/traceId…)。
 - 状态机：变更（任务 PENDING→DEGRADED/SUCCESS/FAILED）。
 - 幂等 / 错误码 / traceId：`ENG_LLM_001` 能力禁用 · `002` schema 校验失败 · `004` 任务不存在 · `TENANT_FORBIDDEN`；traceId 全链路透传。
 
 ## 数据与迁移
-- 复用 `model_capability_task` / `model_capability_policy`（五方言 `V18`，单一归属 [LLM-01](LLM-01.md)）；能力码目录如需落库另立 `model_capability_catalog`（五方言）。
+- 复用 `model_capability_task` / `model_capability_policy`（五方言 `V18`，单一归属 [LLM-01](LLM-01.md)）；能力码目录由 `model_capability_definition` 关系库表统一承载，新增能力只改目录数据与策略，不改 API 契约。
 
 ## 视角清单（11 视角）
 1. 产品架构：业务只调能力码的统一门面，provider 解耦。
@@ -53,12 +53,12 @@
 - 本卡落点：统一能力网关契约，provider 解耦、降级诚实、调用可审计。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1~5）：契约测试覆盖五端点 + 错误码 + 跨租户拒绝。
-- [ ] AC-2（FR-6）：新增能力码不改契约（目录驱动）。
+- [x] AC-1（FR-1~5）：契约测试覆盖五端点 + 错误码 + 跨租户拒绝。
+- [x] AC-2（FR-6）：新增能力码不改契约（目录驱动）。
 - T-GATE：后端真实性门禁全绿（无伪造 mode/置信度）。
 - B0 验收：★无 provider 时全能力诚实降级 B0 可调通。
 
 ## 完工证据
-- 代码 permalink：`engine/llm/ModelGatewayController` + DTO + 能力码目录。
-- 测试：契约 + 跨租户 + 错误码 + B0 降级。
+- 代码 permalink：`engine/llm/ModelGatewayController` + DTO + `model_capability_definition` 能力码目录 + `frontend/src/shared/api/hooks.ts`。
+- 测试：`mvn -q -Dtest=ModelGatewayServiceTest test` 覆盖目录驱动、B0、fallback、任务跨租户拒绝与重试越权阻断；`cd frontend && npm test -- hooks.test.ts` 覆盖前端任务三元组、B0 replay、策略校验/保存消费口径。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

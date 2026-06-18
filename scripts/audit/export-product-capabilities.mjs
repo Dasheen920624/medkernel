@@ -191,6 +191,12 @@ const routeDecisions = {
     targetEntry: "评价指标",
     task: "维护评价指标、影响分析和发布状态",
   },
+  "/qc/model-evaluations": {
+    decision: "KEEP",
+    targetDomain: "质量管理",
+    targetEntry: "医学回归复核",
+    task: "逐例核查模型医学回归证据，并由独立医学专家留痕签字",
+  },
   "/qc/eval/results": {
     decision: "MERGE",
     targetDomain: "质量管理",
@@ -201,13 +207,25 @@ const routeDecisions = {
     decision: "MOVE",
     targetDomain: "知识治理",
     targetEntry: "知识审核与发布",
-    task: "审核平台主源或机构派生差异并发布、换基线或恢复标准",
+    task: "审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回",
+  },
+  "/knowledge/institution": {
+    decision: "SPLIT",
+    targetDomain: "知识治理",
+    targetEntry: "机构知识",
+    task: "从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准",
   },
   "/knowledge/diagnosis": {
     decision: "SPLIT",
     targetDomain: "知识治理",
     targetEntry: "诊断知识维护",
     task: "维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据",
+  },
+  "/knowledge/production": {
+    decision: "SPLIT",
+    targetDomain: "知识生产",
+    targetEntry: "知识生产",
+    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据",
   },
   "/admin/users": {
     decision: "MOVE",
@@ -259,8 +277,8 @@ const routeDecisions = {
   },
   "/advanced/ai-workflows": {
     decision: "MOVE",
-    targetDomain: "知识治理",
-    targetEntry: "智能工作流",
+    targetDomain: "知识生产",
+    targetEntry: "模型能力",
     task: "查看模型能力、任务和诚实降级状态",
   },
   "/advanced/domestic": {
@@ -356,7 +374,11 @@ function extractRoutes() {
         hidden: route.hidden === true,
         placement:
           route.placement ??
-          (route.menuKey ? "primary" : route.hidden === true ? "hidden" : "hidden"),
+          (route.menuKey
+            ? "primary"
+            : route.hidden === true
+              ? "hidden"
+              : "hidden"),
         ...decision,
       };
     });
@@ -457,7 +479,11 @@ function controllerDecision(className, endpoints) {
       rationale: "仅服务外部系统或嵌入链路，不进入客户主菜单",
     };
   }
-  if (/Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval|Enhancement)|PluginSecurity/i.test(text)) {
+  if (
+    /Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval|Enhancement)|PluginSecurity/i.test(
+      text,
+    )
+  ) {
     return {
       decision: "KEEP",
       target: "所属业务域专业能力",

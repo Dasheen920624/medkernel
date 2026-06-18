@@ -97,6 +97,7 @@ public enum PermissionCode {
     LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/凭据引用/启停）"),
     LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学回归基准集、运行评测与专家复核签字"),
     LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点↔能力码↔B0 路径↔接入状态）"),
+    KNOWLEDGE_ACQUISITION_APPROVE("knowledge.acquisition.approve", Risk.HIGH, "独立审批、启用或停用公域资料来源"),
     ENGINE_DATA_READ("engine-data.read", Risk.LOW, "查询引擎数据服务层只读统计（规则/知识使用聚合，按数据分级与权限脱敏）"),
     ENGINE_DATA_EXPORT("engine-data.export", Risk.MEDIUM, "提交与下载引擎数据服务层异步导出（D2 去标识聚合，审批闸控、字段脱敏、小样本抑制）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
@@ -135,7 +136,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：30 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：33 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
@@ -154,10 +155,16 @@ public enum PermissionCode {
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
+    MENU_MODEL_EVALUATION_REVIEW(
+        "menu.model-evaluation-review", PermissionDimension.MENU, Risk.LOW, "查看医学回归复核"),
     MENU_KNOWLEDGE_GOVERNANCE(
         "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
+    MENU_INSTITUTION_KNOWLEDGE(
+        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识"),
     MENU_DIAGNOSIS_KNOWLEDGE(
         "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识维护"),
+    MENU_KNOWLEDGE_PRODUCTION(
+        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产"),
     MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看人员与账号"),
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份来源"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计与证据"),
@@ -166,7 +173,7 @@ public enum PermissionCode {
     MENU_NOTIFICATION_SETTINGS("menu.notification-settings", PermissionDimension.MENU, Risk.LOW, "查看通知偏好"),
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
-    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看智能工作流"),
+    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
     MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化核验"),
     MENU_DEV_CONSOLE("menu.dev-console", PermissionDimension.MENU, Risk.LOW, "查看诊断工具");
 

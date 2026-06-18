@@ -287,21 +287,23 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 >
 > 🗂️ wave2 **分 4 子块 + 接入底座、多 PR 增量交付**（[wave2 域简报](cards/wave2/_brief.md) + [卡索引](cards/_index.md)）：**wave2 全 68 卡已建**（X-LLM 11 + X-AIK 14 + X-KNOWGEN 25 + X-DOMAIN 17 + DATASVC 1）。已建卡 ID = 卡名（`cards/wave2/<ID>.md`），合同级功能/契约/11 视角/验收以卡为准；下表「状态」仍以**实际实现**为准（建卡 ≠ 任务 done）。
 
+> **整体上线主计划 Phase 对照（2026-06-16 #634）**：执行详见 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。状态列不因归属 Phase 改动而提前 done。Phase 1 = 原件资料库存储（AIK-STD-02/LLM-06/AIK-STD-04 的物理进料地基）；Phase 2 = 上线就绪地基（LLM-01/02/04/07/08/API-12 与配置/readiness）；Phase 3 = AI 工厂收尾（AIK-STD-03/05/06/07/08/09/10/11/12/13/14、DATASVC-01、OPT-06/09 中剩余工程项）；Phase 4 = 自主公域获取（LLM-06 扩展 + AIK-STD-14 Agent 取数 + 公域获取新能力）；Phase 5 = 模型增强真实化（LLM-01/02/04/08/API-12/OPT-06/09 + AIK-STD-13 模型生产器）；Phase 6 = 院内覆盖管道（AIK-STD-13/14 + DATASVC-01 院内/本地模型/加密边界）；Phase 7 = X-DOMAIN 17 卡 + KNOWGEN 需代码支撑的资产类型专用能力；Phase 8 = 前端体验完美化；Phase 9 = 134 生产中心上线；Phase 10 = KNOWGEN-01~25 首发知识真产出；Phase 11 = GA 总验收与试点医院上线。
+
 ### 模型网关与真实接入（X-LLM + API-12 + OPT-06/09）🗂️ 11 卡已建（批 1）
 
 | ID | 任务 | 工作量 | 状态 |
 |---|---|---:|---|
-| API-12 | 模型能力网关 API（能力代码/路由/脱敏/结构化输出/审计/B0 降级）| 4d | pending |
-| LLM-01 | 模型能力网关（provider 无关契约 + 路由策略持久化 + 组织继承 + B0 诚实空候选不写死病种）| 5d | pending |
-| LLM-02 | B0/B1/B2 策略与验收 + 故障切换矩阵（超时/限流/结构失败/断网→B0）| 4d | pending |
+| API-12 | 模型能力网关 API（能力代码/路由/脱敏/结构化输出/审计/B0 降级）| 4d | done |
+| LLM-01 | 模型能力网关（provider 无关契约 + 路由策略持久化 + 组织继承 + B0 诚实空候选不写死病种）| 5d | done |
+| LLM-02 | B0/B1/B2 策略与验收 + 故障切换矩阵（超时/限流/结构失败/断网→B0）| 4d | done |
 | LLM-03 | 数据最小化与外调安全（字段白名单 + 脱敏 + 审批 + 阻断 + 证据）| 4d | done |
-| LLM-04 | 提示词、工具和模型版本治理（可重放/可回滚/可导出）| 3d | pending |
+| LLM-04 | 提示词、工具和模型版本治理（可重放/可回滚/可导出）| 3d | done |
 | LLM-05 | 全业务模型增强接入矩阵（全适用业务有能力码 + B0 卡）| 4d | done |
 | LLM-06 | 可信来源探索编排（受控检索 + 检索时点 + 来源核验）| 4d | done |
 | LLM-07 | 模型安全与医学回归评测（引用真实性 + 红线 + 基准集 + 专家复核）| 5d | done |
 | LLM-08 | provider 真实接入（B1 本地 + B2 外部 + Dify 可选；缺位诚实降级 B0）| 6d | done |
-| OPT-06 | AI 质量评测中心（字典/规则/路径/推荐/解释/中文术语回归集 + 幻觉拦截）| 5d | pending |
-| OPT-09 | 数据最小化策略引擎（字段白名单 + 脱敏 + 审批）| 4d | pending |
+| OPT-06 | AI 质量评测中心（字典/规则/路径/推荐/解释/中文术语回归集 + 幻觉拦截）| 5d | done |
+| OPT-09 | 数据最小化策略引擎（字段白名单 + 脱敏 + 审批）| 4d | done |
 
 ### AI 工厂（X-AIK，14 项）🗂️ 14 卡已建
 
@@ -309,14 +311,14 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 |---|---|---:|---|
 | AIK-STD-01 | 来源与全类资产 schema + 统一元数据（统一资产信封 + 校验闸，复用 versioning + KNOW-01/OPT-07，不新建表）| 4d | done |
 | AIK-STD-02 | 文档解析、引用锚点与版本存证（PDF/Word 章节 + 表格理解 + hash）| 6d | pending |
-| AIK-STD-03 | 术语编码与院内映射流水线 | 4d | pending |
+| AIK-STD-03 | 术语编码与院内映射流水线 | 4d | done |
 | AIK-STD-04 | 规则/路径/推荐/指标/随访候选生成 | 5d | pending |
-| AIK-STD-05 | 安全校验与冲突仲裁（详规 §8.9 11 项门禁）| 5d | pending |
+| AIK-STD-05 | 安全校验与冲突仲裁（详规 §8.9 11 项门禁）| 5d | done |
 | AIK-STD-06 | 静默运行、反馈和回归评测 | 4d | pending |
 | AIK-STD-07 | 知识包/配置包生成与院内同步 | 4d | pending |
 | AIK-STD-08 | 最新知识探索、差异检测与过期治理 | 5d | pending |
-| AIK-STD-09 | 权威知识替换、旧版失效与影响处置 | 4d | pending |
-| AIK-STD-10 | 生成期知识身份识别、去重与审核分流（8 态分流）| 5d | pending |
+| AIK-STD-09 | 权威知识替换、旧版失效与影响处置 | 4d | done |
+| AIK-STD-10 | 生成期知识身份识别、去重与审核分流（8 态分流）| 5d | done |
 | AIK-STD-11 | 待审新版共存与替换提醒 | 3d | pending |
 | AIK-STD-12 | 全医疗专业领域标准资产模板 + AiReview 前端审核台 | 7d | pending |
 | AIK-STD-13 | 知识生产编排与多生产器双形态接入（API/Agent/本地模型/人工 + 主源·院内覆盖隔离 + 血缘/可重放）| 6d | pending |

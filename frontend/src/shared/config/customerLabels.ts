@@ -2,6 +2,9 @@ type LabelMap = Readonly<Record<string, string>>;
 
 const label = (value: string | null | undefined, labels: LabelMap, fallback = "未识别") =>
   value ? (labels[value] ?? fallback) : "未设置";
+const DEFAULT_CUSTOMER_SAFE_FALLBACK = "当前数据读取失败，请重试或联系信息科。";
+const TECHNICAL_DETAIL_PATTERN =
+  /(?:\bECONN[A-Z_]*\b|\bSQL(?:Exception)?\b|\b[A-Za-z]+Exception\b|\bstack(?:\s+trace)?\b|\/api\/|https?:\/\/|127\.0\.0\.1|localhost|traceId|Trace ID|\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b)/i;
 
 export const orgLevelLabels: LabelMap = {
   PLATFORM: "平台治理层",
@@ -362,4 +365,17 @@ export const customerDisplayText = (value?: string | null) => {
         `$1${translated}`,
       );
     }, value);
+};
+export const hasTechnicalDetailText = (value?: string | null) =>
+  Boolean(value && TECHNICAL_DETAIL_PATTERN.test(value));
+export const customerSafeDisplayText = (
+  value?: string | null,
+  fallback = DEFAULT_CUSTOMER_SAFE_FALLBACK,
+) => {
+  const text = value?.trim();
+  if (!text) return fallback;
+  if (hasTechnicalDetailText(text)) return fallback;
+
+  const displayText = customerDisplayText(text);
+  return hasTechnicalDetailText(displayText) ? fallback : displayText;
 };

@@ -600,7 +600,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
         target: { value: "pkg-2026.06" },
       });
-      fireEvent.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      fireEvent.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
@@ -1333,7 +1333,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
-      await user.click(screen.getByRole("switch", { name: "专家模式" }));
+      await user.click(screen.getByRole("switch", { name: "L3 技术视图" }));
 
       expect(screen.queryByText("专家手工 JSON 兜底")).not.toBeInTheDocument();
       expect(
@@ -1877,12 +1877,16 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      expect(within(dialog).getByText("条件根组 · 第 1 层")).toBeInTheDocument();
+      expect(within(dialog).getAllByText("具体条件").length).toBeGreaterThan(0);
 
       // 新增子条件组（初始仅根组，存在唯一「新增子条件组」按钮）
       await user.click(within(dialog).getByRole("button", { name: "新增子条件组" }));
+      expect(within(dialog).getByText("子条件组 · 第 2 层")).toBeInTheDocument();
+      expect(within(dialog).getAllByText("具体条件").length).toBeGreaterThan(1);
 
-      // 进入专家模式并同步，断言 DSL 为嵌套结构（顶层 all 内含子组）
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      // 进入 L3 DSL 编辑模式并同步，断言 DSL 为嵌套结构（顶层 all 内含子组）
+      await user.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("规则 DSL JSON") as HTMLTextAreaElement;
@@ -1912,7 +1916,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
 
       expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("tabpanel")).toHaveTextContent("条件根组");
+      expect(within(dialog).getByRole("tabpanel")).toHaveTextContent("条件根组 · 第 1 层");
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

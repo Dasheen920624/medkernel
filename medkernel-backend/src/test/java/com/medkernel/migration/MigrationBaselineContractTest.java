@@ -187,8 +187,76 @@ class MigrationBaselineContractTest {
         "V136__aik_gate_result.sql",
         "V137__knowledge_generation_triage.sql",
         "V138__knowledge_shadow_run.sql",
-        "V139__mk_llm_model_version_bundle.sql"
+        "V139__mk_llm_model_version_bundle.sql",
+        "V140__knowledge_diff_expiry_task.sql",
+        "V141__aik_pack_job.sql",
+        "V142__knowledge_acquisition.sql",
+        "V143__knowledge_acquisition_schedule.sql",
+        "V144__data_minimization_policy.sql",
+        "V145__engine_data_field_encryption.sql",
+        "V146__knowledge_surface_menu_split.sql",
+        "V147__knowledge_candidate_explain_evidence.sql",
+        "V148__knowledge_review_feedback_loop.sql",
+        "V149__knowledge_acquisition_source_lock.sql",
+        "V150__model_version_active_scope_unique.sql",
+        "V151__model_eval_review_evidence.sql"
     );
+
+    @Test
+    void modelVersionActiveScopeIsUniqueAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V150__model_version_active_scope_unique.sql");
+            assertThat(ddl)
+                .as("%s 模型版本 ACTIVE 作用域必须由关系库强制唯一", dialect)
+                .contains(
+                    "active_scope_key",
+                    "tenant_id || '|' || capability_code",
+                    "uk_mk_llm_model_version_active_scope",
+                    "ck_mk_llm_model_version_active_scope",
+                    "ACTIVE",
+                    "RETIRED");
+        }
+    }
+
+    @Test
+    void medicalRegressionRedLineTypeFitsClinicalRedLineCategoriesAcrossAllDialects() {
+        Pattern redLineTypeWidth = Pattern.compile("red_line_type\\s+VARCHAR2?\\(64\\)", Pattern.CASE_INSENSITIVE);
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
+            assertThat(redLineTypeWidth.matcher(ddl).find())
+                .as("%s 医学回归红线类型字段必须容纳 SPECIAL_POPULATION_CONTRAINDICATION", dialect)
+                .isTrue();
+        }
+    }
+
+    @Test
+    void aiQualityEvaluationFieldsArePersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
+            assertThat(ddl)
+                .as("%s AI 质量评测必须持久化质量维度、幻觉拦截、术语分和版本趋势", dialect)
+                .contains(
+                    "case_domain",
+                    "expected_terms_json",
+                    "forbidden_assertions_json",
+                    "min_score",
+                    "capability_code",
+                    "prompt_version",
+                    "tool_version",
+                    "quality_score",
+                    "terminology_score",
+                    "hallucination_detected",
+                    "case_summary_json",
+                    "ck_mk_llm_regression_case_score",
+                    "ck_mk_llm_eval_run_hallucination",
+                    "ck_mk_llm_eval_run_quality_score",
+                    "idx_mk_llm_regression_case_domain",
+                    "idx_mk_llm_eval_run_capability",
+                    "AI 质量评测维度",
+                    "幻觉拦截",
+                    "术语质量");
+        }
+    }
 
     @Test
     void terminologyCandidateGenerationJobIsPersistedAcrossAllDialects() {
@@ -244,6 +312,88 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void knowledgeDiffAndExpiryTaskArePersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V140__knowledge_diff_expiry_task.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-08 差异检测与过期治理必须持久化", dialect)
+                .contains("mk_knowledge_diff", "mk_knowledge_expiry_task",
+                    "candidate_content_hash", "diff_type",
+                    "task_type", "review_due_at")
+                .contains("ck_knowledge_diff_type", "ck_expiry_task_type", "ck_expiry_task_status",
+                    "idx_knowledge_diff_target", "idx_expiry_task_status")
+                .contains("AIK-STD-08 最新知识探索差异台账", "过期知识复核任务");
+        }
+    }
+
+    @Test
+    void aikPackJobIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V141__aik_pack_job.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-07 知识包装配作业必须持久化清单、包引用和状态", dialect)
+                .contains("mk_aik_pack_job", "package_id", "asset_manifest", "manifest_sha256", "item_count")
+                .contains("PACKAGED", "FAILED", "uk_aik_pack_job_id", "uk_aik_pack_job_package",
+                    "fk_aik_pack_job_package", "ck_aik_pack_job_status", "idx_aik_pack_job_package")
+                .contains("AIK-STD-07 知识包装配作业", "PKG-01 包引用");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V142__knowledge_acquisition.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-14 公域资料获取必须持久化白名单、许可、robots 策略和运行账本", dialect)
+                .contains("mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
+                    "source_code", "domain", "license_policy", "robots_policy", "approved_by",
+                    "source_hash", "material_file_uri", "parse_job_code")
+                .contains("PERMITTED", "FORBIDDEN", "ALLOW_FETCH", "DISALLOW_FETCH",
+                    "SUCCEEDED", "DUPLICATE", "BLOCKED", "FAILED")
+                .contains("uk_mk_knowledge_acquisition_source_code",
+                    "ck_mk_knowledge_acquisition_source_type",
+                    "ck_mk_knowledge_acquisition_source_authority",
+                    "ck_mk_knowledge_acquisition_license_policy",
+                    "ck_mk_knowledge_acquisition_robots_policy",
+                    "fk_mk_knowledge_acquisition_run_source",
+                    "ck_mk_knowledge_acquisition_run_status",
+                    "idx_mk_knowledge_acquisition_source_domain",
+                    "idx_mk_knowledge_acquisition_run_status")
+                .contains("AIK-STD-14 公域资料来源白名单", "公域资料获取运行账本");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionScheduleIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V143__knowledge_acquisition_schedule.sql");
+            assertThat(ddl)
+                .as("%s AIK-STD-14 公域资料调度必须持久化到期策略和默认生成计划", dialect)
+                .contains("schedule_enabled_flag", "schedule_interval_minutes", "next_check_at",
+                    "last_check_at", "default_format", "generation_plan_json")
+                .contains("ck_mk_knowledge_acquisition_source_schedule",
+                    "ck_mk_knowledge_acquisition_interval",
+                    "idx_mk_knowledge_acquisition_schedule_due")
+                .contains("公域资料自动获取调度", "候选生成计划 JSON");
+        }
+    }
+
+    @Test
+    void dataMinimizationPolicyIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V144__data_minimization_policy.sql");
+            assertThat(ddl)
+                .as("%s OPT-09 数据最小化策略必须持久化脱敏规则、审批阈值和不可关闭护栏", dialect)
+                .contains("mk_llm_egress_whitelist", "desensitization_rules",
+                    "approval_threshold_level", "guardrail_locked_flag")
+                .contains("MASK_ALL", "GENERALIZE", "NULLIFY", "NONE")
+                .contains("ck_mk_llm_egress_policy_threshold",
+                    "ck_mk_llm_egress_policy_guardrail")
+                .contains("数据最小化策略", "脱敏规则", "审批阈值", "高危护栏");
+        }
+    }
+
+    @Test
     void diagnosisKnowledgeMenuPermissionIsPersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V134__diagnosis_knowledge_menu_permission.sql");
@@ -251,6 +401,73 @@ class MigrationBaselineContractTest {
                 .as("%s 诊断知识维护菜单权限必须进入系统权限目录", dialect)
                 .contains("'menu.diagnosis-knowledge'", "'MENU'", "'diagnosis-knowledge'", "'查看诊断知识维护'")
                 .contains("migration-v134");
+        }
+    }
+
+    @Test
+    void knowledgeSurfaceMenuSplitIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V146__knowledge_surface_menu_split.sql");
+            assertThat(ddl)
+                .as("%s 知识审核、机构知识和知识生产入口必须有独立菜单权限", dialect)
+                .contains("'menu.institution-knowledge'", "'MENU'", "'institution-knowledge'",
+                    "'查看机构知识'")
+                .contains("'menu.knowledge-production'", "'MENU'", "'knowledge-production'",
+                    "'查看知识生产'")
+                .contains("menu.ai-workflows", "查看模型能力", "migration-v146");
+        }
+    }
+
+    @Test
+    void knowledgeCandidateExplainEvidenceIsDataMinimizedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V147__knowledge_candidate_explain_evidence.sql");
+            assertThat(ddl)
+                .as("%s AI 候选解释证据只允许保存最小必要元数据", dialect)
+                .contains("explain_json", "候选生产解释元数据JSON")
+                .contains("模型任务ID", "模式", "版本三元组", "来源引用", "置信", "降级原因")
+                .contains("不保存提示词原文或候选正文");
+        }
+    }
+
+    @Test
+    void knowledgeReviewFeedbackLoopIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V148__knowledge_review_feedback_loop.sql");
+            assertThat(ddl)
+                .as("%s 审核反馈必须结构化登记并只表达回流动作", dialect)
+                .contains("feedback_type", "followup_action")
+                .contains("ACCEPTED", "NOT_ADOPTED", "CONTENT_GAP", "SOURCE_BLANK", "FALSE_POSITIVE")
+                .contains("NONE", "CREATE_REVISION_CANDIDATE", "REQUEST_SOURCE_EVIDENCE",
+                    "MARK_FALSE_POSITIVE", "ARCHIVE_REJECTED")
+                .contains("审核反馈类型", "审核后回流动作");
+        }
+    }
+
+    @Test
+    void knowledgeAcquisitionSourceOptimisticLockIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V149__knowledge_acquisition_source_lock.sql");
+            assertThat(ddl)
+                .as("%s 公域来源审批必须防止并发草稿覆盖治理决定", dialect)
+                .contains("mk_knowledge_acquisition_source", "lock_version", "DEFAULT 0", "NOT NULL")
+                .contains("防止草稿更新、审批和停用相互覆盖");
+        }
+    }
+
+    @Test
+    void modelEvaluationReviewEvidenceIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V151__model_eval_review_evidence.sql");
+            assertThat(ddl)
+                .as("%s 医学回归专家复核必须持久化逐例证据、复核意见和独立菜单权限", dialect)
+                .contains("mk_llm_eval_case_evidence", "regression_case_id", "case_input",
+                    "expected_phrase", "output_content", "source_citations",
+                    "citation_verified", "red_line_breach", "failure_reasons_json")
+                .contains("review_comment", "idx_mk_llm_eval_case_evidence_run")
+                .contains("'menu.model-evaluation-review'", "'MENU'",
+                    "'model-evaluation-review'", "'查看医学回归复核'")
+                .contains("逐用例不可变证据", "专家复核意见");
         }
     }
 
@@ -338,10 +555,13 @@ class MigrationBaselineContractTest {
 
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
-        "audit_event", "source_document", "source_version",
+        "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
-        "mk_engine_data_export_job", "mk_knowledge_discovery_run", "mk_knowledge_production_job",
+        "mk_knowledge_diff", "mk_knowledge_expiry_task",
+        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
+        "mk_engine_data_export_job", "mk_engine_data_encrypted_field", "mk_engine_data_field_policy",
+        "mk_knowledge_discovery_run", "mk_knowledge_production_job",
         "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
         "mk_knowledge_generation_triage", "mk_knowledge_shadow_run", "mk_llm_model_version_bundle",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -367,7 +587,8 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "mk_term_mapping_snapshot", "mk_knowledge_customization",
+        "knowledge_package", "package_item", "mk_aik_pack_job",
+        "mk_term_mapping_snapshot", "mk_knowledge_customization",
         "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
         "mk_identity_person_import_job", "mk_identity_person_import_row",
         "mk_pkg_package_entitlement", "release_plan", "sync_log",
@@ -380,7 +601,8 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
+        "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -428,7 +650,8 @@ class MigrationBaselineContractTest {
         "idx_audit_event_large_cursor", "idx_audit_event_large_action",
         "idx_audit_event_large_resource", "idx_audit_event_large_actor",
         "idx_source_document_tenant_type", "idx_source_document_tenant_auth",
-        "idx_source_version_tenant_doc", "idx_source_fragment_tenant_ver",
+        "idx_source_version_tenant_doc", "idx_mk_knowledge_material_object_lookup",
+        "idx_source_fragment_tenant_ver",
         "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",
         "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
         "idx_knowledge_av_effective_scope",
@@ -439,7 +662,15 @@ class MigrationBaselineContractTest {
         "idx_supersession_successor", "idx_supersession_grace",
         "idx_mk_knowledge_invalidation_identity", "idx_mk_knowledge_invalidation_status",
         "idx_mk_knowledge_affected_task_status", "idx_mk_knowledge_affected_task_version",
+        "idx_knowledge_diff_target", "idx_knowledge_diff_run",
+        "idx_expiry_task_status", "idx_expiry_task_version",
+        "idx_aik_pack_job_package", "idx_aik_pack_job_status",
+        "idx_mk_knowledge_acquisition_source_domain", "idx_mk_knowledge_acquisition_source_status",
+        "idx_mk_knowledge_acquisition_run_status", "idx_mk_knowledge_acquisition_run_source",
+        "idx_mk_knowledge_acquisition_schedule_due",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
+        "idx_mk_engine_data_encrypted_field_scope", "idx_mk_engine_data_encrypted_field_hash",
+        "idx_mk_engine_data_field_policy_level", "idx_mk_engine_data_field_policy_status",
         "idx_candidate_classification_identity", "idx_candidate_classification_status",
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
         "idx_review_assignment_status", "idx_review_assignment_candidate",
@@ -533,7 +764,9 @@ class MigrationBaselineContractTest {
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
-        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_eval_run_lookup", "idx_mk_llm_enhancement_matrix_status",
+        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_regression_case_domain",
+        "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability",
+        "idx_mk_llm_eval_case_evidence_run", "idx_mk_llm_enhancement_matrix_status",
         "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
         "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
         "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
@@ -623,7 +856,9 @@ class MigrationBaselineContractTest {
         "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
-        "uk_source_version_doc_no", "uk_source_version_doc_hash", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
+        "uk_source_version_doc_no", "uk_source_version_doc_hash",
+        "uk_mk_knowledge_material_object_scope_hash", "ck_mk_knowledge_material_object_backend",
+        "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
         "uk_knowledge_asset_version", "uk_knowledge_asset_version_active_scope",
         "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
@@ -635,19 +870,37 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_invalidation_review", "uk_mk_knowledge_affected_task_key",
         "ck_mk_knowledge_affected_task_type", "ck_mk_knowledge_affected_task_status",
         "ck_mk_knowledge_affected_target_type",
+        "uk_knowledge_diff_run_asset_hash", "ck_knowledge_diff_type",
+        "uk_expiry_task_key", "ck_expiry_task_type", "ck_expiry_task_status", "ck_expiry_task_risk",
+        "uk_aik_pack_job_id", "uk_aik_pack_job_package", "fk_aik_pack_job_package",
+        "ck_aik_pack_job_status", "ck_aik_pack_job_count",
+        "uk_mk_knowledge_acquisition_source_code", "ck_mk_knowledge_acquisition_source_enabled",
+        "ck_mk_knowledge_acquisition_source_type", "ck_mk_knowledge_acquisition_source_authority",
+        "ck_mk_knowledge_acquisition_license_policy", "ck_mk_knowledge_acquisition_robots_policy",
+        "uk_mk_knowledge_acquisition_run_code", "ck_mk_knowledge_acquisition_run_trigger",
+        "ck_mk_knowledge_acquisition_run_status", "fk_mk_knowledge_acquisition_run_source",
+        "ck_mk_knowledge_acquisition_source_schedule", "ck_mk_knowledge_acquisition_interval",
+        "ck_mk_knowledge_acquisition_default_format",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
         "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
+        "ck_mk_engine_data_encrypted_field_level", "ck_mk_engine_data_encrypted_field_cipher",
+        "ck_mk_engine_data_encrypted_field_hash", "uk_mk_engine_data_field_policy_path",
+        "ck_mk_engine_data_field_policy_level", "ck_mk_engine_data_field_policy_encrypt",
+        "ck_mk_engine_data_field_policy_channel", "ck_mk_engine_data_field_policy_status",
         "uk_mk_knowledge_discovery_run_code", "ck_mk_knowledge_discovery_run_status",
         "uk_mk_knowledge_production_job_code", "ck_mk_knowledge_production_job_producer",
         "ck_mk_knowledge_production_job_pipeline", "ck_mk_knowledge_production_job_status",
         "ck_mk_knowledge_production_job_domain", "ck_mk_knowledge_production_candidate_risk",
         "ck_mk_knowledge_generation_triage_state", "ck_mk_knowledge_generation_triage_action",
         "ck_mk_knowledge_shadow_run_status", "ck_mk_knowledge_shadow_run_counts",
-        "ck_mk_llm_model_version_bundle_status",
+        "ck_mk_llm_model_version_bundle_status", "ck_mk_llm_model_version_active_scope",
+        "uk_mk_llm_model_version_active_scope",
+        "ck_mk_llm_egress_policy_threshold", "ck_mk_llm_egress_policy_guardrail",
         "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
+        "ck_review_assignment_feedback_type", "ck_review_assignment_followup_action",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
         "uk_mk_term_high_risk_rule_code", "ck_mk_term_high_risk_rule_type", "ck_mk_term_high_risk_rule_category", "ck_mk_term_high_risk_rule_status",
         "uk_mk_term_candidate_generation_job_code", "ck_mk_term_candidate_generation_job_status",
@@ -770,10 +1023,14 @@ class MigrationBaselineContractTest {
         "uk_notification_id", "uk_notification_dedupe",
         "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
-        "ck_model_capability_definition_enabled", "uk_model_task_id", "uk_model_policy_tenant",
+        "ck_model_capability_definition_enabled", "uk_model_task_id", "ck_model_policy_scope",
+        "ck_model_policy_timeout_ms", "ck_model_policy_rate_limit", "uk_model_policy_scope",
         "uk_mk_llm_egress_whitelist", "ck_mk_llm_egress_whitelist_sensitivity", "ck_mk_llm_egress_approval_status",
         "uk_mk_llm_provider_tenant_code", "ck_mk_llm_provider_type", "ck_mk_llm_provider_enabled",
-        "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled", "ck_mk_llm_eval_run_status",
+        "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled",
+        "ck_mk_llm_regression_case_score", "ck_mk_llm_eval_run_status",
+        "ck_mk_llm_eval_run_hallucination", "ck_mk_llm_eval_run_quality_score",
+        "fk_mk_llm_eval_case_run", "uk_mk_llm_eval_case_run_case", "ck_mk_llm_eval_case_flags",
         "uk_mk_llm_enhancement_matrix_point", "ck_mk_llm_enhancement_matrix_status", "ck_mk_llm_enhancement_matrix_enabled",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
@@ -891,9 +1148,13 @@ class MigrationBaselineContractTest {
         "ck_person_import_row_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
-        "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
+        "org_unit", "org_closure", "audit_event", "source_document", "source_version",
+        "mk_knowledge_material_object", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
-        "knowledge_export_job", "mk_engine_data_export_job", "mk_knowledge_discovery_run",
+        "knowledge_export_job", "mk_engine_data_export_job", "mk_engine_data_encrypted_field",
+        "mk_engine_data_field_policy", "mk_knowledge_discovery_run",
+        "mk_knowledge_diff", "mk_knowledge_expiry_task",
+        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
         "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -920,12 +1181,12 @@ class MigrationBaselineContractTest {
         "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
         "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -951,8 +1212,10 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
+        "mk_knowledge_expiry_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment", "mk_knowledge_production_job",
-        "mk_doc_parse_job",
+        "mk_engine_data_field_policy",
+        "mk_doc_parse_job", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
@@ -969,7 +1232,7 @@ class MigrationBaselineContractTest {
         "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review",
-        "knowledge_package", "package_item", "release_plan", "sync_log",
+        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
         "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
@@ -1002,7 +1265,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
         Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
         Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("mk_knowledge_material_object", Set.of("stored_at", "stored_by")),
         Map.entry("mk_engine_data_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("mk_engine_data_encrypted_field", Set.of("created_at", "created_by", "trace_id")),
         Map.entry("mk_term_candidate_generation_job", Set.of("requested_by", "created_at", "started_at", "completed_at")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
@@ -1033,12 +1298,21 @@ class MigrationBaselineContractTest {
         Map.entry("org_unit", Set.of("status")),
         Map.entry("audit_event", Set.of("status")),
         Map.entry("source_version", Set.of("version_no")),
+        Map.entry("mk_knowledge_material_object", Set.of("sha256", "storage_backend")),
         Map.entry("knowledge_identity", Set.of("status")),
         Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
+        Map.entry("mk_knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
+        Map.entry("mk_knowledge_expiry_task", Set.of("task_type", "status", "review_due_at")),
+        Map.entry("mk_aik_pack_job", Set.of("status", "manifest_sha256")),
+        Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy",
+            "enabled_flag", "schedule_enabled_flag", "next_check_at")),
+        Map.entry("mk_knowledge_acquisition_run", Set.of("status", "source_hash", "material_file_uri")),
         Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),
         Map.entry("mk_engine_data_export_job", Set.of("status")),
+        Map.entry("mk_engine_data_encrypted_field", Set.of("data_level", "search_hash")),
+        Map.entry("mk_engine_data_field_policy", Set.of("data_level", "encryption_required_flag", "status")),
         Map.entry("mk_knowledge_production_job", Set.of("status", "domain")),
         Map.entry("mk_knowledge_production_candidate", Set.of("risk_level")),
         Map.entry("mk_knowledge_generation_triage", Set.of("triage_state", "action", "content_hash")),
@@ -1111,7 +1385,7 @@ class MigrationBaselineContractTest {
         Map.entry("model_capability_definition", Set.of("enabled_flag")),
         Map.entry("mk_llm_enhancement_matrix", Set.of("access_status", "enabled_flag")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
-        Map.entry("model_capability_policy", Set.of("route_strategy")),
+        Map.entry("model_capability_policy", Set.of("route_strategy", "scope_type")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
         Map.entry("mk_experience_export_task", Set.of("selected_scope", "status")),
         Map.entry("mk_experience_user_pref", Set.of("version", "status")),
@@ -1667,8 +1941,13 @@ class MigrationBaselineContractTest {
             String ddl = combinedDdl(dialect);
             assertThat(names(TABLE_PATTERN, ddl)).as("%s 表族", dialect)
                 .containsExactlyInAnyOrderElementsOf(REQUIRED_TABLES);
+            Set<String> expectedIndexes = REQUIRED_INDEXES;
+            if (dialect.equals("oracle")) {
+                expectedIndexes = new HashSet<>(REQUIRED_INDEXES);
+                expectedIndexes.remove("idx_mk_knowledge_material_object_lookup");
+            }
             assertThat(names(INDEX_PATTERN, ddl)).as("%s 索引", dialect)
-                .containsExactlyInAnyOrderElementsOf(REQUIRED_INDEXES);
+                .containsExactlyInAnyOrderElementsOf(expectedIndexes);
 
             Set<String> expectedConstraints = COMMON_CONSTRAINTS;
             if (dialect.equals("oracle") || dialect.equals("dm")) {

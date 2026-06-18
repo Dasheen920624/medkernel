@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS mk_knowledge_invalidation (
     CONSTRAINT uk_mk_knowledge_invalidation_key
         UNIQUE (tenant_id, identity_id, version_id, invalidation_type),
     CONSTRAINT ck_mk_knowledge_invalidation_type CHECK (invalidation_type IN (
-        'EMERGENCY_WITHDRAW','SOURCE_RECALL','SAFETY_ALERT'
+        'SUPERSEDED_REPLACEMENT','EMERGENCY_WITHDRAW','SOURCE_RECALL','SAFETY_ALERT'
     )),
     CONSTRAINT ck_mk_knowledge_invalidation_status CHECK (status IN ('OPEN','RESOLVED','CANCELLED')),
     CONSTRAINT ck_mk_knowledge_invalidation_risk CHECK (risk_level IN ('LOW','MEDIUM','HIGH')),
@@ -69,11 +69,11 @@ CREATE INDEX IF NOT EXISTS idx_mk_knowledge_affected_task_status
 CREATE INDEX IF NOT EXISTS idx_mk_knowledge_affected_task_version
     ON mk_knowledge_affected_case_task (tenant_id, version_id, task_type);
 
-COMMENT ON TABLE mk_knowledge_invalidation IS 'SYS-08 知识紧急失效记录，保存旧版立即限制、授权和加急审核证据';
+COMMENT ON TABLE mk_knowledge_invalidation IS 'SYS-08 知识失效记录，保存旧版原子替换、紧急限制、授权和审计证据';
 COMMENT ON COLUMN mk_knowledge_invalidation.tenant_id IS '租户 ID';
 COMMENT ON COLUMN mk_knowledge_invalidation.identity_id IS '知识身份 ID';
 COMMENT ON COLUMN mk_knowledge_invalidation.version_id IS '被失效的知识版本 ID';
-COMMENT ON COLUMN mk_knowledge_invalidation.invalidation_type IS '失效类型：紧急撤回、来源召回或安全警示';
+COMMENT ON COLUMN mk_knowledge_invalidation.invalidation_type IS '失效类型：原子替换、紧急撤回、来源召回或安全警示';
 COMMENT ON COLUMN mk_knowledge_invalidation.status IS '失效处置状态';
 COMMENT ON COLUMN mk_knowledge_invalidation.risk_level IS '被失效版本的风险等级';
 COMMENT ON COLUMN mk_knowledge_invalidation.reason IS '失效原因和安全依据';

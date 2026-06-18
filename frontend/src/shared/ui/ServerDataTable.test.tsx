@@ -89,22 +89,43 @@ describe("ServerDataTable", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps table error state in hospital language without exposing raw technical errors", () => {
+    renderTable({
+      error: new Error("GET /api/v1/terminology failed: ECONNREFUSED 127.0.0.1:8080"),
+    });
+
+    expect(screen.getByText("列表数据读取失败")).toBeInTheDocument();
+    expect(screen.getByText(/联系信息科排查数据读取服务/)).toBeInTheDocument();
+    expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/127\.0\.0\.1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/terminology/)).not.toBeInTheDocument();
+  });
+
   it("reports partial failures, column snapshots, and current-page selection", async () => {
     const onViewSnapshotChange = vi.fn();
     const onSelectionSnapshotChange = vi.fn();
     renderTable({
       partial: {
         successCount: 8,
-        failureCount: 1,
-        failures: [{ key: "row-2", reason: "详情读取失败", retryable: true }],
+        failureCount: 2,
+        failures: [
+          { key: "row-2", reason: "详情读取失败", retryable: true },
+          {
+            key: "row-3",
+            reason: "GET /api/v1/terminology failed: ECONNREFUSED 127.0.0.1:8080",
+            retryable: true,
+          },
+        ],
         onRetryFailures: vi.fn(),
       },
       onViewSnapshotChange,
       onSelectionSnapshotChange,
     });
 
-    expect(screen.getByText(/8 项成功，1 项失败/)).toBeInTheDocument();
+    expect(screen.getByText(/8 项成功，2 项失败/)).toBeInTheDocument();
     expect(screen.getByText(/详情读取失败/)).toBeInTheDocument();
+    expect(screen.getByText(/当前项目读取失败，请重试或转人工处理/)).toBeInTheDocument();
+    expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "列管理" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "状态" }));

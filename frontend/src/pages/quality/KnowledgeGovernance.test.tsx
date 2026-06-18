@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
 
-import KnowledgeGovernance from "./KnowledgeGovernance";
+import KnowledgeGovernance, {
+  InstitutionKnowledge,
+  KnowledgeProduction,
+} from "./KnowledgeGovernance";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
 
@@ -29,6 +34,12 @@ const mockUseKnowledgeProductionGateResults = vi.fn();
 const mockUseKnowledgeProductionTriageResults = vi.fn();
 const mockUseKnowledgeProductionShadowRuns = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
+const mockUseCreateKnowledgeProductionJob = vi.fn();
+const mockUseCancelKnowledgeProductionJob = vi.fn();
+const mockUseKnowledgeAcquisitionSources = vi.fn();
+const mockUseSaveKnowledgeAcquisitionSourceDraft = vi.fn();
+const mockUseApproveKnowledgeAcquisitionSource = vi.fn();
+const mockUseDisableKnowledgeAcquisitionSource = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -58,6 +69,12 @@ vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeProductionShadowRuns: (jobCode?: string) =>
     mockUseKnowledgeProductionShadowRuns(jobCode),
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
+  useCreateKnowledgeProductionJob: () => mockUseCreateKnowledgeProductionJob(),
+  useCancelKnowledgeProductionJob: () => mockUseCancelKnowledgeProductionJob(),
+  useKnowledgeAcquisitionSources: (params: unknown) => mockUseKnowledgeAcquisitionSources(params),
+  useSaveKnowledgeAcquisitionSourceDraft: () => mockUseSaveKnowledgeAcquisitionSourceDraft(),
+  useApproveKnowledgeAcquisitionSource: () => mockUseApproveKnowledgeAcquisitionSource(),
+  useDisableKnowledgeAcquisitionSource: () => mockUseDisableKnowledgeAcquisitionSource(),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -177,7 +194,7 @@ const assetTemplates = [
   },
 ];
 
-function renderPage() {
+function renderPage(page: ReactElement = <KnowledgeGovernance />) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -187,9 +204,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <ConfigProvider>
-        <AntdApp>
-          <KnowledgeGovernance />
-        </AntdApp>
+        <AntdApp>{page}</AntdApp>
       </ConfigProvider>
     </QueryClientProvider>,
   );
@@ -201,6 +216,8 @@ let reviewCandidate: ReturnType<typeof vi.fn>;
 let deprecateIdentity: ReturnType<typeof vi.fn>;
 let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
+let createProductionJob: ReturnType<typeof vi.fn>;
+let cancelProductionJob: ReturnType<typeof vi.fn>;
 
 function customizationPage(items: Array<Record<string, unknown>> = []) {
   return {
@@ -225,6 +242,8 @@ function pageResponse<T>(items: T[], total = items.length, page = 1, size = 20) 
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  useExpertModeStore.setState({ enabled: false });
   refetchIdentities = vi.fn();
   refetchCandidates = vi.fn();
   reviewCandidate = vi.fn().mockResolvedValue({
@@ -248,6 +267,14 @@ beforeEach(() => {
     customizationId: "kc-high-risk",
     status: "ACTIVE",
   });
+  createProductionJob = vi.fn().mockResolvedValue({
+    jobCode: "job-new-1",
+    status: "PENDING",
+  });
+  cancelProductionJob = vi.fn().mockResolvedValue({
+    jobCode: "job-ai-1",
+    status: "CANCELLED",
+  });
 
   mockUseKnowledgeIdentities.mockReset();
   mockUseKnowledgeCandidates.mockReset();
@@ -270,6 +297,12 @@ beforeEach(() => {
   mockUseKnowledgeProductionTriageResults.mockReset();
   mockUseKnowledgeProductionShadowRuns.mockReset();
   mockUseCandidateCoexistence.mockReset();
+  mockUseCreateKnowledgeProductionJob.mockReset();
+  mockUseCancelKnowledgeProductionJob.mockReset();
+  mockUseKnowledgeAcquisitionSources.mockReset();
+  mockUseSaveKnowledgeAcquisitionSourceDraft.mockReset();
+  mockUseApproveKnowledgeAcquisitionSource.mockReset();
+  mockUseDisableKnowledgeAcquisitionSource.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
     data: assetTemplates,
@@ -427,6 +460,33 @@ beforeEach(() => {
     isError: false,
     error: undefined,
   });
+  mockUseCreateKnowledgeProductionJob.mockReturnValue({
+    mutateAsync: createProductionJob,
+    isPending: false,
+  });
+  mockUseCancelKnowledgeProductionJob.mockReturnValue({
+    mutateAsync: cancelProductionJob,
+    isPending: false,
+  });
+  mockUseKnowledgeAcquisitionSources.mockReturnValue({
+    data: customizationPage(),
+    isLoading: false,
+    isError: false,
+    error: undefined,
+    refetch: vi.fn(),
+  });
+  mockUseSaveKnowledgeAcquisitionSourceDraft.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
+  mockUseApproveKnowledgeAcquisitionSource.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
+  mockUseDisableKnowledgeAcquisitionSource.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  });
   mockUseKnowledgeCandidates.mockReturnValue({
     data: {
       identityId: 42,
@@ -500,10 +560,15 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("KnowledgeGovernance", () => {
   it(
     "lets a medical institution derive a governed local draft from platform knowledge",
     async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const user = userEvent.setup();
       mockUseSecurityProfile.mockReturnValue({
         data: {
@@ -549,7 +614,7 @@ describe("KnowledgeGovernance", () => {
         refetch: vi.fn(),
       });
 
-      renderPage();
+      renderPage(<InstitutionKnowledge />);
       expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
       await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
       expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
@@ -570,6 +635,11 @@ describe("KnowledgeGovernance", () => {
           reason: "适配本院诊疗流程",
         }),
       );
+      expect(
+        consoleError.mock.calls.some(([message]) =>
+          String(message).includes("Instance created by `useForm` is not connected"),
+        ),
+      ).toBe(false);
     },
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
@@ -611,8 +681,7 @@ describe("KnowledgeGovernance", () => {
         refetch: vi.fn(),
       });
 
-      renderPage();
-      await user.click(screen.getByRole("tab", { name: "机构知识" }));
+      renderPage(<InstitutionKnowledge />);
       await user.click(screen.getByRole("button", { name: "发布机构版本" }));
 
       expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
@@ -766,11 +835,98 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
-  it("renders the knowledge production center with readiness, job, gate, triage, shadow and coexistence evidence", async () => {
-    const user = userEvent.setup();
+  it("keeps review desk focused on candidate review without institution or production tabs", () => {
     renderPage();
 
-    await user.click(screen.getByRole("tab", { name: "知识生产" }));
+    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
+    expect(screen.queryByText("机构知识血缘")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+  });
+
+  it("renders institution knowledge as a standalone maintenance entry", () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [{ ...realIdentity, tenantId: "t-1" }],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      refetch: refetchIdentities,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage(<InstitutionKnowledge />);
+
+    expect(screen.getByRole("heading", { name: "机构知识" })).toBeInTheDocument();
+    expect(screen.getByText("平台标准知识")).toBeInTheDocument();
+    expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
+    expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
+    expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
+    expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+  });
+
+  it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
+    mockUseKnowledgeProductionJobs.mockReturnValue({
+      data: {
+        items: [
+          {
+            jobCode: "job-platform-1",
+            producer: "API_MODEL",
+            targetPipeline: "PLATFORM_SOURCE",
+            domain: "GUIDELINE",
+            modelStrategy: "gpt-platform",
+            status: "RUNNING",
+            candidateCount: 2,
+            createdAt: "2026-06-16T10:00:00Z",
+          },
+          {
+            jobCode: "job-overlay-1",
+            producer: "LOCAL_MODEL",
+            targetPipeline: "TENANT_OVERLAY",
+            domain: "PROTOCOL",
+            modelStrategy: "ollama-local",
+            status: "PENDING",
+            candidateCount: 1,
+            createdAt: "2026-06-16T11:00:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 2,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("双形态生产分区")).toBeInTheDocument();
+    expect(screen.getByText("平台主源只读发布账本")).toBeInTheDocument();
+    expect(screen.getByText("院内覆盖本机构治理")).toBeInTheDocument();
+    expect(screen.getAllByText("job-platform-1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("job-overlay-1").length).toBeGreaterThan(0);
+  });
+
+  it("renders the knowledge production center as a standalone production entry", async () => {
+    renderPage(<KnowledgeProduction />);
 
     expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith({ producer: "API_MODEL" });
     expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 });
@@ -779,12 +935,14 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeProductionTriageResults).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionShadowRuns).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseCandidateCoexistence).toHaveBeenCalledWith("kv:42:2026.06");
+    expect(mockUseKnowledgeAcquisitionSources).toHaveBeenCalledWith({ page: 1, size: 20 });
 
+    expect(screen.getByText("公域来源治理")).toBeInTheDocument();
     expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
     expect(screen.getByText("P6 独立验收未放行")).toBeInTheDocument();
     expect(screen.getByText("生产 job")).toBeInTheDocument();
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
-    expect(screen.getByText("API 大模型")).toBeInTheDocument();
+    expect(screen.getAllByText("API 大模型").length).toBeGreaterThan(0);
     expect(screen.getByText("门禁结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("8 态分流")).toBeInTheDocument();
@@ -793,8 +951,226 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
     expect(screen.getByText("共存替换提醒")).toBeInTheDocument();
     expect(screen.getByText("候选不可执行")).toBeInTheDocument();
-    expect(screen.getByText("审核通过后将触发 SYS-08 原子替换")).toBeInTheDocument();
+    expect(screen.getAllByText("审核通过后将触发 SYS-08 原子替换").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
+  it("creates production jobs from the producer workstation and locks high-risk batch approval", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }, { code: "knowledge.review" }],
+      },
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByRole("heading", { name: "生产者工作台" })).toBeInTheDocument();
+    expect(screen.getAllByText("下任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("看进度").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
+
+    await user.clear(screen.getByLabelText("来源范围"));
+    await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");
+    await user.click(screen.getByRole("button", { name: "创建生产任务" }));
+
+    await waitFor(() =>
+      expect(createProductionJob).toHaveBeenCalledWith({
+        sourceScope: "acquisition-run:guideline-2026",
+        assetType: "KNOWLEDGE",
+        producer: "API_MODEL",
+        targetPipeline: "TENANT_OVERLAY",
+        domain: "GUIDELINE",
+        modelStrategy: "gpt-pipeline",
+      }),
+    );
+    expect(screen.getByText("批处置候选 1 条")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "批量通过候选（高风险已锁定）" })).toBeDisabled();
+    expect(screen.getByText("高风险或双签候选必须逐条进入审核台确认")).toBeInTheDocument();
+  });
+
+  it("keeps the production center visible when downstream evidence queries partially fail", async () => {
+    mockUseKnowledgeProductionGateResults.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("门禁接口断开"),
+    });
+    mockUseKnowledgeProductionShadowRuns.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("影子评测接口断开"),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
+    expect(screen.getByText("生产证据部分读取失败")).toBeInTheDocument();
+    expect(screen.getByText(/门禁结果：门禁接口断开/)).toBeInTheDocument();
+    expect(screen.getByText(/影子评测：影子评测接口断开/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
+  it("shows agent progress, 8-state queue, side-by-side coexistence and a cancellable job action", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }, { code: "knowledge.publish" }],
+      },
+    });
+    mockUseKnowledgeProductionJobs.mockReturnValue({
+      data: {
+        items: [
+          {
+            jobCode: "job-agent-7",
+            producer: "AGENT_TOOL",
+            targetPipeline: "TENANT_OVERLAY",
+            domain: "GUIDELINE",
+            modelStrategy: "agent-verified",
+            status: "RUNNING",
+            candidateCount: 4,
+            createdAt: "2026-06-16T10:00:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeProductionCandidates.mockReturnValue({
+      data: [
+        {
+          jobCode: "job-agent-7",
+          assetIdentity: "rule:agent:vte",
+          contentHash: "b".repeat(64),
+          candidateRef: "kv:42:2026.07",
+          riskLevel: "HIGH",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeProductionTriageResults.mockReturnValue({
+      data: [
+        "NEW_ASSET",
+        "DUPLICATE",
+        "MINOR_REVISION",
+        "MAJOR_UPGRADE",
+        "CONFLICT",
+        "DOWNGRADE",
+        "DEPRECATION",
+        "UNCERTAIN",
+      ].map((triageState) => ({
+        jobCode: "job-agent-7",
+        contentHash: triageState.toLowerCase(),
+        triageState,
+        action: `${triageState}_ACTION`,
+        basis: `${triageState} 分流依据`,
+      })),
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseKnowledgeProductionShadowRuns.mockReturnValue({
+      data: [
+        {
+          jobCode: "job-agent-7",
+          status: "PASSED",
+          totalCases: 18,
+          hitCount: 16,
+          falsePositiveCount: 1,
+          missCount: 1,
+          degradationDetected: false,
+          readyForReview: true,
+          basis: "影子评测通过",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseCandidateCoexistence.mockReturnValue({
+      data: {
+        candidateRef: "kv:42:2026.07",
+        candidateVersion: {
+          versionNo: "2026.07",
+          status: "PENDING_REPLACEMENT_REVIEW",
+          contentHash: "candidate-real-hash",
+          riskLevel: "HIGH",
+          authorityLevel: "A_STANDARD",
+          gradeQuality: "HIGH",
+          gradeStrength: "STRONG",
+          organizationScope: "hospital:hospital-A",
+          applicableScope: "cardiology",
+        },
+        activeVersion: {
+          versionNo: "2026.05",
+          status: "ACTIVE",
+          contentHash: "active-real-hash",
+          riskLevel: "HIGH",
+          authorityLevel: "B_GUIDELINE",
+          gradeQuality: "MODERATE",
+          gradeStrength: "STRONG",
+          organizationScope: "hospital:hospital-A",
+          applicableScope: "cardiology",
+        },
+        reviewStatus: "PENDING_REPLACEMENT_REVIEW",
+        approvalOutcome: "APPROVE_REPLACE_ACTIVE",
+        candidateExecutable: false,
+        activeExecutable: true,
+        replacementReminder: "审核通过后将触发 SYS-08 原子替换",
+        safetyNotice: "审核前仍由现行 ACTIVE=2026.05 执行",
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("Agent 进度与中止")).toBeInTheDocument();
+    expect(screen.getByText("Agent 工具")).toBeInTheDocument();
+    expect(screen.getByText("生成候选 4 条")).toBeInTheDocument();
+    expect(screen.getByText("8 态队列")).toBeInTheDocument();
+    for (const label of [
+      "新资产",
+      "重复",
+      "小修订",
+      "重大升级",
+      "冲突仲裁",
+      "降级风险",
+      "废止退役",
+      "人工分流",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByText("待审候选版本")).toBeInTheDocument();
+    expect(screen.getByText("现行权威版本")).toBeInTheDocument();
+    expect(screen.getByText("2026.07")).toBeInTheDocument();
+    expect(screen.getByText("2026.05")).toBeInTheDocument();
+    expect(screen.getByText("审后任务化提醒")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "审核通过后创建 SYS-08 原子替换、投影刷新与院内同步任务；审核前不改变执行版本。",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "中止生产任务" }));
+    await user.click(await screen.findByRole("button", { name: "确认中止" }));
+
+    await waitFor(() => expect(cancelProductionJob).toHaveBeenCalledWith("job-agent-7"));
   });
 
   it("marks AI-factory candidates with an AI provenance tag and producer source", async () => {
@@ -808,6 +1184,15 @@ describe("KnowledgeGovernance", () => {
           targetPipeline: "TENANT_OVERLAY",
           domain: "DRUG",
           modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -849,7 +1234,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("候选与现行权威版本存在高危条款冲突。")).toBeInTheDocument();
   });
 
-  it("shows AI production provenance trace in the candidate review drawer", async () => {
+  it("shows AI production provenance in hospital language without exposing technical tokens by default", async () => {
     const user = userEvent.setup();
     mockUseCandidateProvenance.mockReturnValue({
       data: [
@@ -861,6 +1246,15 @@ describe("KnowledgeGovernance", () => {
           targetPipeline: "TENANT_OVERLAY",
           domain: "DRUG",
           modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -875,9 +1269,76 @@ describe("KnowledgeGovernance", () => {
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
     expect(screen.getByText("AI 生产来源溯源")).toBeInTheDocument();
-    expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖")).toBeInTheDocument();
+    expect(screen.getAllByText("置信 0.87").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已启用备用生产能力，候选仍需人工复核").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已记录来源引用，审核时以来源锚点为准").length).toBeGreaterThan(0);
+    expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
+    expect(screen.queryByText("task-vte-ai")).not.toBeInTheDocument();
+    expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("B2")).not.toBeInTheDocument();
+    expect(screen.queryByText("claude-opus-4")).not.toBeInTheDocument();
+    expect(screen.queryByText("prompt:aikstd13-v1")).not.toBeInTheDocument();
+    expect(screen.queryByText("tool:submit-candidate-v1")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("降级：B2 -> B1：外部 provider 限流，本地模型成功"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reveals technical AI provenance only after authorized users enable expert mode", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        menuKeys: ["knowledge-production"],
+        permissions: [{ code: "knowledge.publish" }],
+      },
+    });
+    mockUseCandidateProvenance.mockReturnValue({
+      data: [
+        {
+          candidateRef: "kv:42:2026.06",
+          aiGenerated: true,
+          producer: "API_MODEL",
+          jobCode: "job-vte-ai",
+          targetPipeline: "TENANT_OVERLAY",
+          domain: "DRUG",
+          modelStrategy: "gpt-pipeline",
+          modelTaskId: "task-vte-ai",
+          modelMode: "B2",
+          modelVersion: "claude-opus-4",
+          promptVersion: "prompt:aikstd13-v1",
+          toolVersion: "tool:submit-candidate-v1",
+          sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
+          confidence: 0.87,
+          fallbackUsed: true,
+          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          riskLevel: "HIGH",
+          producedAt: "2026-06-06T01:05:00Z",
+          producedBy: "ai-factory",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "专家模式" }));
+
+    expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
+    expect(screen.getByText("task-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
+    expect(screen.getAllByText("B2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("claude-opus-4").length).toBeGreaterThan(0);
+    expect(screen.getByText("prompt:aikstd13-v1")).toBeInTheDocument();
+    expect(screen.getByText("tool:submit-candidate-v1")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows the professional asset template matching the candidate domain for completeness review", async () => {
@@ -922,6 +1383,7 @@ describe("KnowledgeGovernance", () => {
     fireEvent.change(screen.getByLabelText("审核理由"), {
       target: { value: "请补充禁忌章节后重提。" },
     });
+    await user.click(screen.getByLabelText("内容缺口"));
     fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
 
     await waitFor(() => {
@@ -931,6 +1393,8 @@ describe("KnowledgeGovernance", () => {
         request: {
           decision: "RETURN",
           reason: "请补充禁忌章节后重提。",
+          feedbackType: "CONTENT_GAP",
+          followupAction: "CREATE_REVISION_CANDIDATE",
         },
         idempotencyKey: expect.stringContaining("knowledge-review-9001"),
       });
@@ -951,6 +1415,34 @@ describe("KnowledgeGovernance", () => {
       expect(screen.getByText("请填写审核理由")).toBeInTheDocument();
     });
     expect(reviewCandidate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a candidate with not-adopted feedback when no explicit feedback is selected", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
+      target: { value: "PKG.KNOW.2026.06" },
+    });
+    fireEvent.change(screen.getByLabelText("审核理由"), {
+      target: { value: "来源证据与现行权威冲突，当前不采纳。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "驳回候选" }));
+
+    await waitFor(() => {
+      expect(reviewCandidate).toHaveBeenCalledWith({
+        candidateId: 9001,
+        packageVersion: "PKG.KNOW.2026.06",
+        request: {
+          decision: "REJECT",
+          reason: "来源证据与现行权威冲突，当前不采纳。",
+          feedbackType: "NOT_ADOPTED",
+          followupAction: "ARCHIVE_REJECTED",
+        },
+        idempotencyKey: expect.stringContaining("knowledge-review-9001"),
+      });
+    });
   });
 
   it(
@@ -998,6 +1490,8 @@ describe("KnowledgeGovernance", () => {
           request: {
             decision: "APPROVE",
             reason: "已核对来源锚点和现行版差异，允许替换。",
+            feedbackType: "ACCEPTED",
+            followupAction: "NONE",
             publishEvidence: {
               electronicSignature: {
                 signatureId: "sig-knowledge-2002",

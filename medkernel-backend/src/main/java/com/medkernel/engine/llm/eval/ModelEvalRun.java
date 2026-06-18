@@ -17,16 +17,25 @@ public record ModelEvalRun(
     @Column("tenant_id") String tenantId,
     @Column("provider_code") String providerCode,
     @Column("model_version") String modelVersion,
+    @Column("capability_code") String capabilityCode,
+    @Column("prompt_version") String promptVersion,
+    @Column("tool_version") String toolVersion,
     @Column("total_cases") int totalCases,
     @Column("passed_cases") int passedCases,
     @Column("failed_cases") int failedCases,
+    @Column("quality_score") Double qualityScore,
+    @Column("terminology_score") Double terminologyScore,
     @Column("fake_citation_detected") String fakeCitationDetected,
     @Column("red_line_breach") String redLineBreach,
+    @Column("hallucination_detected") String hallucinationDetected,
     @Column("status") String status,
+    @Column("case_summary_json") String caseSummaryJson,
+    @Column("review_comment") String reviewComment,
     @Column("reviewer") String reviewer,
     @Column("signed_at") Instant signedAt,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy
-) {}
+) {
+}

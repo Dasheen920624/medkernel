@@ -1,3 +1,5 @@
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
+
 export type ApiFieldName = string | number | Array<string | number>;
 
 export interface ApiProblemFieldError {
@@ -58,10 +60,11 @@ export function parseApiError(error: unknown, fallback: string): ParsedApiError 
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   const parsed = parseApiError(error, fallback);
-  if (!parsed.traceId || parsed.message.includes(parsed.traceId)) {
-    return parsed.message;
+  const message = customerSafeDisplayText(parsed.message, fallback);
+  if (!parsed.traceId || message.includes(parsed.traceId)) {
+    return message;
   }
-  return `${parsed.message}（traceId: ${parsed.traceId}）`;
+  return `${message}（追踪号：${parsed.traceId}）`;
 }
 
 export function apiFieldErrorsToFormFields(

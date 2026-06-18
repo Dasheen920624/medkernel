@@ -26,6 +26,7 @@ import com.medkernel.engine.knowledge.production.generation.SkippedType;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowContext;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowDecision;
 import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluationService;
+import com.medkernel.engine.knowledge.production.TargetPipeline;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
@@ -85,9 +86,10 @@ public class ModelKnowledgeProducer {
         KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
         guardModelProducer(job);
+        guardLocalModelPipeline(job);
 
         KnowledgeProductionReadinessResponse readiness = readinessService.evaluate(
-            job.producer(), request.capabilityCode(), request.providerCode(), job.modelStrategy());
+            job.producer(), request.capabilityCode(), request.providerCode());
         if (!readiness.modelInvocationAllowed()) {
             return result(jobCode, null, null, null, null, null,
                 new GenerationSummary(List.of(), List.of(), List.of(new BlockedCandidate(
@@ -95,7 +97,8 @@ public class ModelKnowledgeProducer {
         }
 
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
-            request.capabilityCode(), request.prompt(), request.timeoutSeconds()));
+            request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
+            requiredRouteStrategy(job.producer()), request.providerCode()));
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -149,6 +152,18 @@ public class ModelKnowledgeProducer {
         }
     }
 
+    private void guardLocalModelPipeline(KnowledgeProductionJob job) {
+        if (job.producer() == KnowledgeProducer.LOCAL_MODEL
+            && job.targetPipeline() != TargetPipeline.TENANT_OVERLAY) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "本地模型生产器只允许生成院内覆盖候选，禁止进入平台主源管道");
+        }
+    }
+
+    private String requiredRouteStrategy(KnowledgeProducer producer) {
+        return producer == KnowledgeProducer.LOCAL_MODEL ? "LOCAL_MODEL" : "EXTERNAL_MODEL";
+    }
+
     private List<GateItemResult> readinessFailures(List<KnowledgeProductionReadinessItem> items) {
         return items.stream()
             .filter(item -> item.required() && !item.ready())
@@ -157,7 +172,9 @@ public class ModelKnowledgeProducer {
     }
 
     private boolean isB0Fallback(ModelTaskResponse task) {
-        return task == null || "B0".equalsIgnoreCase(task.modelMode()) || Boolean.TRUE.equals(task.fallbackUsed());
+        return task == null
+            || "B0".equalsIgnoreCase(task.modelMode())
+            || !"SUCCEEDED".equalsIgnoreCase(task.status());
     }
 
     private String fallbackReason(ModelTaskResponse task) {
@@ -165,9 +182,13 @@ public class ModelKnowledgeProducer {
             return "模型网关未返回结果，未生成候选";
         }
         String reason = task.fallbackReason() == null || task.fallbackReason().isBlank()
-            ? "模型网关降级 B0，未生成模型候选"
+            ? "模型网关未返回可用模型输出"
             : task.fallbackReason();
-        return "模型网关降级 B0，未生成模型候选：" + reason;
+        if ("B0".equalsIgnoreCase(task.modelMode())) {
+            return "模型网关降级 B0，未生成模型候选：" + reason;
+        }
+        return "模型网关未成功(status=" + task.status() + ", mode=" + task.modelMode()
+            + ")，未生成模型候选：" + reason;
     }
 
     private JsonNode parseModelOutput(ModelTaskResponse task) {
@@ -213,7 +234,14 @@ public class ModelKnowledgeProducer {
         root.put("promptVersion", task.promptVersion());
         root.put("toolVersion", task.toolVersion());
         root.put("capabilityCode", request.capabilityCode());
-        root.put("prompt", request.prompt());
+        root.put("promptInputHash", Sha256ContentHash.sha256(request.prompt(), "生产提示不能为空"));
+        root.put("fallbackUsed", task.fallbackUsed());
+        if (task.confidence() != null) {
+            root.put("confidence", task.confidence());
+        }
+        if (task.fallbackReason() != null && !task.fallbackReason().isBlank()) {
+            root.put("fallbackReason", task.fallbackReason());
+        }
         root.set("sourceCitations", parseCitations(task.sourceCitations()));
         root.set("modelOutput", modelOutput);
         try {

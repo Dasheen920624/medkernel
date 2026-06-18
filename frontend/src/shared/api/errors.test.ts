@@ -37,7 +37,7 @@ describe("api error helpers", () => {
     });
 
     expect(getApiErrorMessage(problemError(), "保存失败")).toBe(
-      "请修正表单字段后重试（traceId: trace-form-1）",
+      "请修正表单字段后重试（追踪号：trace-form-1）",
     );
   });
 
@@ -71,5 +71,14 @@ describe("api error helpers", () => {
   it("falls back to Error.message or provided fallback when ProblemDetail is absent", () => {
     expect(getApiErrorMessage(new Error("网络断开"), "操作失败")).toBe("网络断开");
     expect(getApiErrorMessage(null, "操作失败")).toBe("操作失败");
+  });
+
+  it("does not expose raw endpoint or connection details from generic errors", () => {
+    expect(
+      getApiErrorMessage(
+        new Error("GET /api/v1/authoring-batch failed: ECONNREFUSED 127.0.0.1:8080"),
+        "批量任务提交失败",
+      ),
+    ).toBe("批量任务提交失败");
   });
 });

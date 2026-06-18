@@ -21,6 +21,8 @@ public record ReviewAssignment(
     @Column("review_status") CandidateReviewStatus reviewStatus,
     @Column("decision") KnowledgeCandidateReviewDecision decision,
     @Column("reason") String reason,
+    @Column("feedback_type") KnowledgeReviewFeedbackType feedbackType,
+    @Column("followup_action") KnowledgeReviewFollowupAction followupAction,
     @Column("decided_by") String decidedBy,
     @Column("decided_at") Instant decidedAt,
     @Column("created_at") Instant createdAt,
@@ -28,4 +30,25 @@ public record ReviewAssignment(
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy
 ) {
+    public ReviewAssignment(
+            Long id,
+            String tenantId,
+            String orgPath,
+            Long candidateClassificationId,
+            Long identityId,
+            Long candidateVersionId,
+            String assignedTo,
+            CandidateReviewStatus reviewStatus,
+            KnowledgeCandidateReviewDecision decision,
+            String reason,
+            String decidedBy,
+            Instant decidedAt,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy) {
+        this(id, tenantId, orgPath, candidateClassificationId, identityId, candidateVersionId, assignedTo,
+            reviewStatus, decision, reason, null, null, decidedBy, decidedAt, createdAt, createdBy, updatedAt,
+            updatedBy);
+    }
 }

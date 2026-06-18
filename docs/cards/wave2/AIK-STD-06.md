@@ -15,7 +15,7 @@
 候选**静默试运行（影子模式）+ 收反馈 + 回归评测**后才提审：在不影响生产的影子环境验证候选质量，达标才进人工审核。
 
 ## 现状（核查 2026-06-16，本地分支 `codex/wave2-knowledge-model-readiness`）
-[LLM-07](LLM-07.md) 已有 `mk_llm_regression_case` + `MedicalRegressionEvaluator` + provider 上线评测门禁。本地分支已把它复用于 AIK 生成期：新增 V138 五方言 `mk_knowledge_shadow_run`，记录候选提审前影子评测状态、命中/漏报/误报计数、退化标记与达标裁决；生成链路在 AIK-STD-05 门禁与 AIK-STD-10 分流后先跑影子评测，`NOT_READY/FAILED` 均阻断 `submitCandidate`，`PASSED/PENDING_REVIEW` 才允许进入人工审核；`GET /api/v1/engine/knowledge-production/jobs/{jobCode}/shadow-runs` 提供只读审计。
+[LLM-07](LLM-07.md) 已有 `mk_llm_regression_case` + `MedicalRegressionEvaluator` + provider 上线评测门禁。本地分支已把它复用于 AIK 生成期：新增 V138 五方言 `mk_knowledge_shadow_run`，记录候选提审前影子评测状态、命中/漏报/误报计数、退化标记与达标裁决；生成链路在 AIK-STD-05 门禁与 AIK-STD-10 分流后先跑影子评测，候选来源按合法 JSON 字符串数组送入评测，要求逐用例精确匹配已登记 `source_reference`，其他来源不能以“非空引用”冒充通过；`NOT_READY/FAILED` 均阻断 `submitCandidate`，`PASSED/PENDING_REVIEW` 才允许进入人工审核；`GET /api/v1/engine/knowledge-production/jobs/{jobCode}/shadow-runs` 提供只读审计。
 
 仍未冒领：真实事件流影子运行、人工反馈闭环、与现行权威版本逐项差异对比、前端展示和真实医学基准集独立验收仍留后续切片/P6 前置。
 

@@ -12,6 +12,7 @@ import {
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyKnowledgePackage,
   useConfirmTerminologyCandidate,
+  useTerminologyCandidateGenerationJob,
   useGenerateTerminologyCandidates,
   useRejectTerminologyCandidate,
   useResolveTerminologyConflict,
@@ -31,7 +32,9 @@ import {
   type SecurityProfile,
   type TermMapping,
   type TermMappingCandidate,
+  type TerminologyCandidateGenerationJob,
 } from "@/shared/api/hooks";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 import TerminologyMapping from "./TerminologyMapping";
 
@@ -45,6 +48,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useBatchConfirmTerminologyCandidates: vi.fn(),
   useBuildTerminologyKnowledgePackage: vi.fn(),
   useConfirmTerminologyCandidate: vi.fn(),
+  useTerminologyCandidateGenerationJob: vi.fn(),
   useGenerateTerminologyCandidates: vi.fn(),
   useRejectTerminologyCandidate: vi.fn(),
   useResolveTerminologyConflict: vi.fn(),
@@ -203,6 +207,26 @@ const ordinaryCandidate: TermMappingCandidate = {
   evidenceText: "编码和名称精确匹配",
 };
 
+const completedGenerationJob: TerminologyCandidateGenerationJob = {
+  id: 88,
+  tenantId: "tenant-1",
+  jobCode: "term-job-1",
+  sourceSystem: "LIS",
+  minimumScore: 0.2,
+  semanticAssistEnabled: true,
+  packageVersion: "2026.06",
+  requestedBy: "it.owner",
+  status: "SUCCEEDED",
+  progress: 100,
+  generatedCount: 42,
+  candidatePageUri:
+    "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
+  errorMessage: null,
+  createdAt: "2026-06-17T00:00:00.000Z",
+  startedAt: "2026-06-17T00:00:01.000Z",
+  completedAt: "2026-06-17T00:00:03.000Z",
+};
+
 const openConflict: MappingConflict = {
   id: 301,
   tenantId: "tenant-1",
@@ -293,6 +317,12 @@ function configureQuery(
   vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useTerminologyCandidateGenerationJob).mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
   vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: vi.fn() } as never);
@@ -375,6 +405,7 @@ function renderPage() {
 describe("TerminologyMapping experience sample", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    useExpertModeStore.setState({ enabled: false });
     vi.clearAllMocks();
     configureQuery();
   });
@@ -388,8 +419,9 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByPlaceholderText("输入院内码或标准码关键词")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认候选" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "确认候选" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "生成候选" })).toBeInTheDocument();
     expect(screen.getByText("选字典")).toBeInTheDocument();
-    expect(screen.getByText("生成候选")).toBeInTheDocument();
+    expect(screen.getByText("生成候选", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("逐条确认")).toBeInTheDocument();
     expect(screen.getByText("灰度发布")).toBeInTheDocument();
     expect(screen.getByText("证据/回滚")).toBeInTheDocument();
@@ -484,6 +516,48 @@ describe("TerminologyMapping experience sample", () => {
     expect(vi.mocked(useTerminologyCandidates)).toHaveBeenCalledWith(
       expect.not.objectContaining({ riskLevel: "HIGH" }),
     );
+  });
+
+  it("starts and tracks a deterministic terminology candidate generation job", async () => {
+    const user = userEvent.setup();
+    const generateCandidates = vi.fn().mockResolvedValue({
+      ...completedGenerationJob,
+      status: "PENDING",
+      progress: 0,
+      generatedCount: 0,
+      candidatePageUri: null,
+      startedAt: null,
+      completedAt: null,
+    });
+    vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({
+      mutateAsync: generateCandidates,
+    } as never);
+    vi.mocked(useTerminologyCandidateGenerationJob).mockReturnValue({
+      data: completedGenerationJob,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "生成候选" }));
+    expect(screen.getByText("生成术语候选")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "提交生成" }));
+
+    await waitFor(() =>
+      expect(generateCandidates).toHaveBeenCalledWith({
+        packageVersion: "2026.06",
+        sourceSystem: "LIS",
+        minimumScore: 0.2,
+        semanticAssistEnabled: true,
+      }),
+    );
+    expect(useTerminologyCandidateGenerationJob).toHaveBeenLastCalledWith("term-job-1");
+    expect(screen.getByText("term-job-1")).toBeInTheDocument();
+    expect(screen.getByText("SUCCEEDED")).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText(/generationJobCode=term-job-1/)).toBeInTheDocument();
   });
 
   it("separates diagnostic-service authoring from knowledge-governance publishing", () => {

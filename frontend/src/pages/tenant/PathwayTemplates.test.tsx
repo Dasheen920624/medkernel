@@ -403,7 +403,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(within(dialog).getByRole("tab", { name: /基础模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
       expect(
         within(dialog).queryByLabelText("生命周期节点配置 (JSON 列表)"),
@@ -657,15 +657,18 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       fireEvent.change(factInputs().at(-1) as HTMLElement, {
         target: { value: "context.ready" },
       });
+      expect(within(dialog).getAllByText("条件根组 · 第 1 层").length).toBeGreaterThan(0);
+      expect(within(dialog).getAllByText("具体条件").length).toBeGreaterThan(0);
       await user.click(
         within(dialog).getAllByRole("button", { name: "新增子条件组" }).at(-1) as HTMLElement,
       );
+      expect(within(dialog).getByText("子条件组 · 第 2 层")).toBeInTheDocument();
       const allergyFieldInput = factInputs().at(-1) as HTMLElement;
       fireEvent.change(allergyFieldInput, {
         target: { value: "allergyIntolerances[].code" },
       });
 
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement;
@@ -1134,7 +1137,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         target: { value: "决策守卫配置规范 2026" },
       });
 
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement;
       fireEvent.change(dslEditor, {
@@ -1989,7 +1992,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       fireEvent.keyDown(within(dialog).getByLabelText("路径节点 N1"), {
         key: "ArrowRight",
       });
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
 

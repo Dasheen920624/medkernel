@@ -3800,7 +3800,7 @@ export default function PathwayTemplates() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="L3 是专家模式，普通路径配置请优先使用 L2 节点画布。"
+                    message="L3 是受控 DSL 编辑层，普通路径配置请优先使用 L2 节点画布。"
                   />
                   <Form.Item
                     label="路径 DSL JSON"
@@ -4693,12 +4693,12 @@ export default function PathwayTemplates() {
         <Form form={templateForm} layout="vertical" className={styles.marginTopMd}>
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-              普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。
+              普通配置只展示 L1/L2；L3 DSL 需显式进入 L3 DSL 编辑模式。
             </span>
             <Space>
-              <span>专家模式</span>
+              <span>L3 DSL 编辑模式</span>
               <Switch
-                aria-label="专家模式"
+                aria-label="L3 DSL 编辑模式"
                 checked={createExpertMode}
                 onChange={toggleCreateExpertMode}
               />
@@ -4765,12 +4765,12 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在专家模式显示。
+                路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在 L3 技术视图显示。
               </span>
               <Space>
-                <span>专家模式</span>
+                <span>L3 技术视图</span>
                 <Switch
-                  aria-label="专家模式"
+                  aria-label="L3 技术视图"
                   checked={detailExpertMode}
                   onChange={toggleDetailExpertMode}
                 />

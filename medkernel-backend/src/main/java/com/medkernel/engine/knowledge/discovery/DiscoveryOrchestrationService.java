@@ -48,16 +48,19 @@ public class DiscoveryOrchestrationService {
     private final DiscoveryRunRepository runRepository;
     private final KnowledgeAssetSchemaValidator schemaValidator;
     private final AuditRecorder auditRecorder;
+    private final KnowledgeDiffDetectionService diffDetectionService;
 
     public DiscoveryOrchestrationService(
             ControlledSourceSearchRepository searchRepository,
             DiscoveryRunRepository runRepository,
             KnowledgeAssetSchemaValidator schemaValidator,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            KnowledgeDiffDetectionService diffDetectionService) {
         this.searchRepository = searchRepository;
         this.runRepository = runRepository;
         this.schemaValidator = schemaValidator;
         this.auditRecorder = auditRecorder;
+        this.diffDetectionService = diffDetectionService;
     }
 
     /**
@@ -86,7 +89,7 @@ public class DiscoveryOrchestrationService {
                 0, 0, computeResultHash(query, List.of()), DiscoveryRunStatus.DEGRADED, true, createdBy);
             auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_discovery_run", runCode,
                 "可信来源探索上游不可用，已诚实降级：" + upstreamDown.getMessage());
-            return toResponse(degraded, List.of());
+            return toResponse(degraded, List.of(), List.of());
         }
 
         List<KnowledgeAssetEnvelope> candidates = new ArrayList<>();
@@ -101,10 +104,11 @@ public class DiscoveryOrchestrationService {
         String resultHash = computeResultHash(query, candidates);
         DiscoveryRun run = persistRun(tenantId, runCode, query, executedAt, sourceSnapshot,
             hits.size(), candidates.size(), resultHash, status, false, createdBy);
+        List<KnowledgeDiffDetection> diffs = detectDiffs(request.targetIdentityId(), run.runCode(), candidates);
         auditRecorder.record(AuditAction.EXECUTE, "mk_knowledge_discovery_run", runCode,
             "运行可信来源探索 query=" + query + " 命中=" + hits.size() + " 候选=" + candidates.size()
                 + " 结果指纹=" + resultHash);
-        return toResponse(run, candidates);
+        return toResponse(run, candidates, diffs);
     }
 
     /**
@@ -181,9 +185,27 @@ public class DiscoveryOrchestrationService {
         return runRepository.save(run);
     }
 
-    private DiscoveryResponse toResponse(DiscoveryRun run, List<KnowledgeAssetEnvelope> candidates) {
+    private List<KnowledgeDiffDetection> detectDiffs(
+            Long targetIdentityId,
+            String runCode,
+            List<KnowledgeAssetEnvelope> candidates) {
+        if (targetIdentityId == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        KnowledgeDiffContext context = new KnowledgeDiffContext(runCode, targetIdentityId);
+        List<KnowledgeDiffDetection> results = new ArrayList<>();
+        for (KnowledgeAssetEnvelope candidate : candidates) {
+            results.add(diffDetectionService.detect(candidate, context));
+        }
+        return results;
+    }
+
+    private DiscoveryResponse toResponse(
+            DiscoveryRun run,
+            List<KnowledgeAssetEnvelope> candidates,
+            List<KnowledgeDiffDetection> diffs) {
         return new DiscoveryResponse(run.runCode(), run.executedAt(), run.status(), run.degraded(),
-            run.hitCount(), run.candidateCount(), run.resultHash(), candidates);
+            run.hitCount(), run.candidateCount(), run.resultHash(), candidates, diffs);
     }
 
     private String requireCurrentTenant() {

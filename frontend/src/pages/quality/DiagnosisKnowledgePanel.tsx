@@ -83,6 +83,25 @@ const DIRECTION_LABEL: Record<string, string> = {
 const DIAGNOSIS_REFERENCE_PAGE_SIZE = 20;
 const DIAGNOSIS_VERSION_PAGE_SIZE = 20;
 
+function diagnosisPublishAlert(testCaseCount: number, hasUnsupportedCriterionConstraints: boolean) {
+  if (testCaseCount === 0) {
+    return {
+      type: "error" as const,
+      message: "至少需要一个回归病例，当前版本不可发布。",
+    };
+  }
+  if (hasUnsupportedCriterionConstraints) {
+    return {
+      type: "error" as const,
+      message: "当前版本包含数值或时序约束，B0 运行门禁尚未求值，暂不可发布。",
+    };
+  }
+  return {
+    type: "warning" as const,
+    message: "发布前将复算全部回归病例；任一置信分级不一致都会阻断。",
+  };
+}
+
 function can(profile: ReturnType<typeof useSecurityProfile>["data"], code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
@@ -712,15 +731,12 @@ export default function DiagnosisKnowledgePanel() {
             <Form form={publishForm} layout="vertical" initialValues={{ qualityGates: [] }}>
               <Alert
                 type={
-                  testCases.length === 0 || hasUnsupportedCriterionConstraints ? "error" : "warning"
+                  diagnosisPublishAlert(testCases.length, hasUnsupportedCriterionConstraints).type
                 }
                 showIcon
                 message={
-                  testCases.length === 0
-                    ? "至少需要一个回归病例，当前版本不可发布。"
-                    : hasUnsupportedCriterionConstraints
-                      ? "当前版本包含数值或时序约束，B0 运行门禁尚未求值，暂不可发布。"
-                      : "发布前将复算全部回归病例；任一置信分级不一致都会阻断。"
+                  diagnosisPublishAlert(testCases.length, hasUnsupportedCriterionConstraints)
+                    .message
                 }
               />
               <Form.Item

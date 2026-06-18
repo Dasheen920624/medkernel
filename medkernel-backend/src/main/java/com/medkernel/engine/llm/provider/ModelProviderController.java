@@ -2,6 +2,7 @@ package com.medkernel.engine.llm.provider;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,5 +38,14 @@ public class ModelProviderController {
             @PathVariable String providerCode,
             @Valid @RequestBody ModelProviderUpsertRequest request) {
         return ApiResult.ok(service.upsertProvider(providerCode, request));
+    }
+
+    /**
+     * 对指定 provider 执行真实健康检查并持久化状态。
+     */
+    @PostMapping("/{providerCode}/health-check")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderConfig> checkHealth(@PathVariable String providerCode) {
+        return ApiResult.ok(service.checkHealth(providerCode));
     }
 }

@@ -2,16 +2,20 @@
 
 适用场景：一台 Linux 服务器承载 Nginx、MedKernel 后端、前端静态资源，并连接本机 PostgreSQL 或现场 Oracle。当前腾讯云轻量服务器采用 PostgreSQL + HTTPS 443；老医院现场仍可通过参数覆盖为 Oracle + HTTPS 8443。
 
-真实口令、JWT 密钥、bootstrap 令牌、数据库密码不写入仓库。它们只存在服务器 `/zoesoft/medkernel/conf/medkernel.env`、`bootstrap-init-token.txt` 或安全凭据清单中。
+真实口令、JWT 密钥、集成凭证密钥、字段级加密密钥、bootstrap 令牌、数据库密码不写入仓库。它们只存在服务器 `/zoesoft/medkernel/conf/medkernel.env`、`bootstrap-init-token.txt` 或安全凭据清单中。
 
 ## 目录内容
 
 ```text
 deploy/onprem/
+├── ollama/
+│   └── MedKernel.Qwen25-1.5B.Modelfile # 可重放的本地知识草案模型定义
 ├── mk-publish.ps1                 # Windows / PowerShell 一键构建、上传、发布
 ├── mk-publish.sh                  # macOS / Linux 一键构建、上传、发布
 ├── medkernel-deploy.sh            # 服务器端发布/回滚/状态脚本
 ├── purge-schema.sql               # Oracle 首发/灾备清库脚本
+├── tests/
+│   └── validate-ollama-model.sh    # 本地模型定义安全与确定性门禁
 └── templates/
     ├── medkernel.service          # systemd 单元模板
     ├── medkernel.nginx.conf       # nginx HTTPS 模板
@@ -34,7 +38,7 @@ cd D:\vibeCoding\codex\medkernel\deploy\onprem
 常用变体：
 
 ```powershell
-.\mk-publish.ps1 -Frontend -SkipBuild -KeyFile C:\tmp\medkernel_deploy_ed25519
+.\mk-publish.ps1 -Frontend -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -Backend -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -StageOnly -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -Server 192.168.8.191 -User root -KeyFile C:\path\to\old-site-key
@@ -52,11 +56,13 @@ bash ./mk-publish.sh --key-file ~/.ssh/medkernel_deploy
 常用变体：
 
 ```bash
-bash ./mk-publish.sh --frontend --skip-build --key-file ~/.ssh/medkernel_deploy
+bash ./mk-publish.sh --frontend --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --backend --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --stage-only --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --server 192.168.8.191 --user root --key-file ~/.ssh/old-site-key
 ```
+
+发布入口只接受当前干净工作树的完整 40 位 `HEAD` 哈希，并始终从该提交重新构建所选前后端；禁止用旧 `target`/`dist` 冒充新版本。完整测试与门禁须在调用发布入口前单独通过。
 
 ### 服务器端手动发布
 
@@ -93,6 +99,27 @@ sudo medkernel-deploy --rollback /zoesoft/medkernel/backups/deploy-YYYYmmdd-HHMM
 | HTTPS | 当前腾讯云使用 `443`；老现场可保留 `8443` |
 | 备份目录 | `/zoesoft/medkernel/backups/deploy-*` |
 | 发布日志 | `/zoesoft/medkernel/logs/deploy.log` |
+
+## Ollama 本地知识草案模型
+
+本地模型只生成待独立人工审核的知识草案，不得自动签署评测、审核或发布医学知识。模型定义固定基础模型、采样参数和安全约束；真实权重 digest、provider 配置和版本三元组仍须在目标环境留证，不能只凭模型标签宣告一致。
+
+提交或部署前先执行定义门禁：
+
+```bash
+bash deploy/onprem/tests/validate-ollama-model.sh
+```
+
+目标服务器安装受控 Ollama 后，以服务用户完成模型准备：
+
+```bash
+ollama pull qwen2.5:1.5b
+ollama create medkernel-qwen25:1.5b-v1 \
+  -f deploy/onprem/ollama/MedKernel.Qwen25-1.5B.Modelfile
+ollama show medkernel-qwen25:1.5b-v1 --modelfile
+```
+
+Ollama 仅监听回环地址，模型目录放在受管数据目录。应用侧 provider 完成真实健康检查后仍保持停用，直至当前启用医学基准集评测通过、独立专家签署、能力策略、版本三元组和 P6 验收全部就绪。
 
 ## 首次部署要点
 
@@ -177,3 +204,35 @@ systemctl start medkernel
 ```
 
 当前腾讯云 PostgreSQL 首发不使用该 SQL；PostgreSQL 数据库初始化由服务器首次部署流程和 Flyway 完成。
+
+## PostgreSQL 全新清库发布
+
+只在产品明确要求丢弃旧运行数据、从当前迁移基线重新初始化时使用。脚本先保存数据库、程序、前端、配置与服务文件，并把数据库备份恢复到隔离临时库验证；只有恢复成功后才停服清库。候选必须显式指定，清库后禁用旧程序自动回滚。
+
+先单独预检生产运行环境。环境文件权限必须为 `600`；JWT、集成凭证、D3/D4 字段级加密和 bootstrap 四类密钥必须各自只配置一次、长度不少于 32 位且不能保留模板占位符。校验只报告键名和错误原因，不输出密钥值：
+
+```bash
+sudo bash deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only
+```
+
+预检通过后再执行全新发布：
+
+```bash
+sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
+  --jar /path/to/medkernel.jar \
+  --frontend /path/to/dist.tar.gz \
+  --service-unit /path/to/medkernel.service \
+  --deploy-script /path/to/medkernel-deploy.sh \
+  --source <40位提交哈希> \
+  --expected-flyway-version 149 \
+  --confirm-fresh \
+  --confirm-database medkernel
+```
+
+如果本轮同时要求清理历史发布备份，必须额外给出双重确认；脚本仍会保留本次清库前备份与隔离恢复证据：
+
+```bash
+  --prune-old-backups --confirm-prune-backups
+```
+
+该流程不会删除 `/zoesoft/medkernel/conf`，不会输出环境文件中的密钥、接管码或数据库口令。失败时不得把旧程序包自动恢复到已清空的新数据库；应根据本次备份目录中的 `evidence/` 和服务日志定位问题。

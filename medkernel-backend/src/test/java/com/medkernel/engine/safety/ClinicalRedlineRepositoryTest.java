@@ -84,6 +84,25 @@ class ClinicalRedlineRepositoryTest {
     }
 
     @Test
+    void findsTenantsWithActiveRedlinesOnlyOnce() {
+        repository.save(redline(
+            "tenant-A", "redline-ddi-warfarin-nsaid", "RDL-DDI-001", "2026.1",
+            ClinicalRedlineCategory.DRUG_INTERACTION, ClinicalRedlineStatus.ACTIVE));
+        repository.save(redline(
+            "tenant-A", "redline-critical-potassium", "RDL-LAB-001", "2026.1",
+            ClinicalRedlineCategory.CRITICAL_VALUE, ClinicalRedlineStatus.ACTIVE));
+        repository.save(redline(
+            "tenant-B", "redline-dose-limit", "RDL-DOSE-001", "2026.1",
+            ClinicalRedlineCategory.DOSE_LIMIT, ClinicalRedlineStatus.ACTIVE));
+        repository.save(redline(
+            "tenant-C", "redline-dose-limit-draft", "RDL-DOSE-001", "2026.2-draft",
+            ClinicalRedlineCategory.DOSE_LIMIT, ClinicalRedlineStatus.DRAFT));
+
+        assertThat(repository.findTenantIdsWithActiveRedlines())
+            .containsExactly("tenant-A", "tenant-B");
+    }
+
+    @Test
     void persistsSilentTrialEvidenceForVersionedRedline() {
         ClinicalRedlineRule savedRule = repository.save(redline(
             "tenant-A", "redline-ddi-warfarin-nsaid", "RDL-DDI-001", "2026.2",

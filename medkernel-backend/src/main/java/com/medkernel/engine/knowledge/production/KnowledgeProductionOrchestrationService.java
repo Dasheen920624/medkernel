@@ -7,6 +7,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.KnowledgeAssetSchemaValidator;
 import com.medkernel.shared.api.PageRequest;
@@ -35,6 +39,7 @@ public class KnowledgeProductionOrchestrationService {
     private final KnowledgeAssetSchemaValidator schemaValidator;
     private final AuditRecorder auditRecorder;
     private final CandidateReviewRouter reviewRouter;
+    private final ObjectMapper objectMapper;
 
     public KnowledgeProductionOrchestrationService(
             KnowledgeProductionJobRepository jobRepository,
@@ -42,13 +47,15 @@ public class KnowledgeProductionOrchestrationService {
             KnowledgeCandidateIntake candidateIntake,
             KnowledgeAssetSchemaValidator schemaValidator,
             AuditRecorder auditRecorder,
-            CandidateReviewRouter reviewRouter) {
+            CandidateReviewRouter reviewRouter,
+            ObjectMapper objectMapper) {
         this.jobRepository = jobRepository;
         this.candidateRepository = candidateRepository;
         this.candidateIntake = candidateIntake;
         this.schemaValidator = schemaValidator;
         this.auditRecorder = auditRecorder;
         this.reviewRouter = reviewRouter;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -93,6 +100,11 @@ public class KnowledgeProductionOrchestrationService {
             throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
                 "院内覆盖候选禁反写平台主源 t-1");
         }
+        if (job.targetPipeline() == TargetPipeline.PLATFORM_SOURCE
+            && !PlatformTenant.isPlatformTenant(candidate.orgScope())) {
+            throw new ApiException(ErrorCode.KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION,
+                "客户候选禁产平台主源，平台主源管道仅允许 t-1 候选");
+        }
         if (candidate.assetType() != job.assetType()) {
             throw new ApiException(ErrorCode.BAD_REQUEST,
                 "候选资产类型与 job 不一致：job=" + job.assetType() + " 候选=" + candidate.assetType());
@@ -111,7 +123,7 @@ public class KnowledgeProductionOrchestrationService {
         // FR-5 候选生产血缘：每条提交候选落一行回溯（job/身份/指纹/候选引用/时点）。
         candidateRepository.save(new KnowledgeProductionCandidate(null, tenantId, jobCode,
             candidate.assetIdentity(), candidate.contentHash(), candidateRef, candidate.riskLevel(),
-            now, actor));
+            now, actor, explainJson(candidate)));
         jobRepository.save(new KnowledgeProductionJob(
             job.id(), job.tenantId(), job.jobCode(), job.sourceScope(), job.assetType(), job.producer(),
             job.targetPipeline(), job.domain(), job.modelStrategy(), ProductionJobStatus.RUNNING,
@@ -122,6 +134,56 @@ public class KnowledgeProductionOrchestrationService {
                 + " 身份=" + candidate.assetIdentity() + " 指纹=" + candidate.contentHash()
                 + " 候选引用=" + candidateRef);
         return new CandidateSubmissionResponse(candidateRef, routing);
+    }
+
+    private String explainJson(KnowledgeAssetEnvelope candidate) {
+        if (candidate.payload() == null || candidate.payload().isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(candidate.payload());
+            ObjectNode explain = objectMapper.createObjectNode();
+            copyText(root, explain, "modelTaskId");
+            copyText(root, explain, "modelMode");
+            copyText(root, explain, "modelVersion");
+            copyText(root, explain, "promptVersion");
+            copyText(root, explain, "toolVersion");
+            copyBoolean(root, explain, "fallbackUsed");
+            copyText(root, explain, "fallbackReason");
+            copyNumber(root, explain, "confidence");
+            copyJson(root, explain, "sourceCitations");
+            return explain.size() == 0 ? null : objectMapper.writeValueAsString(explain);
+        } catch (JsonProcessingException ignored) {
+            return null;
+        }
+    }
+
+    private void copyText(JsonNode root, ObjectNode target, String field) {
+        JsonNode node = root.path(field);
+        if (node.isTextual() && !node.asText().isBlank()) {
+            target.put(field, node.asText());
+        }
+    }
+
+    private void copyBoolean(JsonNode root, ObjectNode target, String field) {
+        JsonNode node = root.path(field);
+        if (node.isBoolean()) {
+            target.put(field, node.asBoolean());
+        }
+    }
+
+    private void copyNumber(JsonNode root, ObjectNode target, String field) {
+        JsonNode node = root.path(field);
+        if (node.isNumber()) {
+            target.put(field, node.asDouble());
+        }
+    }
+
+    private void copyJson(JsonNode root, ObjectNode target, String field) {
+        JsonNode node = root.get(field);
+        if (node != null && !node.isNull()) {
+            target.set(field, node);
+        }
     }
 
     @Transactional(readOnly = true)

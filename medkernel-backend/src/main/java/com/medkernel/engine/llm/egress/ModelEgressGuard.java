@@ -4,14 +4,16 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.medkernel.engine.llm.ModelDataDesensitizer;
@@ -29,6 +31,11 @@ import com.medkernel.shared.api.error.ErrorCode;
 public class ModelEgressGuard {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Set<String> DIRECT_IDENTIFIER_FIELDS = Set.of(
+        "name", "fullname", "patientname", "username",
+        "patientid", "patientref", "mpiid", "idcard", "nationalid",
+        "phone", "mobile", "telephone", "email", "address",
+        "姓名", "患者姓名", "患者编号", "身份证", "身份证号", "电话", "手机号", "邮箱", "住址");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
     private final ModelEgressApprovalRepository approvalRepo;
@@ -58,29 +65,33 @@ public class ModelEgressGuard {
         ModelEgressWhitelist whitelist = whitelistRepo
             .findByTenantIdAndCapabilityCode(tenantId, capabilityCode)
             .orElse(null);
-        Set<String> allowed = parseAllowedFields(whitelist);
-        // FR-1/4：未配置出域白名单（无允许字段契约）一律阻断，不静默放行任何字段。
-        if (allowed.isEmpty()) {
+        ModelEgressPolicyValidator.Validation policy = ModelEgressPolicyValidator.validate(whitelist);
+        if (!policy.valid()) {
             throw new ApiException(ErrorCode.ENG_LLM_006,
-                "能力 " + capabilityCode + " 未配置出域字段白名单，外调被阻断");
+                "能力 " + capabilityCode + " 出域策略不可执行：" + policy.reason());
         }
 
         ObjectNode source = parsePayloadObject(payloadJson);
         ObjectNode minimized = OBJECT_MAPPER.createObjectNode();
         List<String> egressFields = new ArrayList<>();
         source.fieldNames().forEachRemaining(field -> {
-            if (allowed.contains(field)) {
-                minimized.set(field, desensitizeNode(source.get(field)));
+            if (policy.allowedFields().contains(field)) {
+                minimized.set(field, desensitizeNode(
+                    source.get(field), policy.desensitizationRules().getOrDefault(field, "MASK_ALL")));
                 egressFields.add(field);
             }
         });
+        if (egressFields.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_LLM_006,
+                "能力 " + capabilityCode + " 的载荷未命中任何允许出域字段，外调被阻断");
+        }
 
         String payload = minimized.toString();
         String desensitizedHash = sha256(payload);
 
         // FR-3：高敏出域须命中已批准审批记录，否则诚实阻断（不静默出域）。
         Long approvalId = null;
-        if ("HIGH".equalsIgnoreCase(whitelist.sensitivityLevel())) {
+        if (requiresApproval(whitelist.sensitivityLevel(), whitelist.approvalThresholdLevel())) {
             ModelEgressApproval approval = approvalRepo
                 .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
                     tenantId, capabilityCode, desensitizedHash, "APPROVED")
@@ -105,34 +116,68 @@ public class ModelEgressGuard {
         return array.toString();
     }
 
-    private Set<String> parseAllowedFields(ModelEgressWhitelist whitelist) {
-        Set<String> allowed = new LinkedHashSet<>();
-        if (whitelist == null) {
-            return allowed;
-        }
-        try {
-            JsonNode node = OBJECT_MAPPER.readTree(whitelist.allowedFields());
-            if (node.isArray()) {
-                node.forEach(item -> {
-                    if (item.isTextual() && !item.asText().isBlank()) {
-                        allowed.add(item.asText().trim());
-                    }
-                });
-            }
-        } catch (Exception ignored) {
-            // 白名单非法 JSON 视为零允许字段，由调用方按阻断处理。
-        }
-        return allowed;
+    /**
+     * 出域字段强制脱敏：默认采用最严格 {@code MASK_ALL}；OPT-09 允许按字段配置掩码、泛化、置空或保留。
+     */
+    private JsonNode desensitizeNode(JsonNode value, String operator) {
+        String normalized = operator == null ? "MASK_ALL" : operator.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "NONE" -> value == null ? NullNode.getInstance() : value;
+            case "NULLIFY" -> NullNode.getInstance();
+            case "GENERALIZE" -> new TextNode("[已泛化]");
+            case "MASK", "MASK_ALL" -> maskAll(value, null);
+            default -> maskAll(value, null);
+        };
     }
 
-    /**
-     * 出域字段强制脱敏：外部出域采用最严格 {@code MASK_ALL}，文本节点脱敏后回填，非文本节点原样保留。
-     */
-    private JsonNode desensitizeNode(JsonNode value) {
-        if (value != null && value.isTextual()) {
+    private JsonNode maskAll(JsonNode value, String fieldName) {
+        if (value == null || value.isNull()) {
+            return NullNode.getInstance();
+        }
+        if (directIdentifierField(fieldName)) {
+            return NullNode.getInstance();
+        }
+        if (value.isTextual()) {
             return new TextNode(ModelDataDesensitizer.desensitize(value.asText(), "MASK_ALL"));
         }
-        return value;
+        if (value.isObject()) {
+            ObjectNode masked = OBJECT_MAPPER.createObjectNode();
+            value.fields().forEachRemaining(entry ->
+                masked.set(entry.getKey(), maskAll(entry.getValue(), entry.getKey())));
+            return masked;
+        }
+        if (value.isArray()) {
+            ArrayNode masked = OBJECT_MAPPER.createArrayNode();
+            value.forEach(item -> masked.add(maskAll(item, fieldName)));
+            return masked;
+        }
+        return NullNode.getInstance();
+    }
+
+    private boolean directIdentifierField(String fieldName) {
+        if (fieldName == null || fieldName.isBlank()) {
+            return false;
+        }
+        String normalized = fieldName.trim().toLowerCase(Locale.ROOT).replaceAll("[_\\-.]", "");
+        return DIRECT_IDENTIFIER_FIELDS.contains(normalized);
+    }
+
+    private boolean requiresApproval(String sensitivityLevel, String approvalThresholdLevel) {
+        int sensitivityRank = sensitivityRank(sensitivityLevel, 3);
+        int thresholdRank = sensitivityRank(approvalThresholdLevel, 1);
+        return sensitivityRank >= thresholdRank;
+    }
+
+    private int sensitivityRank(String value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        return switch (value.trim().toUpperCase(Locale.ROOT)) {
+            case "LOW" -> 1;
+            case "MEDIUM" -> 2;
+            case "HIGH" -> 3;
+            default -> fallback;
+        };
     }
 
     private ObjectNode parsePayloadObject(String payloadJson) {

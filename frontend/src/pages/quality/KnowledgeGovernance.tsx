@@ -1,4 +1,11 @@
-import { AuditOutlined, BranchesOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  AuditOutlined,
+  BranchesOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  StopOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -12,12 +19,13 @@ import {
   Form,
   Input,
   Modal,
+  Progress,
+  Radio,
   Row,
   Select,
   Space,
   Statistic,
   Table,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
@@ -28,9 +36,11 @@ import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   useDeprecateKnowledgeIdentity,
   useCreateKnowledgeCustomization,
+  useCreateKnowledgeProductionJob,
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
+  useCancelKnowledgeProductionJob,
   useKnowledgeProductionCandidates,
   useKnowledgeProductionGateResults,
   useKnowledgeProductionJobs,
@@ -48,6 +58,9 @@ import {
   useSecurityProfile,
   type CandidateClassification,
   type AikGateResult,
+  type CandidateCoexistenceView,
+  type CandidateCoexistenceVersionSnapshot,
+  type CreateKnowledgeProductionJobRequest,
   type GenerationTriage,
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
@@ -55,6 +68,8 @@ import {
   type KnowledgeShadowRun,
   type KnowledgeAssetVersion,
   type KnowledgeCandidateReviewDecision,
+  type KnowledgeReviewFeedbackType,
+  type KnowledgeReviewFollowupAction,
   type KnowledgeDomain,
   type KnowledgeIdentity,
   type KnowledgeCustomization,
@@ -73,14 +88,20 @@ import {
   KNOWLEDGE_DOMAIN_OPTIONS,
   KNOWLEDGE_IDENTITY_STATUS_OPTIONS,
   KNOWLEDGE_QUALITY_GATE_OPTIONS,
+  KNOWLEDGE_TRIAGE_STATE_META,
 } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { ExpertModeToggle } from "@/shared/ui/ExpertModeToggle";
+import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
 
-const { Text } = Typography;
+import AcquisitionSourceGovernancePanel from "./AcquisitionSourceGovernancePanel";
+
+const { Text, Title } = Typography;
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
   NEW_ASSET: "全新资产",
@@ -101,6 +122,17 @@ const REVIEW_DECISION_SUCCESS_MESSAGES: Record<KnowledgeCandidateReviewDecision,
   APPROVE: "候选已通过审核并交由权威替换流程",
   RETURN: "候选已退修，退回生产者修订重提",
   REJECT: "候选已驳回并留档",
+};
+
+const REVIEW_FOLLOWUP_BY_FEEDBACK: Record<
+  KnowledgeReviewFeedbackType,
+  KnowledgeReviewFollowupAction
+> = {
+  ACCEPTED: "NONE",
+  NOT_ADOPTED: "ARCHIVE_REJECTED",
+  CONTENT_GAP: "CREATE_REVISION_CANDIDATE",
+  SOURCE_BLANK: "REQUEST_SOURCE_EVIDENCE",
+  FALSE_POSITIVE: "MARK_FALSE_POSITIVE",
 };
 
 const VERSION_STATUS_LABELS: Record<string, string> = {
@@ -131,10 +163,32 @@ const PRODUCER_LABELS: Record<string, string> = {
   MANUAL: "人工录入",
 };
 
-const PIPELINE_LABELS: Record<string, string> = {
-  PLATFORM_SOURCE: "平台主源",
-  TENANT_OVERLAY: "院内覆盖",
+const PIPELINE_META: Record<
+  string,
+  {
+    label: string;
+    color: "blue" | "green" | "default";
+    boundaryLabel: string;
+    summary: string;
+    description: string;
+  }
+> = {
+  PLATFORM_SOURCE: {
+    label: "平台主源",
+    color: "blue",
+    boundaryLabel: "平台主源只读",
+    summary: "平台主源只读发布账本",
+    description: "归属 t-1 平台主租户，机构只能订阅和派生，不允许直接编辑或反写。",
+  },
+  TENANT_OVERLAY: {
+    label: "院内覆盖",
+    color: "green",
+    boundaryLabel: "院内覆盖可治理",
+    summary: "院内覆盖本机构治理",
+    description: "归属当前机构租户，只影响本机构继承范围，禁止污染平台主源。",
+  },
 };
+const PIPELINE_KEYS = ["PLATFORM_SOURCE", "TENANT_OVERLAY"] as const;
 
 const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
   PENDING: "待开始",
@@ -149,12 +203,128 @@ function producerLabel(producer?: string) {
   return PRODUCER_LABELS[producer] ?? producer;
 }
 
+function pipelineMeta(pipeline?: string | null) {
+  if (!pipeline) return { ...PIPELINE_META.TENANT_OVERLAY, label: "未返回管道" };
+  return (
+    PIPELINE_META[pipeline] ?? {
+      label: pipeline,
+      color: "default" as const,
+      boundaryLabel: "未知管道",
+      summary: pipeline,
+      description: "服务端返回了暂未登记的知识生产管道，请核查配置。",
+    }
+  );
+}
+
+function feedbackTypeForDecision(
+  decision: KnowledgeCandidateReviewDecision,
+  selected?: KnowledgeReviewFeedbackType,
+): KnowledgeReviewFeedbackType {
+  if (decision === "APPROVE") return "ACCEPTED";
+  if (selected) return selected;
+  return decision === "RETURN" ? "CONTENT_GAP" : "NOT_ADOPTED";
+}
+
+function PipelineBoundaryCard({ title = "双形态知识分区" }: { title?: string }) {
+  return (
+    <Card title={title}>
+      <Row gutter={[16, 16]}>
+        {PIPELINE_KEYS.map((pipeline) => {
+          const meta = pipelineMeta(pipeline);
+          return (
+            <Col xs={24} lg={12} key={pipeline}>
+              <Alert
+                type={pipeline === "PLATFORM_SOURCE" ? "info" : "success"}
+                showIcon
+                message={
+                  <Space size={4} wrap>
+                    <Tag color={meta.color}>{meta.label}</Tag>
+                    <Tag>{meta.boundaryLabel}</Tag>
+                    <Text strong>{meta.summary}</Text>
+                  </Space>
+                }
+                description={meta.description}
+              />
+            </Col>
+          );
+        })}
+      </Row>
+    </Card>
+  );
+}
+
 function productionStatusColor(status?: string | null) {
   if (status === "COMPLETED" || status === "PASSED") return "success";
   if (status === "RUNNING" || status === "PENDING") return "processing";
   if (status === "FAILED") return "error";
   if (status === "CANCELLED") return "default";
   return "default";
+}
+
+function canCancelProductionJob(status?: string | null) {
+  return status === "PENDING" || status === "RUNNING";
+}
+
+function confidenceText(confidence?: number | null) {
+  return confidence === null || confidence === undefined ? "未返回置信" : `置信 ${confidence}`;
+}
+
+function fallbackText(provenance: CandidateProvenanceView) {
+  if (!provenance.fallbackUsed) return "未降级";
+  return `降级：${provenance.fallbackReason || "已降级，未返回原因"}`;
+}
+
+function hospitalFallbackText(provenance: CandidateProvenanceView) {
+  if (!provenance.fallbackUsed) return "未启用备用生产能力";
+  return "已启用备用生产能力，候选仍需人工复核";
+}
+
+function sourceCitationSummary(value?: string | null) {
+  return value ? "已记录来源引用，审核时以来源锚点为准" : "未返回来源引用";
+}
+
+function productionProgressPercent(
+  job: KnowledgeProductionJob | undefined,
+  candidateCount: number,
+  gateCount: number,
+  triageCount: number,
+  shadowCount: number,
+) {
+  if (!job) return 0;
+  if (job.status === "COMPLETED") return 100;
+  if (job.status === "FAILED" || job.status === "CANCELLED") return 100;
+  const finishedStages = [
+    candidateCount > 0,
+    gateCount > 0,
+    triageCount > 0,
+    shadowCount > 0,
+  ].filter(Boolean).length;
+  return Math.max(job.status === "RUNNING" ? 20 : 5, finishedStages * 25);
+}
+
+function triageLabel(state?: string | null) {
+  return (
+    KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === state)?.label ?? state ?? "未分流"
+  );
+}
+
+function reviewTaskReminder(coexistence?: CandidateCoexistenceView) {
+  if (!coexistence) return "未返回审后任务提醒";
+  if (coexistence.approvalOutcome === "APPROVE_ACTIVATE_FIRST_VERSION") {
+    return "审核通过后创建 SYS-08 首次激活、投影刷新与院内同步任务；审核前候选仍不可执行。";
+  }
+  if (coexistence.approvalOutcome === "APPROVE_REPLACE_ACTIVE") {
+    return "审核通过后创建 SYS-08 原子替换、投影刷新与院内同步任务；审核前不改变执行版本。";
+  }
+  return coexistence.replacementReminder || "审核结论生成后进入对应发布任务。";
+}
+
+function snapshotValue(
+  snapshot: CandidateCoexistenceVersionSnapshot | undefined | null,
+  key: keyof CandidateCoexistenceVersionSnapshot,
+) {
+  const value = snapshot?.[key];
+  return value === undefined || value === null || value === "" ? "未返回" : String(value);
 }
 
 function booleanGateLabel(passed: boolean) {
@@ -169,6 +339,7 @@ type ReviewFormValues = {
   signerName?: string;
   signedAt?: string;
   signatureHash?: string;
+  feedbackType?: KnowledgeReviewFeedbackType;
   qualityGates?: string[];
   qualitySummary?: string;
 };
@@ -184,6 +355,12 @@ const EMPTY_RETIREMENT_FORM: RetirementFormValues = {
   gracePeriodEnd: "",
   migrationGuidance: "",
 };
+
+type KnowledgeGovernanceMode = "review" | "institution" | "production";
+
+interface KnowledgeGovernanceProps {
+  mode?: KnowledgeGovernanceMode;
+}
 
 function versionTitle(version?: KnowledgeAssetVersion) {
   if (!version) return "未返回版本";
@@ -218,8 +395,16 @@ function customizationStatusColor(status: string) {
   return "default";
 }
 
-export default function KnowledgeGovernance() {
-  const { message } = AntdApp.useApp();
+export function InstitutionKnowledge() {
+  return <KnowledgeGovernance mode="institution" />;
+}
+
+export function KnowledgeProduction() {
+  return <KnowledgeGovernance mode="production" />;
+}
+
+export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovernanceProps) {
+  const { message, modal } = AntdApp.useApp();
   const [domain, setDomain] = useState<KnowledgeDomain>("GUIDELINE");
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
   const [keyword, setKeyword] = useState("");
@@ -227,6 +412,7 @@ export default function KnowledgeGovernance() {
   const [candidatePage, setCandidatePage] = useState(1);
   const [customizationPage, setCustomizationPage] = useState(1);
   const [productionJobCode, setProductionJobCode] = useState<string>();
+  const [productionCandidateRef, setProductionCandidateRef] = useState<string>();
   const [reviewPackageSearch, setReviewPackageSearch] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
@@ -253,7 +439,11 @@ export default function KnowledgeGovernance() {
     signedAt?: string;
     signatureHash?: string;
   }>();
+  const [productionJobForm] = Form.useForm<CreateKnowledgeProductionJobRequest>();
   const security = useSecurityProfile();
+  const globalExpertMode = useExpertModeStore((state) => state.enabled);
+  const mayUseExpertMode = canUseExpertMode(security.data);
+  const expertMode = mayUseExpertMode && globalExpertMode;
   const knowledgePackagesQuery = usePackages({
     page: 1,
     size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
@@ -299,6 +489,7 @@ export default function KnowledgeGovernance() {
     security.data.permissions.some((permission) => permission.code === "knowledge.publish");
   const currentTenantId = security.data?.dataScope.tenantId;
   const isPlatformTenant = currentTenantId === platformTenantId;
+  const defaultProductionTargetPipeline = isPlatformTenant ? "PLATFORM_SOURCE" : "TENANT_OVERLAY";
   const customizationsQuery = useKnowledgeCustomizations(
     { page: customizationPage, size: KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE },
     Boolean(currentTenantId && !isPlatformTenant),
@@ -310,9 +501,20 @@ export default function KnowledgeGovernance() {
   const createCustomization = useCreateKnowledgeCustomization();
   const publishCustomization = usePublishKnowledgeCustomization();
   const restorePlatformKnowledge = useRestorePlatformKnowledge();
+  const createProductionJobMutation = useCreateKnowledgeProductionJob();
+  const cancelProductionJobMutation = useCancelKnowledgeProductionJob();
   const canCustomize =
     !isPlatformTenant &&
     security.data?.permissions.some((permission) => permission.code === "knowledge.write");
+  const canWriteKnowledge =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.write") ?? false;
+  const canApproveAcquisitionSource =
+    security.data?.permissions.some(
+      (permission) => permission.code === "knowledge.acquisition.approve",
+    ) ?? false;
+  const canPublishKnowledge =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.publish") ??
+    false;
   const canPublishCustomization =
     security.data?.permissions.some((permission) => permission.code === "knowledge.publish") &&
     security.data?.permissions.some((permission) => permission.code === "tenant.override");
@@ -335,7 +537,23 @@ export default function KnowledgeGovernance() {
     useKnowledgeProductionTriageResults(selectedProductionJobCode);
   const productionShadowRunsQuery = useKnowledgeProductionShadowRuns(selectedProductionJobCode);
   const firstProductionCandidateRef = (productionCandidatesQuery.data ?? [])[0]?.candidateRef;
-  const productionCoexistenceQuery = useCandidateCoexistence(firstProductionCandidateRef);
+  const selectedProductionCandidateRef = productionCandidateRef ?? firstProductionCandidateRef;
+  const productionCoexistenceQuery = useCandidateCoexistence(selectedProductionCandidateRef);
+
+  useEffect(() => {
+    setProductionCandidateRef(undefined);
+  }, [selectedProductionJobCode]);
+
+  useEffect(() => {
+    if (mode !== "production") return;
+    productionJobForm.setFieldsValue({ targetPipeline: defaultProductionTargetPipeline });
+  }, [defaultProductionTargetPipeline, mode, productionJobForm]);
+
+  useEffect(() => {
+    if (!customizeIdentity) return;
+    customizeForm.resetFields();
+    customizeForm.setFieldsValue({ applicableScope: "ALL" });
+  }, [customizeForm, customizeIdentity]);
 
   useEffect(() => {
     if (identities.length === 0) {
@@ -416,6 +634,15 @@ export default function KnowledgeGovernance() {
     }));
   const defaultReviewPackageVersion =
     reviewPackageOptions.length === 1 ? reviewPackageOptions[0].value : undefined;
+  useEffect(() => {
+    if (!selectedCandidateId) return;
+    reviewForm.setFieldsValue({
+      packageVersion: defaultReviewPackageVersion,
+      reason: "",
+      feedbackType: undefined,
+      qualityGates: [],
+    });
+  }, [defaultReviewPackageVersion, reviewForm, selectedCandidateId]);
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
   const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
@@ -431,11 +658,6 @@ export default function KnowledgeGovernance() {
 
   function openCandidate(candidate: KnowledgeAssetVersion) {
     setSelectedCandidateId(candidate.id);
-    reviewForm.setFieldsValue({
-      packageVersion: defaultReviewPackageVersion,
-      reason: "",
-      qualityGates: [],
-    });
   }
 
   async function reviewCandidate(decision: KnowledgeCandidateReviewDecision) {
@@ -454,6 +676,11 @@ export default function KnowledgeGovernance() {
         fields.push("qualityGates");
       }
       const values = await reviewForm.validateFields(fields);
+      const selectedFeedbackType = reviewForm.isFieldTouched("feedbackType")
+        ? (reviewForm.getFieldValue("feedbackType") as KnowledgeReviewFeedbackType | undefined)
+        : undefined;
+      const feedbackType = feedbackTypeForDecision(decision, selectedFeedbackType);
+      const followupAction = REVIEW_FOLLOWUP_BY_FEEDBACK[feedbackType];
       let publishEvidence: VersionPublishEvidence | undefined;
       if (decision === "APPROVE" && publishEvidenceRequired) {
         const signatureId = values.signatureId?.trim();
@@ -494,6 +721,8 @@ export default function KnowledgeGovernance() {
         request: {
           decision,
           reason: values.reason.trim(),
+          feedbackType,
+          followupAction,
           ...(publishEvidence ? { publishEvidence } : {}),
         },
         idempotencyKey: `knowledge-review-${classificationReviewId}-${decision.toLowerCase()}`,
@@ -502,6 +731,41 @@ export default function KnowledgeGovernance() {
       await Promise.all([identitiesQuery.refetch(), candidatesQuery.refetch()]);
     } catch (error) {
       message.error(getApiErrorMessage(error, "知识候选审核失败"));
+    }
+  }
+
+  function requestCancelProductionJob(job: KnowledgeProductionJob) {
+    modal.confirm({
+      title: `中止生产任务 ${job.jobCode}`,
+      content: "仅中止 PENDING/RUNNING job；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      okText: "确认中止",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await cancelProductionJobMutation.mutateAsync(job.jobCode);
+          message.success("生产任务已中止");
+          await productionJobsQuery.refetch();
+        } catch (error) {
+          message.error(getApiErrorMessage(error, "中止生产任务失败"));
+        }
+      },
+    });
+  }
+
+  async function submitProductionJob(values: CreateKnowledgeProductionJobRequest) {
+    try {
+      await createProductionJobMutation.mutateAsync({
+        ...values,
+        sourceScope: values.sourceScope.trim(),
+        modelStrategy: values.modelStrategy?.trim() || undefined,
+      });
+      message.success("生产任务已创建，等待统一候选流水线处理");
+      productionJobForm.resetFields(["sourceScope"]);
+      await productionJobsQuery.refetch();
+      await productionReadinessQuery.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "创建生产任务失败"));
     }
   }
 
@@ -557,8 +821,8 @@ export default function KnowledgeGovernance() {
         reason: values.reason.trim(),
       });
       message.success("已从平台标准创建机构定制草稿");
-      setCustomizeIdentity(undefined);
       customizeForm.resetFields();
+      setCustomizeIdentity(undefined);
     } catch (error) {
       message.error(getApiErrorMessage(error, "创建机构知识定制失败"));
     }
@@ -609,8 +873,8 @@ export default function KnowledgeGovernance() {
         });
         message.success("已恢复使用平台标准，历史定制继续保留");
       }
-      setCustomizationAction(undefined);
       customizationActionForm.resetFields();
+      setCustomizationAction(undefined);
     } catch (error) {
       message.error(
         getApiErrorMessage(
@@ -628,6 +892,14 @@ export default function KnowledgeGovernance() {
     }
     return "LOCAL_ORIGINAL";
   }
+
+  const platformStandardIdentities = useMemo(
+    () =>
+      identities.filter(
+        (identity) => identity.tenantId === platformTenantId && identity.status === "ACTIVE",
+      ),
+    [identities],
+  );
 
   const identityColumns: ColumnsType<KnowledgeIdentity> = [
     {
@@ -692,7 +964,6 @@ export default function KnowledgeGovernance() {
               icon={<BranchesOutlined />}
               onClick={() => {
                 setCustomizeIdentity(record);
-                customizeForm.setFieldsValue({ applicableScope: "ALL" });
               }}
             >
               定制为本机构版本
@@ -700,6 +971,63 @@ export default function KnowledgeGovernance() {
           )}
         </Space>
       ),
+    },
+  ];
+
+  const institutionIdentityColumns: ColumnsType<KnowledgeIdentity> = [
+    {
+      title: "平台标准",
+      dataIndex: "subject",
+      key: "subject",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.subject}</Text>
+          <Text type="secondary">{record.identityCode}</Text>
+          <Space size={4} wrap>
+            <Tag color={PIPELINE_META.PLATFORM_SOURCE.color}>
+              {PIPELINE_META.PLATFORM_SOURCE.label}
+            </Tag>
+            <Tag>{PIPELINE_META.PLATFORM_SOURCE.boundaryLabel}</Tag>
+          </Space>
+        </Space>
+      ),
+    },
+    {
+      title: "领域 / 风险",
+      key: "domain",
+      render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          <Tag>{knowledgeDomainLabel(record.domain)}</Tag>
+          <Tag>{lifecycleStatusLabel(record.status)}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "适用范围",
+      key: "scope",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.specialtyId || "未限定专科"}</Text>
+          <Text type="secondary">机构版本继承平台证据链后单独审核发布</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_, record) =>
+        canCustomize ? (
+          <Button
+            icon={<BranchesOutlined />}
+            onClick={() => {
+              setCustomizeIdentity(record);
+            }}
+          >
+            定制为本机构版本
+          </Button>
+        ) : (
+          <Text type="secondary">无机构定制权限</Text>
+        ),
     },
   ];
 
@@ -743,7 +1071,20 @@ export default function KnowledgeGovernance() {
           <Space direction="vertical" size={2}>
             {provenance.aiGenerated ? <Tag color="purple">AI 生成</Tag> : <Tag>人工生产</Tag>}
             <Text>{producerLabel(provenance.producer)}</Text>
-            <Text type="secondary">job：{provenance.jobCode}</Text>
+            {provenance.confidence !== null && provenance.confidence !== undefined ? (
+              <Text type="secondary">{confidenceText(provenance.confidence)}</Text>
+            ) : null}
+            <Text type="secondary">{hospitalFallbackText(provenance)}</Text>
+            <Text type="secondary">{sourceCitationSummary(provenance.sourceCitations)}</Text>
+            {expertMode ? (
+              <>
+                {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
+                <Text type="secondary">job：{provenance.jobCode}</Text>
+                {provenance.modelVersion ? (
+                  <Text type="secondary">模型：{provenance.modelVersion}</Text>
+                ) : null}
+              </>
+            ) : null}
           </Space>
         );
       },
@@ -804,14 +1145,20 @@ export default function KnowledgeGovernance() {
     {
       title: "管道 / 状态",
       key: "status",
-      render: (_, record) => (
-        <Space direction="vertical" size={2}>
-          <Tag>{PIPELINE_LABELS[record.targetPipeline] ?? record.targetPipeline}</Tag>
-          <Tag color={productionStatusColor(record.status)}>
-            {PRODUCTION_JOB_STATUS_LABELS[record.status] ?? record.status}
-          </Tag>
-        </Space>
-      ),
+      render: (_, record) => {
+        const meta = pipelineMeta(record.targetPipeline);
+        return (
+          <Space direction="vertical" size={2}>
+            <Space size={4} wrap>
+              <Tag color={meta.color}>{meta.label}</Tag>
+              <Tag>{meta.boundaryLabel}</Tag>
+            </Space>
+            <Tag color={productionStatusColor(record.status)}>
+              {PRODUCTION_JOB_STATUS_LABELS[record.status] ?? record.status}
+            </Tag>
+          </Space>
+        );
+      },
     },
     {
       title: "领域 / 候选",
@@ -898,7 +1245,17 @@ export default function KnowledgeGovernance() {
       title: "8 态",
       dataIndex: "triageState",
       render: (value: string) => (
-        <Tag color={value === "CONFLICT" ? "error" : "processing"}>{value}</Tag>
+        <Space size={4} wrap>
+          <Tag
+            color={
+              KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === value)?.color ??
+              (value === "CONFLICT" ? "error" : "processing")
+            }
+          >
+            {triageLabel(value)}
+          </Tag>
+          <Text type="secondary">{value}</Text>
+        </Space>
       ),
     },
     {
@@ -1009,27 +1366,155 @@ export default function KnowledgeGovernance() {
     );
   }
 
+  const productionWorkbench = (
+    <Card>
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space direction="vertical" size={4}>
+          <Title level={4} className="mk-title-tight">
+            生产者工作台
+          </Title>
+          <Space size={[8, 8]} wrap>
+            {["下任务", "看进度", "审候选", "影响", "结论"].map((step) => (
+              <Tag key={step} color="processing">
+                {step}
+              </Tag>
+            ))}
+          </Space>
+        </Space>
+        <Divider className="mk-divider-tight" />
+        <Title level={5}>下任务</Title>
+        <Form<CreateKnowledgeProductionJobRequest>
+          form={productionJobForm}
+          layout="vertical"
+          initialValues={{
+            sourceScope: "",
+            assetType: "KNOWLEDGE",
+            producer: "API_MODEL",
+            targetPipeline: defaultProductionTargetPipeline,
+            domain: "GUIDELINE",
+            modelStrategy: "gpt-pipeline",
+          }}
+          onFinish={submitProductionJob}
+        >
+          <Row gutter={[16, 0]}>
+            <Col xs={24} lg={8}>
+              <Form.Item
+                label="来源范围"
+                name="sourceScope"
+                rules={[{ required: true, whitespace: true, message: "请填写真实来源范围" }]}
+              >
+                <Input placeholder="例如 acquisition-run:guideline-2026" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="资产类型" name="assetType">
+                <Select
+                  options={[
+                    { value: "KNOWLEDGE", label: "知识" },
+                    { value: "RULE", label: "规则" },
+                    { value: "PATHWAY", label: "路径" },
+                    { value: "RECOMMENDATION", label: "推荐" },
+                    { value: "METRIC", label: "指标" },
+                    { value: "FOLLOWUP", label: "随访" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="生产器" name="producer">
+                <Select
+                  options={[
+                    { value: "API_MODEL", label: "API 大模型" },
+                    { value: "AGENT_TOOL", label: "Agent 工具" },
+                    { value: "LOCAL_MODEL", label: "本地模型" },
+                    { value: "MANUAL", label: "人工录入" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="目标管道" name="targetPipeline">
+                <Select
+                  options={[
+                    { value: "PLATFORM_SOURCE", label: "平台主源" },
+                    { value: "TENANT_OVERLAY", label: "院内覆盖" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="领域" name="domain">
+                <Select options={KNOWLEDGE_DOMAIN_OPTIONS} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item label="模型策略" name="modelStrategy">
+                <Input placeholder="B0 / 本地 / 外部策略标识" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item label="提交" colon={false}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<PlusOutlined />}
+                  aria-label="创建生产任务"
+                  disabled={!canWriteKnowledge}
+                  loading={createProductionJobMutation.isPending}
+                >
+                  创建生产任务
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Space>
+    </Card>
+  );
+  const productionPipelinePartition = <PipelineBoundaryCard title="双形态生产分区" />;
+  const productionAcquisitionGovernance = (
+    <AcquisitionSourceGovernancePanel
+      canWrite={canWriteKnowledge}
+      canApprove={canApproveAcquisitionSource}
+    />
+  );
+
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
-    productionCenterContent = <PageState state="loading" title="正在读取知识生产中心" />;
+    productionCenterContent = (
+      <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        {productionAcquisitionGovernance}
+        {productionPipelinePartition}
+        <PageState state="loading" title="正在读取知识生产中心" />
+      </Space>
+    );
   } else if (productionReadinessQuery.isError || productionJobsQuery.isError) {
     productionCenterContent = (
-      <PageState
-        state="error"
-        title="知识生产中心读取失败"
-        description={getApiErrorMessage(
-          productionReadinessQuery.error ?? productionJobsQuery.error,
-          "无法读取知识生产中心",
-        )}
-        onRetry={() => {
-          void productionReadinessQuery.refetch();
-          void productionJobsQuery.refetch();
-        }}
-      />
+      <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        {productionAcquisitionGovernance}
+        {productionPipelinePartition}
+        <PageState
+          state="error"
+          title="知识生产中心读取失败"
+          description={getApiErrorMessage(
+            productionReadinessQuery.error ?? productionJobsQuery.error,
+            "无法读取知识生产中心",
+          )}
+          onRetry={() => {
+            void productionReadinessQuery.refetch();
+            void productionJobsQuery.refetch();
+          }}
+        />
+      </Space>
     );
   } else if (productionJobs.length === 0) {
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        {productionAcquisitionGovernance}
+        {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Table
             rowKey="code"
@@ -1064,8 +1549,82 @@ export default function KnowledgeGovernance() {
     const productionTriageResults = productionTriageResultsQuery.data ?? [];
     const productionShadowRuns = productionShadowRunsQuery.data ?? [];
     const coexistence = productionCoexistenceQuery.data;
+    const selectedProductionCandidate =
+      productionCandidates.find(
+        (candidate) => candidate.candidateRef === selectedProductionCandidateRef,
+      ) ?? productionCandidates[0];
+    const selectedProductionBatch = selectedProductionCandidate
+      ? [selectedProductionCandidate]
+      : [];
+    const batchApprovalLocked = selectedProductionBatch.some(
+      (candidate) => candidate.riskLevel === "HIGH" || candidate.routing?.requiresDualSign,
+    );
+    const productionEvidenceErrors = [
+      productionCandidatesQuery.isError
+        ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
+        : null,
+      productionGateResultsQuery.isError
+        ? `门禁结果：${getApiErrorMessage(productionGateResultsQuery.error, "门禁结果读取失败")}`
+        : null,
+      productionTriageResultsQuery.isError
+        ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
+        : null,
+      productionShadowRunsQuery.isError
+        ? `影子评测：${getApiErrorMessage(productionShadowRunsQuery.error, "影子评测读取失败")}`
+        : null,
+      productionCoexistenceQuery.isError
+        ? `共存替换提醒：${getApiErrorMessage(productionCoexistenceQuery.error, "共存替换提醒读取失败")}`
+        : null,
+    ].filter((message): message is string => Boolean(message));
+    const triageCounts = new Map<string, number>();
+    productionTriageResults.forEach((row) => {
+      triageCounts.set(row.triageState, (triageCounts.get(row.triageState) ?? 0) + 1);
+    });
+    const productionProgress = productionProgressPercent(
+      selectedProductionJob,
+      productionCandidates.length,
+      productionGateResults.length,
+      productionTriageResults.length,
+      productionShadowRuns.length,
+    );
+    const selectedJobCanBeCancelled =
+      canWriteKnowledge &&
+      selectedProductionJob !== undefined &&
+      canCancelProductionJob(selectedProductionJob.status);
+    let productionCandidateLineageContent: ReactNode;
+    if (productionCandidatesQuery.isLoading) {
+      productionCandidateLineageContent = <PageState state="loading" title="正在读取候选血缘" />;
+    } else if (productionCandidatesQuery.isError) {
+      productionCandidateLineageContent = (
+        <PageState
+          state="error"
+          title="候选血缘读取失败"
+          description={getApiErrorMessage(productionCandidatesQuery.error, "无法读取候选血缘")}
+        />
+      );
+    } else {
+      productionCandidateLineageContent = (
+        <Table
+          rowKey="candidateRef"
+          columns={productionCandidateColumns}
+          dataSource={productionCandidates}
+          rowSelection={{
+            type: "radio",
+            selectedRowKeys: selectedProductionCandidate
+              ? [selectedProductionCandidate.candidateRef]
+              : [],
+            onChange: (keys) => setProductionCandidateRef(String(keys[0])),
+          }}
+          pagination={false}
+          size="small"
+        />
+      );
+    }
     productionCenterContent = (
       <Space direction="vertical" size="large" className="mk-full-width">
+        {productionWorkbench}
+        {productionAcquisitionGovernance}
+        {productionPipelinePartition}
         <Card title="模型生产 readiness">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Alert
@@ -1104,39 +1663,74 @@ export default function KnowledgeGovernance() {
         </Card>
 
         <Card title="生产 job">
-          <Table
-            rowKey="jobCode"
-            columns={productionJobColumns}
-            dataSource={productionJobs}
-            pagination={false}
-            size="middle"
-          />
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            {selectedProductionJob ? (
+              <Alert
+                type={selectedProductionJob.status === "RUNNING" ? "info" : "warning"}
+                showIcon
+                message={
+                  selectedProductionJob.producer === "AGENT_TOOL"
+                    ? "Agent 进度与中止"
+                    : "生产进度与中止"
+                }
+                description={
+                  <Space direction="vertical" size={4}>
+                    <Space size="middle" wrap>
+                      <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
+                      <Text>门禁 {productionGateResults.length} 项</Text>
+                      <Text>8 态 {productionTriageResults.length} 条</Text>
+                      <Text>影子评测 {productionShadowRuns.length} 次</Text>
+                    </Space>
+                    <Progress
+                      percent={productionProgress}
+                      size="small"
+                      status={selectedProductionJob.status === "FAILED" ? "exception" : "active"}
+                    />
+                  </Space>
+                }
+                action={
+                  selectedJobCanBeCancelled ? (
+                    <Button
+                      danger
+                      aria-label="中止生产任务"
+                      icon={<StopOutlined />}
+                      loading={cancelProductionJobMutation.isPending}
+                      onClick={() => requestCancelProductionJob(selectedProductionJob)}
+                    >
+                      中止生产任务
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : null}
+            <Table
+              rowKey="jobCode"
+              columns={productionJobColumns}
+              dataSource={productionJobs}
+              pagination={false}
+              size="middle"
+            />
+          </Space>
         </Card>
+
+        {productionEvidenceErrors.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="生产证据部分读取失败"
+            description={
+              <Space direction="vertical" size={0}>
+                {productionEvidenceErrors.map((message) => (
+                  <Text key={message}>{message}</Text>
+                ))}
+              </Space>
+            }
+          />
+        ) : null}
 
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={12}>
-            <Card title="候选血缘">
-              {productionCandidatesQuery.isLoading ? (
-                <PageState state="loading" title="正在读取候选血缘" />
-              ) : productionCandidatesQuery.isError ? (
-                <PageState
-                  state="error"
-                  title="候选血缘读取失败"
-                  description={getApiErrorMessage(
-                    productionCandidatesQuery.error,
-                    "无法读取候选血缘",
-                  )}
-                />
-              ) : (
-                <Table
-                  rowKey="candidateRef"
-                  columns={productionCandidateColumns}
-                  dataSource={productionCandidates}
-                  pagination={false}
-                  size="small"
-                />
-              )}
-            </Card>
+            <Card title="候选血缘">{productionCandidateLineageContent}</Card>
           </Col>
           <Col xs={24} xl={12}>
             <Card title="门禁结果">
@@ -1152,14 +1746,25 @@ export default function KnowledgeGovernance() {
           </Col>
           <Col xs={24} xl={12}>
             <Card title="8 态分流">
-              <Table
-                rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
-                columns={productionTriageColumns}
-                dataSource={productionTriageResults}
-                loading={productionTriageResultsQuery.isLoading}
-                pagination={false}
-                size="small"
-              />
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Text strong>8 态队列</Text>
+                <Space size={[8, 8]} wrap>
+                  {KNOWLEDGE_TRIAGE_STATE_META.map((item) => (
+                    <Space key={item.state} size={4}>
+                      <Text>{item.label}</Text>
+                      <Tag color={item.color}>{triageCounts.get(item.state) ?? 0}</Tag>
+                    </Space>
+                  ))}
+                </Space>
+                <Table
+                  rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
+                  columns={productionTriageColumns}
+                  dataSource={productionTriageResults}
+                  loading={productionTriageResultsQuery.isLoading}
+                  pagination={false}
+                  size="small"
+                />
+              </Space>
             </Card>
           </Col>
           <Col xs={24} xl={12}>
@@ -1178,30 +1783,145 @@ export default function KnowledgeGovernance() {
 
         <Card title="共存替换提醒">
           {selectedProductionJob ? (
-            <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="当前 job">
-                {selectedProductionJob.jobCode}
-              </Descriptions.Item>
-              <Descriptions.Item label="候选执行状态">
-                <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
-                  {coexistence?.candidateExecutable ? "候选可执行" : "候选不可执行"}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="现行权威状态">
-                <Tag color={coexistence?.activeExecutable ? "success" : "warning"}>
-                  {coexistence?.activeExecutable ? "现行权威继续执行" : "暂无现行权威"}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="替换提醒">
-                {coexistence?.replacementReminder ?? "未返回替换提醒"}
-              </Descriptions.Item>
-              <Descriptions.Item label="安全说明">
-                {coexistence?.safetyNotice ?? "候选仅供审核，不参与临床执行。"}
-              </Descriptions.Item>
-            </Descriptions>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <Descriptions column={1} bordered size="small">
+                <Descriptions.Item label="当前 job">
+                  {selectedProductionJob.jobCode}
+                </Descriptions.Item>
+                <Descriptions.Item label="候选执行状态">
+                  <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
+                    {coexistence?.candidateExecutable ? "候选可执行" : "候选不可执行"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="现行权威状态">
+                  <Tag color={coexistence?.activeExecutable ? "success" : "warning"}>
+                    {coexistence?.activeExecutable ? "现行权威继续执行" : "暂无现行权威"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="审核状态">
+                  {coexistence?.reviewStatus ?? "未返回审核状态"}
+                </Descriptions.Item>
+                <Descriptions.Item label="差异摘要">
+                  {coexistence?.diffSummary ?? "未返回差异摘要"}
+                </Descriptions.Item>
+                <Descriptions.Item label="替换提醒">
+                  {coexistence?.replacementReminder ?? "未返回替换提醒"}
+                </Descriptions.Item>
+                <Descriptions.Item label="安全说明">
+                  {coexistence?.safetyNotice ?? "候选仅供审核，不参与临床执行。"}
+                </Descriptions.Item>
+              </Descriptions>
+              <Row gutter={[16, 16]}>
+                <Col xs={24} lg={12}>
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    <Title level={5}>待审候选版本</Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="版本">
+                        {snapshotValue(coexistence?.candidateVersion, "versionNo")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        {snapshotValue(coexistence?.candidateVersion, "status")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="风险 / 权威">
+                        <Space size={4} wrap>
+                          <Tag
+                            color={
+                              RISK_COLORS[coexistence?.candidateVersion?.riskLevel ?? ""] ??
+                              "default"
+                            }
+                          >
+                            {riskLabel(coexistence?.candidateVersion?.riskLevel)}
+                          </Tag>
+                          <Tag>
+                            {sourceAuthorityLabel(coexistence?.candidateVersion?.authorityLevel)}
+                          </Tag>
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="hash">
+                        {snapshotValue(coexistence?.candidateVersion, "contentHash")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="适用域">
+                        {snapshotValue(coexistence?.candidateVersion, "applicableScope")}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Space>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    <Title level={5}>现行权威版本</Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="版本">
+                        {snapshotValue(coexistence?.activeVersion, "versionNo")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        {snapshotValue(coexistence?.activeVersion, "status")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="风险 / 权威">
+                        <Space size={4} wrap>
+                          <Tag
+                            color={
+                              RISK_COLORS[coexistence?.activeVersion?.riskLevel ?? ""] ?? "default"
+                            }
+                          >
+                            {riskLabel(coexistence?.activeVersion?.riskLevel)}
+                          </Tag>
+                          <Tag>
+                            {sourceAuthorityLabel(coexistence?.activeVersion?.authorityLevel)}
+                          </Tag>
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="hash">
+                        {snapshotValue(coexistence?.activeVersion, "contentHash")}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="适用域">
+                        {snapshotValue(coexistence?.activeVersion, "applicableScope")}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Space>
+                </Col>
+              </Row>
+              <Alert
+                type="warning"
+                showIcon
+                message="审后任务化提醒"
+                description={reviewTaskReminder(coexistence)}
+              />
+            </Space>
           ) : (
             <PageState state="empty" title="未选择生产 job" />
           )}
+        </Card>
+
+        <Card title="结论">
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Space size="middle" wrap>
+              <Tag color={selectedProductionBatch.length > 0 ? "processing" : "default"}>
+                批处置候选 {selectedProductionBatch.length} 条
+              </Tag>
+              {batchApprovalLocked ? (
+                <Tag color="error">高风险或双签候选必须逐条进入审核台确认</Tag>
+              ) : (
+                <Tag color="success">低风险候选可进入批处置预备</Tag>
+              )}
+            </Space>
+            <Space size="small" wrap>
+              <Button
+                type="primary"
+                disabled={
+                  batchApprovalLocked ||
+                  selectedProductionBatch.length === 0 ||
+                  !canPublishKnowledge
+                }
+                aria-label={batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
+              >
+                {batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
+              </Button>
+              <Button disabled={selectedProductionBatch.length === 0}>转审核台逐条处理</Button>
+            </Space>
+            <Text type="secondary">
+              生产面只汇总候选批次、影响和处置预案；最终通过、退修、驳回仍由审核台按来源、双签和发布证据执行。
+            </Text>
+          </Space>
         </Card>
       </Space>
     );
@@ -1213,6 +1933,12 @@ export default function KnowledgeGovernance() {
       key: "source",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
+          <Space size={4} wrap>
+            <Tag color={PIPELINE_META.TENANT_OVERLAY.color}>
+              {PIPELINE_META.TENANT_OVERLAY.label}
+            </Tag>
+            <Tag>{PIPELINE_META.TENANT_OVERLAY.boundaryLabel}</Tag>
+          </Space>
           <Tag color="cyan">{knowledgeSourceLabel(record.sourceType)}</Tag>
           <Text type="secondary">基于平台版本 {record.platformVersionNo}</Text>
           <Tag color={RISK_COLORS[record.riskLevel] ?? "default"}>
@@ -1325,10 +2051,110 @@ export default function KnowledgeGovernance() {
           message="默认复用平台标准，只有确需调整时才创建机构版本"
           description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
+        <PipelineBoundaryCard />
+        <Card title="平台标准知识">
+          <Table
+            rowKey="id"
+            columns={institutionIdentityColumns}
+            dataSource={platformStandardIdentities}
+            locale={{ emptyText: "当前筛选下暂无可派生的平台标准" }}
+            pagination={{
+              current: identityPage,
+              pageSize: identitiesQuery.data?.size ?? 20,
+              total: identitiesQuery.data?.total ?? 0,
+              showSizeChanger: false,
+              hideOnSinglePage: true,
+              onChange: setIdentityPage,
+            }}
+            size="middle"
+          />
+        </Card>
         {customizationListContent}
       </Space>
     );
   }
+
+  const reviewContent = (
+    <Space direction="vertical" size="large" className="mk-full-width">
+      <Card title="默认筛选">
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={8}>
+            <Select
+              aria-label="知识域"
+              className="mk-full-width"
+              value={domain}
+              options={KNOWLEDGE_DOMAIN_OPTIONS}
+              onChange={(value) => {
+                setDomain(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Select
+              aria-label="身份状态"
+              className="mk-full-width"
+              value={status}
+              options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
+              onChange={(value) => {
+                setStatus(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Input.Search
+              aria-label="知识关键词"
+              placeholder="按主题或编码搜索"
+              allowClear
+              onSearch={(value) => {
+                setKeyword(value);
+                setIdentityPage(1);
+              }}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      {pageState === "ready" ? (
+        <>
+          <Card>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <Statistic title="待审核候选总数" value={pendingCount} prefix={<AuditOutlined />} />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic title="冲突候选" value={conflictCount} />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic title="高风险候选" value={highRiskCount} />
+              </Col>
+            </Row>
+          </Card>
+
+          <Card title="知识身份台账">
+            <Table
+              rowKey="id"
+              columns={identityColumns}
+              dataSource={identities}
+              pagination={{
+                current: identityPage,
+                pageSize: identitiesQuery.data?.size ?? 20,
+                total: identitiesQuery.data?.total ?? 0,
+                showSizeChanger: false,
+                onChange: setIdentityPage,
+              }}
+              size="middle"
+            />
+          </Card>
+
+          <Card title="待审候选">{candidatePanel}</Card>
+        </>
+      ) : (
+        <PageState state={pageState} {...pageStateProps} />
+      )}
+    </Space>
+  );
 
   let customizationActionMessage = "恢复后新请求将重新使用平台标准";
   if (customizationAction?.type === "publish") {
@@ -1338,127 +2164,85 @@ export default function KnowledgeGovernance() {
         : "发布后将接管所选机构的知识解析";
   }
 
+  const pageMeta = {
+    review: {
+      title: "知识审核与发布",
+      description: "统一审核知识候选、发布结论和替换恢复",
+    },
+    institution: {
+      title: "机构知识",
+      description: "维护院内覆盖、机构定制、换基线和恢复平台标准",
+    },
+    production: {
+      title: "知识生产",
+      description: "核查生产流水线 readiness、job、门禁、8 态分流和影子证据",
+    },
+  }[mode];
+
+  let pageContent: ReactNode = reviewContent;
+  if (mode === "institution") {
+    pageContent = institutionKnowledgeContent;
+  } else if (mode === "production") {
+    pageContent = productionCenterContent;
+  }
+
+  let pageExtras: ReactNode = (
+    <Button
+      aria-label="刷新知识审核与发布"
+      icon={<ReloadOutlined />}
+      onClick={() => {
+        void identitiesQuery.refetch();
+        void candidatesQuery.refetch();
+      }}
+    >
+      刷新
+    </Button>
+  );
+  if (mode === "institution") {
+    pageExtras = (
+      <Button
+        aria-label="刷新机构知识"
+        icon={<ReloadOutlined />}
+        onClick={() => void customizationsQuery.refetch()}
+      >
+        刷新
+      </Button>
+    );
+  } else if (mode === "production") {
+    pageExtras = (
+      <Button
+        aria-label="刷新知识生产"
+        icon={<ReloadOutlined />}
+        onClick={() => {
+          void productionReadinessQuery.refetch();
+          void productionJobsQuery.refetch();
+        }}
+      >
+        刷新
+      </Button>
+    );
+  }
+
+  const expertModeControl = mayUseExpertMode ? (
+    <ExpertModeToggle securityProfile={security.data} />
+  ) : null;
+  const pageExtrasWithExpertMode = expertModeControl ? (
+    <Space wrap>
+      {pageExtras}
+      {expertModeControl}
+    </Space>
+  ) : (
+    pageExtras
+  );
+
   return (
     <>
       <PageShell
-        title="知识审核与发布"
-        description="统一审核知识候选、发布结论和替换恢复"
-        extras={
-          <Button
-            aria-label="刷新知识审核与发布"
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              void identitiesQuery.refetch();
-              void candidatesQuery.refetch();
-            }}
-          >
-            刷新
-          </Button>
-        }
+        title={pageMeta.title}
+        description={pageMeta.description}
+        extras={pageExtrasWithExpertMode}
       >
-        <Tabs
-          items={[
-            {
-              key: "review",
-              label: "候选审核",
-              children: (
-                <Space direction="vertical" size="large" className="mk-full-width">
-                  <Card title="默认筛选">
-                    <Row gutter={[16, 16]}>
-                      <Col xs={24} md={8}>
-                        <Select
-                          aria-label="知识域"
-                          className="mk-full-width"
-                          value={domain}
-                          options={KNOWLEDGE_DOMAIN_OPTIONS}
-                          onChange={(value) => {
-                            setDomain(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Select
-                          aria-label="身份状态"
-                          className="mk-full-width"
-                          value={status}
-                          options={KNOWLEDGE_IDENTITY_STATUS_OPTIONS}
-                          onChange={(value) => {
-                            setStatus(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Input.Search
-                          aria-label="知识关键词"
-                          placeholder="按主题或编码搜索"
-                          allowClear
-                          onSearch={(value) => {
-                            setKeyword(value);
-                            setIdentityPage(1);
-                          }}
-                        />
-                      </Col>
-                    </Row>
-                  </Card>
-
-                  {pageState === "ready" ? (
-                    <>
-                      <Card>
-                        <Row gutter={[16, 16]}>
-                          <Col xs={24} md={8}>
-                            <Statistic
-                              title="待审核候选总数"
-                              value={pendingCount}
-                              prefix={<AuditOutlined />}
-                            />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Statistic title="冲突候选" value={conflictCount} />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Statistic title="高风险候选" value={highRiskCount} />
-                          </Col>
-                        </Row>
-                      </Card>
-
-                      <Card title="知识身份台账">
-                        <Table
-                          rowKey="id"
-                          columns={identityColumns}
-                          dataSource={identities}
-                          pagination={{
-                            current: identityPage,
-                            pageSize: identitiesQuery.data?.size ?? 20,
-                            total: identitiesQuery.data?.total ?? 0,
-                            showSizeChanger: false,
-                            onChange: setIdentityPage,
-                          }}
-                          size="middle"
-                        />
-                      </Card>
-
-                      <Card title="待审候选">{candidatePanel}</Card>
-                    </>
-                  ) : (
-                    <PageState state={pageState} {...pageStateProps} />
-                  )}
-                </Space>
-              ),
-            },
-            {
-              key: "institution",
-              label: "机构知识",
-              children: institutionKnowledgeContent,
-            },
-            {
-              key: "production",
-              label: "知识生产",
-              children: productionCenterContent,
-            },
-          ]}
-        />
+        {pageContent}
       </PageShell>
 
       <Modal
@@ -1469,8 +2253,8 @@ export default function KnowledgeGovernance() {
         confirmLoading={createCustomization.isPending}
         onOk={() => customizeForm.submit()}
         onCancel={() => {
-          setCustomizeIdentity(undefined);
           customizeForm.resetFields();
+          setCustomizeIdentity(undefined);
         }}
         destroyOnClose
       >
@@ -1518,8 +2302,8 @@ export default function KnowledgeGovernance() {
         confirmLoading={publishCustomization.isPending || restorePlatformKnowledge.isPending}
         onOk={() => customizationActionForm.submit()}
         onCancel={() => {
-          setCustomizationAction(undefined);
           customizationActionForm.resetFields();
+          setCustomizationAction(undefined);
         }}
         destroyOnClose
       >
@@ -1671,6 +2455,7 @@ export default function KnowledgeGovernance() {
             if (!provenance) {
               return null;
             }
+            const meta = pipelineMeta(provenance.targetPipeline);
             return (
               <Descriptions column={1} bordered size="small" title="AI 生产来源溯源">
                 <Descriptions.Item label="AI 标识">
@@ -1679,16 +2464,59 @@ export default function KnowledgeGovernance() {
                 <Descriptions.Item label="生产器">
                   {producerLabel(provenance.producer)}
                 </Descriptions.Item>
-                <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                <Descriptions.Item label="生产任务">
+                  已留痕，审核结论会保留任务证据
+                </Descriptions.Item>
                 <Descriptions.Item label="目标管道">
-                  {PIPELINE_LABELS[provenance.targetPipeline] ?? provenance.targetPipeline}
+                  <Space size={4} wrap>
+                    <Tag color={meta.color}>{meta.label}</Tag>
+                    <Tag>{meta.boundaryLabel}</Tag>
+                  </Space>
                 </Descriptions.Item>
-                <Descriptions.Item label="模型策略">
-                  {provenance.modelStrategy || "无"}
+                <Descriptions.Item label="可信度 / 备用能力">
+                  <Space direction="vertical" size={2}>
+                    <Text>{confidenceText(provenance.confidence)}</Text>
+                    <Text>{hospitalFallbackText(provenance)}</Text>
+                  </Space>
                 </Descriptions.Item>
-                <Descriptions.Item label="生产时点 / 人">
-                  {provenance.producedAt ?? "未返回"} / {provenance.producedBy ?? "未返回"}
+                <Descriptions.Item label="来源依据">
+                  {sourceCitationSummary(provenance.sourceCitations)}
                 </Descriptions.Item>
+                <Descriptions.Item label="生产时点">
+                  {provenance.producedAt ?? "未返回"}
+                </Descriptions.Item>
+                {expertMode ? (
+                  <>
+                    <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                    <Descriptions.Item label="模型任务 ID">
+                      {provenance.modelTaskId || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型策略">
+                      {provenance.modelStrategy || "无"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型模式">
+                      {provenance.modelMode || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="模型版本">
+                      {provenance.modelVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="提示词版本">
+                      {provenance.promptVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="工具版本">
+                      {provenance.toolVersion || "未返回"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="技术降级原因">
+                      {fallbackText(provenance)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="来源引用原文">
+                      {provenance.sourceCitations || "未返回来源引用"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="生产执行人">
+                      {provenance.producedBy ?? "未返回"}
+                    </Descriptions.Item>
+                  </>
+                ) : null}
               </Descriptions>
             );
           })()}
@@ -1750,6 +2578,16 @@ export default function KnowledgeGovernance() {
               rules={[{ required: true, message: "请填写审核理由" }]}
             >
               <Input.TextArea rows={4} />
+            </Form.Item>
+            <Form.Item name="feedbackType" label="审核反馈类型">
+              <Radio.Group>
+                <Space wrap>
+                  <Radio value="CONTENT_GAP">内容缺口</Radio>
+                  <Radio value="SOURCE_BLANK">来源空白</Radio>
+                  <Radio value="FALSE_POSITIVE">误报</Radio>
+                  <Radio value="NOT_ADOPTED">不采纳</Radio>
+                </Space>
+              </Radio.Group>
             </Form.Item>
             {publishEvidenceRequired && (
               <>

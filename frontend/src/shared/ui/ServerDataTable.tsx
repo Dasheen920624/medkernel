@@ -4,6 +4,8 @@ import type { ColumnsType } from "antd/es/table";
 import type { Key } from "react";
 import { useState } from "react";
 
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
+
 import { PageState } from "./PageState";
 import type {
   ExperienceColumn,
@@ -17,6 +19,10 @@ import type {
 import { EXPERIENCE_PAGE_SIZE_OPTIONS, MAX_EXPERIENCE_PAGE_SIZE } from "./experienceTypes";
 
 const { Text } = Typography;
+
+const TABLE_ERROR_TITLE = "列表数据读取失败";
+const TABLE_ERROR_DESCRIPTION = "请重试；若持续失败，请联系信息科排查数据读取服务。";
+const PARTIAL_FAILURE_FALLBACK = "当前项目读取失败，请重试或转人工处理。";
 
 interface ServerDataTableProps<T extends object> {
   viewKey: string;
@@ -50,6 +56,10 @@ function snapshotFilters(filters: Record<string, unknown>): ExperienceFilterValu
     }
   });
   return snapshot;
+}
+
+function customerSafeFailureReason(reason: string): string {
+  return customerSafeDisplayText(reason, PARTIAL_FAILURE_FALLBACK);
 }
 
 export function ServerDataTable<T extends object>({
@@ -113,7 +123,9 @@ export function ServerDataTable<T extends object>({
   }
 
   if (error) {
-    return <PageState state="error" description={error.message} />;
+    return (
+      <PageState state="error" title={TABLE_ERROR_TITLE} description={TABLE_ERROR_DESCRIPTION} />
+    );
   }
 
   const tableColumns: ColumnsType<T> = columns
@@ -165,7 +177,9 @@ export function ServerDataTable<T extends object>({
           description={
             <Space direction="vertical" size={0}>
               {partial.failures.map((failure) => (
-                <Text key={failure.key}>{`${failure.key}：${failure.reason}`}</Text>
+                <Text key={failure.key}>
+                  {`${failure.key}：${customerSafeFailureReason(failure.reason)}`}
+                </Text>
               ))}
               {partial.onRetryFailures && (
                 <Button size="small" onClick={partial.onRetryFailures}>

@@ -64,13 +64,23 @@ describe("PageState", () => {
         state="partial"
         successCount={18}
         failureCount={2}
-        failureDetails={[{ key: "pkg-2", reason: "缺少发布审核证据", retryable: true }]}
+        failureDetails={[
+          { key: "pkg-2", reason: "缺少发布审核证据", retryable: true },
+          {
+            key: "pkg-3",
+            reason: "GET /api/v1/package failed: ECONNREFUSED 127.0.0.1:8080",
+            retryable: true,
+          },
+        ]}
       />,
     );
     expect(screen.getByText(/18 项成功/)).toBeInTheDocument();
     expect(screen.getByText(/2 项需处理/)).toBeInTheDocument();
     expect(screen.getByText(/pkg-2/)).toBeInTheDocument();
     expect(screen.getByText(/缺少发布审核证据/)).toBeInTheDocument();
+    expect(screen.getByText(/当前项目读取失败，请重试或转人工处理/)).toBeInTheDocument();
+    expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/package/)).not.toBeInTheDocument();
   });
 
   it("renders ready children", () => {

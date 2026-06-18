@@ -25,6 +25,7 @@ public class ClaudeProvider implements ModelProvider {
     private static final Logger log = LoggerFactory.getLogger(ClaudeProvider.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String ANTHROPIC_VERSION = "2023-06-01";
+    private static final int HEALTH_TIMEOUT_MS = 5_000;
 
     private final ModelProviderHttpClient http;
     private final ProviderCredentialResolver credentials;
@@ -47,7 +48,8 @@ public class ClaudeProvider implements ModelProvider {
         }
         try {
             http.get(baseUri(config) + "/v1/models",
-                Map.of("x-api-key", secret.get(), "anthropic-version", ANTHROPIC_VERSION));
+                Map.of("x-api-key", secret.get(), "anthropic-version", ANTHROPIC_VERSION),
+                HEALTH_TIMEOUT_MS);
             return ProviderHealth.HEALTHY;
         } catch (RuntimeException unreachable) {
             log.warn("Claude provider 探活失败 code={}：{}", config.providerCode(), unreachable.getMessage());
@@ -75,7 +77,8 @@ public class ClaudeProvider implements ModelProvider {
                 Map.of("Content-Type", "application/json",
                     "x-api-key", secret,
                     "anthropic-version", ANTHROPIC_VERSION),
-                payload.toString());
+                payload.toString(),
+                request.timeoutMs());
         } catch (RuntimeException callFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_003,
                 "Claude provider 调用失败 code=" + config.providerCode() + "：" + callFailed.getMessage());
@@ -83,9 +86,12 @@ public class ClaudeProvider implements ModelProvider {
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(raw);
-            String content = node.path("content").path(0).path("text").asText("");
-            String modelVersion = node.path("model").asText(config.modelVersion());
+            String content = ProviderResponseValidator.requireContent(
+                node.path("content").path(0).path("text").asText(""), config.providerCode());
+            String modelVersion = ProviderResponseValidator.requireModelVersion(node, config.providerCode());
             return new ProviderCompletion(content, modelVersion, null, "[]");
+        } catch (ApiException protocolInvalid) {
+            throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
                 "Claude provider 返回无法解析 code=" + config.providerCode());

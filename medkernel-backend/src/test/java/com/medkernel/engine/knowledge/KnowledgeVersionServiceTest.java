@@ -206,6 +206,59 @@ class KnowledgeVersionServiceTest {
         assertThat(spCap.getValue().newVersionId()).isEqualTo(11L);
         assertThat(spCap.getValue().transitionReason()).isEqualTo("新版指南更新");
         verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 11L, "u-99", "trace");
+
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo).save(invalidation.capture());
+        assertThat(invalidation.getValue().versionId()).isEqualTo(5L);
+        assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
+        assertThat(invalidation.getValue().expeditedReviewRequired()).isFalse();
+        assertThat(invalidation.getValue().reason()).contains("新版指南更新").contains("newVersionId=11");
+
+        ArgumentCaptor<AffectedCaseTask> task = ArgumentCaptor.forClass(AffectedCaseTask.class);
+        verify(affectedCaseTaskRepo, times(3)).save(task.capture());
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::versionId).containsOnly(5L);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::taskType)
+            .containsExactlyInAnyOrder(
+                AffectedCaseTaskType.PHYSICIAN_REVIEW,
+                AffectedCaseTaskType.PACKAGE_RESYNC,
+                AffectedCaseTaskType.SYNC_ALERT);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::reason)
+            .allSatisfy(reason -> assertThat(reason).contains("新版指南更新").contains("newVersionId=11"));
+    }
+
+    @Test
+    void activateSupersededVersionRollsBackThroughTheSameAtomicReplacementFlow() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion rollbackTarget =
+            version(5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion currentActive = version(11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(rollbackTarget));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(currentActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+
+        KnowledgeAssetVersion activated = service.activate(
+            1L, 5L, "回滚到上一版权威知识", VersionPublishEvidence.empty());
+
+        assertThat(activated.id()).isEqualTo(5L);
+        assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+
+        ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
+        verify(supersessionRepo).save(spCap.capture());
+        assertThat(spCap.getValue().transitionType()).isEqualTo(SupersessionType.ROLLBACK);
+        assertThat(spCap.getValue().oldVersionId()).isEqualTo(11L);
+        assertThat(spCap.getValue().newVersionId()).isEqualTo(5L);
+
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo).save(invalidation.capture());
+        assertThat(invalidation.getValue().versionId()).isEqualTo(11L);
+        assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
+        assertThat(invalidation.getValue().reason()).contains("newVersionId=5");
+        verify(affectedCaseTaskRepo, times(3)).save(any(AffectedCaseTask.class));
     }
 
     @Test
@@ -978,6 +1031,8 @@ class KnowledgeVersionServiceTest {
         verify(reviewAssignmentRepo).save(assignment.capture());
         assertThat(assignment.getValue().reason()).isEqualTo("来源冲突，退回补证");
         assertThat(assignment.getValue().decision()).isEqualTo(KnowledgeCandidateReviewDecision.REJECT);
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.NOT_ADOPTED);
+        assertThat(assignment.getValue().followupAction()).isEqualTo(KnowledgeReviewFollowupAction.ARCHIVE_REJECTED);
         verify(supersessionRepo, never()).save(any());
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
@@ -1013,8 +1068,42 @@ class KnowledgeVersionServiceTest {
         assertThat(assignment.getValue().reason()).isEqualTo("请补充禁忌章节后重提");
         assertThat(assignment.getValue().decision()).isEqualTo(KnowledgeCandidateReviewDecision.RETURN);
         assertThat(assignment.getValue().reviewStatus()).isEqualTo(CandidateReviewStatus.RETURNED);
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.CONTENT_GAP);
+        assertThat(assignment.getValue().followupAction())
+            .isEqualTo(KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE);
         verify(supersessionRepo, never()).save(any());
         verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void returnCandidateRecordsStructuredFeedbackAndRevisionFollowup() {
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+
+        KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            KnowledgeCandidateReviewDecision.RETURN, "AI 生成内容缺少关键禁忌章节，需回流生产台补齐",
+            VersionPublishEvidence.empty(),
+            KnowledgeReviewFeedbackType.CONTENT_GAP,
+            KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE
+        );
+
+        service.reviewCandidate(88L, returnRequest);
+
+        ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo).save(assignment.capture());
+        assertThat(assignment.getValue().feedbackType()).isEqualTo(KnowledgeReviewFeedbackType.CONTENT_GAP);
+        assertThat(assignment.getValue().followupAction())
+            .isEqualTo(KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE);
     }
 
     @Test
@@ -1136,6 +1225,28 @@ class KnowledgeVersionServiceTest {
         assertThat(saved.tenantId()).isEqualTo("t-hospital");
         assertThat(saved.createdBy()).isEqualTo("organization-admin");
         verify(identityRepo, never()).findByTenantIdAndId("t-1", 1L);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
+    }
+
+    @Test
+    void classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "organization-admin"));
+        KnowledgeIdentity platformIdentity = new KnowledgeIdentity(
+            1L, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "平台主源主题", null, null,
+            KnowledgeIdentityStatus.ACTIVE, null,
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin"
+        );
+        when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(platformIdentity));
+
+        assertThatThrownBy(() -> service.classifyCandidate(1L,
+            versionCreateRequestWithTenant("t-hospital", 10L, 20L, "hospital-v1", "医院本地定制内容")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+
+        verify(sourceDocRepo, never()).findByTenantIdAndId(any(), any());
+        verify(versionRepo, never()).save(any(KnowledgeAssetVersion.class));
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
     }
 

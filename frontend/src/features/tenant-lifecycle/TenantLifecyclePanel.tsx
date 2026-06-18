@@ -25,6 +25,7 @@ import {
 import { useSuccessPlan, useTransitionSuccessStage } from "@/shared/api/hooks";
 import { tenantLifecycleStages } from "@/shared/config/tenantLifecycleStages";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
 import styles from "./TenantLifecyclePanel.module.css";
 
 const { Text, Paragraph } = Typography;
@@ -32,6 +33,8 @@ const { Text, Paragraph } = Typography;
 const getThemeStyle = (color: string) => ({
   color,
 });
+const LIFECYCLE_LOAD_FAILURE = "暂时无法读取服务机构生命周期服务，请稍后重试。";
+const LIFECYCLE_TRANSITION_FAILURE = "请求推进生命周期失败，请稍后重试。";
 
 export function TenantLifecyclePanel() {
   const { data, isLoading, error, refetch } = useSuccessPlan();
@@ -57,7 +60,10 @@ export function TenantLifecyclePanel() {
       <Card title={<Text className={styles.title}>服务机构生命周期</Text>} className={styles.card}>
         <Alert
           message="数据加载失败"
-          description={error instanceof Error ? error.message : "暂时无法读取服务机构生命周期服务"}
+          description={customerSafeDisplayText(
+            error instanceof Error ? error.message : undefined,
+            LIFECYCLE_LOAD_FAILURE,
+          )}
           type="error"
           showIcon
         />
@@ -79,7 +85,12 @@ export function TenantLifecyclePanel() {
         refetch();
       },
       onError: (err: unknown) => {
-        message.error(`推进生命周期失败: ${getApiErrorMessage(err, "请求推进生命周期失败")}`);
+        message.error(
+          `推进生命周期失败：${customerSafeDisplayText(
+            getApiErrorMessage(err, "请求推进生命周期失败"),
+            LIFECYCLE_TRANSITION_FAILURE,
+          )}`,
+        );
       },
     });
   };

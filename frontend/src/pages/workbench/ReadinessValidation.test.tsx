@@ -10,7 +10,9 @@ import type { RuntimeOperationsSnapshot, SecurityProfile } from "@/shared/api/ho
 const hookState = vi.hoisted(() => ({
   security: {} as Record<string, unknown>,
   runtime: {} as Record<string, unknown>,
+  knowledgeReadiness: {} as Record<string, unknown>,
   runtimeEnabledCalls: [] as unknown[],
+  knowledgeReadinessEnabledCalls: [] as unknown[],
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -18,6 +20,10 @@ vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: (enabled?: boolean) => {
     hookState.runtimeEnabledCalls.push(enabled);
     return hookState.runtime;
+  },
+  useKnowledgeProductionReadiness: (_params?: unknown, enabled?: boolean) => {
+    hookState.knowledgeReadinessEnabledCalls.push(enabled);
+    return hookState.knowledgeReadiness;
   },
 }));
 
@@ -181,6 +187,81 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
   generatedAt: "2026-06-01T00:00:00Z",
 };
 
+const knowledgeReadiness = {
+  tenantId: "t-1",
+  producer: "API_MODEL",
+  capabilityCode: "rule.draft",
+  providerCode: null,
+  deploymentForm: "HOSPITAL_RUNTIME",
+  ready: false,
+  modelInvocationAllowed: false,
+  items: [
+    {
+      code: "LITERATURE_ROOT",
+      ready: false,
+      required: true,
+      message: "平台知识文献资料库根地址未配置",
+      evidence: "medkernel.knowledge.literature.material-root-uri=<empty>",
+    },
+    {
+      code: "DEPLOYMENT_FORM",
+      ready: false,
+      required: true,
+      message: "当前不是 PRODUCTION_CENTER，禁止外部 API 模型生产知识",
+      evidence: "deploymentForm=HOSPITAL_RUNTIME",
+    },
+    {
+      code: "MODEL_PROVIDER",
+      ready: false,
+      required: true,
+      message: "未找到匹配且启用的模型 provider",
+      evidence: "producer=API_MODEL",
+    },
+    {
+      code: "REGRESSION_BASELINE",
+      ready: true,
+      required: true,
+      message: "医学回归基准集已配置",
+      evidence: "caseCount=3",
+    },
+    {
+      code: "MODEL_EVALUATION",
+      ready: false,
+      required: true,
+      message: "provider/模型版本未找到 PASSED 医学回归评测",
+      evidence: "provider=<missing>",
+    },
+    {
+      code: "EGRESS_GOVERNANCE",
+      ready: false,
+      required: true,
+      message: "外部模型生产缺少出域字段白名单",
+      evidence: "capabilityCode=rule.draft",
+    },
+    {
+      code: "MODEL_POLICY",
+      ready: false,
+      required: true,
+      message: "模型能力策略未配置，不能进入正式模型生产",
+      evidence: "capabilityCode=rule.draft",
+    },
+    {
+      code: "VERSION_TRIPLE",
+      ready: false,
+      required: true,
+      message: "模型生产任务必须声明 prompt/tool/model 版本三元组",
+      evidence: "<empty>",
+    },
+    {
+      code: "P6_ACCEPTANCE",
+      ready: false,
+      required: true,
+      message: "P6 独立验收未放行，禁止正式模型生成知识",
+      evidence: "medkernel.knowledge.production.p6-independent-acceptance=false",
+    },
+  ],
+};
+
 function setLoadedState(roleCode = "implementation-operator") {
   hookState.security = {
     data: profile(roleCode),
@@ -193,12 +274,20 @@ function setLoadedState(roleCode = "implementation-operator") {
     isError: false,
     refetch: vi.fn(),
   };
+  hookState.knowledgeReadiness = {
+    data: knowledgeReadiness,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  };
 }
 
 describe("ReadinessValidation", () => {
   beforeEach(() => {
     setLoadedState();
     hookState.runtimeEnabledCalls = [];
+    hookState.knowledgeReadinessEnabledCalls = [];
     navigateSpy.mockReset();
   });
 
@@ -206,7 +295,7 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "验收自检" })).toBeInTheDocument();
-    expect(screen.getByText("2 就绪 / 3 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 PASS / 11 BLOCK / 2 未启用")).toBeInTheDocument();
     expect(screen.getByText("存在阻塞项，验收前需处理")).toBeInTheDocument();
     expect(screen.getByTestId("readiness-validation-tabs")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^readiness-validation-filter-/)).toHaveLength(3);
@@ -219,23 +308,50 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-    expect(screen.getByText("2 就绪 / 3 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 PASS / 11 BLOCK / 2 未启用")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
+    expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(true);
   });
 
   it("keeps blockers actionable with Chinese reasons and real repair links", () => {
     renderPage();
 
     const providerRow = screen.getByTestId("readiness-validation-item-provider-his");
-    expect(within(providerRow).getByText("阻塞")).toBeInTheDocument();
+    expect(within(providerRow).getByText("BLOCK")).toBeInTheDocument();
     expect(within(providerRow).getByText(/未接入真实 HIS 连接器/)).toBeInTheDocument();
     const backupRow = screen.getByTestId("readiness-validation-item-backup-readiness");
-    expect(within(backupRow).getByText("阻塞")).toBeInTheDocument();
+    expect(within(backupRow).getByText("BLOCK")).toBeInTheDocument();
     expect(within(backupRow).getByText(/尚未提供隔离恢复演练证据/)).toBeInTheDocument();
 
     fireEvent.click(within(providerRow).getByRole("button", { name: "去修复" }));
 
     expect(navigateSpy).toHaveBeenCalledWith("/system/providers");
+  });
+
+  it("shows all nine production readiness gates with real configuration destinations", () => {
+    renderPage();
+
+    const literatureRoot = screen.getByTestId(
+      "readiness-validation-item-knowledge-LITERATURE_ROOT",
+    );
+    expect(within(literatureRoot).getByText("文献资料库根 URI")).toBeInTheDocument();
+    expect(within(literatureRoot).getByText("BLOCK")).toBeInTheDocument();
+    expect(within(literatureRoot).getByText(/平台知识文献资料库根地址未配置/)).toBeInTheDocument();
+
+    const regressionBaseline = screen.getByTestId(
+      "readiness-validation-item-knowledge-REGRESSION_BASELINE",
+    );
+    expect(within(regressionBaseline).getByText("医学回归基准集")).toBeInTheDocument();
+    expect(within(regressionBaseline).getByText("PASS")).toBeInTheDocument();
+    expect(within(regressionBaseline).getByText(/caseCount=3/)).toBeInTheDocument();
+
+    const policy = screen.getByTestId("readiness-validation-item-knowledge-MODEL_POLICY");
+    expect(within(policy).getByText("能力策略")).toBeInTheDocument();
+    fireEvent.click(within(policy).getByRole("button", { name: "去修复" }));
+    expect(navigateSpy).toHaveBeenLastCalledWith("/advanced/ai-workflows");
+
+    fireEvent.click(within(literatureRoot).getByRole("button", { name: "去修复" }));
+    expect(navigateSpy).toHaveBeenLastCalledWith("/security/baseline");
   });
 
   it("shows a forbidden state for clinical roles and does not query runtime sources", () => {
@@ -260,6 +376,7 @@ describe("ReadinessValidation", () => {
 
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(false);
+    expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(false);
   });
 
   it("surfaces partial success when any self-check source is unknown", () => {

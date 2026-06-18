@@ -10,11 +10,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.llm.ModelCapabilityPolicy;
 import com.medkernel.engine.llm.ModelCapabilityPolicyRepository;
+import com.medkernel.engine.llm.ModelPolicyScope;
+import com.medkernel.engine.llm.ModelVersionBundle;
+import com.medkernel.engine.llm.ModelVersionBundleRepository;
+import com.medkernel.engine.llm.ModelVersionBundleValidator;
+import com.medkernel.engine.llm.egress.ModelEgressPolicyValidator;
+import com.medkernel.engine.llm.egress.ModelEgressWhitelist;
 import com.medkernel.engine.llm.egress.ModelEgressWhitelistRepository;
 import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.ModelEvalRun;
 import com.medkernel.engine.llm.eval.ModelEvalRunRepository;
+import com.medkernel.engine.llm.eval.RegressionBaselineEvidence;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ModelProviderConfig;
@@ -34,7 +41,7 @@ import com.medkernel.shared.config.SystemConfigService;
 @Service
 public class KnowledgeProductionReadinessService {
 
-    public static final String DEFAULT_CAPABILITY_CODE = "rule.draft";
+    public static final String DEFAULT_CAPABILITY_CODE = MedicalRegressionCase.DEFAULT_CAPABILITY_CODE;
 
     private final SystemConfigService configService;
     private final DeploymentFormService deploymentFormService;
@@ -43,6 +50,7 @@ public class KnowledgeProductionReadinessService {
     private final ModelEvalRunRepository evalRunRepository;
     private final ModelEgressWhitelistRepository egressWhitelistRepository;
     private final ModelCapabilityPolicyRepository policyRepository;
+    private final ModelVersionBundleRepository versionBundleRepository;
 
     public KnowledgeProductionReadinessService(SystemConfigService configService,
                                                DeploymentFormService deploymentFormService,
@@ -50,7 +58,8 @@ public class KnowledgeProductionReadinessService {
                                                MedicalRegressionCaseRepository regressionCaseRepository,
                                                ModelEvalRunRepository evalRunRepository,
                                                ModelEgressWhitelistRepository egressWhitelistRepository,
-                                               ModelCapabilityPolicyRepository policyRepository) {
+                                               ModelCapabilityPolicyRepository policyRepository,
+                                               ModelVersionBundleRepository versionBundleRepository) {
         this.configService = configService;
         this.deploymentFormService = deploymentFormService;
         this.providerRepository = providerRepository;
@@ -58,14 +67,14 @@ public class KnowledgeProductionReadinessService {
         this.evalRunRepository = evalRunRepository;
         this.egressWhitelistRepository = egressWhitelistRepository;
         this.policyRepository = policyRepository;
+        this.versionBundleRepository = versionBundleRepository;
     }
 
     /** 评估当前租户是否可进入真实模型知识生产。 */
     @Transactional(readOnly = true)
     public KnowledgeProductionReadinessResponse evaluate(KnowledgeProducer producer,
                                                          String capabilityCode,
-                                                         String providerCode,
-                                                         String modelStrategy) {
+                                                         String providerCode) {
         String tenantId = requireCurrentTenant();
         KnowledgeProducer targetProducer = producer == null ? KnowledgeProducer.API_MODEL : producer;
         String capability = normalizeCapability(capabilityCode);
@@ -78,10 +87,10 @@ public class KnowledgeProductionReadinessService {
         List<MedicalRegressionCase> cases =
             regressionCaseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capability, "Y");
         items.add(regressionBaselineItem(capability, cases));
-        items.add(evaluationItem(tenantId, provider, cases));
+        items.add(evaluationItem(tenantId, capability, provider, cases));
         items.add(egressItem(tenantId, capability, provider));
         items.add(policyItem(tenantId, capability, targetProducer));
-        items.add(versionTripleItem(modelStrategy, provider.orElse(null)));
+        items.add(versionTripleItem(tenantId, capability, provider.orElse(null)));
         items.add(p6AcceptanceItem());
         return new KnowledgeProductionReadinessResponse(
             tenantId,
@@ -157,10 +166,13 @@ public class KnowledgeProductionReadinessService {
                 "模型 provider 未启用或健康状态不是 HEALTHY",
                 config.providerCode() + " status=" + config.status());
         }
-        if (blank(config.endpointUri()) || blank(config.credentialRef()) || blank(config.modelVersion())) {
+        boolean credentialMissing = providerType.external() && blank(config.credentialRef());
+        if (blank(config.endpointUri()) || credentialMissing || blank(config.modelVersion())) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "模型 provider 缺端点、凭据引用或模型版本",
+                providerType.external()
+                    ? "外部模型 provider 缺端点、凭据引用或模型版本"
+                    : "本地模型 provider 缺端点或模型版本",
                 config.providerCode());
         }
         return KnowledgeProductionReadinessItem.pass(
@@ -184,6 +196,7 @@ public class KnowledgeProductionReadinessService {
     }
 
     private KnowledgeProductionReadinessItem evaluationItem(String tenantId,
+                                                            String capability,
                                                             Optional<ModelProviderConfig> provider,
                                                             List<MedicalRegressionCase> cases) {
         if (provider.isEmpty()) {
@@ -194,13 +207,15 @@ public class KnowledgeProductionReadinessService {
         }
         ModelProviderConfig config = provider.get();
         Optional<ModelEvalRun> run = evalRunRepository
-            .findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                tenantId, config.providerCode(), config.modelVersion(), "PASSED");
-        if (run.isEmpty() || run.get().totalCases() < 1) {
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                tenantId, config.providerCode(), config.modelVersion(), capability, "PASSED");
+        if (run.isEmpty()
+            || !capability.equals(run.get().capabilityCode())
+            || run.get().totalCases() < 1) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "provider/模型版本未找到 PASSED 医学回归评测",
-                config.providerCode() + "/" + config.modelVersion());
+                "provider/模型版本未找到当前能力的 PASSED 医学回归评测",
+                config.providerCode() + "/" + config.modelVersion() + "/" + capability);
         }
         int expectedCases = cases == null ? 0 : cases.size();
         if (expectedCases > 0 && run.get().totalCases() < expectedCases) {
@@ -208,6 +223,12 @@ public class KnowledgeProductionReadinessService {
                 "MODEL_EVALUATION",
                 "最近 PASSED 评测覆盖用例数少于当前启用基准集",
                 "passedRunCases=" + run.get().totalCases() + ", currentCases=" + expectedCases);
+        }
+        if (!RegressionBaselineEvidence.matches(run.get().caseSummaryJson(), cases)) {
+            return KnowledgeProductionReadinessItem.block(
+                "MODEL_EVALUATION",
+                "最近 PASSED 评测绑定的医学基准集已变化，必须重新评测",
+                "runId=" + run.get().id() + ", currentCases=" + expectedCases);
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_EVALUATION",
@@ -223,10 +244,20 @@ public class KnowledgeProductionReadinessService {
                 "本地模型不外调，出域白名单不作为前置",
                 provider.get().providerCode());
         }
-        if (egressWhitelistRepository.findByTenantIdAndCapabilityCode(tenantId, capability).isEmpty()) {
+        Optional<ModelEgressWhitelist> whitelist =
+            egressWhitelistRepository.findByTenantIdAndCapabilityCode(tenantId, capability);
+        ModelEgressPolicyValidator.Validation policy =
+            ModelEgressPolicyValidator.validate(whitelist.orElse(null));
+        if (!policy.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "外部模型生产缺少出域字段白名单；高敏 payload 审批仍由运行时逐次判定",
+                "外部模型生产的出域白名单不可执行；高敏 payload 审批仍由运行时逐次判定",
+                "capabilityCode=" + capability + ", reason=" + policy.reason());
+        }
+        if (!policy.allowedFields().contains("prompt")) {
+            return KnowledgeProductionReadinessItem.block(
+                "EGRESS_GOVERNANCE",
+                "知识生产外调白名单必须显式允许经脱敏的 prompt 字段",
                 "capabilityCode=" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
@@ -237,7 +268,7 @@ public class KnowledgeProductionReadinessService {
 
     private KnowledgeProductionReadinessItem policyItem(String tenantId, String capability,
                                                         KnowledgeProducer producer) {
-        Optional<ModelCapabilityPolicy> policy = policyRepository.findByTenantIdAndCapabilityCode(tenantId, capability);
+        Optional<ModelCapabilityPolicy> policy = resolvePolicy(tenantId, capability);
         if (policy.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_POLICY",
@@ -255,28 +286,49 @@ public class KnowledgeProductionReadinessService {
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_POLICY",
             "模型能力策略与生产器匹配",
-            "routeStrategy=" + strategy);
+            "routeStrategy=" + strategy + ", scope=" + policy.get().scopeType() + ":" + policy.get().scopeRef());
     }
 
-    private KnowledgeProductionReadinessItem versionTripleItem(String modelStrategy, ModelProviderConfig provider) {
-        if (!containsToken(modelStrategy, "prompt")
-            || !containsToken(modelStrategy, "tool")
-            || !containsToken(modelStrategy, "model")) {
+    private Optional<ModelCapabilityPolicy> resolvePolicy(String tenantId, String capability) {
+        for (ModelPolicyScope scope : ModelPolicyScope.candidates(RequestContext.currentOrgScope(), tenantId)) {
+            Optional<ModelCapabilityPolicy> policy =
+                policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+                    tenantId, capability, scope.scopeType(), scope.scopeRef());
+            if (policy.isPresent()) {
+                return policy;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private KnowledgeProductionReadinessItem versionTripleItem(String tenantId,
+                                                               String capability,
+                                                               ModelProviderConfig provider) {
+        Optional<ModelVersionBundle> active = versionBundleRepository
+            .findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capability, "ACTIVE");
+        ModelVersionBundleValidator.Validation validation =
+            ModelVersionBundleValidator.validateActive(active.orElse(null), tenantId, capability);
+        if (!validation.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "VERSION_TRIPLE",
-                "模型生产任务必须声明 prompt/tool/model 版本三元组",
-                modelStrategy == null ? "<empty>" : modelStrategy);
+                "ACTIVE 模型版本包不可执行",
+                "capabilityCode=" + capability + ", reason=" + validation.reason());
         }
-        if (provider != null && !modelStrategy.contains(provider.modelVersion())) {
+        ModelVersionBundle bundle = validation.bundle();
+        if (provider == null || !bundle.modelVersion().equals(provider.modelVersion())) {
             return KnowledgeProductionReadinessItem.block(
                 "VERSION_TRIPLE",
                 "模型版本三元组与 provider 当前模型版本不一致",
-                "providerModel=" + provider.modelVersion());
+                "bundleModel=" + bundle.modelVersion()
+                    + ", providerModel=" + (provider == null ? "<missing>" : provider.modelVersion()));
         }
         return KnowledgeProductionReadinessItem.pass(
             "VERSION_TRIPLE",
-            "prompt/tool/model 版本三元组已声明",
-            modelStrategy);
+            "当前能力的 ACTIVE prompt/tool/model 版本包与 provider 一致",
+            "bundleId=" + bundle.id()
+                + ", prompt=" + bundle.promptVersion()
+                + ", tool=" + bundle.toolVersion()
+                + ", model=" + bundle.modelVersion());
     }
 
     private KnowledgeProductionReadinessItem p6AcceptanceItem() {
@@ -333,14 +385,6 @@ public class KnowledgeProductionReadinessService {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private static boolean containsToken(String value, String token) {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-        String normalized = value.toLowerCase(Locale.ROOT);
-        return normalized.contains(token + ":") || normalized.contains(token + "=");
     }
 
     private static boolean blank(String value) {

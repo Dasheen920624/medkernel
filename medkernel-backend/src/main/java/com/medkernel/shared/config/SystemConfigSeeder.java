@@ -238,6 +238,10 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(SystemConfigService.DEFAULT_KNOWLEDGE_RETIREMENT_INTERVAL_MS),
             "INTEGER", "知识退役扫描间隔", "MEDIUM", "知识治理组",
             "控制知识身份宽限期到期后的退役扫描间隔，变更后下一轮调度生效。", false, seededAt);
+        seedConfigValue(SystemConfigService.KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS_KEY,
+            Long.toString(SystemConfigService.DEFAULT_KNOWLEDGE_ACQUISITION_SCHEDULE_INTERVAL_MS),
+            "INTEGER", "公域资料获取调度扫描间隔", "MEDIUM", "平台知识治理组",
+            "控制 AIK-STD-14 公域资料来源到期扫描间隔，变更后下一轮调度生效。", false, seededAt);
     }
 
     private void seedKnowledgeLiteraturePolicy(Instant seededAt) {
@@ -248,7 +252,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "平台知识文献资料库根地址",
             "HIGH",
             "平台知识治理组 / 信息科",
-            "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退服务器本地 tmp 或磁盘目录。",
+            "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 file/COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退未配置的 tmp 或工作目录。",
             true,
             "PLATFORM_SEED",
             seededAt);

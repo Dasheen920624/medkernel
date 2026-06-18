@@ -12,5 +12,22 @@ public record ModelTaskRequest(
     @NotBlank(message = "输入内容数据不能为空")
     String inputData,
 
-    Integer timeoutSeconds
-) {}
+    Integer timeoutSeconds,
+
+    String requiredRouteStrategy,
+
+    String providerCode
+) {
+    public ModelTaskRequest(String capabilityCode, String inputData, Integer timeoutSeconds) {
+        this(capabilityCode, inputData, timeoutSeconds, null, null);
+    }
+
+    public ModelTaskRequest {
+        requiredRouteStrategy = blankToNull(requiredRouteStrategy);
+        providerCode = blankToNull(providerCode);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+}

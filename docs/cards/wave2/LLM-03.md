@@ -17,6 +17,11 @@
 ## 现状（搬迁时核查 2026-05-31）
 **部分**：[LLM-01](LLM-01.md) `ModelGatewayService.desensitize()` 已有手机/身份证/银行卡/邮箱 + `MASK_ALL` 姓名/病历号正则脱敏（DEFAULT/MASK_ALL/NONE）。本卡＝补**字段白名单（出域允许字段清单）+ 外调审批流 + 超限阻断 + 出域证据**；策略中枢与 [OPT-09](OPT-09.md) 同源、本卡为网关侧执行点。
 
+## 最新进度（2026-06-18 T9.4 上线核查）
+- `ModelEgressPolicyValidator` 统一校验白名单策略的允许字段、脱敏规则、审批阈值和锁定护栏；JSON 结构非法、空字段集、未知规则或 `guardrail_locked_flag != Y` 均按不可执行策略阻断，不再把“有一行配置”误判为治理就绪。
+- 知识生产外部模型明确要求白名单允许 `prompt`；网关只使用最小化后的 `prompt`，禁止字段被剥离后回退到原始输入。无匹配字段、空值或非文本 prompt 均返回 `ENG_LLM_006` 并安全降级，不发生外调。
+- `MASK_ALL` 已递归处理对象和数组；患者姓名、患者标识、电话、邮箱、地址等直接标识字段置空，其他结构化值递归最小化，避免仅脱敏字符串叶子而保留结构化敏感数据。
+
 ## 功能要求（原子可测条目）
 - [x] FR-1 字段白名单：外调 payload 仅含能力码声明的允许字段，其余剥离。（`ModelEgressGuard.prepareEgress` 白名单字段最小化）
 - [x] FR-2 脱敏强制：白名单字段按策略脱敏后才出域（复用 LLM-01 脱敏 + 扩展）。（保留字段强制 `MASK_ALL`，脱敏逻辑抽 `ModelDataDesensitizer` 共享、网关委派 DRY）
@@ -30,7 +35,7 @@
 - 错误码：新增 `ENG_LLM_*` 白名单越界/未审批阻断码。
 
 ## 数据与迁移
-- `model_egress_whitelist`（能力码→允许字段）+ `model_egress_approval`（审批流）+ 出域证据，五方言。
+- `mk_llm_egress_whitelist`（能力码→允许字段与锁定护栏）+ `mk_llm_egress_approval`（审批流）+ `mk_llm_egress_evidence`（出域证据），五方言。
 
 ## 视角清单（11 视角）
 1. 产品架构：外调安全闸门。

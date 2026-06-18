@@ -30,6 +30,7 @@ class ModelProviderGovernanceServiceTest {
     private ModelProviderConfigRepository repo;
     private DeploymentFormService deploymentForm;
     private ModelEvalService evalService;
+    private ModelProviderRegistry registry;
     private AuditRecorder auditRecorder;
     private ModelProviderGovernanceService service;
 
@@ -38,8 +39,9 @@ class ModelProviderGovernanceServiceTest {
         repo = mock(ModelProviderConfigRepository.class);
         deploymentForm = mock(DeploymentFormService.class);
         evalService = mock(ModelEvalService.class);
+        registry = mock(ModelProviderRegistry.class);
         auditRecorder = mock(AuditRecorder.class);
-        service = new ModelProviderGovernanceService(repo, deploymentForm, evalService, auditRecorder);
+        service = new ModelProviderGovernanceService(repo, deploymentForm, evalService, registry, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("t", OrgScope.tenant("tenant-1"), "ops-001"));
         when(repo.save(any(ModelProviderConfig.class))).thenAnswer(i -> i.getArgument(0));
     }
@@ -109,5 +111,40 @@ class ModelProviderGovernanceServiceTest {
 
         assertThat(saved.enabled()).isFalse();
         verify(evalService, never()).isClearedForGoLive(any(), any(), any());
+    }
+
+    @Test
+    void healthCheckPersistsHealthyStatusAndAudits() {
+        ModelProviderConfig configured = new ModelProviderConfig(
+            1L, "tenant-1", "ollama-local", "OLLAMA", "http://127.0.0.1:11434",
+            null, "qwen2.5:7b", "N", "NOT_CONNECTED", null, "ops-001", null, "ops-001");
+        ModelProvider adapter = mock(ModelProvider.class);
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "ollama-local"))
+            .thenReturn(Optional.of(configured));
+        when(registry.resolveByCode("tenant-1", "ollama-local"))
+            .thenReturn(Optional.of(new ModelProviderRegistry.ResolvedProvider(adapter, configured)));
+        when(adapter.checkHealth(configured)).thenReturn(ProviderHealth.HEALTHY);
+
+        ModelProviderConfig checked = service.checkHealth("ollama-local");
+
+        assertThat(checked.status()).isEqualTo("HEALTHY");
+        assertThat(checked.enabled()).isFalse();
+        verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_provider", "ollama-local",
+            "探测模型 provider ollama-local status=HEALTHY");
+    }
+
+    @Test
+    void changingConnectionMaterialResetsStaleHealthyStatus() {
+        ModelProviderConfig existing = new ModelProviderConfig(
+            1L, "tenant-1", "ollama-local", "OLLAMA", "http://127.0.0.1:11434",
+            null, "qwen2.5:7b", "N", "HEALTHY", null, "ops-001", null, "ops-001");
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "ollama-local"))
+            .thenReturn(Optional.of(existing));
+
+        ModelProviderConfig saved = service.upsertProvider("ollama-local",
+            new ModelProviderUpsertRequest(
+                "OLLAMA", "http://127.0.0.1:22434", null, "qwen2.5:7b", false));
+
+        assertThat(saved.status()).isEqualTo("NOT_CONNECTED");
     }
 }

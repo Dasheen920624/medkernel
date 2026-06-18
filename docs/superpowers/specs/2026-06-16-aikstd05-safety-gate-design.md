@@ -14,9 +14,9 @@
 | 门禁项 | 既有承载 | 结论 |
 |---|---|---|
 | 来源真实性/锚点/可信级/格式/审核要素 | [AIK-STD-01](../../cards/wave2/AIK-STD-01.md) `KnowledgeAssetSchemaValidator` + `SourceReferenceResolver` | 复用/拆为逐项门禁 |
-| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | PR2 先接 ACTIVE 目录 readiness；逐条命中待候选 payload 具备结构化临床逻辑 |
-| 冲突仲裁/可信级仲裁 | [OPT-07](../../cards/D2/OPT-07.md) 来源 A–E 可信级 + 现行版本作用域 | PR2 已接低阶覆盖高阶现行版本阻断；完整分流待 AIK-STD-10/09 |
-| 去重 | [AIK-STD-10](../../cards/wave2/AIK-STD-10.md)（8 态，未建） | 待 AIK-STD-10 后接 |
+| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | 已接 ACTIVE 目录 readiness；逐条命中以候选 payload 具备结构化临床逻辑为前提，缺逻辑诚实阻断 |
+| 冲突仲裁/可信级仲裁 | [OPT-07](../../cards/D2/OPT-07.md) 来源 A–E 可信级 + 现行版本作用域 | 已接低阶覆盖高阶现行版本阻断；AIK-STD-10/09 已承接分流、替换与回滚链路 |
+| 去重 | [AIK-STD-10](../../cards/wave2/AIK-STD-10.md)（8 态） | 已接生成期分流，重复候选落 `DUPLICATE/SKIP_DUPLICATE` |
 | 门禁结果存储 | **无**（V108 是发布期质量闸摘要，非候选提审前逐项结果） | **新建 `mk_aik_gate_result`（V136）** |
 
 **净新增**：门禁编排器 + 逐项门禁结果表 + 接入 AIK-STD-04 生成链（前置于提审）。
@@ -97,11 +97,11 @@ GateOutcome(passed = 全项通过, items)
 - 门禁：真实性/配置/迁移/中文注释 changed + 产品目录重生成 + 前端 productCatalog。
 
 ## 9. 验收对齐（卡 AIK-STD-05）
-- **AC-1（FR-1/2）**：11 项门禁逐条 + 红线拦截 → PR1 6 项确定性 + PR2 3 项增量（红线/剂量/高危 readiness、许可、权威冲突第一刀）；去重与结构化临床深判待后续卡。
+- **AC-1（FR-1/2）**：11 项门禁逐条 + 红线拦截 → PR1 6 项确定性 + PR2 3 项增量（红线/剂量/高危 readiness、许可、权威冲突第一刀）；去重由 AIK-STD-10 生成期分流承接，结构化临床深判以候选 payload 具备逻辑为前提。
 - **AC-2（FR-3/4）**：冲突仲裁 + 不过拦截诚实报因 → PR2 已覆盖低阶覆盖高阶阻断 + PR1 拦截框架。
 - **B0 验收**：门禁确定性、不依赖模型 → PR1 主链路。
 
 ## 10. 续接
 - **PR2 已落本地分支**：OPT-04 红线目录 readiness + 权威冲突第一刀 + 许可（源解析）门禁。
-- **去重门禁**：AIK-STD-10（8 态）建成后接。
-- 升级态候选 → AIK-STD-09。
+- **去重门禁**：AIK-STD-10（8 态）已接生成期分流与重复跳过。
+- 升级态候选：AIK-STD-09 已接原子替换、影响处置任务与 `SUPERSEDED` 回滚。

@@ -29,6 +29,7 @@
 - **PR2 ✅**：`PdfDocumentParser`（Apache PDFBox 3.0.3，逐页确定性提取 + 逐段真实页号 `p<页>/§节/¶段` 锚点；扫描件/损坏诚实 FAILED 不做 OCR）+ 抽共享 `DocumentSectionizer` + `ParsedParagraph` 携页号 + 二进制经 `content` Base64 传输（不增字段/迁移）。
 - **PR3 ✅**：`WordDocumentParser`（Apache POI 5.3.0，遍历 `.docx` 正文段落 + 表格）+ **表格理解（FR-2）**——`DocumentSectionizer` 升级为元素流（`TextLine` | `TableBlock`），表格归属当前节并编节内表序 → `ParsedTable`；`ParsedDocumentMaterializer` 逐非空单元格落 `[p<页>/]§节/tbl<n>/r<行>c<列>` 锚点片段（真实 SHA-256 + 幂等 + 空单元格不产指纹）。无新表/端点/权限/迁移（`ck_*_format` 已含 `'WORD'`，`@Component` 自动并入分派）。
 - **P6 分寸**：仅建机制 + B0 + 测试夹具验证，不连真实文献库、不进 P6；模型增强解析（OCR/版面理解）受 LLM/P6 闸不实现。
+- **2026-06-17 T6.1 院内上传增强（分支 `codex/knowledge-fullflow-audit-production`）**：`DocumentParseController` 新增 multipart `POST /api/v1/engine/knowledge/documents:upload-parse`；上传原件仍进入同一 `DocumentParseOrchestrationService` 和 P1 受管资料库，`DocumentMaterialStoreRequest.scopeKey=tenantId`，不落临时目录；可选生成计划只声明领域与物化目标，后端固定转为 `TargetPipeline.TENANT_OVERLAY` 后调用统一候选生成链。
 
 ## 接口 / 数据契约
 - `doc_parse_job`（源文件/状态/结果 ref/hash）+ `doc_anchor`（条目→页/章/段），五方言；大列表 [API-13](../D0/API-13.md)。

@@ -15,7 +15,7 @@
 | 环境变量 | 说明 |
 |---|---|
 | `MEDKERNEL_API_BASE` | 后端 API 基址 |
-| `MEDKERNEL_API_TOKEN` | Bearer 鉴权令牌（须持 `engine-data.read`） |
+| `MEDKERNEL_API_TOKEN` | Bearer 鉴权令牌；读工具须 `engine-data.read`，Agent 取数/回写须 `knowledge.write` |
 
 ## 运行（MCP 客户端 stdio 接入）
 
@@ -33,14 +33,14 @@
 | 方法 | 行为 |
 |---|---|
 | `initialize` | 返回协议版本 / `tools` 能力 / serverInfo |
-| `tools/list` | 经后端 `/tools` 列出 7 个受控工具（含 `inputSchema`，`purpose` 必填） |
+| `tools/list` | 经后端 `/tools` 列出真实受控工具目录（含 `inputSchema`，`purpose` 必填） |
 | `tools/call` | 派发后端 `/tools/{name}:execute`，以 text content 返回治理信封；失败以 `isError` 返回 |
 | `notifications/initialized` | 通知，无响应 |
 
 ## 诚实分寸（初版骨架）
 
 - 仅实现 stdio JSON-RPC 传输 + `initialize`/`tools/list`/`tools/call`；SSE/HTTP 传输、资源（resources）、提示（prompts）、采样（sampling）等暂未实现。
-- 运行时需后端已合并对应受控工具（[PR #612](https://github.com/Dasheen920624/medkernel/pull/612)，7/7 工具）。
+- 工具数量和权限以后端 DATASVC 目录为准；`fetchPublicMaterial`、`submitProductionCandidate` 等写工具仍由后端 `knowledge.write`、数据分级、白名单和审计统一裁决。
 - 工具调用审计在**后端**完成（FR-6）；MCP 服务不承担首要脱敏（后端脱敏，FR-2），默认不返回可拼提示词的患者上下文（视角 11，由后端 D4 工具脱敏裁决）。
 
 ## 测试

@@ -1,6 +1,7 @@
 package com.medkernel.engine.knowledge.production.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -47,6 +48,7 @@ import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
@@ -91,7 +93,7 @@ class ModelKnowledgeProducerTest {
     void setUp() {
         RequestContext.restore(new RequestContext.Snapshot("trace-model", OrgScope.tenant(TENANT), "u-model"));
         when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE)).thenReturn(Optional.of(job(KnowledgeProducer.API_MODEL)));
-        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER, MODEL_STRATEGY))
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER))
             .thenReturn(ready());
         when(gateService.evaluate(any(), any())).thenReturn(new GateOutcome(true, List.of(
             GateItemResult.pass("SOURCE_PRESENT"))));
@@ -113,7 +115,7 @@ class ModelKnowledgeProducerTest {
 
     @Test
     void readinessBlockReturnsStructuredReasonWithoutCallingModel() {
-        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER, MODEL_STRATEGY))
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER))
             .thenReturn(blocked("LITERATURE_ROOT", "平台知识文献资料库根地址未配置"));
 
         ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
@@ -164,9 +166,64 @@ class ModelKnowledgeProducerTest {
         assertThat(envelope.orgScope()).isEqualTo(TENANT);
         assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
         assertThat(envelope.payload()).contains("\"aiGenerated\":true", "\"modelTaskId\":\"task-model-1\"",
-            "\"modelVersion\":\"claude-opus-4\"", "\"sections\"");
+            "\"modelVersion\":\"claude-opus-4\"", "\"promptInputHash\"", "\"sections\"");
+        assertThat(envelope.payload()).doesNotContain("请基于来源锚点生成");
         assertThat(envelope.contentHash()).isEqualTo(
             Sha256ContentHash.sha256(envelope.payload(), "资产内容不能为空"));
+    }
+
+    @Test
+    void localFallbackSuccessStillSubmitsCandidateWithFallbackEvidence() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalFallbackModelTask());
+        ArgumentCaptor<KnowledgeAssetEnvelope> envelopeCaptor = ArgumentCaptor.forClass(KnowledgeAssetEnvelope.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.modelMode()).isEqualTo("B1");
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> assertThat(candidate.candidateRef()).isEqualTo("candidate:model:1"));
+        verify(production).submitCandidate(eq(JOB_CODE), envelopeCaptor.capture(), eq(target()));
+        KnowledgeAssetEnvelope envelope = envelopeCaptor.getValue();
+        assertThat(envelope.payload()).contains(
+            "\"modelMode\":\"B1\"",
+            "\"fallbackUsed\":true",
+            "\"fallbackReason\":\"B2 -> B1：外部 provider 限流，本地模型成功\"");
+    }
+
+    @Test
+    void localModelJobForcesLocalRouteAndProviderIntoGateway() {
+        String localProvider = "ollama-hospital";
+        when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE))
+            .thenReturn(Optional.of(job(KnowledgeProducer.LOCAL_MODEL)));
+        when(readinessService.evaluate(KnowledgeProducer.LOCAL_MODEL, CAPABILITY, localProvider))
+            .thenReturn(localReady(localProvider));
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request(localProvider));
+
+        assertThat(result.modelMode()).isEqualTo("B1");
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> assertThat(candidate.candidateRef()).isEqualTo("candidate:model:1"));
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().requiredRouteStrategy()).isEqualTo("LOCAL_MODEL");
+        assertThat(taskCaptor.getValue().providerCode()).isEqualTo(localProvider);
+        verify(production).submitCandidate(eq(JOB_CODE), any(KnowledgeAssetEnvelope.class), eq(target()));
+    }
+
+    @Test
+    void localModelJobRejectsPlatformSourcePipelineBeforeModelInvocation() {
+        when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE))
+            .thenReturn(Optional.of(job(KnowledgeProducer.LOCAL_MODEL, TargetPipeline.PLATFORM_SOURCE)));
+
+        assertThatThrownBy(() -> producer.generate(JOB_CODE, request("ollama-hospital")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("本地模型")
+            .hasMessageContaining("院内覆盖");
+
+        verify(readinessService, never()).evaluate(any(), any(), any());
+        verify(modelGateway, never()).submitTask(any());
+        verify(production, never()).submitCandidate(any(), any(), any());
     }
 
     @Test
@@ -205,11 +262,33 @@ class ModelKnowledgeProducerTest {
         verify(production, never()).submitCandidate(any(), any(), any());
     }
 
+    @Test
+    void failedProviderTaskSkipsWithHonestStatusReason() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
+            "task-provider-timeout", "FAILED", "{\"error\":\"timeout\"}", "B2", "claude-opus-4",
+            "prompt:aikstd13-v1", "tool:submit-candidate-v1", "[]", null, null, false,
+            "PROVIDER_TIMEOUT：外部模型超时", 2_000L, "trace-model"));
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.summary().candidates()).isEmpty();
+        assertThat(result.summary().skipped()).singleElement()
+            .satisfies(skipped -> assertThat(skipped.reason())
+                .contains("模型网关未成功", "FAILED", "B2", "PROVIDER_TIMEOUT")
+                .doesNotContain("降级 B0"));
+        verify(gateService, never()).evaluate(any(), any());
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
     private ModelKnowledgeProductionRequest request() {
+        return request(PROVIDER);
+    }
+
+    private ModelKnowledgeProductionRequest request(String providerCode) {
         return new ModelKnowledgeProductionRequest(
             CAPABILITY,
             "请基于来源锚点生成一条高血压 AI 候选规则",
-            PROVIDER,
+            providerCode,
             60,
             "rule:htn:model",
             "高血压 AI 候选规则",
@@ -228,10 +307,14 @@ class ModelKnowledgeProducerTest {
     }
 
     private KnowledgeProductionJob job(KnowledgeProducer jobProducer) {
+        return job(jobProducer, TargetPipeline.TENANT_OVERLAY);
+    }
+
+    private KnowledgeProductionJob job(KnowledgeProducer jobProducer, TargetPipeline targetPipeline) {
         Instant now = Instant.EPOCH;
         return new KnowledgeProductionJob(
             1L, TENANT, JOB_CODE, "source-version:9", VersionedAssetType.RULE,
-            jobProducer, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL, MODEL_STRATEGY,
+            jobProducer, targetPipeline, KnowledgeDomain.CLINICAL, MODEL_STRATEGY,
             ProductionJobStatus.PENDING, 0, "{}", now, "u", now, "u", "trace-model");
     }
 
@@ -249,6 +332,26 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "provider 已健康", PROVIDER),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
                 KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "白名单已配置", CAPABILITY),
+                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY),
+                KnowledgeProductionReadinessItem.pass("P6_ACCEPTANCE", "P6 已验收", "true")));
+    }
+
+    private KnowledgeProductionReadinessResponse localReady(String providerCode) {
+        return new KnowledgeProductionReadinessResponse(
+            TENANT,
+            KnowledgeProducer.LOCAL_MODEL,
+            CAPABILITY,
+            providerCode,
+            DeploymentForm.HOSPITAL_RUNTIME,
+            false,
+            false,
+            List.of(
+                KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://mk/lit"),
+                KnowledgeProductionReadinessItem.pass("DEPLOYMENT_FORM", "本地模型生产器允许运行", "HOSPITAL_RUNTIME"),
+                KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "本地模型不外调", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY),
                 KnowledgeProductionReadinessItem.pass("P6_ACCEPTANCE", "P6 已验收", "true")));
     }
@@ -280,6 +383,42 @@ class ModelKnowledgeProducerTest {
             false,
             null,
             120L,
+            "trace-model");
+    }
+
+    private ModelTaskResponse successfulLocalFallbackModelTask() {
+        return new ModelTaskResponse(
+            "task-model-fallback-b1",
+            "SUCCEEDED",
+            "{\"sections\":{\"summary\":\"本地模型在外部限流后生成候选规则\"}}",
+            "B1",
+            "qwen2.5:7b",
+            "prompt:aikstd13-v1",
+            "tool:submit-candidate-v1",
+            "[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\"}]",
+            0.81,
+            "MEDIUM",
+            true,
+            "B2 -> B1：外部 provider 限流，本地模型成功",
+            95L,
+            "trace-model");
+    }
+
+    private ModelTaskResponse successfulLocalModelTask() {
+        return new ModelTaskResponse(
+            "task-model-local-b1",
+            "SUCCEEDED",
+            "{\"sections\":{\"summary\":\"本地模型生成院内覆盖候选规则\"}}",
+            "B1",
+            "qwen2.5:7b",
+            "prompt:aikstd13-v1",
+            "tool:submit-candidate-v1",
+            "[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\"}]",
+            0.82,
+            "MEDIUM",
+            false,
+            null,
+            80L,
             "trace-model");
     }
 }

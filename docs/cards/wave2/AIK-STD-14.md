@@ -24,28 +24,48 @@
 - CLI 增加 `agent submit-candidate <payloadJson>`，MCP `tools/list` schema 增加结构化 `payload`，二者只调受控工具入口，不直连库。
 **PR2（生产中心只读接入，分支 `codex/wave2-knowledge-model-readiness`）**：
 - 知识生产 tab 已展示 `AGENT_TOOL`/模型/人工 job 的只读证据面：生产 job、候选血缘、门禁、8 态分流、影子评测、共存替换提醒；Agent 回写候选能在同一生产链路中被看见。
-- **Task 22 工程验收已完成**：受控回写的 schema/锚点/hash/AI 标识、D3/D4/D5 与疑似患者字段拒绝、幂等复用、控制器权限、CLI/MCP payload 均已验证通过。仍待后续补强：Agent 专属任务中止/纠偏、会话级 prompt/tool 版本审计明细和外调最小化证据尚未完整做成操作面。
+- **Task 22 工程验收已完成**：受控回写的 schema/锚点/hash/AI 标识、D3/D4/D5 与疑似患者字段拒绝、幂等复用、控制器权限、CLI/MCP payload 均已验证通过。
+**2026-06-17 前端 Chunk7**：知识生产 tab 已补 Agent 进度与中止操作，`AGENT_TOOL` job 可见候选/门禁/8 态/影子计数，并通过 `/engine/knowledge-production/jobs/{jobCode}/cancel` 走统一生命周期中止。仍待后续补强：Agent 纠偏、会话级 prompt/tool 版本审计明细和外调最小化证据尚未完整做成操作面。
+
+**2026-06-17 Phase4（公域取数后端与调度）**：
+- 新建 `engine.knowledge.acquisition`：`AcquisitionOrchestrationService` 只允许 `PRODUCTION_CENTER` 手动触发，URL 必须命中已审批 allowlist、HTTPS、许可 `PERMITTED` 且 robots 策略允许。
+- V142 五方言新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`，记录域名、A-E 权威、许可、robots 策略、审批人、真实 URL、抓取时点、原文字节数、sha256、资料 URI、解析 job 和状态。
+- V143 五方言为来源加入 `schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧来源兼容回填。
+- `WebContentFetcher`/`RestWebContentFetcher` 负责真实 HTTP 获取；资料进入 AIK-STD-02 解析链路，由 P1 受管资料库存储决定落 `file://` 本地磁盘、对象存储或 HTTPS 网关，不写死对象存储。
+- 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，复用 `knowledge.write/read` 与服务契约。请求可携带显式 `generation` 计划，已完成“手动/调度公域资料→资料库→SourceVersion/fragment→候选生成/审核池触发”链路。
+- `AcquisitionScheduleScheduler` 动态读取配置中心扫描间隔；`AcquisitionScheduleWorker` 原子推进到期来源并按租户提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务，`AcquisitionRuntimeTaskHandler` 调 `runScheduled`，失败项进入 SYS-05 重试/死信证据，不另造队列。
+- DATASVC 受控工具目录新增 `fetchPublicMaterial`（D1 / `knowledge.write`）：payload 显式携带 `sourceCode`、`url`、`versionNo`、`format`、`dataLevel` 与可选 `generation`；服务层拒 D3/D4/D5，经既有 `AcquisitionOrchestrationService.run` 执行，不直连库、不绕资料库/解析/候选审核链。CLI 已接 `medkernel agent fetch-public-material '<payloadJson>'`；MCP 继续通过动态 `tools/list`/`tools/call` 暴露后端真实目录。
+
+**2026-06-18 Phase9（来源治理与抓取边界加固，本地待 134 发布）**：
+- 新增来源草稿、审批启用、停用 API。`knowledge.write` 只能保存停用草稿；`knowledge.acquisition.approve` 为专用高风险权限，审批必须通过 MFA 且审批人不能是最后编辑人。任何实质编辑都会停用来源并清除旧审批，重复审批保持幂等。
+- 知识生产页新增“公域来源治理”操作面，许可与 robots 裁决不设默认值；只读、登记、独立审批按钮按真实权限展示，加载、失败、空、正常状态均诚实呈现。
+- `RestWebContentFetcher` 禁止自动重定向、单响应上限 32 MiB；安全解析器校验全部 DNS 地址并把同一批已验证地址直接交给连接管理器，连接阶段不再二次解析。任一地址命中回环、链路本地、内网、共享地址、文档/保留地址或 IPv6 ULA 时拒绝，阻断重定向 SSRF、DNS 混合解析、校验/连接时序窗口和无界响应。
+- V149 五方言为来源表增加 `lock_version`；治理保存与调度原子 claim 共用乐观锁版本，旧快照不能覆盖审批决定或调度时间。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 生产任务规格：Agent 收到结构化任务（来源范围 + 目标资产类型 + 目标管道 + 输出 schema + 约束）；任务由 [AIK-STD-13](AIK-STD-13.md) 编排层下发。
 - [ ] FR-2 结构化候选回写（PR1 后端/CLI/MCP 已接线）：Agent 经 MCP/CLI 回写候选，必带**引用锚点**（来源片段 + 偏移，[AIK-STD-02](AIK-STD-02.md)）+ 内容 hash + AI 生成标识；不合 schema 拒收。
-- [ ] FR-3 沙箱无患者数据（PR1 入站硬闸已接线）：Agent 运行沙箱**只可见公开医学资料，禁触患者数据 / D5 重要个人信息**（[LLM-03](LLM-03.md) 数据最小化强制）；外网管道（核心 §8 无个人数据出境）。
+- [ ] FR-3 沙箱无患者数据（PR1 入站硬闸 + Phase4 后端公域取数/调度门禁 + MCP/CLI `fetchPublicMaterial` 已接线）：Agent 运行沙箱**只可见公开医学资料，禁触患者数据 / D5 重要个人信息**（[LLM-03](LLM-03.md) 数据最小化强制）；外网管道（核心 §8 无个人数据出境）。
 - [ ] FR-4 不绕治理（PR1 受控工具已接线）：Agent 只调 [DATASVC-01](DATASVC-01.md) 受控 MCP/CLI 工具，**不直连库、不读原始病历、不绕身份/权限/脱敏/审计**（核心 §10）。
 - [ ] FR-5 人在环 + 可重放：Agent 任务进度/产出可视、可中止/纠偏/审批（E3 体验）；调用方/工具/用途/提示词版本/输出 hash 全审计、可重放（核心 §11、[LLM-04](LLM-04.md)）。
 - [ ] FR-6 外调最小化合规证据：发往外部模型/Agent 的内容须留**可审计证据**（字段白名单 + 脱敏策略 + 发送摘要 hash），供合规审计**证明无患者数据出境**（[LLM-03](LLM-03.md)/[OPT-09](OPT-09.md)，核心 §8）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- Agent 侧不新增直连 API，**复用 [DATASVC-01](DATASVC-01.md) MCP 工具**（`searchKnowledge`/`checkKnowledgeExistence`/…）读来源 + 新增受控回写工具 `submitProductionCandidate`（带 schema 校验、锚点必填、归属管道、幂等键）。
-- CLI：`medkernel agent submit-candidate '<payloadJson>' --purpose 'Agent 受控回写'`，payload 为 `AgentProductionCandidatePayload` JSON。
-- MCP：`tools/list` 暴露 `payload` object schema，`tools/call` 以 `{purpose,payload}` 调 `submitProductionCandidate`。
+- Agent 侧不新增直连 API，**复用 [DATASVC-01](DATASVC-01.md) MCP 工具**（`searchKnowledge`/`checkKnowledgeExistence`/…）读来源 + 受控回写工具 `submitProductionCandidate`（带 schema 校验、锚点必填、归属管道、幂等键）+ 受控取数工具 `fetchPublicMaterial`（只触发 allowlisted 公域资料获取）。
+- 公域取数后端入口：`POST /api/v1/engine/knowledge/acquisition/runs` 手动触发 allowlisted 公开资料获取，可选 `generation` 计划声明目标管道、领域和资产物化目标；`GET /api/v1/engine/knowledge/acquisition/sources` 与 `/runs` 查询白名单和运行账本。`PUT /sources/{sourceCode}` 仅登记停用草稿；`POST /sources/{sourceCode}/approval` 与 `/disable` 使用专用 `knowledge.acquisition.approve` 权限、MFA 和职责分离治理。MCP/CLI `fetchPublicMaterial` 只经 DATASVC 受控工具调用获取编排，不允许绕过来源审批、解析和候选审核链。
+- CLI：`medkernel agent submit-candidate '<payloadJson>' --purpose 'Agent 受控回写'`，payload 为 `AgentProductionCandidatePayload` JSON；`medkernel agent fetch-public-material '<payloadJson>' --purpose 'Agent 受控获取公域资料'`，payload 为 `AgentPublicMaterialFetchPayload` JSON。
+- MCP：`tools/list` 暴露 `payload` object schema，`tools/call` 以 `{purpose,payload}` 调 `submitProductionCandidate` 或 `fetchPublicMaterial`。
 - 任务下发/回写经 [AIK-STD-13](AIK-STD-13.md) 编排层 job 接口。
 - 响应信封：`ApiResult`/`ProblemDetail`；错误码：`AGENT_CANDIDATE_SCHEMA_INVALID`、`AGENT_PATIENT_DATA_FORBIDDEN`、越权拒绝；traceId 透传。
 ### 页面契约（页面卡）
 - Agent 协同体验（E3）承载于知识生产侧一级域 / [AIK-STD-12](AIK-STD-12.md) 审核台：任务进度可视（读哪些来源、产几条候选）+ 中止/纠偏/审批 + 低打扰不刷屏 + 每候选标 AI 生成/来源锚点/模型模式（E5）。技术对象（提示词/工具 schema）入专家模式（核心 §14）。
 
 ## 数据与迁移
-- 复用 [AIK-STD-13](AIK-STD-13.md) `knowledge_production_job` + 候选血缘（生产器=AGENT）；Agent 会话审计（调用方/工具/用途/提示词版本/输出 hash）复用 [BASE-04](../D0/BASE-04.md) + [LLM-04](LLM-04.md) 版本治理。无独立资产表。5 方言一致（若新增 Agent 会话表）。
+- 复用 [AIK-STD-13](AIK-STD-13.md) `knowledge_production_job` + 候选血缘（生产器=AGENT）；Agent 会话审计（调用方/工具/用途/提示词版本/输出 hash）复用 [BASE-04](../D0/BASE-04.md) + [LLM-04](LLM-04.md) 版本治理。
+- Phase4 公域取数新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`（V142 五方言），只记录公开来源白名单和获取运行账本，不成为权威知识表。
+- V143 五方言在 `mk_knowledge_acquisition_source` 上新增自动调度字段和到期索引；调度只提交 SYS-05 任务，失败补偿/死信沿用 `sys_task` / `sys_task_dead_letter`。
+- V149 五方言在 `mk_knowledge_acquisition_source` 上新增非空 `lock_version`，来源治理与调度 claim 均推进版本，阻断陈旧治理快照覆盖最新状态。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：Agent 作为生产器②接入编排层的受控协议。
@@ -66,13 +86,13 @@
 
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：Agent 收任务、经受控工具回写候选，锚点/hash/AI 标识齐全；不合 schema 拒收。
-- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。
-- [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。
+- [ ] AC-2（FR-3/4）：沙箱触患者数据/D5 → `AGENT_PATIENT_DATA_FORBIDDEN` 拒；Agent 直连库/绕治理被阻断。当前后端公域取数已阻断非生产中心、非白名单域、未许可/robots 不允许来源、私网/保留地址、自动重定向与超大响应；来源登记与 MFA 独立审批 API 已本地完成，并把手动/调度/MCP/CLI `fetchPublicMaterial` 获取结果接入候选审核链。134 真实来源审批与出域证据仍留 T9.5/T9.8 验证。
+- [ ] AC-3（FR-5）：任务进度可视、可中止/纠偏/审批；调用全审计、可重放。当前前端已补进度可视和中止；纠偏、会话级 prompt/tool 版本审计与可重放仍未勾满。
 - 关联 A1–A9 剧本：A9 AI 知识审核（Agent 候选入审）。
 - T-GATE：后端真实性门禁全绿（候选真实锚点、无伪造）。
 - B0 验收：★Agent 是可选生产器；关 Agent，API/本地模型/人工生产器与流水线不受影响（铁律 #4）。
 
 ## 完工证据
 - 代码 permalink：Agent 接入协议 + 受控回写工具 + 沙箱无患者数据门禁 + 人在环审计/可重放。
-- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、进度可视/中止、审计可重放、关 Agent 降级。
+- 测试：候选 schema/锚点校验、患者数据禁触、绕治理拒绝、来源草稿/职责分离/MFA/权限、DNS 与重定向 SSRF、响应上限、调度乐观锁、`fetchPublicMaterial` D5 拒绝与 CLI/MCP 受控派发、进度可视/中止、审计可重放、关 Agent 降级；`KnowledgeGovernance.test.tsx` 与 `AcquisitionSourceGovernancePanel.test.tsx` 覆盖前端生产入口和来源治理操作面。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

@@ -49,6 +49,7 @@ public final class DefaultPermissionPolicy {
             MENU_IDENTITY_BINDINGS,
             MENU_IMPLEMENTATION_GUIDE,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_INSTITUTION_KNOWLEDGE,
             MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_CONFIG_PACKAGES,
             MENU_QC_DASHBOARD,
@@ -57,6 +58,7 @@ public final class DefaultPermissionPolicy {
             MENU_SYSTEM_PROVIDERS,
             MENU_NOTIFICATION_SETTINGS,
             MENU_PROVENANCE,
+            MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS,
             MENU_DOMESTIC_CHECK);
     }
@@ -85,10 +87,12 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_DEFINITIONS,
             MENU_TERMINOLOGY_MAPPING,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_INSTITUTION_KNOWLEDGE,
             MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
+            MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS);
     }
 
@@ -96,6 +100,7 @@ public final class DefaultPermissionPolicy {
         EnumSet<PermissionCode> permissions = allNonEmergencyPermissions();
         permissions.remove(PLATFORM_PUBLISH);
         permissions.remove(SYSTEM_MANAGE);
+        permissions.remove(KNOWLEDGE_ACQUISITION_APPROVE);
         return withOnlyMenus(permissions,
             MENU_WORKBENCH,
             MENU_TENANT_ONBOARDING,
@@ -103,6 +108,7 @@ public final class DefaultPermissionPolicy {
             MENU_IDENTITY_BINDINGS,
             MENU_IMPLEMENTATION_GUIDE,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_INSTITUTION_KNOWLEDGE,
             MENU_CONFIG_PACKAGES,
             // 机构管理员是红线规则唯一职责分离合规发布人（作者与委员会会签人都被排除，
             // 客户租户内仅它既非作者亦非会签人且持 rule.publish），必须能进入规则配置页推进
@@ -161,10 +167,12 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_DEFINITIONS,
             MENU_TERMINOLOGY_MAPPING,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_INSTITUTION_KNOWLEDGE,
             MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
+            MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS);
     }
 
@@ -203,6 +211,7 @@ public final class DefaultPermissionPolicy {
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
             MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_INSTITUTION_KNOWLEDGE,
             MENU_DIAGNOSIS_KNOWLEDGE,
             MENU_PROVENANCE);
     }
@@ -332,6 +341,7 @@ public final class DefaultPermissionPolicy {
             MENU_QC_ALERTS,
             MENU_INSURANCE_AUDIT,
             MENU_QC_EVAL_SETS,
+            MENU_MODEL_EVALUATION_REVIEW,
             MENU_KNOWLEDGE_GOVERNANCE,
             // 质量治理员是红线规则法定第二名独立委员（作者被排除，客户租户内仅临床/质量治理员可双签），
             // 必须能进入规则配置页完成会签，否则红线规则治理走不完院级全量。见 P5-ACT4-01。
@@ -401,6 +411,7 @@ public final class DefaultPermissionPolicy {
             MENU_SYSTEM_PROVIDERS,
             MENU_NOTIFICATION_SETTINGS,
             MENU_GRAPH_EXPLORE,
+            MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS,
             MENU_SANDBOX,
             MENU_DOMESTIC_CHECK,
@@ -438,7 +449,6 @@ public final class DefaultPermissionPolicy {
             MENU_IDENTITY_BINDINGS,
             MENU_IMPLEMENTATION_GUIDE,
             MENU_ADAPTER_HUB,
-            MENU_KNOWLEDGE_GOVERNANCE,
             MENU_CONFIG_PACKAGES,
             MENU_TERMINOLOGY_MAPPING,
             MENU_SANDBOX,
@@ -448,6 +458,7 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATION_SETTINGS,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
+            MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS,
             MENU_DOMESTIC_CHECK,
             MENU_DEV_CONSOLE);

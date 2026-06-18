@@ -12,10 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
-import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.engine.knowledge.SourceVersion;
+import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.engine.knowledge.material.DocumentMaterialStoragePort;
+import com.medkernel.engine.knowledge.material.DocumentMaterialStoreRequest;
+import com.medkernel.engine.knowledge.material.StoredDocumentMaterial;
+import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
+import com.medkernel.engine.knowledge.production.generation.GenerationItem;
+import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -36,19 +44,28 @@ public class DocumentParseOrchestrationService {
 
     private final DocParseJobRepository jobRepository;
     private final SourceDocumentRepository sourceDocumentRepository;
+    private final SourceVersionRepository sourceVersionRepository;
     private final List<DocumentParser> parsers;
     private final ParsedDocumentMaterializer materializer;
+    private final DocumentMaterialStoragePort materialStorage;
+    private final CandidateGenerationOrchestrationService candidateGeneration;
     private final AuditRecorder auditRecorder;
 
     public DocumentParseOrchestrationService(DocParseJobRepository jobRepository,
                                              SourceDocumentRepository sourceDocumentRepository,
+                                             SourceVersionRepository sourceVersionRepository,
                                              List<DocumentParser> parsers,
                                              ParsedDocumentMaterializer materializer,
+                                             DocumentMaterialStoragePort materialStorage,
+                                             CandidateGenerationOrchestrationService candidateGeneration,
                                              AuditRecorder auditRecorder) {
         this.jobRepository = jobRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
+        this.sourceVersionRepository = sourceVersionRepository;
         this.parsers = parsers;
         this.materializer = materializer;
+        this.materialStorage = materialStorage;
+        this.candidateGeneration = candidateGeneration;
         this.auditRecorder = auditRecorder;
     }
 
@@ -85,8 +102,18 @@ public class DocumentParseOrchestrationService {
             return fail(pending, e.getMessage(), actor);
         }
 
+        StoredDocumentMaterial material = materialStorage.store(new DocumentMaterialStoreRequest(
+            tenantId,
+            tenantId,
+            rawBytes,
+            request.fileName(),
+            contentType(request.format()),
+            sourceHash,
+            "DOC_PARSE",
+            actor));
+
         MaterializationResult result = materializer.materialize(tenantId, sourceDoc.id(),
-            request.versionNo(), "doc-parse:" + jobCode, sourceHash, parsed, actor);
+            request.versionNo(), material.fileUri(), sourceHash, parsed, actor);
 
         DocParseJob done = jobRepository.save(new DocParseJob(
             pending.id(), tenantId, jobCode, sourceDoc.id(), request.fileName(), request.format(),
@@ -94,6 +121,74 @@ public class DocumentParseOrchestrationService {
             result.sectionCount(), result.fragmentCount(), null, pending.createdAt(), actor, Instant.now(), actor));
         auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", jobCode,
             "文档解析成功：章节 " + result.sectionCount() + " 片段 " + result.fragmentCount());
+        return done;
+    }
+
+    @Transactional
+    public DocumentParseResponse submitTenantUpload(DocumentParseRequest request,
+                                                    DocumentUploadGenerationRequest generation) {
+        validateUploadGeneration(generation);
+        DocParseJob parseJob = submit(request);
+        if (generation == null
+            || parseJob.status() != ParseJobStatus.SUCCEEDED
+            || parseJob.resultSourceVersionId() == null) {
+            return new DocumentParseResponse(parseJob, null);
+        }
+        GenerationSummary summary =
+            candidateGeneration.generate(generation.toCandidateGenerationRequest(parseJob.resultSourceVersionId()));
+        return new DocumentParseResponse(parseJob, summary);
+    }
+
+    @Transactional
+    public DocParseJob reparse(String jobCode) {
+        String tenantId = requireCurrentTenant();
+        String actor = RequestContext.currentUserId().orElse(null);
+        DocParseJob original = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
+            .orElseThrow(() -> ApiException.notFound("解析 job"));
+        if (original.status() != ParseJobStatus.SUCCEEDED || original.resultSourceVersionId() == null) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有已成功物化的解析 job 可以从资料库重解析");
+        }
+        SourceVersion version = sourceVersionRepository.findByTenantIdAndId(tenantId, original.resultSourceVersionId())
+            .orElseThrow(() -> ApiException.notFound("来源版本"));
+        byte[] rawBytes = materialStorage.fetch(tenantId, version.fileUri());
+        String sourceHash = Sha256ContentHash.sha256Bytes(rawBytes, EMPTY_MSG);
+        if (!sourceHash.equals(Sha256ContentHash.normalizeExternalSha256(original.sourceHash()))
+            || !sourceHash.equals(Sha256ContentHash.normalizeExternalSha256(version.contentHash()))) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "重解析原件指纹与来源版本不一致，禁止继续");
+        }
+
+        String newJobCode = "dpj:" + UUID.randomUUID();
+        Instant now = Instant.now();
+        DocParseJob pending = jobRepository.save(new DocParseJob(
+            null, tenantId, newJobCode, version.sourceDocumentId(), original.sourceFileName(),
+            original.documentFormat(), sourceHash, ParseJobStatus.PENDING, null, null, null, null,
+            now, actor, now, actor));
+
+        DocumentParser parser = parsers.stream()
+            .filter(p -> p.supports(original.documentFormat()))
+            .findFirst()
+            .orElse(null);
+        if (parser == null) {
+            return fail(pending, "暂不支持解析格式 " + original.documentFormat() + "，待对应适配器接入", actor);
+        }
+
+        ParsedDocument parsed;
+        try {
+            parsed = parser.parse(new ParseInput(version.sourceDocumentId(), version.versionNo(),
+                original.sourceFileName(), original.documentFormat(), rawBytes, actor));
+        } catch (DocumentParseException e) {
+            return fail(pending, e.getMessage(), actor);
+        }
+
+        MaterializationResult result = materializer.materialize(tenantId, version.sourceDocumentId(),
+            version.versionNo(), version.fileUri(), sourceHash, parsed, actor);
+
+        DocParseJob done = jobRepository.save(new DocParseJob(
+            pending.id(), tenantId, newJobCode, version.sourceDocumentId(), original.sourceFileName(),
+            original.documentFormat(), sourceHash, ParseJobStatus.SUCCEEDED, result.sourceVersionId(),
+            result.sectionCount(), result.fragmentCount(), null, pending.createdAt(), actor, Instant.now(), actor));
+        auditRecorder.record(AuditAction.EXECUTE, "mk_doc_parse_job", newJobCode,
+            "文档从资料库重解析成功：章节 " + result.sectionCount() + " 片段 " + result.fragmentCount());
         return done;
     }
 
@@ -126,6 +221,25 @@ public class DocumentParseOrchestrationService {
         return failed;
     }
 
+    private static void validateUploadGeneration(DocumentUploadGenerationRequest generation) {
+        if (generation == null) {
+            return;
+        }
+        if (generation.domain() == null || generation.items() == null || generation.items().isEmpty()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "院内上传候选生成计划须声明领域和至少一个生成项");
+        }
+        for (GenerationItem item : generation.items()) {
+            if (item == null || item.assetType() == null || item.target() == null) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "院内上传候选生成项须声明资产类型和物化目标");
+            }
+            try {
+                item.target().validate();
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, exception.getMessage());
+            }
+        }
+    }
+
     /**
      * 按格式解析原文字节：结构化文本走 UTF-8；PDF/Word 二进制经 {@code content} 字段以 Base64 承载，
      * 非法 Base64 即结构化 400（请求体不合法），绝不静默吞错。
@@ -139,6 +253,14 @@ public class DocumentParseOrchestrationService {
         } catch (IllegalArgumentException e) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "二进制格式 content 须为合法 Base64 编码");
         }
+    }
+
+    private static String contentType(DocumentFormat format) {
+        return switch (format) {
+            case STRUCTURED_TEXT -> "text/plain; charset=UTF-8";
+            case PDF -> "application/pdf";
+            case WORD -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        };
     }
 
     private String requireCurrentTenant() {

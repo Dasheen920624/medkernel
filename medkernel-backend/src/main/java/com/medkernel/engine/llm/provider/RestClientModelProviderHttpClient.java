@@ -16,18 +16,9 @@ import org.springframework.web.client.RestClient;
 @Component
 public class RestClientModelProviderHttpClient implements ModelProviderHttpClient {
 
-    private final RestClient restClient;
-
-    public RestClientModelProviderHttpClient() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5));
-        factory.setReadTimeout(Duration.ofSeconds(60));
-        this.restClient = RestClient.builder().requestFactory(factory).build();
-    }
-
     @Override
-    public String post(String url, Map<String, String> headers, String body) {
-        return restClient.post()
+    public String post(String url, Map<String, String> headers, String body, int timeoutMs) {
+        return restClient(timeoutMs).post()
             .uri(url)
             .headers(h -> headers.forEach(h::set))
             .body(body)
@@ -36,11 +27,19 @@ public class RestClientModelProviderHttpClient implements ModelProviderHttpClien
     }
 
     @Override
-    public String get(String url, Map<String, String> headers) {
-        return restClient.get()
+    public String get(String url, Map<String, String> headers, int timeoutMs) {
+        return restClient(timeoutMs).get()
             .uri(url)
             .headers(h -> headers.forEach(h::set))
             .retrieve()
             .body(String.class);
+    }
+
+    private RestClient restClient(int timeoutMs) {
+        int boundedTimeoutMs = Math.max(1_000, Math.min(timeoutMs, 120_000));
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofMillis(Math.min(5_000, boundedTimeoutMs)));
+        factory.setReadTimeout(Duration.ofMillis(boundedTimeoutMs));
+        return RestClient.builder().requestFactory(factory).build();
     }
 }

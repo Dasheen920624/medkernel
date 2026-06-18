@@ -9,6 +9,9 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -26,11 +29,14 @@ public class CandidateProvenanceService {
 
     private final KnowledgeProductionCandidateRepository candidateRepository;
     private final KnowledgeProductionJobRepository jobRepository;
+    private final ObjectMapper objectMapper;
 
     public CandidateProvenanceService(KnowledgeProductionCandidateRepository candidateRepository,
-                                      KnowledgeProductionJobRepository jobRepository) {
+                                      KnowledgeProductionJobRepository jobRepository,
+                                      ObjectMapper objectMapper) {
         this.candidateRepository = candidateRepository;
         this.jobRepository = jobRepository;
+        this.objectMapper = objectMapper;
     }
 
     /** 解析一组候选引用的生产来源；无血缘行 / 跨租户引用诚实不返回（强租户隔离）。 */
@@ -63,9 +69,49 @@ public class CandidateProvenanceService {
                 // 血缘行存在但归属 job 缺失（异常态）：诚实跳过不臆造来源。
                 continue;
             }
-            views.add(CandidateProvenanceView.from(row, job));
+            views.add(CandidateProvenanceView.from(row, job, explainEvidence(row.explainJson())));
         }
         return views;
+    }
+
+    private CandidateProvenanceView.ExplainEvidence explainEvidence(String explainJson) {
+        if (explainJson == null || explainJson.isBlank()) {
+            return CandidateProvenanceView.ExplainEvidence.empty();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(explainJson);
+            return new CandidateProvenanceView.ExplainEvidence(
+                text(root, "modelTaskId"),
+                text(root, "modelMode"),
+                text(root, "modelVersion"),
+                text(root, "promptVersion"),
+                text(root, "toolVersion"),
+                jsonText(root.get("sourceCitations")),
+                number(root, "confidence"),
+                bool(root, "fallbackUsed"),
+                text(root, "fallbackReason"));
+        } catch (JsonProcessingException ignored) {
+            return CandidateProvenanceView.ExplainEvidence.empty();
+        }
+    }
+
+    private String text(JsonNode root, String field) {
+        JsonNode node = root.path(field);
+        return node.isTextual() && !node.asText().isBlank() ? node.asText() : null;
+    }
+
+    private String jsonText(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.toString();
+    }
+
+    private Double number(JsonNode root, String field) {
+        JsonNode node = root.path(field);
+        return node.isNumber() ? node.asDouble() : null;
+    }
+
+    private Boolean bool(JsonNode root, String field) {
+        JsonNode node = root.path(field);
+        return node.isBoolean() ? node.asBoolean() : null;
     }
 
     private String requireCurrentTenant() {
