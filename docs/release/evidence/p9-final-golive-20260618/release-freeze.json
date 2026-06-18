@@ -1,7 +1,7 @@
 {
   "status": "PASSED",
   "stage": "RELEASE_FROZEN",
-  "generatedAt": "2026-06-18T14:17:16Z",
+  "generatedAt": "2026-06-18T14:40:48Z",
   "supersedes": {
     "candidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
     "reason": "历史候选的最终清库脚本缺少目标主机强制匹配护栏",
@@ -38,11 +38,12 @@
       "path": "runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e",
       "mode": "0600",
       "manifestAlgorithm": "按文件名排序后，以 LF 拼接“sha256␠␠文件名”并在末尾追加 LF，再计算 SHA-256",
-      "manifestSha256": "18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c",
+      "manifestSha256": "e16e4bd3ba855d437d7bc32331a4c3a7a7c904a736012078fea9c1ccdebdd3bc",
       "files": [
         {
           "path": "dist.tar.gz",
-          "sha256": "5b289a361ad74d29207f8fb5a82a9ddd40458e40b0edd88b946097073b633e30"
+          "bytes": 3663257,
+          "sha256": "fca2008f2dc3f512632b1971ee25587426139e88f3c2cf27c9acad768208285c"
         },
         {
           "path": "medkernel-deploy.sh",
@@ -69,7 +70,11 @@
       "manifestAlgorithm": "递归读取 frontend/dist，每个文件计算 SHA-256；按“sha256␠␠frontend/dist/仓库相对路径”整行排序，以 LF 拼接并在末尾追加 LF 后计算清单 SHA-256",
       "manifestSha256": "26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742",
       "indexHtmlSha256": "ae10bb56333dfc4fcfded2d863128e1821c8adb5a09a2335dd74fc76facf44d8",
-      "archiveSha256": "5b289a361ad74d29207f8fb5a82a9ddd40458e40b0edd88b946097073b633e30"
+      "archiveSha256": "fca2008f2dc3f512632b1971ee25587426139e88f3c2cf27c9acad768208285c",
+      "archiveCommand": "COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist",
+      "archiveContentMatchesDist": true,
+      "appleExtendedAttributeMarkers": 0,
+      "linuxTarWarnings": 0
     }
   },
   "migrationSet": {

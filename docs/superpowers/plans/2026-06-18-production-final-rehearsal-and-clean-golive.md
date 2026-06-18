@@ -349,7 +349,7 @@ Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁�
 
 任何源码、迁移、依赖锁文件或部署脚本变化都使 `RELEASE_FROZEN` 失效，必须返回 Task 4 重新验证和 Task 5 重新构建。
 
-实际重新冻结：新候选提交为 `95b53321c7baeb4e05e70b62834074fc59df323e`，未 push；后端同提交 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。冻结 JAR SHA-256 为 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端 276 个文件的仓库相对路径清单 SHA-256 为 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言 760 个迁移文件清单 SHA-256 为 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，最新迁移 V152。五个精确制品以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`，整包清单 SHA-256 为 `18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c`。历史候选 `1603b5a7` 已在证据中明确失效且禁止部署；当前未部署 134。
+实际重新冻结：新候选提交为 `95b53321c7baeb4e05e70b62834074fc59df323e`，未 push；后端同提交 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。冻结 JAR SHA-256 为 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端 276 个文件的仓库相对路径清单 SHA-256 为 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言 760 个迁移文件清单 SHA-256 为 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，最新迁移 V152。正式清库前的 Linux 字节检查发现首次手工 `dist.tar.gz` 带 280 条 macOS provenance 扩展头，故未执行部署；同一前端内容已按仓库受控命令 `COPYFILE_DISABLE=1 tar --no-xattrs` 重新归档，内容逐文件比对不变、Apple xattr 标记 0、Linux 解包 warning 0。干净归档 SHA-256 为 `fca2008f2dc3f512632b1971ee25587426139e88f3c2cf27c9acad768208285c`，五个精确制品以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`，整包清单 SHA-256 更新为 `e16e4bd3ba855d437d7bc32331a4c3a7a7c904a736012078fea9c1ccdebdd3bc`。历史候选 `1603b5a7` 已在证据中明确失效且禁止部署；当前未部署 134。
 
 ### Task 6: 最终清库前安全检查
 
