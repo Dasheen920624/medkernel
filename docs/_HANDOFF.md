@@ -41,6 +41,7 @@
   - Task 4 工程预演已达到 `REHEARSAL_READY`：新增 `p9-pre-signoff-rehearsal.mjs`，请求白名单只允许登录、Provider 脱敏读取/健康检查、评测创建/读取与 readiness，发网前阻断 enable/disable/sign-off/P6 写入；兼容 134 当前 V151 无 Provider GET 的 405 合同时，仅使用健康检查保持的 `enabled_flag` 与 readiness `MODEL_PROVIDER=false` 双重证明停用。
   - 134 在 `2026-06-18T13:25:52Z`–`13:26:08Z` 以最终收紧脚本新生成运行 `9`（Ollama）与 `10`（外部 MIMO），均真实 1/1、`PENDING_REVIEW`、逐例证据完整、基准当前、可复核、无 reviewer / signedAt；两个 Provider 均 HEALTHY 且预演前后停用，readiness 精确为 5/9、P6=false。证据仅保留计数、裁决和原文 SHA-256。
   - 11 类工程证据已归档至 `docs/release/evidence/p9-production-golive-20260618/01-*.json` 至 `11-*.json`；`node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`、安全边界两项均 false。该结论只允许进入候选冻结，不代表正式上线。
+  - 冻结前依赖复核发现 `form-data` 生产 high 漏洞和开发工具链审计债，已以本地提交 `13b69304` 升级到安全版本并完成 Vite 6.4.3 / Vitest 3.2.6 兼容回归；前端 99 文件 / 795 tests、typecheck、eslint 零 warning、stylelint、格式、build、生产与开发依赖审计均通过，`DEFER-002` 已关闭。
   - 当前工作机 Docker socket 不可用，V152 PostgreSQL / Oracle Testcontainers 与首发空 PostgreSQL 测试按 assumption skip；H2 已到 V152，五方言静态合同通过，134 既有 PostgreSQL 全新部署/隔离恢复证据复核通过。差额已登记 `DEFER-025`，最终 134 清库前必须关闭 PostgreSQL 空库实跑。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。

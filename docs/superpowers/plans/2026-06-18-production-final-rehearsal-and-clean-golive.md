@@ -303,7 +303,7 @@ node scripts/drill/p9-engineering-rehearsal-check.mjs
 
 Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未通过。
 
-实际验证：后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests 及完整 build/typecheck/lint/format 均通过；H2 从空库迁移至 V152 并重复执行无变化，当前工作机 Docker socket 不可用导致 PostgreSQL / Oracle Testcontainers 按 assumption skip，已登记 `DEFER-025`。四项 on-prem 部署/发布/Ollama 合同、全局 T-GATE 和 134 既有真实备份隔离恢复证据均复核通过。新增入库脚本以请求白名单阻断 enable/disable/sign-off/P6 写入，并 fail-closed 校验明确启停位、医学安全逐例裁决与精确九闸集合；134 最终新运行 `9`、`10` 均真实 1/1、逐例证据完整、基准当前、可复核并保持 `PENDING_REVIEW`，两个 provider 全程 HEALTHY 且停用、P6=false。11 类脱敏 JSON 聚合结果为 `status=PASSED`、`stage=REHEARSAL_READY`，不代表正式上线。
+实际验证：后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests 及完整 build/typecheck/lint/stylelint/format 均通过；冻结前复核发现 `form-data` 生产依赖 high 漏洞和开发工具链审计债，已在 `13b69304` 升级 Vite 6.4.3、Vitest 3.2.6 等依赖并重新全量回归，生产与开发依赖审计均为 0，`DEFER-002` 关闭。H2 从空库迁移至 V152 并重复执行无变化，当前工作机 Docker socket 不可用导致 PostgreSQL / Oracle Testcontainers 按 assumption skip，已登记 `DEFER-025`。四项 on-prem 部署/发布/Ollama 合同、全局 T-GATE 和 134 既有真实备份隔离恢复证据均复核通过。新增入库脚本以请求白名单阻断 enable/disable/sign-off/P6 写入，并 fail-closed 校验明确启停位、医学安全逐例裁决与精确九闸集合；134 最终新运行 `9`、`10` 均真实 1/1、逐例证据完整、基准当前、可复核并保持 `PENDING_REVIEW`，两个 provider 全程 HEALTHY 且停用、P6=false。11 类脱敏 JSON 聚合结果为 `status=PASSED`、`stage=REHEARSAL_READY`，不代表正式上线。
 
 ### Task 5: 冻结最终候选
 

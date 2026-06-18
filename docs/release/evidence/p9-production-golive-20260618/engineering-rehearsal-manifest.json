@@ -1,6 +1,6 @@
 {
-  "capturedAt": "2026-06-18T13:19:23Z",
-  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
+  "capturedAt": "2026-06-18T13:38:11Z",
+  "sourceCommit": "13b69304484c4f2c09ab78342c1f0cd75210cab4",
   "scope": "工程预演，只允许进入 REHEARSAL_READY，不代表正式上线放行",
   "checks": [
     {

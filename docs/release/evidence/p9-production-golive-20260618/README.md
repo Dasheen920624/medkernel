@@ -53,5 +53,6 @@
 
 - 11 类证据见 `01-backend-tests.json` 至 `11-readiness-preflight.json`，入口为 `engineering-rehearsal-manifest.json`。
 - `node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`。
+- 冻结前复核发现并关闭依赖审计债：`form-data` 升至 4.0.6，Vite/Vitest 升至 6.4.3/3.2.6，生产与开发依赖 `npm audit` 均为 0；升级后 99 个前端测试文件 / 795 项测试及完整门禁重新通过。
 - 该状态只证明工程候选可冻结；`11-readiness-preflight.json` 仍明确记录正式知识生产 5/9、Provider 停用、P6=false、`formalGoLiveReady=false`。
 - 当前工作机 Docker socket 不可用导致 V152 PostgreSQL / Oracle Testcontainers assumption skip，已登记 `DEFER-025`；最终 134 清库前必须用最新候选关闭 PostgreSQL 空库实跑项。

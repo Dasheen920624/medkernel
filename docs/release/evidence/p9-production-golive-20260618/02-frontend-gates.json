@@ -1,8 +1,8 @@
 {
   "status": "PASSED",
-  "capturedAt": "2026-06-18T13:19:23Z",
-  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
-  "command": "cd frontend && npm test -- --run && npm run typecheck && npm run lint && npm run format:check && npm run build",
+  "capturedAt": "2026-06-18T13:38:11Z",
+  "sourceCommit": "13b69304484c4f2c09ab78342c1f0cd75210cab4",
+  "command": "cd frontend && npm ci && npm test -- --run && npm run typecheck && npm run lint && npm run stylelint && npm run test:lint-rules && npm run format:check && npm run build && npm audit --audit-level=moderate && npm audit --omit=dev --audit-level=moderate",
   "testFiles": 99,
   "tests": 795,
   "typecheck": "PASSED",
@@ -12,6 +12,11 @@
   },
   "format": "PASSED",
   "build": "PASSED",
+  "dependencyAudit": {
+    "status": "PASSED",
+    "total": 0,
+    "production": 0
+  },
   "containsCredentials": false,
   "containsPatientData": false
 }
