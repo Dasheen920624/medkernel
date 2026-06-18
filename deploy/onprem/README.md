@@ -186,6 +186,8 @@ systemctl start medkernel
 sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --jar /path/to/medkernel.jar \
   --frontend /path/to/dist.tar.gz \
+  --service-unit /path/to/medkernel.service \
+  --deploy-script /path/to/medkernel-deploy.sh \
   --source <40位提交哈希> \
   --expected-flyway-version 148 \
   --confirm-fresh \

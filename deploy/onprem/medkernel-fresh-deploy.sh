@@ -14,6 +14,8 @@ PORT=""
 
 JAR=""
 FRONTEND=""
+SERVICE_UNIT=""
+DEPLOY_SCRIPT=""
 SOURCE=""
 EXPECTED_FLYWAY_VERSION=""
 CONFIRM_FRESH=0
@@ -24,6 +26,8 @@ CONFIRM_PRUNE_BACKUPS=0
 BACKUP_DIR=""
 STAGED_JAR=""
 STAGED_FRONTEND=""
+STAGED_SERVICE_UNIT=""
+STAGED_DEPLOY_SCRIPT=""
 RESTORE_DATABASE=""
 DESTRUCTIVE_ACTION_PERFORMED=false
 
@@ -39,6 +43,8 @@ MedKernel PostgreSQL 全新发布
   medkernel-fresh-deploy.sh \
     --jar /path/to/medkernel.jar \
     --frontend /path/to/dist.tar.gz \
+    --service-unit /path/to/medkernel.service \
+    --deploy-script /path/to/medkernel-deploy.sh \
     --source <完整提交哈希> \
     --expected-flyway-version <版本> \
     --confirm-fresh \
@@ -57,6 +63,8 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --jar) JAR="${2:-}"; shift 2 ;;
     --frontend) FRONTEND="${2:-}"; shift 2 ;;
+    --service-unit) SERVICE_UNIT="${2:-}"; shift 2 ;;
+    --deploy-script) DEPLOY_SCRIPT="${2:-}"; shift 2 ;;
     --source) SOURCE="${2:-}"; shift 2 ;;
     --expected-flyway-version) EXPECTED_FLYWAY_VERSION="${2:-}"; shift 2 ;;
     --confirm-fresh) CONFIRM_FRESH=1; shift ;;
@@ -104,6 +112,11 @@ validate_inputs() {
   [[ "$EXPECTED_FLYWAY_VERSION" =~ ^[0-9]+$ ]] || die "Flyway 版本必须是正整数"
   [ -f "$JAR" ] || die "后端候选不存在：$JAR"
   [ -f "$FRONTEND" ] || die "前端候选不存在：$FRONTEND"
+  [ -f "$SERVICE_UNIT" ] || die "systemd 单元候选不存在：$SERVICE_UNIT"
+  [ -f "$DEPLOY_SCRIPT" ] || die "服务端发布脚本候选不存在：$DEPLOY_SCRIPT"
+  grep -q '^SuccessExitStatus=143$' "$SERVICE_UNIT" ||
+    die "systemd 单元必须把 Java SIGTERM 退出码 143 声明为正常"
+  bash -n "$DEPLOY_SCRIPT" || die "服务端发布脚本语法检查失败"
   [ -f "$ENV_FILE" ] || die "环境文件不存在：$ENV_FILE"
   [ -x "$DEPLOY_COMMAND" ] || die "发布命令不可执行：$DEPLOY_COMMAND"
   [ "$(stat -c %s "$JAR")" -gt 1000000 ] || die "后端候选体积异常"
@@ -132,12 +145,16 @@ prepare_backup_directory() {
   chmod 700 "$BACKUP_DIR"
   STAGED_JAR="$BACKUP_DIR/staged/medkernel.jar"
   STAGED_FRONTEND="$BACKUP_DIR/staged/dist.tar.gz"
+  STAGED_SERVICE_UNIT="$BACKUP_DIR/staged/medkernel.service"
+  STAGED_DEPLOY_SCRIPT="$BACKUP_DIR/staged/medkernel-deploy.sh"
 }
 
 create_backup() {
   info "创建清库前备份：$BACKUP_DIR"
   install -m 600 "$JAR" "$STAGED_JAR"
   install -m 600 "$FRONTEND" "$STAGED_FRONTEND"
+  install -m 600 "$SERVICE_UNIT" "$STAGED_SERVICE_UNIT"
+  install -m 700 "$DEPLOY_SCRIPT" "$STAGED_DEPLOY_SCRIPT"
 
   [ -f "$APP_HOME/lib/medkernel.jar" ] &&
     install -m 600 "$APP_HOME/lib/medkernel.jar" "$BACKUP_DIR/artifacts/medkernel.jar"
@@ -171,6 +188,10 @@ create_backup() {
     printf 'candidate_jar_sha256=%s\n' "$(sha256sum "$STAGED_JAR" | awk '{print $1}')"
     printf 'candidate_frontend_sha256=%s\n' \
       "$(sha256sum "$STAGED_FRONTEND" | awk '{print $1}')"
+    printf 'candidate_service_unit_sha256=%s\n' \
+      "$(sha256sum "$STAGED_SERVICE_UNIT" | awk '{print $1}')"
+    printf 'candidate_deploy_script_sha256=%s\n' \
+      "$(sha256sum "$STAGED_DEPLOY_SCRIPT" | awk '{print $1}')"
     printf 'destructive_action_performed=false\n'
   } > "$BACKUP_DIR/evidence/pre-clear.properties"
   ok "清库前备份完成"
@@ -208,11 +229,31 @@ verify_backup_restore() {
   ok "隔离恢复验证通过"
 }
 
+apply_runtime_contracts() {
+  info "同步 systemd 单元与服务端发布脚本"
+  install -m 644 "$STAGED_SERVICE_UNIT" /etc/systemd/system/medkernel.service
+  install -m 755 "$STAGED_DEPLOY_SCRIPT" "$APP_HOME/bin/medkernel-deploy.sh"
+  ln -sfn "$APP_HOME/bin/medkernel-deploy.sh" "$DEPLOY_COMMAND"
+  systemctl daemon-reload
+}
+
 stop_service() {
+  local state main_pid waited
   info "停止服务：$SERVICE"
   systemctl stop "$SERVICE"
-  [ "$(systemctl is-active "$SERVICE" || true)" = "inactive" ] ||
-    die "服务未进入 inactive"
+  waited=0
+  while [ "$waited" -lt 30 ]; do
+    state="$(systemctl show "$SERVICE" -p ActiveState --value)"
+    main_pid="$(systemctl show "$SERVICE" -p MainPID --value)"
+    if { [ "$state" = "inactive" ] || [ "$state" = "failed" ]; } && [ "$main_pid" = "0" ]; then
+      systemctl reset-failed "$SERVICE" 2>/dev/null || true
+      ok "服务已停止（原状态 $state，MainPID=0）"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  die "服务未在 30 秒内完全停止"
 }
 
 recreate_database() {
@@ -327,6 +368,7 @@ main() {
   prepare_backup_directory
   create_backup
   verify_backup_restore
+  apply_runtime_contracts
   stop_service
   recreate_database
   purge_old_runtime
