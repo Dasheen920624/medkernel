@@ -396,13 +396,13 @@ Expected: 负向预检退出非零且 134 服务、数据库和旧制品未改�
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/fresh-deploy/`
 - Modify: `docs/_HANDOFF.md`
 
-- [ ] **Step 1: 执行受控最终清库**
+- [x] **Step 1: 执行受控最终清库**
 
 使用已验证脚本执行“备份→隔离恢复确认→停服务→重建空库→清旧运行物→安装冻结候选→启动”。
 
 Expected: 仅此步骤允许破坏性动作；日志明确 `destructive_action_performed=true`。
 
-- [ ] **Step 2: 验证从零迁移**
+- [x] **Step 2: 验证从零迁移**
 
 Expected:
 
@@ -413,7 +413,7 @@ Expected:
 - HTTP/HTTPS readiness 200；
 - systemd `NRestarts=0`。
 
-- [ ] **Step 3: 验证制品同源**
+- [x] **Step 3: 验证制品同源**
 
 Run on local and target:
 
@@ -423,13 +423,15 @@ shasum -a 256 medkernel-backend/target/*.jar
 
 Expected: manifest commit、候选 JAR、运行 JAR 和 `release-freeze.json` 完全一致。
 
-- [ ] **Step 4: 验证干净正式库**
+- [x] **Step 4: 验证干净正式库**
 
 Expected: 知识生产任务、候选、评测运行、签署、获取运行和旧演练业务表均为 0；仅保留迁移 clean baseline。
 
-- [ ] **Step 5: 标记 `FRESH_DEPLOYED`**
+- [x] **Step 5: 标记 `FRESH_DEPLOYED`**
 
 若任一检查失败，停止正式配置；恢复或修复后重新执行完整 Task 5–7，不在半初始化库上人工修补。
+
+实际结果：`2026-06-18T22:43:31+08:00` 从候选 `95b53321c7baeb4e05e70b62834074fc59df323e` 创建即时备份并隔离恢复到 V152 / 207 张 public 基表，dump SHA-256 为 `6cb33efcfdbbf617127e50d03621e70b8951ddeeb3a566191cbbaa8cb544cff2`；随后唯一一次正式执行停服、重建空数据库、清理旧活动制品/运行数据/历史备份并安装冻结候选，`destructive_action_performed=true`。部署后 manifest source/commit、候选与运行 JAR 均精确一致，JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`；前端 276 文件且 index SHA-256 `ae10bb56333dfc4fcfded2d863128e1821c8adb5a09a2335dd74fc76facf44d8`。服务与 Nginx active/enabled、`NRestarts=0`，内部/本机 HTTPS/公网 HTTPS readiness 均 200；数据库从零到 V152 / 152 条成功迁移 / 207 张 public 基表、owner=`medkernel`，bootstrap `initialized=false`。15 个知识生产、候选、获取、评测、Provider 与版本包关键表均为 0，P6=false，未回灌旧演练数据。当前只保留本次清库前备份与 checksum 全绿证据，冗余发布备份和上传暂存已删除；阶段为 `FRESH_DEPLOYED`。
 
 ### Task 8: 重建正式配置与生成可签署评测
 
