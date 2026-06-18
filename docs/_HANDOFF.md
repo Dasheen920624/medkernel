@@ -22,6 +22,7 @@
   - `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补真实基线，不绕过闸门。
   - T9 上线核查已补严评测证据链：普通评测运行持久化真实 `capabilityCode` 与完整启用基准集 SHA-256 指纹，请求模型版本必须等于 provider 当前配置，provider 返回模型版本漂移则整次评测失败；provider 启用门和 readiness 均复核当前能力/基准指纹，其他能力或同题数旧基准的 `PASSED` 不能串线。
   - 引用从“非空即真”改为逐用例精确匹配已登记 `sourceReference`；本地 provider 只有在正文真实输出该精确引用时才提取为证据，其他来源仍判假引用。高风险 `sign-off` 仅质量与医保治理员可执行，服务层强制签字人与评测执行人分离、签字账号已绑定 MFA，并以状态条件更新阻断并发覆盖；平台管理员不能替代专家复核。真实专家身份仍须现场提供，自动化不得冒充。
+  - 当前本地 V151 再加固逐例复核闭环：评测运行与逐例输入/期望/输出/来源引用/红线裁决同事务保存；旧运行或证据不全、基准漂移、假引用、红线命中、同人复核、无 MFA、未确认或意见不足均禁止签字，上线门禁也重新核验同一份逐例证据。质量域新增服务端分页的“医学回归复核”专页，技术字段仅授权专家模式可见。134 的旧运行 `1`、`2` 没有 V151 证据，发布后必须重跑，不能沿用。
 - Phase 3：AI 工厂收口。
   - AIK-STD-05/08/09/10/11/03/07 关键后端与前端证据面已补：结构化红线、8 态分流、差异/过期任务、原子替换影响任务、知识包装配、术语候选生成入口、Agent 进度/中止和共存对照。
   - `KnowledgeVersionService.activate` 替换 ACTIVE 时落 `SUPERSEDED_REPLACEMENT` 失效证据并派医师复核、包补同步、同步告警三类任务；高危 `WITHDRAWN` 仍禁止一键回滚。
@@ -91,6 +92,8 @@
 - Phase 9 T9.3 门禁加固验证：先以失败测试复现同人自签、无 MFA、非质量治理角色签字、服务层绕过角色门禁、并发签字覆盖、普通评测不落能力码、跨能力 `PASSED` 串线、同题数基准内容变化仍复用旧结果、请求模型版本冒名、provider 返回模型版本漂移，以及任意非空/其他来源引用冒充真实引用；实现后相关定向套件退出 0。`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 全量 2939 tests，0 failures、0 errors、7 skipped；H2 空库迁移至 V149。真实性全量 1945 文件、配置边界全量 1841 文件、迁移规约全量 745 文件、中文注释、B0、产品目录一致性和 `git diff --check` 均退出 0。
 - Phase 9 T9.4 上线门禁核查已完成代码加固与全量验证：readiness 不再信任自由文本版本策略，只接受当前租户/能力唯一 ACTIVE 版本包及 64 位 SHA-256 三元组，并要求版本包模型与 provider 配置一致；网关调用前后分别复核 ACTIVE 版本包、provider 配置、响应实际模型和非空补全内容，版本包缺失或状态、租户、能力、版本、hash、作用域键任一畸形时均在解析 provider 前走 B0。外部知识生产出域策略改由统一校验器验证 JSON、审批阈值和锁定护栏，必须显式允许 `prompt`；剥离后禁止回退原输入，空/非文本最小化结果阻断，`MASK_ALL` 递归处理结构化内容并清空直接标识字段。三类 provider 适配器与网关双层拒绝缺少实际 `model`、版本漂移或空补全；版本回滚影响行数不是 1 时以冲突失败并由事务恢复原 ACTIVE。V150 五方言要求 ACTIVE 的 `active_scope_key` 精确等于 `tenant_id|capability_code`，并以状态 CHECK 与唯一约束在关系库层阻断空值、伪造作用域键及同租户同能力多个 ACTIVE；前端 `npm run verify` 为 98 files / 788 tests 全绿，后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 为 2955 tests、0 failures、0 errors、7 skipped，H2 空库迁移至 V150。
 - Phase 9 T9.7 发布制品追溯已加固：macOS/Linux 与 Windows 发布入口均只接受当前干净工作树 `HEAD` 的完整 40 位哈希，移除复用既有 `target`/`dist` 的跳过构建分支，所选前后端必须从该提交重新构建；短哈希和脏工作树负向测试均按预期拒绝，三套 on-prem 发布合同与脚本语法通过。
+- Phase 9 T9.3 逐例复核闭环本地验证：后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 汇总 2967 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V151；前端 `npm run verify` 的 lint/stylelint/格式/typecheck 与 99 files / 794 tests 全绿；前后端生产构建、B0、配置边界、迁移规约、产品目录一致性、`git diff --check` 和新增行高置信敏感信息扫描均退出 0。全量验证额外发现并修复 V151 权威迁移序列/表/索引/约束快照遗漏，以及审计页高负载测试的非确定性异步交互。
+- V151 医学回归逐例复核闭环已形成仅本地中文提交，尚未推送；发布前必须保持工作树干净，并由 `mk-publish.sh --source` 从当前完整 HEAD 重新构建。
 - WHO 起步源与医学基准已进入 134 真实治理链；当前仍没有把任何自动化操作者冒充医学专家，两个评测运行均等待独立专家签署。
 - 134 权威目标为公网 `193.112.107.134`。当前远端为 `e1f123a6615082aa167b848fd4736fa96cb7212d`、JAR SHA-256=`985b06faaae3294d485a71116574ce9ee16de0df51474f18a3c89f7da2482cb8`、Flyway V150、服务 active 且 `NRestarts=0`，HTTP readiness 当前返回 `UP`。
 - 知识生产 readiness 当前 5/9：`LITERATURE_ROOT`、`DEPLOYMENT_FORM`、`REGRESSION_BASELINE`、`EGRESS_GOVERNANCE`、`MODEL_POLICY` 通过；`MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE` 因 provider 未启用/未签署而阻断，`P6_ACCEPTANCE` 尚未放行。不得在专家签署前启用 provider 或翻 P6。
@@ -127,15 +130,15 @@
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
-- 不得宣称 134 已部署当前本地最新提交：远端最后确认发布的是 `bf2fa6dd`；本地 `467b8486` 的评测/来源/独立签字加固、T9.4 版本与出域门禁及 T9.7 制品追溯加固均未发布。公网协议已恢复，下一步必须以最新本地全哈希重建发布并复核 manifest/JAR/Flyway/readiness。
+- 不得宣称 134 已部署当前本地最新提交：134 当前确认运行 `e1f123a6615082aa167b848fd4736fa96cb7212d`、JAR SHA-256=`985b06faaae3294d485a71116574ce9ee16de0df51474f18a3c89f7da2482cb8`、Flyway V150；本地 V151 逐例复核闭环尚未提交和发布。下一步必须以最新本地全哈希重建发布并复核 manifest/JAR/Flyway/readiness。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
 ## 下一步
 
-1. 将 T9.7 制品追溯加固形成仅本地提交；随后以最新本地全哈希从干净工作树重建并增量发布 134，确认 manifest/JAR 哈希、服务重启计数、HTTPS readiness 与 Flyway V150 一致；继续不 push、不建远程 PR。
-2. 通过真实 API 创建知识治理员账号，以不同账号完成 allowlist 起步集草稿登记、MFA 独立审批与停用负向验证；不得直写数据库。
-3. 当前评测门禁与 T9.4 版本/出域门禁均已完成全量测试和 T-GATE；134 恢复后按最新本地全哈希重发，再执行 WHO 双账号来源审批、来源化真实医学评测、可执行出域白名单、能力策略、ACTIVE 版本三元组和 P6 独立验收。T9.8 必须以真实 readiness 9 闸和一条自主获取→候选→审核→激活小样本闭环留证，之后才统一远程 PR 合并 `main`。
+1. 将 V151 医学回归逐例复核闭环仅提交本地；随后以最新本地全哈希从干净工作树重建并发布 134，确认 manifest/JAR 哈希、服务重启计数、HTTPS readiness 与 Flyway V151 一致；发布完成前不 push、不建远程 PR。
+2. 发布后分别用固定本地模型与用户提供的外网模型重新运行来源化真实医学回归，核对每次运行均生成完整逐例证据；旧运行 `1`、`2` 不得签字或复用。真实独立医学专家仍须现场逐例复核并签字，自动化不得代签。
+3. 代码和 134 发布验证完成后，按用户授权统一推送当前分支、创建远程 PR、等待 CI、合并 `main` 并确认 `origin/main` 含合并提交；之后继续推进 P6 独立验收和 T9.8 真实小样本闭环。
 
 ## 常用指针
 

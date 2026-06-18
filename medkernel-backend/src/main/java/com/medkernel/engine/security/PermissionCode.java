@@ -136,7 +136,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：33 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
@@ -155,6 +155,8 @@ public enum PermissionCode {
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
+    MENU_MODEL_EVALUATION_REVIEW(
+        "menu.model-evaluation-review", PermissionDimension.MENU, Risk.LOW, "查看医学回归复核"),
     MENU_KNOWLEDGE_GOVERNANCE(
         "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
     MENU_INSTITUTION_KNOWLEDGE(

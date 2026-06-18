@@ -191,6 +191,12 @@ const routeDecisions = {
     targetEntry: "评价指标",
     task: "维护评价指标、影响分析和发布状态",
   },
+  "/qc/model-evaluations": {
+    decision: "KEEP",
+    targetDomain: "质量管理",
+    targetEntry: "医学回归复核",
+    task: "逐例核查模型医学回归证据，并由独立医学专家留痕签字",
+  },
   "/qc/eval/results": {
     decision: "MERGE",
     targetDomain: "质量管理",

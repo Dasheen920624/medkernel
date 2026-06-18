@@ -30,6 +30,7 @@ public record ModelEvalRun(
     @Column("hallucination_detected") String hallucinationDetected,
     @Column("status") String status,
     @Column("case_summary_json") String caseSummaryJson,
+    @Column("review_comment") String reviewComment,
     @Column("reviewer") String reviewer,
     @Column("signed_at") Instant signedAt,
     @Column("created_at") Instant createdAt,

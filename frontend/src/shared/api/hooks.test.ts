@@ -103,6 +103,9 @@ import {
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useModelEvaluationRunDetail,
+  useModelEvaluationRuns,
+  useSignOffModelEvaluation,
   useModelTask,
   useReplayModelTask,
   useSubmitModelTask,
@@ -488,6 +491,67 @@ describe("model gateway api hooks", () => {
       fallbackOrder: validationPayload.fallbackOrder,
       timeoutMs: 1500,
       rateLimitPerMinute: 20,
+    });
+  });
+});
+
+describe("medical regression review api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("loads tenant-scoped paged runs and immutable case evidence", async () => {
+    const page = {
+      items: [{ runId: 42, status: "PENDING_REVIEW" }],
+      page: 2,
+      size: 20,
+      total: 21,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    const detail = {
+      run: page.items[0],
+      cases: [{ evidenceId: 501, outputContent: "真实模型输出" }],
+      evidenceComplete: true,
+      baselineCurrent: true,
+      reviewable: true,
+      reviewBlockReason: null,
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: page } })
+      .mockResolvedValueOnce({ data: { data: detail } });
+
+    const runsHook = renderApiHook(() =>
+      useModelEvaluationRuns({ status: "PENDING_REVIEW", page: 2, size: 20 }),
+    );
+    await waitFor(() => expect(runsHook.result.current.data).toEqual(page));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/model-evaluations/runs", {
+      params: { status: "PENDING_REVIEW", page: 2, size: 20 },
+    });
+
+    const detailHook = renderApiHook(() => useModelEvaluationRunDetail(42));
+    await waitFor(() => expect(detailHook.result.current.data).toEqual(detail));
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/model-evaluations/runs/42");
+  });
+
+  it("submits explicit evidence acknowledgement and review comment", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { runId: 42, status: "PASSED" } },
+    });
+    const hook = renderApiHook(() => useSignOffModelEvaluation());
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        runId: 42,
+        evidenceAcknowledged: true,
+        reviewComment: "逐例证据已核查并确认可放行。",
+      });
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/model-evaluations/42/sign-off", {
+      evidenceAcknowledged: true,
+      reviewComment: "逐例证据已核查并确认可放行。",
     });
   });
 });

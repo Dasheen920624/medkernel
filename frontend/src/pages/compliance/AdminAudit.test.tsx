@@ -465,17 +465,16 @@ describe("AdminAudit", () => {
   });
 
   it("shows approval and export evidence and verifies the selected backend evidence", async () => {
-    const user = userEvent.setup();
     render(<AdminAudit />);
 
-    await user.click(screen.getByRole("tab", { name: "导出审批" }));
-    await user.click(screen.getByRole("button", { name: "查看证据 exp-audit-exported" }));
+    fireEvent.click(screen.getByRole("tab", { name: "导出审批" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看证据 exp-audit-exported" }));
 
-    expect(screen.getByText("evd-audit-exported-approval")).toBeInTheDocument();
+    expect(await screen.findByText("evd-audit-exported-approval")).toBeInTheDocument();
     expect(screen.getByText("evd-audit-exported-file")).toBeInTheDocument();
     expect(screen.getByText("sha256:export-digest")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "验签导出证据" }));
+    fireEvent.click(screen.getByRole("button", { name: "验签导出证据" }));
 
     await waitFor(() => expect(verifyEvidence).toHaveBeenCalledWith("evd-audit-exported-file"));
     expect(await screen.findByText("证据验签通过")).toBeInTheDocument();

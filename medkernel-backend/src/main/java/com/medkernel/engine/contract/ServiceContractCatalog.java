@@ -408,8 +408,8 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "mk_llm_regression_case", "新增或批量导入医学回归基准用例"),
                 audit(AuditAction.UPDATE, "mk_llm_regression_case", "启用或停用医学回归基准用例"),
-                audit(AuditAction.EXECUTE, "mk_llm_eval_run", "运行医学回归评测"),
-                audit(AuditAction.UPDATE, "mk_llm_eval_run", "专家复核签字放行评测"))),
+                audit(AuditAction.EXECUTE, "mk_llm_eval_run", "运行医学回归评测并固化逐例证据"),
+                audit(AuditAction.UPDATE, "mk_llm_eval_run", "专家核对逐例证据后留评语签字放行"))),
         contract("ai-quality-evaluations", "AI 质量评测中心服务",
             "com.medkernel.engine.llm.eval.AiQualityEvalController", "/api/v1/ai-eval",
             permissions("llm.eval.manage"),

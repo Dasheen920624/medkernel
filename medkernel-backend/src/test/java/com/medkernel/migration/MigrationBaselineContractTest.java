@@ -198,7 +198,8 @@ class MigrationBaselineContractTest {
         "V147__knowledge_candidate_explain_evidence.sql",
         "V148__knowledge_review_feedback_loop.sql",
         "V149__knowledge_acquisition_source_lock.sql",
-        "V150__model_version_active_scope_unique.sql"
+        "V150__model_version_active_scope_unique.sql",
+        "V151__model_eval_review_evidence.sql"
     );
 
     @Test
@@ -455,6 +456,22 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void modelEvaluationReviewEvidenceIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V151__model_eval_review_evidence.sql");
+            assertThat(ddl)
+                .as("%s 医学回归专家复核必须持久化逐例证据、复核意见和独立菜单权限", dialect)
+                .contains("mk_llm_eval_case_evidence", "regression_case_id", "case_input",
+                    "expected_phrase", "output_content", "source_citations",
+                    "citation_verified", "red_line_breach", "failure_reasons_json")
+                .contains("review_comment", "idx_mk_llm_eval_case_evidence_run")
+                .contains("'menu.model-evaluation-review'", "'MENU'",
+                    "'model-evaluation-review'", "'查看医学回归复核'")
+                .contains("逐用例不可变证据", "专家复核意见");
+        }
+    }
+
+    @Test
     void sandboxPermissionsArePersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
@@ -584,7 +601,8 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
+        "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
@@ -747,7 +765,8 @@ class MigrationBaselineContractTest {
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
         "idx_mk_llm_regression_case_tenant", "idx_mk_llm_regression_case_domain",
-        "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability", "idx_mk_llm_enhancement_matrix_status",
+        "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability",
+        "idx_mk_llm_eval_case_evidence_run", "idx_mk_llm_enhancement_matrix_status",
         "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
         "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
         "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
@@ -1011,6 +1030,7 @@ class MigrationBaselineContractTest {
         "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled",
         "ck_mk_llm_regression_case_score", "ck_mk_llm_eval_run_status",
         "ck_mk_llm_eval_run_hallucination", "ck_mk_llm_eval_run_quality_score",
+        "fk_mk_llm_eval_case_run", "uk_mk_llm_eval_case_run_case", "ck_mk_llm_eval_case_flags",
         "uk_mk_llm_enhancement_matrix_point", "ck_mk_llm_enhancement_matrix_status", "ck_mk_llm_enhancement_matrix_enabled",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
@@ -1166,7 +1186,7 @@ class MigrationBaselineContractTest {
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_regression_case", "mk_llm_eval_run",
+        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",

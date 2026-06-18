@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -40,6 +41,7 @@ public interface ModelEvalRunRepository extends CrudRepository<ModelEvalRun, Lon
         UPDATE mk_llm_eval_run
            SET status = 'PASSED',
                reviewer = :reviewer,
+               review_comment = :reviewComment,
                signed_at = :signedAt,
                updated_at = :signedAt,
                updated_by = :reviewer
@@ -49,11 +51,22 @@ public interface ModelEvalRunRepository extends CrudRepository<ModelEvalRun, Lon
            AND reviewer IS NULL
            AND signed_at IS NULL
         """)
-    int signOffPending(Long id, String tenantId, String reviewer, Instant signedAt);
+    int signOffPending(
+        Long id,
+        String tenantId,
+        String reviewer,
+        String reviewComment,
+        Instant signedAt);
 
     /**
      * AI 质量评测趋势查询：按能力码和模型版本取最近运行，服务层负责租户隔离。
      */
     List<ModelEvalRun> findTop20ByTenantIdAndCapabilityCodeAndModelVersionOrderByCreatedAtDesc(
         String tenantId, String capabilityCode, String modelVersion);
+
+    /** 质量治理台按当前租户和状态分页查询最近运行。 */
+    List<ModelEvalRun> findByTenantIdAndStatusOrderByCreatedAtDesc(
+        String tenantId, String status, Pageable pageable);
+
+    long countByTenantIdAndStatus(String tenantId, String status);
 }

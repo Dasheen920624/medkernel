@@ -65,10 +65,10 @@ describe("menu config", () => {
     );
   });
 
-  it("locks the exact 32 customer and production primary entries", () => {
+  it("locks the exact 33 customer and production primary entries", () => {
     const visibleTotal = menuSections.reduce((sum, section) => sum + section.items.length, 0);
 
-    expect(visibleTotal).toBe(32);
+    expect(visibleTotal).toBe(33);
     expect(
       menuSections.map((section) => [section.key, section.items.map((item) => item.key)]),
     ).toEqual([
@@ -100,7 +100,10 @@ describe("menu config", () => {
           "sandbox",
         ],
       ],
-      ["quality-management", ["qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"]],
+      [
+        "quality-management",
+        ["qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets", "model-evaluation-review"],
+      ],
       ["compliance-security", ["admin-audit", "security-baseline"]],
       [
         "system-operations",

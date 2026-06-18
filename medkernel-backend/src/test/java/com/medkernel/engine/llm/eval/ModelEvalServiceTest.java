@@ -21,10 +21,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.domain.Pageable;
 
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.OrgScope;
@@ -37,6 +39,7 @@ class ModelEvalServiceTest {
 
     private MedicalRegressionCaseRepository caseRepo;
     private ModelEvalRunRepository runRepo;
+    private ModelEvalCaseEvidenceRepository evidenceRepo;
     private MedicalRegressionEvaluator evaluator;
     private ModelProviderRegistry registry;
     private AuditRecorder auditRecorder;
@@ -47,16 +50,27 @@ class ModelEvalServiceTest {
     void setUp() {
         caseRepo = mock(MedicalRegressionCaseRepository.class);
         runRepo = mock(ModelEvalRunRepository.class);
+        evidenceRepo = mock(ModelEvalCaseEvidenceRepository.class);
         evaluator = mock(MedicalRegressionEvaluator.class);
         registry = mock(ModelProviderRegistry.class);
         auditRecorder = mock(AuditRecorder.class);
         highRiskChangeGuard = mock(HighRiskChangeGuard.class);
         service = new ModelEvalService(
-            caseRepo, runRepo, evaluator, registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, evaluator, registry, auditRecorder, highRiskChangeGuard);
         RequestContext.restore(new RequestContext.Snapshot("t", OrgScope.tenant("tenant-1"), "quality-001"));
         authenticateAs("quality-001", "ROLE_QUALITY_GOVERNOR");
-        when(runRepo.save(any(ModelEvalRun.class))).thenAnswer(i -> i.getArgument(0));
-        when(runRepo.signOffPending(any(), anyString(), anyString(), any(Instant.class))).thenReturn(1);
+        when(runRepo.save(any(ModelEvalRun.class))).thenAnswer(invocation -> {
+            ModelEvalRun run = invocation.getArgument(0);
+            return new ModelEvalRun(
+                run.id() == null ? 77L : run.id(), run.tenantId(), run.providerCode(), run.modelVersion(),
+                run.capabilityCode(), run.promptVersion(), run.toolVersion(), run.totalCases(),
+                run.passedCases(), run.failedCases(), run.qualityScore(), run.terminologyScore(),
+                run.fakeCitationDetected(), run.redLineBreach(), run.hallucinationDetected(), run.status(),
+                run.caseSummaryJson(), run.reviewComment(), run.reviewer(), run.signedAt(), run.createdAt(),
+                run.createdBy(), run.updatedAt(), run.updatedBy());
+        });
+        when(runRepo.signOffPending(any(), anyString(), anyString(), anyString(), any(Instant.class)))
+            .thenReturn(1);
     }
 
     @AfterEach
@@ -106,6 +120,42 @@ class ModelEvalServiceTest {
     }
 
     @Test
+    void runEvaluationPersistsReviewableCaseEvidenceInSameWorkflow() {
+        MedicalRegressionCase regCase = aCase();
+        when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
+            .thenReturn(List.of(regCase));
+        var adapter = mock(com.medkernel.engine.llm.provider.ModelProvider.class);
+        var config = mock(com.medkernel.engine.llm.provider.ModelProviderConfig.class);
+        when(config.modelVersion()).thenReturn("qwen2.5:7b");
+        when(registry.resolveByCode("tenant-1", "ollama-local"))
+            .thenReturn(Optional.of(new ModelProviderRegistry.ResolvedProvider(adapter, config)));
+        var caseEvidence = new MedicalRegressionEvaluator.EvalCaseEvidence(
+            1L, "v1", "输入", "期望", null, "source-version:1",
+            "期望", "[]", true, false, true, false, false, true, List.of());
+        when(evaluator.evaluate(any(), any())).thenReturn(new MedicalRegressionEvaluator.EvalVerdict(
+            1, 1, 0, false, false, "PASSED", List.of(caseEvidence)));
+        when(runRepo.save(any(ModelEvalRun.class))).thenAnswer(invocation -> {
+            ModelEvalRun run = invocation.getArgument(0);
+            return new ModelEvalRun(
+                77L, run.tenantId(), run.providerCode(), run.modelVersion(), run.capabilityCode(),
+                run.promptVersion(), run.toolVersion(), run.totalCases(), run.passedCases(), run.failedCases(),
+                run.qualityScore(), run.terminologyScore(), run.fakeCitationDetected(), run.redLineBreach(),
+                run.hallucinationDetected(), run.status(), run.caseSummaryJson(), run.reviewComment(),
+                run.reviewer(), run.signedAt(), run.createdAt(), run.createdBy(), run.updatedAt(), run.updatedBy());
+        });
+
+        service.runEvaluation("ollama-local", "qwen2.5:7b", "rule.draft");
+
+        verify(evidenceRepo).saveAll(argThat(items -> {
+            ModelEvalCaseEvidence evidence = items.iterator().next();
+            return evidence.runId().equals(77L)
+                && evidence.regressionCaseId().equals(1L)
+                && "期望".equals(evidence.outputContent())
+                && evidence.passed();
+        }));
+    }
+
+    @Test
     void runEvaluation_rejectsModelVersionDifferentFromProviderConfiguration() {
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
             .thenReturn(List.of(aCase()));
@@ -126,7 +176,8 @@ class ModelEvalServiceTest {
     @Test
     void runEvaluation_failsWhenProviderRespondsWithDifferentModelVersion() {
         service = new ModelEvalService(
-            caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, new MedicalRegressionEvaluator(), registry,
+            auditRecorder, highRiskChangeGuard);
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
             .thenReturn(List.of(aCase()));
         var adapter = mock(com.medkernel.engine.llm.provider.ModelProvider.class);
@@ -147,7 +198,8 @@ class ModelEvalServiceTest {
     @Test
     void runEvaluationAcceptsExactRegisteredCitationEmittedInProviderContent() {
         service = new ModelEvalService(
-            caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, new MedicalRegressionEvaluator(), registry,
+            auditRecorder, highRiskChangeGuard);
         MedicalRegressionCase citedCase = citedCase();
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
             .thenReturn(List.of(citedCase));
@@ -169,7 +221,8 @@ class ModelEvalServiceTest {
     @Test
     void runEvaluationRejectsDifferentCitationEmittedInProviderContent() {
         service = new ModelEvalService(
-            caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, new MedicalRegressionEvaluator(), registry,
+            auditRecorder, highRiskChangeGuard);
         when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag("tenant-1", "rule.draft", "Y"))
             .thenReturn(List.of(citedCase()));
         var adapter = mock(com.medkernel.engine.llm.provider.ModelProvider.class);
@@ -190,7 +243,8 @@ class ModelEvalServiceTest {
     @Test
     void runQualityEvaluation_persistsHallucinationFailureAndVersionTriple() {
         service = new ModelEvalService(
-            caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, new MedicalRegressionEvaluator(), registry,
+            auditRecorder, highRiskChangeGuard);
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         MedicalRegressionCase regCase = new MedicalRegressionCase(
             7L, "tenant-1", "recommendation.draft", "terminology",
@@ -227,7 +281,8 @@ class ModelEvalServiceTest {
     @Test
     void runQualityEvaluation_rejectsMismatchedOfflineOutputModelVersion() {
         service = new ModelEvalService(
-            caseRepo, runRepo, new MedicalRegressionEvaluator(), registry, auditRecorder, highRiskChangeGuard);
+            caseRepo, runRepo, evidenceRepo, new MedicalRegressionEvaluator(), registry,
+            auditRecorder, highRiskChangeGuard);
 
         assertThatThrownBy(() -> service.runQualityEvaluation(new AiQualityEvalRunRequest(
             "recommendation.draft",
@@ -267,89 +322,144 @@ class ModelEvalServiceTest {
     }
 
     @Test
-    void signOff_pendingReviewBecomesPassedWithReviewer() {
-        Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
-            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
-            null, null, now, "quality-author", now, "quality-author")));
+    void listRunsUsesCurrentTenantStatusAndServerPagination() {
+        when(runRepo.findByTenantIdAndStatusOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.eq("tenant-1"),
+                org.mockito.ArgumentMatchers.eq("PENDING_REVIEW"),
+                any(Pageable.class)))
+            .thenReturn(List.of(pendingRun("quality-author")));
+        when(runRepo.countByTenantIdAndStatus("tenant-1", "PENDING_REVIEW")).thenReturn(21L);
 
-        ModelEvalRun signed = service.signOff(9L);
+        var page = service.listRuns("PENDING_REVIEW", new PageRequest(2, 10, null));
+
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(10);
+        assertThat(page.total()).isEqualTo(21);
+        assertThat(page.hasNext()).isTrue();
+        assertThat(page.items()).singleElement().satisfies(item -> {
+            assertThat(item.runId()).isEqualTo(9L);
+            assertThat(item.status()).isEqualTo("PENDING_REVIEW");
+            assertThat(item.providerCode()).isEqualTo("claude-prod");
+        });
+        verify(runRepo).findByTenantIdAndStatusOrderByCreatedAtDesc(
+            org.mockito.ArgumentMatchers.eq("tenant-1"),
+            org.mockito.ArgumentMatchers.eq("PENDING_REVIEW"),
+            argThat(pageable -> pageable.getPageNumber() == 1 && pageable.getPageSize() == 10));
+    }
+
+    @Test
+    void getRunDetailReturnsCurrentReviewableEvidenceWithoutTenantField() {
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-author")));
+        stubReviewableEvidence();
+
+        ModelEvalRunDetailResponse detail = service.getRunDetail(9L);
+
+        assertThat(detail.run().runId()).isEqualTo(9L);
+        assertThat(detail.cases()).singleElement().satisfies(item -> {
+            assertThat(item.regressionCaseId()).isEqualTo(1L);
+            assertThat(item.outputContent()).isEqualTo("期望");
+            assertThat(item.passed()).isTrue();
+        });
+        assertThat(detail.evidenceComplete()).isTrue();
+        assertThat(detail.baselineCurrent()).isTrue();
+        assertThat(detail.reviewable()).isTrue();
+        assertThat(detail.reviewBlockReason()).isNull();
+    }
+
+    @Test
+    void signOff_pendingReviewBecomesPassedWithReviewer() {
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-author")));
+        stubReviewableEvidence();
+
+        ModelEvalRun signed = service.signOff(9L, signOffRequest());
 
         assertThat(signed.status()).isEqualTo("PASSED");
         assertThat(signed.reviewer()).isEqualTo("quality-001");
+        assertThat(signed.reviewComment()).isEqualTo("已核查逐用例输出、来源引用与红线结论。");
         assertThat(signed.signedAt()).isNotNull();
         verify(highRiskChangeGuard).assertHighRiskAllowed("model_eval_sign_off", "9");
         verify(runRepo).signOffPending(
             org.mockito.ArgumentMatchers.eq(9L),
             org.mockito.ArgumentMatchers.eq("tenant-1"),
             org.mockito.ArgumentMatchers.eq("quality-001"),
+            org.mockito.ArgumentMatchers.eq("已核查逐用例输出、来源引用与红线结论。"),
             any(Instant.class));
         verify(runRepo, never()).save(any(ModelEvalRun.class));
     }
 
     @Test
-    void signOff_sameActorAsEvaluatorRejected() {
+    void signOffRejectsRunWithoutReviewableCaseEvidence() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        MedicalRegressionCase currentCase = aCase();
         when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
-            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
-            null, null, now, "quality-001", now, "quality-001")));
+            "claude-prod", "claude-opus-4-8", "rule.draft", null, null,
+            1, 1, 0, null, null, "N", "N", "N", "PENDING_REVIEW",
+            RegressionBaselineEvidence.toJson(List.of(currentCase)),
+            null, null, null, now, "quality-author", now, "quality-author")));
+        when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+            "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
+        when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 9L)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.signOff(9L))
+        assertThatThrownBy(() -> service.signOff(
+                9L, new ModelEvalSignOffRequest(true, "已核查逐用例输出、来源引用与红线结论。")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("逐用例证据不完整");
+
+        verify(highRiskChangeGuard, never()).assertHighRiskAllowed(anyString(), anyString());
+    }
+
+    @Test
+    void signOff_sameActorAsEvaluatorRejected() {
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-001")));
+
+        assertThatThrownBy(() -> service.signOff(9L, signOffRequest()))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("签字人与评测执行人必须分离");
 
         verify(runRepo, never()).save(any(ModelEvalRun.class));
-        verify(runRepo, never()).signOffPending(any(), anyString(), anyString(), any(Instant.class));
+        verify(runRepo, never()).signOffPending(
+            any(), anyString(), anyString(), anyString(), any(Instant.class));
     }
 
     @Test
     void signOff_withoutBoundMfaRejected() {
-        Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
-            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
-            null, null, now, "quality-author", now, "quality-author")));
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-author")));
+        stubReviewableEvidence();
         doThrow(new ApiException(com.medkernel.shared.api.error.ErrorCode.ENG_AUTH_010))
             .when(highRiskChangeGuard).assertHighRiskAllowed("model_eval_sign_off", "9");
 
-        assertThatThrownBy(() -> service.signOff(9L))
+        assertThatThrownBy(() -> service.signOff(9L, signOffRequest()))
             .isInstanceOf(ApiException.class);
 
         verify(runRepo, never()).save(any(ModelEvalRun.class));
-        verify(runRepo, never()).signOffPending(any(), anyString(), anyString(), any(Instant.class));
+        verify(runRepo, never()).signOffPending(
+            any(), anyString(), anyString(), anyString(), any(Instant.class));
     }
 
     @Test
     void signOff_nonQualityGovernorRejectedAtServiceBoundary() {
-        Instant now = Instant.parse("2026-06-14T00:00:00Z");
         authenticateAs("platform-admin", "ROLE_PLATFORM_GOVERNANCE_ADMIN");
         RequestContext.restore(new RequestContext.Snapshot("t", OrgScope.tenant("tenant-1"), "platform-admin"));
-        when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
-            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
-            null, null, now, "quality-author", now, "quality-author")));
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-author")));
 
-        assertThatThrownBy(() -> service.signOff(9L))
+        assertThatThrownBy(() -> service.signOff(9L, signOffRequest()))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("质量治理员");
 
         verify(highRiskChangeGuard, never()).assertHighRiskAllowed(anyString(), anyString());
         verify(runRepo, never()).save(any(ModelEvalRun.class));
-        verify(runRepo, never()).signOffPending(any(), anyString(), anyString(), any(Instant.class));
+        verify(runRepo, never()).signOffPending(
+            any(), anyString(), anyString(), anyString(), any(Instant.class));
     }
 
     @Test
     void signOff_concurrentStateTransitionRejectedWithoutOverwritingReviewer() {
-        Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
-            "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
-            5, 5, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "[]",
-            null, null, now, "quality-author", now, "quality-author")));
-        when(runRepo.signOffPending(any(), anyString(), anyString(), any(Instant.class))).thenReturn(0);
+        when(runRepo.findById(9L)).thenReturn(Optional.of(pendingRun("quality-author")));
+        stubReviewableEvidence();
+        when(runRepo.signOffPending(any(), anyString(), anyString(), anyString(), any(Instant.class)))
+            .thenReturn(0);
 
-        assertThatThrownBy(() -> service.signOff(9L))
+        assertThatThrownBy(() -> service.signOff(9L, signOffRequest()))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("已被其他请求处理");
 
@@ -362,9 +472,9 @@ class ModelEvalServiceTest {
         when(runRepo.findById(9L)).thenReturn(Optional.of(new ModelEvalRun(9L, "tenant-1",
             "claude-prod", "claude-opus-4-8", "rule.draft", "prompt:v1", "tool:v1",
             5, 4, 1, null, null, "N", "N", "N", "FAILED", "[]",
-            null, null, now, "s", now, "s")));
+            null, null, null, now, "s", now, "s")));
 
-        assertThatThrownBy(() -> service.signOff(9L)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.signOff(9L, signOffRequest())).isInstanceOf(ApiException.class);
     }
 
     @Test
@@ -379,10 +489,29 @@ class ModelEvalServiceTest {
                 "rule.draft", "prompt:v1", "tool:v1",
                 1, 1, 0, null, null, "N", "N", "N", "PASSED",
                 RegressionBaselineEvidence.toJson(List.of(currentCase)),
-                "quality-001", now, now, "s", now, "s")));
+                "逐例证据已核查并确认可放行。", "quality-001", now, now, "s", now, "s")));
+        when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 1L))
+            .thenReturn(List.of(passedEvidence(1L, currentCase)));
 
         assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "qwen2.5:7b")).isTrue();
         assertThat(service.isClearedForGoLive("tenant-1", "ollama-local", "other-version")).isFalse();
+    }
+
+    @Test
+    void isClearedForGoLive_falseWhenPassedRunHasNoPerCaseEvidence() {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        MedicalRegressionCase currentCase = aCase();
+        when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+            "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
+        when(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
+                "tenant-1", "incomplete-provider", "incomplete-model", "PASSED"))
+            .thenReturn(Optional.of(new ModelEvalRun(2L, "tenant-1", "incomplete-provider", "incomplete-model",
+                "rule.draft", null, null, 1, 1, 0, null, null, "N", "N", "N", "PASSED",
+                RegressionBaselineEvidence.toJson(List.of(currentCase)),
+                null, null, null, now, "s", now, "s")));
+        when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 2L)).thenReturn(List.of());
+
+        assertThat(service.isClearedForGoLive("tenant-1", "incomplete-provider", "incomplete-model")).isFalse();
     }
 
     @Test
@@ -404,7 +533,7 @@ class ModelEvalServiceTest {
                 "rule.draft", "prompt:v1", "tool:v1",
                 1, 1, 0, null, null, "N", "N", "N", "PASSED",
                 RegressionBaselineEvidence.toJson(List.of(evaluatedCase)),
-                "quality-001", now, now, "s", now, "s")));
+                "逐例证据已核查并确认可放行。", "quality-001", now, now, "s", now, "s")));
 
         assertThat(service.isClearedForGoLive(
             "tenant-1", "ollama-local", "qwen2.5:7b")).isFalse();
@@ -424,7 +553,7 @@ class ModelEvalServiceTest {
             "recommendation.draft", promptVersion, toolVersion,
             3, "PASSED".equals(status) ? 3 : 2, "PASSED".equals(status) ? 0 : 1,
             qualityScore, terminologyScore, "N", "N", hallucinationDetected,
-            status, "[]", null, null, createdAt, "s", createdAt, "s");
+            status, "[]", null, null, null, createdAt, "s", createdAt, "s");
     }
 
     private MedicalRegressionCase citedCase() {
@@ -435,6 +564,39 @@ class ModelEvalServiceTest {
             base.forbiddenAssertionsJson(), base.minScore(), base.redLineType(),
             base.sourceReference(), "Y", base.caseVersion(), base.enabledFlag(),
             base.createdAt(), base.createdBy(), base.updatedAt(), base.updatedBy());
+    }
+
+    private ModelEvalRun pendingRun(String createdBy) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new ModelEvalRun(
+            9L, "tenant-1", "claude-prod", "claude-opus-4-8", "rule.draft", null, null,
+            1, 1, 0, null, null, "N", "N", "N", "PENDING_REVIEW",
+            RegressionBaselineEvidence.toJson(List.of(aCase())),
+            null, null, null, now, createdBy, now, createdBy);
+    }
+
+    private void stubReviewableEvidence() {
+        MedicalRegressionCase currentCase = aCase();
+        when(caseRepo.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+            "tenant-1", "rule.draft", "Y")).thenReturn(List.of(currentCase));
+        when(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-1", 9L)).thenReturn(List.of(
+            new ModelEvalCaseEvidence(
+                1L, "tenant-1", 9L, currentCase.id(), currentCase.caseVersion(),
+                currentCase.caseInput(), currentCase.expectedPhrase(), currentCase.redLineType(),
+                currentCase.sourceReference(), "期望", "[]", "Y", "N", "Y", "N", "N", "Y",
+                "[]", currentCase.createdAt(), "quality-author")));
+    }
+
+    private ModelEvalCaseEvidence passedEvidence(Long runId, MedicalRegressionCase currentCase) {
+        return new ModelEvalCaseEvidence(
+            1L, "tenant-1", runId, currentCase.id(), currentCase.caseVersion(),
+            currentCase.caseInput(), currentCase.expectedPhrase(), currentCase.redLineType(),
+            currentCase.sourceReference(), "期望", "[]", "Y", "N", "Y", "N", "N", "Y",
+            "[]", currentCase.createdAt(), "quality-author");
+    }
+
+    private ModelEvalSignOffRequest signOffRequest() {
+        return new ModelEvalSignOffRequest(true, "已核查逐用例输出、来源引用与红线结论。");
     }
 
     private void authenticateAs(String principal, String authority) {

@@ -101,4 +101,46 @@ class MedicalRegressionEvaluatorTest {
         assertThat(verdict.redLineBreach()).isFalse();
         assertThat(verdict.failed()).isZero();
     }
+
+    @Test
+    void evaluationRetainsReviewablePerCaseEvidence() {
+        var verdict = evaluator.evaluate(
+            List.of(regCase("活动性出血禁用", "CONTRAINDICATION", true)),
+            answer("活动性出血禁用，依据 source-version:1。", "[\"source-version:1\"]"));
+
+        assertThat(verdict.caseEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.caseId()).isEqualTo(1L);
+            assertThat(evidence.caseVersion()).isEqualTo("v1");
+            assertThat(evidence.caseInput()).isEqualTo("用例输入");
+            assertThat(evidence.expectedPhrase()).isEqualTo("活动性出血禁用");
+            assertThat(evidence.sourceReference()).isEqualTo("source-version:1");
+            assertThat(evidence.outputContent()).isEqualTo("活动性出血禁用，依据 source-version:1。");
+            assertThat(evidence.sourceCitations()).isEqualTo("[\"source-version:1\"]");
+            assertThat(evidence.expectedPhraseHit()).isTrue();
+            assertThat(evidence.citationRequired()).isTrue();
+            assertThat(evidence.citationVerified()).isTrue();
+            assertThat(evidence.redLineCase()).isTrue();
+            assertThat(evidence.redLineBreach()).isFalse();
+            assertThat(evidence.passed()).isTrue();
+            assertThat(evidence.failureReasons()).isEmpty();
+        });
+    }
+
+    @Test
+    void failedCaseEvidenceExplainsMissingPhraseCitationAndRedLineBreach() {
+        var verdict = evaluator.evaluate(
+            List.of(regCase("活动性出血禁用", "CONTRAINDICATION", true)),
+            answer("建议照常使用", "[]"));
+
+        assertThat(verdict.caseEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.expectedPhraseHit()).isFalse();
+            assertThat(evidence.citationVerified()).isFalse();
+            assertThat(evidence.redLineBreach()).isTrue();
+            assertThat(evidence.passed()).isFalse();
+            assertThat(evidence.failureReasons()).containsExactly(
+                "EXPECTED_PHRASE_MISSING",
+                "SOURCE_REFERENCE_MISSING",
+                "RED_LINE_BREACH");
+        });
+    }
 }

@@ -1,6 +1,6 @@
 import type { SecurityProfile } from "@/shared/api/hooks";
 
-const EXPERT_PERMISSIONS = new Set(["advanced.read", "system.debug"]);
+const EXPERT_PERMISSIONS = new Set(["advanced.read", "system.debug", "llm.eval.manage"]);
 const EXPERT_MENU_KEYS = new Set([
   "provenance",
   "graph-explore",

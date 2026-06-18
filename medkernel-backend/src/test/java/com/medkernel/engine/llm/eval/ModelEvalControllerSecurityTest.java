@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.eval;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -72,6 +73,33 @@ class ModelEvalControllerSecurityTest {
     }
 
     @Test
+    void qualityGovernorCanReadPagedRunsAndCaseEvidence() throws Exception {
+        var qualityGovernor = jwt().jwt(token -> token
+                .subject("quality-reviewer").claim("tenant_id", "tenant-1")
+                .claim("roles", List.of("quality-governor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"));
+
+        mockMvc.perform(get("/api/v1/model-evaluations/runs")
+                .param("status", "PENDING_REVIEW")
+                .param("page", "1")
+                .param("size", "20")
+                .with(qualityGovernor))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/model-evaluations/runs/9").with(qualityGovernor))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotReadModelEvaluationEvidence() throws Exception {
+        mockMvc.perform(get("/api/v1/model-evaluations/runs/9")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-decision-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void clinicalUserCannotCreateRegressionCase() throws Exception {
         mockMvc.perform(post("/api/v1/model-evaluations/regression-cases")
                 .with(jwt().jwt(token -> token
@@ -123,7 +151,9 @@ class ModelEvalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("quality-reviewer").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(signOffBody()))
             .andExpect(status().isOk());
     }
 
@@ -133,8 +163,30 @@ class ModelEvalControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("platform-admin").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("platform-governance-admin")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(signOffBody()))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void signOffRequiresExplicitEvidenceAcknowledgement() throws Exception {
+        mockMvc.perform(post("/api/v1/model-evaluations/9/sign-off")
+                .with(jwt().jwt(token -> token
+                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"evidenceAcknowledged":false,"reviewComment":"已核查逐用例输出、来源引用与红线结论。"}
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+
+    private static String signOffBody() {
+        return """
+            {"evidenceAcknowledged":true,"reviewComment":"已核查逐用例输出、来源引用与红线结论。"}
+            """;
     }
 
     private static String caseBody() {

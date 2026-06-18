@@ -359,7 +359,7 @@ class KnowledgeProductionReadinessServiceTest {
             capabilityCode, "prompt:v1", "tool:v1",
             1, 1, 0, 100.0, 100.0, "N", "N", "N", "PASSED",
             RegressionBaselineEvidence.toJson(evaluatedCases),
-            "reviewer", now, now, "u", now, "u");
+            "逐例证据已核查并确认可放行。", "reviewer", now, now, "u", now, "u");
     }
 
     private ModelEgressWhitelist whitelist() {

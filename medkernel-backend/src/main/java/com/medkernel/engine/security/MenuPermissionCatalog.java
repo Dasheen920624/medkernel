@@ -21,6 +21,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_INSTITUTION_KNOW
 import static com.medkernel.engine.security.PermissionCode.MENU_INSURANCE_AUDIT;
 import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_PRODUCTION;
 import static com.medkernel.engine.security.PermissionCode.MENU_MPI;
+import static com.medkernel.engine.security.PermissionCode.MENU_MODEL_EVALUATION_REVIEW;
 import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATIONS;
 import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATION_SETTINGS;
 import static com.medkernel.engine.security.PermissionCode.MENU_PATIENT_PATHWAYS;
@@ -41,7 +42,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>入口权限只承认 32 个按业务域分类的主导航、1 个页头和 1 个个人入口。
+ * <p>入口权限只承认 33 个按业务域分类的主导航、1 个页头和 1 个个人入口。
  */
 public final class MenuPermissionCatalog {
 
@@ -94,6 +95,8 @@ public final class MenuPermissionCatalog {
             MENU_INSURANCE_AUDIT, MenuPlacement.PRIMARY),
         menu("quality-management", "qc-eval-sets", "评价指标",
             MENU_QC_EVAL_SETS, MenuPlacement.PRIMARY),
+        menu("quality-management", "model-evaluation-review", "医学回归复核",
+            MENU_MODEL_EVALUATION_REVIEW, MenuPlacement.PRIMARY),
         menu("compliance-security", "admin-audit", "审计与证据",
             MENU_ADMIN_AUDIT, MenuPlacement.PRIMARY),
         menu("compliance-security", "security-baseline", "安全与配置",

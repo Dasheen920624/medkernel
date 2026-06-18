@@ -10,10 +10,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 /**
  * 医学回归评测治理控制器（LLM-07 T18）。
@@ -24,6 +29,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/model-evaluations")
 @DataScope(requireTenant = true)
+@Validated
 public class ModelEvalController {
 
     private final ModelEvalService service;
@@ -34,6 +40,23 @@ public class ModelEvalController {
             MedicalRegressionCaseManagementService caseManagementService) {
         this.service = service;
         this.caseManagementService = caseManagementService;
+    }
+
+    /** 按状态分页查询当前租户医学回归评测运行。 */
+    @GetMapping("/runs")
+    @PreAuthorize("@perm.has('llm.eval.manage')")
+    public ApiResult<PageResponse<ModelEvalRunSummaryResponse>> listRuns(
+            @RequestParam(defaultValue = "PENDING_REVIEW") String status,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(200) Integer size) {
+        return ApiResult.ok(service.listRuns(status, new PageRequest(page, size, null)));
+    }
+
+    /** 查询单次运行及其逐用例不可变证据。 */
+    @GetMapping("/runs/{runId}")
+    @PreAuthorize("@perm.has('llm.eval.manage')")
+    public ApiResult<ModelEvalRunDetailResponse> getRunDetail(@PathVariable Long runId) {
+        return ApiResult.ok(service.getRunDetail(runId));
     }
 
     /**
@@ -51,8 +74,10 @@ public class ModelEvalController {
      */
     @PostMapping("/{runId}/sign-off")
     @PreAuthorize("@perm.has('llm.eval.manage') and hasRole('QUALITY_GOVERNOR')")
-    public ApiResult<ModelEvalRun> signOff(@PathVariable Long runId) {
-        return ApiResult.ok(service.signOff(runId));
+    public ApiResult<ModelEvalRun> signOff(
+            @PathVariable Long runId,
+            @Valid @RequestBody ModelEvalSignOffRequest request) {
+        return ApiResult.ok(service.signOff(runId, request));
     }
 
     /**

@@ -26,7 +26,7 @@
 | `medkernel-qwen25:1.5b-v1` | digest `5207e5b813aa2da7ffffce45269665b83220e576636fd5b9a3641fef2756c9eb`；同一 WHO 精确短语和引用 5/5 一致 | provider `ollama-qwen25-15b`，HEALTHY、停用 |
 | `mimo-v2.5` | 134 真实 TLS、模型目录和补全调用；精确短语和引用 3/3 一致 | provider `external-mimo-v25`，HEALTHY、停用 |
 
-来源化回归用例 `1` 绑定 `rule.draft`、`medication-safety`、`WHO IRIS 10665/376353` 与版本 `who-chb-2024-v1`。本地/外部模型运行 `1`、`2` 均为 1/1 通过，无假引用或红线突破；因用例属于 `MEDICATION_SAFETY`，两次运行均保持 `PENDING_REVIEW`。同人签署返回 409，错误角色签署返回 403；不存在自动化专家签署。
+来源化回归用例 `1` 绑定 `rule.draft`、`medication-safety`、`WHO IRIS 10665/376353` 与版本 `who-chb-2024-v1`。本地/外部模型旧运行 `1`、`2` 均曾得到 1/1 和 `PENDING_REVIEW`，但运行生成于 V151 逐例不可变证据上线前，当前新门禁会将其判为证据不完整，不允许签字或进入上线放行。V151 发布后须重新运行两个模型，逐例固化输入、期望、输出、来源引用、红线和裁决，再由真实独立医学专家留意见签字；不存在自动化专家签署。
 
 ## 外调与版本治理
 

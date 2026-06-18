@@ -8542,6 +8542,120 @@ export function useRunSandboxScenario() {
   });
 }
 
+// ─── 医学回归独立专家复核（LLM-07 / V151）───
+export type ModelEvaluationStatus = "PENDING_REVIEW" | "PASSED" | "FAILED";
+
+export interface ModelEvaluationRunSummary {
+  runId: number;
+  providerCode: string;
+  modelVersion: string;
+  capabilityCode: string;
+  promptVersion: string;
+  toolVersion: string;
+  totalCases: number;
+  passedCases: number;
+  failedCases: number;
+  fakeCitationDetected: boolean;
+  redLineBreach: boolean;
+  hallucinationDetected: boolean;
+  status: ModelEvaluationStatus;
+  reviewer?: string | null;
+  signedAt?: string | null;
+  reviewComment?: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface ModelEvaluationCaseEvidence {
+  evidenceId: number;
+  regressionCaseId: number;
+  caseVersion: string;
+  caseInput: string;
+  expectedPhrase: string;
+  redLineType?: string | null;
+  sourceReference: string;
+  outputContent: string;
+  sourceCitations?: string | null;
+  expectedPhraseHit: boolean;
+  citationRequired: boolean;
+  citationVerified: boolean;
+  redLineCase: boolean;
+  redLineBreach: boolean;
+  passed: boolean;
+  failureReasons: string[];
+}
+
+export interface ModelEvaluationRunDetail {
+  run: ModelEvaluationRunSummary;
+  cases: ModelEvaluationCaseEvidence[];
+  evidenceComplete: boolean;
+  baselineCurrent: boolean;
+  reviewable: boolean;
+  reviewBlockReason?: string | null;
+}
+
+export interface ModelEvaluationRunsParams {
+  status: ModelEvaluationStatus;
+  page: number;
+  size: number;
+}
+
+export function useModelEvaluationRuns(params: ModelEvaluationRunsParams, enabled = true) {
+  return useQuery({
+    queryKey: ["model-evaluations", "runs", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ModelEvaluationRunSummary> }>(
+        "/model-evaluations/runs",
+        { params },
+      );
+      return data.data;
+    },
+    enabled,
+  });
+}
+
+export function useModelEvaluationRunDetail(runId?: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["model-evaluations", "runs", runId],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ModelEvaluationRunDetail }>(
+        `/model-evaluations/runs/${runId}`,
+      );
+      return data.data;
+    },
+    enabled: enabled && typeof runId === "number",
+  });
+}
+
+export function useSignOffModelEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      runId,
+      evidenceAcknowledged,
+      reviewComment,
+    }: {
+      runId: number;
+      evidenceAcknowledged: boolean;
+      reviewComment: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: ModelEvaluationRunSummary }>(
+        `/model-evaluations/${runId}/sign-off`,
+        { evidenceAcknowledged, reviewComment },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["model-evaluations", "runs"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["model-evaluations", "runs", variables.runId],
+        }),
+      ]);
+    },
+  });
+}
+
 // ─── 大模型能力网关相关的接口定义 (GA-ENG-API-12) ───
 export interface ModelCapabilityStatusResponse {
   capabilityCode: string;

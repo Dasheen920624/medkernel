@@ -140,6 +140,7 @@ class DefaultPermissionPolicyTest {
             "qc-alerts",
             "insurance-audit",
             "qc-eval-sets",
+            "model-evaluation-review",
             "admin-audit")),
         Map.entry(RoleCode.COMPLIANCE_AUDITOR, List.of(
             "workbench",
@@ -478,7 +479,7 @@ class DefaultPermissionPolicyTest {
             .contains(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE)
             .doesNotContain(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
-            .contains(PermissionCode.LLM_EVAL_MANAGE)
+            .contains(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.MENU_MODEL_EVALUATION_REVIEW)
             .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
@@ -489,7 +490,8 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.LLM_PROVIDER_MANAGE,
                 PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_EVAL_MANAGE,
-                PermissionCode.LLM_ENHANCEMENT_MANAGE);
+                PermissionCode.LLM_ENHANCEMENT_MANAGE,
+                PermissionCode.MENU_MODEL_EVALUATION_REVIEW);
     }
 
     @Test

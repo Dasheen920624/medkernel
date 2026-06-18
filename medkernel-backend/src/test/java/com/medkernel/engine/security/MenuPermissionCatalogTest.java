@@ -31,6 +31,7 @@ class MenuPermissionCatalogTest {
         "qc-alerts",
         "insurance-audit",
         "qc-eval-sets",
+        "model-evaluation-review",
         "knowledge-governance",
         "institution-knowledge",
         "diagnosis-knowledge",
@@ -56,7 +57,7 @@ class MenuPermissionCatalogTest {
     @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
-            .hasSize(34)
+            .hasSize(35)
             .allSatisfy(menu -> {
                 assertThat(menu.permission().dimension()).isEqualTo(PermissionDimension.MENU);
                 assertThat(menu.permission().target()).isEqualTo(menu.menuKey());
@@ -68,7 +69,7 @@ class MenuPermissionCatalogTest {
     void catalogLocksPrimaryHeaderAndProfilePlacements() {
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.PRIMARY)
-            .hasSize(32);
+            .hasSize(33);
         assertThat(MenuPermissionCatalog.allMenus())
             .filteredOn(menu -> menu.placement() == MenuPermissionCatalog.MenuPlacement.HEADER)
             .extracting(MenuPermissionCatalog.MenuPermission::menuKey)
@@ -99,7 +100,8 @@ class MenuPermissionCatalogTest {
                 "mpi", "patient-pathways", "cdss-fatigue", "workflow-todos", "clinical-followup",
                 "sandbox"),
             "quality-management", Set.of(
-                "qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"),
+                "qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets",
+                "model-evaluation-review"),
             "compliance-security", Set.of("admin-audit", "security-baseline"),
             "system-operations", Set.of(
                 "implementation-guide", "adapter-hub", "system-providers", "domestic-check", "dev-console")

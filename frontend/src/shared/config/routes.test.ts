@@ -56,7 +56,7 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 32,
+      primary: 33,
       header: 1,
       profile: 1,
     });
@@ -196,6 +196,18 @@ describe("route metadata", () => {
         }),
         path,
       ).toBe(false);
+    });
+  });
+
+  it("limits medical regression review to the quality governor", () => {
+    const route = findRouteByPath("/qc/model-evaluations");
+
+    expect(route).toMatchObject({
+      menuKey: "model-evaluation-review",
+      sectionKey: "quality-management",
+      requiredPermissions: ["menu.model-evaluation-review", "llm.eval.manage"],
+      requiredRoles: ["quality-governor"],
+      pageType: "review",
     });
   });
 
