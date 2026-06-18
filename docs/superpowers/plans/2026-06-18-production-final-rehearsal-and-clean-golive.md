@@ -603,7 +603,7 @@ Expected: 全部 exit 0。
 
 `final-acceptance.json` 必须引用最终清库、运行 manifest、真人签署、九闸、P6、小样本、审计、备份和门禁证据，且不包含凭据或患者数据。
 
-- [ ] **Step 5: 统一远程 PR**
+- [x] **Step 5: 统一远程 PR**
 
 只有 `LIVE_ACCEPTED` 后执行：
 
@@ -614,8 +614,10 @@ gh pr create --base main --head codex/p6-independent-acceptance
 
 PR 使用中文说明范围、验证、未完成、医疗安全、部署和迁移影响。等待 CI 全绿后 squash 合并，确认 `origin/main` 包含合并提交。
 
-实际执行偏差：用户于 `AWAITING_EXPERT_SIGNOFF` 阶段明确要求提前提交远程 PR 并合并，因此已创建 PR #636。该授权仅提前 Git 集成，不改变正式上线状态机；专家签署、Provider 启用、P6 放行和低风险真实小样本仍不得自动化或提前执行。本项在 PR 实际合并并确认 `origin/main` 后才可勾选。
+实际执行偏差与结果：用户于 `AWAITING_EXPERT_SIGNOFF` 阶段明确要求提前提交远程 PR 并合并。PR #636 经 coverage 超时根因修复后 8 项 CI 全绿，于 `2026-06-19T00:57:47+08:00` squash 合并为 `89f207017da26706f26dee759d62073c2ce53dd5`，远程功能分支已删除并确认 `origin/main` 指向该提交。该授权仅提前 Git 集成，不改变正式上线状态机；专家签署、Provider 启用、P6 放行和低风险真实小样本仍不得自动化或提前执行。
 
 - [ ] **Step 6: 从最新 main 继续 Phase 10**
 
 合并后删除远程功能分支，从最新 `origin/main` 新建 `codex/` 分支；134 不再清库，继续 KNOWGEN 首发知识生产与 Phase 11 GA。
+
+当前已从最新 `origin/main` 创建 `codex/p9-post-merge-handoff` 收口接力文档；Phase 10 仍受真人专家签署阻断，不能因代码已合并而提前开始正式知识生产。
