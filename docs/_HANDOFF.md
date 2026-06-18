@@ -4,8 +4,8 @@
 
 ## 当前真相
 
-- 最新主线：`origin/main=8520b741`，已包含 #634「自主公域知识生产 + AI 工厂收尾 + 整体上线主计划」。
-- 当前本地分支：`codex/knowledge-fullflow-audit-production`；用户要求长任务自主执行到完成，只本地提交，暂不合并远程 `main`。
+- 最新主线：`origin/main=89337fcf`，#635「收口自主知识生产与 134 上线证据」已通过 8 项 PR CI 并 squash 合并；远程功能分支已删除。
+- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；设计提交 `ee6a76d6`、覆盖率稳定性提交 `3bdf7d01` 与 P6 授权门提交均仅在本地，尚未推送。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不回灌、不依赖旧部署回退路径。
@@ -93,11 +93,13 @@
 - Phase 9 T9.4 上线门禁核查已完成代码加固与全量验证：readiness 不再信任自由文本版本策略，只接受当前租户/能力唯一 ACTIVE 版本包及 64 位 SHA-256 三元组，并要求版本包模型与 provider 配置一致；网关调用前后分别复核 ACTIVE 版本包、provider 配置、响应实际模型和非空补全内容，版本包缺失或状态、租户、能力、版本、hash、作用域键任一畸形时均在解析 provider 前走 B0。外部知识生产出域策略改由统一校验器验证 JSON、审批阈值和锁定护栏，必须显式允许 `prompt`；剥离后禁止回退原输入，空/非文本最小化结果阻断，`MASK_ALL` 递归处理结构化内容并清空直接标识字段。三类 provider 适配器与网关双层拒绝缺少实际 `model`、版本漂移或空补全；版本回滚影响行数不是 1 时以冲突失败并由事务恢复原 ACTIVE。V150 五方言要求 ACTIVE 的 `active_scope_key` 精确等于 `tenant_id|capability_code`，并以状态 CHECK 与唯一约束在关系库层阻断空值、伪造作用域键及同租户同能力多个 ACTIVE；前端 `npm run verify` 为 98 files / 788 tests 全绿，后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 为 2955 tests、0 failures、0 errors、7 skipped，H2 空库迁移至 V150。
 - Phase 9 T9.7 发布制品追溯已加固：macOS/Linux 与 Windows 发布入口均只接受当前干净工作树 `HEAD` 的完整 40 位哈希，移除复用既有 `target`/`dist` 的跳过构建分支，所选前后端必须从该提交重新构建；短哈希和脏工作树负向测试均按预期拒绝，三套 on-prem 发布合同与脚本语法通过。
 - Phase 9 T9.3 逐例复核闭环本地验证：后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 汇总 2967 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V151；前端 `npm run verify` 的 lint/stylelint/格式/typecheck 与 99 files / 794 tests 全绿；前后端生产构建、B0、配置边界、迁移规约、产品目录一致性、`git diff --check` 和新增行高置信敏感信息扫描均退出 0。全量验证额外发现并修复 V151 权威迁移序列/表/索引/约束快照遗漏，以及审计页高负载测试的非确定性异步交互。
-- V151 医学回归逐例复核闭环已形成仅本地中文提交并发布 134，尚未推送。134 manifest source/commit=`09306b0531309bee48978dab09c02f649d3482e6`；本地与运行 JAR SHA-256 均为 `67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d`；Flyway V151、HTTP/HTTPS readiness `UP`、服务 active/enabled、`NRestarts=0`。
+- V151 医学回归逐例复核闭环、134 发布证据与全仓修复已通过 #635 合入 `main=89337fcf`。134 manifest source/commit 仍为已验收部署提交 `09306b0531309bee48978dab09c02f649d3482e6`；本地与运行 JAR SHA-256 均为 `67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d`；Flyway V151、HTTP/HTTPS readiness `UP`、服务 active/enabled、`NRestarts=0`。
 - V151 发布后已分别重跑固定本地模型和用户提供的外网模型：运行 `3`、`4` 均为 1/1、`PENDING_REVIEW`，各有 1 条逐例不可变证据，`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`；来源精确核验、期望命中、无红线突破。两个 provider 均保持 HEALTHY、停用，未自动上线、未代签。
 - WHO 起步源与医学基准已进入 134 真实治理链；当前仍没有把任何自动化操作者冒充医学专家，新运行 `3`、`4` 均等待独立专家签署。
 - 134 权威目标为公网 `193.112.107.134`。当前远端为 `09306b0531309bee48978dab09c02f649d3482e6`、JAR SHA-256=`67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d`、Flyway V151、服务 active/enabled 且 `NRestarts=0`，HTTP/HTTPS readiness 当前均返回 `UP`。
 - 知识生产 readiness 当前 5/9：`LITERATURE_ROOT`、`DEPLOYMENT_FORM`、`REGRESSION_BASELINE`、`EGRESS_GOVERNANCE`、`MODEL_POLICY` 通过；`MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE` 因 provider 未启用/未签署而阻断，`P6_ACCEPTANCE` 尚未放行。不得在专家签署前启用 provider 或翻 P6。
+- P6 独立验收授权门已完成实现、代码审查、全量验证和本地提交：通用 `system.manage` 不再足以把 P6 从 `false` 放行为 `true`，必须由已验签的内置 `SYSTEM_SUPERADMIN` authority 执行；MFA、二次确认、原因、乐观锁和审计保持不变。租户级 P6 覆盖、默认种子与直接种子均被服务层拒绝，回滚到 `true` 同样复核超管；关闭为 `false` 保留给完成 MFA 的运维作为快速失败关闭路径。非超管拒绝通过独立子事务写 `outcome=FAILED` 审计，不随业务事务回滚丢失；前端对非超管和租户覆盖均禁用伪编辑入口。该门禁不代表 P6 已放行，134 当前值仍为 `false`。
+- P6 切片最终验证：后端 464 份报告 / 2975 tests，0 failures、0 errors、7 skipped，H2 空库应用并复核 V151，生产 JAR 构建通过；前端 `npm run verify` 与 `npm run test:coverage` 均为 99 files / 795 tests，全量生产构建通过。真实性 24 项自测及 1957 文件全量扫描、B0 96 项自测、配置边界 2 项自测及 1852 文件全量扫描、迁移规约 12 项自测及 755 文件全量扫描、中文注释、产品目录和差异门禁均通过。覆盖率插桩下的诊断资产创建用例保持真实表单校验与条件等待，仅收敛两个按钮交互后连续三轮定向及全量覆盖率通过。
 - Phase 9 生产模型与证据收口验证：Ollama 定义先以缺文件红灯失败，再补受控 Modelfile 与校验脚本转绿并接入 CI；三套 on-prem 发布合同和脚本语法通过。前端 `npm run verify` 为 98 files / 788 tests 全绿；后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 为 2955 tests、0 failures、0 errors、7 skipped；真实性全量 1948 文件、配置边界全量 1844 文件、迁移规约全量 750 文件、中文注释、B0、产品目录、证据 JSON 与 `git diff --check` 均通过。
 - Phase 8 T8.6 最终收口验证：`cd frontend && npm run verify && npm run build` 退出 0，前端 97 files / 783 tests 全绿且 lint warning=0；`npx playwright test e2e/theme-mobile-browser-compatibility.spec.ts --project=chromium --project='国产 Chromium 内核仿真（非现场认证）'` 4 tests 通过，覆盖 5 主题、elder ≥16pt、390px 无根节点横向溢出和 console error=0。`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 460 suites / 2892 tests，0 failures、0 errors、7 skipped；H2 从空库成功应用并验证 148 版迁移。`cd cli && npm test` 30 tests、`cd mcp-server && npm test` 16 tests 通过。部署合同、发布包合同、真实性全量扫描、配置清单、迁移 changed 扫描、中文 Javadoc/迁移注释、B0、产品目录导出检查和 `git diff --check` 均退出 0。
 - Phase 8 T8.6 三片验证：TDD 红灯先命中 `ServerDataTable` 整页错误/部分失败、`PageState` 部分失败、`AsyncExportAction` 导出失败、`TenantLifecyclePanel` 生命周期读取失败、`WorkbenchPanel` 部分来源失败、`AuthoringBatchDrawer` 批量 API 失败和 `getApiErrorMessage` 原始接口/连接错误直出后转绿；`cd frontend && npm test -- --run src/shared/api/errors.test.ts src/shared/api/mutation.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/ui/PageState.test.tsx src/shared/ui/AsyncExportAction.test.tsx src/shared/ui/ServerDataTable.test.tsx src/features/tenant-lifecycle/TenantLifecyclePanel.test.tsx src/widgets/WorkbenchPanel.test.tsx` 50 tests 通过；`cd frontend && npm test -- --run` 96 files / 778 tests 通过；`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 4 个嵌套三元 warning。浏览器烟测 `/workbench`、`/terminology/mapping` 和 390px `/terminology/mapping` 在无后端授权态均非空渲染医院语言“暂时无法核验权限”，UI 无原始接口/连接文本、console error=0；Vite 代理日志按预期记录本机后端未启动的 `ECONNREFUSED`，未泄露到页面。
@@ -137,9 +139,9 @@
 
 ## 下一步
 
-1. 复核本轮部署/运行证据文档，执行格式、敏感信息和差异门禁后仅本地提交。
-2. 按用户授权统一推送当前分支、创建远程 PR、等待 CI、合并 `main` 并确认 `origin/main` 含合并提交。
-3. 从最新 `origin/main` 继续推进 P6 独立验收和 T9.8 真实小样本闭环；真实独立医学专家仍须现场逐例复核运行 `3` 或 `4` 并签字，自动化不得代签。
+1. 继续排查可自主解决的 P6/T9.8 技术阻塞，不改 134 的 P6 当前值、不推远程。
+2. 真实独立医学专家仍须现场逐例复核运行 `3` 或 `4` 并签字，自动化不得代签。
+3. 只有专家签署后，才按顺序启用对应 provider、复核 readiness 其余八项、由内置超管执行 P6 高危放行，再跑真实自主获取→候选→审核→激活小样本。
 
 ## 常用指针
 

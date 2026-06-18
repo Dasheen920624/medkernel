@@ -56,9 +56,12 @@ class SystemConfigControllerTest {
     private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
     private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT = "";
+    private static final String KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY =
+        "medkernel.knowledge.production.p6-independent-acceptance";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
+    private static final String MFA_SYSTEM_SUPERADMIN_USER = "system-superadmin-mfa";
 
     @Autowired
     MockMvc mvc;
@@ -83,18 +86,15 @@ class SystemConfigControllerTest {
 
     @BeforeEach
     void seedMfaCredential() {
-        if (credentialRepository.findByTenantIdAndUserId("t-1", MFA_USER).isEmpty()) {
-            java.time.Instant now = java.time.Instant.now();
-            credentialRepository.save(new PlatformCredential(
-                null, "cred-" + MFA_USER, "t-1", MFA_USER, MFA_USER,
-                "$2a$10$hash", "ACTIVE", "N", mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
-                now, "test", now, "test", "trace-test"));
-        }
+        seedMfaCredential(MFA_USER);
+        seedMfaCredential(MFA_SYSTEM_SUPERADMIN_USER);
     }
 
     @AfterEach
     void restoreSeededRuntimeFlags() {
         credentialRepository.findByTenantIdAndUserId("t-1", MFA_USER)
+            .ifPresent(credentialRepository::delete);
+        credentialRepository.findByTenantIdAndUserId("t-1", MFA_SYSTEM_SUPERADMIN_USER)
             .ifPresent(credentialRepository::delete);
         jdbcTemplate.update("""
             UPDATE mk_config_item
@@ -146,6 +146,14 @@ class SystemConfigControllerTest {
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_DEFAULT, KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key = ?", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', source = 'PLATFORM_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY);
+        jdbcTemplate.update(
+            "DELETE FROM mk_config_history WHERE config_key = ?",
+            KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -411,6 +419,39 @@ class SystemConfigControllerTest {
     }
 
     @Test
+    void p6AcceptanceCanOnlyBeEnabledByMfaBoundSystemSuperAdmin() throws Exception {
+        String body = """
+            {
+              "value": "true",
+              "reason": "完成 P6 独立验收并确认正式生产影响",
+              "expectedVersion": 1,
+              "confirmedHighRisk": true
+            }
+            """;
+
+        mvc.perform(patch(
+                "/api/v1/system/configs/{key}",
+                KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-API-004"));
+
+        assertThat(configValue(KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)).isEqualTo("false");
+
+        mvc.perform(patch(
+                "/api/v1/system/configs/{key}",
+                KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)
+                .with(systemSuperAdminWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value("true"))
+            .andExpect(jsonPath("$.data.version").value(2));
+    }
+
+    @Test
     void highRiskConfirmedUpdateRequiresMfaBoundUser() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
                 .with(itOpsWithoutMfa())
@@ -631,6 +672,34 @@ class SystemConfigControllerTest {
         return SecurityMockMvcRequestPostProcessors.jwt()
             .jwt(t -> t.subject("system-superadmin-1").claim("tenant_id", "t-1"))
             .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
+    }
+
+    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor systemSuperAdminWithMfa() {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+            .jwt(t -> t.subject(MFA_SYSTEM_SUPERADMIN_USER).claim("tenant_id", "t-1"))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
+    }
+
+    private void seedMfaCredential(String userId) {
+        if (credentialRepository.findByTenantIdAndUserId("t-1", userId).isPresent()) {
+            return;
+        }
+        java.time.Instant now = java.time.Instant.now();
+        credentialRepository.save(new PlatformCredential(
+            null,
+            "cred-" + userId,
+            "t-1",
+            userId,
+            userId,
+            "$2a$10$hash",
+            "ACTIVE",
+            "N",
+            mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
+            now,
+            "test",
+            now,
+            "test",
+            "trace-test"));
     }
 
     private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtFor(String userId) {

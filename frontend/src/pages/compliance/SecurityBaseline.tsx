@@ -260,6 +260,7 @@ export default function SecurityBaseline() {
   }
 
   const canManage = hasPermission(profile, "system.manage");
+  const canReleaseP6 = profile.roles.some((role) => role.code === "system-superadmin");
   return (
     <PageShell
       title="安全基线与系统配置"
@@ -284,7 +285,7 @@ export default function SecurityBaseline() {
           {
             key: "config",
             label: "系统配置",
-            children: <SystemConfigPanel canManage={canManage} />,
+            children: <SystemConfigPanel canManage={canManage} canReleaseP6={canReleaseP6} />,
           },
           {
             key: "data-permission",

@@ -26,7 +26,7 @@
 
 在 `shared.config` 定义最小授权端口，由安全域使用 Spring Security 已验签 authority 实现。配置服务在所有写路径统一执行以下规则：
 
-1. P6 只能存在于 `SYSTEM` 配置空间，租户覆盖一律拒绝；
+1. P6 只能存在于 `SYSTEM` 配置空间，租户覆盖、租户默认种子和直接种子一律拒绝；
 2. P6 从非 `true` 变为 `true` 时必须持有 `ROLE_SYSTEM_SUPERADMIN`；
 3. 继续复用既有 `system.manage`、MFA、二次确认、原因、乐观锁、历史和审计；
 4. P6 从 `true` 关闭为 `false` 不额外要求超管，保留快速安全降级；
@@ -36,14 +36,14 @@
 
 ## 组件边界
 
-- `PrivilegedConfigChangeGuard`：共享层授权端口，只接收资源与所需 authority，不理解角色目录。
-- `SpringSecurityPrivilegedConfigChangeGuard`：安全域实现，只信任当前 `Authentication` 的已验签 authority。
-- `SystemConfigService`：判断何时需要特权授权、拒绝 P6 租户覆盖，并在更新与回滚前调用端口。
+- `PrivilegedConfigChangeGuard`：共享层语义化授权端口，只表达当前资源变更必须由内置超管执行，不接收调用方传入的角色字符串。
+- `SpringSecurityPrivilegedConfigChangeGuard`：安全域实现，以安全域权威角色目录解析内置超管 authority，只信任当前 `Authentication` 的已验签权限。
+- `SystemConfigService`：判断何时需要特权授权、拒绝 P6 租户覆盖与租户种子，并在更新与回滚前调用端口。
 - `SecurityBaseline` / `SystemConfigPanel`：依据当前安全画像区分“可管理普通配置”和“可放行 P6”；非超管在 P6 未放行时禁用编辑，租户视图始终禁用 P6。
 
 ## 数据流与失败语义
 
-P6 开启请求依次经过权限表达式、值校验、审计安全门、高危确认、MFA、P6 特权授权、乐观锁写入和审计记录。任一步失败均不写配置、不写成功审计、不触发运行副作用。
+P6 开启请求依次经过权限表达式、值校验、审计安全门、高危确认、MFA、P6 特权授权、乐观锁写入和审计记录。任一步失败均不写配置、不写成功审计、不触发运行副作用；超管授权失败通过 `IsolatedAuditPublisher` 写入独立子事务的 `outcome=FAILED` 审计，避免随业务事务回滚丢失。
 
 - 缺少超管 authority：`ENG-API-004` / HTTP 403；
 - P6 租户覆盖：`ENG-API-002` / HTTP 400，并明确说明该配置仅允许系统级维护；
@@ -51,7 +51,7 @@ P6 开启请求依次经过权限表达式、值校验、审计安全门、高�
 
 ## 测试策略
 
-- 服务单测：非超管开启被拒且仓库不写；超管开启调用授权端口后写入；关闭不要求超管；租户覆盖被拒；回滚到 `true` 要求超管。
+- 服务单测：非超管开启被拒、仓库不写且发布独立失败审计；超管开启调用授权端口后写入；关闭不要求超管；租户覆盖、租户默认种子和直接种子被拒；回滚到 `true` 要求超管。
 - 控制器集成测试：真实 Spring Security authority 验证集成运维员开启失败、超管开启成功且仍要求 MFA。
 - 前端单测：平台治理管理员不能开启未放行 P6；系统超管可以；租户覆盖视图不可编辑 P6。
 - 回归：配置中心定向测试、后端全量、前端全量、T-GATE。
