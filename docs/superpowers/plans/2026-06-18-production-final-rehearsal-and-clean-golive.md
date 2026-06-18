@@ -243,7 +243,7 @@ Expected: 本地 commit 成功；134 仍保持 provider 停用、P6=false。
 - Modify: `docs/_HANDOFF.md`
 - Modify: `docs/audit/deferred-issues.md`
 
-- [ ] **Step 1: 执行后端、前端、CLI、MCP 全量门禁**
+- [x] **Step 1: 执行后端、前端、CLI、MCP 全量门禁**
 
 Run:
 
@@ -256,7 +256,7 @@ cd ../mcp-server && npm test
 
 Expected: 全部 exit 0、lint 零 warning、format 无漂移。
 
-- [ ] **Step 2: 执行迁移和首发空库验证**
+- [x] **Step 2: 执行迁移和首发空库验证**
 
 Run:
 
@@ -267,7 +267,7 @@ mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiD
 
 Expected: 可用方言全部通过；缺少真实外部数据库时只允许测试内显式 assumption skip，并登记现场复核项。
 
-- [ ] **Step 3: 执行全局 T-GATE**
+- [x] **Step 3: 执行全局 T-GATE**
 
 Run:
 
@@ -283,17 +283,17 @@ git diff --check
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 4: 在 134 预演环境重新跑签署前真实链路**
+- [x] **Step 4: 在 134 预演环境重新跑签署前真实链路**
 
 保持 provider 停用、P6=false，执行健康检查、真实 provider 调用、真实医学评测和逐例证据读取，终态只能为 `PENDING_REVIEW`。
 
 Expected: 逐例证据完整、基准当前、可复核；无自动签署、无 provider 启用、无 P6 变更、无正式候选。
 
-- [ ] **Step 5: 修复所有可在开发阶段解决的问题**
+- [x] **Step 5: 修复所有可在开发阶段解决的问题**
 
 每个失败均按“复现→红测→根因→最小修复→目标测试→全量回归”闭环；现场真人身份、真实国产环境等不能由开发完成的事实写入 `docs/audit/deferred-issues.md`，但不得把工程缺陷推给现场。
 
-- [ ] **Step 6: 达成 `REHEARSAL_READY`**
+- [x] **Step 6: 达成 `REHEARSAL_READY`**
 
 Run:
 
@@ -302,6 +302,8 @@ node scripts/drill/p9-engineering-rehearsal-check.mjs
 ```
 
 Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未通过。
+
+实际验证：后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests 及完整 build/typecheck/lint/format 均通过；H2 从空库迁移至 V152 并重复执行无变化，当前工作机 Docker socket 不可用导致 PostgreSQL / Oracle Testcontainers 按 assumption skip，已登记 `DEFER-025`。四项 on-prem 部署/发布/Ollama 合同、全局 T-GATE 和 134 既有真实备份隔离恢复证据均复核通过。新增入库脚本以请求白名单阻断 enable/disable/sign-off/P6 写入，并 fail-closed 校验明确启停位、医学安全逐例裁决与精确九闸集合；134 最终新运行 `9`、`10` 均真实 1/1、逐例证据完整、基准当前、可复核并保持 `PENDING_REVIEW`，两个 provider 全程 HEALTHY 且停用、P6=false。11 类脱敏 JSON 聚合结果为 `status=PASSED`、`stage=REHEARSAL_READY`，不代表正式上线。
 
 ### Task 5: 冻结最终候选
 

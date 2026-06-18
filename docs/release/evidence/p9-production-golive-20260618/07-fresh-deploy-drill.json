@@ -1,0 +1,45 @@
+{
+  "status": "PASSED",
+  "stage": "ENGINEERING_REHEARSAL_ONLY",
+  "capturedAt": "2026-06-18T13:19:23Z",
+  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
+  "contractChecks": [
+    {
+      "command": "bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh",
+      "status": "PASSED"
+    },
+    {
+      "command": "bash deploy/onprem/tests/validate-medkernel-deploy.sh",
+      "status": "PASSED"
+    },
+    {
+      "command": "bash deploy/onprem/tests/validate-mk-publish-package.sh",
+      "status": "PASSED"
+    },
+    {
+      "command": "bash deploy/onprem/tests/validate-ollama-model.sh",
+      "status": "PASSED"
+    }
+  ],
+  "actualRehearsal": {
+    "environment": "134-production-center",
+    "sourceCommit": "8ef5103d6227d371baed829a48f5dda9774071ce",
+    "candidateJarSha256": "837a0ac46ecfe3cc09c6c93047c6b9639b0365bfc378c60825e16308f4ba819f",
+    "runningJarSha256": "837a0ac46ecfe3cc09c6c93047c6b9639b0365bfc378c60825e16308f4ba819f",
+    "manifestJarSha256": "837a0ac46ecfe3cc09c6c93047c6b9639b0365bfc378c60825e16308f4ba819f",
+    "serviceStatus": "active",
+    "readinessHttp": 200,
+    "readinessHttps": 200,
+    "flywayVersion": 148,
+    "publicBaseTables": 206,
+    "databaseOwner": "medkernel",
+    "bootstrapInitializedBeforeBootstrap": false,
+    "historicalRuntimeFiles": 0,
+    "knowledgeDomainRows": 0,
+    "destructiveActionPerformed": true,
+    "evidenceChecksumsVerified": true
+  },
+  "finalProductionCleanDeployPerformed": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

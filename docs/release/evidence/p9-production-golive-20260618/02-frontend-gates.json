@@ -1,0 +1,17 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T13:19:23Z",
+  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
+  "command": "cd frontend && npm test -- --run && npm run typecheck && npm run lint && npm run format:check && npm run build",
+  "testFiles": 99,
+  "tests": 795,
+  "typecheck": "PASSED",
+  "lint": {
+    "status": "PASSED",
+    "warnings": 0
+  },
+  "format": "PASSED",
+  "build": "PASSED",
+  "containsCredentials": false,
+  "containsPatientData": false
+}

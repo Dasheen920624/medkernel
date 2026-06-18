@@ -1,0 +1,51 @@
+{
+  "capturedAt": "2026-06-18T13:19:23Z",
+  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
+  "scope": "工程预演，只允许进入 REHEARSAL_READY，不代表正式上线放行",
+  "checks": [
+    {
+      "code": "BACKEND_TESTS",
+      "path": "01-backend-tests.json"
+    },
+    {
+      "code": "FRONTEND_GATES",
+      "path": "02-frontend-gates.json"
+    },
+    {
+      "code": "CLI_TESTS",
+      "path": "03-cli-tests.json"
+    },
+    {
+      "code": "MCP_TESTS",
+      "path": "04-mcp-tests.json"
+    },
+    {
+      "code": "MIGRATIONS",
+      "path": "05-migrations.json"
+    },
+    {
+      "code": "T_GATE",
+      "path": "06-t-gate.json"
+    },
+    {
+      "code": "FRESH_DEPLOY_DRILL",
+      "path": "07-fresh-deploy-drill.json"
+    },
+    {
+      "code": "BACKUP_RESTORE",
+      "path": "08-backup-restore.json"
+    },
+    {
+      "code": "MODEL_PROVIDER",
+      "path": "09-model-provider.json"
+    },
+    {
+      "code": "EVALUATION_CASE_EVIDENCE",
+      "path": "10-evaluation-case-evidence.json"
+    },
+    {
+      "code": "READINESS_PREFLIGHT",
+      "path": "11-readiness-preflight.json"
+    }
+  ]
+}

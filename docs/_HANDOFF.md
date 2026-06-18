@@ -5,7 +5,7 @@
 ## 当前真相
 
 - 最新主线：`origin/main=89337fcf`，#635「收口自主知识生产与 134 上线证据」已通过 8 项 PR CI 并 squash 合并；远程功能分支已删除。
-- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；P6 授权门、T9.8 只读预检和模型 provider 受控启停切片均已本地收口，尚未推送。
+- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；P6 授权门、T9.8 只读预检、模型 provider 受控启停和完整工程预演均已本地收口，尚未推送。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：按全新项目上线；P9 发布前停服务并清空数据库、旧制品和旧运行数据，从最新迁移基线全新初始化，不迁就历史数据、不回灌、不依赖旧部署回退路径。
@@ -38,6 +38,10 @@
   - 抓取边界已加固：请求前拒绝任一私网/保留 DNS 解析地址，禁止自动重定向，响应上限 32 MiB；V149 五方言增加 `lock_version`，治理写入和调度 claim 共用版本栅栏，陈旧快照不能覆盖最新决策。
 - Phase 5 已收口：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵、版本三元组、质量评测、出域最小化、候选真实化与降级路径预验。
   - 模型 provider 治理已补独立安全入口：V152 五方言为 `mk_llm_provider` 增加 `lock_version`；配置 PUT 永远保存为停用并拒绝危险 URL/非法凭据引用，所有治理响应只返回脱敏快照。启停只改变 `enabled_flag`，要求 MFA、二次确认、原因、当前版本；启用还必须满足真实 `HEALTHY`、部署形态允许和已签署医学评测，重复启停在版本匹配时幂等、版本漂移仍冲突。该切片未部署 134、未签专家、未启用 provider、未翻 P6。
+  - Task 4 工程预演已达到 `REHEARSAL_READY`：新增 `p9-pre-signoff-rehearsal.mjs`，请求白名单只允许登录、Provider 脱敏读取/健康检查、评测创建/读取与 readiness，发网前阻断 enable/disable/sign-off/P6 写入；兼容 134 当前 V151 无 Provider GET 的 405 合同时，仅使用健康检查保持的 `enabled_flag` 与 readiness `MODEL_PROVIDER=false` 双重证明停用。
+  - 134 在 `2026-06-18T13:25:52Z`–`13:26:08Z` 以最终收紧脚本新生成运行 `9`（Ollama）与 `10`（外部 MIMO），均真实 1/1、`PENDING_REVIEW`、逐例证据完整、基准当前、可复核、无 reviewer / signedAt；两个 Provider 均 HEALTHY 且预演前后停用，readiness 精确为 5/9、P6=false。证据仅保留计数、裁决和原文 SHA-256。
+  - 11 类工程证据已归档至 `docs/release/evidence/p9-production-golive-20260618/01-*.json` 至 `11-*.json`；`node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`、安全边界两项均 false。该结论只允许进入候选冻结，不代表正式上线。
+  - 当前工作机 Docker socket 不可用，V152 PostgreSQL / Oracle Testcontainers 与首发空 PostgreSQL 测试按 assumption skip；H2 已到 V152，五方言静态合同通过，134 既有 PostgreSQL 全新部署/隔离恢复证据复核通过。差额已登记 `DEFER-025`，最终 134 清库前必须关闭 PostgreSQL 空库实跑。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
@@ -139,15 +143,15 @@
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
-- 不得宣称医学回归已经正式放行：134 已部署 V151 且运行 `3`、`4` 具备完整逐例证据，但状态仍为 `PENDING_REVIEW`；只有真实独立医学专家逐例核查并签字后才可转为 `PASSED`，自动化不得代签。
+- 不得宣称医学回归已经正式放行：134 已部署 V151，最新工程预演运行 `9`、`10` 具备完整逐例证据，但状态仍为 `PENDING_REVIEW`；只有最终干净正式库重新生成的运行由真实独立医学专家逐例核查并签字后才可转为 `PASSED`，自动化不得代签，当前运行也不得直接当正式库签署结果复用。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
 ## 下一步
 
-1. 按生产全流程长计划进入 Task 4，逐类生成后端、前端、CLI、MCP、迁移、T-GATE、新鲜部署、备份恢复、provider、评测证据与 readiness 预检的脱敏工程证据，修复全部可在开发阶段解决的问题，直到聚合器真实达到 `REHEARSAL_READY`。
-2. 保持 134 两个 provider 停用、P6=false；本地切片完成不等于现场状态已改变。
-3. 真实独立医学专家仍须现场逐例复核运行 `3` 或 `4` 并签字；只有签署后，才按顺序启用对应 provider、复核 readiness 其余八项、由内置超管执行 P6 高危放行，再跑真实自主获取→候选→审核→激活小样本。
+1. 按生产全流程长计划进入 Task 5：确认 Task 4 工作树、差异和本地提交完整后，从同一 commit 构建后端/前端最终候选，生成 release manifest 与冻结证据；仍禁止 push。
+2. Task 6 最终清库前先关闭 `DEFER-025` 的最新 PostgreSQL 空库实跑项，再按“备份→隔离恢复→停服务→清数据库/旧制品/旧运行数据→最新迁移全新初始化”执行；保持两个 provider 停用、P6=false。
+3. 最终干净正式库重新生成医学评测后，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。上线后不再清库。
 
 ## 常用指针
 
