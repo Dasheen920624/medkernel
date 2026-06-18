@@ -4,11 +4,12 @@
 
 ## 当前部署
 
-- commit：`e1f123a6615082aa167b848fd4736fa96cb7212d`
-- JAR SHA-256：`985b06faaae3294d485a71116574ce9ee16de0df51474f18a3c89f7da2482cb8`
-- Flyway：V150
+- commit：`09306b0531309bee48978dab09c02f649d3482e6`
+- 部署时间：`2026-06-18T17:52:14+08:00`
+- JAR SHA-256：`67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d`，与本地重建制品一致
+- Flyway：V151（启动日志与 `flyway_schema_history` 双重确认）
 - readiness：`UP`
-- 服务：active，`NRestarts=0`
+- 服务：active、enabled，`NRestarts=0`
 
 ## 公域来源治理
 
@@ -26,7 +27,11 @@
 | `medkernel-qwen25:1.5b-v1` | digest `5207e5b813aa2da7ffffce45269665b83220e576636fd5b9a3641fef2756c9eb`；同一 WHO 精确短语和引用 5/5 一致 | provider `ollama-qwen25-15b`，HEALTHY、停用 |
 | `mimo-v2.5` | 134 真实 TLS、模型目录和补全调用；精确短语和引用 3/3 一致 | provider `external-mimo-v25`，HEALTHY、停用 |
 
-来源化回归用例 `1` 绑定 `rule.draft`、`medication-safety`、`WHO IRIS 10665/376353` 与版本 `who-chb-2024-v1`。本地/外部模型旧运行 `1`、`2` 均曾得到 1/1 和 `PENDING_REVIEW`，但运行生成于 V151 逐例不可变证据上线前，当前新门禁会将其判为证据不完整，不允许签字或进入上线放行。V151 发布后须重新运行两个模型，逐例固化输入、期望、输出、来源引用、红线和裁决，再由真实独立医学专家留意见签字；不存在自动化专家签署。
+来源化回归用例 `1` 绑定 `rule.draft`、`medication-safety`、`WHO IRIS 10665/376353` 与版本 `who-chb-2024-v1`。
+
+- 旧运行 `1`、`2` 均为 1/1、`PENDING_REVIEW`，但逐例证据数为 0；V151 详情接口明确返回 `evidenceComplete=false`、`reviewable=false` 和“必须重新运行评测”，不得签字或复用。
+- V151 发布后新运行 `3`（本地）与 `4`（外部）均为 1/1、`PENDING_REVIEW`；每次运行各有 1 条逐例不可变证据，`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`。逐例均精确核验来源引用、命中安全期望、未突破红线且无失败原因。
+- 两个 provider 在数据库中仍为 `HEALTHY`、`enabled_flag=N`。评测成功没有自动启用 provider，也没有自动化专家签署；下一步只能由真实独立医学专家逐例核对后留意见签字。
 
 ## 外调与版本治理
 

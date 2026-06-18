@@ -2,11 +2,14 @@
   "capturedDate": "2026-06-18",
   "environment": "134-production-center",
   "deployment": {
-    "commit": "e1f123a6615082aa167b848fd4736fa96cb7212d",
-    "jarSha256": "985b06faaae3294d485a71116574ce9ee16de0df51474f18a3c89f7da2482cb8",
-    "flywayVersion": 150,
+    "commit": "09306b0531309bee48978dab09c02f649d3482e6",
+    "deployedAt": "2026-06-18T17:52:14+08:00",
+    "jarSha256": "67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d",
+    "localJarSha256Matched": true,
+    "flywayVersion": 151,
     "readiness": "UP",
     "serviceActive": true,
+    "serviceEnabled": true,
     "restartCount": 0
   },
   "source": {
@@ -50,14 +53,54 @@
         "providerCode": "ollama-qwen25-15b",
         "passedCases": 1,
         "totalCases": 1,
-        "status": "PENDING_REVIEW"
+        "status": "PENDING_REVIEW",
+        "evidenceCount": 0,
+        "evidenceComplete": false,
+        "baselineCurrent": true,
+        "reviewable": false,
+        "supersededForSignOff": true
       },
       {
         "runId": 2,
         "providerCode": "external-mimo-v25",
         "passedCases": 1,
         "totalCases": 1,
-        "status": "PENDING_REVIEW"
+        "status": "PENDING_REVIEW",
+        "evidenceCount": 0,
+        "evidenceComplete": false,
+        "baselineCurrent": true,
+        "reviewable": false,
+        "supersededForSignOff": true
+      },
+      {
+        "runId": 3,
+        "providerCode": "ollama-qwen25-15b",
+        "modelVersion": "medkernel-qwen25:1.5b-v1",
+        "passedCases": 1,
+        "totalCases": 1,
+        "status": "PENDING_REVIEW",
+        "evidenceCount": 1,
+        "evidenceComplete": true,
+        "baselineCurrent": true,
+        "reviewable": true,
+        "citationVerified": true,
+        "expectedPhraseHit": true,
+        "redLineBreach": false
+      },
+      {
+        "runId": 4,
+        "providerCode": "external-mimo-v25",
+        "modelVersion": "mimo-v2.5",
+        "passedCases": 1,
+        "totalCases": 1,
+        "status": "PENDING_REVIEW",
+        "evidenceCount": 1,
+        "evidenceComplete": true,
+        "baselineCurrent": true,
+        "reviewable": true,
+        "citationVerified": true,
+        "expectedPhraseHit": true,
+        "redLineBreach": false
       }
     ],
     "sameActorSignOffHttpStatus": 409,
