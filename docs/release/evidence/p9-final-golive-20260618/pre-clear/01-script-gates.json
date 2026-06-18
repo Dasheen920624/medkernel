@@ -1,0 +1,30 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T14:24:02Z",
+  "candidateCommit": "95b53321c7baeb4e05e70b62834074fc59df323e",
+  "checks": [
+    {
+      "command": "bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "bash deploy/onprem/tests/validate-medkernel-deploy.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "bash deploy/onprem/tests/validate-mk-publish-package.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "bash -n deploy/onprem/medkernel-fresh-deploy.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "bash -n deploy/onprem/mk-publish.sh",
+      "exitCode": 0
+    }
+  ],
+  "destructiveActionPerformed": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

@@ -45,8 +45,9 @@
   - Task 6 安全复核发现最终清库脚本缺少目标主机强制匹配；已以 TDD 在 `c70787c9` 增加 `--expected-host` 精确校验，缺失或不匹配必须在 root、停服和任何破坏性检查前退出。修复后后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests、迁移合同、部署合同、T-GATE 与两类前端依赖审计全部重跑通过。
   - Task 5 已从新候选 `95b53321c7baeb4e05e70b62834074fc59df323e` 重新达到 `RELEASE_FROZEN`，未 push；同提交后端 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端清单 SHA-256 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言迁移清单 SHA-256 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，五文件冻结包清单 SHA-256 `18b0ee621066dc7e12441f1b01b6743fc893c67a53b841c63c68ef477885208c`。
   - 新精确候选字节以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`；历史 `1603b5a7` 候选仍明确失效、禁止部署。后续只能使用新冻结字节，不得从包含冻结证据提交在内的后续 HEAD 临时重建。
-  - 134 清库前非破坏性备份已生成并通过隔离恢复：`/zoesoft/medkernel/backups/p9-final-preclear-20260618-214927`，dump SHA-256 `166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e`，恢复库 Flyway V151、207 张 public 基表且关键计数一致，临时库已删除，`destructive_action_performed=false`。
-  - 当前工作机 Docker socket 不可用，V152 PostgreSQL / Oracle Testcontainers 与首发空 PostgreSQL 测试按 assumption skip；H2 已到 V152，五方言静态合同通过，134 既有 PostgreSQL 全新部署/隔离恢复证据复核通过。差额已登记 `DEFER-025`，最终 134 清库前必须关闭 PostgreSQL 空库实跑。
+  - 134 清库前非破坏性备份已生成并通过隔离恢复：`/zoesoft/medkernel/backups/p9-final-preclear-20260618-214927`，dump SHA-256 `166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e`，恢复库 Flyway V151、207 张 public 基表且关键计数一致，临时库已删除。按最终清库口径已删除其余 7 个历史备份目录，当前备份根只保留该恢复锚点，删除后 dump 哈希复核不变。
+  - `DEFER-025` 的 PostgreSQL 项已关闭：冻结 JAR 在 134 独立空库两次启动至 readiness 200，均迁移到 V152 / 207 张 public 基表 / 152 条成功迁移，迁移清单哈希一致且第二次 no-op；临时库、JAR、环境文件和 transient units 已删除。Oracle 实跑项仍 open，不得宣称通过。
+  - 必须保留的现场偏差：首次空库尝试因 systemd 的生产 EnvironmentFile 覆盖临时数据库 URL，候选进程在正式端口冲突退出前误将正式库从 V151 前向迁移到 V152。V152 只新增 `mk_llm_provider.lock_version` 默认 0，未删除业务数据、未替换运行制品、未重启正式服务；当前仍是旧 JAR `67ae7820...`、MainPID `526720`、`NRestarts=0`、readiness 200，三条 Provider 全停用、P6=false。纠正后使用唯一隔离的 0600 环境文件完成真实空库验证；不得把本次事实写成“正式库未修改”。
   - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
   - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
   - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
@@ -154,9 +155,9 @@
 
 ## 下一步
 
-1. 用 `95b53321` 的新冻结制品完成 Task 6 负向参数预检并在 134 临时空 PostgreSQL 库关闭 `DEFER-025`；确认失败均发生在停服前。
-2. Task 7 才按“备份→隔离恢复→停服务→清数据库/旧制品/旧运行数据→最新迁移全新初始化”执行唯一一次正式清库；保持 provider 停用、P6=false，且只能部署 `95b53321` 的精确冻结字节。
-3. 最终干净正式库重新生成医学评测后，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。上线后不再清库。
+1. Task 6 负向参数预检、历史备份清理与 V152 PostgreSQL 空库实跑已完成；先本地提交全部证据，不 push。
+2. Task 7 按“即时备份→隔离恢复→停服务→清数据库/旧制品/旧运行数据→最新迁移全新初始化”执行唯一一次正式清库；保持 Provider 停用、P6=false，且只能部署 `95b53321` 的精确冻结字节。
+3. 最终干净正式库重新生成医学评测后，只能由真实独立医学专家逐例签署；随后才按顺序启用对应 Provider、复核九闸、由内置超管执行 P6 高危放行并跑低风险真实小样本闭环。上线后不再清库。
 
 ## 常用指针
 

@@ -358,7 +358,7 @@ Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁�
 - Modify: `deploy/onprem/medkernel-fresh-deploy.sh`
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/pre-clear/`
 
-- [ ] **Step 1: 验证发布脚本**
+- [x] **Step 1: 验证发布脚本**
 
 Run:
 
@@ -372,17 +372,23 @@ bash -n deploy/onprem/mk-publish.sh
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 2: 生成并校验数据库备份**
+- [x] **Step 2: 生成并校验数据库备份**
 
 在 134 生成时间戳备份，将 dump 恢复到独立临时库，校验 Flyway 版本、表数、owner 和关键计数；删除临时恢复库但保留备份和恢复日志。
 
 Expected: `restore_verified=true`、`destructive_action_performed=false`。
 
-- [ ] **Step 3: 复核最终确认参数**
+- [x] **Step 3: 复核最终确认参数**
 
 清库脚本必须同时要求目标主机、数据库名、冻结 commit 全哈希和显式 `--confirm-fresh`；任一不匹配必须在停服前退出。
 
 Expected: 负向预检退出非零且 134 服务、数据库和旧制品未改变。
+
+实际结果：使用候选 `95b53321c7baeb4e05e70b62834074fc59df323e` 中 SHA-256 为 `59335e94fac0d24dde925f7ff34955fbb365da5f3b2e35338104ff82ae3da7a5` 的精确全新发布脚本，在 134 依次验证缺目标主机、错目标主机、缺全新确认、错数据库名、缺来源提交和非 40 位来源提交六组负向输入，均以 exit 1 在停服前拒绝。每组前后服务 MainPID `526720`、`NRestarts=0`、运行 JAR、当时的 Flyway V151、207 张 public 基表及三条 Provider 停用状态完全一致；P6 仍为 false，一次性上传目录已删除。
+
+按最终清库口径又删除 7 个旧备份目录，只保留已验证恢复锚点 `p9-final-preclear-20260618-214927`，dump SHA-256 仍为 `166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e`。V152 PostgreSQL 空库现场预检最终通过：冻结 JAR 在独立临时库两次 readiness 200，均为 V152 / 207 张 public 基表 / 152 条成功迁移，迁移清单 SHA-256 均为 `2d8fd58b8f6ee8682c4eab6077e79658f38102ef7cb48428a12ca19cc948ff30`，第二次为 no-op，临时库、制品、环境文件和 transient units 已删除。
+
+必须保留的偏差：首次临时 unit 错误同时引用生产 EnvironmentFile 与命令行 Environment，正式数据库 URL 覆盖临时值；候选进程因正式端口占用而退出前，已把正式库从 V151 前向迁移到 V152。该迁移只为 `mk_llm_provider` 新增默认 0 的 `lock_version`，未删除数据、未替换运行制品、未重启正式服务；当前正式服务仍为 MainPID `526720`、`NRestarts=0`、readiness 200，三条 Provider 全停用、P6=false。纠正后改用唯一隔离的 0600 临时环境文件并完成上述空库实跑；完整事实见 `docs/release/evidence/p9-final-golive-20260618/pre-clear/05-postgres-empty-database-smoke.json`，不得改写为“正式库未被修改”。
 
 ### Task 7: 对 134 执行最后一次清库与全新部署
 
