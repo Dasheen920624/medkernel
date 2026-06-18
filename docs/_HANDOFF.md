@@ -5,7 +5,7 @@
 ## 当前真相
 
 - 最新主线：`origin/main=89337fcf`，#635「收口自主知识生产与 134 上线证据」已通过 8 项 PR CI 并 squash 合并；远程功能分支已删除。
-- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；P6 授权门、T9.8 只读预检、模型 provider 受控启停和完整工程预演均已本地收口，尚未推送。
+- 当前本地分支：`codex/p6-independent-acceptance`，基于最新 `origin/main`；用户已明确授权提前执行远程集成，分支已推送并创建 PR #636。该授权只改变 Git 集成顺序，不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，当前从 V152 clean baseline 继续正式配置。上线后不再清库。
@@ -91,6 +91,8 @@
 
 ## 最新验证
 
+- PR #636 首轮 CI 的 `frontend-build-test` 在 coverage 并行负载下有 7 个既有交互测试撞上 Vitest 固定 5 秒用例上限，本地无 coverage 的 795 用例此前全绿；失败均为超时而非断言或业务错误。已按 TDD 新增 Vitest 运行时预算契约：本地保持 5 秒快速失败，`CI=true` 使用有界 15 秒预算；`CI=true npm run test:coverage` 复验为 100 files / 796 tests 全绿，原 7 个超时用例全部通过。该修复只影响测试运行器，不改变生产代码、134 状态、Provider 或 P6。
+- Phase 9 最终远程集成前复核：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 为 465 份 Surefire / 2999 tests，0 failures、0 errors、7 skipped，H2 从空库完整迁移到 V152；`mvn -q -DskipTests package` 通过。前端 `npm ci && npm run verify && npm run build` 为 99 files / 795 tests，lint/stylelint/format/typecheck/build 全绿，两轮依赖审计均为 0 漏洞；CLI 30/30、MCP 16/16、生产预演脚本 24/24、B0、产品目录、部署/新装/发布包/Ollama 合同、证据 JSON、差异和敏感信息扫描均通过。
 - Phase 9 T9.0 脚本预验证：`bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh`、`bash deploy/onprem/tests/validate-medkernel-deploy.sh`、`bash deploy/onprem/tests/validate-mk-publish-package.sh` 和三份发布脚本 `bash -n` 均退出 0；本机未安装 ShellCheck，未把该项写成通过。当时 134 只读探测运行 `e7392c8f`、HTTP/HTTPS readiness 200、PostgreSQL 数据库 29 MB / 181 张 public 基表 / Flyway V123，未发生停服、清库或制品替换。
 - Phase 9 T9.0 首次执行留痕：候选上传后三份 SHA-256 与本地一致，缺 `--confirm-fresh` 的负向预检按预期拒绝。第一次正式执行在“清库前备份完成→隔离恢复”阶段因备份目录 700、`postgres` 进程无法直接打开 dump 而退出；服务和数据库始终 active/readiness 200，`destructive_action_performed=false`，未停服、清库、删备份或替换制品。修复为 root 打开 dump 后经标准输入交给 `pg_restore`，不放宽备份目录权限；真实 134 临时库恢复验证已通过（181 张表、Flyway V123），临时库已删除。
 - Phase 9 T9.0 第二次执行留痕：备份与隔离恢复均通过，随后 `systemctl stop` 已终止 MainPID，但远端陈旧 systemd 单元缺少仓库模板已有的 `SuccessExitStatus=143`，把 Java 正常 SIGTERM 退出码 143 记为 failed；脚本在数据库重建前退出，`destructive_action_performed=false`，旧服务已重新启动并恢复 readiness 200、181 张表未变。修复为全新发布显式携带并安装当前 systemd 单元与服务端发布脚本，停服用 30 秒有上限轮询确认 MainPID=0，并兼容清理陈旧单元产生的 failed 假状态。
@@ -157,9 +159,10 @@
 
 ## 下一步
 
-1. 由真实独立医学专家按 `docs/release/evidence/p9-final-golive-20260618/expert-signoff/README.md` 核验真实身份/岗位、`QUALITY_GOVERNOR`、MFA 和职责分离，再逐例复核运行 `1`、`2`；自动化不得创建虚假专家身份、代填意见或代签。
-2. 两个运行均由专家认可并分别转为 `PASSED` 后，先核验不可覆盖的签署审计，再按当前乐观锁版本受控启用精确 Provider；P6 仍保持 false 时复核八闸全绿。
-3. 最后由内置超管执行 P6 高危放行，九闸全绿后跑低风险真实小样本闭环；134 上线后不再清库，正式验收通过前不 push。
+1. 推送 PR #636 的 coverage 超时修复，等待 8 项 CI 全绿后 squash 合并并确认 `origin/main` 包含合并提交；这是用户明确授权的提前远程集成，不得写成正式上线验收通过。
+2. 由真实独立医学专家按 `docs/release/evidence/p9-final-golive-20260618/expert-signoff/README.md` 核验真实身份/岗位、`QUALITY_GOVERNOR`、MFA 和职责分离，再逐例复核运行 `1`、`2`；自动化不得创建虚假专家身份、代填意见或代签。
+3. 两个运行均由专家认可并分别转为 `PASSED` 后，先核验不可覆盖的签署审计，再按当前乐观锁版本受控启用精确 Provider；P6 仍保持 false 时复核八闸全绿。
+4. 最后由内置超管执行 P6 高危放行，九闸全绿后跑低风险真实小样本闭环；134 上线后不再清库。
 
 ## 常用指针
 

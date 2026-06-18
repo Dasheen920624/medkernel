@@ -614,6 +614,8 @@ gh pr create --base main --head codex/p6-independent-acceptance
 
 PR 使用中文说明范围、验证、未完成、医疗安全、部署和迁移影响。等待 CI 全绿后 squash 合并，确认 `origin/main` 包含合并提交。
 
+实际执行偏差：用户于 `AWAITING_EXPERT_SIGNOFF` 阶段明确要求提前提交远程 PR 并合并，因此已创建 PR #636。该授权仅提前 Git 集成，不改变正式上线状态机；专家签署、Provider 启用、P6 放行和低风险真实小样本仍不得自动化或提前执行。本项在 PR 实际合并并确认 `origin/main` 后才可勾选。
+
 - [ ] **Step 6: 从最新 main 继续 Phase 10**
 
 合并后删除远程功能分支，从最新 `origin/main` 新建 `codex/` 分支；134 不再清库，继续 KNOWGEN 首发知识生产与 Phase 11 GA。

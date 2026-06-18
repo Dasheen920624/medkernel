@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { loadEnv } from "vite";
 import { resolveApiProxyConfig } from "./src/shared/config/devProxy";
+import { resolveVitestTimeout } from "./src/test/vitestRuntimeBudget";
 
 function vendorChunkName(id: string) {
   if (!id.includes("/node_modules/")) {
@@ -65,6 +66,7 @@ export default defineConfig(({ command, mode }) => {
       include: ["src/**/*.{test,spec}.{ts,tsx}"],
       exclude: ["e2e/**", "node_modules/**", "dist/**"],
       css: false,
+      testTimeout: resolveVitestTimeout(env),
     },
   };
 });
