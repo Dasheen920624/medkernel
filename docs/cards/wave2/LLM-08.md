@@ -14,23 +14,27 @@
 ## 目标
 **provider 真实接入**：B1 本地 + B2 外部 + Dify 可选——把真实模型接进网关，缺位诚实降级 B0；这是把 [LLM-01](LLM-01.md) 的「无 provider B0」升级为「有 provider 真增强、无则 B0」的关键卡。
 
-## 现状（搬迁时核查 2026-05-31）
-**待建**：[LLM-01](LLM-01.md) 注释明确 provider 由本卡（`GA-ENG-LLM-02`/本卡）落地，当前一律 B0。本卡＝实现 provider 适配（B1/B2/Dify）+ 健康检查 + 缺位降级；接入前过 [LLM-07](LLM-07.md) 评测、出域过 [LLM-03](LLM-03.md)。**2026-06-13 校正**：B2 外部明确含 **Claude API / OpenAI 兼容 API**，按双形态——生产侧（外网生产中心，公开资料）可用，运行侧（内网医院，患者数据）禁外部 provider、只 B1 本地/B0（见 [_brief](_brief.md) §第二阶段设计校正）。
+## 现状（2026-06-18）
+provider 适配、真实健康检查、B0 降级与受控治理入口均已实现。B2 外部明确含 **Claude API / OpenAI 兼容 API**，按双形态——生产侧（外网生产中心，公开资料）可用，运行侧（内网医院，患者数据）禁外部 provider、只 B1 本地/B0（见 [_brief](_brief.md) §第二阶段设计校正）。连接配置与高危启停已分离：配置写入必定停用，启用须另过 MFA、二次确认、乐观锁、真实健康、部署形态和 [LLM-07](LLM-07.md) 医学评测门。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 provider 适配：B1 本地（Ollama/国产化）/ B2 外部（**Claude API · OpenAI 兼容 API** 等）/ Dify 三类可插拔适配器（统一接口）；**生产侧外网可用、运行侧内网禁外部 provider**（双形态）。（`ModelProvider` 抽象+三适配器 Ollama/OpenAI兼容/Claude，HTTP 经 `ModelProviderHttpClient` 注入；`DeploymentFormService` 双形态门禁 `ENG-LLM-009`）
 - [x] FR-2 健康检查：provider 连通性探活；不可用标 `NOT_CONNECTED`（呼应 [PROVIDER-01](../D5/PROVIDER-01.md)）。（`ModelProviderRegistry` 实时探测；`POST /api/v1/model-providers/{providerCode}/health-check` 将 `HEALTHY/NOT_CONNECTED` 持久化到唯一状态源并审计）
 - [x] FR-3 缺位降级：无 provider/断连 → 诚实 B0（[LLM-02](LLM-02.md) 矩阵），不伪造产出。（`submitTask` 缺位/断连/形态禁外部→诚实 B0）
 - [x] FR-4 真实产出：接入后产出标真实 `model_version`/置信度/来源（不再恒 B0）。（`submitTask` 过出域闸→真实产出）
-- [x] FR-5 上线门禁：provider/版本上线前过 [LLM-07](LLM-07.md) 医学回归。（`upsertProvider` 启用须过 `isClearedForGoLive` 否则 `ENG-LLM-008`）
+- [x] FR-5 上线门禁：provider/版本上线前过 [LLM-07](LLM-07.md) 医学回归。（独立 `enableProvider` 要求当前状态 `HEALTHY`、部署形态允许且 `isClearedForGoLive=true`，否则结构化阻断）
+- [x] FR-6 受控配置与启停：PUT 只保存停用配置，拒绝含凭据、查询串或片段的端点；B2 外部 provider 强制 HTTPS 且只存环境变量键名，B1 Ollama 可用受控内网 HTTP(S)。读取、配置、探活和启停响应均使用脱敏快照；启停要求 MFA、明确确认、原因和 `expectedVersion`，V152 `lock_version` 防止配置、探活与启停相互覆盖。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 适配器内嵌 [LLM-01](LLM-01.md) 路由；provider 配置端点 + 健康检查端点。
-- 状态机：配置（provider 启停）+ 变更（任务态）。
+- `PUT /api/v1/model-providers/{providerCode}`：新增或更新连接材料，始终保存为停用；更新既有配置须提交当前 `expectedVersion`。
+- `GET /api/v1/model-providers/{providerCode}`：读取不含 `credentialRef` 的脱敏治理快照。
+- `POST /api/v1/model-providers/{providerCode}/health-check`：执行真实探活并更新健康状态，不改变启停。
+- `POST /api/v1/model-providers/{providerCode}/enable|disable`：独立高危启停状态机，不接收也不修改连接材料；启用必须携带 `capabilityCode`，并精确匹配当前 provider、模型版本、医学基准指纹和已签署评测，停用不依赖能力码。
+- 适配器内嵌 [LLM-01](LLM-01.md) 路由；任务状态与 provider 治理状态分离。
 
 ## 数据与迁移
-- `model_provider`（类型/端点/凭证引用/状态）+ 复用 `model_capability_task`（真实 model_version），五方言；凭证走密钥管理不落明文。
+- `mk_llm_provider`（类型/端点/凭证引用/启停/健康/`lock_version`）+ 复用 `model_capability_task`（真实 model_version），五方言；凭证仅存环境变量键名、不落明文。V152 为 provider 配置增加关系库乐观锁。
 
 ## 视角清单（11 视角）
 1. 产品架构：模型真实接入层，与网关解耦。
@@ -52,11 +56,12 @@
 ## 验收 + 验证
 - [x] AC-1（FR-1/2/4）：接真实 provider 产出真实 + 健康检查准确。（适配器经 mock HTTP 测；`ModelProviderGovernanceServiceTest` 覆盖）
 - [x] AC-2（FR-3/5）：断连降级 B0 不伪造；上线过 [LLM-07](LLM-07.md)。（缺位 B0 测 + 启用门禁 `ENG-LLM-008` 测）
+- [x] AC-3（FR-6）：PUT 不可直接启用；所有治理响应不返回凭据引用；启停门禁与陈旧版本冲突均有服务、控制器和真实 H2 仓储证据。
 - 关联 A1–A9 剧本：有/无 provider 双向。
 - T-GATE：后端真实性门禁全绿。
 - B0 验收：★拔掉全部 provider 主链路仍 B0 可运行。
 
 ## 完工证据
-- 代码 permalink：provider 适配器 + 健康检查 + 降级。
-- 测试：B1/B2/Dify 接入 + 断连降级 + 不伪造。
+- 代码 permalink：provider 适配器 + 脱敏治理快照 + 配置/探活/启停状态机。
+- 测试：B1/B2/Dify 接入 + 断连降级 + 配置即停用 + 高危启停门 + V152 并发冲突 + 响应脱敏。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

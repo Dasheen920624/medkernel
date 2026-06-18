@@ -1,0 +1,10 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T14:05:31Z",
+  "sourceCommit": "c70787c906bce47dcff6b392624f22f93d206fcf",
+  "command": "cd cli && npm test",
+  "tests": 30,
+  "failures": 0,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

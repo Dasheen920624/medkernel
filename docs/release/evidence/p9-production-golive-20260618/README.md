@@ -31,6 +31,7 @@
 
 - 旧运行 `1`、`2` 均为 1/1、`PENDING_REVIEW`，但逐例证据数为 0；V151 详情接口明确返回 `evidenceComplete=false`、`reviewable=false` 和“必须重新运行评测”，不得签字或复用。
 - V151 发布后新运行 `3`（本地）与 `4`（外部）均为 1/1、`PENDING_REVIEW`；每次运行各有 1 条逐例不可变证据，`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`。逐例均精确核验来源引用、命中安全期望、未突破红线且无失败原因。
+- Task 4 工程预演在 `2026-06-18T13:25:52Z`–`13:26:08Z` 以最终收紧脚本再次真实生成运行 `9`（本地）与 `10`（外部）：均为 1/1、`PENDING_REVIEW`、逐例证据完整、基准当前、可复核、无 reviewer / signedAt；原始医学输入和模型输出只保存 SHA-256，不进入仓库证据。
 - 两个 provider 在数据库中仍为 `HEALTHY`、`enabled_flag=N`。评测成功没有自动启用 provider，也没有自动化专家签署；下一步只能由真实独立医学专家逐例核对后留意见签字。
 
 ## 外调与版本治理
@@ -47,3 +48,12 @@
 - 阻断：`MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE`、`P6_ACCEPTANCE`。
 
 前三项须由真实独立医学专家签署后启用 provider 才能解除；P6 只能在独立验收完成后由超管执行高危二次确认。自动化不得代签、提前启用或提前放行 P6。
+
+## Task 4 工程预演
+
+- 11 类证据见 `01-backend-tests.json` 至 `11-readiness-preflight.json`，入口为 `engineering-rehearsal-manifest.json`。
+- `node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`。
+- 冻结前复核发现并关闭依赖审计债：`form-data` 升至 4.0.6，Vite/Vitest 升至 6.4.3/3.2.6，生产与开发依赖 `npm audit` 均为 0；升级后 99 个前端测试文件 / 795 项测试及完整门禁重新通过。
+- 该状态只证明工程候选可冻结；`11-readiness-preflight.json` 仍明确记录正式知识生产 5/9、Provider 停用、P6=false、`formalGoLiveReady=false`。
+- 当前工作机 Docker socket 不可用导致 V152 PostgreSQL / Oracle Testcontainers assumption skip，已登记 `DEFER-025`；最终 134 清库前必须用最新候选关闭 PostgreSQL 空库实跑项。
+- Task 6 发现最终清库脚本缺少目标主机强制匹配，已在 `c70787c9` 增加 `--expected-host` 精确护栏；修复后本目录中的工程门禁已重跑全绿。历史候选 `1603b5a7` 因部署脚本变更失效，禁止用于正式部署。

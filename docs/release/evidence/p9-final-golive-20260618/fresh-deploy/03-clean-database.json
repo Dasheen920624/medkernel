@@ -1,0 +1,30 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T22:44:08+08:00",
+  "environment": "134-production-center",
+  "cleanBaselineOnly": true,
+  "counts": {
+    "knowledgeIdentity": 0,
+    "knowledgeAssetVersion": 0,
+    "knowledgeCandidateClassification": 0,
+    "knowledgeProductionJob": 0,
+    "knowledgeProductionCandidate": 0,
+    "knowledgeAcquisitionSource": 0,
+    "knowledgeAcquisitionRun": 0,
+    "knowledgeDiscoveryRun": 0,
+    "knowledgeShadowRun": 0,
+    "knowledgeGenerationTriage": 0,
+    "knowledgeDiff": 0,
+    "knowledgeExpiryTask": 0,
+    "llmProvider": 0,
+    "enabledLlmProvider": 0,
+    "llmEvaluationRun": 0,
+    "llmEvaluationCaseEvidence": 0,
+    "llmModelVersionBundle": 0
+  },
+  "p6IndependentAcceptance": false,
+  "oldRehearsalDataRestored": false,
+  "expertSignoffPresent": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

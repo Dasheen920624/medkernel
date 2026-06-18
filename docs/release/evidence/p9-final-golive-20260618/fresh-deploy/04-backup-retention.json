@@ -1,0 +1,18 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T22:44:08+08:00",
+  "environment": "134-production-center",
+  "retained": {
+    "path": "/zoesoft/medkernel/backups/p9-fresh-preclear-95b53321c7ba-20260618-224330",
+    "dumpSha256": "6cb33efcfdbbf617127e50d03621e70b8951ddeeb3a566191cbbaa8cb544cff2",
+    "evidenceChecksumsVerified": true
+  },
+  "removedAfterVerifiedFreshDeploy": [
+    "p9-final-preclear-20260618-214927",
+    "deploy-20260618-224339"
+  ],
+  "remainingBackupCount": 1,
+  "uploadStagingRemoved": true,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

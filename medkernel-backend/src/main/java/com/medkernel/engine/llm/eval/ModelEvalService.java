@@ -234,16 +234,21 @@ public class ModelEvalService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isClearedForGoLive(String tenantId, String providerCode, String modelVersion) {
+    public boolean isClearedForGoLive(
+            String tenantId,
+            String providerCode,
+            String modelVersion,
+            String capabilityCode) {
+        String normalizedCapability = requireText(capabilityCode, "capability_code");
         Optional<ModelEvalRun> run = runRepo
-            .findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
-                tenantId, providerCode, modelVersion, "PASSED");
-        if (run.isEmpty() || run.get().capabilityCode() == null || run.get().capabilityCode().isBlank()) {
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                tenantId, providerCode, modelVersion, normalizedCapability, "PASSED");
+        if (run.isEmpty()) {
             return false;
         }
         List<MedicalRegressionCase> currentCases = caseRepo
             .findByTenantIdAndCapabilityCodeAndEnabledFlag(
-                tenantId, run.get().capabilityCode(), "Y");
+                tenantId, normalizedCapability, "Y");
         if (currentCases.isEmpty()
             || run.get().totalCases() != currentCases.size()
             || run.get().passedCases() != currentCases.size()

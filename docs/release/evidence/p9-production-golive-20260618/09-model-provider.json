@@ -1,0 +1,32 @@
+{
+  "status": "PASSED",
+  "stage": "PRE_SIGNOFF_REHEARSAL",
+  "capturedAt": "2026-06-18T13:26:08.787Z",
+  "environment": "134-production-center",
+  "deployedCommit": "09306b0531309bee48978dab09c02f649d3482e6",
+  "providers": [
+    {
+      "providerCode": "ollama-qwen25-15b",
+      "providerType": "OLLAMA",
+      "modelVersion": "medkernel-qwen25:1.5b-v1",
+      "health": "HEALTHY",
+      "enabledBefore": false,
+      "enabledAfter": false,
+      "snapshotMode": "V151_HEALTH_CHECK_COMPATIBILITY"
+    },
+    {
+      "providerCode": "external-mimo-v25",
+      "providerType": "OPENAI_COMPATIBLE",
+      "modelVersion": "mimo-v2.5",
+      "health": "HEALTHY",
+      "enabledBefore": false,
+      "enabledAfter": false,
+      "snapshotMode": "V151_HEALTH_CHECK_COMPATIBILITY"
+    }
+  ],
+  "providerEnableAttempted": false,
+  "providerDisableAttempted": false,
+  "p6MutationAttempted": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

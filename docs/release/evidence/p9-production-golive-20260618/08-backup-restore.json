@@ -1,0 +1,31 @@
+{
+  "status": "PASSED",
+  "stage": "ENGINEERING_REHEARSAL_ONLY",
+  "capturedAt": "2026-06-18T13:19:23Z",
+  "environment": "134-production-center",
+  "backupEvidencePath": "/zoesoft/medkernel/backups/p9-fresh-preclear-8ef5103d6227-20260618-094000/evidence",
+  "databaseDump": {
+    "relativePath": "database/medkernel.dump",
+    "sha256": "81790adabae1396bc391dc68cbfb4b5839fbe752e31ee9f246cc74e41912c8b0",
+    "sha256MatchesPreClearEvidence": true,
+    "bytes": 1695833,
+    "mode": "0644",
+    "owner": "root:root"
+  },
+  "isolatedRestore": {
+    "status": "PASSED",
+    "publicBaseTables": 181,
+    "flywayVersion": 123
+  },
+  "postFreshDeploy": {
+    "flywayVersion": 148,
+    "publicBaseTables": 206,
+    "readinessInternal": "UP",
+    "readinessHttps": "UP",
+    "readinessRecovery": "UP"
+  },
+  "evidenceChecksumsVerified": true,
+  "finalProductionBackupPerformed": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

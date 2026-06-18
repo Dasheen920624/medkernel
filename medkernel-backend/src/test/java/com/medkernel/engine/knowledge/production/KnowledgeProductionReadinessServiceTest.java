@@ -288,7 +288,7 @@ class KnowledgeProductionReadinessServiceTest {
         Instant now = Instant.now();
         return new ModelProviderConfig(
             1L, TENANT, code, type, "https://model.example/v1", "secret-ref",
-            modelVersion, "Y", "HEALTHY", now, "u", now, "u");
+            modelVersion, "Y", "HEALTHY", now, "u", now, "u", 0L);
     }
 
     private void stubExternalPrerequisites(ModelProviderConfig provider, ModelEgressWhitelist whitelist) {
@@ -317,7 +317,7 @@ class KnowledgeProductionReadinessServiceTest {
         Instant now = Instant.now();
         return new ModelProviderConfig(
             1L, TENANT, code, "OLLAMA", "http://127.0.0.1:11434", null,
-            modelVersion, "Y", "HEALTHY", now, "u", now, "u");
+            modelVersion, "Y", "HEALTHY", now, "u", now, "u", 0L);
     }
 
     private ModelVersionBundle versionBundle(String modelVersion) {

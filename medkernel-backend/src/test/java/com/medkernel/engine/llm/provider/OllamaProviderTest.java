@@ -28,7 +28,8 @@ class OllamaProviderTest {
     private ModelProviderConfig config() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new ModelProviderConfig(1L, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY", now, "system", now, "system");
+            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
+            now, "system", now, "system", 0L);
     }
 
     @BeforeEach

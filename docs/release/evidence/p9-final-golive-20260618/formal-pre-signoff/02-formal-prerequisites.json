@@ -1,0 +1,200 @@
+{
+  "status": "PASSED",
+  "stage": "FORMAL_CONFIG_READY",
+  "capturedAt": "2026-06-18T23:31:11+08:00",
+  "environment": "134-production-center",
+  "sourceSteward": {
+    "username": "knowledge-source-steward",
+    "role": "platform-knowledge-governor",
+    "mustChangePassword": false,
+    "mfaRequired": true,
+    "mfaBound": true,
+    "independentReloginCompleted": true,
+    "independentMfaVerified": true,
+    "knowledgeWriteAllowed": true,
+    "acquisitionApproveAllowed": false,
+    "credentialsStoredOutsideRepository": true,
+    "serverControlledFileMode": "0600",
+    "serverControlledFileOwner": "root:root"
+  },
+  "formalConfiguration": {
+    "materialRoot": {
+      "uri": "file:///zoesoft/medkernel/data/platform-knowledge/t-1/literature-materials/",
+      "configScope": "SYSTEM",
+      "configVersion": 2,
+      "directoryMode": "0750",
+      "directoryOwner": "medkernel:medkernel",
+      "serviceUserWriteProbePassed": true,
+      "writeProbeRemoved": true
+    },
+    "deploymentForm": {
+      "value": "PRODUCTION_CENTER",
+      "configScope": "SYSTEM",
+      "configVersion": 2
+    },
+    "p6IndependentAcceptance": {
+      "value": false,
+      "configScope": "SYSTEM",
+      "configVersion": 1
+    }
+  },
+  "controlledSource": {
+    "sourceCode": "WHO-CHB-GUIDELINE-2024",
+    "domain": "iris.who.int",
+    "sourceType": "GUIDELINE",
+    "authorityLevel": "B_GUIDELINE",
+    "license": "CC BY-NC-SA 3.0 IGO",
+    "licensePolicy": "PERMITTED",
+    "robotsPolicy": "ALLOW_FETCH",
+    "enabled": true,
+    "scheduleEnabled": false,
+    "createdBy": "knowledge-source-steward",
+    "approvedBy": "platform-owner",
+    "version": 1,
+    "officialMetadata": {
+      "itemUuid": "7882ba24-3a2c-4ff8-8d96-757f0867fdd6",
+      "handle": "https://iris.who.int/handle/10665/376353",
+      "bitstreamUuid": "34470cc8-af90-4d7b-a949-ef27e5d0726f",
+      "fileName": "9789240090903-eng.pdf",
+      "declaredSizeBytes": 3515427,
+      "publicationDate": "2024-03-28",
+      "publisher": "World Health Organization"
+    },
+    "downloadVerification": {
+      "historicalExpectedSha256": "e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c",
+      "currentFullSha256Reverified": false,
+      "outcome": "TIMEOUT_AFTER_1826792_OF_3515427_BYTES",
+      "partialFileRetained": false,
+      "requiredBeforeFormalEvaluation": true,
+      "sourceRegistrationDoesNotClaimFetch": true
+    }
+  },
+  "providers": [
+    {
+      "providerCode": "external-mimo-v25",
+      "providerType": "OPENAI_COMPATIBLE",
+      "modelVersion": "mimo-v2.5",
+      "status": "HEALTHY",
+      "enabled": false,
+      "lockVersion": 3,
+      "httpsRequired": true,
+      "credentialConfigured": true
+    },
+    {
+      "providerCode": "ollama-qwen25-15b",
+      "providerType": "OLLAMA",
+      "modelVersion": "medkernel-qwen25:1.5b-v1",
+      "status": "HEALTHY",
+      "enabled": false,
+      "lockVersion": 1,
+      "credentialConfigured": false
+    }
+  ],
+  "externalCredentialCustody": {
+    "controlledSourceFileMode": "0600",
+    "baseUrlHttps": true,
+    "modelVersionMatches": true,
+    "productionEnvironmentKeyPresent": true,
+    "controlledKeyMatchesProductionEnvironment": true
+  },
+  "egressGovernance": {
+    "capabilityCode": "rule.draft",
+    "allowedFields": [
+      "prompt"
+    ],
+    "sensitivityLevel": "MEDIUM",
+    "desensitizationRules": {
+      "prompt": "MASK_ALL"
+    },
+    "approvalThresholdLevel": "HIGH",
+    "guardrailLocked": true
+  },
+  "capabilityPolicy": {
+    "capabilityCode": "rule.draft",
+    "scopeType": "TENANT",
+    "scopeRef": "t-1",
+    "routeStrategy": "EXTERNAL_MODEL",
+    "desensitizeStrategy": "MASK_ALL",
+    "fallbackOrder": [
+      "EXTERNAL_MODEL",
+      "LOCAL_MODEL",
+      "BASELINE"
+    ],
+    "timeoutMs": 60000,
+    "rateLimitPerMinute": 10
+  },
+  "activeVersionBundle": {
+    "id": 1,
+    "capabilityCode": "rule.draft",
+    "activeScopeKey": "t-1|rule.draft",
+    "promptVersion": "rule-draft-production-v1",
+    "promptHash": "49f68a26f61397e6d5d034dcc0c95faa95541b81e366ca2984da769c0f9a6473",
+    "toolVersion": "knowledge-governance-tool-v1",
+    "toolHash": "f9f01c24e65fed67ab0eee139e2dfacd5f35f09ddc988e101537a4d1824796a7",
+    "modelVersion": "mimo-v2.5",
+    "modelHash": "8062b8d07e3ccc04dc5ed9ac6b07fb20e1152e2eea6743ac19644b62db141aef",
+    "status": "ACTIVE",
+    "providerModelVersionMatches": true
+  },
+  "readiness": {
+    "ready": false,
+    "modelInvocationAllowed": false,
+    "gateCount": 9,
+    "passedCount": 4,
+    "passed": [
+      "LITERATURE_ROOT",
+      "DEPLOYMENT_FORM",
+      "EGRESS_GOVERNANCE",
+      "MODEL_POLICY"
+    ],
+    "blocked": [
+      "MODEL_PROVIDER",
+      "REGRESSION_BASELINE",
+      "MODEL_EVALUATION",
+      "VERSION_TRIPLE",
+      "P6_ACCEPTANCE"
+    ],
+    "regressionCaseCount": 0,
+    "evaluationRunCount": 0
+  },
+  "runtime": {
+    "mainPid": 595415,
+    "restartCount": 0,
+    "readinessHttp": 200,
+    "readinessStatus": "UP"
+  },
+  "safetyBoundary": {
+    "providerCount": 2,
+    "healthyProviderCount": 2,
+    "enabledProviderCount": 0,
+    "p6IndependentAcceptance": false,
+    "expertSignoffAttempted": false,
+    "remainingBackupCount": 1,
+    "historicalBackupsRemoved": true
+  },
+  "operationalCorrections": [
+    {
+      "issue": "账号角色响应字段按 roleCode 读取，实际字段为 code",
+      "recovery": "保留受控待接管凭据并从数据库已创建状态继续完成改密、MFA 与独立重登录",
+      "unsafeMutationPerformed": false
+    },
+    {
+      "issue": "配置只读证据查询误用 lock_version，实际列为 version",
+      "recovery": "按 schema 更正后重跑只读核验",
+      "unsafeMutationPerformed": false
+    },
+    {
+      "issue": "Bash 全局 MODEL 变量被本地 Provider 参数覆盖，外部 Provider 首次保存为本地模型版本",
+      "recovery": "在两个 Provider 始终停用且无模型调用期间，以当前乐观锁版本更正为 mimo-v2.5 并重新健康检查",
+      "unsafeMutationPerformed": false,
+      "modelInvocationOccurredBeforeCorrection": false
+    },
+    {
+      "issue": "最终只读脚本先后误判本机端口、Secure Cookie 回送、评测表名与受控配置文件格式",
+      "recovery": "从 systemd、控制器、schema 与文件键名逐项定位后完成只读复核",
+      "unsafeMutationPerformed": false
+    }
+  ],
+  "containsCredentials": false,
+  "containsPatientData": false
+}

@@ -1,0 +1,40 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T22:44:08+08:00",
+  "environment": "134-production-center",
+  "manifest": {
+    "source": "95b53321c7baeb4e05e70b62834074fc59df323e",
+    "commit": "95b53321c7baeb4e05e70b62834074fc59df323e",
+    "exactCandidateMatched": true
+  },
+  "artifacts": {
+    "candidateJarSha256": "ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a",
+    "runningJarSha256": "ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a",
+    "serviceUnitSha256": "f9e3789cb5d76ef47162af2f9e0a4075115bde33ed444a23c4fc748d63802673",
+    "deployScriptSha256": "485fe91ce15600282156951b2812658375608ce420f69524d65dc02cd949e207",
+    "frontendArchiveSha256": "fca2008f2dc3f512632b1971ee25587426139e88f3c2cf27c9acad768208285c",
+    "frontendIndexSha256": "ae10bb56333dfc4fcfded2d863128e1821c8adb5a09a2335dd74fc76facf44d8",
+    "frontendFileCount": 276,
+    "allExactFreezeBytesMatched": true
+  },
+  "runtime": {
+    "serviceActive": true,
+    "serviceEnabled": true,
+    "mainPid": 595415,
+    "restartCount": 0,
+    "nginxActive": true,
+    "internalReadinessHttp": 200,
+    "localHttpsReadinessHttp": 200,
+    "publicHttpsReadinessHttp": 200,
+    "bootstrapInitialized": false,
+    "environmentFileMode": "0600"
+  },
+  "database": {
+    "flywayVersion": 152,
+    "successfulMigrationCount": 152,
+    "publicBaseTables": 207,
+    "owner": "medkernel"
+  },
+  "containsCredentials": false,
+  "containsPatientData": false
+}

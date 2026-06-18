@@ -1,0 +1,31 @@
+{
+  "status": "PASSED",
+  "capturedAt": "2026-06-18T14:24:02Z",
+  "environment": "134-production-center",
+  "backup": {
+    "path": "/zoesoft/medkernel/backups/p9-final-preclear-20260618-214927",
+    "directoryMode": "0700",
+    "createdAt": "2026-06-18T21:49:38+08:00",
+    "sourceCommit": "09306b0531309bee48978dab09c02f649d3482e6",
+    "runningJarSha256": "67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d",
+    "database": "medkernel",
+    "databaseOwner": "medkernel",
+    "flywayVersion": 151,
+    "publicBaseTables": 207,
+    "dumpSha256": "166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e",
+    "checksumManifestVerified": true,
+    "retained": true
+  },
+  "isolatedRestore": {
+    "database": "medkernel_p9_verify_20260618214927",
+    "databaseOwner": "medkernel",
+    "flywayVersion": 151,
+    "publicBaseTables": 207,
+    "criticalCountsMatch": true,
+    "restoreVerified": true,
+    "temporaryDatabaseRemoved": true
+  },
+  "destructiveActionPerformed": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}

@@ -39,7 +39,8 @@ class ExternalProviderTest {
     private ModelProviderConfig config(String type, String version) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new ModelProviderConfig(1L, "tenant-1", type.toLowerCase() + "-prod", type,
-            "https://api.example.com", "MODEL_API_KEY", version, "Y", "HEALTHY", now, "system", now, "system");
+            "https://api.example.com", "MODEL_API_KEY", version, "Y", "HEALTHY",
+            now, "system", now, "system", 0L);
     }
 
     @Test

@@ -1,0 +1,53 @@
+{
+  "status": "PASSED",
+  "stage": "FORMAL_CONFIG_IN_PROGRESS",
+  "capturedAt": "2026-06-18T22:57:33+08:00",
+  "environment": "134-production-center",
+  "account": {
+    "tenantId": "t-1",
+    "username": "platform-owner",
+    "role": "system-superadmin",
+    "activeRoleAssignmentCount": 1
+  },
+  "takeover": {
+    "initTokenValidated": true,
+    "firstAdminCreated": true,
+    "initialLoginMustChangePassword": true,
+    "initialLoginMfaRequired": true,
+    "initialLoginMfaBound": false,
+    "forcedPasswordChangeCompleted": true,
+    "mfaBound": true,
+    "independentReloginCompleted": true,
+    "independentMfaVerified": true,
+    "securityProfileVerified": true,
+    "bootstrapInitialized": true
+  },
+  "credentialCustody": {
+    "storedOutsideRepository": true,
+    "serverControlledFileMode": "0600",
+    "serverControlledFileOwner": "root:root",
+    "pendingRecoveryFilePresent": false,
+    "bootstrapTokenFilePresent": false,
+    "bootstrapEnvironmentKeyCount": 0
+  },
+  "runtime": {
+    "mainPid": 595415,
+    "mainPidUnchanged": true,
+    "restartCount": 0,
+    "readinessHttp": 200
+  },
+  "safetyBoundary": {
+    "providerCount": 0,
+    "enabledProviderCount": 0,
+    "p6IndependentAcceptance": false,
+    "expertSignoffAttempted": false,
+    "remainingBackupCount": 1
+  },
+  "verificationCorrection": {
+    "initialReadOnlySqlFailed": true,
+    "rootCause": "身份域表名错误使用了 mk_ 前缀；仓储与 V27/V6 迁移确认真实表名后重跑通过",
+    "productionMutationPerformedByFailedCheck": false
+  },
+  "containsCredentials": false,
+  "containsPatientData": false
+}

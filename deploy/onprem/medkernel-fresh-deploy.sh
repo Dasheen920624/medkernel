@@ -17,6 +17,7 @@ FRONTEND=""
 SERVICE_UNIT=""
 DEPLOY_SCRIPT=""
 SOURCE=""
+EXPECTED_HOST=""
 EXPECTED_FLYWAY_VERSION=""
 CONFIRM_FRESH=0
 CONFIRM_DATABASE=""
@@ -31,6 +32,7 @@ STAGED_SERVICE_UNIT=""
 STAGED_DEPLOY_SCRIPT=""
 RESTORE_DATABASE=""
 DESTRUCTIVE_ACTION_PERFORMED=false
+ACTUAL_HOST=""
 
 info() { printf '[*] %s\n' "$*"; }
 ok() { printf '[OK] %s\n' "$*"; }
@@ -50,6 +52,7 @@ MedKernel PostgreSQL 全新发布
     --service-unit /path/to/medkernel.service \
     --deploy-script /path/to/medkernel-deploy.sh \
     --source <完整提交哈希> \
+    --expected-host <目标机 hostname> \
     --expected-flyway-version <版本> \
     --confirm-fresh \
     --confirm-database medkernel \
@@ -70,6 +73,7 @@ while [ "$#" -gt 0 ]; do
     --service-unit) SERVICE_UNIT="${2:-}"; shift 2 ;;
     --deploy-script) DEPLOY_SCRIPT="${2:-}"; shift 2 ;;
     --source) SOURCE="${2:-}"; shift 2 ;;
+    --expected-host) EXPECTED_HOST="${2:-}"; shift 2 ;;
     --expected-flyway-version) EXPECTED_FLYWAY_VERSION="${2:-}"; shift 2 ;;
     --confirm-fresh) CONFIRM_FRESH=1; shift ;;
     --confirm-database) CONFIRM_DATABASE="${2:-}"; shift 2 ;;
@@ -169,6 +173,10 @@ cleanup_restore_database() {
 trap cleanup_restore_database EXIT
 
 validate_inputs() {
+  ACTUAL_HOST="$(hostname)"
+  [ -n "$EXPECTED_HOST" ] || die "缺少 --expected-host"
+  [ "$EXPECTED_HOST" = "$ACTUAL_HOST" ] ||
+    die "目标主机不匹配：期望 ${EXPECTED_HOST}，实际 ${ACTUAL_HOST}"
   [ "$(id -u)" -eq 0 ] || die "需要 root 权限"
   [ "$CONFIRM_FRESH" -eq 1 ] || die "缺少 --confirm-fresh"
   [ "$CONFIRM_DATABASE" = "$DATABASE" ] || die "--confirm-database 必须精确等于 $DATABASE"
@@ -248,6 +256,8 @@ create_backup() {
 
   {
     printf 'source=%s\n' "$SOURCE"
+    printf 'expected_host=%s\n' "$EXPECTED_HOST"
+    printf 'actual_host=%s\n' "$ACTUAL_HOST"
     printf 'created_at=%s\n' "$(date -Iseconds)"
     printf 'database=%s\n' "$DATABASE"
     printf 'database_owner=%s\n' "$DATABASE_OWNER"
@@ -411,6 +421,8 @@ verify_deployment() {
 
   {
     printf 'source=%s\n' "$SOURCE"
+    printf 'expected_host=%s\n' "$EXPECTED_HOST"
+    printf 'actual_host=%s\n' "$ACTUAL_HOST"
     printf 'deployed_at=%s\n' "$(date -Iseconds)"
     printf 'backup_dir=%s\n' "$BACKUP_DIR"
     printf 'candidate_jar_sha256=%s\n' "$candidate_jar_sha"

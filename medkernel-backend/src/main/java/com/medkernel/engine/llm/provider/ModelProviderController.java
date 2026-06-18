@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.provider;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,10 +35,42 @@ public class ModelProviderController {
      */
     @PutMapping("/{providerCode}")
     @PreAuthorize("@perm.has('llm.provider.manage')")
-    public ApiResult<ModelProviderConfig> upsertProvider(
+    public ApiResult<ModelProviderGovernanceView> upsertProvider(
             @PathVariable String providerCode,
             @Valid @RequestBody ModelProviderUpsertRequest request) {
-        return ApiResult.ok(service.upsertProvider(providerCode, request));
+        return ApiResult.ok(ModelProviderGovernanceView.from(
+            service.upsertProvider(providerCode, request)));
+    }
+
+    /**
+     * 读取指定 provider 的脱敏治理快照。
+     */
+    @GetMapping("/{providerCode}")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderGovernanceView> getProvider(@PathVariable String providerCode) {
+        return ApiResult.ok(service.getProvider(providerCode));
+    }
+
+    /**
+     * 经高危门禁启用指定 provider。
+     */
+    @PostMapping("/{providerCode}/enable")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderGovernanceView> enableProvider(
+            @PathVariable String providerCode,
+            @Valid @RequestBody ModelProviderActivationRequest request) {
+        return ApiResult.ok(service.enableProvider(providerCode, request));
+    }
+
+    /**
+     * 经高危门禁停用指定 provider。
+     */
+    @PostMapping("/{providerCode}/disable")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderGovernanceView> disableProvider(
+            @PathVariable String providerCode,
+            @Valid @RequestBody ModelProviderActivationRequest request) {
+        return ApiResult.ok(service.disableProvider(providerCode, request));
     }
 
     /**
@@ -45,7 +78,7 @@ public class ModelProviderController {
      */
     @PostMapping("/{providerCode}/health-check")
     @PreAuthorize("@perm.has('llm.provider.manage')")
-    public ApiResult<ModelProviderConfig> checkHealth(@PathVariable String providerCode) {
-        return ApiResult.ok(service.checkHealth(providerCode));
+    public ApiResult<ModelProviderGovernanceView> checkHealth(@PathVariable String providerCode) {
+        return ApiResult.ok(ModelProviderGovernanceView.from(service.checkHealth(providerCode)));
     }
 }

@@ -1,0 +1,73 @@
+{
+  "status": "PASSED_WITH_RECORDED_DEVIATION",
+  "capturedAt": "2026-06-18T14:35:32Z",
+  "environment": "134-production-center",
+  "candidateCommit": "95b53321c7baeb4e05e70b62834074fc59df323e",
+  "candidateJarSha256": "ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a",
+  "recordedDeviation": {
+    "occurredAt": "2026-06-18T22:28:29+08:00",
+    "cause": "首次临时 systemd unit 同时引用生产 EnvironmentFile 和命令行 Environment，EnvironmentFile 的正式数据库 URL 与端口覆盖了临时值",
+    "effect": "候选进程在正式端口占用而退出前，把正式 PostgreSQL 从 V151 前向迁移到 V152",
+    "migration": "V152__model_provider_lock_version.sql",
+    "schemaChange": "为 mk_llm_provider 增加 NOT NULL、默认值为 0 的 lock_version 列",
+    "productionDatabaseModified": true,
+    "productionDataDeleted": false,
+    "candidateDeployed": false,
+    "runtimeArtifactChanged": false,
+    "productionServiceRestarted": false,
+    "productionServiceMainPid": 526720,
+    "productionServiceRestartCount": 0,
+    "productionReadinessHttp": 200,
+    "providersRemainDisabled": true,
+    "p6IndependentAcceptance": false,
+    "failedAttemptResourcesRemoved": true,
+    "correctiveControl": "改为生成独立 0600 临时环境文件，剔除并唯一重写数据库 URL、端口、事件 worker、外部 Provider、备份、Neo4j 健康检查与探活周期；运行用户不再引用生产 EnvironmentFile"
+  },
+  "isolatedEmptyPostgres": {
+    "temporaryDatabase": "medkernel_p9_v152_95b53321",
+    "initialPublicBaseTables": 0,
+    "environmentFileMode": "0600",
+    "firstBoot": {
+      "readinessHttp": 200,
+      "flywayVersion": 152,
+      "publicBaseTables": 207,
+      "successfulMigrationCount": 152,
+      "migrationManifestSha256": "2d8fd58b8f6ee8682c4eab6077e79658f38102ef7cb48428a12ca19cc948ff30"
+    },
+    "secondBoot": {
+      "readinessHttp": 200,
+      "flywayVersion": 152,
+      "publicBaseTables": 207,
+      "successfulMigrationCount": 152,
+      "migrationManifestSha256": "2d8fd58b8f6ee8682c4eab6077e79658f38102ef7cb48428a12ca19cc948ff30"
+    },
+    "repeatMigrationNoop": true,
+    "temporaryDatabaseRemoved": true,
+    "temporaryArtifactRemoved": true,
+    "temporaryUnitRemoved": true
+  },
+  "productionStateAfter": {
+    "serviceActive": true,
+    "serviceEnabled": true,
+    "mainPid": 526720,
+    "restartCount": 0,
+    "runningJarSha256": "67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d",
+    "readinessHttp": 200,
+    "flywayVersion": 152,
+    "publicBaseTables": 207,
+    "criticalCounts": {
+      "evaluationRuns": 10,
+      "evaluationCaseEvidence": 8,
+      "knowledgeProductionJobs": 0,
+      "knowledgeProductionCandidates": 0,
+      "knowledgeAcquisitionRuns": 1,
+      "matchedPreDeviationSnapshot": true
+    },
+    "providersRemainDisabled": true,
+    "p6IndependentAcceptance": false
+  },
+  "postgresGapClosed": true,
+  "oracleGapClosed": false,
+  "containsCredentials": false,
+  "containsPatientData": false
+}
