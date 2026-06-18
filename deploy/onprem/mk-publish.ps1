@@ -11,8 +11,6 @@
   .\mk-publish.ps1 -KeyFile C:\tmp\medkernel_deploy_ed25519
 .EXAMPLE
   .\mk-publish.ps1 -Server 192.168.8.191 -User root -Password $env:MEDKERNEL_DEPLOY_PASSWORD
-.EXAMPLE
-  .\mk-publish.ps1 -Frontend -SkipBuild -KeyFile C:\tmp\medkernel_deploy_ed25519
 #>
 [CmdletBinding()]
 param(
@@ -27,7 +25,6 @@ param(
   [string]$RemoteDeploy = "/usr/local/bin/medkernel-deploy",
   [switch]$Backend,
   [switch]$Frontend,
-  [switch]$SkipBuild,
   [switch]$CleanInstall,
   [switch]$StageOnly,
   [switch]$StrictHostKeyChecking,
@@ -130,9 +127,18 @@ if (-not $UseNativeOpenSsh -and -not (Get-Module -ListAvailable Posh-SSH)) {
   $UseNativeOpenSsh = $true
 }
 
-if (-not $Source) {
-  try { $Source = (& git -C $RepoRoot rev-parse --short HEAD 2>$null).Trim() } catch { }
-  if (-not $Source) { $Source = 'manual' }
+$headSource = (& git -C $RepoRoot rev-parse HEAD 2>$null).Trim()
+if ($LASTEXITCODE -ne 0 -or $headSource -notmatch '^[0-9a-f]{40}$') {
+  Die '仓库 HEAD 不是可验证的完整提交哈希'
+}
+if (-not $Source) { $Source = $headSource }
+if ($Source -notmatch '^[0-9a-f]{40}$' -or $Source -cne $headSource) {
+  Die "发布来源必须是当前 HEAD 的完整 40 位提交哈希：$headSource"
+}
+$dirtyWorktree = @(& git -C $RepoRoot status --porcelain --untracked-files=normal)
+if ($LASTEXITCODE -ne 0) { Die '无法核验 Git 工作树状态' }
+if ($dirtyWorktree.Count -gt 0) {
+  Die '工作树存在未提交改动，禁止构建和发布不可追溯制品'
 }
 
 Info "目标 $User@$Server   来源 $Source   仓库 $RepoRoot"
@@ -145,43 +151,35 @@ $distTar = $null
 try {
   if ($Backend) {
     if (-not (Test-Path $BackendPom)) { Die "找不到后端 pom：$BackendPom" }
-    if (-not $SkipBuild) {
-      Info "构建后端 jar（跳过测试，完整验证请在发布前单独跑 mvn test）..."
-      if ($JavaHome) {
-        if (-not (Test-Path $JavaHome)) { Die "找不到 JavaHome：$JavaHome" }
-        $env:JAVA_HOME = (Resolve-Path $JavaHome).Path
-      }
-      Invoke-Native -File $MvnCmd -Arguments @('-f', $BackendPom, '-Dmaven.test.skip=true', 'clean', 'package') -FailureMessage 'Maven 构建失败'
-    } else {
-      Warn '跳过后端构建（-SkipBuild），使用已有 jar'
+    Info "从当前提交重新构建后端 jar（跳过测试，完整验证请在发布前单独跑 mvn test）..."
+    if ($JavaHome) {
+      if (-not (Test-Path $JavaHome)) { Die "找不到 JavaHome：$JavaHome" }
+      $env:JAVA_HOME = (Resolve-Path $JavaHome).Path
     }
+    Invoke-Native -File $MvnCmd -Arguments @('-f', $BackendPom, '-Dmaven.test.skip=true', 'clean', 'package') -FailureMessage 'Maven 构建失败'
 
     $jar = Get-ChildItem (Join-Path $RepoRoot 'medkernel-backend\target') -Filter 'medkernel-backend-*.jar' -ErrorAction SilentlyContinue |
       Where-Object { $_.Name -notlike '*.original' } |
       Sort-Object LastWriteTime -Descending |
       Select-Object -First 1
-    if (-not $jar) { Die '未找到后端 jar（target\medkernel-backend-*.jar）；去掉 -SkipBuild 先构建' }
+    if (-not $jar) { Die '后端构建完成后未找到 jar（target\medkernel-backend-*.jar）' }
     $jarPath = $jar.FullName
     Ok ("后端 jar：{0}  ({1:N1} MB)" -f $jar.Name, ($jar.Length / 1MB))
   }
 
   if ($Frontend) {
     if (-not (Test-Path $FrontendDir)) { Die "找不到前端目录：$FrontendDir" }
-    if (-not $SkipBuild) {
-      Push-Location $FrontendDir
-      try {
-        $npmCmd = Get-NpmCommand
-        if ($CleanInstall -or -not (Test-Path (Join-Path $FrontendDir 'node_modules'))) {
-          Info '安装前端依赖（npm ci）...'
-          Invoke-Native -File $npmCmd -Arguments @('ci') -FailureMessage 'npm ci 失败'
-        }
-        Info '构建前端（npm run build）...'
-        Invoke-Native -File $npmCmd -Arguments @('run', 'build') -FailureMessage '前端构建失败'
-      } finally {
-        Pop-Location
+    Push-Location $FrontendDir
+    try {
+      $npmCmd = Get-NpmCommand
+      if ($CleanInstall -or -not (Test-Path (Join-Path $FrontendDir 'node_modules'))) {
+        Info '安装前端依赖（npm ci）...'
+        Invoke-Native -File $npmCmd -Arguments @('ci') -FailureMessage 'npm ci 失败'
       }
-    } else {
-      Warn '跳过前端构建（-SkipBuild），使用已有 dist'
+      Info '从当前提交重新构建前端（npm run build）...'
+      Invoke-Native -File $npmCmd -Arguments @('run', 'build') -FailureMessage '前端构建失败'
+    } finally {
+      Pop-Location
     }
 
     $distDir = Join-Path $FrontendDir 'dist'

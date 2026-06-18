@@ -34,7 +34,7 @@ cd D:\vibeCoding\codex\medkernel\deploy\onprem
 常用变体：
 
 ```powershell
-.\mk-publish.ps1 -Frontend -SkipBuild -KeyFile C:\tmp\medkernel_deploy_ed25519
+.\mk-publish.ps1 -Frontend -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -Backend -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -StageOnly -KeyFile C:\tmp\medkernel_deploy_ed25519
 .\mk-publish.ps1 -Server 192.168.8.191 -User root -KeyFile C:\path\to\old-site-key
@@ -52,11 +52,13 @@ bash ./mk-publish.sh --key-file ~/.ssh/medkernel_deploy
 常用变体：
 
 ```bash
-bash ./mk-publish.sh --frontend --skip-build --key-file ~/.ssh/medkernel_deploy
+bash ./mk-publish.sh --frontend --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --backend --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --stage-only --key-file ~/.ssh/medkernel_deploy
 bash ./mk-publish.sh --server 192.168.8.191 --user root --key-file ~/.ssh/old-site-key
 ```
+
+发布入口只接受当前干净工作树的完整 40 位 `HEAD` 哈希，并始终从该提交重新构建所选前后端；禁止用旧 `target`/`dist` 冒充新版本。完整测试与门禁须在调用发布入口前单独通过。
 
 ### 服务器端手动发布
 
