@@ -232,7 +232,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。WHO IRIS `10665/376353` 官方 PDF、许可、robots 与 SHA-256 已核验；知识治理员登记停用草稿，同人审批负测 403，平台治理管理员经 MFA 独立审批。停用抓取返回结构化 `BLOCKED` 且无获取副作用，重新编辑后再次独立审批，来源 `WHO-CHB-GUIDELINE-2024` 当前已启用生效。
   - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。代码门禁已收紧为只有已验签的内置 `SYSTEM_SUPERADMIN` 可执行 `false → true`，租户覆盖、非超管放行及回滚绕过均被拒；关闭仍可快速失败关闭。134 当前值保持 `false`，本项须等待 T9.3 真实专家签署后现场执行，不能因门禁代码完成而勾选。
   - [x] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --source` 当前 HEAD 全哈希并强制从干净工作树重建；不得从旧库回灌历史业务数据，不保留旧部署过渡路径）。2026-06-18 17:52 从干净工作树发布完整提交 `09306b0531309bee48978dab09c02f649d3482e6`；manifest 的 source/commit 均与该全哈希一致，本地与运行 JAR SHA-256 均为 `67ae7820448d8d50c76c230d4c99da70fe46b68685f89d4b95758780b2c1505d`。启动日志与关系库均确认 Flyway V151；HTTP/HTTPS readiness `UP`，服务 active/enabled，`NRestarts=0`。
-  - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。
+  - [ ] T9.8 验证 `/readiness` 9 闸全绿 → 跑一条真实自主获取→候选→审核→激活小样本闭环留证。已新增只读预检器，固定核验 9 项闸门、服务 health、请求上下文与受控来源，除登录外只发 GET，并以 `0600` 原子写入脱敏 JSON 证据。当前 134 实测仍为 `BLOCKED`（readiness 5/9；provider、医学评测、版本三元组与 P6 未通过），health 与 WHO 受控来源通过，业务写请求为 0；尚未进入状态变更或真实小样本闭环，本项保持未完成。
 - **验收**：readiness 全绿 + 一条真实知识端到端上线留证 + 清库初始化记录 + 134 运行 manifest 哈希一致。
 
 ### 〈第三大块 · 在 134 上生产首发知识〉
