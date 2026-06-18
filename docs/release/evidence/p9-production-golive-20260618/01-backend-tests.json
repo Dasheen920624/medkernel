@@ -1,7 +1,7 @@
 {
   "status": "PASSED",
-  "capturedAt": "2026-06-18T13:38:11Z",
-  "sourceCommit": "13b69304484c4f2c09ab78342c1f0cd75210cab4",
+  "capturedAt": "2026-06-18T14:05:31Z",
+  "sourceCommit": "c70787c906bce47dcff6b392624f22f93d206fcf",
   "command": "cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean package",
   "surefireReports": 465,
   "tests": 2999,
@@ -9,7 +9,7 @@
   "errors": 0,
   "skipped": 7,
   "packageCommand": "MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean package",
-  "packageSha256": "e4a8b1a71319ca0c73a535f4311ece299b5607423f95a8a4b167fe7120c8657a",
+  "packageSha256": "e16d98761b5ff8f753604b1102ccc01c674b004e0053892080f52e87151e160f",
   "containsCredentials": false,
   "containsPatientData": false
 }

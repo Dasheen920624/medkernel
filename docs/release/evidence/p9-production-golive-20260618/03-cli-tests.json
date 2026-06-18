@@ -1,7 +1,7 @@
 {
   "status": "PASSED",
-  "capturedAt": "2026-06-18T13:19:23Z",
-  "sourceCommit": "959bc26ec3e1510b3371e28b01e99a056fb947ec",
+  "capturedAt": "2026-06-18T14:05:31Z",
+  "sourceCommit": "c70787c906bce47dcff6b392624f22f93d206fcf",
   "command": "cd cli && npm test",
   "tests": 30,
   "failures": 0,

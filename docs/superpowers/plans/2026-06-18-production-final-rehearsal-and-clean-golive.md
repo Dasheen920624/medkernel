@@ -303,7 +303,7 @@ node scripts/drill/p9-engineering-rehearsal-check.mjs
 
 Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未通过。
 
-实际验证：后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests 及完整 build/typecheck/lint/stylelint/format 均通过；冻结前复核发现 `form-data` 生产依赖 high 漏洞和开发工具链审计债，已在 `13b69304` 升级 Vite 6.4.3、Vitest 3.2.6 等依赖并重新全量回归，生产与开发依赖审计均为 0，`DEFER-002` 关闭。H2 从空库迁移至 V152 并重复执行无变化，当前工作机 Docker socket 不可用导致 PostgreSQL / Oracle Testcontainers 按 assumption skip，已登记 `DEFER-025`。四项 on-prem 部署/发布/Ollama 合同、全局 T-GATE 和 134 既有真实备份隔离恢复证据均复核通过。新增入库脚本以请求白名单阻断 enable/disable/sign-off/P6 写入，并 fail-closed 校验明确启停位、医学安全逐例裁决与精确九闸集合；134 最终新运行 `9`、`10` 均真实 1/1、逐例证据完整、基准当前、可复核并保持 `PENDING_REVIEW`，两个 provider 全程 HEALTHY 且停用、P6=false。11 类脱敏 JSON 聚合结果为 `status=PASSED`、`stage=REHEARSAL_READY`，不代表正式上线。
+实际验证：后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests 及完整 build/typecheck/lint/stylelint/format 均通过；冻结前复核发现 `form-data` 生产依赖 high 漏洞和开发工具链审计债，已在 `13b69304` 升级 Vite 6.4.3、Vitest 3.2.6 等依赖并重新全量回归，生产与开发依赖审计均为 0，`DEFER-002` 关闭。H2 从空库迁移至 V152 并重复执行无变化，当前工作机 Docker socket 不可用导致 PostgreSQL / Oracle Testcontainers 按 assumption skip，已登记 `DEFER-025`。四项 on-prem 部署/发布/Ollama 合同、全局 T-GATE 和 134 既有真实备份隔离恢复证据均复核通过。新增入库脚本以请求白名单阻断 enable/disable/sign-off/P6 写入，并 fail-closed 校验明确启停位、医学安全逐例裁决与精确九闸集合；134 最终新运行 `9`、`10` 均真实 1/1、逐例证据完整、基准当前、可复核并保持 `PENDING_REVIEW`，两个 provider 全程 HEALTHY 且停用、P6=false。11 类脱敏 JSON 聚合结果为 `status=PASSED`、`stage=REHEARSAL_READY`，不代表正式上线。Task 6 检查又发现最终清库脚本未强制校验目标主机，已以 TDD 在 `c70787c9` 增加 `--expected-host` 精确匹配并在任何 root/停服/破坏性检查前拒绝缺失或错误主机；随后重跑上述完整门禁及依赖审计，结果不变且全绿。
 
 ### Task 5: 冻结最终候选
 
@@ -311,7 +311,7 @@ Expected: `status=PASSED`、`stage=REHEARSAL_READY`；正式上线状态仍未�
 - Create: `docs/release/evidence/p9-final-golive-<执行日期>/release-freeze.json`
 - Modify: `docs/_HANDOFF.md`
 
-- [x] **Step 1: 确认工作树和本地提交**
+- [ ] **Step 1: 确认工作树和本地提交**
 
 Run:
 
@@ -322,7 +322,7 @@ git log -1 --format='%H'
 
 Expected: 工作树干净；所有实现和证据已本地提交；未 push。
 
-- [x] **Step 2: 从同一 commit 构建最终制品**
+- [ ] **Step 2: 从同一 commit 构建最终制品**
 
 Run:
 
@@ -333,7 +333,7 @@ cd ../frontend && npm ci && npm run build
 
 Expected: exit 0。
 
-- [x] **Step 3: 固定哈希**
+- [ ] **Step 3: 固定哈希**
 
 Run:
 
@@ -349,7 +349,7 @@ Expected: `release-freeze.json` 记录 commit、JAR、前端清单、最新迁�
 
 任何源码、迁移、依赖锁文件或部署脚本变化都使 `RELEASE_FROZEN` 失效，必须返回 Task 4 重新验证和 Task 5 重新构建。
 
-实际冻结：候选提交为 `1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17`，未 push；后端 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。冻结 JAR SHA-256 为 `dac3adfb67c154604418a6785573222d17c89e8eed518dc8e693b2f082c56b5f`，前端 276 个文件清单 SHA-256 为 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言 760 个迁移文件清单 SHA-256 为 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`，最新迁移 V152。精确制品以 0600 权限保存在 git 忽略的 `runtime/release-freeze/1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17/`，冻结证据见 `docs/release/evidence/p9-final-golive-20260618/release-freeze.json`；当前未部署 134。
+冻结状态：历史候选 `1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17` 曾完成同提交构建与哈希固定，但 Task 6 发现最终清库脚本缺少目标主机强制匹配；由于 `deploy/onprem/medkernel-fresh-deploy.sh` 已在 `c70787c9` 变更，该 `RELEASE_FROZEN` 按规则失效，历史冻结制品禁止部署。主机护栏修复后 Task 4 已重跑全绿；待将最新证据本地提交后，必须从新提交重新执行本 Task 的 Step 1–3。当前未部署 134。
 
 ### Task 6: 最终清库前安全检查
 

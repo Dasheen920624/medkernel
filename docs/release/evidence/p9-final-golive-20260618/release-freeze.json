@@ -1,7 +1,15 @@
 {
-  "status": "PASSED",
-  "stage": "RELEASE_FROZEN",
+  "status": "INVALIDATED",
+  "stage": "REHEARSAL_READY",
   "generatedAt": "2026-06-18T13:44:24Z",
+  "invalidatedAt": "2026-06-18T14:05:31Z",
+  "invalidation": {
+    "detectedAtTask": "Task 6",
+    "reason": "最终清库脚本缺少目标主机强制匹配护栏；部署脚本已在 c70787c906bce47dcff6b392624f22f93d206fcf 修复",
+    "supersededCandidateCommit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
+    "deploymentAllowed": false,
+    "requiredAction": "返回 Task 4 完整回归并从新候选重新执行 Task 5"
+  },
   "source": {
     "branch": "codex/p6-independent-acceptance",
     "commit": "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17",
