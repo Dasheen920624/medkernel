@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 
 /**
  * B2 外部 provider 适配器单元测试（LLM-08）：OpenAI 兼容 + Claude。凭据经解析器，密钥不落库。
@@ -73,6 +74,46 @@ class ExternalProviderTest {
 
         assertThat(c.content()).contains("候选内容");
         assertThat(c.modelVersion()).isEqualTo("claude-opus-4-8");
+    }
+
+    @Test
+    void externalProvidersRejectResponseWithoutActualModelVersion() {
+        when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("secret"));
+        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"choices\":[{\"message\":{\"content\":\"候选内容\"}}]}");
+        when(http.post(eq("https://api.example.com/v1/messages"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"content\":[{\"type\":\"text\",\"text\":\"候选内容\"}]}");
+
+        assertThatThrownBy(() -> openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+        assertThatThrownBy(() -> claude.complete(config("CLAUDE", "claude-opus-4-8"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+    }
+
+    @Test
+    void externalProvidersRejectEmptyCompletionContent() {
+        when(credentials.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("secret"));
+        when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"model\":\"gpt-4o\",\"choices\":[{\"message\":{\"content\":\"  \"}}]}");
+        when(http.post(eq("https://api.example.com/v1/messages"), any(), anyString(), eq(45_000)))
+            .thenReturn("{\"model\":\"claude-opus-4-8\",\"content\":[{\"type\":\"text\",\"text\":\"\"}]}");
+
+        assertThatThrownBy(() -> openai.complete(config("OPENAI_COMPATIBLE", "gpt-4o"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+        assertThatThrownBy(() -> claude.complete(config("CLAUDE", "claude-opus-4-8"),
+                new ProviderRequest("knowledge.extract", "提取要素", 45_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
     }
 
     @Test

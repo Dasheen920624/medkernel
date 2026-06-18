@@ -24,6 +24,7 @@ public interface ModelVersionBundleRepository extends CrudRepository<ModelVersio
     @Query("""
         UPDATE mk_llm_model_version_bundle
            SET status = 'RETIRED',
+               active_scope_key = NULL,
                retired_at = :retiredAt,
                updated_at = :retiredAt,
                updated_by = :actor
@@ -37,6 +38,7 @@ public interface ModelVersionBundleRepository extends CrudRepository<ModelVersio
     @Query("""
         UPDATE mk_llm_model_version_bundle
            SET status = 'ACTIVE',
+               active_scope_key = :activeScopeKey,
                retired_at = NULL,
                effective_at = :effectiveAt,
                updated_at = :effectiveAt,
@@ -45,5 +47,6 @@ public interface ModelVersionBundleRepository extends CrudRepository<ModelVersio
            AND tenant_id = :tenantId
            AND capability_code = :capabilityCode
         """)
-    int activateBundle(Long id, String tenantId, String capabilityCode, String actor, Instant effectiveAt);
+    int activateBundle(Long id, String tenantId, String capabilityCode, String activeScopeKey,
+                       String actor, Instant effectiveAt);
 }

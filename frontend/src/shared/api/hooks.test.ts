@@ -3938,7 +3938,6 @@ describe("knowledge review api helpers", () => {
         producer: "API_MODEL",
         capabilityCode: "knowledge-generation",
         providerCode: "provider-openai",
-        modelStrategy: "gpt-pipeline",
       }),
     );
     const jobsHook = renderApiHook(() => useKnowledgeProductionJobs({ page: 1, size: 20 }));
@@ -3961,7 +3960,6 @@ describe("knowledge review api helpers", () => {
         producer: "API_MODEL",
         capabilityCode: "knowledge-generation",
         providerCode: "provider-openai",
-        modelStrategy: "gpt-pipeline",
       },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge-production/jobs", {

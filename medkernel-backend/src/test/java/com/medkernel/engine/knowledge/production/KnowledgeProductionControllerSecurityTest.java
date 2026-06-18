@@ -403,7 +403,7 @@ class KnowledgeProductionControllerSecurityTest {
 
     @Test
     void knowledgeReaderCanQueryReadiness() throws Exception {
-        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, "rule.draft", "claude-prod", "prompt:p;tool:t;model:m"))
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, "rule.draft", "claude-prod"))
             .thenReturn(new KnowledgeProductionReadinessResponse(
                 "tenant-1",
                 KnowledgeProducer.API_MODEL,
@@ -418,7 +418,6 @@ class KnowledgeProductionControllerSecurityTest {
                 .queryParam("producer", "API_MODEL")
                 .queryParam("capabilityCode", "rule.draft")
                 .queryParam("providerCode", "claude-prod")
-                .queryParam("modelStrategy", "prompt:p;tool:t;model:m")
                 .with(governor()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.ready").value(true))

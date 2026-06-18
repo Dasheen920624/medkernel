@@ -228,7 +228,7 @@ KNOWGEN 内容产出**夹在两次上线之间**，是第一次上线之后、�
   - [x] T9.1 运维准备受管资料库后端（现场本地磁盘、COS/OSS/MinIO 或 HTTPS 网关）→ 配 `文献库根 URI`（受管、含 `/platform-knowledge/t-1/literature-materials/`、非 tmp/非明文 HTTP）。134 已采用受管本地磁盘，目录权限/服务用户写入探针、配置中心高危变更审计和 readiness 均通过。
   - [ ] T9.2 集成运维员配真 provider（Claude/OpenAI 协议型/Ollama）+ 凭据（`credential_ref`）+ 健康检查 HEALTHY。134 已完成固定版本 Ollama `0.30.9`、回环监听、受管模型目录和 `qwen2.5:0.5b` 真实生成；应用内已通过真实 API 登记 `ollama-qwen25-05b` 并持久化 HEALTHY，当前按闸门保持停用。待 T9.3 真实医学评测与 T9.4 策略/版本治理完成后再启用。本地 Ollama 不使用凭据，外部 provider 才强制 `credential_ref`。
   - [ ] T9.3 质量医保治理员复核真实医学基准集 + 专家签字；**实跑一次 PASSED 医学回归评测**（精确覆盖当前启用题）。上线核查已修复评测运行能力码丢失、跨能力/过期基准 `PASSED` 串线、任意非空文本冒充引用、请求/返回模型版本漂移，以及同人自评自签、无 MFA、非质量治理角色和并发签字覆盖的问题；provider 启用门与知识生产 readiness 统一复核当前基准指纹。WHO 2024 慢性乙肝指南原件与许可、robots、SHA-256 已完成本地核验，待 134 恢复后部署修复并导入来源化基准实跑，真实专家身份不得由自动化冒充。
-  - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。部署形态已通过配置中心高危确认和审计设置为 `PRODUCTION_CENTER`；其余三项仍待完成。
+  - [ ] T9.4 平台治理管理员配 部署形态=PRODUCTION_CENTER + 出域白名单 + 能力策略 + prompt/tool/model 版本三元组。部署形态已通过配置中心高危确认和审计设置为 `PRODUCTION_CENTER`；本地已完成可执行出域策略、最小化 prompt、ACTIVE 版本包与 provider 配置/实际响应模型三方精确绑定，缺失或畸形版本包在 provider 解析前 B0，空补全在适配器与网关双层阻断，回滚并发冲突不误报成功，并以 V150 规范化作用域键等值 CHECK + UNIQUE 阻断空值、伪造键及同作用域多 ACTIVE；代码与全量门禁已通过并仅在本地分支提交。134 的白名单、能力策略和版本包真实配置仍待网络恢复后完成。
   - [ ] T9.5 公域源 allowlist 起步集审批生效（§7 确认后）。来源治理/知识生产页/V149/抓取边界已随 `bf2fa6dd351e6d369c9043040874a0d8f0e2bbcc` 发布到 134；仍须在 134 恢复后用两个真实账号通过 API 完成 WHO 起步源登记、越权负测、独立审批、停用与恢复，不允许直写数据库冒充审批。
   - [ ] T9.6 **超管在配置中心翻 `medkernel.knowledge.production.p6-independent-acceptance = true`**（上线放行，高危二次确认 + 审计）。
   - [ ] T9.7 按全新项目发布流程部署最新版到 134（`mk-publish.sh --skip-build --source` 全哈希发布；不得从旧库回灌历史业务数据，不保留旧部署过渡路径）。

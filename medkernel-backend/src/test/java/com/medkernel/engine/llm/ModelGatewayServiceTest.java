@@ -331,15 +331,16 @@ class ModelGatewayServiceTest {
         ModelTaskResponse resp = service.submitTask(req);
 
         assertNotNull(resp);
-        // 未接入真实 provider → 诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
+        // 未发布 ACTIVE 版本包 → 在 provider 解析前诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
         assertEquals("DEGRADED", resp.status());
         assertEquals("B0", resp.modelMode());
         assertTrue(resp.fallbackUsed());
         assertEquals("B0-Deterministic-Baseline", resp.modelVersion());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
-        assertTrue(resp.fallbackReason().contains("B1"));
+        assertTrue(resp.fallbackReason().contains("ACTIVE"));
+        assertTrue(resp.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
         // 反例：杜绝旧实现伪造的本地模型版本与字段
         assertNotEquals("MedKernel-Local-Cognitive-v1", resp.modelVersion());
         assertFalse(resp.outputContent().contains("local_enhanced"));
@@ -357,7 +358,7 @@ class ModelGatewayServiceTest {
             "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
-        // EXTERNAL_MODEL 配置但无 provider：诚实降级 B0，并验证手机号脱敏写入摘要
+        // EXTERNAL_MODEL 配置但无 ACTIVE 版本包：诚实降级 B0，并验证手机号脱敏写入摘要
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "张医生的手机是13988888888", 60);
 
         ModelTaskResponse resp = service.submitTask(req);
@@ -367,8 +368,9 @@ class ModelGatewayServiceTest {
         assertTrue(resp.fallbackUsed());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("PROVIDER_UNAVAILABLE"));
-        assertTrue(resp.fallbackReason().contains("B2"));
+        assertTrue(resp.fallbackReason().contains("ACTIVE"));
+        assertTrue(resp.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
 
         // 反例（医疗安全红线）：绝不出现伪造的外部模型版本 / 编造引文 / 编造患者
         assertNotEquals("MedKernel-Cognitive-LLM-v2", resp.modelVersion());
@@ -477,12 +479,24 @@ class ModelGatewayServiceTest {
     }
 
     private void resolveProvider(String strategy, com.medkernel.engine.llm.provider.ModelProvider adapter) {
+        String modelVersion = adapter.type() == com.medkernel.engine.llm.provider.ProviderType.OLLAMA
+            ? "qwen2.5:7b"
+            : "claude-opus-4-8";
+        resolveProvider(strategy, adapter, modelVersion);
+    }
+
+    private void resolveProvider(String strategy,
+                                 com.medkernel.engine.llm.provider.ModelProvider adapter,
+                                 String modelVersion) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         com.medkernel.engine.llm.provider.ModelProviderConfig config =
             new com.medkernel.engine.llm.provider.ModelProviderConfig(1L, "tenant-1", "p1",
-                adapter.type().name(), "http://x", null, "v1", "Y", "HEALTHY", now, "s", now, "s");
+                adapter.type().name(), "http://x", null, modelVersion, "Y", "HEALTHY", now, "s", now, "s");
         when(providerRegistry.resolve("tenant-1", strategy)).thenReturn(Optional.of(
             new com.medkernel.engine.llm.provider.ModelProviderRegistry.ResolvedProvider(adapter, config)));
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE"))
+            .thenReturn(Optional.of(versionBundle(modelVersion)));
     }
 
     private void policy(String strategy) {
@@ -677,6 +691,129 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_externalEmptyMinimizedPayloadNeverFallsBackToOriginalPrompt() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter, "claude-opus-4-8");
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
+                "{}", java.util.List.of(), "hash-empty"));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "claude-opus-4-8", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "不得绕过白名单的原始文本", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_providerReturnedModelVersionDriftDegradesToB0() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "漂移模型输出", "qwen2.5:14b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("模型版本"));
+    }
+
+    @Test
+    void submitTask_providerReturnedBlankContentDegradesToB0() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "  ", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("补全内容"));
+    }
+
+    @Test
+    void submitTask_activeVersionBundleMismatchSkipsProvider() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE"))
+            .thenReturn(Optional.of(versionBundle("qwen2.5:14b")));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_withoutActiveVersionBundle_degradesBeforeProviderResolution() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE")).thenReturn(Optional.empty());
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("ACTIVE"));
+        assertTrue(response.fallbackReason().contains("版本包"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
+    void submitTask_malformedActiveVersionBundle_degradesBeforeProviderResolution() {
+        policy("LOCAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter, "qwen2.5:7b");
+        ModelVersionBundle malformed = versionBundle("qwen2.5:7b");
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            "tenant-1", "knowledge.extract", "ACTIVE")).thenReturn(Optional.of(new ModelVersionBundle(
+                malformed.id(), malformed.tenantId(), malformed.capabilityCode(),
+                malformed.promptVersion(), "not-sha256", malformed.toolVersion(), malformed.toolHash(),
+                malformed.modelVersion(), malformed.modelHash(), malformed.status(), malformed.activeScopeKey(),
+                malformed.effectiveAt(), malformed.retiredAt(), malformed.createdAt(), malformed.createdBy(),
+                malformed.updatedAt(), malformed.updatedBy())));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "不应被调用", "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse response = service.submitTask(
+            new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("DEGRADED", response.status());
+        assertEquals("B0", response.modelMode());
+        assertTrue(response.fallbackReason().contains("ACTIVE 版本包不可执行"));
+        verify(providerRegistry, never()).resolve(anyString(), anyString());
+        verify(adapter, never()).complete(any(), any());
+    }
+
+    @Test
     void submitTask_externalEgressBlocked_degradesToB0WithoutCallingProvider() {
         policy("EXTERNAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
@@ -737,7 +874,7 @@ class ModelGatewayServiceTest {
         var external = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
         var local = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
         resolveProvider("EXTERNAL_MODEL", external);
-        resolveProvider("LOCAL_MODEL", local);
+        resolveProvider("LOCAL_MODEL", local, "claude-opus-4-8");
         when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
             .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
                 "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-chain"));
@@ -745,13 +882,13 @@ class ModelGatewayServiceTest {
             .thenThrow(new ApiException(ErrorCode.TOO_MANY_REQUESTS, "429"));
         when(local.complete(any(), argThat(request -> request.timeoutMs() == 1_500)))
             .thenReturn(new com.medkernel.engine.llm.provider.ProviderCompletion(
-                "本地候选", "qwen2.5:7b", null, "[]"));
+                "本地候选", "claude-opus-4-8", null, "[]"));
 
         ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
 
         assertEquals("SUCCEEDED", resp.status());
         assertEquals("B1", resp.modelMode());
-        assertEquals("qwen2.5:7b", resp.modelVersion());
+        assertEquals("claude-opus-4-8", resp.modelVersion());
         assertTrue(resp.fallbackUsed());
         assertTrue(resp.fallbackReason().contains("PROVIDER_RATE_LIMITED"));
         assertTrue(resp.fallbackReason().contains("B2 -> B1"));
@@ -803,7 +940,8 @@ class ModelGatewayServiceTest {
             .thenReturn(new com.medkernel.engine.llm.egress.ModelEgressGuard.EgressPreparation(
                 "{\"prompt\":\"已脱敏\"}", java.util.List.of("prompt"), "hash-schema"));
         when(adapter.complete(any(), any())).thenReturn(
-            new com.medkernel.engine.llm.provider.ProviderCompletion("{\"raw\":\"无结构\"}", "claude-opus-4", null, "[]"));
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                "{\"raw\":\"无结构\"}", "claude-opus-4-8", null, "[]"));
 
         ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
 
@@ -835,13 +973,18 @@ class ModelGatewayServiceTest {
     }
 
     private static ModelVersionBundle versionBundle() {
+        return versionBundle("qwen2.5:7b");
+    }
+
+    private static ModelVersionBundle versionBundle(String modelVersion) {
         Instant now = Instant.parse("2026-06-16T00:00:00Z");
+        String hash = "a".repeat(64);
         return new ModelVersionBundle(
             1L, "tenant-1", "knowledge.extract",
-            "prompt:extract-v2", "p-hash",
-            "tool:extract-schema-v3", "t-hash",
-            "model:qwen2.5:7b", "m-hash",
-            "ACTIVE", now, null, now, "ops", now, "ops");
+            "prompt:extract-v2", hash,
+            "tool:extract-schema-v3", hash,
+            modelVersion, hash,
+            "ACTIVE", "tenant-1|knowledge.extract", now, null, now, "ops", now, "ops");
     }
 
     private static String b0Output(String capabilityCode) {

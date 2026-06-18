@@ -65,10 +65,13 @@ public class OllamaProvider implements ModelProvider {
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(raw);
-            String content = node.path("response").asText("");
-            String modelVersion = node.path("model").asText(config.modelVersion());
+            String content = ProviderResponseValidator.requireContent(
+                node.path("response").asText(""), config.providerCode());
+            String modelVersion = ProviderResponseValidator.requireModelVersion(node, config.providerCode());
             // Ollama 原生补全不返回置信度/来源引文，诚实置空，绝不伪造。
             return new ProviderCompletion(content, modelVersion, null, "[]");
+        } catch (ApiException protocolInvalid) {
+            throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
                 "Ollama provider 返回无法解析 code=" + config.providerCode());

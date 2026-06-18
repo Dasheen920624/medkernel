@@ -89,7 +89,7 @@ public class ModelKnowledgeProducer {
         guardLocalModelPipeline(job);
 
         KnowledgeProductionReadinessResponse readiness = readinessService.evaluate(
-            job.producer(), request.capabilityCode(), request.providerCode(), job.modelStrategy());
+            job.producer(), request.capabilityCode(), request.providerCode());
         if (!readiness.modelInvocationAllowed()) {
             return result(jobCode, null, null, null, null, null,
                 new GenerationSummary(List.of(), List.of(), List.of(new BlockedCandidate(

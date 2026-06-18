@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +70,36 @@ class ModelEgressGuardTest {
     }
 
     @Test
+    void blocksWhenWhitelistDoesNotMatchAnyPayloadField() {
+        whitelist("[\"clinicalText\"]", "LOW");
+
+        assertThatThrownBy(() -> guard.prepareEgress(
+                "tenant-1", "knowledge.extract",
+                "{\"prompt\":\"不得绕过白名单的原始文本\"}",
+                "task-empty", "claude"))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_006);
+        verify(evidenceRepo, never()).save(any());
+    }
+
+    @Test
+    void blocksWhenGuardrailLockHasBeenTamperedOff() {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        when(whitelistRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
+            .thenReturn(Optional.of(new ModelEgressWhitelist(
+                1L, "tenant-1", "knowledge.extract", "[\"prompt\"]", "LOW",
+                "{}", "HIGH", "N", now, "system", now, "system")));
+
+        assertThatThrownBy(() -> guard.prepareEgress(
+                "tenant-1", "knowledge.extract", "{\"prompt\":\"文本\"}", "task-lock", "claude"))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_006);
+        verify(evidenceRepo, never()).save(any());
+    }
+
+    @Test
     void desensitizesWhitelistedFieldsBeforeEgress() {
         whitelist("[\"clinicalText\"]", "LOW");
 
@@ -80,6 +111,26 @@ class ModelEgressGuardTest {
         // FR-2 脱敏强制：手机号出域前必须掩码，绝不裸送
         assertThat(prep.payload()).contains("139****8888");
         assertThat(prep.payload()).doesNotContain("13988888888");
+    }
+
+    @Test
+    void defaultMaskAllRecursivelyProtectsStructuredPayload() {
+        whitelist("[\"clinicalContext\"]", "LOW");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"clinicalContext\":{\"patientName\":\"张三\",\"phone\":\"13988888888\","
+                + "\"ageYears\":72,\"confirmed\":true,\"notes\":[\"身份证110101199001011234\"]}}",
+            "task-structured", "claude");
+
+        assertThat(prep.payload())
+            .doesNotContain("张三")
+            .doesNotContain("13988888888")
+            .doesNotContain("110101199001011234")
+            .contains("\"patientName\":null")
+            .contains("\"phone\":null")
+            .contains("\"ageYears\":null")
+            .contains("\"confirmed\":null");
     }
 
     @Test

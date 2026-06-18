@@ -57,6 +57,7 @@ public class ModelVersionGovernanceService {
             modelVersion,
             sha256(modelDescriptor),
             "ACTIVE",
+            activeScopeKey(tenantId, capability),
             now,
             null,
             now,
@@ -78,13 +79,17 @@ public class ModelVersionGovernanceService {
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "模型版本包不存在"));
         Instant now = Instant.now();
         repository.retireActive(tenantId, capability, actor, now);
-        repository.activateBundle(bundleId, tenantId, capability, actor, now);
+        String activeScopeKey = activeScopeKey(tenantId, capability);
+        int activated = repository.activateBundle(bundleId, tenantId, capability, activeScopeKey, actor, now);
+        if (activated != 1) {
+            throw new ApiException(ErrorCode.CONFLICT, "模型版本包状态已变化，请刷新后重试");
+        }
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_model_version_bundle",
             String.valueOf(bundleId), "回滚模型版本三元组 " + capability);
         return ModelVersionBundleResponse.activeFrom(new ModelVersionBundle(
             target.id(), target.tenantId(), target.capabilityCode(), target.promptVersion(), target.promptHash(),
             target.toolVersion(), target.toolHash(), target.modelVersion(), target.modelHash(), "ACTIVE",
-            now, null, target.createdAt(), target.createdBy(), now, actor));
+            activeScopeKey, now, null, target.createdAt(), target.createdBy(), now, actor));
     }
 
     @Transactional(readOnly = true)
@@ -108,17 +113,6 @@ public class ModelVersionGovernanceService {
                 .toList());
     }
 
-    @Transactional(readOnly = true)
-    public ModelVersionTriple activeTripleOrBaseline(String tenantId, String capabilityCode) {
-        String capability = normalizeCapability(capabilityCode);
-        return repository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capability, "ACTIVE")
-            .map(bundle -> new ModelVersionTriple(
-                bundle.promptVersion(),
-                bundle.toolVersion(),
-                bundle.modelVersion()))
-            .orElseGet(ModelVersionTriple::baseline);
-    }
-
     private String requireCurrentTenant() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
@@ -139,6 +133,10 @@ public class ModelVersionGovernanceService {
             throw new ApiException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
         }
         return value.trim();
+    }
+
+    private String activeScopeKey(String tenantId, String capabilityCode) {
+        return tenantId + "|" + capabilityCode;
     }
 
     private String sha256(String value) {

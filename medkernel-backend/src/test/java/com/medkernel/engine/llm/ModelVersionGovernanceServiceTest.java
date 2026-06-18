@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -51,7 +52,8 @@ class ModelVersionGovernanceServiceTest {
             return new ModelVersionBundle(
                 7L, bundle.tenantId(), bundle.capabilityCode(), bundle.promptVersion(), bundle.promptHash(),
                 bundle.toolVersion(), bundle.toolHash(), bundle.modelVersion(), bundle.modelHash(),
-                bundle.status(), bundle.effectiveAt(), bundle.retiredAt(), bundle.createdAt(), bundle.createdBy(),
+                bundle.status(), bundle.activeScopeKey(), bundle.effectiveAt(), bundle.retiredAt(),
+                bundle.createdAt(), bundle.createdBy(),
                 bundle.updatedAt(), bundle.updatedBy());
         });
 
@@ -70,6 +72,9 @@ class ModelVersionGovernanceServiceTest {
         assertThat(response.toolHash()).hasSize(64);
         assertThat(response.modelHash()).hasSize(64);
         assertThat(response.promptHash()).doesNotContain("生成规则");
+        ArgumentCaptor<ModelVersionBundle> savedBundle = ArgumentCaptor.forClass(ModelVersionBundle.class);
+        verify(repository).save(savedBundle.capture());
+        assertThat(savedBundle.getValue().activeScopeKey()).isEqualTo("tenant-1|rule.draft");
         verify(repository).retireActive("tenant-1", "rule.draft", "ops", response.effectiveAt());
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_model_version_bundle", "7",
             "发布模型版本三元组 rule.draft");
@@ -96,6 +101,7 @@ class ModelVersionGovernanceServiceTest {
     void rollbackActivatesHistoricalBundleAndRetiresCurrentOne() {
         ModelVersionBundle retired = bundle(3L, "RETIRED", "prompt:v1", "tool:v1", "model:v1");
         when(repository.findById(3L)).thenReturn(Optional.of(retired));
+        when(repository.activateBundle(any(), any(), any(), any(), any(), any())).thenReturn(1);
 
         ModelVersionBundleResponse response = service.rollback("rule.draft", 3L);
 
@@ -104,7 +110,22 @@ class ModelVersionGovernanceServiceTest {
         verify(repository).retireActive(org.mockito.Mockito.eq("tenant-1"), org.mockito.Mockito.eq("rule.draft"),
             org.mockito.Mockito.eq("ops"), any(Instant.class));
         verify(repository).activateBundle(org.mockito.Mockito.eq(3L), org.mockito.Mockito.eq("tenant-1"),
-            org.mockito.Mockito.eq("rule.draft"), org.mockito.Mockito.eq("ops"), any(Instant.class));
+            org.mockito.Mockito.eq("rule.draft"), org.mockito.Mockito.eq("tenant-1|rule.draft"),
+            org.mockito.Mockito.eq("ops"), any(Instant.class));
+    }
+
+    @Test
+    void rollbackActivationConflictDoesNotAuditOrReturnSuccess() {
+        ModelVersionBundle retired = bundle(3L, "RETIRED", "prompt:v1", "tool:v1", "model:v1");
+        when(repository.findById(3L)).thenReturn(Optional.of(retired));
+        when(repository.activateBundle(any(), any(), any(), any(), any(), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> service.rollback("rule.draft", 3L))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
     @Test
@@ -120,24 +141,13 @@ class ModelVersionGovernanceServiceTest {
         assertThat(response.toString()).doesNotContain("受控提示词正文");
     }
 
-    @Test
-    void activeTripleFallsBackToB0WhenNoBundleExists() {
-        when(repository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
-            "tenant-1", "rule.draft", "ACTIVE")).thenReturn(Optional.empty());
-
-        ModelVersionTriple triple = service.activeTripleOrBaseline("tenant-1", "rule.draft");
-
-        assertThat(triple.promptVersion()).isEqualTo("baseline");
-        assertThat(triple.toolVersion()).isEqualTo("gateway-default");
-        assertThat(triple.modelVersion()).isEqualTo("B0-Deterministic-Baseline");
-    }
-
     private ModelVersionBundle bundle(Long id, String status, String promptVersion,
                                       String toolVersion, String modelVersion) {
         Instant now = Instant.parse("2026-06-16T00:00:00Z");
         return new ModelVersionBundle(
             id, "tenant-1", "rule.draft", promptVersion, "p-hash", toolVersion, "t-hash",
-            modelVersion, "m-hash", status, now, "ACTIVE".equals(status) ? null : now,
+            modelVersion, "m-hash", status, "ACTIVE".equals(status) ? "tenant-1|rule.draft" : null,
+            now, "ACTIVE".equals(status) ? null : now,
             now, "ops", now, "ops");
     }
 }

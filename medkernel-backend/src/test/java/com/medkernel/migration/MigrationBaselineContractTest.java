@@ -197,8 +197,25 @@ class MigrationBaselineContractTest {
         "V146__knowledge_surface_menu_split.sql",
         "V147__knowledge_candidate_explain_evidence.sql",
         "V148__knowledge_review_feedback_loop.sql",
-        "V149__knowledge_acquisition_source_lock.sql"
+        "V149__knowledge_acquisition_source_lock.sql",
+        "V150__model_version_active_scope_unique.sql"
     );
+
+    @Test
+    void modelVersionActiveScopeIsUniqueAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V150__model_version_active_scope_unique.sql");
+            assertThat(ddl)
+                .as("%s 模型版本 ACTIVE 作用域必须由关系库强制唯一", dialect)
+                .contains(
+                    "active_scope_key",
+                    "tenant_id || '|' || capability_code",
+                    "uk_mk_llm_model_version_active_scope",
+                    "ck_mk_llm_model_version_active_scope",
+                    "ACTIVE",
+                    "RETIRED");
+        }
+    }
 
     @Test
     void medicalRegressionRedLineTypeFitsClinicalRedLineCategoriesAcrossAllDialects() {
@@ -858,7 +875,8 @@ class MigrationBaselineContractTest {
         "ck_mk_knowledge_production_job_domain", "ck_mk_knowledge_production_candidate_risk",
         "ck_mk_knowledge_generation_triage_state", "ck_mk_knowledge_generation_triage_action",
         "ck_mk_knowledge_shadow_run_status", "ck_mk_knowledge_shadow_run_counts",
-        "ck_mk_llm_model_version_bundle_status",
+        "ck_mk_llm_model_version_bundle_status", "ck_mk_llm_model_version_active_scope",
+        "uk_mk_llm_model_version_active_scope",
         "ck_mk_llm_egress_policy_threshold", "ck_mk_llm_egress_policy_guardrail",
         "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",

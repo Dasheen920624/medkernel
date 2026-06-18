@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.provider;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -12,6 +13,9 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 
 /**
  * 本地 Ollama provider 适配器单元测试（LLM-08 B1）。HTTP 经接口注入 mock，不连真实外网。
@@ -51,6 +55,30 @@ class OllamaProviderTest {
         // 铁律 #1：本地补全无置信度/引文，绝不伪造
         assertThat(completion.confidence()).isNull();
         assertThat(completion.sourceCitations()).isEqualTo("[]");
+    }
+
+    @Test
+    void completeRejectsResponseWithoutActualModelVersion() {
+        when(http.post(eq("http://127.0.0.1:11434/api/generate"), any(), contains("qwen2.5:7b"), eq(30_000)))
+            .thenReturn("{\"response\":\"候选内容\",\"done\":true}");
+
+        assertThatThrownBy(() -> provider.complete(config(),
+                new ProviderRequest("knowledge.extract", "提取病史要素", 30_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
+    }
+
+    @Test
+    void completeRejectsEmptyContent() {
+        when(http.post(eq("http://127.0.0.1:11434/api/generate"), any(), contains("qwen2.5:7b"), eq(30_000)))
+            .thenReturn("{\"model\":\"qwen2.5:7b\",\"response\":\"  \",\"done\":true}");
+
+        assertThatThrownBy(() -> provider.complete(config(),
+                new ProviderRequest("knowledge.extract", "提取病史要素", 30_000)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_LLM_002);
     }
 
     @Test

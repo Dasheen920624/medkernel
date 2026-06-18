@@ -287,10 +287,10 @@ public class ModelGatewayService {
         //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
         //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         ModelFallbackConfig fallbackConfig = fallbackConfig(policy);
-        ModelVersionTriple plannedTriple = activeTripleOrBaseline(tenantId, capabilityCode);
+        ActiveVersionPlan versionPlan = activeVersionPlan(tenantId, capabilityCode);
         String schemaConstraint = policy.expectedSchema();
         RouteOutcome outcome = route(
-            tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, plannedTriple,
+            tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, versionPlan,
             schemaConstraint, req.providerCode());
 
         // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
@@ -904,8 +904,12 @@ public class ModelGatewayService {
      */
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
                                ModelFallbackConfig fallbackConfig, String desensitizedInput,
-                               String taskId, ModelVersionTriple plannedTriple, String expectedSchema,
+                               String taskId, ActiveVersionPlan versionPlan, String expectedSchema,
                                String providerCode) {
+        if (!versionPlan.executable() && !"BASELINE".equalsIgnoreCase(strategy)) {
+            return b0Outcome(capabilityCode, versionPlan.reason());
+        }
+        ModelVersionTriple plannedTriple = versionPlan.triple();
         List<String> reasons = new ArrayList<>();
         List<String> order = fallbackConfig.fallbackOrder();
         for (int i = 0; i < order.size(); i++) {
@@ -961,6 +965,16 @@ public class ModelGatewayService {
                 "未解析到健康 provider 或部署形态不允许");
         }
         ModelProviderRegistry.ResolvedProvider provider = resolved.get();
+        String configuredModelVersion = normalizeOptional(provider.config().modelVersion());
+        if (configuredModelVersion == null) {
+            return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
+                "provider 未配置模型版本");
+        }
+        if (!configuredModelVersion.equals(plannedTriple.modelVersion())) {
+            return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
+                "ACTIVE 版本包模型与 provider 配置不一致：bundle=" + plannedTriple.modelVersion()
+                    + ", provider=" + configuredModelVersion);
+        }
         if (!reserveProviderBudget(
                 tenantId, capabilityCode, strategy, fallbackConfig, provider.config().providerCode())) {
             return ProviderAttempt.failure(
@@ -974,7 +988,11 @@ public class ModelGatewayService {
                 String egressJson = OBJECT_MAPPER.createObjectNode().put("prompt", desensitizedInput).toString();
                 var prep = egressGuard.prepareEgress(
                     tenantId, capabilityCode, egressJson, taskId, provider.config().providerCode());
-                prompt = readPromptField(prep.payload(), desensitizedInput);
+                if (prep.egressFields() == null || !prep.egressFields().contains("prompt")) {
+                    throw new ApiException(ErrorCode.ENG_LLM_006,
+                        "出域最小化结果未包含允许的 prompt 字段");
+                }
+                prompt = readPromptField(prep.payload());
             } catch (ApiException egressBlocked) {
                 log.warn("外调出域闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
                 publishFailureAudit(egressBlocked.errorCode(),
@@ -986,11 +1004,22 @@ public class ModelGatewayService {
         try {
             ProviderCompletion completion = provider.adapter()
                 .complete(provider.config(), new ProviderRequest(capabilityCode, prompt, fallbackConfig.timeoutMs()));
+            if (completion == null
+                || completion.modelVersion() == null
+                || !configuredModelVersion.equals(completion.modelVersion().trim())) {
+                return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
+                    "provider 返回模型版本与配置不一致：expected=" + configuredModelVersion
+                        + ", actual=" + (completion == null ? "<missing>" : completion.modelVersion()));
+            }
+            if (completion.content() == null || completion.content().isBlank()) {
+                return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
+                    "provider 返回空补全内容");
+            }
             if (expectedSchema != null && !expectedSchema.isBlank()) {
                 validateSchema(completion.content(), expectedSchema);
             }
             return ProviderAttempt.success(new RouteOutcome(
-                completion.content(), provider.modelMode(), completion.modelVersion(),
+                completion.content(), provider.modelMode(), configuredModelVersion,
                 plannedTriple.promptVersion(), plannedTriple.toolVersion(),
                 completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED"));
         } catch (ApiException providerFailed) {
@@ -1052,11 +1081,19 @@ public class ModelGatewayService {
         return value == null ? "" : value;
     }
 
-    private String readPromptField(String json, String fallback) {
+    private String readPromptField(String json) {
         try {
-            return OBJECT_MAPPER.readTree(json).path("prompt").asText(fallback);
+            JsonNode prompt = OBJECT_MAPPER.readTree(json).get("prompt");
+            if (prompt == null || !prompt.isTextual() || prompt.asText().isBlank()) {
+                throw new ApiException(ErrorCode.ENG_LLM_006,
+                    "出域最小化后的 prompt 为空或非文本，禁止回退原始载荷");
+            }
+            return prompt.asText();
+        } catch (ApiException blocked) {
+            throw blocked;
         } catch (Exception parseFailed) {
-            return fallback;
+            throw new ApiException(ErrorCode.ENG_LLM_006,
+                "出域最小化结果不是合法 JSON，禁止回退原始载荷");
         }
     }
 
@@ -1068,12 +1105,24 @@ public class ModelGatewayService {
             "[]", null, "LOW", true, fallbackReason, "DEGRADED");
     }
 
-    private ModelVersionTriple activeTripleOrBaseline(String tenantId, String capabilityCode) {
-        return versionBundleRepository
+    private ActiveVersionPlan activeVersionPlan(String tenantId, String capabilityCode) {
+        ModelVersionBundle bundle = versionBundleRepository
             .findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capabilityCode, "ACTIVE")
-            .map(bundle -> new ModelVersionTriple(bundle.promptVersion(), bundle.toolVersion(), bundle.modelVersion()))
-            .orElseGet(ModelVersionTriple::baseline);
+            .orElse(null);
+        ModelVersionBundleValidator.Validation validation =
+            ModelVersionBundleValidator.validateActive(bundle, tenantId, capabilityCode);
+        if (!validation.valid()) {
+            String prefix = bundle == null ? "" : "ACTIVE 版本包不可执行：";
+            return new ActiveVersionPlan(ModelVersionTriple.baseline(), false, prefix + validation.reason());
+        }
+        ModelVersionBundle active = validation.bundle();
+        return new ActiveVersionPlan(
+            new ModelVersionTriple(active.promptVersion(), active.toolVersion(), active.modelVersion()),
+            true,
+            null);
     }
+
+    private record ActiveVersionPlan(ModelVersionTriple triple, boolean executable, String reason) {}
 
     /**
      * B0 级确定性基线回退处理器（B0 Fallback Processor）。

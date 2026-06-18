@@ -1525,7 +1525,6 @@ export interface KnowledgeProductionReadinessParams {
   producer?: KnowledgeProducer;
   capabilityCode?: string;
   providerCode?: string;
-  modelStrategy?: string;
 }
 
 export type KnowledgeProductionJobStatus =
@@ -1691,7 +1690,6 @@ export function useKnowledgeProductionReadiness(
     producer: params.producer ?? "API_MODEL",
     capabilityCode: params.capabilityCode,
     providerCode: params.providerCode,
-    modelStrategy: params.modelStrategy,
   });
   return useQuery({
     queryKey: ["knowledge-production", "readiness", requestParams],

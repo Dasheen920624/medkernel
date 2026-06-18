@@ -93,7 +93,7 @@ class ModelKnowledgeProducerTest {
     void setUp() {
         RequestContext.restore(new RequestContext.Snapshot("trace-model", OrgScope.tenant(TENANT), "u-model"));
         when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE)).thenReturn(Optional.of(job(KnowledgeProducer.API_MODEL)));
-        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER, MODEL_STRATEGY))
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER))
             .thenReturn(ready());
         when(gateService.evaluate(any(), any())).thenReturn(new GateOutcome(true, List.of(
             GateItemResult.pass("SOURCE_PRESENT"))));
@@ -115,7 +115,7 @@ class ModelKnowledgeProducerTest {
 
     @Test
     void readinessBlockReturnsStructuredReasonWithoutCallingModel() {
-        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER, MODEL_STRATEGY))
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, PROVIDER))
             .thenReturn(blocked("LITERATURE_ROOT", "平台知识文献资料库根地址未配置"));
 
         ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
@@ -195,7 +195,7 @@ class ModelKnowledgeProducerTest {
         String localProvider = "ollama-hospital";
         when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE))
             .thenReturn(Optional.of(job(KnowledgeProducer.LOCAL_MODEL)));
-        when(readinessService.evaluate(KnowledgeProducer.LOCAL_MODEL, CAPABILITY, localProvider, MODEL_STRATEGY))
+        when(readinessService.evaluate(KnowledgeProducer.LOCAL_MODEL, CAPABILITY, localProvider))
             .thenReturn(localReady(localProvider));
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalModelTask());
         ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
@@ -221,7 +221,7 @@ class ModelKnowledgeProducerTest {
             .hasMessageContaining("本地模型")
             .hasMessageContaining("院内覆盖");
 
-        verify(readinessService, never()).evaluate(any(), any(), any(), any());
+        verify(readinessService, never()).evaluate(any(), any(), any());
         verify(modelGateway, never()).submitTask(any());
         verify(production, never()).submitCandidate(any(), any(), any());
     }

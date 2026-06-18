@@ -81,9 +81,13 @@ public class OpenAiCompatibleProvider implements ModelProvider {
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(raw);
-            String content = node.path("choices").path(0).path("message").path("content").asText("");
-            String modelVersion = node.path("model").asText(config.modelVersion());
+            String content = ProviderResponseValidator.requireContent(
+                node.path("choices").path(0).path("message").path("content").asText(""),
+                config.providerCode());
+            String modelVersion = ProviderResponseValidator.requireModelVersion(node, config.providerCode());
             return new ProviderCompletion(content, modelVersion, null, "[]");
+        } catch (ApiException protocolInvalid) {
+            throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
                 "OpenAI 兼容 provider 返回无法解析 code=" + config.providerCode());
