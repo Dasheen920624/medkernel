@@ -660,22 +660,32 @@ Evidence（2026-06-19）: 审查修复来源版本批准缺少 MFA 高风险守�
 - Modify after runtime verification: `docs/_HANDOFF.md`
 - Modify after runtime verification: `docs/handoff/2026-06-19-pilot-sandbox-demo.md`
 
-- [ ] **Step 1: 从干净本地提交构建并冻结精确字节**
+- [x] **Step 1: 从干净本地提交构建并冻结精确字节**
 
 记录提交 SHA、JAR SHA-256、前端归档 SHA-256、五方言迁移清单 SHA-256；后续部署只允许使用这组冻结字节，不从文档提交后的 HEAD 临时重建。
 
-- [ ] **Step 2: 对 134 执行不清库的前向部署**
+Evidence（2026-06-19）: 最终代码提交为 `3fc3795d9bf8e9736d313177750ebde1646ab258`；后端独立全量为 481 份 Surefire XML / 3089 tests / 0 failures / 0 errors / 7 skipped / 0 dump。冻结 JAR SHA-256 `431365593344444cd19f4fc3f2c05cbb48e5fde9663c40b2b6881d5b163737c7`，前端归档 SHA-256 `96dfd40a7a142f8021b55b6896602bf7ec39a939a975c8700543d2b5c7ca815d`，276 文件归一化清单 SHA-256 `87c1c80ca08add49156ac03793725297d6a9d0694f36306e3299bbe6f4522b71`，五方言 775 文件迁移清单 SHA-256 `3a0fb0d5009d514f07cf63ac11a3a1533c36ca732b8d49d39069b64b2f3a20c4`；冻结包 `SHA256SUMS` SHA-256 为 `c5dcbe84a596e31441bc2a5eac8cde3dc912ab99a455d1c13de2b0058125ca9f`，目录 0700、文件 0600。
+
+- [x] **Step 2: 对 134 执行不清库的前向部署**
 
 使用现有部署器完成备份、替换、重启、健康检查和失败回滚；Flyway 只允许从 V152 前向迁移到 V155，不执行 fresh-deploy 或清库。
 
-- [ ] **Step 3: 部署后验证运行真相**
+Evidence（2026-06-19）: 先以 `f8567116` 解除严格 B0 骨架与完整临床红线目录的启动环并创建初始化批次，再以前向补丁 `3fc3795d` 收束 job 生命周期；最终显式部署 JAR 与前端归档，备份目录 `/zoesoft/medkernel/backups/deploy-20260619-182440`。未执行 fresh-deploy、清库、Provider 启用、P6 或专家签署。
+
+- [x] **Step 3: 部署后验证运行真相**
 
 验证 source commit、JAR hash、前端清单、Flyway V155、readiness 200、服务 active/enabled、`NRestarts`、Provider 全停用和 P6=false。部署前的模型评测证据一律视为对旧制品的历史证据，不可用于新制品放行。
 
-- [ ] **Step 4: 受控生成稳定 B0 基础知识候选**
+Evidence（2026-06-19）: manifest source/commit 均为 `3fc3795d9bf8e9736d313177750ebde1646ab258`，运行 JAR hash 与冻结值一致；前端 276 文件按路径归一化后逐行一致；Flyway V155；服务 active/enabled、`NRestarts=0`、MainPID `1799433`；HTTP 与 HTTPS readiness 均 200。Provider 共 2 个、启用 0 个，P6=false。
+
+- [x] **Step 4: 受控生成稳定 B0 基础知识候选**
 
 把权威来源注册表复制到受控只读路径；通过 SSH 隧道和临时 `0600` 凭据文件运行 `foundation-initialization.mjs`。只允许生成 8 个 `generatedByModel=false`、`PENDING_AUTHORING`、`MEDIUM` 候选和一个 F8 `IN_REVIEW` 批次，不执行批审、双签、Provider、P6 或知识激活。
 
-- [ ] **Step 5: 部署后证据与接力收尾**
+Evidence（2026-06-19）: 受控注册表 SHA-256 `e42e80e6d39a1213286925b9ac75c76fece54dab391edb9d46f1d8437c613893`，远端目录 0700、文件 0600。首次运行在 `f8567116` 创建 `MK-FND-B0-1.0.0`，证据 SHA-256 `5ee344e9b14bc35cc03e5c5d81ac543185c59520285a556b8aab12da57a1ac6a`；最终 `3fc3795d` 制品幂等复跑返回 `REUSED`，证据 SHA-256 `1b8ee6277371e83e39413601a92912f1c73db921565f28374131adaeb65e32b8`。批次 8 个 MEDIUM、0 LOW、0 HIGH，全部 `generatedByModel=false`、待审核，0 ACTIVE。
+
+- [x] **Step 5: 部署后证据与接力收尾**
 
 记录来源版本/片段批准、候选数、批次风险统计、批次状态、零自动激活、Provider/P6 状态和运行制品哈希；文档收尾可形成独立本地提交，但不因此重建或重部署代码制品。
+
+Evidence（2026-06-19）: 数据库最终快照为 8 个来源文档、9 个来源版本、9 条 `APPROVED` 来源批准；8 个 identity、8 个 `PENDING_REPLACEMENT_REVIEW` 版本/分类/审核任务，`current_version_id` 全空；8 个初始化条目均 `PENDING_REVIEW`。8 个成功 job 已 `COMPLETED`、候选数 8、当前门禁 72/72 通过；早先失败尝试保留为 1 个 `CANCELLED` job 与 9 条历史门禁（8 通过、1 失败），开放 job 为 0。分流 8 个 `NEW_ASSET/SUBMIT_REVIEW`，影子评估 8 个 ready、0 degraded；启用回归用例共 5 条，初始化要求的三类基础用例均复用。2 个旧制品下模型评测运行均为 `PENDING_REVIEW`、0 `PASSED`，禁止在当前制品复用。Provider 2/0、P6=false、无自动医学审核/专家签署/知识激活。最终运行态快照 SHA-256 `8e895eff3e38c1abecca9a7b25d610add675e1b29805968538d223b3fd595a0d`，最终知识冻结 `SHA256SUMS` SHA-256 `2acae2fc6ef20f2480548a59e2dff113874b5192670ee3c462a0b09a868d7f7e`。

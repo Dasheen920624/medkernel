@@ -5,15 +5,15 @@
 ## 当前真相
 
 - 最新主线：`origin/main=be9943956d63e7097052623911830c6d48e5375b`，#637「记录生产预演 PR 合并结果」已合并。
-- 当前实施分支：`codex/full-fidelity-sandbox-runtime`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。本线统一纳管试点租户脚本、全真沙盘、现场重放、知识初始化和功能补齐；用户已明确授权在本地验证、审查和提交后，把精确冻结制品前向部署到 134，但不清库、不 push、不创建或合并远程 PR。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
+- 当前实施分支：`codex/full-fidelity-sandbox-runtime`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。本线已统一纳管试点租户脚本、全真沙盘、现场重放、知识初始化和功能补齐，并把最终精确冻结制品前向部署到 134；未清库、未 push、未创建或合并远程 PR。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
 - 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。
-- 基础知识初始化采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：首批 8 个稳定基础条目覆盖权威来源、术语、数据元、编码/值集/单位、主数据/互操作、证据分级、发行 BOM 和金标回归骨架；全部为 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING`，生成的 F8 批次保持 `IN_REVIEW`，不自动激活，也不宣称基础发行版已完成。
-- 当前切片本地实现提交为 `0a412512`。最终验证证据：后端 481 份 Surefire XML / 3085 tests / 0 failures / 0 errors，前端 100 个测试文件 / 804 tests，演练与初始化脚本 109 tests、真实性/配置/迁移规约 38 tests、Python 演练工具 7 tests；B0、中文注释、产品目录、部署合同、旧口径扫描和 `git diff --check` 均通过。
+- 基础知识初始化采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：134 已生成首批 8 个稳定基础条目，覆盖权威来源、术语、数据元、编码/值集/单位、主数据/互操作、证据分级、发行 BOM 和金标回归骨架；全部为 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING`，F8 批次保持 `IN_REVIEW`，知识激活数为 0，也不宣称基础发行版已完成。
+- 当前切片代码提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`；最后一项补齐知识生成 job 终态。最终独立后端验证为 481 份 Surefire XML / 3089 tests / 0 failures / 0 errors / 7 skipped / 0 dump；前端 100 个测试文件 / 804 tests，演练与初始化脚本 109 tests、初始化与三类门禁自测合计 45 tests、Python 演练工具 7 tests；B0、中文注释、产品目录、部署合同、旧口径扫描和 `git diff --check` 均通过。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
-- 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，当前从 V152 clean baseline 继续正式配置。上线后不再清库。
+- 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，随后仅执行不清库前向迁移，当前为 Flyway V155。上线后不再清库。
 - 资料库口径：受管 `file://` 本地磁盘、对象存储或 HTTPS 网关均是正式后端；不得把任一种资料后端写成唯一选项。
-- 当前执行清单：[`docs/superpowers/plans/2026-06-18-production-final-rehearsal-and-clean-golive.md`](superpowers/plans/2026-06-18-production-final-rehearsal-and-clean-golive.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
+- 当前执行清单：[`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
 
 ## 本地已完成
 
@@ -160,20 +160,23 @@
 - 沙盘正确口径：演练定制规则归属演练机构；CURRENT 运行继续复用正式“机构优先、平台补充、同编码机构覆盖平台”解析逻辑。平台主源规则可以参与沙盘，但不得复制成机构规则或被机构静默修改。场景模板不再固定配置包版本，每次运行从机构明确绑定解析并冻结真实基线；第三方显式版本合同和历史重放清单仍保存精确版本。
 - 10 条规则场景已补成真实、可执行、可测试、可审计的演练机构资产；不再用静态目录状态长期阻断。医学阈值来自权威来源或机构参数边界，无法证明的值不伪装为全国统一标准。沙盘已支持 CURRENT、HISTORICAL_EXACT 和 COMPARE，路径、推荐、随访、评估和嵌入继续调用正式领域服务，外部副作用一律抑制。专项计划见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)。
 - 生产知识首发范围已扩展为 KNOWGEN-01～35：34 类资产分装为稳定基础包与临床包，另由 KNOWGEN-15 总验收。KNOWGEN-33～35 是后续知识内容，不新增专用引擎；统一复用现有资产信封、版本、来源、审核、包和运行服务。模板覆盖、候选领域选择、高风险真实双签和初始化发行清单四个通用断点已补齐；后续只生产真实内容，不为每个医学领域复制状态机、表或页面。
+- 134 最终运行制品为提交 `3fc3795d9bf8e9736d313177750ebde1646ab258`：JAR SHA-256 `431365593344444cd19f4fc3f2c05cbb48e5fde9663c40b2b6881d5b163737c7`，前端归档 SHA-256 `96dfd40a7a142f8021b55b6896602bf7ec39a939a975c8700543d2b5c7ca815d`，276 文件归一化清单 SHA-256 `87c1c80ca08add49156ac03793725297d6a9d0694f36306e3299bbe6f4522b71`，五方言 775 个迁移文件清单 SHA-256 `3a0fb0d5009d514f07cf63ac11a3a1533c36ca732b8d49d39069b64b2f3a20c4`。部署备份为 `/zoesoft/medkernel/backups/deploy-20260619-182440`；服务 active/enabled、`NRestarts=0`、MainPID `1799433`，HTTP/HTTPS readiness 均为 200。
+- 基础知识运行事实：`f8567116` 首次创建 `MK-FND-B0-1.0.0`，`3fc3795d` 部署后幂等复跑返回 `REUSED`。数据库有 8 个来源文档、9 个来源版本与 9 条 `APPROVED` 来源批准；8 个候选/分类/审核任务均待逐条审核，8 个初始化条目均 `PENDING_REVIEW`，0 个模型生成、0 个 ACTIVE、8 个 identity 的 `current_version_id` 均为空。当前 8 个成功 job 已 `COMPLETED` 且门禁 72/72 通过；早先失败尝试保留为 1 个 `CANCELLED` job 和 9 条门禁历史留痕（8 通过、1 失败），不得把全历史 81 条误写为全部通过。
+- 最终安全边界：Provider 共 2 个、启用 0 个；P6 独立验收仍为 `false`；启用回归用例共 5 条，初始化链明确复用其中 FIELD_CATALOG、TERMINOLOGY、VALUE_SET 三类基础用例。库中保留 2 个旧制品下生成的 `PENDING_REVIEW` 评测运行、0 个 `PASSED`，不得在当前 `3fc3795d` 制品上签署或复用。没有自动医学审核、自动专家签署、知识激活或数据库清理。忽略目录中的精确冻结证据为 `runtime/release-freeze/3fc3795d9bf8e9736d313177750ebde1646ab258/` 和 `runtime/knowledge-init-freeze/{f85671169e2f6450220189eac88a429cfad63151,3fc3795d9bf8e9736d313177750ebde1646ab258}/`。
 
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
-- 不得宣称医学回归已经正式放行：最终干净正式库当前没有评测运行；只有重新生成的运行由真实独立医学专家逐例核查并签字后才可转为 `PASSED`，自动化不得代签，清库前任何运行均不得复用。
+- 不得宣称医学回归已经正式放行：当前 2 个评测运行均为旧制品下的 `PENDING_REVIEW`，0 个 `PASSED`；必须在当前制品重新生成运行，由真实独立医学专家逐例核查并签字后才可转为 `PASSED`，自动化不得代签。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
 ## 下一步
 
-1. 从包含 `0a412512` 的干净本地 HEAD 构建并冻结 JAR、前端归档和迁移哈希。
-2. 对 134 执行不清库的前向部署，将 Flyway 从 V152 升至 V155；部署后核验制品哈希、readiness、服务重启次数、Provider 全停用和 P6=false。
-3. 在 134 受控导入权威来源注册表，生成 8 个 B0 基础候选和 F8 `IN_REVIEW` 批次；不得批审中风险条目、不得激活知识、不得复用或冒充正式医学评测。
-4. 部署后原正式评测证据因运行制品/迁移变化作废；后续必须重新生成医学评测，由真人独立专家逐例签署，才能精确启用一个已评测 Provider 并继续 P6 放行。
+1. 将 `quality-governor` 与 `medication-safety-user` 的受控临时凭据分别转交真实独立专家本人，由本人完成首登改密和 MFA 绑定；自动化不得代办签字。
+2. 在当前 `3fc3795d` 制品和 5 条启用基准上重新生成真实 Provider 医学评测，由独立专家逐例复核并签署；清库前或旧制品评测不得复用。
+3. 只精确启用一个已通过当前能力、当前模型版本和当前基准指纹评测的 Provider，再由内置超级管理员放行 P6。
+4. 先走低风险真实小样本与基础候选逐条审核；8 个 MEDIUM 初始化条目未经真实治理人审核不得批量批准或激活。随后再进入 KNOWGEN 内容生产和试点上线。
 
 ## 常用指针
 

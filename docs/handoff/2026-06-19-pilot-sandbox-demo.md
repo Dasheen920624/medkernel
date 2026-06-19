@@ -21,7 +21,9 @@
 - 已存在演练租户 `pilot-hospital` 和 12 个机构/临床角色账号。
 - API 已验证租户、角色绑定和登录；`clinical-decision-user` 持 `sandbox.run`，`quality-governor` 不是沙盘运行者。
 - 跨租户同名账号的 `credential_id` 全局唯一问题已收敛：内部 `userId` 使用租户前缀，登录用户名保持角色名。
-- 134 已上线库不再清库。用户已授权本工作线在全量验证、审查和本地冻结提交后，对 134 做 V152→V155 的前向部署，并在受控账号下生成 B0 基础知识候选；仍禁止擅自 push、远程 PR/合并、Provider 启用、P6 放行或自动代签医学评测。
+- 134 已上线库不再清库。V152→V155 前向部署与 B0 基础候选生成已经完成；当前运行提交为 `3fc3795d9bf8e9736d313177750ebde1646ab258`，仍禁止擅自 push、远程 PR/合并、Provider 启用、P6 放行或自动代签医学评测。
+- 运行 JAR SHA-256 为 `431365593344444cd19f4fc3f2c05cbb48e5fde9663c40b2b6881d5b163737c7`；前端 276 文件归一化清单 SHA-256 为 `87c1c80ca08add49156ac03793725297d6a9d0694f36306e3299bbe6f4522b71`。服务 active/enabled、`NRestarts=0`、HTTP/HTTPS readiness 200。
+- `MK-FND-B0-1.0.0` 当前为 `IN_REVIEW`：8 个 `MEDIUM`、`generatedByModel=false` 候选均待审核，0 ACTIVE。8 个成功生产 job 已 `COMPLETED`，历史失败 job 已受控转为 `CANCELLED`，无 `PENDING`/`RUNNING` 悬挂作业；Provider 为 2/0 启用，P6=false；2 个旧制品下评测运行均为 `PENDING_REVIEW`、0 `PASSED`，禁止复用。
 
 ## 正确的运行与版本口径
 
@@ -72,11 +74,10 @@ CURRENT、HISTORICAL_EXACT、COMPARE 均须覆盖：
 
 ## 下一步
 
-1. 本地全量测试、代码评审和实现提交 `0a412512` 已完成。
-2. 从包含该提交的干净 HEAD 构建发布字节并记录 JAR、前端归档和迁移清单哈希。
-3. 前向更新 134 至 V155，不清库；核验运行制品、readiness、服务状态、Provider 停用和 P6=false。
-4. 受控生成 8 个 B0 基础知识候选与 F8 `IN_REVIEW` 批次，不自动批准或激活。
-5. 在最终制品上重建 Provider 医学评测，由真人独立专家逐例签署后再进入正式放行。
+1. 本地实现、全量验证、精确冻结、134 前向部署与 B0 候选初始化均已完成；最终代码提交为 `3fc3795d`，未 push、未创建远程 PR。
+2. 真实独立专家本人完成首登改密与 MFA 绑定，在当前制品上逐例复核新生成的 Provider 医学评测并签署。
+3. 只启用一个通过当前能力/模型/基准指纹评测的 Provider，再由内置超级管理员放行 P6。
+4. 先以低风险真实小样本验证生产链，再逐条审核 8 个 MEDIUM 基础候选；未经真实审核不得激活。
 
 ## 红线
 
