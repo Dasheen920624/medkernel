@@ -127,6 +127,38 @@ public class EffectiveKnowledgePackageResolver {
             false);
     }
 
+    /**
+     * 按调用方已经明确选择的配置包物理身份解析运行快照。
+     *
+     * <p>该入口不再按编码和版本执行“机构优先”回退，因此适合需要精确绑定平台主源包
+     * 或机构自有包的运行场景；平台包仍强制校验租户授权。
+     */
+    public EffectiveKnowledgePackageResponse resolveExplicitPackage(
+            String tenantId,
+            KnowledgePackage pack,
+            String targetOrgUnitId) {
+        String effectiveTenantId = required(tenantId, "租户 ID");
+        String effectiveTargetOrgUnitId = required(targetOrgUnitId, "目标组织 ID");
+        if (pack == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "知识包不能为空");
+        }
+        if (!effectiveTenantId.equals(pack.tenantId())
+                && !PlatformTenant.ID.equals(pack.tenantId())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "只能解析当前租户自有包或已授权的平台主源包");
+        }
+        if (pack.status() != KnowledgePackageStatus.PUBLISHED
+                && pack.status() != KnowledgePackageStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.CONFLICT, "明确选择的知识包尚未发布，不能用于运行");
+        }
+        return resolveSelectedPackage(
+            effectiveTenantId,
+            effectiveTargetOrgUnitId,
+            pack,
+            null,
+            null,
+            true);
+    }
+
     private EffectiveKnowledgePackageResponse resolveSelectedPackage(
             String effectiveTenantId,
             String effectiveTargetOrgUnitId,

@@ -27,5 +27,10 @@ fi
 test "$mode" = "600"
 ! grep -q 'FreshRuntimeToken_20260612' /tmp/medkernel-onprem-deploy-test.log
 grep -q '^SuccessExitStatus=143$' "$SERVICE_UNIT"
+grep -q '^MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=development$' \
+  "$ROOT/deploy/onprem/templates/medkernel.env.example"
+grep -q '^update_runtime_release_fingerprint(){' "$SCRIPT"
+grep -q 'RELEASE_FINGERPRINT="${SRC_TXT:-sha256:' "$SCRIPT"
+grep -q '已恢复运行环境文件' "$SCRIPT"
 
 printf 'onprem deployment script contract passed\n'

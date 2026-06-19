@@ -285,9 +285,9 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 
 > D0~D6 的 B0 全跑通后启动。跨域共享深引擎 + 领域门面，回灌相关域做模型增强。复用同一资产治理/状态机/发布/证据链路，不另起。模型增强必须在该能力 B0 已验收后叠加（铁律 #4）。
 >
-> 🗂️ wave2 **分 4 子块 + 接入底座、多 PR 增量交付**（[wave2 域简报](cards/wave2/_brief.md) + [卡索引](cards/_index.md)）：**wave2 全 68 卡已建**（X-LLM 11 + X-AIK 14 + X-KNOWGEN 25 + X-DOMAIN 17 + DATASVC 1）。已建卡 ID = 卡名（`cards/wave2/<ID>.md`），合同级功能/契约/11 视角/验收以卡为准；下表「状态」仍以**实际实现**为准（建卡 ≠ 任务 done）。
+> 🗂️ wave2 **分 4 子块 + 接入底座、多 PR 增量交付**（[wave2 域简报](cards/wave2/_brief.md) + [卡索引](cards/_index.md)）：**wave2 全 78 卡已建**（X-LLM 11 + X-AIK 14 + X-KNOWGEN 35 + X-DOMAIN 17 + DATASVC 1）。已建卡 ID = 卡名（`cards/wave2/<ID>.md`），合同级功能/契约/11 视角/验收以卡为准；下表「状态」仍以**实际实现**为准（建卡 ≠ 任务 done）。
 
-> **整体上线主计划 Phase 对照（2026-06-16 #634）**：执行详见 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。状态列不因归属 Phase 改动而提前 done。Phase 1 = 原件资料库存储（AIK-STD-02/LLM-06/AIK-STD-04 的物理进料地基）；Phase 2 = 上线就绪地基（LLM-01/02/04/07/08/API-12 与配置/readiness）；Phase 3 = AI 工厂收尾（AIK-STD-03/05/06/07/08/09/10/11/12/13/14、DATASVC-01、OPT-06/09 中剩余工程项）；Phase 4 = 自主公域获取（LLM-06 扩展 + AIK-STD-14 Agent 取数 + 公域获取新能力）；Phase 5 = 模型增强真实化（LLM-01/02/04/08/API-12/OPT-06/09 + AIK-STD-13 模型生产器）；Phase 6 = 院内覆盖管道（AIK-STD-13/14 + DATASVC-01 院内/本地模型/加密边界）；Phase 7 = X-DOMAIN 17 卡 + KNOWGEN 需代码支撑的资产类型专用能力；Phase 8 = 前端体验完美化；Phase 9 = 134 生产中心上线；Phase 10 = KNOWGEN-01~25 首发知识真产出；Phase 11 = GA 总验收与试点医院上线。
+> **整体上线主计划 Phase 对照（2026-06-16 #634）**：执行详见 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。状态列不因归属 Phase 改动而提前 done。Phase 1 = 原件资料库存储（AIK-STD-02/LLM-06/AIK-STD-04 的物理进料地基）；Phase 2 = 上线就绪地基（LLM-01/02/04/07/08/API-12 与配置/readiness）；Phase 3 = AI 工厂收尾（AIK-STD-03/05/06/07/08/09/10/11/12/13/14、DATASVC-01、OPT-06/09 中剩余工程项）；Phase 4 = 自主公域获取（LLM-06 扩展 + AIK-STD-14 Agent 取数 + 公域获取新能力）；Phase 5 = 模型增强真实化（LLM-01/02/04/08/API-12/OPT-06/09 + AIK-STD-13 模型生产器）；Phase 6 = 院内覆盖管道（AIK-STD-13/14 + DATASVC-01 院内/本地模型/加密边界）；Phase 7 = X-DOMAIN 17 卡 + KNOWGEN 需代码支撑的资产类型专用能力；Phase 8 = 前端体验完美化；Phase 9 = 134 生产中心上线；Phase 10 = KNOWGEN-01~35 首发知识真产出；Phase 11 = GA 总验收与试点医院上线。
 
 ### 模型网关与真实接入（X-LLM + API-12 + OPT-06/09）🗂️ 11 卡已建（批 1）
 
@@ -330,7 +330,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 |---|---|---:|---|
 | DATASVC-01 | 引擎数据服务层 + 产品级 CLI + MCP 服务（四入口共用受控合同 + 数据分级 D0-D5 + 字段级加密 + 不绕治理 + 降级矩阵；Agent 生产底座）| 12d | pending |
 
-### 首发知识资产（X-KNOWGEN，25 项）🗂️ 25 卡已建
+### 首发知识资产（X-KNOWGEN，35 项）🗂️ 35 卡已建
 
 | ID | 资产域 | 工作量 | 状态 |
 |---|---|---:|---|
@@ -348,7 +348,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | KNOWGEN-12 | 中医药资产（95 优势病种路径 + 适宜技术 + 方药/中成药风险）| 8d | pending |
 | KNOWGEN-13 | 医保病案资产（DRG/DIP 全量 + 病案首页质控 + ICD 编码规则）| 6d | pending |
 | KNOWGEN-14 | 公卫/院感资产（法定传染病上报 + 感染风险 + 不良事件）| 4d | pending |
-| KNOWGEN-15 | 首发资产总验收（**全景分类全覆盖**：原 14 类 + 新增 16~25 共 24 类合并“试点医院首发知识包 v1.0”；现有卡 Top-N=起步量→全量；A1-A9 通过；OPT-04 红线生效；PKG-01 同步）| 5d | pending |
+| KNOWGEN-15 | 首发资产总验收（**稳定基础发行版 + 全景分类全覆盖**：01~14、16~35 共 34 类分装基础包/临床包；官方清单全量对账；六维覆盖矩阵无空洞；A1-A9；红线；同步）| 5d | pending |
 | KNOWGEN-16 | 医学评分量表与计算器（GCS/APACHE/SOFA/NEWS/Wells/CHA₂DS₂-VASc/Child-Pugh/eGFR… 全量，算法物理化可复算）| 6d | pending |
 | KNOWGEN-17 | 鉴别诊断知识库（诊断标准 + 症状→疾病语义关联，只产候选医师确认）| 8d | pending |
 | KNOWGEN-18 | 检查检验适当性（合理用检指征 + 重复拦截，每条带测试病例，仅提醒不阻断）| 5d | pending |
@@ -359,6 +359,16 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | KNOWGEN-23 | 围术期/麻醉/输血（术前评估 + 手术分级 + 输血配型核查双签 + VTE/抗生素预防）| 7d | pending |
 | KNOWGEN-24 | 患教材料 + 知情同意模板（患者语言 + 责任边界 + 随访宣教留痕）| 5d | pending |
 | KNOWGEN-25 | 临床证据分级库（GRADE + 来源 A-E 映射 + 候选自动标级 + 冲突取高阶）| 5d | pending |
+| KNOWGEN-26 | 医疗数据元与上下文字段目录（稳定数据元 ID、定义、类型、精度、基数、单位、值域、隐私分级、官方版本全量对账）| 8d | pending |
+| KNOWGEN-27 | 基础编码系统、值集、标准单位与系统字典（官方发行版全量、层级/成员/量纲/废止替代/兼容校验）| 10d | pending |
+| KNOWGEN-28 | 医疗主数据与互操作基线（机构/科室/专科/角色/服务/剂型/途径/频次/标本及标准资源字段映射）| 8d | pending |
+| KNOWGEN-29 | 权威来源、许可与适用范围目录（发布机构/版本/许可/行政司法范围/撤回替代/原件清单）| 5d | pending |
+| KNOWGEN-30 | 可复用执行构件（条件片段/安全红线/CDSS风险矩阵/动作卡/医嘱套餐/子路径，组合只引用不复制）| 8d | pending |
+| KNOWGEN-31 | 机构临床参数与本地化模板（参考区间/危急值/工作流/制度/本地映射 schema，机构审核发布）| 7d | pending |
+| KNOWGEN-32 | 知识金标回归与发行兼容（六维覆盖矩阵/金样负样边界/BOM/依赖锁/升级影响/回滚）| 8d | pending |
+| KNOWGEN-33 | 全生命周期预防与特殊人群（疫苗/筛查/健康管理/妇幼/儿童/老年/生殖健康）| 8d | pending |
+| KNOWGEN-34 | 联合照护资产（营养/康复/心理/疼痛/安宁/社会支持，跨专业协同与随访接续）| 8d | pending |
+| KNOWGEN-35 | 器械耗材与设备安全（UDI/植入物/设备禁忌/MRI兼容/维护召回/院内映射）| 8d | pending |
 
 ### 15 领域门面（X-DOMAIN）+ 专病/专业服务包 🗂️ 17 卡已建
 

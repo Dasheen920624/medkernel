@@ -15,10 +15,7 @@ public record SandboxScenario(
     String expectedRuleCode,
     String expectedAction,
     String expectedSeverity,
-    String packageVersion,
     String playbook,
-    String expectedAssetCode,
-    SandboxScenarioStatus status,
-    String statusReason
+    String expectedAssetCode
 ) {
 }

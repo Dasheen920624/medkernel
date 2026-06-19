@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceFragment;
@@ -46,6 +49,7 @@ public class CandidateGenerationOrchestrationService {
     private final SourceVersionRepository versions;
     private final SourceDocumentRepository documents;
     private final SourceFragmentRepository fragments;
+    private final KnowledgeIdentityRepository identities;
     private final SourceCandidateGenerator generator;
     private final KnowledgeProductionOrchestrationService production;
     private final CandidateSafetyGateService gateService;
@@ -55,6 +59,7 @@ public class CandidateGenerationOrchestrationService {
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
                                                    SourceFragmentRepository fragments,
+                                                   KnowledgeIdentityRepository identities,
                                                    SourceCandidateGenerator generator,
                                                    KnowledgeProductionOrchestrationService production,
                                                    CandidateSafetyGateService gateService,
@@ -63,6 +68,7 @@ public class CandidateGenerationOrchestrationService {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
+        this.identities = identities;
         this.generator = generator;
         this.production = production;
         this.gateService = gateService;
@@ -93,24 +99,28 @@ public class CandidateGenerationOrchestrationService {
 
         for (GenerationItem item : request.items()) {
             item.target().validate();
+            KnowledgeIdentity targetIdentity = resolveTargetIdentity(tenantId, item.target());
             ProductionJobResponse job = production.createJob(new ProductionJobRequest(
                 "source-version:" + version.id(), item.assetType(), KnowledgeProducer.MANUAL,
                 request.targetPipeline(), request.domain(), null));
             KnowledgeAssetEnvelope envelope = generator.generate(
                 tenantId, document, version, sourceFragments, item.assetType(),
-                deriveIdentity(item.target()));
+                resolveKnowledgeDomain(item, targetIdentity),
+                deriveIdentity(item.target(), targetIdentity));
             // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
             GateOutcome outcome = gateService.evaluate(
                 envelope,
                 new GateContext(tenantId, job.jobCode(), item.target().targetIdentityId()));
             if (!outcome.passed()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
+                production.cancelJob(job.jobCode());
                 continue;
             }
             GenerationTriageDecision triage = triageService.evaluate(envelope, new GenerationTriageContext(
                 tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
             if (!triage.shouldSubmit()) {
                 skipped.add(new SkippedType(item.assetType(), "生成期分流跳过：" + triage.basis()));
+                production.completeJob(job.jobCode());
                 continue;
             }
             KnowledgeShadowDecision shadow = shadowService.evaluate(envelope, new KnowledgeShadowContext(
@@ -118,20 +128,46 @@ public class CandidateGenerationOrchestrationService {
             if (!shadow.readyForReview()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(),
                     List.of(GateItemResult.fail(KnowledgeShadowEvaluationService.SHADOW_GATE_CODE, shadow.basis()))));
+                production.cancelJob(job.jobCode());
                 continue;
             }
             CandidateSubmissionResponse response =
                 production.submitCandidate(job.jobCode(), envelope, item.target());
             generated.add(new GeneratedCandidate(
                 item.assetType(), job.jobCode(), response.candidateRef(), response.routing()));
+            production.completeJob(job.jobCode());
         }
         return new GenerationSummary(generated, skipped, blocked);
     }
 
-    private String deriveIdentity(MaterializationTarget target) {
-        return target.targetIdentityId() != null
-            ? "identity:" + target.targetIdentityId()
-            : target.newIdentity().identityCode();
+    private String deriveIdentity(MaterializationTarget target, KnowledgeIdentity targetIdentity) {
+        return targetIdentity != null ? targetIdentity.identityCode() : target.newIdentity().identityCode();
+    }
+
+    private KnowledgeDomain resolveKnowledgeDomain(
+            GenerationItem item,
+            KnowledgeIdentity targetIdentity) {
+        if (item.assetType() != com.medkernel.engine.versioning.VersionedAssetType.KNOWLEDGE) {
+            return null;
+        }
+        if (targetIdentity != null) {
+            return targetIdentity.domain();
+        }
+        MaterializationTarget target = item.target();
+        if (target.newIdentity() == null || target.newIdentity().domain() == null) {
+            throw new ApiException(
+                com.medkernel.shared.api.error.ErrorCode.BAD_REQUEST,
+                "新知识身份必须声明知识领域");
+        }
+        return target.newIdentity().domain();
+    }
+
+    private KnowledgeIdentity resolveTargetIdentity(String tenantId, MaterializationTarget target) {
+        if (target.targetIdentityId() == null) {
+            return null;
+        }
+        return identities.findByTenantIdAndId(tenantId, target.targetIdentityId())
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + target.targetIdentityId()));
     }
 
     private String requireCurrentTenant() {

@@ -20,6 +20,7 @@ import { useState } from "react";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   type ModelEvaluationCaseEvidence,
+  type ModelEvaluationRunDetail,
   type ModelEvaluationRunSummary,
   type ModelEvaluationStatus,
   useModelEvaluationRunDetail,
@@ -74,6 +75,35 @@ function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function reviewAlert(detail: ModelEvaluationRunDetail) {
+  if (detail.run.status === "PASSED") {
+    if (detail.releaseCurrent) {
+      return {
+        type: "success" as const,
+        message: "已由独立专家签署放行",
+        description: "本次签署仅对当前运行制品、当前基准集和当前逐例证据有效。",
+      };
+    }
+    return {
+      type: "warning" as const,
+      message: "历史制品签署仅保留审计，不可用于当前放行",
+      description: detail.reviewBlockReason ?? "该评测属于历史运行制品，必须在当前制品重新运行。",
+    };
+  }
+  if (detail.reviewable) {
+    return {
+      type: "success" as const,
+      message: "证据完整且基准未变化",
+      description: "请逐例核对后，由非评测执行人完成独立签字。",
+    };
+  }
+  return {
+    type: "error" as const,
+    message: "当前运行不可签字",
+    description: detail.reviewBlockReason ?? "请逐例核对后，由非评测执行人完成独立签字。",
+  };
 }
 
 function evidenceState(evidence: ModelEvaluationCaseEvidence) {
@@ -148,6 +178,7 @@ export default function MedicalRegressionReview() {
 
   const pageData = runs.data;
   const selected = detail.data;
+  const selectedAlert = selected ? reviewAlert(selected) : undefined;
   const currentUserIsAuthor = selected?.run.createdBy === security.data?.userId;
   const canSign = Boolean(selected?.reviewable && !currentUserIsAuthor);
   const trimmedComment = reviewComment.trim();
@@ -314,15 +345,13 @@ export default function MedicalRegressionReview() {
             onRetry={() => void detail.refetch()}
           />
         ) : null}
-        {selected ? (
+        {selected && selectedAlert ? (
           <Space direction="vertical" size="large" className="mk-full-width">
             <Alert
-              type={selected.reviewable ? "success" : "error"}
+              type={selectedAlert.type}
               showIcon
-              message={selected.reviewable ? "证据完整且基准未变化" : "当前运行不可签字"}
-              description={
-                selected.reviewBlockReason ?? "请逐例核对后，由非评测执行人完成独立签字。"
-              }
+              message={selectedAlert.message}
+              description={selectedAlert.description}
             />
             {currentUserIsAuthor ? (
               <Alert
@@ -340,6 +369,17 @@ export default function MedicalRegressionReview() {
               <Descriptions.Item label="运行时间">
                 {formatDateTime(selected.run.createdAt)}
               </Descriptions.Item>
+              {selected.run.reviewer ? (
+                <Descriptions.Item label="独立审核人">{selected.run.reviewer}</Descriptions.Item>
+              ) : null}
+              {selected.run.signedAt ? (
+                <Descriptions.Item label="签署时间">
+                  {formatDateTime(selected.run.signedAt)}
+                </Descriptions.Item>
+              ) : null}
+              {selected.run.reviewComment ? (
+                <Descriptions.Item label="复核意见">{selected.run.reviewComment}</Descriptions.Item>
+              ) : null}
               {expertMode ? (
                 <>
                   <Descriptions.Item label="服务商代码">
@@ -352,6 +392,9 @@ export default function MedicalRegressionReview() {
                     {selected.run.promptVersion}
                   </Descriptions.Item>
                   <Descriptions.Item label="工具版本">{selected.run.toolVersion}</Descriptions.Item>
+                  <Descriptions.Item label="运行制品指纹">
+                    {selected.run.releaseFingerprint ?? "历史运行未记录"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="运行编号">{selected.run.runId}</Descriptions.Item>
                 </>
               ) : null}

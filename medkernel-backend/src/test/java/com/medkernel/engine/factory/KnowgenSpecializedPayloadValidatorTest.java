@@ -87,4 +87,38 @@ class KnowgenSpecializedPayloadValidatorTest {
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("clinicalContentSeeded");
     }
+
+    @Test
+    void validatesFoundationFieldCatalogAndCompositeStructures() {
+        String fieldCatalog = """
+            {
+              "sections": {
+                "data_element_id": "待导入",
+                "name_zh": "待导入",
+                "definition": "待导入",
+                "data_type": "待导入",
+                "cardinality": "待导入",
+                "privacy_level": "待导入",
+                "source_manifest": "待导入"
+              }
+            }
+            """;
+        String composite = """
+            {
+              "sections": {
+                "asset_type": "CONDITION_FRAGMENT",
+                "canonical_id": "待编著",
+                "structure": "待编著",
+                "dependencies": "待编著",
+                "test_cases": "待编著",
+                "source": "待编著"
+              }
+            }
+            """;
+
+        assertThatCode(() -> validator.validate("KNOWGEN-26", fieldCatalog))
+            .doesNotThrowAnyException();
+        assertThatCode(() -> validator.validate("KNOWGEN-30", composite))
+            .doesNotThrowAnyException();
+    }
 }

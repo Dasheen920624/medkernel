@@ -1,5 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "dependencies": [
+    {
+      "assetType": "PATHWAY",
+      "assetCode": "PATH.ED.DISPOSITION",
+      "assetVersion": "1",
+      "purpose": "沙盘急诊路径入径与推进外圈场景"
+    }
+  ],
   "scenarios": [
     {
       "id": "sbx-lab-critical-k",
@@ -8,11 +16,29 @@
       "triggerPoint": "result-review",
       "riskLevel": "CRITICAL",
       "actionCode": "STRONG_REMINDER",
-      "reviewStatus": "APPROVED_FOR_SANDBOX",
-      "reviewEvidence": "P5 幕6金样已完成规则命中、医师确认与服务端回查",
-      "name": "血钾危急值红线",
-      "sourceRef": "检验危急值管理制度",
-      "changeSummary": "初始化沙盘高钾危急值金样，强提醒且不自动开立或修改医嘱",
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则已完成来源、DSL、四类样例和安全边界工程校验；不等同于生产医学签署。",
+      "name": "血钾危急值回报演练",
+      "sourceRef": "国家卫生健康委医疗质量安全核心制度要点；阈值由演练机构危急值目录配置",
+      "changeSummary": "建立演练机构血钾危急值回报闭环，强提醒且不自动开立或修改医嘱",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实患者诊疗依据，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "GOVERNMENT_POLICY",
+          "title": "医疗质量安全核心制度要点解读",
+          "issuingBody": "中华人民共和国国家卫生健康委员会",
+          "documentNumber": "国卫医发〔2018〕8号",
+          "publicationDate": "2018-04-18",
+          "url": "https://www.nhc.gov.cn/zwgk/jdjd/201804/5dfb30387c74412194c7f05b878d4f87.shtml",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于危急值报告、复核、通知、确认和记录制度边界；具体项目与阈值由医疗机构确定。"
+        }
+      ],
       "clinicalContent": {
         "dsl": {
           "trigger": "result-review",
@@ -20,57 +46,29 @@
             "parameters": [
               {
                 "key": "observationCode",
-                "label": "检验项",
                 "valueType": "CODE",
                 "required": true
               },
               {
                 "key": "criticalThreshold",
-                "label": "危急阈值",
                 "valueType": "DECIMAL",
-                "required": true
-              },
-              {
-                "key": "returnMinutes",
-                "label": "回报时限分钟",
-                "valueType": "INTEGER",
                 "required": true
               }
             ]
           },
           "applicability": {
-            "population": {},
-            "orgScope": {},
-            "settings": [
-              "INPATIENT",
-              "OUTPATIENT",
-              "ED",
-              "FOLLOWUP"
-            ],
-            "effective": {
-              "rolloutPercent": 100
-            }
+            "settings": ["INPATIENT", "OUTPATIENT", "ED"],
+            "effective": { "rolloutPercent": 100 }
           },
           "when": {
             "all": [
               {
-                "expr": {
-                  "field": "observations[].valueNumeric",
-                  "select": "latest",
-                  "where": {
-                    "all": [
-                      {
-                        "expr": {
-                          "field": "observations[].code"
-                        },
-                        "operator": "equals",
-                        "value": {
-                          "const": "2823-3"
-                        }
-                      }
-                    ]
-                  }
-                },
+                "expr": { "field": "observations[].code" },
+                "operator": "in",
+                "value": ["2823-3"]
+              },
+              {
+                "expr": { "field": "observations[].valueNumeric" },
                 "operator": "gte",
                 "value": 5.5
               }
@@ -79,13 +77,11 @@
           "then": [
             {
               "actionCode": "STRONG_REMINDER",
-              "atSeverity": "CRITICAL",
               "indicator": "critical",
-              "summary": "检验结果达到危急值，需立即回报并人工确认",
-              "detail": "命中后须在规定时限内完成危急值回报、确认与记录，不自动开立或修改医嘱。",
-              "source": {
-                "label": "检验危急值管理制度"
-              },
+              "atSeverity": "CRITICAL",
+              "summary": "检验结果达到演练机构危急阈值，需立即回报并人工确认",
+              "detail": "按演练机构危急值制度完成复核、回报、确认与记录；不自动开立或修改医嘱。",
+              "source": { "label": "演练机构危急值目录与核心制度" },
               "suggestions": [],
               "overrideReasons": [],
               "requiresPhysicianConfirmation": true
@@ -93,48 +89,72 @@
           ],
           "explain": {
             "title": "血钾危急值回报",
-            "summary": "沙盘金样按检验编码和危急阈值生成可追溯提醒"
+            "summary": "阈值为演练机构参数，不宣称全国统一。"
           }
         },
         "testCases": [
           {
             "caseType": "POSITIVE",
-            "patientId": "SBX-LAB-K-POS",
-            "encounterId": "SBX-LAB-K-ENC-POS",
-            "observationCode": "2823-3",
-            "observationName": "血清钾",
-            "valueNumeric": 6.8,
+            "patientId": "SBX-LAB-K-001",
+            "encounterId": "SBX-LAB-K-ENC-001",
+            "facts": {
+              "observations": [
+                {
+                  "code": "2823-3",
+                  "displayName": "血清钾",
+                  "valueNumeric": 6.8,
+                  "unit": "mmol/L",
+                  "referenceRange": "3.5-5.5",
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
             "expectedHit": true,
             "expectedSeverity": "CRITICAL",
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
             "caseType": "NEGATIVE",
-            "patientId": "SBX-LAB-K-NEG",
-            "encounterId": "SBX-LAB-K-ENC-NEG",
-            "observationCode": "2823-3",
-            "observationName": "血清钾",
-            "valueNumeric": 4.5,
+            "patientId": "SBX-K-NEG",
+            "encounterId": "SBX-K-ENC-NEG",
+            "facts": {
+              "observations": [
+                {
+                  "code": "2823-3",
+                  "displayName": "血清钾",
+                  "valueNumeric": 4.5,
+                  "unit": "mmol/L"
+                }
+              ]
+            },
             "expectedHit": false
           },
           {
             "caseType": "BOUNDARY",
-            "patientId": "SBX-LAB-K-BND",
-            "encounterId": "SBX-LAB-K-ENC-BND",
-            "observationCode": "2823-3",
-            "observationName": "血清钾",
-            "valueNumeric": 5.5,
+            "patientId": "SBX-K-BND",
+            "encounterId": "SBX-K-ENC-BND",
+            "facts": {
+              "observations": [
+                {
+                  "code": "2823-3",
+                  "displayName": "血清钾",
+                  "valueNumeric": 5.5,
+                  "unit": "mmol/L",
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
             "expectedHit": true,
             "expectedSeverity": "CRITICAL",
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "CONFLICT",
-            "patientId": "SBX-LAB-K-CFL",
-            "encounterId": "SBX-LAB-K-ENC-CFL",
-            "observationCode": "2951-2",
-            "observationName": "血清钠",
-            "valueNumeric": 160,
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-K-MIS",
+            "encounterId": "SBX-K-ENC-MIS",
+            "facts": {
+              "observations": [{ "code": "2823-3", "displayName": "血清钾" }]
+            },
             "expectedHit": false
           }
         ]
@@ -147,12 +167,155 @@
       "triggerPoint": "medication-prescribe",
       "riskLevel": "HIGH",
       "actionCode": "STRONG_REMINDER",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "华法林与阿司匹林联用风险",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则以现行华法林监管标签为来源，完成药品编码、状态边界和缺字段样例校验；不等同于生产医学签署。",
+      "name": "华法林与阿司匹林联用风险演练",
+      "sourceRef": "DailyMed 华法林钠片监管标签：合并影响止血药物时应加强出血与 INR 监测",
+      "changeSummary": "建立演练机构抗凝与抗血小板联用强提醒，不自动停药、换药或改量",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实患者诊疗依据，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "REGULATORY_DRUG_LABEL",
+          "title": "WARFARIN SODIUM tablet label",
+          "issuingBody": "U.S. National Library of Medicine DailyMed / FDA label source",
+          "documentNumber": "SETID 558b7a0d-5490-4c1b-802e-3ab3f1efe760",
+          "publicationDate": "2026-06-03",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=558b7a0d-5490-4c1b-802e-3ab3f1efe760",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于华法林合并影响止血药物时的出血风险提醒和 INR 监测边界；具体治疗决策由医师完成。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "medication-prescribe",
+          "meta": {
+            "parameters": [
+              { "key": "warfarinAtc", "valueType": "CODE", "required": true },
+              { "key": "aspirinAtc", "valueType": "CODE", "required": true }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT", "OUTPATIENT", "ED"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "medications[].code" },
+                "operator": "in",
+                "value": ["B01AA03"]
+              },
+              {
+                "expr": { "field": "medications[].code" },
+                "operator": "in",
+                "value": ["B01AC06"]
+              },
+              {
+                "expr": { "field": "medications[].prescriptionStatus" },
+                "operator": "in",
+                "value": ["ACTIVE", "PROPOSED"]
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "indicator": "warning",
+              "atSeverity": "HIGH",
+              "summary": "华法林与阿司匹林联用可能增加出血风险，需医师确认",
+              "detail": "请核对适应证、获益风险、出血表现与 INR 监测安排；不自动停药、换药、调整剂量或开立医嘱。",
+              "source": { "label": "DailyMed 华法林钠片监管标签" },
+              "suggestions": [],
+              "overrideReasons": ["明确联合抗栓适应证并已制定监测计划"],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "联合抗栓风险",
+            "summary": "基于标准药品编码识别联用，最终判断由医师完成。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-MED-WA-001",
+            "encounterId": "SBX-MED-WA-ENC-001",
+            "facts": {
+              "medications": [
+                {
+                  "code": "B01AA03",
+                  "displayName": "华法林钠片",
+                  "prescriptionStatus": "ACTIVE"
+                },
+                {
+                  "code": "B01AC06",
+                  "displayName": "阿司匹林",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-WA-NEG",
+            "encounterId": "SBX-WA-ENC-NEG",
+            "facts": {
+              "medications": [
+                {
+                  "code": "B01AA03",
+                  "displayName": "华法林钠片",
+                  "prescriptionStatus": "ACTIVE"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-WA-BND",
+            "encounterId": "SBX-WA-ENC-BND",
+            "facts": {
+              "medications": [
+                {
+                  "code": "B01AA03",
+                  "displayName": "华法林钠片",
+                  "prescriptionStatus": "ACTIVE"
+                },
+                {
+                  "code": "B01AC06",
+                  "displayName": "阿司匹林",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-WA-MIS",
+            "encounterId": "SBX-WA-ENC-MIS",
+            "facts": {
+              "medications": [
+                {
+                  "displayName": "未映射药品",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-order-contrast-ckd",
@@ -161,12 +324,172 @@
       "triggerPoint": "order-sign",
       "riskLevel": "HIGH",
       "actionCode": "BLOCK",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "肾功能不全造影剂风险",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则以 ACR 对比剂手册为来源，eGFR 边界作为演练机构可配置参数并完成四类样例校验；不等同于生产医学签署。",
+      "name": "肾功能风险下含碘对比剂核查演练",
+      "sourceRef": "ACR Manual on Contrast Media；eGFR 边界与处置路径由演练机构配置",
+      "changeSummary": "建立造影前肾功能高风险核查与 override 演练，不自动取消检查或阻断真实 HIS 流程",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实患者诊疗依据；BLOCK 仅演练规则动作，不产生外部阻断。",
+      "sources": [
+        {
+          "sourceType": "PROFESSIONAL_GUIDELINE",
+          "title": "ACR Manual on Contrast Media",
+          "issuingBody": "American College of Radiology",
+          "version": "在线现行版（以检索日页面为准）",
+          "url": "https://www.acr.org/Clinical-Resources/Clinical-Tools-and-Reference/Contrast-Manual",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于含碘对比剂使用前肾功能风险分层、风险收益评估和预防措施；本规则参数需由机构确认。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "order-sign",
+          "meta": {
+            "parameters": [
+              { "key": "egfrCode", "valueType": "CODE", "required": true },
+              {
+                "key": "egfrRiskBoundary",
+                "valueType": "DECIMAL",
+                "required": true
+              },
+              { "key": "contrastAtc", "valueType": "CODE", "required": true }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT", "OUTPATIENT", "ED"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "observations[].code" },
+                "operator": "in",
+                "value": ["62238-1"]
+              },
+              {
+                "expr": { "field": "observations[].valueNumeric" },
+                "operator": "lt",
+                "value": 30
+              },
+              {
+                "expr": { "field": "medications[].code" },
+                "operator": "in",
+                "value": ["V08AB"]
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "BLOCK",
+              "indicator": "warning",
+              "atSeverity": "HIGH",
+              "summary": "肾功能高风险且拟用含碘对比剂，需完成风险收益复核",
+              "detail": "演练阻断卡要求医师确认适应证、肾功能、补液和替代方案；不自动取消检查、不自动修改医嘱，也不阻断真实业务系统。",
+              "source": { "label": "ACR Manual on Contrast Media" },
+              "suggestions": [],
+              "overrideReasons": ["临床获益高于风险并已记录预防方案"],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "对比剂肾功能风险",
+            "summary": "边界为演练机构参数，BLOCK 只验证治理与 override。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-CT-CKD-001",
+            "encounterId": "SBX-CT-CKD-ENC-001",
+            "facts": {
+              "observations": [
+                {
+                  "code": "62238-1",
+                  "displayName": "eGFR",
+                  "valueNumeric": 24,
+                  "unit": "mL/min/1.73m2"
+                }
+              ],
+              "medications": [
+                {
+                  "code": "V08AB",
+                  "displayName": "含碘对比剂",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "BLOCK"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-CT-NEG",
+            "encounterId": "SBX-CT-ENC-NEG",
+            "facts": {
+              "observations": [
+                {
+                  "code": "62238-1",
+                  "displayName": "eGFR",
+                  "valueNumeric": 60,
+                  "unit": "mL/min/1.73m2"
+                }
+              ],
+              "medications": [
+                {
+                  "code": "V08AB",
+                  "displayName": "含碘对比剂",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-CT-BND",
+            "encounterId": "SBX-CT-ENC-BND",
+            "facts": {
+              "observations": [
+                {
+                  "code": "62238-1",
+                  "displayName": "eGFR",
+                  "valueNumeric": 30,
+                  "unit": "mL/min/1.73m2"
+                }
+              ],
+              "medications": [
+                {
+                  "code": "V08AB",
+                  "displayName": "含碘对比剂",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-CT-MIS",
+            "encounterId": "SBX-CT-ENC-MIS",
+            "facts": {
+              "medications": [
+                {
+                  "code": "V08AB",
+                  "displayName": "含碘对比剂",
+                  "prescriptionStatus": "PROPOSED"
+                }
+              ]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-dx-acs",
@@ -175,12 +498,160 @@
       "triggerPoint": "patient-view",
       "riskLevel": "MEDIUM",
       "actionCode": "REMIND",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "胸痛与肌钙蛋白异常提示",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则以 ESC ACS 指南为来源，采用 LIS 已判定的检测方法特异性异常标记而非硬编码统一肌钙蛋白阈值。",
+      "name": "胸痛合并肌钙蛋白异常评估演练",
+      "sourceRef": "2023 ESC 急性冠脉综合征指南；肌钙蛋白判定使用本地检测方法参考上限",
+      "changeSummary": "建立胸痛与肌钙蛋白异常组合提醒，不自动诊断 ACS、不自动开立检查或治疗",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成 ACS 诊断或真实患者诊疗依据，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "PROFESSIONAL_GUIDELINE",
+          "title": "2023 ESC Guidelines for the management of acute coronary syndromes",
+          "issuingBody": "European Society of Cardiology",
+          "version": "2023",
+          "publicationDate": "2023-08-25",
+          "url": "https://www.escardio.org/guidelines/clinical-practice-guidelines/all-esc-practice-guidelines/acute-coronary-syndromes/",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于胸痛患者结合心电图、连续肌钙蛋白和临床评估识别 ACS 可能性；不能由单一规则自动确诊。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "patient-view",
+          "meta": {
+            "parameters": [
+              {
+                "key": "chestPainCodes",
+                "valueType": "CODE_LIST",
+                "required": true
+              },
+              {
+                "key": "troponinCodes",
+                "valueType": "CODE_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["ED", "INPATIENT"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "conditions[].code" },
+                "operator": "in",
+                "value": ["R07.4"]
+              },
+              {
+                "expr": { "field": "observations[].code" },
+                "operator": "in",
+                "value": ["6598-7", "89579-7"]
+              },
+              {
+                "expr": { "field": "observations[].criticalFlag" },
+                "operator": "in",
+                "value": ["HIGH"]
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "REMIND",
+              "indicator": "warning",
+              "atSeverity": "MEDIUM",
+              "summary": "胸痛合并肌钙蛋白异常，建议按 ACS 路径综合评估",
+              "detail": "请结合症状、心电图、连续肌钙蛋白和鉴别诊断评估；不自动确诊、不自动开立检查或治疗。",
+              "source": { "label": "2023 ESC ACS Guidelines" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": false
+            }
+          ],
+          "explain": {
+            "title": "ACS 可能性提醒",
+            "summary": "使用检测方法特异性异常标记，避免硬编码统一阈值。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-ACS-001",
+            "encounterId": "SBX-ACS-ENC-001",
+            "facts": {
+              "conditions": [{ "code": "R07.4", "displayName": "胸痛" }],
+              "observations": [
+                {
+                  "code": "6598-7",
+                  "displayName": "肌钙蛋白T",
+                  "valueNumeric": 0.9,
+                  "unit": "ng/mL",
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-ACS-NEG",
+            "encounterId": "SBX-ACS-ENC-NEG",
+            "facts": {
+              "conditions": [{ "code": "R07.4", "displayName": "胸痛" }],
+              "observations": [
+                {
+                  "code": "6598-7",
+                  "displayName": "肌钙蛋白T",
+                  "valueNumeric": 0.01,
+                  "unit": "ng/mL",
+                  "criticalFlag": "NORMAL"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-ACS-BND",
+            "encounterId": "SBX-ACS-ENC-BND",
+            "facts": {
+              "conditions": [{ "code": "R07.4", "displayName": "胸痛" }],
+              "observations": [
+                {
+                  "code": "89579-7",
+                  "displayName": "高敏肌钙蛋白I",
+                  "valueNumeric": 1,
+                  "unit": "ng/L",
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-ACS-MIS",
+            "encounterId": "SBX-ACS-ENC-MIS",
+            "facts": {
+              "conditions": [{ "code": "R07.4", "displayName": "胸痛" }],
+              "observations": [
+                { "displayName": "未映射心肌标志物", "criticalFlag": "HIGH" }
+              ]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-report-critical",
@@ -189,12 +660,142 @@
       "triggerPoint": "result-review",
       "riskLevel": "HIGH",
       "actionCode": "STRONG_REMINDER",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "影像报告危急征象回报",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则复用核心制度的危急值闭环要求，危急影像分类由演练机构目录提供，不以自由文本关键词替代专业判定。",
+      "name": "影像危急报告回报演练",
+      "sourceRef": "国家卫生健康委医疗质量安全核心制度要点；危急影像分类由演练机构目录维护",
+      "changeSummary": "建立已签发危急影像报告回报确认演练，不修改报告、不自动开立后续医嘱",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不替代影像医师签发和临床医师判断，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "GOVERNMENT_POLICY",
+          "title": "医疗质量安全核心制度要点解读",
+          "issuingBody": "中华人民共和国国家卫生健康委员会",
+          "documentNumber": "国卫医发〔2018〕8号",
+          "publicationDate": "2018-04-18",
+          "url": "https://www.nhc.gov.cn/zwgk/jdjd/201804/5dfb30387c74412194c7f05b878d4f87.shtml",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于医疗机构危急值项目范围、报告、复核、通知、确认与记录制度；危急影像目录由机构制定。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "result-review",
+          "meta": {
+            "parameters": [
+              {
+                "key": "criticalReportTypes",
+                "valueType": "CODE_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT", "OUTPATIENT", "ED"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "diagnosticReports[].reportType" },
+                "operator": "in",
+                "value": ["CRITICAL_IMAGING"]
+              },
+              {
+                "expr": { "field": "diagnosticReports[].signedAt" },
+                "operator": "exists"
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "indicator": "warning",
+              "atSeverity": "HIGH",
+              "summary": "已签发危急影像报告，需按制度回报并确认",
+              "detail": "按演练机构危急报告目录和时限完成复核、回报与记录；不自动修改报告、不自动开立医嘱。",
+              "source": { "label": "演练机构危急报告目录与核心制度" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "危急影像报告闭环",
+            "summary": "使用机构结构化分类，不以自由文本猜测危急征象。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-RPT-001",
+            "encounterId": "SBX-RPT-ENC-001",
+            "facts": {
+              "diagnosticReports": [
+                {
+                  "reportType": "CRITICAL_IMAGING",
+                  "conclusion": "演练危急报告结论",
+                  "signedAt": "2026-06-19T03:00:00Z"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-RPT-NEG",
+            "encounterId": "SBX-RPT-ENC-NEG",
+            "facts": {
+              "diagnosticReports": [
+                {
+                  "reportType": "ROUTINE_CT",
+                  "conclusion": "演练常规报告",
+                  "signedAt": "2026-06-19T03:00:00Z"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-RPT-BND",
+            "encounterId": "SBX-RPT-ENC-BND",
+            "facts": {
+              "diagnosticReports": [
+                {
+                  "reportType": "CRITICAL_IMAGING",
+                  "conclusion": "演练危急报告结论",
+                  "signedAt": "2026-06-19T03:00:01Z"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-RPT-MIS",
+            "encounterId": "SBX-RPT-ENC-MIS",
+            "facts": {
+              "diagnosticReports": [
+                {
+                  "reportType": "CRITICAL_IMAGING",
+                  "conclusion": "尚未签发的演练报告"
+                }
+              ]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-discharge-check",
@@ -203,12 +804,147 @@
       "triggerPoint": "discharge-sign",
       "riskLevel": "MEDIUM",
       "actionCode": "REMIND",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "出院带药与随访核查",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则依据 WHO 转衔用药安全材料，只核查出院时是否存在随访计划，不推断具体药物应否开立。",
+      "name": "出院随访计划完整性演练",
+      "sourceRef": "WHO Medication Safety in Transitions of Care",
+      "changeSummary": "建立出院签署时随访计划缺失提醒，不自动生成处方、随访任务或临床结论",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实患者出院决策，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "INTERNATIONAL_SAFETY_GUIDANCE",
+          "title": "Medication Safety in Transitions of Care",
+          "issuingBody": "World Health Organization",
+          "documentNumber": "WHO/UHC/SDS/2019.9",
+          "publicationDate": "2019-05-01",
+          "url": "https://www.who.int/publications/i/item/WHO-UHC-SDS-2019.9",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于转衔场景的用药核对、信息传递和随访安排安全框架；不规定单个患者的具体处方。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "discharge-sign",
+          "meta": {
+            "parameters": [
+              {
+                "key": "requiredFollowupPlan",
+                "valueType": "STRING",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "encounters[].encounterType" },
+                "operator": "in",
+                "value": ["INPATIENT"]
+              },
+              {
+                "expr": { "field": "encounters[].dischargeTime" },
+                "operator": "exists"
+              },
+              {
+                "expr": { "field": "followUps[].planType" },
+                "operator": "is_missing"
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "REMIND",
+              "indicator": "warning",
+              "atSeverity": "MEDIUM",
+              "summary": "出院记录尚未关联随访计划，请完成转衔核查",
+              "detail": "请核对出院用药信息、复诊安排和患者教育是否完整；不自动生成处方、不自动创建随访任务。",
+              "source": { "label": "WHO 转衔用药安全材料" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": false
+            }
+          ],
+          "explain": {
+            "title": "出院转衔核查",
+            "summary": "仅检查结构化随访计划存在性，不作治疗适应证推断。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-DC-001",
+            "encounterId": "SBX-DC-ENC-001",
+            "facts": {
+              "encounters": [
+                {
+                  "encounterType": "INPATIENT",
+                  "dischargeTime": "2026-06-19T03:00:00Z"
+                }
+              ],
+              "followUps": []
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-DC-NEG",
+            "encounterId": "SBX-DC-ENC-NEG",
+            "facts": {
+              "encounters": [
+                {
+                  "encounterType": "INPATIENT",
+                  "dischargeTime": "2026-06-19T03:00:00Z"
+                }
+              ],
+              "followUps": [
+                {
+                  "planType": "DISCHARGE_FOLLOWUP",
+                  "plannedAt": "2026-06-26T03:00:00Z"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-DC-BND",
+            "encounterId": "SBX-DC-ENC-BND",
+            "facts": {
+              "encounters": [
+                {
+                  "encounterType": "INPATIENT",
+                  "dischargeTime": "2026-06-19T03:00:00Z"
+                }
+              ],
+              "followUps": [{ "planType": "" }]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-DC-MIS",
+            "encounterId": "SBX-DC-ENC-MIS",
+            "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
+              "followUps": []
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-followup-inr",
@@ -217,12 +953,161 @@
       "triggerPoint": "followup-alert",
       "riskLevel": "HIGH",
       "actionCode": "STRONG_REMINDER",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "随访 INR 异常处理",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则以现行华法林监管标签为来源，使用机构/检验系统异常标记而非给所有适应证套用统一 INR 治疗窗。",
+      "name": "华法林随访 INR 异常处置演练",
+      "sourceRef": "DailyMed 华法林钠片监管标签：剂量按患者 INR 与适应证调整并持续监测",
+      "changeSummary": "建立随访异常与 INR 异常组合强提醒，不自动调整华法林剂量或安排真实回院",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实患者抗凝管理建议，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "REGULATORY_DRUG_LABEL",
+          "title": "WARFARIN SODIUM tablet label",
+          "issuingBody": "U.S. National Library of Medicine DailyMed / FDA label source",
+          "documentNumber": "SETID 558b7a0d-5490-4c1b-802e-3ab3f1efe760",
+          "publicationDate": "2026-06-03",
+          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=558b7a0d-5490-4c1b-802e-3ab3f1efe760",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于华法林治疗期间 INR 监测、出血风险观察和按适应证个体化调整；治疗窗不得跨适应证硬编码。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "followup-alert",
+          "meta": {
+            "parameters": [
+              { "key": "inrCode", "valueType": "CODE", "required": true },
+              {
+                "key": "abnormalFlags",
+                "valueType": "CODE_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["FOLLOWUP"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "followUps[].abnormalFlag" },
+                "operator": "in",
+                "value": ["HIGH"]
+              },
+              {
+                "expr": { "field": "observations[].code" },
+                "operator": "in",
+                "value": ["6301-6"]
+              },
+              {
+                "expr": { "field": "observations[].criticalFlag" },
+                "operator": "in",
+                "value": ["HIGH"]
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "STRONG_REMINDER",
+              "indicator": "warning",
+              "atSeverity": "HIGH",
+              "summary": "抗凝随访与 INR 均标记高风险，需医师复核",
+              "detail": "请结合适应证、个体治疗目标、出血表现和用药情况决定处置；不自动调整剂量、不自动停药或开立医嘱。",
+              "source": { "label": "DailyMed 华法林钠片监管标签" },
+              "suggestions": [],
+              "overrideReasons": ["已完成医师评估并制定复查计划"],
+              "requiresPhysicianConfirmation": true
+            }
+          ],
+          "explain": {
+            "title": "INR 异常随访",
+            "summary": "使用机构异常标记，避免把单一治疗窗套用于所有适应证。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-FU-001",
+            "encounterId": "SBX-FU-ENC-001",
+            "facts": {
+              "followUps": [
+                { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
+              ],
+              "observations": [
+                {
+                  "code": "6301-6",
+                  "displayName": "INR",
+                  "valueNumeric": 4.5,
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-INR-NEG",
+            "encounterId": "SBX-INR-ENC-NEG",
+            "facts": {
+              "followUps": [
+                { "planType": "ANTICOAGULATION", "abnormalFlag": "NORMAL" }
+              ],
+              "observations": [
+                {
+                  "code": "6301-6",
+                  "displayName": "INR",
+                  "valueNumeric": 2.5,
+                  "criticalFlag": "NORMAL"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-INR-BND",
+            "encounterId": "SBX-INR-ENC-BND",
+            "facts": {
+              "followUps": [
+                { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
+              ],
+              "observations": [
+                {
+                  "code": "6301-6",
+                  "displayName": "INR",
+                  "valueNumeric": 3,
+                  "criticalFlag": "HIGH"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "HIGH",
+            "expectedActionCode": "STRONG_REMINDER"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-INR-MIS",
+            "encounterId": "SBX-INR-ENC-MIS",
+            "facts": {
+              "followUps": [
+                { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
+              ],
+              "observations": [
+                { "displayName": "未映射凝血结果", "criticalFlag": "HIGH" }
+              ]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-insurance-drg",
@@ -231,12 +1116,123 @@
       "triggerPoint": "order-sign",
       "riskLevel": "LOW",
       "actionCode": "INFO",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "医保 DRG/DIP 合理性提示",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则依据国家医保局 DRG/DIP 2.0 政策，仅检查分组与支付字段完整性，不做自动拒付或临床合理性裁决。",
+      "name": "DRG/DIP 结算字段完整性演练",
+      "sourceRef": "医保办发〔2024〕9号 DRG/DIP 2.0 版分组方案",
+      "changeSummary": "建立医保分组事实存在但支付字段缺失的信息提示，不自动拒付、不影响医嘱",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成医保结算结论或真实患者诊疗依据，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "GOVERNMENT_POLICY",
+          "title": "按病组（DRG）和病种分值（DIP）付费2.0版分组方案并深入推进相关工作的通知",
+          "issuingBody": "国家医疗保障局办公室",
+          "documentNumber": "医保办发〔2024〕9号",
+          "publicationDate": "2024-07-23",
+          "url": "https://www.nhsa.gov.cn/col/col14/index.html",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于 DRG/DIP 2.0 政策版本与分组治理依据；本演练规则只校验结构化结算字段，不推断拒付。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "order-sign",
+          "meta": {
+            "parameters": [
+              {
+                "key": "requiredClaimFields",
+                "valueType": "FIELD_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              { "expr": { "field": "claims[].drgCode" }, "operator": "exists" },
+              {
+                "expr": { "field": "claims[].totalCost" },
+                "operator": "exists"
+              },
+              {
+                "expr": { "field": "claims[].insurancePaid" },
+                "operator": "is_missing"
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "INFO",
+              "indicator": "info",
+              "atSeverity": "LOW",
+              "summary": "DRG/DIP 分组记录缺少医保支付字段，请核对数据完整性",
+              "detail": "仅提示医保结算数据缺项，供病案与医保人员核查；不自动拒付、不自动改变诊疗或医嘱。",
+              "source": { "label": "医保办发〔2024〕9号" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": false
+            }
+          ],
+          "explain": {
+            "title": "DRG/DIP 数据完整性",
+            "summary": "只检查结构化字段，不替代医保审核。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-INS-001",
+            "encounterId": "SBX-INS-ENC-001",
+            "facts": {
+              "claims": [{ "drgCode": "SBX-DRG-A", "totalCost": 12000 }]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "LOW",
+            "expectedActionCode": "INFO"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-DRG-NEG",
+            "encounterId": "SBX-DRG-ENC-NEG",
+            "facts": {
+              "claims": [
+                {
+                  "drgCode": "SBX-DRG-A",
+                  "totalCost": 12000,
+                  "insurancePaid": 8000
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-DRG-BND",
+            "encounterId": "SBX-DRG-ENC-BND",
+            "facts": {
+              "claims": [
+                { "drgCode": "SBX-DRG-A", "totalCost": 0, "insurancePaid": 0 }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-DRG-MIS",
+            "encounterId": "SBX-DRG-ENC-MIS",
+            "facts": { "claims": [{ "totalCost": 12000 }] },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-quality-record",
@@ -245,12 +1241,136 @@
       "triggerPoint": "patient-view",
       "riskLevel": "MEDIUM",
       "actionCode": "REMIND",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "病历内涵质控提示",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则依据医疗质量管理制度，仅检查出院小结签署状态，不解析正文、不自动评价医疗质量。",
+      "name": "出院小结签署质控演练",
+      "sourceRef": "医疗质量管理办法及解读；病历签署要求由机构制度细化",
+      "changeSummary": "建立出院小结存在但未签署的质控提醒，不自动补写、签署或修改病历",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实病历质量结论，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "GOVERNMENT_REGULATION",
+          "title": "医疗质量管理办法解读",
+          "issuingBody": "中华人民共和国国家卫生健康委员会",
+          "documentNumber": "国家卫生和计划生育委员会令第10号",
+          "publicationDate": "2016-10-18",
+          "url": "https://www.nhc.gov.cn/zwgk/jdjd/201610/8e7ef364c1a84f33a7e40291eaf70a3f.shtml",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于医疗质量管理责任、制度、监测和持续改进框架；具体病历质控要点由机构制度确定。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "patient-view",
+          "meta": {
+            "parameters": [
+              {
+                "key": "requiredSignedDocuments",
+                "valueType": "CODE_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "documents[].documentType" },
+                "operator": "in",
+                "value": ["DISCHARGE_SUMMARY"]
+              },
+              {
+                "expr": { "field": "documents[].signedAt" },
+                "operator": "is_missing"
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "REMIND",
+              "indicator": "warning",
+              "atSeverity": "MEDIUM",
+              "summary": "出院小结尚未签署，请完成病历质控核查",
+              "detail": "请由有权限的医务人员核对内容后完成签署；不自动补写、不自动签署或修改病历。",
+              "source": { "label": "医疗质量管理办法" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": false
+            }
+          ],
+          "explain": {
+            "title": "病历签署质控",
+            "summary": "只检查文书类型和签署时间，不解析正文作临床判断。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-QC-001",
+            "encounterId": "SBX-QC-ENC-001",
+            "facts": {
+              "documents": [
+                {
+                  "documentType": "DISCHARGE_SUMMARY",
+                  "contentDigest": "sha256:sbx-qc-pos"
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-QC-NEG",
+            "encounterId": "SBX-QC-ENC-NEG",
+            "facts": {
+              "documents": [
+                {
+                  "documentType": "DISCHARGE_SUMMARY",
+                  "contentDigest": "sha256:sbx-qc-neg",
+                  "signedAt": "2026-06-19T03:00:00Z"
+                }
+              ]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-QC-BND",
+            "encounterId": "SBX-QC-ENC-BND",
+            "facts": {
+              "documents": [
+                {
+                  "documentType": "DISCHARGE_SUMMARY",
+                  "contentDigest": "sha256:sbx-qc-bnd",
+                  "signedAt": null
+                }
+              ]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "MEDIUM",
+            "expectedActionCode": "REMIND"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-QC-MIS",
+            "encounterId": "SBX-QC-ENC-MIS",
+            "facts": {
+              "documents": [{ "contentDigest": "sha256:sbx-qc-mis" }]
+            },
+            "expectedHit": false
+          }
+        ]
+      }
     },
     {
       "id": "sbx-record-completeness",
@@ -259,12 +1379,119 @@
       "triggerPoint": "patient-view",
       "riskLevel": "LOW",
       "actionCode": "INFO",
-      "reviewStatus": "CLINICAL_REVIEW_REQUIRED",
-      "reviewEvidence": null,
-      "name": "病历结构化完整性提示",
-      "sourceRef": null,
-      "changeSummary": null,
-      "clinicalContent": null
+      "reviewStatus": "SANDBOX_READY",
+      "reviewEvidence": "沙盘专用规则依据病历书写规范，只检查患者出生日期这一结构化基础字段，不推断正文或诊断质量。",
+      "name": "病历结构化基础字段完整性演练",
+      "sourceRef": "病历书写基本规范（试行）；机构可扩展必填数据元清单",
+      "changeSummary": "建立有就诊记录但患者出生日期缺失的信息提示，不自动补值或修改病历",
+      "institution": {
+        "tenantId": "pilot-hospital",
+        "scope": "SANDBOX_INSTITUTION",
+        "customRule": true
+      },
+      "disclaimer": "仅限演练机构沙盘验证，不构成真实病历质量结论，不与平台主源生产规则自动关联。",
+      "sources": [
+        {
+          "sourceType": "GOVERNMENT_STANDARD",
+          "title": "病历书写基本规范（试行）",
+          "issuingBody": "原卫生部",
+          "documentNumber": "卫医发〔2002〕190号",
+          "publicationDate": "2002-08-16",
+          "url": "https://www.nhc.gov.cn/wjw/gfxwj/200205/8348500efb5b490c8db6519e818e96e3.shtml",
+          "retrievedAt": "2026-06-19",
+          "applicability": "用于病历基本信息、客观真实、准确及时、完整规范和签名等原则；结构化必填字段由机构细化。"
+        }
+      ],
+      "clinicalContent": {
+        "dsl": {
+          "trigger": "patient-view",
+          "meta": {
+            "parameters": [
+              {
+                "key": "requiredPatientFields",
+                "valueType": "FIELD_LIST",
+                "required": true
+              }
+            ]
+          },
+          "applicability": {
+            "settings": ["INPATIENT", "OUTPATIENT", "ED"],
+            "effective": { "rolloutPercent": 100 }
+          },
+          "when": {
+            "all": [
+              {
+                "expr": { "field": "encounters[].encounterType" },
+                "operator": "exists"
+              },
+              {
+                "expr": { "field": "patient.birthDate" },
+                "operator": "is_missing"
+              }
+            ]
+          },
+          "then": [
+            {
+              "actionCode": "INFO",
+              "indicator": "info",
+              "atSeverity": "LOW",
+              "summary": "患者出生日期缺失，请核对病历基础数据元",
+              "detail": "仅提示结构化基础字段缺失，由有权限人员核实来源后维护；不自动补值、不自动修改病历。",
+              "source": { "label": "病历书写基本规范" },
+              "suggestions": [],
+              "overrideReasons": [],
+              "requiresPhysicianConfirmation": false
+            }
+          ],
+          "explain": {
+            "title": "病历基础数据元完整性",
+            "summary": "只检查结构化基础字段，不解析临床正文。"
+          }
+        },
+        "testCases": [
+          {
+            "caseType": "POSITIVE",
+            "patientId": "SBX-REC-001",
+            "encounterId": "SBX-REC-ENC-001",
+            "facts": {
+              "patient": { "name": "沙盘患者" },
+              "encounters": [{ "encounterType": "OUTPATIENT" }]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "LOW",
+            "expectedActionCode": "INFO"
+          },
+          {
+            "caseType": "NEGATIVE",
+            "patientId": "SBX-REC-NEG",
+            "encounterId": "SBX-REC-ENC-NEG",
+            "facts": {
+              "patient": { "name": "沙盘患者", "birthDate": "1980-01-01" },
+              "encounters": [{ "encounterType": "OUTPATIENT" }]
+            },
+            "expectedHit": false
+          },
+          {
+            "caseType": "BOUNDARY",
+            "patientId": "SBX-REC-BND",
+            "encounterId": "SBX-REC-ENC-BND",
+            "facts": {
+              "patient": { "name": "沙盘患者", "birthDate": "" },
+              "encounters": [{ "encounterType": "ED" }]
+            },
+            "expectedHit": true,
+            "expectedSeverity": "LOW",
+            "expectedActionCode": "INFO"
+          },
+          {
+            "caseType": "MISSING_FIELD",
+            "patientId": "SBX-REC-MIS",
+            "encounterId": "SBX-REC-ENC-MIS",
+            "facts": { "patient": { "name": "沙盘患者" }, "encounters": [] },
+            "expectedHit": false
+          }
+        ]
+      }
     }
   ]
 }

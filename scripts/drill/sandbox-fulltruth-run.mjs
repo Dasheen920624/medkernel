@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// P5 第一阶段全真体验沙盘验收：真实编排 -> 一次性令牌兑换 -> 真实推荐卡 -> 医师反馈。
-// 仅遍历通过临床门禁且已铺底的场景；未评审场景记录为 blocked，不冒充通过。
+// 全功能沙盘验收：CURRENT 基线 -> 真实编排 -> 一次性令牌 -> 推荐卡 -> 人工反馈。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -11,19 +10,24 @@ import {
   selectSeedRules,
 } from "../sandbox/scenario-rules.mjs";
 
-const requireFromFrontend = createRequire(new URL("../../frontend/package.json", import.meta.url));
+const requireFromFrontend = createRequire(
+  new URL("../../frontend/package.json", import.meta.url),
+);
 const { chromium } = requireFromFrontend("playwright");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
-const baseUrl = (process.env.DRILL_BASE_URL ?? "https://193.112.107.134").replace(/\/+$/, "");
+const baseUrl = (
+  process.env.DRILL_BASE_URL ?? "https://193.112.107.134"
+).replace(/\/+$/, "");
 const apiBase = `${baseUrl}/medkernel/api/v1`;
 const parentOrigin = new URL(baseUrl).origin;
 const credentialPath =
-  process.env.DRILL_CREDENTIAL_PATH ?? "/tmp/p5-14-role-drill-credentials-20260612.json";
+  process.env.DRILL_CREDENTIAL_PATH ??
+  "/tmp/medkernel-sandbox-role-credentials.json";
 const evidenceDir = path.join(
   repoRoot,
-  "docs/release/evidence/p5-second-fresh-drill-20260612/sandbox",
+  "docs/release/evidence/sandbox-full-fidelity-20260619",
 );
 const outerScenarios = [
   {
@@ -52,7 +56,7 @@ const outerScenarios = [
   {
     id: "sbx-evaluation-closed-loop",
     kind: "EVALUATION",
-    patientId: "P5-ACT7-FOLLOWUP-001",
+    patientId: "SBX-QC-001",
     triggerPoint: "patient-view",
     actionCode: "EVALUATION",
     expectedFact: "evaluationRunId",
@@ -73,8 +77,7 @@ function traceId(stage) {
 async function loadAccount(roleCode = "clinical-decision-user") {
   const data = JSON.parse(await readFile(credentialPath, "utf8"));
   const account =
-    data.roleAccounts?.[roleCode]
-    ?? data.platformRoleAccounts?.[roleCode];
+    data.roleAccounts?.[roleCode] ?? data.platformRoleAccounts?.[roleCode];
   if (!account?.username || !account?.password || !account?.tenantId) {
     throw new Error(`凭据缺少 ${roleCode} 可用账号`);
   }
@@ -92,7 +95,8 @@ async function parseResponse(response) {
 
 async function apiPost(context, pathname, data, stage) {
   const cookies = await context.cookies(baseUrl);
-  const csrf = cookies.find((cookie) => cookie.name === "XSRF-TOKEN")?.value ?? "";
+  const csrf =
+    cookies.find((cookie) => cookie.name === "XSRF-TOKEN")?.value ?? "";
   const response = await context.request.post(`${apiBase}${pathname}`, {
     data,
     headers: {
@@ -101,19 +105,29 @@ async function apiPost(context, pathname, data, stage) {
       "X-XSRF-TOKEN": csrf,
     },
   });
-  return { status: response.status(), ok: response.ok(), body: await parseResponse(response) };
+  return {
+    status: response.status(),
+    ok: response.ok(),
+    body: await parseResponse(response),
+  };
 }
 
 async function apiGet(context, pathname, stage) {
   const response = await context.request.get(`${apiBase}${pathname}`, {
     headers: { "X-Trace-Id": traceId(stage) },
   });
-  return { status: response.status(), ok: response.ok(), body: await parseResponse(response) };
+  return {
+    status: response.status(),
+    ok: response.ok(),
+    body: await parseResponse(response),
+  };
 }
 
 function requireOk(result, stage, accepted = [200]) {
   if (!accepted.includes(result.status)) {
-    throw new Error(`${stage} 失败: HTTP ${result.status} ${JSON.stringify(result.body).slice(0, 500)}`);
+    throw new Error(
+      `${stage} 失败: HTTP ${result.status} ${JSON.stringify(result.body).slice(0, 500)}`,
+    );
   }
   return result.body?.data;
 }
@@ -124,14 +138,44 @@ function maskedUrl(value) {
 }
 
 async function login(browser, account) {
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN" });
-  const login = await apiPost(context, "/auth/login", {
-    username: account.username,
-    password: account.password,
-    tenantId: account.tenantId,
-  }, "login");
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    locale: "zh-CN",
+  });
+  const login = await apiPost(
+    context,
+    "/auth/login",
+    {
+      username: account.username,
+      password: account.password,
+      tenantId: account.tenantId,
+    },
+    "login",
+  );
   requireOk(login, "沙盘角色登录");
   return context;
+}
+
+function assertCurrentRuntime(run, scenarioId) {
+  if (
+    run.mode !== "CURRENT" ||
+    !run.runId ||
+    !run.baselineId ||
+    !run.resolvedPackageVersion ||
+    !["TENANT_PACKAGE", "PLATFORM_PACKAGE"].includes(run.resolutionSource) ||
+    run.externalSideEffects !== false
+  ) {
+    throw new Error(
+      `场景 ${scenarioId} 未返回完整 CURRENT 冻结基线: ${JSON.stringify({
+        mode: run.mode,
+        runId: run.runId,
+        baselineId: run.baselineId,
+        resolvedPackageVersion: run.resolvedPackageVersion,
+        resolutionSource: run.resolutionSource,
+        externalSideEffects: run.externalSideEffects,
+      })}`,
+    );
+  }
 }
 
 async function runScenario(context, verificationContext, scenario) {
@@ -142,6 +186,7 @@ async function runScenario(context, verificationContext, scenario) {
       `/engine/sandbox/scenarios/${scenario.id}/run`,
       {
         entryMode: "SNAPSHOT",
+        mode: "CURRENT",
         occurredAt: new Date().toISOString(),
         parentOrigin,
         integrationMode,
@@ -150,35 +195,47 @@ async function runScenario(context, verificationContext, scenario) {
     ),
     `运行场景 ${scenario.id}`,
   );
+  assertCurrentRuntime(run, scenario.id);
   if (run.result !== "PASS" || run.cardCount < 1 || !run.embedToken) {
-    throw new Error(`场景 ${scenario.id} 编排未通过: ${JSON.stringify({
-      result: run.result,
-      cardCount: run.cardCount,
-      steps: run.steps,
-    })}`);
+    throw new Error(
+      `场景 ${scenario.id} 编排未通过: ${JSON.stringify({
+        result: run.result,
+        cardCount: run.cardCount,
+        steps: run.steps,
+      })}`,
+    );
   }
   if (scenario.expectedFact && !run[scenario.expectedFact]) {
-    throw new Error(`场景 ${scenario.id} 未返回业务事实 ${scenario.expectedFact}`);
+    throw new Error(
+      `场景 ${scenario.id} 未返回业务事实 ${scenario.expectedFact}`,
+    );
   }
   if (scenario.kind === "PATHWAY") {
-    const advanceStep = run.steps?.find((step) => step.stage === "PATHWAY_ADVANCE");
+    const advanceStep = run.steps?.find(
+      (step) => step.stage === "PATHWAY_ADVANCE",
+    );
     if (
-      advanceStep?.status !== "OK"
-      || !advanceStep.serverFacts?.previousNodeCode
-      || !advanceStep.serverFacts?.nextNodeCode
-      || !advanceStep.serverFacts?.edgeCode
+      advanceStep?.status !== "OK" ||
+      !advanceStep.serverFacts?.previousNodeCode ||
+      !advanceStep.serverFacts?.nextNodeCode ||
+      !advanceStep.serverFacts?.edgeCode
     ) {
       throw new Error(`场景 ${scenario.id} 未形成可核验的路径推进证据`);
     }
   }
 
   const launch = requireOk(
-    await apiPost(context, "/engine/embed/launch", {
-      token: run.embedToken,
-      integrationMode,
-      hook: scenario.triggerPoint,
-      hookInstance: run.hookInstance,
-    }, `launch-${scenario.id}`),
+    await apiPost(
+      context,
+      "/engine/embed/launch",
+      {
+        token: run.embedToken,
+        integrationMode,
+        hook: scenario.triggerPoint,
+        hookInstance: run.hookInstance,
+      },
+      `launch-${scenario.id}`,
+    ),
     `兑换场景 ${scenario.id} 嵌入令牌`,
   );
   if (launch.active !== true || launch.patientId !== scenario.patientId) {
@@ -186,24 +243,34 @@ async function runScenario(context, verificationContext, scenario) {
   }
 
   const recommendations = requireOk(
-    await apiPost(context, "/engine/embed/recommendations", { token: run.embedToken },
-      `cards-${scenario.id}`),
+    await apiPost(
+      context,
+      "/engine/embed/recommendations",
+      { token: run.embedToken },
+      `cards-${scenario.id}`,
+    ),
     `读取场景 ${scenario.id} 推荐卡`,
   );
-  const card = recommendations.items?.find(
-    (item) => item.suggestedAction === scenario.actionCode,
-  ) ?? recommendations.items?.[0];
+  const card =
+    recommendations.items?.find(
+      (item) => item.suggestedAction === scenario.actionCode,
+    ) ?? recommendations.items?.[0];
   if (!card?.cardId) {
     throw new Error(`场景 ${scenario.id} 未读取到真实推荐卡`);
   }
 
   const feedback = requireOk(
-    await apiPost(context, "/engine/embed/feedback", {
-      token: run.embedToken,
-      cardId: card.cardId,
-      actionType: "ADOPT",
-      reason: "沙盘全真验收：医师确认符合当前场景并采纳提醒",
-    }, `feedback-${scenario.id}`),
+    await apiPost(
+      context,
+      "/engine/embed/feedback",
+      {
+        token: run.embedToken,
+        cardId: card.cardId,
+        actionType: "ADOPT",
+        reason: "沙盘全真验收：医师确认符合当前场景并采纳提醒",
+      },
+      `feedback-${scenario.id}`,
+    ),
     `提交场景 ${scenario.id} 医师反馈`,
   );
   if (feedback.recommendationStatus !== "ACCEPTED") {
@@ -213,24 +280,39 @@ async function runScenario(context, verificationContext, scenario) {
   let execution = null;
   if (scenario.kind === "RULE_ONLY") {
     const executions = requireOk(
-      await apiGet(context, "/engine/rule/rules/executions?page=1&size=100",
-        `executions-${scenario.id}`),
+      await apiGet(
+        context,
+        "/engine/rule/rules/executions?page=1&size=100",
+        `executions-${scenario.id}`,
+      ),
       `回查场景 ${scenario.id} 规则执行`,
     );
     execution = executions.items?.find(
-      (item) => item.traceId === run.traceId
-        || item.ruleCode === scenario.ruleCode
-        || item.ruleId === scenario.ruleCode,
+      (item) =>
+        item.traceId === run.traceId ||
+        item.ruleCode === scenario.ruleCode ||
+        item.ruleId === scenario.ruleCode,
     );
   }
 
-  const businessFact = await verifyBusinessFact(context, verificationContext, scenario, run);
+  const businessFact = await verifyBusinessFact(
+    context,
+    verificationContext,
+    scenario,
+    run,
+  );
 
   return {
     scenarioId: scenario.id,
     ruleCode: scenario.ruleCode,
     result: run.result,
     traceId: run.traceId,
+    runId: run.runId,
+    baselineId: run.baselineId,
+    mode: run.mode,
+    resolvedPackageVersion: run.resolvedPackageVersion,
+    resolutionSource: run.resolutionSource,
+    externalSideEffects: run.externalSideEffects,
     snapshotId: run.snapshotId,
     triggerId: run.triggerId,
     cardId: card.cardId,
@@ -251,25 +333,31 @@ async function runScenario(context, verificationContext, scenario) {
       serverFacts: step.serverFacts,
       error: step.error,
     })),
-    executionFact: scenario.kind !== "RULE_ONLY"
-      ? { status: "NOT_APPLICABLE", note: "外圈引擎场景以对应运行事实回查为准。" }
-      : execution
-      ? {
-          executionId: execution.executionId,
-          hit: execution.hit,
-          status: execution.status,
-          traceId: execution.traceId,
-        }
-      : {
-          status: "NOT_RETURNED_BY_LIST",
-          note: "编排响应、推荐卡与反馈事实已闭环；执行目录未返回可关联行时不伪造。",
-        },
+    executionFact:
+      scenario.kind !== "RULE_ONLY"
+        ? {
+            status: "NOT_APPLICABLE",
+            note: "外圈引擎场景以对应运行事实回查为准。",
+          }
+        : execution
+          ? {
+              executionId: execution.executionId,
+              hit: execution.hit,
+              status: execution.status,
+              traceId: execution.traceId,
+            }
+          : {
+              status: "NOT_RETURNED_BY_LIST",
+              note: "编排响应、推荐卡与反馈事实已闭环；执行目录未返回可关联行时不伪造。",
+            },
   };
 }
 
 async function verifyBusinessFact(context, verificationContext, scenario, run) {
   if (scenario.kind === "PATHWAY") {
-    const advanceStep = run.steps?.find((step) => step.stage === "PATHWAY_ADVANCE");
+    const advanceStep = run.steps?.find(
+      (step) => step.stage === "PATHWAY_ADVANCE",
+    );
     const detail = requireOk(
       await apiGet(
         context,
@@ -278,7 +366,10 @@ async function verifyBusinessFact(context, verificationContext, scenario, run) {
       ),
       `回查场景 ${scenario.id} 患者路径`,
     );
-    if (detail.patientPathway?.currentNodeCode !== advanceStep?.serverFacts?.nextNodeCode) {
+    if (
+      detail.patientPathway?.currentNodeCode !==
+      advanceStep?.serverFacts?.nextNodeCode
+    ) {
       throw new Error(`场景 ${scenario.id} 路径实例当前节点与推进证据不一致`);
     }
     return {
@@ -306,7 +397,9 @@ async function verifyBusinessFact(context, verificationContext, scenario, run) {
     };
   }
   if (scenario.kind === "EVALUATION") {
-    const evaluationStep = run.steps?.find((step) => step.stage === "EVALUATION");
+    const evaluationStep = run.steps?.find(
+      (step) => step.stage === "EVALUATION",
+    );
     const diagnose = requireOk(
       await apiGet(
         verificationContext,
@@ -316,9 +409,15 @@ async function verifyBusinessFact(context, verificationContext, scenario, run) {
       `回查场景 ${scenario.id} 评估运行`,
     );
     const entity = diagnose.entity ?? {};
-    const resultCount = Number(entity.resultCount ?? evaluationStep?.serverFacts?.resultCount ?? 0);
-    const findingCount = Number(entity.findingCount ?? evaluationStep?.serverFacts?.findingCount ?? 0);
-    const taskCount = Number(entity.taskCount ?? evaluationStep?.serverFacts?.taskCount ?? 0);
+    const resultCount = Number(
+      entity.resultCount ?? evaluationStep?.serverFacts?.resultCount ?? 0,
+    );
+    const findingCount = Number(
+      entity.findingCount ?? evaluationStep?.serverFacts?.findingCount ?? 0,
+    );
+    const taskCount = Number(
+      entity.taskCount ?? evaluationStep?.serverFacts?.taskCount ?? 0,
+    );
     if (resultCount < 1 || findingCount < 1) {
       throw new Error(`场景 ${scenario.id} 评估运行未形成结果与问题闭环`);
     }
@@ -344,6 +443,7 @@ async function verifyEmbedModes(context) {
         `/engine/sandbox/scenarios/${scenario.id}/run`,
         {
           entryMode: "SNAPSHOT",
+          mode: "CURRENT",
           occurredAt: new Date().toISOString(),
           parentOrigin,
           integrationMode,
@@ -352,16 +452,26 @@ async function verifyEmbedModes(context) {
       ),
       `运行场景 ${scenario.id} ${integrationMode} 模式`,
     );
-    if (run.result !== "PASS" || !run.embedToken || !run.embedModes?.includes(integrationMode)) {
+    assertCurrentRuntime(run, `${scenario.id}/${integrationMode}`);
+    if (
+      run.result !== "PASS" ||
+      !run.embedToken ||
+      !run.embedModes?.includes(integrationMode)
+    ) {
       throw new Error(`${scenario.id} ${integrationMode} 模式编排未通过`);
     }
     const launch = requireOk(
-      await apiPost(context, "/engine/embed/launch", {
-        token: run.embedToken,
-        integrationMode,
-        hook: scenario.triggerPoint,
-        hookInstance: run.hookInstance,
-      }, `launch-${scenario.id}-${integrationMode.toLowerCase()}`),
+      await apiPost(
+        context,
+        "/engine/embed/launch",
+        {
+          token: run.embedToken,
+          integrationMode,
+          hook: scenario.triggerPoint,
+          hookInstance: run.hookInstance,
+        },
+        `launch-${scenario.id}-${integrationMode.toLowerCase()}`,
+      ),
       `兑换场景 ${scenario.id} ${integrationMode} 令牌`,
     );
     if (launch.active !== true || launch.integrationMode !== integrationMode) {
@@ -370,6 +480,10 @@ async function verifyEmbedModes(context) {
     modes.push({
       integrationMode,
       traceId: run.traceId,
+      runId: run.runId,
+      baselineId: run.baselineId,
+      resolvedPackageVersion: run.resolvedPackageVersion,
+      resolutionSource: run.resolutionSource,
       launchActive: launch.active,
       supportedEmbedModes: run.embedModes,
     });
@@ -381,12 +495,18 @@ async function main() {
   await mkdir(evidenceDir, { recursive: true });
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(manifest, process.env.SEED_ONLY ?? "");
+  if (selected.blocked.length > 0) {
+    throw new Error(
+      `存在不可运行演练规则: ${selected.blocked.map((item) => item.ruleCode).join(", ")}`,
+    );
+  }
   const readyScenarios = [
-    ...selected.runnable.map((scenario) => ({
-      ...scenario,
-      kind: "RULE_ONLY",
-      patientId: "SBX-LAB-K-001",
-    })),
+    ...selected.runnable.map((scenario) => {
+      const positive = scenario.clinicalContent.testCases.find(
+        (testCase) => testCase.caseType === "POSITIVE",
+      );
+      return { ...scenario, kind: "RULE_ONLY", patientId: positive.patientId };
+    }),
     ...outerScenarios,
   ];
   const summary = {
@@ -397,12 +517,8 @@ async function main() {
     primaryRole: "clinical-decision-user",
     verificationRole: "quality-governor",
     readyScenarioCount: readyScenarios.length,
-    blockedScenarioCount: selected.blocked.length,
-    blockedScenarios: selected.blocked.map((scenario) => ({
-      scenarioId: scenario.id,
-      ruleCode: scenario.ruleCode,
-      reason: "CLINICAL_REVIEW_REQUIRED",
-    })),
+    blockedScenarioCount: 0,
+    runtimeBinding: null,
     results: [],
     embedModeVerifications: [],
     failures: [],
@@ -410,12 +526,53 @@ async function main() {
 
   const browser = await chromium.launch();
   try {
-    const context = await login(browser, await loadAccount("clinical-decision-user"));
-    const verificationContext = await login(browser, await loadAccount("quality-governor"));
+    const context = await login(
+      browser,
+      await loadAccount("clinical-decision-user"),
+    );
+    const verificationContext = await login(
+      browser,
+      await loadAccount("quality-governor"),
+    );
     try {
+      const runtimeBinding = requireOk(
+        await apiGet(
+          context,
+          "/engine/sandbox/runtime-binding",
+          "runtime-binding",
+        ),
+        "读取沙盘 CURRENT 运行绑定",
+      );
+      if (
+        runtimeBinding.ready !== true ||
+        !runtimeBinding.packageId ||
+        !runtimeBinding.packageVersion ||
+        !["TENANT_PACKAGE", "PLATFORM_PACKAGE"].includes(
+          runtimeBinding.resolutionSource,
+        ) ||
+        runtimeBinding.externalSideEffects !== false
+      ) {
+        throw new Error(
+          `沙盘 CURRENT 运行绑定未就绪: ${JSON.stringify(runtimeBinding)}`,
+        );
+      }
+      summary.runtimeBinding = runtimeBinding;
       for (const scenario of readyScenarios) {
         try {
-          summary.results.push(await runScenario(context, verificationContext, scenario));
+          const result = await runScenario(
+            context,
+            verificationContext,
+            scenario,
+          );
+          if (
+            result.resolvedPackageVersion !== runtimeBinding.packageVersion ||
+            result.resolutionSource !== runtimeBinding.resolutionSource
+          ) {
+            throw new Error(
+              `场景 ${scenario.id} 的冻结基线与当前明确绑定不一致`,
+            );
+          }
+          summary.results.push(result);
         } catch (error) {
           summary.failures.push({
             scenarioId: scenario.id,
@@ -450,7 +607,10 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("沙盘全真演练通过，未评审场景保持阻断，证据目录：", evidenceDir);
+  console.log(
+    "沙盘全真演练通过，十条机构规则与五类外圈场景均已执行，证据目录：",
+    evidenceDir,
+  );
 }
 
 await main();

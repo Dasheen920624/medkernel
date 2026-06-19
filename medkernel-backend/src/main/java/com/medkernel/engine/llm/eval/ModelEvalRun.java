@@ -10,6 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>{@code status}：{@code PASSED} 方可上线（接 {@code ENG-LLM-008} 门禁）；{@code PENDING_REVIEW}
  * 为高风险换版需专家复核签字；{@code FAILED} 阻断上线。{@code fakeCitationDetected}/{@code redLineBreach} 任一为真即 FAILED。
+ * 每次运行绑定不可变的 {@code releaseFingerprint}，历史制品的评测结果不得用于当前部署放行。
  */
 @Table("mk_llm_eval_run")
 public record ModelEvalRun(
@@ -20,6 +21,7 @@ public record ModelEvalRun(
     @Column("capability_code") String capabilityCode,
     @Column("prompt_version") String promptVersion,
     @Column("tool_version") String toolVersion,
+    @Column("release_fingerprint") String releaseFingerprint,
     @Column("total_cases") int totalCases,
     @Column("passed_cases") int passedCases,
     @Column("failed_cases") int failedCases,

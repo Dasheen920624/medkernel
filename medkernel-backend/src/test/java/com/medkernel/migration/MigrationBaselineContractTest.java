@@ -200,8 +200,86 @@ class MigrationBaselineContractTest {
         "V149__knowledge_acquisition_source_lock.sql",
         "V150__model_version_active_scope_unique.sql",
         "V151__model_eval_review_evidence.sql",
-        "V152__model_provider_lock_version.sql"
+        "V152__model_provider_lock_version.sql",
+        "V153__sandbox_runtime_baseline.sql",
+        "V154__sandbox_replay_manifest.sql",
+        "V155__knowledge_initialization_batch.sql",
+        "V156__model_eval_release_fingerprint.sql",
+        "V157__sandbox_run_mode_reserved_word.sql"
     );
+
+    @Test
+    void modelEvaluationReleaseFingerprintInvalidatesHistoricalRunsAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V156__model_eval_release_fingerprint.sql");
+            assertThat(ddl)
+                .as("%s 医学评测必须冻结运行制品指纹", dialect)
+                .contains("mk_llm_eval_run", "release_fingerprint", "运行制品指纹");
+        }
+    }
+
+    @Test
+    void knowledgeInitializationBatchPersistsStableManifestsAndReviewStateAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V155__knowledge_initialization_batch.sql");
+            assertThat(ddl)
+                .as("%s 知识初始化批次必须固定来源、候选、风险和审核状态", dialect)
+                .contains(
+                    "mk_knowledge_source_version_approval",
+                    "mk_knowledge_initialization_batch",
+                    "mk_knowledge_initialization_item",
+                    "source_version_id",
+                    "source_hash",
+                    "batch_code",
+                    "release_type",
+                    "release_version",
+                    "foundation_release_version",
+                    "phase_code",
+                    "source_manifest_hash",
+                    "candidate_manifest_hash",
+                    "overall_hash",
+                    "candidate_classification_id",
+                    "risk_level",
+                    "generated_by_model_flag",
+                    "idempotency_key",
+                    "uk_mk_knowledge_source_approval",
+                    "uk_mk_knowledge_init_batch_code",
+                    "uk_mk_knowledge_init_idempotency",
+                    "uk_mk_knowledge_init_item_candidate",
+                    "ck_mk_knowledge_init_batch_status",
+                    "ck_mk_knowledge_init_item_status",
+                    "初始化发行",
+                    "独立批准",
+                    "候选");
+        }
+    }
+
+    @Test
+    void sandboxReplayManifestIsImmutableAndHashedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V154__sandbox_replay_manifest.sql");
+            assertThat(ddl)
+                .as("%s 沙盘历史重放必须保存脱敏上下文与精确资产摘要", dialect)
+                .contains(
+                    "mk_sandbox_replay_case",
+                    "mk_sandbox_replay_asset_binding",
+                    "source_tenant_ref",
+                    "source_context_ref",
+                    "context_snapshot_json",
+                    "context_snapshot_hash",
+                    "deidentification_profile",
+                    "manifest_hash",
+                    "asset_identity",
+                    "version_id",
+                    "content_json",
+                    "content_hash",
+                    "historical_status",
+                    "replay_case_id",
+                    "REVOKED",
+                    "历史重放",
+                    "脱敏");
+        }
+    }
 
     @Test
     void modelVersionActiveScopeIsUniqueAcrossAllDialects() {
@@ -484,6 +562,68 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void sandboxRuntimeBaselineIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V153__sandbox_runtime_baseline.sql");
+            assertThat(ddl)
+                .as("%s 沙盘 CURRENT 必须由明确绑定解析并冻结不可变运行基线", dialect)
+                .contains("mk_sandbox_runtime_binding", "mk_sandbox_run", "active_scope_key",
+                    "package_owner_tenant_id", "package_version", "baseline_hash",
+                    "asset_bindings_json", "external_side_effect_status")
+                .contains("uk_mk_sandbox_runtime_binding_active", "SUPPRESSED", "CURRENT")
+                .contains("ck_mk_sandbox_run_baseline_complete", "PREPARING", "FAILED")
+                .contains("沙盘运行绑定", "不可变运行基线", "外部副作用");
+        }
+    }
+
+    @Test
+    void oracleSandboxBaselineDoesNotReferenceClobInCheckConstraints() {
+        assertThat(readMigration("oracle", "V153__sandbox_runtime_baseline.sql"))
+            .as("Oracle 沙盘运行基线必须保留 CLOB 资产快照列")
+            .contains("asset_bindings_json          CLOB");
+
+        for (String migration : List.of(
+            "V153__sandbox_runtime_baseline.sql",
+            "V154__sandbox_replay_manifest.sql"
+        )) {
+            String ddl = readMigration("oracle", migration);
+            assertThat(ddl)
+                .as("%s 必须避开 Oracle LOB CHECK 限制", migration)
+                .contains("Oracle LOB 列不能参与 CHECK")
+                .doesNotContain(
+                    "asset_bindings_json IS NULL",
+                    "asset_bindings_json IS NOT NULL"
+                );
+        }
+    }
+
+    @Test
+    void sandboxRunModeAvoidsOracleReservedWordAcrossAllDialects() {
+        String oracleBaseline = readMigration("oracle", "V153__sandbox_runtime_baseline.sql");
+        String oracleReplay = readMigration("oracle", "V154__sandbox_replay_manifest.sql");
+        assertThat(oracleBaseline)
+            .as("Oracle 新装基线不得声明 MODE 保留字列")
+            .contains("run_mode")
+            .doesNotContainPattern("(?m)^\\s*mode\\s+VARCHAR2");
+        assertThat(oracleReplay)
+            .as("Oracle 重放约束必须引用 run_mode")
+            .contains("run_mode")
+            .doesNotContainPattern("(?m)\\bmode\\s*(?:=|<>|NOT IN)");
+
+        for (String dialect : DIALECTS) {
+            String migration = readMigration(
+                dialect, "V157__sandbox_run_mode_reserved_word.sql");
+            assertThat(migration)
+                .as("%s 最终沙盘运行模式列必须统一为 run_mode", dialect)
+                .contains("mk_sandbox_run", "run_mode", "沙盘运行模式");
+            if (!"oracle".equals(dialect)) {
+                assertThat(migration)
+                    .containsIgnoringCase("RENAME COLUMN mode TO run_mode");
+            }
+        }
+    }
+
+    @Test
     void sandboxPermissionsArePersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
@@ -639,6 +779,10 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
+        "mk_sandbox_replay_case", "mk_sandbox_replay_asset_binding",
+        "mk_knowledge_source_version_approval", "mk_knowledge_initialization_batch",
+        "mk_knowledge_initialization_item",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
         "mk_context_field_catalog",
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
@@ -841,6 +985,12 @@ class MigrationBaselineContractTest {
         "idx_mk_version_rollout_plan",
         "idx_mk_version_override_template_tenant",
         "idx_mk_version_override_operation_tenant",
+        "idx_mk_sandbox_runtime_binding_tenant", "idx_mk_sandbox_run_tenant_status",
+        "idx_mk_sandbox_run_scenario", "idx_mk_sandbox_replay_case_status",
+        "idx_mk_sandbox_replay_asset_case", "idx_mk_sandbox_run_replay_case",
+        "idx_mk_knowledge_source_approval_status",
+        "idx_mk_knowledge_init_batch_status", "idx_mk_knowledge_init_batch_release",
+        "idx_mk_knowledge_init_item_batch", "idx_mk_knowledge_init_item_source",
         "idx_package_entitlement_package_status",
         "idx_package_entitlement_tenant_status",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
@@ -854,6 +1004,18 @@ class MigrationBaselineContractTest {
         "idx_person_import_row_job", "idx_compliance_data_permission_ward"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
+        "uk_mk_knowledge_source_approval", "ck_mk_knowledge_source_approval_status",
+        "fk_mk_knowledge_source_approval_version",
+        "uk_mk_knowledge_init_batch_code", "uk_mk_knowledge_init_idempotency",
+        "ck_mk_knowledge_init_release_type", "ck_mk_knowledge_init_phase",
+        "ck_mk_knowledge_init_batch_status", "ck_mk_knowledge_init_batch_counts",
+        "ck_mk_knowledge_init_foundation_ref",
+        "uk_mk_knowledge_init_item_sequence", "uk_mk_knowledge_init_item_canonical",
+        "uk_mk_knowledge_init_item_candidate", "fk_mk_knowledge_init_item_batch",
+        "fk_mk_knowledge_init_item_source", "fk_mk_knowledge_init_item_classification",
+        "ck_mk_knowledge_init_item_risk", "ck_mk_knowledge_init_item_model",
+        "ck_mk_knowledge_init_item_change", "ck_mk_knowledge_init_item_status",
+        "ck_mk_knowledge_init_item_replacement",
         "ck_knowledge_package_access_policy",
         "uk_package_entitlement_id",
         "uk_package_entitlement_tenant_package",
@@ -1157,7 +1319,21 @@ class MigrationBaselineContractTest {
         "uk_person_import_digest", "ck_person_import_status",
         "ck_person_import_version", "fk_person_import_row_job",
         "uk_person_import_row_no", "ck_person_import_row_action",
-        "ck_person_import_row_status"
+        "ck_person_import_row_status",
+        "uk_mk_sandbox_runtime_binding_id", "uk_mk_sandbox_runtime_binding_active",
+        "fk_mk_sandbox_runtime_binding_package", "ck_mk_sandbox_runtime_binding_status",
+        "ck_mk_sandbox_runtime_binding_active", "uk_mk_sandbox_run_id",
+        "uk_mk_sandbox_run_baseline", "fk_mk_sandbox_run_binding",
+        "fk_mk_sandbox_run_package", "ck_mk_sandbox_run_mode",
+        "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_baseline_complete",
+        "uk_mk_sandbox_replay_case", "uk_mk_sandbox_replay_manifest",
+        "ck_mk_sandbox_replay_case_status", "ck_mk_sandbox_replay_case_revoke",
+        "uk_mk_sandbox_replay_asset_id", "uk_mk_sandbox_replay_asset_version",
+        "fk_mk_sandbox_replay_asset_case", "ck_mk_sandbox_replay_asset_source",
+        "ck_mk_sandbox_replay_asset_status", "fk_mk_sandbox_run_replay_case",
+        "ck_mk_sandbox_run_replay_case",
+        "ck_mk_sandbox_run_resolution",
+        "ck_mk_sandbox_run_side_effect", "ck_mk_sandbox_run_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -1220,6 +1396,7 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
@@ -1269,6 +1446,7 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
@@ -1435,6 +1613,9 @@ class MigrationBaselineContractTest {
         "(?is)CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)\\s*\\((.*?)\\);");
     private static final Pattern INDEX_PATTERN = Pattern.compile(
         "(?i)CREATE\\s+(?:UNIQUE\\s+)?INDEX(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
+    private static final Pattern RENAME_COLUMN_PATTERN = Pattern.compile(
+        "(?i)ALTER\\s+TABLE\\s+([a-z0-9_]+)\\s+RENAME\\s+COLUMN\\s+"
+            + "([a-z0-9_]+)\\s+TO\\s+([a-z0-9_]+)");
     // 只匹配独立的 CONSTRAINT 关键字声明：前置 (?<![a-z0-9_]) 排除把列名后缀（如 value_constraint / temporal_constraint）误当约束名；
     // (?<!DROP\s) 排除 DROP CONSTRAINT 回退语句。
     private static final Pattern CONSTRAINT_PATTERN =
@@ -1992,6 +2173,20 @@ class MigrationBaselineContractTest {
         }
 
         assertThat(diffs).as("五方言表/列一致性差异清单").isEmpty();
+    }
+
+    @Test
+    void tableColumnSnapshotAppliesForwardColumnRenames() {
+        String ddl = """
+            CREATE TABLE mk_example (
+                id BIGINT PRIMARY KEY,
+                mode VARCHAR(32) NOT NULL
+            );
+            ALTER TABLE mk_example RENAME COLUMN mode TO run_mode;
+            """;
+
+        assertThat(tableColumns(ddl).get("mk_example"))
+            .containsExactlyInAnyOrder("id", "run_mode");
     }
 
     @Test
@@ -3314,6 +3509,19 @@ class MigrationBaselineContractTest {
     private Map<String, Set<String>> tableColumns(String ddl) {
         Map<String, Set<String>> columns = new LinkedHashMap<>();
         tableBlocks(ddl).forEach((table, block) -> columns.put(table, columnNames(block)));
+        var renameMatcher = RENAME_COLUMN_PATTERN.matcher(ddl);
+        while (renameMatcher.find()) {
+            String table = renameMatcher.group(1).toLowerCase(Locale.ROOT);
+            String oldColumn = renameMatcher.group(2).toLowerCase(Locale.ROOT);
+            String newColumn = renameMatcher.group(3).toLowerCase(Locale.ROOT);
+            Set<String> current = columns.get(table);
+            if (current != null && current.contains(oldColumn)) {
+                LinkedHashSet<String> renamed = new LinkedHashSet<>(current);
+                renamed.remove(oldColumn);
+                renamed.add(newColumn);
+                columns.put(table, renamed);
+            }
+        }
         return columns;
     }
 

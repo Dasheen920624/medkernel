@@ -14,6 +14,7 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.ProfessionalAssetTemplate;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
 import com.medkernel.engine.factory.TemplateSection;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceFragment;
@@ -56,10 +57,14 @@ public class SourceCandidateGenerator {
      */
     public KnowledgeAssetEnvelope generate(String tenantId, SourceDocument document, SourceVersion version,
                                            List<SourceFragment> fragments, VersionedAssetType assetType,
-                                           String assetIdentity) {
-        ProfessionalAssetTemplate template = templateRegistry.findByAssetTypeAndDomain(assetType, null)
+                                           KnowledgeDomain knowledgeDomain, String assetIdentity) {
+        if (assetType == VersionedAssetType.KNOWLEDGE && knowledgeDomain == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "生成 KNOWLEDGE 候选必须显式提供知识领域");
+        }
+        KnowledgeDomain templateDomain = assetType == VersionedAssetType.KNOWLEDGE ? knowledgeDomain : null;
+        ProfessionalAssetTemplate template = templateRegistry.findByAssetTypeAndDomain(assetType, templateDomain)
             .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST,
-                "无结构模板，不生成候选：assetType=" + assetType));
+                "无结构模板，不生成候选：assetType=" + assetType + "，domain=" + templateDomain));
 
         String payload = buildPayload(template, fragments);
         String contentHash = Sha256ContentHash.sha256(payload, "候选内容不能为空");
@@ -80,6 +85,9 @@ public class SourceCandidateGenerator {
     /** 组确定性 payload：模板章节留白 + 来源锚点摘要（{@link LinkedHashMap} 保序，便于真实 hash 复算）。 */
     private String buildPayload(ProfessionalAssetTemplate template, List<SourceFragment> fragments) {
         Map<String, Object> root = new LinkedHashMap<>();
+        root.put("generationMode", "B0_TEMPLATE");
+        root.put("medicalContentStatus", "PENDING_AUTHORING");
+        root.put("generatedByModel", false);
         root.put("template", template.professionCode());
         Map<String, Object> sections = new LinkedHashMap<>();
         for (TemplateSection section : template.sections()) {
@@ -91,6 +99,7 @@ public class SourceCandidateGenerator {
             Map<String, Object> ref = new LinkedHashMap<>();
             ref.put("anchorPath", fragment.anchorPath());
             ref.put("excerpt", fragment.textExcerpt());
+            ref.put("contentHash", fragment.contentHash());
             evidence.add(ref);
         }
         root.put("sourceEvidence", evidence);

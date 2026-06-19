@@ -92,7 +92,7 @@ class MedicalRegressionRepositoryTest {
     void evalRunFoundByProviderVersionCapabilityAndStatus() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         runRepo.save(new ModelEvalRun(null, "tenant-1", "claude-prod", "claude-opus-4-8",
-            "rule.draft", "prompt:v1", "tool:v1",
+            "rule.draft", "prompt:v1", "tool:v1", "release-current",
             10, 10, 0, null, null, "N", "N", "N", "PASSED", "[]",
             "逐例证据已核查并确认可放行。", "quality-001", now, now, "system", now, "system"));
 
@@ -117,7 +117,7 @@ class MedicalRegressionRepositoryTest {
         Instant createdAt = Instant.parse("2026-06-14T00:00:00Z");
         ModelEvalRun pending = runRepo.save(new ModelEvalRun(
             null, "tenant-1", "ollama-local", "qwen2.5:0.5b",
-            "rule.draft", "prompt:v1", "tool:v1",
+            "rule.draft", "prompt:v1", "tool:v1", "release-current",
             3, 3, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "{}",
             null, null, null, createdAt, "author", createdAt, "author"));
         Instant firstSignedAt = Instant.parse("2026-06-14T00:01:00Z");
@@ -146,7 +146,7 @@ class MedicalRegressionRepositoryTest {
         Instant now = Instant.parse("2026-06-18T00:00:00Z");
         ModelEvalRun run = runRepo.save(new ModelEvalRun(
             null, "tenant-1", "mimo-external", "mimo-v2.5",
-            "rule.draft", "prompt:v2", "tool:v3",
+            "rule.draft", "prompt:v2", "tool:v3", "release-current",
             1, 1, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "{}",
             null, null, null, now, "quality-001", now, "quality-001"));
         evidenceRepo.save(new ModelEvalCaseEvidence(

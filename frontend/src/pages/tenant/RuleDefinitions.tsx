@@ -716,6 +716,7 @@ export default function RuleDefinitions() {
   );
   const canWriteRule = permissionCodes.has("rule.write");
   const canPublishRule = permissionCodes.has("rule.publish");
+  const canReadPackages = permissionCodes.has("package.read");
   const canSignRule =
     (canWriteRule || canPublishRule || permissionCodes.has("evaluation.publish")) &&
     [
@@ -827,12 +828,15 @@ export default function RuleDefinitions() {
     level: "DEPARTMENT",
     status: "ACTIVE",
   });
-  const rulePackagesQuery = usePackages({
-    page: 1,
-    size: RULE_PACKAGE_REFERENCE_PAGE_SIZE,
-    assetType: "RULE",
-    keyword: rulePackageSearch || undefined,
-  });
+  const rulePackagesQuery = usePackages(
+    {
+      page: 1,
+      size: RULE_PACKAGE_REFERENCE_PAGE_SIZE,
+      assetType: "RULE",
+      keyword: rulePackageSearch || undefined,
+    },
+    { enabled: canReadPackages },
+  );
   const packageVersionOptions = useMemo(
     () =>
       (rulePackagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({

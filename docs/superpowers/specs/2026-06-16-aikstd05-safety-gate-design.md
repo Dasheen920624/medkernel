@@ -14,7 +14,7 @@
 | 门禁项 | 既有承载 | 结论 |
 |---|---|---|
 | 来源真实性/锚点/可信级/格式/审核要素 | [AIK-STD-01](../../cards/wave2/AIK-STD-01.md) `KnowledgeAssetSchemaValidator` + `SourceReferenceResolver` | 复用/拆为逐项门禁 |
-| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | 已接 ACTIVE 目录 readiness；逐条命中以候选 payload 具备结构化临床逻辑为前提，缺逻辑诚实阻断 |
+| 红线不冲突/剂量边界/高危近似 | [OPT-04](../../cards/D3/OPT-04.md) `engine.safety.ClinicalRedlineService`/`ClinicalRedlineMatcher`（DDI/危急值/剂量/抗菌/禁忌类目） | 已接 ACTIVE 目录 readiness；逐条命中以候选 payload 具备结构化临床逻辑为前提。严格封闭、无医学逻辑的 B0 待编著结构候选允许先进入人工审核，解除基础知识与红线目录的启动环依赖；其他缺目录或缺逻辑场景诚实阻断 |
 | 冲突仲裁/可信级仲裁 | [OPT-07](../../cards/D2/OPT-07.md) 来源 A–E 可信级 + 现行版本作用域 | 已接低阶覆盖高阶现行版本阻断；AIK-STD-10/09 已承接分流、替换与回滚链路 |
 | 去重 | [AIK-STD-10](../../cards/wave2/AIK-STD-10.md)（8 态） | 已接生成期分流，重复候选落 `DUPLICATE/SKIP_DUPLICATE` |
 | 门禁结果存储 | **无**（V108 是发布期质量闸摘要，非候选提审前逐项结果） | **新建 `mk_aik_gate_result`（V136）** |
@@ -83,7 +83,7 @@ GateOutcome(passed = 全项通过, items)
 | 码 | 门禁 | 判定 |
 |---|---|---|
 | `SOURCE_LICENSE` | 来源许可 | `sourceRef` 必须可解析到受控来源，且来源登记 `license` 非空 |
-| `CLINICAL_REDLINE` | 红线 readiness | OPT-04 五类必需红线均有 ACTIVE 配置；空库/缺类目拒收 |
+| `CLINICAL_REDLINE` | 红线 readiness | 包含医学逻辑的候选要求 OPT-04 五类必需红线均有 ACTIVE 配置；空库/缺类目拒收。仅 `SourceCandidateGenerator` 产出的严格 B0 待编著结构候选可在目录未配置时进入人工编著审核 |
 | `AUTHORITY_CONFLICT` | 权威冲突第一刀 | 指向已有身份时，低阶来源候选不得覆盖高阶来源现行版本；裸租户 ID 归一为 `tenant:<id>` 查作用域 |
 
 ## 8. 测试（TDD 红绿）

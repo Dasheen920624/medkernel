@@ -9,7 +9,7 @@
 - 前端路由：45 项。
 - 后端菜单：35 项。
 - 页面与页内组件：50 项。
-- 后端控制器：91 项。
+- 后端控制器：93 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
@@ -17,8 +17,8 @@
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 86 |
-| MERGE | 48 |
+| KEEP | 87 |
+| MERGE | 49 |
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
@@ -485,6 +485,8 @@
 | `DocumentParseController` | POST /api/v1/engine/knowledge/documents:parse<br>POST /api/v1/engine/knowledge/documents:upload-parse<br>POST /api/v1/engine/knowledge/documents/parse-jobs/{jobCode}:reparse<br>GET /api/v1/engine/knowledge/documents/parse-jobs/{jobCode}<br>GET /api/v1/engine/knowledge/documents/parse-jobs<br>GET /api/v1/engine/knowledge/materials/{materialId} | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@KnowledgeProductionController decision=KEEP -->
 | `KnowledgeProductionController` | POST /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs<br>GET /api/v1/engine/knowledge-production/jobs/{jobCode}<br>POST /api/v1/engine/knowledge-production/jobs/{jobCode}/candidates<br>GET /api/v1/engine/knowledge-production/jobs/{jobCode}/candidates<br>POST /api/v1/engine/knowledge-production/candidates/provenance<br>GET /api/v1/engine/knowledge-production/candidates/coexistence<br>GET /api/v1/engine/knowledge-production/readiness<br>其余 9 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@KnowledgeInitializationController decision=MERGE -->
+| `KnowledgeInitializationController` | GET /api/v1/engine/knowledge-production/initialization/catalog<br>POST /api/v1/engine/knowledge-production/initialization/source-versions/{sourceVersionId}/approval<br>POST /api/v1/engine/knowledge-production/initialization/batches/preview<br>POST /api/v1/engine/knowledge-production/initialization/batches<br>GET /api/v1/engine/knowledge-production/initialization/batches<br>GET /api/v1/engine/knowledge-production/initialization/batches/{batchCode}<br>POST /api/v1/engine/knowledge-production/initialization/batches/{batchCode}/approve-low<br>POST /api/v1/engine/knowledge-production/initialization/batches/{batchCode}/refresh | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@LargeListController decision=MERGE -->
 | `LargeListController` | GET /api/v1/large-lists/audit-events/list<br>POST /api/v1/large-lists/exports<br>GET /api/v1/large-lists/exports/{id}<br>GET /api/v1/large-lists/exports/{id}/download | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ModelEnhancementMatrixController decision=KEEP -->
@@ -532,7 +534,9 @@
 <!-- capability:controller:controller@SafetyWithdrawalController decision=MERGE -->
 | `SafetyWithdrawalController` | POST /api/v1/engine/safety/withdrawals<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact<br>GET /api/v1/engine/safety/withdrawals/{withdrawalId}/impact/export | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@SandboxScenarioController decision=KEEP -->
-| `SandboxScenarioController` | GET /api/v1/engine/sandbox/scenarios<br>POST /api/v1/engine/sandbox/scenarios/{scenarioId}/run | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `SandboxScenarioController` | GET /api/v1/engine/sandbox/scenarios<br>GET /api/v1/engine/sandbox/runtime-binding<br>POST /api/v1/engine/sandbox/runtime-binding<br>POST /api/v1/engine/sandbox/scenarios/{scenarioId}/run | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@SandboxReplayController decision=KEEP -->
+| `SandboxReplayController` | POST /api/v1/engine/sandbox/replay-cases<br>GET /api/v1/engine/sandbox/replay-cases/{replayCaseId}<br>POST /api/v1/engine/sandbox/replay-cases/{replayCaseId}/revoke | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@MenuPermissionController decision=KEEP -->
 | `MenuPermissionController` | GET /api/v1/security/menu-permissions/catalog<br>GET /api/v1/security/menu-permissions/visible<br>PATCH /api/v1/security/menu-permissions/overrides | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@SecurityMeController decision=KEEP -->

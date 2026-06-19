@@ -1,0 +1,486 @@
+{
+  "schemaVersion": "1.0.0",
+  "registryCode": "MEDKERNEL-FOUNDATION-AUTHORITY-REGISTRY",
+  "releaseVersion": "1.0.0",
+  "batchCode": "MK-FND-B0-1.0.0",
+  "idempotencyKey": "mk-foundation-b0-1.0.0",
+  "templateVersion": "B0_TEMPLATE/1.0.0",
+  "publishedAt": "2026-06-19T00:00:00Z",
+  "checkedAt": "2026-06-19",
+  "statement": "本清单只登记权威来源、许可、版本通道和 B0 结构责任，不内置受许可限制的术语全集，不生成医学结论，不代表基础知识已经完成发布。",
+  "coverage": [
+    "SOURCE_LICENSE_MANIFEST",
+    "DATA_ELEMENT_CATALOG",
+    "TERMINOLOGY_CODE_SYSTEM",
+    "VALUE_SET_SYSTEM_ACTION_DICTIONARY",
+    "UNIT_DIMENSION_ALIAS_CONVERSION",
+    "MASTER_DATA",
+    "INTEROPERABILITY_MAPPING_PROFILE",
+    "SEMANTIC_RELATION_DEPRECATION_REDIRECT",
+    "EVIDENCE_GRADE_AUTHORITY",
+    "DEPENDENCY_COMPATIBILITY_IMPACT",
+    "AUTHORITATIVE_SOURCE_SCOPE",
+    "GOLDEN_REGRESSION_BOM_COVERAGE"
+  ],
+  "entries": [
+    {
+      "catalogCode": "KNOWGEN-29",
+      "canonicalId": "mk.foundation.authority-source-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "FIELD_CATALOG",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "权威来源、许可与适用范围目录",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [],
+      "sourcePolicy": "仅登记官方原始来源、发行通道、访问条件和许可；受限数据本体须另行授权导入并逐文件验 hash。",
+      "reviewPolicy": "MEDIUM 逐条审核；核对发布机构、官方 URL、版本通道、许可、适用范围和检索日期。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-29:source-license-manifest",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "知识生产来源审批、初始化发行、依赖兼容核查、审计导出",
+      "rollbackStrategy": "撤销未批准批次；已完成版本只新增更正版本，不覆盖历史来源记录。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-29",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部受控来源注册表；链接指向官方原始来源，但本条不是官方数据本体。",
+        "title": "MedKernel 权威来源、许可与适用范围注册表",
+        "publisher": "MedKernel",
+        "license": "仅来源元数据；各数据本体继续遵循原发布方许可，未获授权不得复制受限全集。",
+        "language": "zh-CN",
+        "versionNo": "1.0.1",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-29",
+        "anchorPath": "registry/KNOWGEN-29",
+        "anchorLabel": "权威来源、许可与适用范围",
+        "textExcerpt": "B0 来源注册表：记录 WHO、国家卫生健康委、HL7、SNOMED International、LOINC 与 UCUM 等官方来源的版本通道、许可和访问条件；不含受限术语或医学正文。"
+      },
+      "officialReferences": [
+        {
+          "title": "WHO Classification of Diseases",
+          "publisher": "World Health Organization",
+          "url": "https://www.who.int/standards/classifications/classification-of-diseases",
+          "release": "ICD-11 官方发行与许可通道",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "按 WHO 官方许可和使用条款获取，不从本清单复制分类全集。"
+        },
+        {
+          "title": "卫生健康标准目录",
+          "publisher": "中华人民共和国国家卫生健康委员会",
+          "url": "https://www.nhc.gov.cn/wjw/s9497/wsbz.shtml",
+          "release": "卫生健康标准官方目录",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "以国家卫生健康委正式发布页和附件为准。"
+        },
+        {
+          "title": "FHIR Release 4",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/",
+          "release": "4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "按 HL7 官方版权与许可使用。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-01",
+      "canonicalId": "mk.foundation.terminology-source-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "TERMINOLOGY",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "标准术语来源注册表",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": ["mk.foundation.authority-source-registry"],
+      "sourcePolicy": "术语全集必须来自官方发行物并记录版本、许可、语言包、增量与完整文件 hash；当前仅建立来源注册骨架。",
+      "reviewPolicy": "MEDIUM 逐条审核；受许可限制的 SNOMED CT、LOINC 等不得由模型补齐或从非官方镜像导入。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-01:terminology-channel",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "术语服务、编码映射、知识检索、规则和数据元引用",
+      "rollbackStrategy": "保留旧术语版本和映射；新版本失败时停止激活并回退运行绑定，不删除历史标识。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-01",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部术语来源通道注册表，原始术语权威性由各官方发布方承担。",
+        "title": "MedKernel 标准术语来源注册表",
+        "publisher": "MedKernel",
+        "license": "仅来源和许可元数据；术语内容须按 WHO、SNOMED International、Regenstrief Institute 等许可获取。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-01",
+        "anchorPath": "registry/KNOWGEN-01",
+        "anchorLabel": "标准术语官方发行通道",
+        "textExcerpt": "B0 术语来源骨架：登记 ICD-11、SNOMED CT、LOINC 的官方发行和许可通道；未导入任何完整编码、同义词或临床映射。"
+      },
+      "officialReferences": [
+        {
+          "title": "ICD-11 for Mortality and Morbidity Statistics",
+          "publisher": "World Health Organization",
+          "url": "https://icd.who.int/",
+          "release": "官方在线发行通道",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "按 WHO 官方许可、API 与下载条款使用。"
+        },
+        {
+          "title": "SNOMED CT Releases",
+          "publisher": "SNOMED International",
+          "url": "https://www.snomed.org/releases",
+          "release": "International Edition 官方月度发行通道",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "必须具备适用地区的 SNOMED CT 许可并从官方渠道下载。"
+        },
+        {
+          "title": "LOINC Release Notes",
+          "publisher": "Regenstrief Institute",
+          "url": "https://loinc.org/kb/loinc-release-notes/",
+          "release": "2.82",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "从 LOINC 官方账户下载并遵循免费许可条款。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-26",
+      "canonicalId": "mk.foundation.data-element-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "FIELD_CATALOG",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "医疗数据元与上下文字段目录",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [
+        "mk.foundation.authority-source-registry",
+        "mk.foundation.terminology-source-registry"
+      ],
+      "sourcePolicy": "数据元标识、定义、数据类型、值域和上下文必须来自正式标准或经批准的机构扩展；当前仅建字段责任骨架。",
+      "reviewPolicy": "MEDIUM 逐条审核；国家标准与 FHIR 映射分别保留版本，不把转换推断写成权威定义。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-26:data-element-contract",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "上下文快照、规则输入、FHIR 适配、审计和数据质量",
+      "rollbackStrategy": "数据元 canonical ID 不变；兼容修订升 patch/minor，破坏性变化升 major 并提供迁移影响。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-26",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部数据元来源注册表，正式定义以国家卫生健康委标准和 HL7 规范为准。",
+        "title": "MedKernel 医疗数据元与上下文字段来源注册表",
+        "publisher": "MedKernel",
+        "license": "仅元数据骨架；正式标准内容按国家卫生健康委和 HL7 发布条款使用。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-26",
+        "anchorPath": "registry/KNOWGEN-26",
+        "anchorLabel": "医疗数据元与上下文字段",
+        "textExcerpt": "B0 数据元骨架：登记 WS/T 363.1—17—2023、WS/T 364.1—17—2023 与 HL7 FHIR R4 的版本和映射责任；未生成字段定义和值域成员。"
+      },
+      "officialReferences": [
+        {
+          "title": "关于发布《卫生健康信息数据元目录》等34项推荐性卫生行业标准的通告",
+          "publisher": "中华人民共和国国家卫生健康委员会",
+          "url": "https://www.nhc.gov.cn/fzs/c100048/202310/16a32e2b1c0b42e99480b945ef10c0dc.shtml",
+          "release": "WS/T 363.1—17—2023 与 WS/T 364.1—17—2023",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "以国家卫生健康委正式通告及附件为准。"
+        },
+        {
+          "title": "FHIR Release 4",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/",
+          "release": "4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "映射须锁定具体 FHIR 版本和 profile，不以当前网页自动漂移。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-27",
+      "canonicalId": "mk.foundation.code-value-unit-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "VALUE_SET",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "编码系统、值集、单位与系统字典来源注册表",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [
+        "mk.foundation.authority-source-registry",
+        "mk.foundation.terminology-source-registry",
+        "mk.foundation.data-element-registry"
+      ],
+      "sourcePolicy": "值集成员、单位、量纲、别名和换算必须来自官方发行或经批准的机构扩展；模型不得生成基础常量。",
+      "reviewPolicy": "MEDIUM 逐条审核；单位换算须做维度一致性和精确系数测试，系统状态字典须有唯一归属。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-27:value-unit-contract",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "值集校验、规则比较、剂量和检验单位归一、接口编码验证",
+      "rollbackStrategy": "禁覆盖已发布成员；新增版本保留废止、替代和重定向，失败时回退绑定。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-27",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部编码和值集来源注册表，单位语义以 UCUM、数据元值域以正式标准为准。",
+        "title": "MedKernel 编码系统、值集、单位与系统字典来源注册表",
+        "publisher": "MedKernel",
+        "license": "仅元数据骨架；标准内容继续遵循各官方发布方条款。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-27",
+        "anchorPath": "registry/KNOWGEN-27",
+        "anchorLabel": "编码、值集与单位",
+        "textExcerpt": "B0 编码和值集骨架：登记卫生信息数据元值域、HL7 FHIR R4 术语模块和 UCUM 官方规范；未生成值集成员、单位换算或医学阈值。"
+      },
+      "officialReferences": [
+        {
+          "title": "卫生健康信息数据元值域代码",
+          "publisher": "中华人民共和国国家卫生健康委员会",
+          "url": "https://www.nhc.gov.cn/fzs/c100048/202310/16a32e2b1c0b42e99480b945ef10c0dc.shtml",
+          "release": "WS/T 364.1—17—2023",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "以正式通告和附件为准，导入时逐文件计算 hash。"
+        },
+        {
+          "title": "Unified Code for Units of Measure",
+          "publisher": "UCUM Organization",
+          "url": "https://ucum.org/",
+          "release": "官方规范通道",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "按 UCUM 官方规范和许可使用；换算实现须单独验证。"
+        },
+        {
+          "title": "FHIR Terminology Module",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/terminology-module.html",
+          "release": "FHIR R4 4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "CodeSystem、ValueSet 和 ConceptMap 均锁定 R4 版本。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-28",
+      "canonicalId": "mk.foundation.master-data-interoperability-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "FIELD_CATALOG",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "医疗主数据与互操作基线",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [
+        "mk.foundation.authority-source-registry",
+        "mk.foundation.terminology-source-registry",
+        "mk.foundation.data-element-registry",
+        "mk.foundation.code-value-unit-registry"
+      ],
+      "sourcePolicy": "机构、科室、专科、角色、服务项目及互操作 profile 必须明确权威系统、版本和机构扩展边界。",
+      "reviewPolicy": "MEDIUM 逐条审核；平台标准与机构主数据分层，FHIR profile、扩展和映射均保留版本。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-28:masterdata-interoperability",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "权限、组织树、知识适用域、FHIR/CDS Hooks 适配、机构覆盖",
+      "rollbackStrategy": "平台 canonical 与机构映射分离；映射失败可停用机构覆盖而不修改平台主源。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-28",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部主数据和互操作来源注册表，国家标准与 HL7 规范提供外部基线。",
+        "title": "MedKernel 医疗主数据与互操作来源注册表",
+        "publisher": "MedKernel",
+        "license": "仅元数据骨架；机构主数据由机构权威系统提供，外部规范按原许可使用。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-28",
+        "anchorPath": "registry/KNOWGEN-28",
+        "anchorLabel": "主数据与互操作基线",
+        "textExcerpt": "B0 主数据与互操作骨架：登记国家卫生健康信息标准目录和 HL7 FHIR R4；机构、科室、角色、服务项目及本地映射仍待权威系统导入。"
+      },
+      "officialReferences": [
+        {
+          "title": "卫生健康标准目录",
+          "publisher": "中华人民共和国国家卫生健康委员会",
+          "url": "https://www.nhc.gov.cn/wjw/s9497/wsbz.shtml",
+          "release": "官方标准目录",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "按正式标准编号、发布日期和实施日期锁定版本。"
+        },
+        {
+          "title": "FHIR Release 4",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/",
+          "release": "4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "互操作实现锁定 R4 4.0.1，机构 profile 另行版本化。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-25",
+      "canonicalId": "mk.foundation.evidence-grade-registry",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "VALUE_SET",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "临床证据分级与来源可信分级注册表",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": ["mk.foundation.authority-source-registry"],
+      "sourcePolicy": "证据质量、推荐强度和来源 A—E 分级分别记录定义、来源和适用范围，不互相冒充。",
+      "reviewPolicy": "MEDIUM 逐条审核；GRADE 定义引用官方工作组资料，MedKernel 来源 A—E 为内部治理维度。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-25:evidence-grade",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "来源仲裁、推荐展示、审核路由、冲突解释和审计",
+      "rollbackStrategy": "分级定义只以新版本修订；历史资产保留原分级及当时依据。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-25",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部证据治理注册表；GRADE 框架以 GRADE Working Group 官方资料为外部依据。",
+        "title": "MedKernel 临床证据与来源可信分级注册表",
+        "publisher": "MedKernel",
+        "license": "仅分级元数据和来源指针；外部框架内容按原发布方条款引用。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-25",
+        "anchorPath": "registry/KNOWGEN-25",
+        "anchorLabel": "证据与来源分级",
+        "textExcerpt": "B0 证据分级骨架：登记 GRADE 官方框架和 MedKernel 来源 A—E 治理维度；未对任何具体医学结论自动赋级。"
+      },
+      "officialReferences": [
+        {
+          "title": "GRADE Working Group",
+          "publisher": "GRADE Working Group",
+          "url": "https://www.gradeworkinggroup.org/",
+          "release": "官方方法学资料通道",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "具体证据评级须由受训人员依据研究证据完成，不能由本清单自动生成。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-15",
+      "canonicalId": "mk.foundation.release-acceptance-bom",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "FIELD_CATALOG",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "首发知识包总验收与发行 BOM",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [
+        "mk.foundation.authority-source-registry",
+        "mk.foundation.terminology-source-registry",
+        "mk.foundation.data-element-registry",
+        "mk.foundation.code-value-unit-registry",
+        "mk.foundation.master-data-interoperability-registry",
+        "mk.foundation.evidence-grade-registry",
+        "mk.foundation.golden-regression-compatibility"
+      ],
+      "sourcePolicy": "发行 BOM 必须逐项绑定来源版本、候选 hash、审核状态、兼容报告和回滚点；当前仅建验收字段骨架。",
+      "reviewPolicy": "MEDIUM 逐条审核；所有基础条目实际完成并通过覆盖矩阵前不得把本批次标记为 COMPLETE。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-15:release-bom",
+      "ownerRole": "platform-knowledge-governor",
+      "runtimeConsumers": "初始化发行、上线门禁、审计导出、回滚和同步",
+      "rollbackStrategy": "未完成批次直接阻断；完成发行不可删除，只能新增替代发行并保留 BOM。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-15",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部发行治理规范，外部互操作一致性参考 HL7 FHIR conformance 机制。",
+        "title": "MedKernel 首发知识包总验收与发行 BOM 骨架",
+        "publisher": "MedKernel",
+        "license": "MedKernel 内部治理元数据；不包含第三方标准正文。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-15",
+        "anchorPath": "registry/KNOWGEN-15",
+        "anchorLabel": "发行 BOM 与总验收",
+        "textExcerpt": "B0 发行验收骨架：定义来源、候选、审核、覆盖、兼容、回滚和同步证据字段；本候选本身不表示基础知识已完成。"
+      },
+      "officialReferences": [
+        {
+          "title": "FHIR Conformance Module",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/conformance-module.html",
+          "release": "FHIR R4 4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "只参考版本化 conformance 资源方法；MedKernel 发行门禁仍由自身权威规格定义。"
+        }
+      ]
+    },
+    {
+      "catalogCode": "KNOWGEN-32",
+      "canonicalId": "mk.foundation.golden-regression-compatibility",
+      "namespace": "urn:medkernel:foundation",
+      "assetVersion": "1.0.0",
+      "assetType": "FIELD_CATALOG",
+      "domain": "GENERAL",
+      "identityDomain": "OTHER",
+      "subject": "知识金标回归与发行兼容注册表",
+      "medicalContentStatus": "PENDING_AUTHORING",
+      "generatedByModel": false,
+      "dependencyCanonicalIds": [
+        "mk.foundation.authority-source-registry",
+        "mk.foundation.terminology-source-registry",
+        "mk.foundation.data-element-registry",
+        "mk.foundation.code-value-unit-registry",
+        "mk.foundation.master-data-interoperability-registry",
+        "mk.foundation.evidence-grade-registry"
+      ],
+      "sourcePolicy": "金标题目必须来自真实已审知识或确定性接口契约，区分医学评测与 B0 结构契约；当前只建立兼容字段和最小结构基准。",
+      "reviewPolicy": "MEDIUM 逐条审核；B0 结构基准不得冒充医学准确性评测，医学金标仍需真人专家逐例审核。",
+      "testEvidenceRef": "foundation-registry:KNOWGEN-32:golden-regression",
+      "ownerRole": "quality-governor",
+      "runtimeConsumers": "影子评测、兼容检查、灰度门禁、回归和发布复核",
+      "rollbackStrategy": "基准集版本与制品绑定；制品、Provider、模型或来源变化后旧证据失效并重新生成。",
+      "source": {
+        "sourceCode": "MK-FND-KNOWGEN-32",
+        "sourceType": "STANDARD",
+        "authorityLevel": "D_HOSPITAL",
+        "authorityBasis": "MedKernel 内部回归与兼容治理规范，外部字段兼容参考国家标准和 HL7 FHIR 固定版本。",
+        "title": "MedKernel 知识金标回归与发行兼容注册表",
+        "publisher": "MedKernel",
+        "license": "MedKernel 内部治理元数据；不包含患者数据或第三方标准全集。",
+        "language": "zh-CN",
+        "versionNo": "1.0.0",
+        "publishedAt": "2026-06-19T00:00:00Z",
+        "fileUri": "file:///zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json#KNOWGEN-32",
+        "anchorPath": "registry/KNOWGEN-32",
+        "anchorLabel": "金标回归与兼容",
+        "textExcerpt": "B0 回归兼容骨架：只验证候选仍明确 PENDING_AUTHORING、非模型生成且可追溯；不评价医学内容正确性，不替代真人医学签署。"
+      },
+      "officialReferences": [
+        {
+          "title": "FHIR Release 4",
+          "publisher": "HL7 International",
+          "url": "https://hl7.org/fhir/R4/",
+          "release": "4.0.1",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "兼容测试锁定 R4 4.0.1，后续版本另建基准。"
+        },
+        {
+          "title": "卫生健康标准目录",
+          "publisher": "中华人民共和国国家卫生健康委员会",
+          "url": "https://www.nhc.gov.cn/wjw/s9497/wsbz.shtml",
+          "release": "官方标准目录",
+          "checkedAt": "2026-06-19",
+          "accessPolicy": "标准修订后必须建立新基准并保留旧版证据。"
+        }
+      ]
+    }
+  ]
+}

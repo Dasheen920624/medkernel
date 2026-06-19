@@ -18,6 +18,7 @@ public class RuntimeProperties {
     private String deploymentMode = "local";
     private String databaseDialect = "h2";
     private String migrationLocation = "classpath:db/migration/h2";
+    private String releaseFingerprint = "development";
     private Map<String, FeatureFlag> featureFlags = new LinkedHashMap<>();
     private Backup backup = new Backup();
     private DomesticProfile domesticProfile = new DomesticProfile();
@@ -52,6 +53,14 @@ public class RuntimeProperties {
 
     public void setMigrationLocation(String migrationLocation) {
         this.migrationLocation = migrationLocation;
+    }
+
+    public String getReleaseFingerprint() {
+        return releaseFingerprint;
+    }
+
+    public void setReleaseFingerprint(String releaseFingerprint) {
+        this.releaseFingerprint = releaseFingerprint;
     }
 
     public Map<String, FeatureFlag> getFeatureFlags() {

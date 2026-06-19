@@ -2,10 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  selectSeedRules,
-  validateScenarioRules,
-} from "./sandbox/scenario-rules.mjs";
+import { validateScenarioRules } from "./sandbox/scenario-rules.mjs";
 
 const AUDIT_REPORT =
   "docs/audit/2026-06-15-B0第一阶段全功能核查与完美化改造方案.md";
@@ -5163,24 +5160,6 @@ export async function scanRepository(root = process.cwd()) {
     try {
       const manifest = JSON.parse(sandboxRules);
       validateScenarioRules(manifest);
-      const seedSelection = selectSeedRules(manifest);
-      const approvedCodes = seedSelection.runnable.map((item) => item.ruleCode);
-      const expectedApprovedCodes = ["SBX.LAB.CRITICAL.K"];
-      if (
-        approvedCodes.length !== expectedApprovedCodes.length ||
-        approvedCodes.some(
-          (code, index) => code !== expectedApprovedCodes[index],
-        ) ||
-        seedSelection.blocked.length !== 9
-      ) {
-        violations.push({
-          file: SANDBOX_RULES,
-          line: lineOf(sandboxRules, "APPROVED_FOR_SANDBOX"),
-          ruleId: "b0.sandbox.approved-scope-drift",
-          message:
-            "B0 当前只允许开放高钾危急值金样，其余 9 个沙盘场景必须保持临床评审阻断。",
-        });
-      }
     } catch (error) {
       violations.push({
         file: SANDBOX_RULES,

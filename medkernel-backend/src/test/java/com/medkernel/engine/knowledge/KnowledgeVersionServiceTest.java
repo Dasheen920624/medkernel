@@ -12,6 +12,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.PageRequest;
@@ -29,6 +32,7 @@ import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.security.RoleCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -108,6 +112,7 @@ class KnowledgeVersionServiceTest {
 
     @AfterEach
     void clear() {
+        SecurityContextHolder.clearContext();
         RequestContext.clear();
     }
 
@@ -987,6 +992,7 @@ class KnowledgeVersionServiceTest {
             CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
             CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
         when(versionRepo.findActiveByEffectiveScope(
@@ -1014,6 +1020,7 @@ class KnowledgeVersionServiceTest {
             CandidateClassificationType.CONFLICT,
             CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
 
         KnowledgeCandidateReviewRequest rejectRequest = new KnowledgeCandidateReviewRequest(
@@ -1048,6 +1055,7 @@ class KnowledgeVersionServiceTest {
             CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
             CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
 
         KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
@@ -1086,6 +1094,7 @@ class KnowledgeVersionServiceTest {
             CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
             CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
 
         KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
@@ -1116,6 +1125,7 @@ class KnowledgeVersionServiceTest {
             CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
             CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
 
         KnowledgeCandidateReviewRequest blankReason = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
@@ -1127,6 +1137,163 @@ class KnowledgeVersionServiceTest {
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("退修");
         verify(reviewAssignmentRepo, never()).save(any());
+    }
+
+    @Test
+    void reviewCandidateRejectsOperatorOutsidePendingAssignment() {
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(assignment(
+                101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.CLINICAL_GOVERNOR);
+
+        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("未命中待审核分派");
+
+        verify(versionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void highRiskFirstSignatureStaysPendingWithoutActivation() {
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(
+                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null),
+                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("PENDING_DUAL_SIGN");
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> assertThat(item.reviewStatus())
+                .isEqualTo(CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW));
+        ArgumentCaptor<ReviewAssignment> saved = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo).save(saved.capture());
+        assertThat(saved.getValue().id()).isEqualTo(101L);
+        assertThat(saved.getValue().reviewStatus()).isEqualTo(CandidateReviewStatus.APPROVED);
+        assertThat(saved.getValue().decidedBy()).isEqualTo("u-99");
+        verify(supersessionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void highRiskRejectsSamePersonCompletingSecondSignature() {
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(
+                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                    CandidateReviewStatus.APPROVED, KnowledgeCandidateReviewDecision.APPROVE, "u-99"),
+                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.MEDICATION_SAFETY_USER);
+
+        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("同一人员不能完成高风险双签");
+
+        verify(reviewAssignmentRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void highRiskActivatesOnlyAfterSecondDistinctAssignedSignature() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(
+                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                    CandidateReviewStatus.APPROVED, KnowledgeCandidateReviewDecision.APPROVE, "reviewer-a"),
+                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.MEDICATION_SAFETY_USER);
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
+        assertThat(response.candidates().items()).singleElement()
+            .satisfies(approved -> assertThat(approved.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE));
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
+    void highRiskReturnTerminatesCandidateAndClosesOtherPendingSeatWithoutForgingSignature() {
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(
+                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null),
+                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
+                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
+        KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            KnowledgeCandidateReviewDecision.RETURN, "补充禁忌来源后重提",
+            VersionPublishEvidence.empty());
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, returnRequest);
+
+        assertThat(response.reasonCode()).isEqualTo("RETURNED");
+        ArgumentCaptor<ReviewAssignment> saved = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo, times(2)).save(saved.capture());
+        assertThat(saved.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(101L);
+            assertThat(item.decision()).isEqualTo(KnowledgeCandidateReviewDecision.RETURN);
+            assertThat(item.decidedBy()).isEqualTo("u-99");
+        });
+        assertThat(saved.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(102L);
+            assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.RETURNED);
+            assertThat(item.decision()).isNull();
+            assertThat(item.decidedBy()).isNull();
+        });
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1471,6 +1638,62 @@ class KnowledgeVersionServiceTest {
             sha256("candidate-" + candidateVersionId), "测试分类依据", "当前 ACTIVE 与候选对照",
             now, "init", now, "init"
         );
+    }
+
+    private void stubPendingAssignment(
+            CandidateClassification classification,
+            KnowledgeAssetVersion candidate,
+            String assignedTo) {
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", classification.identityId()))
+            .thenReturn(Optional.of(identity(classification.identityId(), classification.activeVersionId())));
+        when(versionRepo.findByTenantIdAndId("t-1", classification.candidateVersionId()))
+            .thenReturn(Optional.of(candidate));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc(
+            "t-1", classification.id()))
+            .thenReturn(List.of(assignment(
+                101L,
+                classification,
+                assignedTo,
+                CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
+                null,
+                null)));
+    }
+
+    private ReviewAssignment assignment(
+            Long id,
+            CandidateClassification classification,
+            String assignedTo,
+            CandidateReviewStatus status,
+            KnowledgeCandidateReviewDecision decision,
+            String decidedBy) {
+        Instant now = Instant.now();
+        return new ReviewAssignment(
+            id,
+            classification.tenantId(),
+            classification.orgPath(),
+            classification.id(),
+            classification.identityId(),
+            classification.candidateVersionId(),
+            assignedTo,
+            status,
+            decision,
+            decision == null ? null : "审核意见",
+            decision == null ? null : KnowledgeReviewFeedbackType.ACCEPTED,
+            decision == null ? null : KnowledgeReviewFollowupAction.NONE,
+            decidedBy,
+            decision == null ? null : now,
+            now,
+            "init",
+            now,
+            decidedBy == null ? "init" : decidedBy);
+    }
+
+    private void authenticate(RoleCode role) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "u-99",
+                "N/A",
+                List.of(new SimpleGrantedAuthority(role.authority()))));
     }
 
     private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel) {

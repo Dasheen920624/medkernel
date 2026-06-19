@@ -76,7 +76,7 @@ export default function SandboxDataEntry({ scenario, running, onRun }: SandboxDa
           icon={<PlayCircleOutlined />}
           aria-label={running ? "运行中" : "医生复核并触发 MedKernel"}
           loading={running}
-          disabled={running || scenario.status !== "ready"}
+          disabled={running}
           onClick={() =>
             onRun({
               numericValue,

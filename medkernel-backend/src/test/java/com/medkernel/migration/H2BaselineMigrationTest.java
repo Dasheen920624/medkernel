@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 152;
+    private static final int LATEST_MIGRATION_VERSION = 157;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -110,6 +110,68 @@ class H2BaselineMigrationTest {
               AND IS_NULLABLE = 'NO'
             """, Integer.class);
         assertThat(providerLockVersionColumns).as("模型 provider 乐观锁列").isEqualTo(1);
+
+        Integer sandboxRuntimeTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN ('MK_SANDBOX_RUNTIME_BINDING', 'MK_SANDBOX_RUN')
+            """, Integer.class);
+        assertThat(sandboxRuntimeTables).as("沙盘运行绑定与不可变运行账本").isEqualTo(2);
+
+        Integer sandboxReplayTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN ('MK_SANDBOX_REPLAY_CASE', 'MK_SANDBOX_REPLAY_ASSET_BINDING')
+            """, Integer.class);
+        assertThat(sandboxReplayTables).as("沙盘历史原样重放清单与精确资产绑定").isEqualTo(2);
+
+        Integer knowledgeInitializationTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN (
+                'MK_KNOWLEDGE_SOURCE_VERSION_APPROVAL',
+                'MK_KNOWLEDGE_INITIALIZATION_BATCH',
+                'MK_KNOWLEDGE_INITIALIZATION_ITEM'
+            )
+            """, Integer.class);
+        assertThat(knowledgeInitializationTables).as("知识来源独立批准与初始化发行批次").isEqualTo(3);
+
+        String now = LocalDateTime.now().toString();
+        jdbc.update("""
+            INSERT INTO knowledge_package (
+                package_id, tenant_id, package_code, package_version, name, status,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+            """, "sandbox-package-1", "sandbox-tenant", "SANDBOX.PACKAGE", "1.0.0",
+            "沙盘包一", "tester", "tester");
+        jdbc.update("""
+            INSERT INTO knowledge_package (
+                package_id, tenant_id, package_code, package_version, name, status,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+            """, "sandbox-package-2", "sandbox-tenant", "SANDBOX.PACKAGE", "2.0.0",
+            "沙盘包二", "tester", "tester");
+        int firstSandboxBinding = jdbc.update("""
+            INSERT INTO mk_sandbox_runtime_binding (
+                binding_id, tenant_id, target_org_unit_id, package_owner_tenant_id,
+                package_id, package_code, package_version, status, active_scope_key,
+                activated_at, activated_by, created_at, created_by, updated_at, updated_by, trace_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "binding-h2-1", "sandbox-tenant", "sandbox-hospital", "sandbox-tenant",
+            "sandbox-package-1", "SANDBOX.PACKAGE", "1.0.0", "sandbox-tenant|ACTIVE",
+            now, "tester", now, "tester", now, "tester", "trace-sandbox");
+        assertThat(firstSandboxBinding).isEqualTo(1);
+
+        assertThatThrownBy(() -> jdbc.update("""
+            INSERT INTO mk_sandbox_runtime_binding (
+                binding_id, tenant_id, target_org_unit_id, package_owner_tenant_id,
+                package_id, package_code, package_version, status, active_scope_key,
+                activated_at, activated_by, created_at, created_by, updated_at, updated_by, trace_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "binding-h2-2", "sandbox-tenant", "sandbox-hospital", "sandbox-tenant",
+            "sandbox-package-2", "SANDBOX.PACKAGE", "2.0.0", "sandbox-tenant|ACTIVE",
+            now, "tester", now, "tester", now, "tester", "trace-sandbox"))
+            .as("同一租户不得并存两个 ACTIVE 沙盘绑定")
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         String hash = "a".repeat(64);
         int activeBundleInserted = jdbc.update("""

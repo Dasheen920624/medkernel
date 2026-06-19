@@ -60,6 +60,7 @@ import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.config.SystemConfigUpdateRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.runtime.RuntimeProperties;
 
 /**
  * 正式知识生产放行状态机集成测试。
@@ -127,6 +128,8 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
         AuditRecorder auditRecorder = mock(AuditRecorder.class);
         HighRiskChangeGuard highRiskChangeGuard = mock(HighRiskChangeGuard.class);
         ModelProviderRegistry providerRegistry = mock(ModelProviderRegistry.class);
+        RuntimeProperties runtimeProperties = new RuntimeProperties();
+        runtimeProperties.setReleaseFingerprint("release-current");
         evalService = new ModelEvalService(
             caseRepository,
             evalRunRepository,
@@ -134,7 +137,9 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             mock(MedicalRegressionEvaluator.class),
             providerRegistry,
             auditRecorder,
-            highRiskChangeGuard);
+            highRiskChangeGuard,
+            runtimeProperties,
+            deploymentFormService);
         providerGovernanceService = new ModelProviderGovernanceService(
             providerRepository,
             deploymentFormService,
@@ -367,6 +372,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             CAPABILITY,
             "prompt:release-v1",
             "tool:release-v1",
+            "release-current",
             1,
             1,
             0,

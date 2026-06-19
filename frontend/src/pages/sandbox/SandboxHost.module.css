@@ -70,6 +70,13 @@
   gap: calc(var(--mk-unit) * 16);
 }
 
+.runtimePanel {
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 16);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+}
+
 .statusStrip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto;

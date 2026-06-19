@@ -9,6 +9,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceFragment;
@@ -47,7 +48,7 @@ class SourceCandidateGeneratorTest {
     @Test
     void generatesRuleDraftStubWithRealAnchorsAndHash() {
         KnowledgeAssetEnvelope envelope = generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.RULE, "identity:42");
+            "t-1", document(), version(), fragments(), VersionedAssetType.RULE, null, "identity:42");
 
         assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.RULE);
         assertThat(envelope.assetIdentity()).isEqualTo("identity:42");
@@ -61,7 +62,13 @@ class SourceCandidateGeneratorTest {
         assertThat(envelope.sources().get(0).sourceRef()).isEqualTo("GL-2024:v1:section-1");
         assertThat(envelope.sources().get(0).authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
         // 逻辑字段留白不伪造；来源摘要真实
-        assertThat(envelope.payload()).contains("待编著").contains("血压≥140/90");
+        assertThat(envelope.payload())
+            .contains("待编著")
+            .contains("血压≥140/90")
+            .contains("\"generationMode\":\"B0_TEMPLATE\"")
+            .contains("\"medicalContentStatus\":\"PENDING_AUTHORING\"")
+            .contains("\"generatedByModel\":false")
+            .contains("\"contentHash\":\"" + "b".repeat(64) + "\"");
         // contentHash 真实等于 sha256(payload)
         assertThat(envelope.contentHash()).matches("^[0-9a-f]{64}$");
         assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());
@@ -73,7 +80,7 @@ class SourceCandidateGeneratorTest {
             VersionedAssetType.RECOMMENDATION, VersionedAssetType.EVALUATION, VersionedAssetType.FOLLOWUP,
             VersionedAssetType.FORMULA)) {
             KnowledgeAssetEnvelope envelope = generator.generate(
-                "t-1", document(), version(), fragments(), type, "identity:1");
+                "t-1", document(), version(), fragments(), type, null, "identity:1");
             assertThat(envelope.assetType()).isEqualTo(type);
             assertThat(envelope.sources()).isNotEmpty();
             assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
@@ -83,7 +90,7 @@ class SourceCandidateGeneratorTest {
     @Test
     void generatesFormulaCalculatorDraftWithExecutableStructureButNoMedicalConstants() {
         KnowledgeAssetEnvelope envelope = generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.FORMULA, "formula:fixture");
+            "t-1", document(), version(), fragments(), VersionedAssetType.FORMULA, null, "formula:fixture");
 
         assertThat(envelope.payload())
             .contains("\"template\":\"FORMULA\"")
@@ -97,7 +104,28 @@ class SourceCandidateGeneratorTest {
     @Test
     void rejectsWhenNoStructuralTemplate() {
         assertThatThrownBy(() -> generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.PACKAGE, "identity:1"))
+            "t-1", document(), version(), fragments(), VersionedAssetType.PACKAGE, null, "identity:1"))
             .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void selectsKnowledgeTemplateByExplicitMedicalDomain() {
+        KnowledgeAssetEnvelope envelope = generator.generate(
+            "t-1", document(), version(), fragments(), VersionedAssetType.KNOWLEDGE,
+            KnowledgeDomain.DRUG, "identity:drug-1");
+
+        assertThat(envelope.payload())
+            .contains("\"template\":\"DRUG\"")
+            .contains("\"dosage\"")
+            .doesNotContain("\"recommendation\"");
+    }
+
+    @Test
+    void rejectsKnowledgeGenerationWithoutMedicalDomain() {
+        assertThatThrownBy(() -> generator.generate(
+            "t-1", document(), version(), fragments(), VersionedAssetType.KNOWLEDGE,
+            null, "identity:1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("知识领域");
     }
 }

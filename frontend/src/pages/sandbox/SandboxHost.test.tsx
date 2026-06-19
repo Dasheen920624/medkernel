@@ -7,11 +7,13 @@ import SandboxHost from "./SandboxHost";
 const sandboxHookMocks = vi.hoisted(() => ({
   run: vi.fn(),
   useSandboxScenarios: vi.fn(),
+  useSandboxRuntimeStatus: vi.fn(),
   useRunSandboxScenario: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useSandboxScenarios: sandboxHookMocks.useSandboxScenarios,
+  useSandboxRuntimeStatus: sandboxHookMocks.useSandboxRuntimeStatus,
   useRunSandboxScenario: sandboxHookMocks.useRunSandboxScenario,
 }));
 
@@ -31,8 +33,8 @@ const scenarios = [
     expectedAction: "STRONG_REMINDER",
     expectedSeverity: "CRITICAL",
     expectedAssetCode: null,
-    status: "ready",
-    statusReason: "可运行",
+    status: "runtime-check",
+    statusReason: "运行时解析",
     input: {
       kind: "numeric",
       code: "2823-3",
@@ -48,23 +50,23 @@ const scenarios = [
     },
   },
   {
-    id: "sbx-unapproved",
+    id: "sbx-antibiotic-review",
     servicePackage: "clinical-collaboration",
     engine: "rule",
     playbook: "RULE_ONLY",
     triggerPoint: "order-sign",
-    title: "待评审场景",
-    narrative: "待临床评审。",
+    title: "抗菌药物处方复核",
+    narrative: "使用演练机构规则运行。",
     hostSummary: "院内业务系统模拟场景",
     patientId: "patient-2",
     encounterId: "encounter-2",
-    expectedRuleCode: "SBX.PENDING",
+    expectedRuleCode: "SBX.ANTIBIOTIC.REVIEW",
     expectedAction: "REMIND",
     expectedSeverity: "HIGH",
     expectedAssetCode: null,
-    status: "clinical-review-required",
-    statusReason: "临床评审通过后开放",
-    input: { kind: "unavailable" },
+    status: "runtime-check",
+    statusReason: "运行时解析",
+    input: { kind: "orchestration" },
   },
   {
     id: "sbx-recommendation-composite",
@@ -81,8 +83,8 @@ const scenarios = [
     expectedAction: "SUGGEST_ORDER",
     expectedSeverity: "MEDIUM",
     expectedAssetCode: null,
-    status: "ready",
-    statusReason: "可运行",
+    status: "runtime-check",
+    statusReason: "运行时解析",
     input: { kind: "orchestration" },
   },
 ] as const;
@@ -110,12 +112,37 @@ describe("SandboxHost", () => {
       isError: false,
       refetch: vi.fn(),
     });
+    sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
+      data: {
+        ready: true,
+        targetOrgUnitId: "hospital-sandbox-1",
+        bindingId: "binding-1",
+        packageOwnerTenantId: "tenant-sandbox-1",
+        packageId: "pkg-1",
+        packageCode: "PKG.SANDBOX",
+        packageVersion: "7.2.1",
+        resolutionSource: "TENANT_PACKAGE",
+        assetCount: 10,
+        warnings: [],
+        resolvedAt: "2026-06-19T03:00:00Z",
+        externalSideEffects: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
   });
 
   it("runs the selected scenario with canonical context and renders the real result", async () => {
     sandboxHookMocks.run.mockResolvedValue({
       scenarioId: "sbx-lab-critical-k",
       traceId: "trace-sandbox-host-1",
+      runId: "run-sandbox-host-1",
+      baselineId: "baseline-sandbox-host-1",
+      mode: "CURRENT",
+      resolvedPackageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE",
+      externalSideEffects: false,
       steps: [
         {
           stage: "CONTEXT",
@@ -158,6 +185,7 @@ describe("SandboxHost", () => {
         scenarioId: "sbx-lab-critical-k",
         body: {
           entryMode: "SNAPSHOT",
+          mode: "CURRENT",
           occurredAt: expect.any(String),
           parentOrigin: window.location.origin,
           integrationMode: "IFRAME",
@@ -183,6 +211,10 @@ describe("SandboxHost", () => {
     expect(screen.getByText("链路完成")).toBeInTheDocument();
     expect(screen.getByText("SBX.LAB.CRITICAL.K")).toBeInTheDocument();
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getAllByText("演练机构规则").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
@@ -195,22 +227,67 @@ describe("SandboxHost", () => {
     expect(screen.queryByTitle("临床嵌入式终端")).not.toBeInTheDocument();
   });
 
-  it("shows the clinical gate and removes the run action for unapproved content", async () => {
+  it("uses dynamic runtime readiness instead of a static clinical-review block", async () => {
+    sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
+      data: {
+        ready: false,
+        reasonCode: "SANDBOX_RUNTIME_BASELINE_MISSING",
+        reason: "演练机构未激活沙盘运行绑定",
+        targetOrgUnitId: "hospital-sandbox-1",
+        assetCount: 0,
+        warnings: [],
+        externalSideEffects: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderSandboxHost();
 
-    fireEvent.click(screen.getByRole("button", { name: /待评审场景.*待临床评审/ }));
+    fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
 
-    expect(await screen.findByText(/临床评审通过后开放/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "医生复核并触发 MedKernel" }),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText(/演练机构未激活沙盘运行绑定/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
+  });
+
+  it("shows a platform-source runtime binding without claiming institution ownership", () => {
+    sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
+      data: {
+        ready: true,
+        targetOrgUnitId: "hospital-sandbox-1",
+        bindingId: "binding-platform-1",
+        packageOwnerTenantId: "__platform__",
+        packageId: "pkg-platform-1",
+        packageCode: "PKG.PLATFORM.RULES",
+        packageVersion: "9.0.0",
+        resolutionSource: "PLATFORM_PACKAGE",
+        assetCount: 32,
+        warnings: [],
+        resolvedAt: "2026-06-19T04:00:00Z",
+        externalSideEffects: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderSandboxHost();
+
+    expect(screen.getByText("平台主源规则")).toBeInTheDocument();
+    expect(screen.getByText("PKG.PLATFORM.RULES@9.0.0")).toBeInTheDocument();
   });
 
   it("runs an outer-engine playbook without fabricated clinical input", async () => {
     sandboxHookMocks.run.mockResolvedValue({
       scenarioId: "sbx-recommendation-composite",
       traceId: "trace-outer-1",
+      runId: "run-outer-1",
+      baselineId: "baseline-outer-1",
+      mode: "CURRENT",
+      resolvedPackageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE",
+      externalSideEffects: false,
       steps: [],
       snapshotId: "ctx-outer-1",
       triggerId: "trigger-outer-1",
@@ -230,6 +307,7 @@ describe("SandboxHost", () => {
         scenarioId: "sbx-recommendation-composite",
         body: {
           entryMode: "SNAPSHOT",
+          mode: "CURRENT",
           occurredAt: expect.any(String),
           parentOrigin: window.location.origin,
           integrationMode: "IFRAME",
@@ -237,5 +315,155 @@ describe("SandboxHost", () => {
       }),
     );
     expect(await screen.findByText("trace-outer-1")).toBeInTheDocument();
+  });
+
+  it("runs an immutable historical manifest without current context overrides", async () => {
+    sandboxHookMocks.run.mockResolvedValue({
+      scenarioId: "sbx-lab-critical-k",
+      traceId: "trace-history-1",
+      runId: "run-history-1",
+      baselineId: "baseline-history-1",
+      mode: "HISTORICAL_EXACT",
+      replayCaseId: "replay-2025-001",
+      resolvedPackageVersion: "old-7",
+      resolutionSource: "REPLAY_MANIFEST",
+      externalSideEffects: false,
+      steps: [],
+      cardCount: 0,
+      embedModes: [],
+      replayRuleResults: [
+        {
+          ruleCode: "RULE.OLD.K",
+          ruleName: "历史高钾规则",
+          versionId: "rv-old-7",
+          assetVersion: "7",
+          historicalStatus: "RETIRED",
+          contentHash: "a".repeat(64),
+          hit: true,
+          severity: "CRITICAL",
+          actions: [{ summary: "历史高钾红线" }],
+          explanation: {},
+        },
+      ],
+      result: "PASS",
+    });
+
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("radio", { name: "历史原样重放" }));
+    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+      target: { value: "replay-2025-001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "按清单原样重放" }));
+
+    await waitFor(() =>
+      expect(sandboxHookMocks.run).toHaveBeenCalledWith({
+        scenarioId: "sbx-lab-critical-k",
+        body: {
+          entryMode: "SNAPSHOT",
+          mode: "HISTORICAL_EXACT",
+          replayCaseId: "replay-2025-001",
+        },
+      }),
+    );
+    expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
+    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史高钾红线")).toBeInTheDocument();
+    expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
+    expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
+  });
+
+  it("compares historical and current frozen rules without sending a context override", async () => {
+    sandboxHookMocks.run.mockResolvedValue({
+      scenarioId: "sbx-lab-critical-k",
+      traceId: "trace-compare-1",
+      runId: "run-compare-1",
+      baselineId: "baseline-compare-1",
+      mode: "COMPARE",
+      replayCaseId: "replay-2025-001",
+      resolvedPackageVersion: "current-2",
+      resolutionSource: "TENANT_PACKAGE",
+      externalSideEffects: false,
+      steps: [],
+      cardCount: 0,
+      embedModes: [],
+      replayRuleResults: [],
+      comparison: {
+        contextHash: "context-hash",
+        summary: {
+          differenceCount: 2,
+          newHitCount: 1,
+          noLongerHitCount: 0,
+          highRiskChangeCount: 1,
+          nonComparableCount: 0,
+        },
+        unchangedCount: 8,
+        differences: [
+          {
+            ruleCode: "RULE.RISK.UP",
+            ruleName: "高风险变化规则",
+            comparable: true,
+            changes: ["SEVERITY_INCREASED"],
+            historical: {
+              ruleCode: "RULE.RISK.UP",
+              ruleName: "高风险变化规则",
+              versionId: "old-v1",
+              assetVersion: "1",
+              sourceTier: "PLATFORM",
+              sourceTenantId: "sha256:old",
+              contentHash: "a".repeat(64),
+              hit: true,
+              severity: "LOW",
+              actions: [],
+              explanation: {},
+            },
+            current: {
+              ruleCode: "RULE.RISK.UP",
+              ruleName: "高风险变化规则",
+              versionId: "new-v2",
+              assetVersion: "2",
+              sourceTier: "ORG",
+              sourceTenantId: "tenant-1",
+              contentHash: "b".repeat(64),
+              hit: true,
+              severity: "CRITICAL",
+              actions: [],
+              explanation: {},
+            },
+          },
+          {
+            ruleCode: "RULE.NEW.HIT",
+            ruleName: "新增命中规则",
+            comparable: true,
+            changes: ["NEW_HIT"],
+            historical: null,
+            current: null,
+          },
+        ],
+      },
+      result: "PASS",
+    });
+
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("radio", { name: "新旧对比" }));
+    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+      target: { value: "replay-2025-001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行新旧对比" }));
+
+    await waitFor(() =>
+      expect(sandboxHookMocks.run).toHaveBeenCalledWith({
+        scenarioId: "sbx-lab-critical-k",
+        body: {
+          entryMode: "SNAPSHOT",
+          mode: "COMPARE",
+          replayCaseId: "replay-2025-001",
+        },
+      }),
+    );
+    expect(await screen.findByRole("region", { name: "新旧规则差异" })).toBeInTheDocument();
+    expect(screen.getByText("高风险变化规则")).toBeInTheDocument();
+    expect(screen.getByText("严重度升高")).toBeInTheDocument();
+    expect(screen.getAllByText("新增命中")).toHaveLength(2);
+    expect(screen.getByText("8")).toBeInTheDocument();
   });
 });

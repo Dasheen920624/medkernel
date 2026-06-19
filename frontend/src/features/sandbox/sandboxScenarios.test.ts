@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   SANDBOX_SCENARIOS,
+  buildSandboxContextOverride,
+  isNumericScenario,
   mergeSandboxCatalog,
   scenariosByServicePackage,
 } from "./sandboxScenarios";
@@ -11,7 +13,7 @@ describe("sandboxScenarios", () => {
     expect(SANDBOX_SCENARIOS).toEqual([
       expect.objectContaining({
         id: "backend-catalog-required",
-        status: "clinical-review-required",
+        status: "catalog-unavailable",
         inputKind: "unavailable",
       }),
     ]);
@@ -36,8 +38,8 @@ describe("sandboxScenarios", () => {
         expectedRuleCode: "SBX.LAB.CRITICAL.K",
         expectedAction: "STRONG_REMINDER",
         expectedSeverity: "CRITICAL",
-        status: "ready",
-        statusReason: "可运行",
+        status: "runtime-check",
+        statusReason: "运行时解析",
         input: {
           kind: "numeric",
           code: "2823-3",
@@ -66,8 +68,8 @@ describe("sandboxScenarios", () => {
         expectedRuleCode: null,
         expectedAction: "SUGGEST_ORDER",
         expectedSeverity: "MEDIUM",
-        status: "ready",
-        statusReason: "可运行",
+        status: "runtime-check",
+        statusReason: "运行时解析",
         input: { kind: "orchestration" },
       },
     ]);
@@ -76,6 +78,7 @@ describe("sandboxScenarios", () => {
       expect.objectContaining({
         id: "sbx-lab-critical-k",
         inputKind: "numeric",
+        status: "runtime-check",
         observationCode: "2823-3",
         defaultNumericValue: 6.8,
       }),
@@ -84,7 +87,33 @@ describe("sandboxScenarios", () => {
       expect.objectContaining({
         id: "sbx-recommendation-composite",
         inputKind: "orchestration",
+        status: "runtime-check",
       }),
     );
+  });
+
+  it("does not retain a fixed configuration package version in sandbox context data", () => {
+    const [scenario] = mergeSandboxCatalog([
+      {
+        id: "sbx-lab-critical-k",
+        status: "runtime-check",
+        patientId: "patient-1",
+        encounterId: "encounter-1",
+        input: {
+          kind: "numeric",
+          code: "2823-3",
+          label: "血清钾",
+          defaultValue: 6.8,
+          unit: "mmol/L",
+          referenceRange: "3.5-5.5",
+          encounterType: "ED",
+        },
+      },
+    ]);
+    expect(isNumericScenario(scenario)).toBe(true);
+    if (!isNumericScenario(scenario)) throw new Error("测试场景必须为数值型");
+    const context = buildSandboxContextOverride(scenario, 6.8, "2026-06-19T03:00:00Z");
+    expect(context.patient.mappedVersion).toBe("sandbox-context-v1");
+    expect(context.patient.mappedVersion).not.toBe("7.2.1");
   });
 });

@@ -40,6 +40,9 @@ const mockUseKnowledgeAcquisitionSources = vi.fn();
 const mockUseSaveKnowledgeAcquisitionSourceDraft = vi.fn();
 const mockUseApproveKnowledgeAcquisitionSource = vi.fn();
 const mockUseDisableKnowledgeAcquisitionSource = vi.fn();
+const mockUseKnowledgeInitializationBatches = vi.fn();
+const mockUseApproveLowKnowledgeInitializationBatch = vi.fn();
+const mockUseRefreshKnowledgeInitializationBatch = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
@@ -57,9 +60,11 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateKnowledgeCustomization: () => mockUseCreateKnowledgeCustomization(),
   usePublishKnowledgeCustomization: () => mockUsePublishKnowledgeCustomization(),
   useRestorePlatformKnowledge: () => mockUseRestorePlatformKnowledge(),
-  usePackages: (params: unknown) => mockUsePackages(params),
-  useKnowledgeProductionReadiness: (params: unknown) => mockUseKnowledgeProductionReadiness(params),
-  useKnowledgeProductionJobs: (params: unknown) => mockUseKnowledgeProductionJobs(params),
+  usePackages: (params: unknown, options?: unknown) => mockUsePackages(params, options),
+  useKnowledgeProductionReadiness: (params: unknown, enabled?: boolean) =>
+    mockUseKnowledgeProductionReadiness(params, enabled),
+  useKnowledgeProductionJobs: (params: unknown, enabled?: boolean) =>
+    mockUseKnowledgeProductionJobs(params, enabled),
   useKnowledgeProductionCandidates: (jobCode?: string) =>
     mockUseKnowledgeProductionCandidates(jobCode),
   useKnowledgeProductionGateResults: (jobCode?: string) =>
@@ -75,6 +80,10 @@ vi.mock("@/shared/api/hooks", () => ({
   useSaveKnowledgeAcquisitionSourceDraft: () => mockUseSaveKnowledgeAcquisitionSourceDraft(),
   useApproveKnowledgeAcquisitionSource: () => mockUseApproveKnowledgeAcquisitionSource(),
   useDisableKnowledgeAcquisitionSource: () => mockUseDisableKnowledgeAcquisitionSource(),
+  useKnowledgeInitializationBatches: (enabled?: boolean) =>
+    mockUseKnowledgeInitializationBatches(enabled),
+  useApproveLowKnowledgeInitializationBatch: () => mockUseApproveLowKnowledgeInitializationBatch(),
+  useRefreshKnowledgeInitializationBatch: () => mockUseRefreshKnowledgeInitializationBatch(),
 }));
 
 vi.mock("./DiagnosisKnowledgePanel", () => ({
@@ -218,6 +227,8 @@ let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
 let createProductionJob: ReturnType<typeof vi.fn>;
 let cancelProductionJob: ReturnType<typeof vi.fn>;
+let approveLowInitializationBatch: ReturnType<typeof vi.fn>;
+let refreshInitializationBatch: ReturnType<typeof vi.fn>;
 
 function customizationPage(items: Array<Record<string, unknown>> = []) {
   return {
@@ -275,6 +286,20 @@ beforeEach(() => {
     jobCode: "job-ai-1",
     status: "CANCELLED",
   });
+  approveLowInitializationBatch = vi.fn().mockResolvedValue({
+    batch: {
+      batchCode: "foundation-f1-1.0.0",
+      status: "IN_REVIEW",
+    },
+    items: [],
+  });
+  refreshInitializationBatch = vi.fn().mockResolvedValue({
+    batch: {
+      batchCode: "foundation-f1-1.0.0",
+      status: "IN_REVIEW",
+    },
+    items: [],
+  });
 
   mockUseKnowledgeIdentities.mockReset();
   mockUseKnowledgeCandidates.mockReset();
@@ -303,6 +328,9 @@ beforeEach(() => {
   mockUseSaveKnowledgeAcquisitionSourceDraft.mockReset();
   mockUseApproveKnowledgeAcquisitionSource.mockReset();
   mockUseDisableKnowledgeAcquisitionSource.mockReset();
+  mockUseKnowledgeInitializationBatches.mockReset();
+  mockUseApproveLowKnowledgeInitializationBatch.mockReset();
+  mockUseRefreshKnowledgeInitializationBatch.mockReset();
 
   mockUseAssetTemplates.mockReturnValue({
     data: assetTemplates,
@@ -387,7 +415,7 @@ beforeEach(() => {
     refetch: vi.fn(),
   });
   mockUseKnowledgeProductionCandidates.mockReturnValue({
-    data: [
+    data: pageResponse([
       {
         jobCode: "job-ai-1",
         assetIdentity: "rule:ai:vte",
@@ -402,7 +430,7 @@ beforeEach(() => {
           domain: "GUIDELINE",
         },
       },
-    ],
+    ]),
     isLoading: false,
     isError: false,
     error: undefined,
@@ -485,6 +513,47 @@ beforeEach(() => {
   });
   mockUseDisableKnowledgeAcquisitionSource.mockReturnValue({
     mutateAsync: vi.fn(),
+    isPending: false,
+  });
+  mockUseKnowledgeInitializationBatches.mockReturnValue({
+    data: [
+      {
+        id: 10,
+        tenantId: "tenant-A",
+        batchCode: "foundation-f1-1.0.0",
+        releaseType: "FOUNDATION",
+        releaseVersion: "1.0.0",
+        foundationReleaseVersion: null,
+        phase: "F8",
+        status: "IN_REVIEW",
+        sourceManifestHash: "c".repeat(64),
+        candidateManifestHash: "d".repeat(64),
+        overallHash: "e".repeat(64),
+        sourceCount: 3,
+        candidateCount: 3,
+        lowCount: 1,
+        mediumCount: 1,
+        highCount: 1,
+        templateVersion: "template-v1",
+        modelVersion: null,
+        summary: "基础知识初始化发行",
+        createdAt: "2026-06-19T01:00:00Z",
+        createdBy: "knowledge-governor",
+        updatedAt: "2026-06-19T01:00:00Z",
+        updatedBy: "knowledge-governor",
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    error: undefined,
+    refetch: vi.fn(),
+  });
+  mockUseApproveLowKnowledgeInitializationBatch.mockReturnValue({
+    mutateAsync: approveLowInitializationBatch,
+    isPending: false,
+  });
+  mockUseRefreshKnowledgeInitializationBatch.mockReturnValue({
+    mutateAsync: refreshInitializationBatch,
     isPending: false,
   });
   mockUseKnowledgeCandidates.mockReturnValue({
@@ -928,8 +997,11 @@ describe("KnowledgeGovernance", () => {
   it("renders the knowledge production center as a standalone production entry", async () => {
     renderPage(<KnowledgeProduction />);
 
-    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith({ producer: "API_MODEL" });
-    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
+      { producer: "API_MODEL" },
+      true,
+    );
+    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
     expect(mockUseKnowledgeProductionCandidates).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionGateResults).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionTriageResults).toHaveBeenCalledWith("job-ai-1");
@@ -955,7 +1027,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
-  it("creates production jobs from the producer workstation and locks high-risk batch approval", async () => {
+  it("creates production jobs and exposes only persisted initialization batches for bulk approval", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -987,9 +1059,69 @@ describe("KnowledgeGovernance", () => {
         modelStrategy: "gpt-pipeline",
       }),
     );
-    expect(screen.getByText("批处置候选 1 条")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "批量通过候选（高风险已锁定）" })).toBeDisabled();
-    expect(screen.getByText("高风险或双签候选必须逐条进入审核台确认")).toBeInTheDocument();
+    expect(mockUseKnowledgeInitializationBatches).toHaveBeenCalledWith(true);
+    expect(screen.getAllByText("高风险必须由两名不同签署人完成双签").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /批量通过候选/ })).not.toBeInTheDocument();
+    expect(screen.getByText("初始化发行批次")).toBeInTheDocument();
+    expect(screen.getAllByText("foundation-f1-1.0.0").length).toBeGreaterThan(0);
+    expect(screen.getByText(/基础知识发行 · 1\.0\.0 · 总验收与发行证据/)).toBeInTheDocument();
+    expect(screen.getByText("发行摘要已冻结并校验")).toBeInTheDocument();
+    expect(screen.queryByText("FOUNDATION")).not.toBeInTheDocument();
+    expect(screen.queryByText("F8")).not.toBeInTheDocument();
+    expect(screen.getByText("低风险 1 · 可原子批审")).toBeInTheDocument();
+    expect(screen.getByText("中风险 1 · 必须逐条审核")).toBeInTheDocument();
+    expect(screen.getByText("高风险 1 · 必须真实双签")).toBeInTheDocument();
+  });
+
+  it("approves only the frozen LOW subset of an initialization batch", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.review" }],
+      },
+    });
+
+    renderPage(<KnowledgeProduction />);
+    await user.click(screen.getByRole("button", { name: "批准低风险候选" }));
+
+    expect(screen.getByText("确认批量批准低风险候选")).toBeInTheDocument();
+    expect(screen.getByText(/仅处理服务端冻结清单中的低风险条目/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "确认批准" }));
+
+    await waitFor(() =>
+      expect(approveLowInitializationBatch).toHaveBeenCalledWith({
+        batchCode: "foundation-f1-1.0.0",
+        expectedOverallHash: "e".repeat(64),
+        idempotencyKey: expect.stringMatching(
+          /^knowledge-initialization-foundation-f1-1\.0\.0-low-\d+$/,
+        ),
+        reason: "初始化发行清单低风险候选原子批审",
+      }),
+    );
+  });
+
+  it("keeps initialization release batches operable before the first production job exists", () => {
+    mockUseKnowledgeProductionJobs.mockReturnValue({
+      data: {
+        items: [],
+        page: 1,
+        size: 20,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("暂无生产 job")).toBeInTheDocument();
+    expect(screen.getByText("初始化发行批次")).toBeInTheDocument();
+    expect(screen.getAllByText("foundation-f1-1.0.0").length).toBeGreaterThan(0);
   });
 
   it("keeps the production center visible when downstream evidence queries partially fail", async () => {
@@ -1049,7 +1181,7 @@ describe("KnowledgeGovernance", () => {
       refetch: vi.fn(),
     });
     mockUseKnowledgeProductionCandidates.mockReturnValue({
-      data: [
+      data: pageResponse([
         {
           jobCode: "job-agent-7",
           assetIdentity: "rule:agent:vte",
@@ -1057,7 +1189,7 @@ describe("KnowledgeGovernance", () => {
           candidateRef: "kv:42:2026.07",
           riskLevel: "HIGH",
         },
-      ],
+      ]),
       isLoading: false,
       isError: false,
       error: undefined,
@@ -1355,21 +1487,49 @@ describe("KnowledgeGovernance", () => {
 
   it("loads knowledge review package selector through small server-side search pages", async () => {
     const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "t-1" },
+        permissions: [{ code: "knowledge.publish" }, { code: "package.read" }],
+      },
+    });
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
-    expect(mockUsePackages).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      assetType: "KNOWLEDGE",
-      keyword: undefined,
-    });
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "KNOWLEDGE",
+        keyword: undefined,
+      },
+      { enabled: true },
+    );
     expect(mockUsePackages).not.toHaveBeenCalledWith({
       page: 1,
       size: 100,
       assetType: "KNOWLEDGE",
     });
+  });
+
+  it("does not load production evidence or packages from the review workspace before needed", () => {
+    renderPage();
+
+    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
+      { producer: "API_MODEL" },
+      false,
+    );
+    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 }, false);
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "KNOWLEDGE",
+        keyword: undefined,
+      },
+      { enabled: false },
+    );
   });
 
   it("returns a candidate for revision through the RETURN review decision with a mandatory reason", async () => {

@@ -77,6 +77,7 @@ import {
   useInsuranceIssues,
   useReplayDeadLetter,
   useRunSandboxScenario,
+  useSandboxRuntimeStatus,
   useSandboxScenarios,
   useImplementationSteps,
   useApplyOverrideBatch,
@@ -100,6 +101,9 @@ import {
   useKnowledgeProductionReadiness,
   useKnowledgeProductionShadowRuns,
   useKnowledgeProductionTriageResults,
+  useKnowledgeInitializationBatches,
+  useApproveLowKnowledgeInitializationBatch,
+  useRefreshKnowledgeInitializationBatch,
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
@@ -1225,6 +1229,7 @@ describe("package export api helpers", () => {
       useRuleDefinitions({ size: 100 }, { enabled: false });
       usePathwayTemplates({ size: 100 }, { enabled: false });
       useEvaluationIndicators({ size: 100 }, { enabled: false });
+      usePackages({ size: 20, assetType: "EVALUATION" }, { enabled: false });
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
@@ -2772,10 +2777,39 @@ describe("sandbox orchestration api hook", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/scenarios");
   });
 
+  it("loads the runtime-resolved sandbox binding without a client package version", async () => {
+    const response = {
+      ready: true,
+      targetOrgUnitId: "hospital-sandbox-1",
+      bindingId: "binding-1",
+      packageOwnerTenantId: "tenant-sandbox-1",
+      packageId: "pkg-1",
+      packageCode: "PKG.SANDBOX",
+      packageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE",
+      assetCount: 10,
+      warnings: [],
+      resolvedAt: "2026-06-19T03:00:00Z",
+      externalSideEffects: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useSandboxRuntimeStatus());
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-binding");
+  });
+
   it("runs the selected scenario through the backend orchestration endpoint", async () => {
     const response = {
       scenarioId: "sbx-lab-critical-k",
       traceId: "trace-sandbox-1",
+      runId: "run-1",
+      baselineId: "baseline-1",
+      mode: "CURRENT" as const,
+      resolvedPackageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE" as const,
+      externalSideEffects: false,
       steps: [],
       snapshotId: "snapshot-1",
       triggerId: "trigger-1",
@@ -2796,6 +2830,7 @@ describe("sandbox orchestration api hook", () => {
       scenarioId: "sbx-lab-critical-k",
       body: {
         entryMode: "SNAPSHOT",
+        mode: "CURRENT",
         parentOrigin: "https://his.hospital.com",
         integrationMode: "SDK",
       },
@@ -2806,6 +2841,7 @@ describe("sandbox orchestration api hook", () => {
       "/engine/sandbox/scenarios/sbx-lab-critical-k/run",
       {
         entryMode: "SNAPSHOT",
+        mode: "CURRENT",
         parentOrigin: "https://his.hospital.com",
         integrationMode: "SDK",
       },
@@ -3978,7 +4014,14 @@ describe("knowledge review api helpers", () => {
       hasNext: false,
       totalEstimated: false,
     };
-    const candidates = [{ jobCode: "job-ai-1", candidateRef: "kv:42:2026.06" }];
+    const candidates = {
+      items: [{ jobCode: "job-ai-1", candidateRef: "kv:42:2026.06" }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
     const gateResults = [{ jobCode: "job-ai-1", gateCode: "SOURCE_ANCHOR", passed: true }];
     const triageResults = [{ jobCode: "job-ai-1", triageState: "CONFLICT", action: "REVIEW" }];
     const shadowRuns = [{ jobCode: "job-ai-1", status: "PASSED", readyForReview: true }];
@@ -4032,6 +4075,7 @@ describe("knowledge review api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(
       3,
       "/engine/knowledge-production/jobs/job-ai-1/candidates",
+      { params: { page: 1, size: 20 } },
     );
     expect(apiClient.get).toHaveBeenNthCalledWith(
       4,
@@ -4127,6 +4171,60 @@ describe("knowledge review api helpers", () => {
     expect(response).toBe(cancelledJob);
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/knowledge-production/jobs/job-ai-1/cancel",
+    );
+  });
+
+  it("lists, approves LOW, and refreshes knowledge initialization batches", async () => {
+    const batch = {
+      id: 10,
+      batchCode: "foundation-f1-1.0.0",
+      releaseType: "FOUNDATION",
+      releaseVersion: "1.0.0",
+      phase: "F8",
+      status: "IN_REVIEW",
+      overallHash: "e".repeat(64),
+      candidateCount: 3,
+      lowCount: 1,
+      mediumCount: 1,
+      highCount: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [batch] } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { batch, items: [] } } })
+      .mockResolvedValueOnce({
+        data: { data: { batch: { ...batch, status: "COMPLETE" }, items: [] } },
+      });
+
+    const listHook = renderApiHook(() => useKnowledgeInitializationBatches());
+    await waitFor(() => expect(listHook.result.current.data).toEqual([batch]));
+
+    const approveHook = renderApiHook(() => useApproveLowKnowledgeInitializationBatch());
+    const refreshHook = renderApiHook(() => useRefreshKnowledgeInitializationBatch());
+    await act(async () => {
+      await approveHook.result.current.mutateAsync({
+        batchCode: "foundation-f1-1.0.0",
+        expectedOverallHash: "e".repeat(64),
+        idempotencyKey: "bulk-low-1",
+        reason: "批准低风险候选",
+      });
+      await refreshHook.result.current.mutateAsync("foundation-f1-1.0.0");
+    });
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/knowledge-production/initialization/batches",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/knowledge-production/initialization/batches/foundation-f1-1.0.0/approve-low",
+      {
+        expectedOverallHash: "e".repeat(64),
+        idempotencyKey: "bulk-low-1",
+        reason: "批准低风险候选",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/knowledge-production/initialization/batches/foundation-f1-1.0.0/refresh",
     );
   });
 

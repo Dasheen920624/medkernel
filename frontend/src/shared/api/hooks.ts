@@ -956,6 +956,7 @@ function compactOneBasedPageParams<T extends { page?: number }>(params: T): Part
 
 const KNOWLEDGE_API_ROOT = "/engine/knowledge";
 const KNOWLEDGE_PRODUCTION_API_ROOT = "/engine/knowledge-production";
+const KNOWLEDGE_INITIALIZATION_API_ROOT = `${KNOWLEDGE_PRODUCTION_API_ROOT}/initialization`;
 const KNOWLEDGE_ACQUISITION_API_ROOT = "/engine/knowledge/acquisition";
 
 export interface KnowledgeAcquisitionSource {
@@ -1682,6 +1683,52 @@ export interface CandidateCoexistenceView {
   safetyNotice?: string | null;
 }
 
+export type KnowledgeInitializationReleaseType = "FOUNDATION" | "CLINICAL_CONTENT" | "COMPOSITE";
+export type KnowledgeInitializationBatchStatus = "VALIDATED" | "IN_REVIEW" | "COMPLETE" | "BLOCKED";
+
+export interface KnowledgeInitializationBatch {
+  id: number;
+  tenantId: string;
+  batchCode: string;
+  releaseType: KnowledgeInitializationReleaseType;
+  releaseVersion: string;
+  foundationReleaseVersion?: string | null;
+  phase: string;
+  status: KnowledgeInitializationBatchStatus;
+  sourceManifestHash: string;
+  candidateManifestHash: string;
+  overallHash: string;
+  sourceCount: number;
+  candidateCount: number;
+  lowCount: number;
+  mediumCount: number;
+  highCount: number;
+  templateVersion: string;
+  modelVersion?: string | null;
+  summary: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface KnowledgeInitializationItem {
+  id: number;
+  batchId: number;
+  sequenceNo: number;
+  catalogCode: string;
+  assetType: string;
+  canonicalId: string;
+  assetVersion: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  status: "PENDING_REVIEW" | "APPROVED" | "BLOCKED";
+}
+
+export interface KnowledgeInitializationBatchView {
+  batch: KnowledgeInitializationBatch;
+  items: KnowledgeInitializationItem[];
+}
+
 export function useKnowledgeProductionReadiness(
   params: KnowledgeProductionReadinessParams = {},
   enabled = true,
@@ -1704,13 +1751,17 @@ export function useKnowledgeProductionReadiness(
   });
 }
 
-export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams = {}) {
+export function useKnowledgeProductionJobs(
+  params: KnowledgeProductionJobsParams = {},
+  enabled = true,
+) {
   const requestParams = compactParams({
     page: params.page ?? 1,
     size: params.size ?? 20,
   });
   return useQuery({
     queryKey: ["knowledge-production", "jobs", requestParams],
+    enabled,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgeProductionJob> }>(
         `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
@@ -1774,9 +1825,11 @@ export function useKnowledgeProductionCandidates(jobCode?: string | null) {
     queryKey: ["knowledge-production", "job-candidates", jobCode],
     enabled: Boolean(jobCode),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: KnowledgeProductionCandidateView[] }>(
-        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/candidates`,
-      );
+      const { data } = await apiClient.get<{
+        data: PageResponse<KnowledgeProductionCandidateView>;
+      }>(`${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/candidates`, {
+        params: { page: 1, size: 20 },
+      });
       return data.data;
     },
   });
@@ -1831,6 +1884,60 @@ export function useCandidateCoexistence(candidateRef?: string | null) {
         { params: { candidateRef } },
       );
       return data.data;
+    },
+  });
+}
+
+export function useKnowledgeInitializationBatches(enabled = true) {
+  return useQuery({
+    queryKey: ["knowledge-production", "initialization-batches"],
+    enabled,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeInitializationBatch[] }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useApproveLowKnowledgeInitializationBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      batchCode: string;
+      expectedOverallHash: string;
+      idempotencyKey: string;
+      reason: string;
+    }) => {
+      const { batchCode, ...request } = payload;
+      const { data } = await apiClient.post<{ data: KnowledgeInitializationBatchView }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches/${encodeURIComponent(batchCode)}/approve-low`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["knowledge-production", "initialization-batches"],
+      });
+    },
+  });
+}
+
+export function useRefreshKnowledgeInitializationBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (batchCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeInitializationBatchView }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches/${encodeURIComponent(batchCode)}/refresh`,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["knowledge-production", "initialization-batches"],
+      });
     },
   });
 }
@@ -7660,7 +7767,12 @@ export interface PackageListParams {
   assetType?: EngineAssetType;
 }
 
-export function usePackages(params: PackageListParams = {}) {
+export function usePackages(
+  params: PackageListParams = {},
+  options?: {
+    enabled?: boolean;
+  },
+) {
   const requestParams = {
     page: Math.max(params.page ?? 1, 1),
     size: Math.max(params.size ?? 10, 1),
@@ -7670,6 +7782,7 @@ export function usePackages(params: PackageListParams = {}) {
   };
   return useQuery({
     queryKey: ["packages", "list", requestParams],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
         PACKAGE_API_ROOT,
@@ -8461,15 +8574,92 @@ export interface SandboxStepTrace {
 
 export interface SandboxRunRequest {
   entryMode?: "SNAPSHOT";
+  mode?: SandboxRunMode;
+  replayCaseId?: string;
   contextOverride?: unknown;
   occurredAt?: string;
   parentOrigin?: string;
   integrationMode?: "IFRAME" | "SDK" | "API";
 }
 
+export type SandboxRunMode = "CURRENT" | "HISTORICAL_EXACT" | "COMPARE";
+export type SandboxResolutionSource = "TENANT_PACKAGE" | "PLATFORM_PACKAGE" | "REPLAY_MANIFEST";
+
+export interface SandboxReplayRuleResult {
+  ruleCode: string;
+  ruleName: string;
+  versionId: string;
+  assetVersion: string;
+  historicalStatus: "PUBLISHED" | "DEPRECATED" | "RETIRED";
+  contentHash: string;
+  hit: boolean;
+  severity?: string | null;
+  actions: Array<{
+    actionCode?: string;
+    severity?: string;
+    summary: string;
+    detail?: string;
+    requiresPhysicianConfirmation?: boolean;
+  }>;
+  explanation: unknown;
+}
+
+export type SandboxRuleDifferenceType =
+  | "NEW_HIT"
+  | "NO_LONGER_HIT"
+  | "SEVERITY_INCREASED"
+  | "SEVERITY_DECREASED"
+  | "ACTION_CHANGED"
+  | "SOURCE_CHANGED"
+  | "VERSION_CHANGED"
+  | "ASSET_MISSING";
+
+export interface SandboxComparableRuleResult {
+  ruleCode: string;
+  ruleName: string;
+  versionId: string;
+  assetVersion: string;
+  sourceTier: "PLATFORM" | "ORG";
+  sourceTenantId: string;
+  contentHash: string;
+  hit: boolean;
+  severity?: string | null;
+  actions: SandboxReplayRuleResult["actions"];
+  explanation: unknown;
+}
+
+export interface SandboxRuleComparison {
+  ruleCode: string;
+  ruleName: string;
+  comparable: boolean;
+  nonComparableReason?: string | null;
+  changes: SandboxRuleDifferenceType[];
+  historical?: SandboxComparableRuleResult | null;
+  current?: SandboxComparableRuleResult | null;
+}
+
+export interface SandboxComparisonResponse {
+  contextHash: string;
+  summary: {
+    differenceCount: number;
+    newHitCount: number;
+    noLongerHitCount: number;
+    highRiskChangeCount: number;
+    nonComparableCount: number;
+  };
+  differences: SandboxRuleComparison[];
+  unchangedCount: number;
+}
+
 export interface SandboxRunResponse {
   scenarioId: string;
   traceId: string;
+  runId: string;
+  baselineId: string;
+  mode: SandboxRunMode;
+  resolvedPackageVersion: string;
+  resolutionSource: SandboxResolutionSource;
+  externalSideEffects: boolean;
   steps: SandboxStepTrace[];
   snapshotId?: string | null;
   triggerId?: string | null;
@@ -8482,6 +8672,26 @@ export interface SandboxRunResponse {
   evaluationRunId?: string | null;
   embedModes: Array<"IFRAME" | "SDK" | "API">;
   result: "PASS" | "FAIL";
+  replayCaseId?: string | null;
+  replayRuleResults?: SandboxReplayRuleResult[];
+  comparison?: SandboxComparisonResponse | null;
+}
+
+export interface SandboxRuntimeStatus {
+  ready: boolean;
+  reasonCode?: string | null;
+  reason?: string | null;
+  targetOrgUnitId: string;
+  bindingId?: string | null;
+  packageOwnerTenantId?: string | null;
+  packageId?: string | null;
+  packageCode?: string | null;
+  packageVersion?: string | null;
+  resolutionSource?: SandboxResolutionSource | null;
+  assetCount: number;
+  warnings: string[];
+  resolvedAt?: string | null;
+  externalSideEffects: boolean;
 }
 
 export interface SandboxScenarioCatalogInput {
@@ -8513,7 +8723,7 @@ export interface SandboxScenarioCatalogItem {
   expectedAction: string;
   expectedSeverity: string;
   expectedAssetCode?: string | null;
-  status: "ready" | "clinical-review-required" | string;
+  status: "runtime-check" | "catalog-unavailable" | string;
   statusReason: string;
   input: SandboxScenarioCatalogInput;
 }
@@ -8526,6 +8736,18 @@ export function useSandboxScenarios() {
         "/engine/sandbox/scenarios",
       );
       return data.data ?? [];
+    },
+  });
+}
+
+export function useSandboxRuntimeStatus() {
+  return useQuery({
+    queryKey: ["sandbox", "runtime-binding"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: SandboxRuntimeStatus }>(
+        "/engine/sandbox/runtime-binding",
+      );
+      return data.data;
     },
   });
 }
@@ -8552,6 +8774,7 @@ export interface ModelEvaluationRunSummary {
   capabilityCode: string;
   promptVersion: string;
   toolVersion: string;
+  releaseFingerprint?: string | null;
   totalCases: number;
   passedCases: number;
   failedCases: number;
@@ -8590,6 +8813,7 @@ export interface ModelEvaluationRunDetail {
   cases: ModelEvaluationCaseEvidence[];
   evidenceComplete: boolean;
   baselineCurrent: boolean;
+  releaseCurrent: boolean;
   reviewable: boolean;
   reviewBlockReason?: string | null;
 }

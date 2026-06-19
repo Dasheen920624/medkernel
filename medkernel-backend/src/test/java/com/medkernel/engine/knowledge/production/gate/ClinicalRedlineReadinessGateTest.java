@@ -66,6 +66,113 @@ class ClinicalRedlineReadinessGateTest {
     }
 
     @Test
+    void passesStrictB0TemplateWhenRedlineCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+        String payload = """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": false,
+              "template": "FIELD_CATALOG",
+              "sections": {
+                "scope": "待编著（结构：适用范围）"
+              },
+              "sourceEvidence": [
+                {
+                  "anchorPath": "registry/KNOWGEN-29",
+                  "excerpt": "受控来源目录元数据",
+                  "contentHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                }
+              ]
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isTrue();
+    }
+
+    @Test
+    void failsWhenB0MarkerIsIncompleteAndRedlineCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+        String payload = """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": true,
+              "sections": {}
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains("未配置");
+    }
+
+    @Test
+    void failsWhenB0SectionAppendsAuthoredClinicalLogicAndRedlineCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+        String payload = """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": false,
+              "template": "RULE",
+              "sections": {
+                "logic": "待编著（结构：判定逻辑）收缩压达到某阈值即触发"
+              },
+              "sourceEvidence": [
+                {
+                  "anchorPath": "registry/KNOWGEN-01",
+                  "excerpt": "受控来源目录元数据",
+                  "contentHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                }
+              ]
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains("未配置");
+    }
+
+    @Test
+    void failsWhenB0PayloadContainsStructuredRedlineChecksAndCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+        String payload = """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": false,
+              "sections": {},
+              "clinicalRedlineChecks": [
+                {
+                  "category": "DOSE_LIMIT",
+                  "redlineKey": "DOSE_LIMIT",
+                  "outcome": "PASS",
+                  "evidenceReference": "source-version:77#dose-limit"
+                }
+              ]
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.reason()).contains("未配置");
+    }
+
+    @Test
     void failsWhenRequiredRedlineCategoryMissing() {
         when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
             ClinicalRedlineContentStatus.CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),

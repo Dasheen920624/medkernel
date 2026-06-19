@@ -16,6 +16,7 @@ const mockUseEvaluateSnapshot = vi.fn();
 const mockUseContextSnapshots = vi.fn();
 const mockUseOrgUnits = vi.fn();
 const mockUsePackages = vi.fn();
+const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown) => mockUseEvaluationIndicators(params),
@@ -28,7 +29,8 @@ vi.mock("@/shared/api/hooks", () => ({
   useContextSnapshots: (params: unknown, options: unknown) =>
     mockUseContextSnapshots(params, options),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
-  usePackages: (params: unknown) => mockUsePackages(params),
+  usePackages: (params: unknown, options: unknown) => mockUsePackages(params, options),
+  useSecurityProfile: () => mockUseSecurityProfile(),
 }));
 
 const realIndicator = {
@@ -114,6 +116,12 @@ beforeEach(() => {
     isLoading: false,
   });
   mockUsePackages.mockReset();
+  mockUseSecurityProfile.mockReset();
+  mockUseSecurityProfile.mockReturnValue({
+    data: {
+      permissions: [{ code: "evaluation.read" }, { code: "package.read" }],
+    },
+  });
   mockUsePackages.mockReturnValue({
     data: {
       items: [
@@ -200,12 +208,15 @@ describe("QcEvalSets", () => {
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20 }),
     );
-    expect(mockUsePackages).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      assetType: "EVALUATION",
-      keyword: undefined,
-    });
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "EVALUATION",
+        keyword: undefined,
+      },
+      { enabled: true },
+    );
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
     expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
     expect(screen.getAllByText("IND.VTE.REAL").length).toBeGreaterThan(0);
@@ -228,6 +239,26 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
+  it("does not request evaluation packages when the current role lacks package.read", () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+      },
+    });
+
+    renderPage();
+
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "EVALUATION",
+        keyword: undefined,
+      },
+      { enabled: false },
+    );
+  });
+
   it("loads evaluation package selectors through small server-side search pages", () => {
     renderPage();
 
@@ -238,12 +269,15 @@ describe("QcEvalSets", () => {
       level: "DEPARTMENT",
       status: "ACTIVE",
     });
-    expect(mockUsePackages).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      assetType: "EVALUATION",
-      keyword: undefined,
-    });
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "EVALUATION",
+        keyword: undefined,
+      },
+      { enabled: true },
+    );
     expect(mockUsePackages).not.toHaveBeenCalledWith({
       page: 1,
       size: 100,

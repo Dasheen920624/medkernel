@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -21,8 +23,6 @@ class ProfessionalAssetTemplateRegistryTest {
     @Test
     void coversAllFr1ProfessionsWithNonEmptySections() {
         List<ProfessionalAssetTemplate> all = registry.listAll();
-        // FR-1 13 专业模板 + T7.2 评分/计算器 FORMULA 骨架 = 14 个代码态模板。
-        assertThat(all).hasSize(14);
         assertThat(all).allSatisfy(t -> {
             assertThat(t.professionCode()).isNotBlank();
             assertThat(t.displayName()).isNotBlank();
@@ -33,6 +33,28 @@ class ProfessionalAssetTemplateRegistryTest {
                 assertThat(s.label()).isNotBlank();
             });
         });
+    }
+
+    @Test
+    void coversEveryIndependentlyProducedAssetTypeExceptPackage() {
+        Set<VersionedAssetType> structuralTypes = registry.listAll().stream()
+            .filter(template -> template.knowledgeDomain() == null)
+            .map(ProfessionalAssetTemplate::assetType)
+            .collect(Collectors.toSet());
+        assertThat(structuralTypes).containsExactlyInAnyOrder(
+            java.util.Arrays.stream(VersionedAssetType.values())
+                .filter(type -> type != VersionedAssetType.KNOWLEDGE)
+                .filter(type -> type != VersionedAssetType.PACKAGE)
+                .toArray(VersionedAssetType[]::new));
+    }
+
+    @Test
+    void coversEveryKnowledgeDomainWithAnExplicitDomainTemplate() {
+        for (KnowledgeDomain domain : KnowledgeDomain.values()) {
+            assertThat(registry.findByAssetTypeAndDomain(VersionedAssetType.KNOWLEDGE, domain))
+                .as("knowledge domain %s", domain)
+                .isPresent();
+        }
     }
 
     @Test
