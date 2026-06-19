@@ -1,0 +1,351 @@
+{
+  "status": "PASSED",
+  "stage": "PRE_SIGNOFF_REHEARSAL",
+  "startedAt": "2026-06-19T17:47:08.655Z",
+  "finishedAt": "2026-06-19T17:47:30.081Z",
+  "capabilityCode": "rule.draft",
+  "producer": "API_MODEL",
+  "providers": [
+    {
+      "providerCode": "ollama-qwen25-15b",
+      "expectedModelVersion": "medkernel-qwen25:1.5b-v1",
+      "snapshotMode": "GOVERNANCE_READ",
+      "before": {
+        "providerCode": "ollama-qwen25-15b",
+        "providerType": "OLLAMA",
+        "modelVersion": "medkernel-qwen25:1.5b-v1",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 1
+      },
+      "health": {
+        "providerCode": "ollama-qwen25-15b",
+        "providerType": "OLLAMA",
+        "modelVersion": "medkernel-qwen25:1.5b-v1",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 2
+      },
+      "evaluation": {
+        "runId": 3,
+        "providerCode": "ollama-qwen25-15b",
+        "modelVersion": "medkernel-qwen25:1.5b-v1",
+        "capabilityCode": "rule.draft",
+        "promptVersion": null,
+        "toolVersion": null,
+        "totalCases": 1,
+        "passedCases": 1,
+        "failedCases": 0,
+        "fakeCitationDetected": false,
+        "redLineBreach": false,
+        "hallucinationDetected": false,
+        "status": "PENDING_REVIEW",
+        "reviewerPresent": false,
+        "signedAtPresent": false,
+        "evidenceComplete": true,
+        "baselineCurrent": true,
+        "reviewable": true,
+        "reviewBlockReason": null,
+        "cases": [
+          {
+            "evidenceId": 3,
+            "regressionCaseId": 1,
+            "caseVersion": "who-chb-2024-v1",
+            "inputSha256": "7392c33c98e85cc4559694757fc1d6e2890075b5259cc7df86f2e90813550e3b",
+            "expectedPhraseSha256": "94bfb9aa4da706ce2ba0ec5042c6c20b5387a8b6623361a7b550df9e23d5bd29",
+            "sourceReferenceSha256": "9386da8a9a8eb30ee7bcaf4800b9518bb908cac1b686d9bf1a612c88d6037db2",
+            "outputSha256": "52136dc5750af428ea1b288ba31d06a1850530d14a794f147a9836db8323a74c",
+            "sourceCitationsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "expectedPhraseHit": true,
+            "citationRequired": true,
+            "citationVerified": true,
+            "redLineCase": true,
+            "redLineBreach": false,
+            "passed": true,
+            "failureCount": 0
+          }
+        ]
+      },
+      "after": {
+        "providerCode": "ollama-qwen25-15b",
+        "providerType": "OLLAMA",
+        "modelVersion": "medkernel-qwen25:1.5b-v1",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 2
+      },
+      "readiness": {
+        "producer": "API_MODEL",
+        "capabilityCode": "rule.draft",
+        "providerCode": null,
+        "ready": false,
+        "modelInvocationAllowed": false,
+        "passedCount": 5,
+        "total": 9,
+        "items": [
+          {
+            "code": "LITERATURE_ROOT",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "DEPLOYMENT_FORM",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_PROVIDER",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "REGRESSION_BASELINE",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_EVALUATION",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "EGRESS_GOVERNANCE",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_POLICY",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "VERSION_TRIPLE",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "P6_ACCEPTANCE",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": true
+          }
+        ]
+      }
+    },
+    {
+      "providerCode": "external-mimo-v25",
+      "expectedModelVersion": "mimo-v2.5",
+      "snapshotMode": "GOVERNANCE_READ",
+      "before": {
+        "providerCode": "external-mimo-v25",
+        "providerType": "OPENAI_COMPATIBLE",
+        "modelVersion": "mimo-v2.5",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 3
+      },
+      "health": {
+        "providerCode": "external-mimo-v25",
+        "providerType": "OPENAI_COMPATIBLE",
+        "modelVersion": "mimo-v2.5",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 4
+      },
+      "evaluation": {
+        "runId": 4,
+        "providerCode": "external-mimo-v25",
+        "modelVersion": "mimo-v2.5",
+        "capabilityCode": "rule.draft",
+        "promptVersion": null,
+        "toolVersion": null,
+        "totalCases": 1,
+        "passedCases": 1,
+        "failedCases": 0,
+        "fakeCitationDetected": false,
+        "redLineBreach": false,
+        "hallucinationDetected": false,
+        "status": "PENDING_REVIEW",
+        "reviewerPresent": false,
+        "signedAtPresent": false,
+        "evidenceComplete": true,
+        "baselineCurrent": true,
+        "reviewable": true,
+        "reviewBlockReason": null,
+        "cases": [
+          {
+            "evidenceId": 4,
+            "regressionCaseId": 1,
+            "caseVersion": "who-chb-2024-v1",
+            "inputSha256": "7392c33c98e85cc4559694757fc1d6e2890075b5259cc7df86f2e90813550e3b",
+            "expectedPhraseSha256": "94bfb9aa4da706ce2ba0ec5042c6c20b5387a8b6623361a7b550df9e23d5bd29",
+            "sourceReferenceSha256": "9386da8a9a8eb30ee7bcaf4800b9518bb908cac1b686d9bf1a612c88d6037db2",
+            "outputSha256": "fe95fbc76cf0173d103568e3321daa943a06f5d888a68e4f57a380266f20e225",
+            "sourceCitationsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "expectedPhraseHit": true,
+            "citationRequired": true,
+            "citationVerified": true,
+            "redLineCase": true,
+            "redLineBreach": false,
+            "passed": true,
+            "failureCount": 0
+          }
+        ]
+      },
+      "after": {
+        "providerCode": "external-mimo-v25",
+        "providerType": "OPENAI_COMPATIBLE",
+        "modelVersion": "mimo-v2.5",
+        "enabled": false,
+        "status": "HEALTHY",
+        "version": 4
+      },
+      "readiness": {
+        "producer": "API_MODEL",
+        "capabilityCode": "rule.draft",
+        "providerCode": null,
+        "ready": false,
+        "modelInvocationAllowed": false,
+        "passedCount": 5,
+        "total": 9,
+        "items": [
+          {
+            "code": "LITERATURE_ROOT",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "DEPLOYMENT_FORM",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_PROVIDER",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "REGRESSION_BASELINE",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_EVALUATION",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "EGRESS_GOVERNANCE",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "MODEL_POLICY",
+            "required": true,
+            "ready": true,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "VERSION_TRIPLE",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": false
+          },
+          {
+            "code": "P6_ACCEPTANCE",
+            "required": true,
+            "ready": false,
+            "evidenceEndsWithFalse": true
+          }
+        ]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-providers/ollama-qwen25-15b",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/model-providers/ollama-qwen25-15b/health-check",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/model-evaluations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-evaluations/runs/3",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-providers/ollama-qwen25-15b",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=rule.draft&providerCode=ollama-qwen25-15b",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-providers/external-mimo-v25",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/model-providers/external-mimo-v25/health-check",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/model-evaluations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-evaluations/runs/4",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/model-providers/external-mimo-v25",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=rule.draft&providerCode=external-mimo-v25",
+      "status": 200
+    }
+  ],
+  "failures": [],
+  "containsCredentials": false,
+  "containsPatientData": false,
+  "automatedExpertSignOff": false,
+  "providerEnableAttempted": false,
+  "p6MutationAttempted": false
+}

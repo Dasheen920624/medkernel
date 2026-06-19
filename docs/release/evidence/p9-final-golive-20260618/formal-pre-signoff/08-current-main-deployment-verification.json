@@ -1,0 +1,172 @@
+{
+  "status": "PASSED",
+  "stage": "CURRENT_MAIN_DEPLOYMENT_VERIFIED",
+  "capturedAt": "2026-06-20T01:53:04+08:00",
+  "environment": "134-production-center",
+  "deployment": {
+    "sourceCommit": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+    "originMainCommit": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+    "deployedAt": "2026-06-20T01:45:32+08:00",
+    "jarSha256": "f8f24daa7595cd3af177db6446be97e1c99fd1a3e247929fd045c51495a29aee",
+    "manifestJarSha256Matched": true,
+    "flywayVersion": 157,
+    "flywayLatestMigration": "sandbox run mode reserved word",
+    "flywayLatestMigrationSucceeded": true,
+    "publicTableCount": 214
+  },
+  "runtime": {
+    "service": "medkernel.service",
+    "active": true,
+    "subState": "running",
+    "enabled": true,
+    "mainPid": 2631313,
+    "restartCount": 0,
+    "internalHealthHttp": 200,
+    "nginxHttpsHealthHttp": 200,
+    "healthStatus": "UP"
+  },
+  "literatureMaterialRoot": {
+    "configKey": "medkernel.knowledge.literature.material-root-uri",
+    "scope": "SYSTEM",
+    "configVersion": 3,
+    "uri": "file:///medkernel-data/platform-knowledge/t-1/literature-materials/",
+    "mountTarget": "/medkernel-data",
+    "filesystem": "fuse.cosfs",
+    "capacity": "256T",
+    "available": "256T",
+    "directoryMode": "0750",
+    "directoryOwner": "medkernel:medkernel",
+    "fileCount": 1,
+    "fileMode": "0640",
+    "fileOwner": "medkernel:medkernel",
+    "fileName": "WHO-CHB-GUIDELINE-2024-9789240090903-eng.pdf",
+    "fileSize": 3515427,
+    "fileSha256": "e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c"
+  },
+  "foundationInitialization": {
+    "batchCode": "MK-FND-B0-1.0.0",
+    "batchCount": 1,
+    "batchStatus": "IN_REVIEW",
+    "candidateCount": 8,
+    "pendingReviewCount": 8,
+    "reuseStatus": "REUSED",
+    "automatedMedicalReviewAttempted": false,
+    "automatedExpertSignOff": false
+  },
+  "modelGovernance": {
+    "providerCount": 2,
+    "healthyProviderCount": 2,
+    "enabledProviderCount": 0,
+    "providers": [
+      {
+        "providerCode": "external-mimo-v25",
+        "status": "HEALTHY",
+        "enabled": false
+      },
+      {
+        "providerCode": "ollama-qwen25-15b",
+        "status": "HEALTHY",
+        "enabled": false
+      }
+    ],
+    "p6IndependentAcceptance": {
+      "configKey": "medkernel.knowledge.production.p6-independent-acceptance",
+      "scope": "SYSTEM",
+      "configVersion": 3,
+      "value": false
+    },
+    "currentReleaseEvaluationRuns": [
+      {
+        "runId": 3,
+        "providerCode": "ollama-qwen25-15b",
+        "status": "PENDING_REVIEW",
+        "passedCases": 1,
+        "totalCases": 1,
+        "releaseFingerprint": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+        "reviewer": null,
+        "signedAt": null
+      },
+      {
+        "runId": 4,
+        "providerCode": "external-mimo-v25",
+        "status": "PENDING_REVIEW",
+        "passedCases": 1,
+        "totalCases": 1,
+        "releaseFingerprint": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+        "reviewer": null,
+        "signedAt": null
+      }
+    ],
+    "historicalEvaluationRunsExcludedFromRelease": [
+      {
+        "runId": 1,
+        "providerCode": "ollama-qwen25-15b",
+        "status": "PASSED",
+        "releaseFingerprint": null
+      },
+      {
+        "runId": 2,
+        "providerCode": "external-mimo-v25",
+        "status": "PASSED",
+        "releaseFingerprint": null
+      }
+    ]
+  },
+  "governanceActors": {
+    "platformOwner": {
+      "status": "ACTIVE",
+      "mustChangePassword": false,
+      "mfaBound": true
+    },
+    "knowledgeSourceSteward": {
+      "status": "ACTIVE",
+      "mustChangePassword": false,
+      "mfaBound": true
+    },
+    "qualityGovernor": {
+      "status": "ACTIVE",
+      "mustChangePassword": false,
+      "mfaBound": true,
+      "currentReleaseSignOffCompleted": false
+    },
+    "medicationSafetyUser": {
+      "status": "ACTIVE",
+      "mustChangePassword": false,
+      "mfaBound": false
+    }
+  },
+  "knowledgeReadiness": {
+    "ready": false,
+    "modelInvocationAllowed": false,
+    "gateCount": 9,
+    "passedCount": 5,
+    "passed": [
+      "LITERATURE_ROOT",
+      "DEPLOYMENT_FORM",
+      "REGRESSION_BASELINE",
+      "EGRESS_GOVERNANCE",
+      "MODEL_POLICY"
+    ],
+    "blocked": [
+      "MODEL_PROVIDER",
+      "MODEL_EVALUATION",
+      "VERSION_TRIPLE",
+      "P6_ACCEPTANCE"
+    ]
+  },
+  "remainingExternalActions": [
+    "真实独立医学专家使用 quality-governor 逐例复核并签署当前发布运行 3、4",
+    "签署证据完整后仅启用一个精确匹配能力、模型、基准和当前发布指纹的 Provider",
+    "Provider 放行后由内置超级管理员通过高危配置治理放行 P6",
+    "真实治理人逐条审核 8 个 MEDIUM 基础候选后才能激活或进入正式知识包"
+  ],
+  "safety": {
+    "containsCredentials": false,
+    "containsPatientData": false,
+    "providerEnableAttempted": false,
+    "p6MutationAttempted": false,
+    "automatedMedicalReviewAttempted": false,
+    "automatedExpertSignOff": false,
+    "productionKnowledgeActivationClaimed": false
+  }
+}
