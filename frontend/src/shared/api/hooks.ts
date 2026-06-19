@@ -8491,6 +8491,53 @@ export interface SandboxReplayRuleResult {
   explanation: unknown;
 }
 
+export type SandboxRuleDifferenceType =
+  | "NEW_HIT"
+  | "NO_LONGER_HIT"
+  | "SEVERITY_INCREASED"
+  | "SEVERITY_DECREASED"
+  | "ACTION_CHANGED"
+  | "SOURCE_CHANGED"
+  | "VERSION_CHANGED"
+  | "ASSET_MISSING";
+
+export interface SandboxComparableRuleResult {
+  ruleCode: string;
+  ruleName: string;
+  versionId: string;
+  assetVersion: string;
+  sourceTier: "PLATFORM" | "ORG";
+  sourceTenantId: string;
+  contentHash: string;
+  hit: boolean;
+  severity?: string | null;
+  actions: SandboxReplayRuleResult["actions"];
+  explanation: unknown;
+}
+
+export interface SandboxRuleComparison {
+  ruleCode: string;
+  ruleName: string;
+  comparable: boolean;
+  nonComparableReason?: string | null;
+  changes: SandboxRuleDifferenceType[];
+  historical?: SandboxComparableRuleResult | null;
+  current?: SandboxComparableRuleResult | null;
+}
+
+export interface SandboxComparisonResponse {
+  contextHash: string;
+  summary: {
+    differenceCount: number;
+    newHitCount: number;
+    noLongerHitCount: number;
+    highRiskChangeCount: number;
+    nonComparableCount: number;
+  };
+  differences: SandboxRuleComparison[];
+  unchangedCount: number;
+}
+
 export interface SandboxRunResponse {
   scenarioId: string;
   traceId: string;
@@ -8514,6 +8561,7 @@ export interface SandboxRunResponse {
   result: "PASS" | "FAIL";
   replayCaseId?: string | null;
   replayRuleResults?: SandboxReplayRuleResult[];
+  comparison?: SandboxComparisonResponse | null;
 }
 
 export interface SandboxRuntimeStatus {

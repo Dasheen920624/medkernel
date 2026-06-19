@@ -36,11 +36,15 @@ import com.medkernel.engine.pathway.PatientPathwayEnterRequest;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.sandbox.compare.SandboxComparableRuleResult;
+import com.medkernel.engine.sandbox.compare.SandboxComparisonResponse;
+import com.medkernel.engine.sandbox.compare.SandboxComparisonService;
+import com.medkernel.engine.sandbox.compare.SandboxCurrentRuleExecutor;
+import com.medkernel.engine.sandbox.compare.SandboxHistoricalRuleAdapter;
 import com.medkernel.engine.sandbox.replay.SandboxReplayRuleExecutor;
 import com.medkernel.engine.sandbox.replay.SandboxReplayRuleResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -77,6 +81,9 @@ public class SandboxOrchestrationService {
     private final SandboxRuntimeBaselineResolver baselines;
     private final SandboxRunRepository runs;
     private final SandboxReplayRuleExecutor replayRules;
+    private final SandboxHistoricalRuleAdapter historicalRules;
+    private final SandboxCurrentRuleExecutor currentRules;
+    private final SandboxComparisonService comparisons;
 
     public SandboxOrchestrationService(
             SandboxScenarioCatalog catalog,
@@ -90,7 +97,10 @@ public class SandboxOrchestrationService {
             AuditRecorder audit,
             SandboxRuntimeBaselineResolver baselines,
             SandboxRunRepository runs,
-            SandboxReplayRuleExecutor replayRules) {
+            SandboxReplayRuleExecutor replayRules,
+            SandboxHistoricalRuleAdapter historicalRules,
+            SandboxCurrentRuleExecutor currentRules,
+            SandboxComparisonService comparisons) {
         this.catalog = catalog;
         this.snapshots = snapshots;
         this.recommendations = recommendations;
@@ -103,6 +113,9 @@ public class SandboxOrchestrationService {
         this.baselines = baselines;
         this.runs = runs;
         this.replayRules = replayRules;
+        this.historicalRules = historicalRules;
+        this.currentRules = currentRules;
+        this.comparisons = comparisons;
     }
 
     public SandboxRunResponse run(String scenarioId, SandboxRunRequest request) {
@@ -110,11 +123,6 @@ public class SandboxOrchestrationService {
         SandboxRunRequest effectiveRequest = request == null
             ? new SandboxRunRequest(null, null, null, null)
             : request;
-        if (effectiveRequest.mode() == SandboxRunMode.COMPARE) {
-            throw new ApiException(
-                ErrorCode.BAD_REQUEST,
-                "COMPARE 将在历史原样重放基线完成后启用");
-        }
         String traceId = currentTraceId();
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
@@ -130,10 +138,13 @@ public class SandboxOrchestrationService {
 
         SandboxRuntimeBaseline baseline;
         try {
-            baseline = effectiveRequest.mode() == SandboxRunMode.CURRENT
-                ? baselines.resolveCurrent(tenantId, targetOrgUnitId)
-                : baselines.resolveHistorical(
+            baseline = switch (effectiveRequest.mode()) {
+                case CURRENT -> baselines.resolveCurrent(tenantId, targetOrgUnitId);
+                case HISTORICAL_EXACT -> baselines.resolveHistorical(
                     tenantId, targetOrgUnitId, effectiveRequest.replayCaseId());
+                case COMPARE -> baselines.resolveCompare(
+                    tenantId, targetOrgUnitId, effectiveRequest.replayCaseId());
+            };
             ledger = runs.save(resolvedRun(ledger, baseline, actor));
         } catch (RuntimeException exception) {
             runs.save(failedRun(ledger, exception, actor));
@@ -141,9 +152,11 @@ public class SandboxOrchestrationService {
         }
 
         try {
-            SandboxRunResponse response = (baseline.mode() == SandboxRunMode.HISTORICAL_EXACT
-                ? executeHistorical(scenario, traceId, baseline)
-                : execute(scenario, effectiveRequest, traceId, baseline))
+            SandboxRunResponse response = (switch (baseline.mode()) {
+                case HISTORICAL_EXACT -> executeHistorical(scenario, traceId, baseline);
+                case COMPARE -> executeCompare(scenario, traceId, baseline);
+                case CURRENT -> execute(scenario, effectiveRequest, traceId, baseline);
+            })
                 .withRuntime(runId, baseline);
             runs.save(completedRun(ledger, response, actor));
             return response;
@@ -187,7 +200,7 @@ public class SandboxOrchestrationService {
                 scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
                 baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
                 steps, null, null, 0, null, null, null, null, null, null, List.of(),
-                "PASS", baseline.replayCaseId(), results));
+                "PASS", baseline.replayCaseId(), results, null));
         } catch (RuntimeException exception) {
             steps.add(SandboxStepTrace.fail(
                 "HISTORICAL_RULES",
@@ -198,8 +211,104 @@ public class SandboxOrchestrationService {
                 scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
                 baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
                 steps, null, null, 0, null, null, null, null, null, null, List.of(),
-                "FAIL", baseline.replayCaseId(), List.of()));
+                "FAIL", baseline.replayCaseId(), List.of(), null));
         }
+    }
+
+    private SandboxRunResponse executeCompare(
+            SandboxScenario scenario,
+            String traceId,
+            SandboxRuntimeBaseline baseline) {
+        List<SandboxStepTrace> steps = new ArrayList<>();
+        steps.add(SandboxStepTrace.ok(
+            "REPLAY_MANIFEST",
+            "/api/v1/engine/sandbox/replay-cases/" + baseline.replayCaseId(),
+            json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+            json.valueToTree(Map.of(
+                "historicalPackageCode", baseline.historicalReplay().replayCase().packageCode(),
+                "historicalPackageVersion", baseline.historicalReplay().replayCase().packageVersion(),
+                "currentPackageCode", baseline.packageCode(),
+                "currentPackageVersion", baseline.packageVersion())),
+            facts(
+                "contextHash", baseline.historicalReplay().replayCase().contextSnapshotHash(),
+                "manifestHash", baseline.historicalReplay().replayCase().manifestHash(),
+                "externalSideEffects", false)));
+
+        List<SandboxComparableRuleResult> historical;
+        try {
+            historical = historicalRules.execute(baseline.historicalReplay());
+            steps.add(SandboxStepTrace.ok(
+                "HISTORICAL_RULES",
+                "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+                json.valueToTree(historical),
+                facts("ruleCount", historical.size(), "writeBack", false)));
+        } catch (RuntimeException exception) {
+            steps.add(SandboxStepTrace.fail(
+                "HISTORICAL_RULES", "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+                messageOf(exception)));
+            return audited(compareFailure(scenario, traceId, baseline, steps));
+        }
+
+        List<SandboxComparableRuleResult> current;
+        try {
+            current = currentRules.execute(
+                baseline.effectivePackage(), baseline.historicalReplay().contextSnapshot());
+            steps.add(SandboxStepTrace.ok(
+                "CURRENT_RULES",
+                "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of(
+                    "packageCode", baseline.packageCode(),
+                    "packageVersion", baseline.packageVersion())),
+                json.valueToTree(current),
+                facts("ruleCount", current.size(), "writeBack", false)));
+        } catch (RuntimeException exception) {
+            steps.add(SandboxStepTrace.fail(
+                "CURRENT_RULES", "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of("packageCode", baseline.packageCode())),
+                messageOf(exception)));
+            return audited(compareFailure(scenario, traceId, baseline, steps));
+        }
+
+        try {
+            SandboxComparisonResponse comparison = comparisons.compare(
+                baseline.historicalReplay().replayCase().contextSnapshotHash(), historical, current);
+            steps.add(SandboxStepTrace.ok(
+                "COMPARISON",
+                "/internal/engine/sandbox/comparison",
+                json.valueToTree(Map.of(
+                    "historicalRuleCount", historical.size(),
+                    "currentRuleCount", current.size())),
+                json.valueToTree(comparison),
+                facts(
+                    "differenceCount", comparison.summary().differenceCount(),
+                    "nonComparableCount", comparison.summary().nonComparableCount(),
+                    "writeBack", false)));
+            return audited(new SandboxRunResponse(
+                scenario.id(), traceId, null, null, SandboxRunMode.COMPARE,
+                baseline.packageVersion(), baseline.resolutionSource(), false,
+                steps, null, null, 0, null, null, null, null, null, null, List.of(),
+                "PASS", baseline.replayCaseId(), List.of(), comparison));
+        } catch (RuntimeException exception) {
+            steps.add(SandboxStepTrace.fail(
+                "COMPARISON", "/internal/engine/sandbox/comparison",
+                json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+                messageOf(exception)));
+            return audited(compareFailure(scenario, traceId, baseline, steps));
+        }
+    }
+
+    private static SandboxRunResponse compareFailure(
+            SandboxScenario scenario,
+            String traceId,
+            SandboxRuntimeBaseline baseline,
+            List<SandboxStepTrace> steps) {
+        return new SandboxRunResponse(
+            scenario.id(), traceId, null, null, SandboxRunMode.COMPARE,
+            baseline.packageVersion(), baseline.resolutionSource(), false,
+            steps, null, null, 0, null, null, null, null, null, null, List.of(),
+            "FAIL", baseline.replayCaseId(), List.of(), null);
     }
 
     private SandboxRunResponse execute(

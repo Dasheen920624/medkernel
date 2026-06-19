@@ -371,4 +371,99 @@ describe("SandboxHost", () => {
     expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
   });
+
+  it("compares historical and current frozen rules without sending a context override", async () => {
+    sandboxHookMocks.run.mockResolvedValue({
+      scenarioId: "sbx-lab-critical-k",
+      traceId: "trace-compare-1",
+      runId: "run-compare-1",
+      baselineId: "baseline-compare-1",
+      mode: "COMPARE",
+      replayCaseId: "replay-2025-001",
+      resolvedPackageVersion: "current-2",
+      resolutionSource: "TENANT_PACKAGE",
+      externalSideEffects: false,
+      steps: [],
+      cardCount: 0,
+      embedModes: [],
+      replayRuleResults: [],
+      comparison: {
+        contextHash: "context-hash",
+        summary: {
+          differenceCount: 2,
+          newHitCount: 1,
+          noLongerHitCount: 0,
+          highRiskChangeCount: 1,
+          nonComparableCount: 0,
+        },
+        unchangedCount: 8,
+        differences: [
+          {
+            ruleCode: "RULE.RISK.UP",
+            ruleName: "高风险变化规则",
+            comparable: true,
+            changes: ["SEVERITY_INCREASED"],
+            historical: {
+              ruleCode: "RULE.RISK.UP",
+              ruleName: "高风险变化规则",
+              versionId: "old-v1",
+              assetVersion: "1",
+              sourceTier: "PLATFORM",
+              sourceTenantId: "sha256:old",
+              contentHash: "a".repeat(64),
+              hit: true,
+              severity: "LOW",
+              actions: [],
+              explanation: {},
+            },
+            current: {
+              ruleCode: "RULE.RISK.UP",
+              ruleName: "高风险变化规则",
+              versionId: "new-v2",
+              assetVersion: "2",
+              sourceTier: "ORG",
+              sourceTenantId: "tenant-1",
+              contentHash: "b".repeat(64),
+              hit: true,
+              severity: "CRITICAL",
+              actions: [],
+              explanation: {},
+            },
+          },
+          {
+            ruleCode: "RULE.NEW.HIT",
+            ruleName: "新增命中规则",
+            comparable: true,
+            changes: ["NEW_HIT"],
+            historical: null,
+            current: null,
+          },
+        ],
+      },
+      result: "PASS",
+    });
+
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("radio", { name: "新旧对比" }));
+    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+      target: { value: "replay-2025-001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行新旧对比" }));
+
+    await waitFor(() =>
+      expect(sandboxHookMocks.run).toHaveBeenCalledWith({
+        scenarioId: "sbx-lab-critical-k",
+        body: {
+          entryMode: "SNAPSHOT",
+          mode: "COMPARE",
+          replayCaseId: "replay-2025-001",
+        },
+      }),
+    );
+    expect(await screen.findByRole("region", { name: "新旧规则差异" })).toBeInTheDocument();
+    expect(screen.getByText("高风险变化规则")).toBeInTheDocument();
+    expect(screen.getByText("严重度升高")).toBeInTheDocument();
+    expect(screen.getAllByText("新增命中")).toHaveLength(2);
+    expect(screen.getByText("8")).toBeInTheDocument();
+  });
 });

@@ -28,6 +28,7 @@ import {
 } from "@/shared/api/hooks";
 import type {
   SandboxResolutionSource,
+  SandboxRuleDifferenceType,
   SandboxRunMode,
   SandboxRunRequest,
   SandboxRunResponse,
@@ -47,6 +48,43 @@ const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
   PLATFORM_PACKAGE: "平台主源规则",
   REPLAY_MANIFEST: "历史重放清单",
 } as const;
+
+const DIFFERENCE_LABELS: Record<SandboxRuleDifferenceType, string> = {
+  NEW_HIT: "新增命中",
+  NO_LONGER_HIT: "取消命中",
+  SEVERITY_INCREASED: "严重度升高",
+  SEVERITY_DECREASED: "严重度降低",
+  ACTION_CHANGED: "动作变化",
+  SOURCE_CHANGED: "来源变化",
+  VERSION_CHANGED: "版本或摘要变化",
+  ASSET_MISSING: "资产缺失",
+};
+
+function isRunModeReady(mode: SandboxRunMode, runtimeReady: boolean, replayReady: boolean) {
+  if (mode === "CURRENT") return runtimeReady;
+  if (mode === "COMPARE") return runtimeReady && replayReady;
+  return replayReady;
+}
+
+function bindingLabel(mode: SandboxRunMode, replayCaseId: string, currentBindingLabel: string) {
+  if (mode === "CURRENT") return currentBindingLabel;
+  if (mode === "COMPARE") {
+    return `${replayCaseId.trim() || "待输入"} ↔ ${currentBindingLabel}`;
+  }
+  return replayCaseId.trim() || "待输入";
+}
+
+function sourceLabel(mode: SandboxRunMode, runtimeSourceLabel: string) {
+  if (mode === "CURRENT") return runtimeSourceLabel;
+  if (mode === "COMPARE") return `历史重放清单 ↔ ${runtimeSourceLabel}`;
+  return "历史重放清单";
+}
+
+function differenceColor(change: SandboxRuleDifferenceType) {
+  if (change === "SEVERITY_INCREASED" || change === "NEW_HIT") return "error";
+  if (change === "ASSET_MISSING") return "warning";
+  return "processing";
+}
 
 export default function SandboxHost() {
   const { message } = App.useApp();
@@ -69,19 +107,21 @@ export default function SandboxHost() {
   const replayReady = replayCaseId.trim().length > 0;
   const scenarioRunnable =
     selectedScenario.status === "runtime-check" &&
-    (runMode === "CURRENT" ? runtimeReady : replayReady);
+    isRunModeReady(runMode, runtimeReady, replayReady);
   const runtimeSourceLabel = runtimeStatus?.resolutionSource
     ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
     : "尚未解析";
   const currentBindingLabel = runtimeStatus?.ready
     ? `${runtimeStatus.packageCode}@${runtimeStatus.packageVersion}`
     : "未就绪";
-  const selectedBindingLabel =
-    runMode === "CURRENT" ? currentBindingLabel : replayCaseId.trim() || "待输入";
+  const selectedBindingLabel = bindingLabel(runMode, replayCaseId, currentBindingLabel);
 
   const scenarioStatusLabel = (scenario: SandboxScenario) => {
     if (scenario.status === "catalog-unavailable") return "目录不可用";
-    if (runMode !== "CURRENT") return replayReady ? "可重放" : "待选清单";
+    if (runMode === "HISTORICAL_EXACT") return replayReady ? "可重放" : "待选清单";
+    if (runMode === "COMPARE") {
+      return replayReady && runtimeReady ? "可对比" : "待清单或当前基线";
+    }
     if (runtimeQuery.isLoading) return "校验中";
     return runtimeReady ? "可运行" : "基线未就绪";
   };
@@ -226,7 +266,7 @@ export default function SandboxHost() {
                 options={[
                   { label: "当前规则", value: "CURRENT" },
                   { label: "历史原样重放", value: "HISTORICAL_EXACT" },
-                  { label: "新旧对比", value: "COMPARE", disabled: true },
+                  { label: "新旧对比", value: "COMPARE" },
                 ]}
               />
             </Space>
@@ -235,13 +275,13 @@ export default function SandboxHost() {
                 <Tag color="processing">{runMode}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="规则来源">
-                {runMode === "CURRENT" ? runtimeSourceLabel : "历史重放清单"}
+                {sourceLabel(runMode, runtimeSourceLabel)}
               </Descriptions.Item>
               <Descriptions.Item label={runMode === "CURRENT" ? "当前绑定" : "重放清单"}>
                 {selectedBindingLabel}
               </Descriptions.Item>
               <Descriptions.Item label="有效资产">
-                {runMode === "CURRENT" ? (runtimeStatus?.assetCount ?? 0) : "运行时验真"}
+                {runMode === "HISTORICAL_EXACT" ? "运行时验真" : (runtimeStatus?.assetCount ?? 0)}
               </Descriptions.Item>
               <Descriptions.Item label="安全边界">
                 <Tag color="success">外部副作用已关闭</Tag>
@@ -370,13 +410,70 @@ export default function SandboxHost() {
             </section>
           )}
 
+          {result?.comparison && (
+            <section className={styles.runSummary} aria-label="新旧规则差异">
+              <Typography.Title level={5}>新旧规则差异</Typography.Title>
+              <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 5 }}>
+                <Descriptions.Item label="差异规则">
+                  {result.comparison.summary.differenceCount}
+                </Descriptions.Item>
+                <Descriptions.Item label="新增命中">
+                  {result.comparison.summary.newHitCount}
+                </Descriptions.Item>
+                <Descriptions.Item label="取消命中">
+                  {result.comparison.summary.noLongerHitCount}
+                </Descriptions.Item>
+                <Descriptions.Item label="高风险变化">
+                  {result.comparison.summary.highRiskChangeCount}
+                </Descriptions.Item>
+                <Descriptions.Item label="未变化（已折叠）">
+                  {result.comparison.unchangedCount}
+                </Descriptions.Item>
+              </Descriptions>
+              <Space direction="vertical" size="middle">
+                {result.comparison.differences.map((difference) => (
+                  <div key={difference.ruleCode}>
+                    <Space wrap>
+                      <Typography.Text strong>{difference.ruleName}</Typography.Text>
+                      <Typography.Text code>{difference.ruleCode}</Typography.Text>
+                      {difference.changes.map((change) => (
+                        <Tag key={change} color={differenceColor(change)}>
+                          {DIFFERENCE_LABELS[change]}
+                        </Tag>
+                      ))}
+                    </Space>
+                    {!difference.comparable && (
+                      <Typography.Paragraph type="warning">
+                        {difference.nonComparableReason}
+                      </Typography.Paragraph>
+                    )}
+                    {difference.comparable && (
+                      <Typography.Paragraph type="secondary">
+                        历史：
+                        {difference.historical
+                          ? `${difference.historical.sourceTier} ${difference.historical.assetVersion} / ${difference.historical.hit ? "命中" : "未命中"}`
+                          : "缺失"}
+                        {"；"}当前：
+                        {difference.current
+                          ? `${difference.current.sourceTier} ${difference.current.assetVersion} / ${difference.current.hit ? "命中" : "未命中"}`
+                          : "缺失"}
+                      </Typography.Paragraph>
+                    )}
+                  </div>
+                ))}
+              </Space>
+            </section>
+          )}
+
           {selectedScenario.status === "runtime-check" && runMode !== "CURRENT" && (
             <section className={styles.orchestrationPanel} aria-labelledby="sandbox-replay-title">
               <Typography.Title id="sandbox-replay-title" level={5}>
                 历史重放清单
               </Typography.Title>
               <Typography.Paragraph type="secondary">
-                按不可变清单装载 D4 脱敏上下文与精确历史规则版本；不读取当前规则，不产生业务写回。
+                {runMode === "COMPARE"
+                  ? "以不可变清单中的 D4 脱敏上下文，同时执行历史精确版本与当前冻结基线；只生成差异证据，不产生业务写回。"
+                  : "按不可变清单装载 D4 脱敏上下文与精确历史规则版本；不读取当前规则，不产生业务写回。"}
               </Typography.Paragraph>
               <Space direction="vertical">
                 <Input
@@ -388,12 +485,12 @@ export default function SandboxHost() {
                 <Button
                   type="primary"
                   icon={<PlayCircleOutlined />}
-                  aria-label="按清单原样重放"
+                  aria-label={runMode === "COMPARE" ? "运行新旧对比" : "按清单原样重放"}
                   loading={runMutation.isPending}
-                  disabled={!scenarioRunnable || runMode === "COMPARE"}
+                  disabled={!scenarioRunnable}
                   onClick={handleHistoricalRun}
                 >
-                  按清单原样重放
+                  {runMode === "COMPARE" ? "运行新旧对比" : "按清单原样重放"}
                 </Button>
               </Space>
             </section>

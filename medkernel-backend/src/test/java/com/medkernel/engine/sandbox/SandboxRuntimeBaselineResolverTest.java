@@ -140,6 +140,30 @@ class SandboxRuntimeBaselineResolverTest {
         verifyNoInteractions(bindings, packages, effectivePackages);
     }
 
+    @Test
+    void resolvesCompareFromCurrentBindingAndHistoricalManifestWithoutMixingTheirAssets() {
+        SandboxRuntimeBinding binding = binding("tenant-A", "tenant-A", "pkg-local", "2.0.0");
+        KnowledgePackage pack = pack("tenant-A", "pkg-local", "2.0.0", KnowledgePackageStatus.ACTIVE);
+        EffectiveKnowledgePackageResponse current = effective("tenant-A", "pkg-local", "2.0.0");
+        SandboxReplayResolvedCase historical = historicalReplay();
+        when(bindings.findByTenantIdAndStatusOrderByActivatedAtDescIdDesc(
+            "tenant-A", SandboxRuntimeBindingStatus.ACTIVE)).thenReturn(List.of(binding));
+        when(packages.findByPackageIdAndTenantId("pkg-local", "tenant-A")).thenReturn(Optional.of(pack));
+        when(effectivePackages.resolveExplicitPackage("tenant-A", pack, "hospital-A"))
+            .thenReturn(current);
+        when(replayCases.resolve("replay-1")).thenReturn(historical);
+
+        SandboxRuntimeBaseline baseline = resolver.resolveCompare(
+            "tenant-A", "hospital-A", "replay-1");
+
+        assertThat(baseline.mode()).isEqualTo(SandboxRunMode.COMPARE);
+        assertThat(baseline.bindingId()).isEqualTo("binding-1");
+        assertThat(baseline.packageVersion()).isEqualTo("2.0.0");
+        assertThat(baseline.effectivePackage()).isSameAs(current);
+        assertThat(baseline.replayCaseId()).isEqualTo("replay-1");
+        assertThat(baseline.historicalReplay()).isSameAs(historical);
+    }
+
     private static SandboxRuntimeBinding binding(
             String tenantId, String ownerTenantId, String packageId, String version) {
         Instant now = Instant.parse("2026-06-19T00:00:00Z");

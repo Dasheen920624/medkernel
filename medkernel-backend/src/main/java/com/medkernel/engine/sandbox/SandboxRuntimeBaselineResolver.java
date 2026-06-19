@@ -106,6 +106,22 @@ public class SandboxRuntimeBaselineResolver {
             Instant.now(), effective, replay.replayCase().replayCaseId(), replay);
     }
 
+    /** 同时冻结当前有效包和历史清单；两侧只共享历史清单中的脱敏上下文。 */
+    public SandboxRuntimeBaseline resolveCompare(
+            String tenantId,
+            String targetOrgUnitId,
+            String replayCaseId) {
+        SandboxRuntimeBaseline current = resolveCurrent(tenantId, targetOrgUnitId);
+        SandboxRuntimeBaseline historical = resolveHistorical(
+            tenantId, targetOrgUnitId, replayCaseId);
+        return new SandboxRuntimeBaseline(
+            "baseline-" + UUID.randomUUID(), SandboxRunMode.COMPARE,
+            current.tenantId(), current.targetOrgUnitId(), current.bindingId(),
+            current.packageOwnerTenantId(), current.packageId(), current.packageCode(),
+            current.packageVersion(), current.resolutionSource(), Instant.now(),
+            current.effectivePackage(), historical.replayCaseId(), historical.historicalReplay());
+    }
+
     private static void assertBindingMatchesPackage(SandboxRuntimeBinding binding, KnowledgePackage pack) {
         if (!binding.packageCode().equals(pack.packageCode())
                 || !binding.packageVersion().equals(pack.packageVersion())
