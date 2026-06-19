@@ -5,10 +5,10 @@
 ## 当前真相
 
 - 最新主线：`origin/main=be9943956d63e7097052623911830c6d48e5375b`，#637「记录生产预演 PR 合并结果」已合并。
-- 当前实施分支：`codex/full-fidelity-sandbox-runtime`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。本线已统一纳管试点租户脚本、全真沙盘、现场重放、知识初始化和功能补齐，并把最终精确冻结制品前向部署到 134；未清库、未 push、未创建或合并远程 PR。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
+- 当前实施分支：`codex/full-fidelity-sandbox-runtime`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`，远程 PR 为 [#638](https://github.com/Dasheen920624/medkernel/pull/638)，最新代码提交为 `a79434cb`。本线已统一纳管试点租户脚本、全真沙盘、现场重放、知识初始化和功能补齐，并把最终精确冻结制品前向部署到 134；当前正在等待最终 CI，尚未合并或部署本 PR。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
 - 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。
 - 基础知识初始化采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：134 已生成首批 8 个稳定基础条目，覆盖权威来源、术语、数据元、编码/值集/单位、主数据/互操作、证据分级、发行 BOM 和金标回归骨架；全部为 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING`，F8 批次保持 `IN_REVIEW`，知识激活数为 0，也不宣称基础发行版已完成。
-- 当前切片代码提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`、`65d164a7`；最后一项增加医学评测运行制品指纹、修复知识治理白屏与同类无权限预取。最终独立后端验证为 481 份 Surefire XML / 3094 tests / 0 failures / 0 errors / 7 skipped；前端 `npm run verify` 为 101 个测试文件 / 810 tests，ESLint 零 warning、Stylelint、格式和类型检查均通过；B0、中文注释、产品目录、迁移规约、部署合同和 `git diff --check` 均通过。
+- 当前切片代码提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`、`65d164a7`、`b8f69103`、`ff4f04b6`、`9a567d27`、`a79434cb`；最新提交修复 Oracle V153/V154 的 LOB CHECK 与 `MODE` 保留字问题，并以五方言 V157 前向统一为 `run_mode`，不改 PostgreSQL 已执行历史迁移。最终独立后端验证为 481 份 Surefire XML / 3097 tests / 0 failures / 0 errors / 7 skipped；前端 `npm run verify` 为 101 个测试文件 / 810 tests，ESLint 零 warning、Stylelint、格式和类型检查均通过；B0、中文注释、产品目录、迁移规约、部署合同和 `git diff --check` 均通过。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，随后仅执行不清库前向迁移，当前为 Flyway V156。上线后不再清库。
