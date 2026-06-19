@@ -113,12 +113,14 @@ public class CandidateGenerationOrchestrationService {
                 new GateContext(tenantId, job.jobCode(), item.target().targetIdentityId()));
             if (!outcome.passed()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), outcome.failedItems()));
+                production.cancelJob(job.jobCode());
                 continue;
             }
             GenerationTriageDecision triage = triageService.evaluate(envelope, new GenerationTriageContext(
                 tenantId, job.jobCode(), item.target().targetIdentityId(), item.assetType()));
             if (!triage.shouldSubmit()) {
                 skipped.add(new SkippedType(item.assetType(), "生成期分流跳过：" + triage.basis()));
+                production.completeJob(job.jobCode());
                 continue;
             }
             KnowledgeShadowDecision shadow = shadowService.evaluate(envelope, new KnowledgeShadowContext(
@@ -126,12 +128,14 @@ public class CandidateGenerationOrchestrationService {
             if (!shadow.readyForReview()) {
                 blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(),
                     List.of(GateItemResult.fail(KnowledgeShadowEvaluationService.SHADOW_GATE_CODE, shadow.basis()))));
+                production.cancelJob(job.jobCode());
                 continue;
             }
             CandidateSubmissionResponse response =
                 production.submitCandidate(job.jobCode(), envelope, item.target());
             generated.add(new GeneratedCandidate(
                 item.assetType(), job.jobCode(), response.candidateRef(), response.routing()));
+            production.completeJob(job.jobCode());
         }
         return new GenerationSummary(generated, skipped, blocked);
     }

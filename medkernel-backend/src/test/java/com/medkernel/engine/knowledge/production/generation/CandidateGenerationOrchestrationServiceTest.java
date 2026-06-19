@@ -143,6 +143,8 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.skipped()).isEmpty();
         verify(production, times(2)).createJob(any());
         verify(production, times(2)).submitCandidate(eq("job-x"), any(), any());
+        verify(production, times(2)).completeJob("job-x");
+        verify(production, never()).cancelJob(any());
     }
 
     @Test
@@ -188,6 +190,8 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.blocked()).hasSize(1);
         assertThat(summary.blocked().get(0).failedGates()).isNotEmpty();
         verify(production, never()).submitCandidate(any(), any(), any());
+        verify(production).cancelJob("job-x");
+        verify(production, never()).completeJob(any());
     }
 
     @Test
@@ -216,6 +220,8 @@ class CandidateGenerationOrchestrationServiceTest {
                     assertThat(gate.reason()).contains("基准集");
                 }));
         verify(production, never()).submitCandidate(any(), any(), any());
+        verify(production).cancelJob("job-x");
+        verify(production, never()).completeJob(any());
     }
 
     @Test
@@ -245,6 +251,8 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.skipped()).singleElement()
             .satisfies(skipped -> assertThat(skipped.reason()).contains("重复"));
         verify(production, never()).submitCandidate(any(), any(), any());
+        verify(production).completeJob("job-x");
+        verify(production, never()).cancelJob(any());
         verify(triageService).evaluate(any(), org.mockito.ArgumentMatchers.argThat(
             (GenerationTriageContext context) -> context.targetIdentityId().equals(10L)));
     }
