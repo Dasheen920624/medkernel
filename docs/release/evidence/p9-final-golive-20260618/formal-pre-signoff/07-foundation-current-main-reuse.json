@@ -1,0 +1,55 @@
+{
+  "status": "REUSED",
+  "stage": "FOUNDATION_B0_INITIALIZATION",
+  "startedAt": "2026-06-19T17:50:25.096Z",
+  "finishedAt": "2026-06-19T17:50:26.019Z",
+  "tenantId": "t-1",
+  "registryCode": "MEDKERNEL-FOUNDATION-AUTHORITY-REGISTRY",
+  "registryVersion": "1.0.0",
+  "batchCode": "MK-FND-B0-1.0.0",
+  "batch": {
+    "batchCode": "MK-FND-B0-1.0.0",
+    "status": "IN_REVIEW",
+    "candidateCount": 8,
+    "mediumCount": 8,
+    "overallHash": "dd17a196985d094d6cf702914f3e3358dbe5d72e77f9f9d02cad75ab15040b6a",
+    "pendingCanonicalIds": [
+      "mk.foundation.authority-source-registry",
+      "mk.foundation.terminology-source-registry",
+      "mk.foundation.data-element-registry",
+      "mk.foundation.code-value-unit-registry",
+      "mk.foundation.master-data-interoperability-registry",
+      "mk.foundation.evidence-grade-registry",
+      "mk.foundation.release-acceptance-bom",
+      "mk.foundation.golden-regression-compatibility"
+    ]
+  },
+  "regressionCases": [],
+  "sources": [],
+  "candidates": [],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/engine/knowledge-production/initialization/batches",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/engine/knowledge-production/initialization/batches/MK-FND-B0-1.0.0",
+      "status": 200
+    }
+  ],
+  "safety": {
+    "containsCredentials": false,
+    "containsPatientData": false,
+    "providerEnableAttempted": false,
+    "p6MutationAttempted": false,
+    "automatedMedicalReviewAttempted": false,
+    "automatedExpertSignOff": false
+  }
+}
