@@ -77,7 +77,7 @@ public class SandboxScenarioCatalog {
             "SBX-FU-001", "SBX-FU-ENC-001", "FOLLOWUP", "HIGH", null));
         register(outerScenario(
             "sbx-evaluation-closed-loop", "evaluation", "EVALUATION", "质控整改复核闭环",
-            "P5-ACT7-FOLLOWUP-001", "SBX-QC-ENC-001", "EVALUATION", "MEDIUM", null));
+            "SBX-QC-001", "SBX-QC-ENC-001", "EVALUATION", "MEDIUM", null));
         register(outerScenario(
             "sbx-embed-modes", "embed", "EMBED", "嵌入三模式契约",
             "SBX-LAB-K-001", "SBX-LAB-K-ENC-001", "IFRAME_SDK_API", "LOW", null));

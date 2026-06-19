@@ -266,7 +266,7 @@ Expected: 全部 exit 0，零 warning。
 - Modify: `scripts/drill/sandbox-fulltruth-run.mjs`
 - Create: `docs/release/evidence/sandbox-rule-sources/README.md`
 
-- [ ] **Step 1: 为十条规则完整性写红测**
+- [x] **Step 1: 为十条规则完整性写红测**
 
 每条必须有：
 
@@ -277,7 +277,7 @@ Expected: 全部 exit 0，零 warning。
 - `clinicalContent` 和演练免责声明；
 - 不含 `CLINICAL_REVIEW_REQUIRED`、空 source、空 change 或固定配置包版本。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -287,11 +287,11 @@ node --test scripts/sandbox/scenario-rules.test.mjs
 
 Expected: FAIL，列出当前 9 条不完整规则。
 
-- [ ] **Step 3: 基于权威来源补齐演练资产**
+- [x] **Step 3: 基于权威来源补齐演练资产**
 
 医学阈值与动作必须查权威原始来源；无法从权威来源确定的内容改成机构可配置条件，不伪造全国统一阈值。医保/病历质量规则使用结构完整性与流程提醒，不做自动拒付或诊断。所有规则以 `pilot-hospital` 机构资产创建，平台主源规则只作为运行时补充，不复制。
 
-- [ ] **Step 4: seeder 改为运行时读取绑定**
+- [x] **Step 4: seeder 改为运行时读取绑定**
 
 铺底顺序：
 
@@ -303,7 +303,7 @@ Expected: FAIL，列出当前 9 条不完整规则。
 
 脚本不再声明固定 package version；第三方或现场事件显式传入的版本仍保留为业务输入。
 
-- [ ] **Step 5: 离线测试与代码扫描**
+- [x] **Step 5: 离线测试与代码扫描**
 
 Run:
 

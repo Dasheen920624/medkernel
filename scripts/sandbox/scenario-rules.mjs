@@ -1,75 +1,191 @@
 import { readFile } from "node:fs/promises";
 
-const APPROVED = "APPROVED_FOR_SANDBOX";
-const CLINICAL_REVIEW_REQUIRED = "CLINICAL_REVIEW_REQUIRED";
-const REQUIRED_CASES = new Set(["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"]);
+const SANDBOX_READY = "SANDBOX_READY";
+const SANDBOX_TENANT = "pilot-hospital";
+const REQUIRED_CASES = new Set([
+  "POSITIVE",
+  "NEGATIVE",
+  "BOUNDARY",
+  "MISSING_FIELD",
+]);
+const REQUIRED_SOURCE_FIELDS = new Set([
+  "sourceType",
+  "title",
+  "issuingBody",
+  "url",
+  "retrievedAt",
+  "applicability",
+]);
 
-export async function loadScenarioRules(url = new URL("./scenario-rules.json", import.meta.url)) {
+export async function loadScenarioRules(
+  url = new URL("./scenario-rules.json", import.meta.url),
+) {
   const manifest = JSON.parse(await readFile(url, "utf8"));
   validateScenarioRules(manifest);
   return manifest;
 }
 
 export function validateScenarioRules(manifest) {
-  if (manifest?.schemaVersion !== 1 || !Array.isArray(manifest.scenarios)) {
+  if (manifest?.schemaVersion !== 2 || !Array.isArray(manifest.scenarios)) {
     throw new Error("沙盘规则清单 schemaVersion/scenarios 无效");
   }
   if (manifest.scenarios.length !== 10) {
-    throw new Error(`沙盘规则清单必须完整登记 10 条规则，当前 ${manifest.scenarios.length} 条`);
+    throw new Error(
+      `沙盘规则清单必须完整登记 10 条规则，当前 ${manifest.scenarios.length} 条`,
+    );
   }
+  validateDependencies(manifest.dependencies);
   const ids = new Set();
   const codes = new Set();
   for (const scenario of manifest.scenarios) {
-    for (const field of [
-      "id",
-      "ruleCode",
-      "ruleType",
-      "triggerPoint",
-      "riskLevel",
-      "actionCode",
-      "reviewStatus",
-      "name",
-    ]) {
-      if (typeof scenario[field] !== "string" || !scenario[field].trim()) {
-        throw new Error(`沙盘规则 ${scenario.id ?? "<unknown>"} 缺少 ${field}`);
-      }
-    }
-    if (ids.has(scenario.id) || codes.has(scenario.ruleCode)) {
-      throw new Error(`沙盘规则标识重复: ${scenario.id}/${scenario.ruleCode}`);
-    }
-    ids.add(scenario.id);
-    codes.add(scenario.ruleCode);
-
-    if (scenario.reviewStatus === APPROVED) {
-      if (!scenario.reviewEvidence || !scenario.sourceRef || !scenario.changeSummary) {
-        throw new Error(`已开放规则 ${scenario.ruleCode} 缺少评审证据或来源`);
-      }
-      const content = scenario.clinicalContent;
-      if (!content?.dsl || !Array.isArray(content.testCases)) {
-        throw new Error(`已开放规则 ${scenario.ruleCode} 缺少 DSL 或测试用例`);
-      }
-      const caseTypes = new Set(content.testCases.map((item) => item.caseType));
-      for (const required of REQUIRED_CASES) {
-        if (!caseTypes.has(required)) {
-          throw new Error(`已开放规则 ${scenario.ruleCode} 缺少 ${required} 测试用例`);
-        }
-      }
-      if (!content.dsl.then?.every((action) =>
-        action.requiresPhysicianConfirmation === true
-        || !["BLOCK", "STRONG_REMINDER", "SUGGEST_ORDER"].includes(action.actionCode))) {
-        throw new Error(`高风险动作 ${scenario.ruleCode} 缺少医师确认`);
-      }
-      continue;
-    }
-
-    if (scenario.reviewStatus !== CLINICAL_REVIEW_REQUIRED) {
-      throw new Error(`沙盘规则 ${scenario.ruleCode} reviewStatus 非法`);
-    }
-    if (scenario.clinicalContent !== null || scenario.reviewEvidence !== null) {
-      throw new Error(`未评审规则 ${scenario.ruleCode} 不得携带可发布医学内容`);
+    validateIdentity(scenario, ids, codes);
+    validateInstitution(scenario);
+    validateSources(scenario);
+    validateClinicalContent(scenario);
+    if (hasKeyDeep(scenario, "packageVersion")) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 不得固化配置包版本`);
     }
   }
   return manifest;
+}
+
+function validateDependencies(dependencies) {
+  if (!Array.isArray(dependencies) || dependencies.length === 0) {
+    throw new Error("沙盘规则清单缺少外圈资产精确版本依赖");
+  }
+  for (const dependency of dependencies) {
+    for (const field of ["assetType", "assetCode", "assetVersion", "purpose"]) {
+      if (typeof dependency[field] !== "string" || !dependency[field].trim()) {
+        throw new Error(`沙盘外圈资产依赖缺少 ${field}`);
+      }
+    }
+  }
+}
+
+function validateIdentity(scenario, ids, codes) {
+  for (const field of [
+    "id",
+    "ruleCode",
+    "ruleType",
+    "triggerPoint",
+    "riskLevel",
+    "actionCode",
+    "reviewStatus",
+    "reviewEvidence",
+    "name",
+    "sourceRef",
+    "changeSummary",
+    "disclaimer",
+  ]) {
+    if (typeof scenario[field] !== "string" || !scenario[field].trim()) {
+      throw new Error(`沙盘规则 ${scenario.id ?? "<unknown>"} 缺少 ${field}`);
+    }
+  }
+  if (ids.has(scenario.id) || codes.has(scenario.ruleCode)) {
+    throw new Error(`沙盘规则标识重复: ${scenario.id}/${scenario.ruleCode}`);
+  }
+  ids.add(scenario.id);
+  codes.add(scenario.ruleCode);
+  if (scenario.reviewStatus !== SANDBOX_READY) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 必须为 ${SANDBOX_READY}`);
+  }
+  if (!scenario.disclaimer.includes("仅限演练")) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少演练免责声明`);
+  }
+}
+
+function validateInstitution(scenario) {
+  if (
+    scenario.institution?.tenantId !== SANDBOX_TENANT ||
+    scenario.institution?.scope !== "SANDBOX_INSTITUTION" ||
+    scenario.institution?.customRule !== true
+  ) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 演练机构归属无效`);
+  }
+}
+
+function validateSources(scenario) {
+  if (!Array.isArray(scenario.sources) || scenario.sources.length === 0) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少权威来源`);
+  }
+  for (const source of scenario.sources) {
+    for (const field of REQUIRED_SOURCE_FIELDS) {
+      if (typeof source[field] !== "string" || !source[field].trim()) {
+        throw new Error(`沙盘规则 ${scenario.ruleCode} 权威来源缺少 ${field}`);
+      }
+    }
+    if (!source.url.startsWith("https://")) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 权威来源必须使用 HTTPS`);
+    }
+    if (!source.documentNumber && !source.publicationDate && !source.version) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} 权威来源缺少文号、发布日期或版本`,
+      );
+    }
+  }
+}
+
+function validateClinicalContent(scenario) {
+  const content = scenario.clinicalContent;
+  if (!content?.dsl || !Array.isArray(content.testCases)) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或测试用例`);
+  }
+  if (content.dsl.trigger !== scenario.triggerPoint || !content.dsl.when) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 触发点或条件无效`);
+  }
+  if (!Array.isArray(content.dsl.then) || content.dsl.then.length === 0) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少执行动作`);
+  }
+  const caseTypes = new Set(content.testCases.map((item) => item.caseType));
+  for (const required of REQUIRED_CASES) {
+    if (!caseTypes.has(required)) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} 缺少 ${required} 测试用例`,
+      );
+    }
+  }
+  if (
+    caseTypes.size !== REQUIRED_CASES.size ||
+    content.testCases.length !== REQUIRED_CASES.size
+  ) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} 测试用例类型必须且只能覆盖四类`,
+    );
+  }
+  for (const testCase of content.testCases) {
+    if (
+      !testCase.patientId ||
+      !testCase.encounterId ||
+      !testCase.facts ||
+      typeof testCase.expectedHit !== "boolean"
+    ) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode}/${testCase.caseType} 测试数据不完整`,
+      );
+    }
+  }
+  for (const action of content.dsl.then) {
+    if (!new Set(["info", "warning", "critical"]).has(action.indicator)) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 动作 indicator 无效`);
+    }
+    if (
+      action.actionCode !== scenario.actionCode ||
+      action.atSeverity !== scenario.riskLevel
+    ) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 动作或风险与目录不一致`);
+    }
+    if (
+      ["BLOCK", "STRONG_REMINDER", "SUGGEST_ORDER"].includes(
+        action.actionCode,
+      ) &&
+      action.requiresPhysicianConfirmation !== true
+    ) {
+      throw new Error(`高风险动作 ${scenario.ruleCode} 缺少医师确认`);
+    }
+    if (!action.detail?.includes("不自动")) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 未声明不自动执行临床动作`);
+    }
+  }
 }
 
 export function selectSeedRules(manifest, seedOnly = "") {
@@ -79,23 +195,100 @@ export function selectSeedRules(manifest, seedOnly = "") {
       .map((value) => value.trim())
       .filter(Boolean),
   );
-  const selected = requested.size === 0
-    ? manifest.scenarios
-    : manifest.scenarios.filter((scenario) => requested.has(scenario.ruleCode));
+  const runnable =
+    requested.size === 0
+      ? manifest.scenarios
+      : manifest.scenarios.filter((scenario) =>
+          requested.has(scenario.ruleCode),
+        );
   const missing = [...requested].filter(
-    (code) => !manifest.scenarios.some((scenario) => scenario.ruleCode === code),
+    (code) =>
+      !manifest.scenarios.some((scenario) => scenario.ruleCode === code),
   );
   if (missing.length > 0) {
     throw new Error(`SEED_ONLY 包含未知规则: ${missing.join(", ")}`);
   }
-  const blocked = selected.filter((scenario) => scenario.reviewStatus !== APPROVED);
-  if (requested.size > 0 && blocked.length > 0) {
-    throw new Error(
-      `以下规则未完成临床评审，禁止 seed: ${blocked.map((item) => item.ruleCode).join(", ")}`,
-    );
+  return { runnable, blocked: [] };
+}
+
+export function evaluateScenarioCase(scenario, testCase) {
+  return evaluateCondition(scenario.clinicalContent.dsl.when, testCase.facts);
+}
+
+function evaluateCondition(node, facts) {
+  if (Array.isArray(node?.all)) {
+    return node.all.every((child) => evaluateCondition(child, facts));
   }
-  return {
-    runnable: selected.filter((scenario) => scenario.reviewStatus === APPROVED),
-    blocked,
-  };
+  if (Array.isArray(node?.any)) {
+    return node.any.some((child) => evaluateCondition(child, facts));
+  }
+  if (node?.not) {
+    return !evaluateCondition(node.not, facts);
+  }
+  const values = resolveValues(facts, node?.expr?.field ?? node?.fact);
+  const expected = unwrapValue(node?.value);
+  switch (node?.operator) {
+    case "exists":
+      return values.some(isPresent);
+    case "is_missing":
+      return values.length === 0 || values.every((value) => !isPresent(value));
+    case "equals":
+      return values.some((value) => Object.is(value, expected));
+    case "not_equals":
+      return values.every((value) => !Object.is(value, expected));
+    case "contains":
+      return values.some(
+        (value) => typeof value === "string" && value.includes(expected),
+      );
+    case "in":
+      return values.some((value) => expected.includes(value));
+    case "not_in":
+      return values.every((value) => !expected.includes(value));
+    case "gt":
+      return values.some((value) => Number(value) > Number(expected));
+    case "gte":
+      return values.some((value) => Number(value) >= Number(expected));
+    case "lt":
+      return values.some((value) => Number(value) < Number(expected));
+    case "lte":
+      return values.some((value) => Number(value) <= Number(expected));
+    default:
+      throw new Error(
+        `离线规则校验不支持算子: ${node?.operator ?? "<missing>"}`,
+      );
+  }
+}
+
+function resolveValues(facts, field) {
+  if (typeof field !== "string" || !field) return [];
+  let values = [facts];
+  for (const rawSegment of field.split(".")) {
+    const array = rawSegment.endsWith("[]");
+    const segment = array ? rawSegment.slice(0, -2) : rawSegment;
+    values = values.flatMap((value) => {
+      const next = value?.[segment];
+      if (array) return Array.isArray(next) ? next : [];
+      return next === undefined ? [] : [next];
+    });
+  }
+  return values;
+}
+
+function unwrapValue(value) {
+  return value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "const" in value
+    ? value.const
+    : value;
+}
+
+function isPresent(value) {
+  return value !== null && value !== undefined && value !== "";
+}
+
+function hasKeyDeep(value, key) {
+  if (!value || typeof value !== "object") return false;
+  if (Object.prototype.hasOwnProperty.call(value, key)) return true;
+  return Object.values(value).some((item) => hasKeyDeep(item, key));
 }
