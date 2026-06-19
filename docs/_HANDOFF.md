@@ -14,6 +14,7 @@
 - 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，随后仅执行不清库前向迁移，当前为 Flyway V156。上线后不再清库。
 - 资料库口径：134 正式文献根已于 `2026-06-20 00:32:37+08:00` 从系统盘迁移为大容量 COSFS 挂载 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`，配置版本 3；目标目录 `0750 medkernel:medkernel`、WHO PDF `0640 medkernel:medkernel`，源/目标 SHA-256 一致且服务账号读写探针通过。旧目录暂只作回滚副本，不再承接新写入。受管 `file://`、对象存储或 HTTPS 网关均是正式后端，不得把任一种资料后端写成唯一选项。
 - 安全纠偏：现场核查发现 P6 曾于 `2026-06-20 00:18:05+08:00` 被 `platform-owner` 从 `false` 改为 `true`，但当前两条 `PASSED` 运行均为 V156 前历史签署、`release_fingerprint=NULL`，不满足当前制品放行条件；已于 `00:32:37+08:00` 经正式配置 API 恢复 `false`（版本 3）并保留审计。Provider 仍为 2 个、启用 0 个；不得依据曾短暂打开的 P6 冒领正式生产开放。
+- 浏览器 TLS 边界：134 当前证书为自签 `CN=193.112.107.134`，issuer 与 subject 相同且无 Subject Alternative Name；in-app Chromium 真实访问 `/login` 返回 `ERR_CERT_AUTHORITY_INVALID`。内部/脚本健康检查可通过固定证书或受控校验继续执行，但普通浏览器信任链未通过，已登记 `DEFER-026`，不得据此宣称公网浏览器正式验收完成。
 - 当前执行清单：[`docs/superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md`](superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md)；沙盘与初始化切片见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
 
 ## 本地已完成
