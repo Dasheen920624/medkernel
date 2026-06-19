@@ -39,6 +39,19 @@ const ALLOWED_ASSET_TYPES = new Set([
   "VALUE_SET",
   "KNOWLEDGE",
 ]);
+const ALLOWED_IDENTITY_DOMAINS = new Set([
+  "DRUG",
+  "DIAGNOSIS",
+  "POLICY",
+  "REPORT",
+  "PROTOCOL",
+  "PATHWAY_KNOWLEDGE",
+  "NURSING",
+  "TCM",
+  "OTHER",
+  "LITERATURE",
+  "GUIDELINE",
+]);
 const SENSITIVE_KEY =
   /password|cookie|token|secret|credential|recovery|mfa|otp|totp|signature/i;
 const SAFETY_BOOLEAN_KEYS = new Set([
@@ -651,7 +664,7 @@ async function findOrGenerateCandidate({
     target = {
       targetIdentityId: null,
       newIdentity: {
-        domain: entry.domain,
+        domain: entry.identityDomain,
         subject: entry.subject,
         identityCode: entry.canonicalId,
       },
@@ -985,6 +998,7 @@ function validateRegistryEntry(entry, index, checkedAt) {
     "assetVersion",
     "assetType",
     "domain",
+    "identityDomain",
     "subject",
     "medicalContentStatus",
     "sourcePolicy",
@@ -1003,6 +1017,9 @@ function validateRegistryEntry(entry, index, checkedAt) {
   }
   if (!ALLOWED_ASSET_TYPES.has(entry.assetType)) {
     throw new Error(`${entry.catalogCode} 使用了未允许的基础资产类型`);
+  }
+  if (!ALLOWED_IDENTITY_DOMAINS.has(entry.identityDomain)) {
+    throw new Error(`${entry.catalogCode} 使用了未允许的知识身份领域`);
   }
   if (
     entry.medicalContentStatus !== "PENDING_AUTHORING" ||

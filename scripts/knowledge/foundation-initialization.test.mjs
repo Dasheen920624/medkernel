@@ -53,6 +53,11 @@ test("基础权威来源目录覆盖全部稳定维度且只登记官方来源�
     registry.entries.map((entry) => entry.catalogCode),
     FOUNDATION_CODES,
   );
+  assert.equal(registry.entries[0].source.versionNo, "1.0.1");
+  assert.equal(
+    registry.entries.slice(1).every((entry) => entry.source.versionNo === "1.0.0"),
+    true,
+  );
   assert.equal(
     new Set(registry.entries.map((entry) => entry.canonicalId)).size,
     8,
@@ -62,6 +67,8 @@ test("基础权威来源目录覆盖全部稳定维度且只登记官方来源�
       (entry) =>
         entry.medicalContentStatus === "PENDING_AUTHORING" &&
         entry.generatedByModel === false &&
+        entry.domain === "GENERAL" &&
+        entry.identityDomain === "OTHER" &&
         entry.source.authorityLevel === "D_HOSPITAL" &&
         entry.officialReferences.length > 0 &&
         entry.officialReferences.every(
@@ -375,6 +382,8 @@ test("首次执行只生成 B0 候选并创建 IN_REVIEW 冻结批次", async ()
       );
     }
     if (path === "/engine/knowledge-production/generate") {
+      assert.equal(body.domain, "GENERAL");
+      assert.equal(body.items[0].target.newIdentity.domain, "OTHER");
       const identityId = ++nextCandidateIdentityId;
       return jsonResponse({
         code: "OK",
