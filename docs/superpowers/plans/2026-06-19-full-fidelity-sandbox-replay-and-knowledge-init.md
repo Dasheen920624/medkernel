@@ -34,7 +34,7 @@
 - Modify: `docs/_HANDOFF.md`
 - Modify: `docs/handoff/2026-06-19-pilot-sandbox-demo.md`
 
-- [ ] **Step 1: 为凭据生成、幂等账号规划和验证结果写失败测试**
+- [x] **Step 1: 为凭据生成、幂等账号规划和验证结果写失败测试**
 
 覆盖：
 
@@ -52,7 +52,7 @@ python3 -m unittest discover -s scripts/drill/tests -p 'test_p9_pilot_tools.py'
 
 Expected: FAIL，命中当前脚本顶层执行、不可注入路径、修复脚本非幂等和验证不阻断等缺口。
 
-- [ ] **Step 2: 将一次性脚本重构为幂等、可测试、失败关闭的 CLI**
+- [x] **Step 2: 将一次性脚本重构为幂等、可测试、失败关闭的 CLI**
 
 要求：
 
@@ -63,7 +63,7 @@ Expected: FAIL，命中当前脚本顶层执行、不可注入路径、修复脚
 - 把 `p9-pilot-fix3.py` 的跨租户内部 ID 规则合并进 provisioner 后删除该脚本；
 - 不打印密码、MFA、恢复码或 Cookie。
 
-- [ ] **Step 3: 测试转绿并执行静态安全扫描**
+- [x] **Step 3: 测试转绿并执行静态安全扫描**
 
 Run:
 
@@ -75,7 +75,7 @@ rg -n "print\\(.*password|print\\(.*mfa|print\\(.*recovery|平台主源零改动
 
 Expected: 测试和编译 exit 0；敏感输出与错误沙盘口径无命中。
 
-- [ ] **Step 4: 重写活接力口径**
+- [x] **Step 4: 重写活接力口径**
 
 必须写清：
 
@@ -387,6 +387,51 @@ npm test -- --run src/pages/sandbox/SandboxHost.test.tsx
 
 Expected: 全部 exit 0。
 
+## Task 8A：最小化补齐统一知识承载断点
+
+**Files:**
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/factory/ProfessionalAssetTemplateRegistry.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/factory/KnowgenSpecializedAssetSkeletonRegistry.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/factory/KnowgenSpecializedPayloadValidator.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/generation/SourceCandidateGenerator.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/generation/CandidateGenerationOrchestrationService.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeVersionService.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/ReviewAssignmentRepository.java`
+- Test: 对应 registry、generator、orchestration 和 version service 测试
+
+- [ ] **Step 1: 写模板覆盖与知识领域选择红测**
+
+断言：除由专用服务装配的 `PACKAGE` 外，每个可独立生产的 `VersionedAssetType` 都有一个确定性结构模板；生成 `KNOWLEDGE` 时必须显式使用目标身份的 `KnowledgeDomain`，不得按 `null` 查模板；现有身份须从仓储加载领域，新身份使用 `NewIdentitySpec.domain`。
+
+- [ ] **Step 2: 补齐现有资产类型模板并修复生成器选择**
+
+至少覆盖当前缺口：
+
+- `FIELD_CATALOG`、`VALUE_SET`、`SAFETY`、`CDSS_RISK`；
+- `CONDITION_FRAGMENT`、`ORDER_SET`、`ACTION_CARD`、`SUBPATHWAY`；
+- 已有 `KNOWLEDGE` 领域模板的正确选择。
+
+模板只定义结构和来源要求；不得用模型或种子编造官方编码、医学常量、单位换算、器械注册或兼容事实。
+
+- [ ] **Step 3: 写 HIGH 双签强制红测**
+
+覆盖未分派操作者拒绝、首签保持待审、同一人员不能完成两签、全部不同分派签署完成后才激活，以及任一 RETURN/REJECT 终止候选。LOW/MEDIUM 仍须命中自己的分派。
+
+- [ ] **Step 4: 最小实现真实分派审核状态机**
+
+复用 `mk_knowledge_review_assignment`，按 candidate classification 查询全部分派；更新当前操作者命中的待办。只有全部必需分派均 APPROVE 时调用 `activate`。不得增加第二套签署表。
+
+- [ ] **Step 5: 目标测试转绿**
+
+Run:
+
+```bash
+cd medkernel-backend
+mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateMaterializationIntegrationTest test
+```
+
+Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIGH 候选不能单签激活。
+
 ## Task 8：生产知识内置初始化与分级审核
 
 **Files:**
@@ -418,7 +463,11 @@ Expected: 全部 exit 0。
 7. 互操作字段映射与 profile 版本；
 8. 语义关系、废止、替代与重定向；
 9. GRADE、推荐强度和来源 A–E；
-10. 依赖图、兼容版本和影响范围。
+10. 依赖图、兼容版本和影响范围；
+11. 权威来源、许可和官方发行 manifest；
+12. 金标回归集、发行 BOM 和覆盖结果。
+
+`CLINICAL_CONTENT` 使用现有领域与专科分类承载指南、药学、护理、报告、中医、政策、诊断、预防、联合照护和器械安全内容；`COMPOSITE` 承载条件片段、安全红线、风险矩阵、动作卡、医嘱套餐、子路径、机构参数 schema 与流程组合。二者不得反向修改基础 canonical ID。
 
 红测断言：
 
@@ -427,6 +476,7 @@ Expected: 全部 exit 0。
 - 基础编码、数据元、值集成员和单位换算带 `generatedByModel=true` 时拒收；
 - 有孤儿引用、循环依赖、重复 canonical ID、非法层级或量纲冲突时失败；
 - 临床包不能引用未激活或版本范围不兼容的基础包。
+- 六维覆盖矩阵任一必需单元没有责任资产、来源策略、审核策略或测试时不能通过首发总验收。
 
 - [ ] **Step 2: 写初始化与审核状态机红测**
 
@@ -468,13 +518,14 @@ Expected: 全部 exit 0。
 初始化调度按依赖拓扑执行：
 
 1. F0 来源、许可、官方清单；
-2. F1 数据元、术语、编码系统、值集、系统字典、单位、主数据、互操作映射；
+2. F1 数据元、术语、编码系统、值集、系统字典、单位、主数据、互操作映射、权威来源目录；
 3. F2 证据分级与冲突仲裁；
 4. F3 说明书、指南、法规、制度、政策等原始事实；
-5. F4 评分量表、公式、指标、参考区间等确定性计算；
+5. F4 评分量表、公式、指标、参考区间、条件片段、风险矩阵等确定性构件；
 6. F5 DDI、危急值、剂量、PGx、输血、急救、核心制度、适当性等高风险派生；
-7. F6 路径、推荐、随访、护理、报告、诊断、罕见病、中医、医保、公卫、患教等组合资产；
-8. F7 跨资产一致性、A1–A9、红线、B0、灰度、回滚和同步。
+7. F6 路径、子路径、医嘱套餐、动作卡、推荐、随访、护理、报告、诊断、罕见病、中医、医保、公卫、患教、预防、联合照护和器械安全等组合资产；
+8. F7 机构参数、本地化映射和试点覆盖；
+9. F8 金标回归、六维覆盖矩阵、跨资产一致性、发行 BOM、A1–A9、红线、B0、灰度、回滚和同步。
 
 同层可并行，不得越过未满足的依赖。基础发行版对选定官方版本必须全量，不允许以 Top-N 标记完成；Top-N 只可作为临床内容灰度批次。
 

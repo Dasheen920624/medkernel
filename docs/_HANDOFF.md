@@ -5,7 +5,7 @@
 ## 当前真相
 
 - 最新主线：`origin/main=89f20701`，#636「完成生产上线预演与受控放行门禁」已通过 8 项 PR CI 并 squash 合并；远程功能分支已删除。
-- 当前本地分支：`codex/p9-post-merge-handoff`，基于最新 `origin/main`，只收口 #636 合并后的接力事实。用户对提前远程集成的授权只改变 Git 集成顺序，不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
+- 当前实施分支：`codex/full-fidelity-sandbox-runtime`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。本线统一纳管试点租户脚本、全真沙盘、现场重放、知识初始化和功能补齐；未经用户明确授权不 push、不部署 134、不创建或合并远程 PR。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
 - 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，当前从 V152 clean baseline 继续正式配置。上线后不再清库。
@@ -150,6 +150,14 @@
 - Phase 7 T7.1 验证：`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeControllerSecurityTest test` 红灯命中领域门面目录服务/定义/引擎枚举缺失后转绿；`mvn -q -Dtest=DomainFacadeB0FixtureServiceTest,DomainFacadeApiContractTest test` 红灯命中 B0 fixture 服务/证据缺失后转绿；`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeB0FixtureServiceTest,DomainFacadeControllerSecurityTest,DomainFacadeApiContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 - Phase 7 T7.2 验证：`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest test` 红灯命中 FORMULA 模板、专用骨架、payload 校验器和公式计算服务缺失后转绿；补结构化 `inputs`/`test_vectors` 回归后该命令仍退出 0；`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,KnowledgeAssetSchemaValidatorTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeProductionControllerSecurityTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
 
+- 平台主源上线最小角色基础账号已在 134 通过受控超管 `platform-owner` 经 `POST /compliance/users` + `/roles` 正路创建，全部 `scopeLevel=TENANT / scopeCode=t-1`、`mustChangePwd=true`、`status=ACTIVE`：`integration-operator`(`llm.provider.manage`)、`platform-knowledge-governor`(`platform.publish`)、`quality-governor`(`llm.eval.manage`)、`medication-safety-user`(`knowledge.review`) 四签名权限均实测为 true；`integration-operator` 临时密码实测登录返回 200 且强制改密；`quality-governor`/`medication-safety-user` 凭据须转交真实独立专家本人。本切片只建号未绑 MFA、未签任何评测、未启用 Provider、未碰 P6；MainPID/readiness/Provider/P6 状态不变。
+- 134 `conf` 目录已收口：当前有效的 6 个账号（`platform-owner` 超管、`knowledge-source-steward`、`integration-operator`、`platform-knowledge-governor`、`quality-governor`、`medication-safety-user`）已合并为**唯一总表** `/zoesoft/medkernel/conf/medkernel-accounts.json`（`0600 root`，实测 platform-owner+临时密码账号均可登录）。清库前演练/历史凭据（drill/p4/p5-2026061x、`p9-production-admin`=`platform-owner-134`、`p9-governance-actors`=`p9-*` 均已不在库）共 13 个文件已删；删前整目录备份 `backups/conf-cleanup-20260619-091637/conf-before-cleanup.tar.gz`。保留运行配置 `medkernel.env`（及旧 `*.env.bak`），未动。建号/合并临时脚本已从 134 `/tmp` 清理。
+
+- 演练试点 Phase 0–2 已在 134 完成：补建平台治理账号、开通真实演练租户 `pilot-hospital`，并建齐 12 个机构/临床角色账号。跨租户同名角色使用租户前缀内部 `userId`，登录用户名保持原样；API 已实测租户、角色和 `clinical-decision-user` 的 `sandbox.run` 权限。当前重构后的本地工具已改为幂等、失败关闭、凭据文件 `0600` 且不输出敏感信息。
+- 沙盘正确口径：演练定制规则归属演练机构；CURRENT 运行继续复用正式“机构优先、平台补充、同编码机构覆盖平台”解析逻辑。平台主源规则可以参与沙盘，但不得复制成机构规则或被机构静默修改。场景模板不再固定配置包版本，每次运行从机构明确绑定解析并冻结真实基线；第三方显式版本合同和历史重放清单仍保存精确版本。
+- 10 条规则场景将全部补成真实、可执行、可测试、可审计的演练机构资产；不再用静态目录状态长期阻断。医学阈值必须来自权威来源或机构已审核参数，无法证明的值不得伪装为全国统一标准。沙盘同时建设 CURRENT、HISTORICAL_EXACT 和 COMPARE，路径、推荐、随访、评估和嵌入调用正式领域服务，外部副作用一律抑制。专项计划见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)。
+- 生产知识首发范围已扩展为 KNOWGEN-01～35：34 类资产分装为稳定基础包与临床包，另由 KNOWGEN-15 总验收。KNOWGEN-33～35 是后续知识内容，不新增专用引擎；统一复用现有资产信封、版本、来源、审核、包和运行服务。当前只补模板覆盖、候选领域选择、HIGH 真实双签和初始化发行清单四个通用断点，避免为覆盖矩阵另建平台。
+
 ## 仍不可宣称
 
 - 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
@@ -159,9 +167,9 @@
 
 ## 下一步
 
-1. 由真实独立医学专家按 `docs/release/evidence/p9-final-golive-20260618/expert-signoff/README.md` 核验真实身份/岗位、`QUALITY_GOVERNOR`、MFA 和职责分离，再逐例复核运行 `1`、`2`；自动化不得创建虚假专家身份、代填意见或代签。
-2. 两个运行均由专家认可并分别转为 `PASSED` 后，先核验不可覆盖的签署审计，再按当前乐观锁版本受控启用精确 Provider；P6 仍保持 false 时复核八闸全绿。
-3. 最后由内置超管执行 P6 高危放行，九闸全绿后跑低风险真实小样本闭环；134 上线后不再清库。
+1. 先在本地完成全真沙盘三模式、10 条机构演练规则和外圈全流程；知识侧只补影响所有后续内容的通用承载断点，禁止按医学领域复制状态机、表或页面。
+2. 完成知识基础发行、初始化批次、LOW/MEDIUM/HIGH 审核与双签强制，并跑后端、前端、脚本、五方言和 T-GATE 全量验证；同步本接力与专项接力。
+3. 后续若获明确授权部署最终代码到 134，现有正式评测证据因运行制品/迁移变化必须作废重建；Provider 保持关闭、P6 保持 false，真人独立专家重新逐例签署后才能继续启用和正式放行。
 
 ## 常用指针
 
