@@ -124,6 +124,34 @@ class MaterializingCandidateIntakeTest {
     }
 
     @Test
+    void nonHighRiskCreatesOnlyOwnerAssignment() {
+        when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
+        ReviewRoutingDecision routing = new ReviewRoutingDecision(
+            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.MEDICATION_SAFETY_USER, false, KnowledgeDomain.PHARMACY);
+
+        intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing);
+
+        ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
+        verify(versionService).classifyCandidate(eq(5L), any(), plan.capture());
+        assertThat(plan.getValue().reviewerRoleCodes())
+            .containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code());
+    }
+
+    @Test
+    void highRiskGeneralDomainKeepsTwoSameRoleSeatsForDifferentPeople() {
+        when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
+        ReviewRoutingDecision routing = new ReviewRoutingDecision(
+            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, true, KnowledgeDomain.GENERAL);
+
+        intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing);
+
+        ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
+        verify(versionService).classifyCandidate(eq(5L), any(), plan.capture());
+        assertThat(plan.getValue().reviewerRoleCodes())
+            .containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code(), RoleCode.KNOWLEDGE_GOVERNOR.code());
+    }
+
+    @Test
     void rejectsWhenSourceUnresolvable() {
         when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
         when(sourceResolver.resolve(eq(TENANT), any()))

@@ -47,4 +47,31 @@ class KnowgenSpecializedAssetSkeletonRegistryTest {
         assertThat(pgx.requiredPayloadFields())
             .contains("special_population", "dose_adjustment", "pgx_guidance", "review_policy", "source");
     }
+
+    @Test
+    void exposesFoundationAndReusableCompositeSkeletonsWithoutMedicalSeeds() {
+        List<KnowgenSpecializedAssetSkeleton> skeletons =
+            registry.listFoundationAndCompositeSkeletons();
+
+        assertThat(skeletons)
+            .extracting(KnowgenSpecializedAssetSkeleton::cardCode)
+            .containsExactly("KNOWGEN-26", "KNOWGEN-27", "KNOWGEN-30");
+        assertThat(registry.require("KNOWGEN-26").assetTypes())
+            .containsExactly(VersionedAssetType.FIELD_CATALOG);
+        assertThat(registry.require("KNOWGEN-27").assetTypes())
+            .containsExactly(VersionedAssetType.TERMINOLOGY, VersionedAssetType.VALUE_SET);
+        assertThat(registry.require("KNOWGEN-30").assetTypes())
+            .containsExactly(
+                VersionedAssetType.CONDITION_FRAGMENT,
+                VersionedAssetType.SAFETY,
+                VersionedAssetType.CDSS_RISK,
+                VersionedAssetType.ACTION_CARD,
+                VersionedAssetType.ORDER_SET,
+                VersionedAssetType.SUBPATHWAY);
+        assertThat(skeletons).allSatisfy(skeleton -> {
+            assertThat(skeleton.b0Executable()).isTrue();
+            assertThat(skeleton.modelRequired()).isFalse();
+            assertThat(skeleton.clinicalContentSeeded()).isFalse();
+        });
+    }
 }

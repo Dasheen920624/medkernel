@@ -39,15 +39,42 @@ public class KnowgenSpecializedAssetSkeletonRegistry {
                 "REQUIRE_HIGH_RISK_REVIEW"))
     );
 
+    private static final List<KnowgenSpecializedAssetSkeleton> FOUNDATION_AND_COMPOSITE = List.of(
+        skeleton("KNOWGEN-26", "医疗数据元与上下文字段目录",
+            List.of(VersionedAssetType.FIELD_CATALOG),
+            List.of("data_element_id", "name_zh", "definition", "data_type", "cardinality",
+                "privacy_level", "source_manifest"),
+            BASE_CAPABILITIES),
+        skeleton("KNOWGEN-27", "基础编码系统、值集、单位与系统字典",
+            List.of(VersionedAssetType.TERMINOLOGY, VersionedAssetType.VALUE_SET),
+            List.of("canonical_id", "namespace", "official_version", "entries", "source_manifest"),
+            BASE_CAPABILITIES),
+        skeleton("KNOWGEN-30", "可复用执行构件",
+            List.of(
+                VersionedAssetType.CONDITION_FRAGMENT,
+                VersionedAssetType.SAFETY,
+                VersionedAssetType.CDSS_RISK,
+                VersionedAssetType.ACTION_CARD,
+                VersionedAssetType.ORDER_SET,
+                VersionedAssetType.SUBPATHWAY),
+            List.of("asset_type", "canonical_id", "structure", "dependencies", "test_cases", "source"),
+            BASE_CAPABILITIES)
+    );
+
     /** 返回 T7.2 覆盖的 5 类专用代码骨架。 */
     public List<KnowgenSpecializedAssetSkeleton> listT72Skeletons() {
         return SKELETONS;
     }
 
+    /** 返回基础发行版与可复用执行构件的确定性骨架。 */
+    public List<KnowgenSpecializedAssetSkeleton> listFoundationAndCompositeSkeletons() {
+        return FOUNDATION_AND_COMPOSITE;
+    }
+
     /** 按 KNOWGEN 卡号查询专用骨架。 */
     public KnowgenSpecializedAssetSkeleton require(String cardCode) {
         String normalized = cardCode == null ? "" : cardCode.trim().toUpperCase(Locale.ROOT);
-        return SKELETONS.stream()
+        return java.util.stream.Stream.concat(SKELETONS.stream(), FOUNDATION_AND_COMPOSITE.stream())
             .filter(skeleton -> skeleton.cardCode().equals(normalized))
             .findFirst()
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "KNOWGEN 专用骨架不存在: " + normalized));

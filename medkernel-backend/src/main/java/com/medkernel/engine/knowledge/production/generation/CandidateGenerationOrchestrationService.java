@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.SourceDocument;
 import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceFragment;
@@ -46,6 +49,7 @@ public class CandidateGenerationOrchestrationService {
     private final SourceVersionRepository versions;
     private final SourceDocumentRepository documents;
     private final SourceFragmentRepository fragments;
+    private final KnowledgeIdentityRepository identities;
     private final SourceCandidateGenerator generator;
     private final KnowledgeProductionOrchestrationService production;
     private final CandidateSafetyGateService gateService;
@@ -55,6 +59,7 @@ public class CandidateGenerationOrchestrationService {
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
                                                    SourceFragmentRepository fragments,
+                                                   KnowledgeIdentityRepository identities,
                                                    SourceCandidateGenerator generator,
                                                    KnowledgeProductionOrchestrationService production,
                                                    CandidateSafetyGateService gateService,
@@ -63,6 +68,7 @@ public class CandidateGenerationOrchestrationService {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
+        this.identities = identities;
         this.generator = generator;
         this.production = production;
         this.gateService = gateService;
@@ -98,7 +104,7 @@ public class CandidateGenerationOrchestrationService {
                 request.targetPipeline(), request.domain(), null));
             KnowledgeAssetEnvelope envelope = generator.generate(
                 tenantId, document, version, sourceFragments, item.assetType(),
-                deriveIdentity(item.target()));
+                resolveKnowledgeDomain(tenantId, item), deriveIdentity(item.target()));
             // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
             GateOutcome outcome = gateService.evaluate(
                 envelope,
@@ -132,6 +138,24 @@ public class CandidateGenerationOrchestrationService {
         return target.targetIdentityId() != null
             ? "identity:" + target.targetIdentityId()
             : target.newIdentity().identityCode();
+    }
+
+    private KnowledgeDomain resolveKnowledgeDomain(String tenantId, GenerationItem item) {
+        if (item.assetType() != com.medkernel.engine.versioning.VersionedAssetType.KNOWLEDGE) {
+            return null;
+        }
+        MaterializationTarget target = item.target();
+        if (target.targetIdentityId() != null) {
+            KnowledgeIdentity identity = identities.findByTenantIdAndId(tenantId, target.targetIdentityId())
+                .orElseThrow(() -> ApiException.notFound("知识身份 id=" + target.targetIdentityId()));
+            return identity.domain();
+        }
+        if (target.newIdentity() == null || target.newIdentity().domain() == null) {
+            throw new ApiException(
+                com.medkernel.shared.api.error.ErrorCode.BAD_REQUEST,
+                "新知识身份必须声明知识领域");
+        }
+        return target.newIdentity().domain();
     }
 
     private String requireCurrentTenant() {

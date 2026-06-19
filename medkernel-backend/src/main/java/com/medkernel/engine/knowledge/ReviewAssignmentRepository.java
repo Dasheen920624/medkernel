@@ -12,4 +12,9 @@ import org.springframework.stereotype.Repository;
 public interface ReviewAssignmentRepository extends ListCrudRepository<ReviewAssignment, Long> {
 
     List<ReviewAssignment> findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(String tenantId, Long identityId);
+
+    List<ReviewAssignment> findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc(
+        String tenantId,
+        Long candidateClassificationId
+    );
 }

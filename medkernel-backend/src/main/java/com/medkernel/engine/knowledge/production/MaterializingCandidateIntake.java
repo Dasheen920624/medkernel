@@ -1,9 +1,7 @@
 package com.medkernel.engine.knowledge.production;
 
 import java.time.Instant;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -87,11 +85,18 @@ public class MaterializingCandidateIntake implements KnowledgeCandidateIntake {
             });
     }
 
-    /** 据 PR3 路由建去重角色分派计划（归口 ∪ 领域异于归口时）。 */
+    /**
+     * 据 PR3 路由建立实际签署席位。
+     *
+     * <p>LOW/MEDIUM 只需归口单签；HIGH 固定保留归口与领域两个席位。
+     * 两个角色相同时仍保留两个席位，由审核状态机强制不同人员完成。
+     */
     private ReviewAssignmentPlan assignmentPlan(ReviewRoutingDecision routing) {
-        Set<String> roles = new LinkedHashSet<>();
-        roles.add(routing.ownerReviewerRole().code());
-        roles.add(routing.domainReviewerRole().code());
-        return new ReviewAssignmentPlan(List.copyOf(roles));
+        if (!routing.requiresDualSign()) {
+            return new ReviewAssignmentPlan(List.of(routing.ownerReviewerRole().code()));
+        }
+        return new ReviewAssignmentPlan(List.of(
+            routing.ownerReviewerRole().code(),
+            routing.domainReviewerRole().code()));
     }
 }

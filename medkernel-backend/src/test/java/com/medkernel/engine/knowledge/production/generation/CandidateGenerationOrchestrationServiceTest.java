@@ -23,6 +23,9 @@ import com.medkernel.engine.knowledge.SourceFragmentRepository;
 import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
+import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeDomain;
 import com.medkernel.engine.knowledge.production.KnowledgeProducer;
@@ -67,6 +70,7 @@ class CandidateGenerationOrchestrationServiceTest {
     private final SourceVersionRepository versions = mock(SourceVersionRepository.class);
     private final SourceDocumentRepository documents = mock(SourceDocumentRepository.class);
     private final SourceFragmentRepository fragments = mock(SourceFragmentRepository.class);
+    private final KnowledgeIdentityRepository identities = mock(KnowledgeIdentityRepository.class);
     private final KnowledgeProductionOrchestrationService production =
         mock(KnowledgeProductionOrchestrationService.class);
     private final SourceCandidateGenerator generator =
@@ -81,7 +85,8 @@ class CandidateGenerationOrchestrationServiceTest {
 
     private final CandidateGenerationOrchestrationService service =
         new CandidateGenerationOrchestrationService(
-            versions, documents, fragments, generator, production, gateService, triageService, shadowService);
+            versions, documents, fragments, identities, generator, production, gateService, triageService,
+            shadowService);
 
     @BeforeEach
     void bindTenant() {
@@ -172,7 +177,8 @@ class CandidateGenerationOrchestrationServiceTest {
             List.of(GateItemResult.fail("SOURCE_PRESENT", "无来源（无源资产拒收）"))));
         CandidateGenerationOrchestrationService blockingService =
             new CandidateGenerationOrchestrationService(
-                versions, documents, fragments, generator, production, blockingGate, triageService, shadowService);
+                versions, documents, fragments, identities, generator, production, blockingGate, triageService,
+                shadowService);
 
         GenerationSummary summary = blockingService.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
@@ -237,5 +243,64 @@ class CandidateGenerationOrchestrationServiceTest {
         verify(production, never()).submitCandidate(any(), any(), any());
         verify(triageService).evaluate(any(), org.mockito.ArgumentMatchers.argThat(
             (GenerationTriageContext context) -> context.targetIdentityId().equals(10L)));
+    }
+
+    @Test
+    void loadsExistingIdentityDomainForKnowledgeTemplateSelection() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "说明书", "来源片段", "b".repeat(64),
+                Instant.EPOCH)));
+        when(identities.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(new KnowledgeIdentity(
+            10L, "t-1", "DRUG-1", com.medkernel.engine.knowledge.KnowledgeDomain.DRUG,
+            "药品说明书", null, null, KnowledgeIdentityStatus.ACTIVE, null,
+            Instant.EPOCH, "sys", Instant.EPOCH, "sys")));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        when(production.submitCandidate(eq("job-x"), any(), any())).thenReturn(
+            new CandidateSubmissionResponse("kv:10:draft-from-v1",
+                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false,
+                    KnowledgeDomain.CLINICAL)));
+
+        GenerationSummary summary = service.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(new GenerationItem(
+                VersionedAssetType.KNOWLEDGE, new MaterializationTarget(10L, null)))));
+
+        assertThat(summary.candidates()).hasSize(1);
+        verify(identities).findByTenantIdAndId("t-1", 10L);
+        verify(production).submitCandidate(eq("job-x"), org.mockito.ArgumentMatchers.argThat(
+            envelope -> envelope.payload().contains("\"template\":\"DRUG\"")), any());
+    }
+
+    @Test
+    void usesNewIdentityDeclaredDomainForKnowledgeTemplateSelection() {
+        seedVersionAndDocument();
+        when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
+            new SourceFragment(1L, "t-1", 9L, "section-1", "护理", "来源片段", "b".repeat(64),
+                Instant.EPOCH)));
+        when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
+            ProductionJobResponse.from(new KnowledgeProductionJob(
+                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
+                ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
+        when(production.submitCandidate(eq("job-x"), any(), any())).thenReturn(
+            new CandidateSubmissionResponse("kv:11:draft-from-v1",
+                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false,
+                    KnowledgeDomain.CLINICAL)));
+        MaterializationTarget target = new MaterializationTarget(null, new NewIdentitySpec(
+            com.medkernel.engine.knowledge.KnowledgeDomain.NURSING, "护理知识", "NURSING-1"));
+
+        GenerationSummary summary = service.generate(new CandidateGenerationRequest(
+            9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
+            List.of(new GenerationItem(VersionedAssetType.KNOWLEDGE, target))));
+
+        assertThat(summary.candidates()).hasSize(1);
+        verify(identities, never()).findByTenantIdAndId(any(), any());
+        verify(production).submitCandidate(eq("job-x"), org.mockito.ArgumentMatchers.argThat(
+            envelope -> envelope.payload().contains("\"template\":\"NURSING\"")), eq(target));
     }
 }

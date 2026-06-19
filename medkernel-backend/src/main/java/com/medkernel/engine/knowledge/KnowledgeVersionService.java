@@ -20,6 +20,8 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
@@ -436,12 +438,82 @@ public class KnowledgeVersionService {
         Instant now = Instant.now();
         KnowledgeReviewFeedbackType feedbackType = feedbackType(request);
         KnowledgeReviewFollowupAction followupAction = followupAction(request, feedbackType);
-        CandidateClassification classification = candidateClassificationRepository.findByTenantIdAndId(tenantId, candidateId)
+        CandidateClassification initial = candidateClassificationRepository.findByTenantIdAndId(tenantId, candidateId)
+            .orElseThrow(() -> ApiException.notFound("知识候选 id=" + candidateId));
+        identityRepository.findByTenantIdAndIdForUpdate(tenantId, initial.identityId())
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + initial.identityId()));
+        CandidateClassification classification = candidateClassificationRepository.findByTenantIdAndId(
+            tenantId, candidateId)
             .orElseThrow(() -> ApiException.notFound("知识候选 id=" + candidateId));
         if (classification.reviewStatus() != CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW) {
             throw new ApiException(ErrorCode.CONFLICT, "候选当前状态 " + classification.reviewStatus() + " 不可重复审核");
         }
+        if (request.decision() == KnowledgeCandidateReviewDecision.RETURN
+                && (request.reason() == null || request.reason().isBlank())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "退修须填写修订意见");
+        }
+        KnowledgeAssetVersion candidate = versionRepository.findByTenantIdAndId(
+            tenantId, classification.candidateVersionId())
+            .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+        List<ReviewAssignment> assignments =
+            reviewAssignmentRepository.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc(
+                tenantId, classification.id());
+        if (assignments.isEmpty()) {
+            throw new ApiException(ErrorCode.CONFLICT, "候选缺少审核分派，不得直接作出结论");
+        }
+        boolean actorAlreadyApproved = assignments.stream()
+            .anyMatch(assignment -> assignment.reviewStatus() == CandidateReviewStatus.APPROVED
+                && KnowledgeCandidateReviewDecision.APPROVE == assignment.decision()
+                && actor.equals(assignment.decidedBy()));
+        List<ReviewAssignment> matchingPending = assignments.stream()
+            .filter(assignment -> assignment.reviewStatus() == CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW)
+            .filter(assignment -> matchesAssignment(assignment, actor))
+            .toList();
+        if (candidate.isHighRisk() && actorAlreadyApproved && !matchingPending.isEmpty()) {
+            throw new ApiException(ErrorCode.CONFLICT, "同一人员不能完成高风险双签");
+        }
+        ReviewAssignment selectedAssignment = matchingPending.stream()
+            .findFirst()
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.CONFLICT, "当前操作者未命中待审核分派，不能代替他人签署"));
+
         if (request.decision() == KnowledgeCandidateReviewDecision.APPROVE) {
+            if (candidate.isHighRisk() && assignments.size() < 2) {
+                throw new ApiException(ErrorCode.CONFLICT, "高风险候选缺少两个签署席位，不得激活");
+            }
+            ReviewAssignment approvedAssignment = decidedAssignment(
+                selectedAssignment,
+                CandidateReviewStatus.APPROVED,
+                KnowledgeCandidateReviewDecision.APPROVE,
+                request.reason(),
+                feedbackType,
+                followupAction,
+                actor,
+                now);
+            reviewAssignmentRepository.save(approvedAssignment);
+            List<ReviewAssignment> updatedAssignments = assignments.stream()
+                .map(assignment -> assignment.id().equals(approvedAssignment.id())
+                    ? approvedAssignment
+                    : assignment)
+                .toList();
+            if (candidate.isHighRisk() && !dualSignComplete(updatedAssignments)) {
+                return new KnowledgeCandidateResponse(
+                    classification.identityId(),
+                    candidatePage(List.of(candidate)),
+                    List.of(classification),
+                    true,
+                    "PENDING_DUAL_SIGN",
+                    "高风险候选首签已记录，仍需另一名分派人员完成签署");
+            }
+            if (!candidate.isHighRisk()) {
+                closeRemainingAssignments(
+                    updatedAssignments,
+                    approvedAssignment.id(),
+                    CandidateReviewStatus.APPROVED,
+                    "单签候选已由归口分派通过，其他历史席位关闭",
+                    actor,
+                    now);
+            }
             KnowledgeAssetVersion activated = activate(
                 classification.identityId(),
                 classification.candidateVersionId(),
@@ -453,15 +525,6 @@ public class KnowledgeVersionService {
                 classification.basis(),
                 now,
                 actor));
-            reviewAssignmentRepository.save(reviewAssignment(
-                approved,
-                CandidateReviewStatus.APPROVED,
-                KnowledgeCandidateReviewDecision.APPROVE,
-                request.reason(),
-                feedbackType,
-                followupAction,
-                actor,
-                now));
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
                 candidatePage(List.of(activated)),
@@ -471,11 +534,24 @@ public class KnowledgeVersionService {
                 "候选审核通过，已转交权威版本原子替换流程");
         }
         if (request.decision() == KnowledgeCandidateReviewDecision.RETURN) {
-            if (request.reason() == null || request.reason().isBlank()) {
-                throw new ApiException(ErrorCode.BAD_REQUEST, "退修须填写修订意见");
-            }
-            KnowledgeAssetVersion returning = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
-                .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+            ReviewAssignment returnedAssignment = decidedAssignment(
+                selectedAssignment,
+                CandidateReviewStatus.RETURNED,
+                KnowledgeCandidateReviewDecision.RETURN,
+                request.reason(),
+                feedbackType,
+                followupAction,
+                actor,
+                now);
+            reviewAssignmentRepository.save(returnedAssignment);
+            closeRemainingAssignments(
+                assignments,
+                returnedAssignment.id(),
+                CandidateReviewStatus.RETURNED,
+                "同一候选已由分派审核人退修，当前席位关闭",
+                actor,
+                now);
+            KnowledgeAssetVersion returning = candidate;
             KnowledgeAssetVersion draft = new KnowledgeAssetVersion(
                 returning.id(), returning.tenantId(), returning.identityId(),
                 returning.versionNo(), returning.versionLabel(),
@@ -500,15 +576,6 @@ public class KnowledgeVersionService {
                 appendReason(classification.basis(), request.reason()),
                 now,
                 actor));
-            reviewAssignmentRepository.save(reviewAssignment(
-                returned,
-                CandidateReviewStatus.RETURNED,
-                KnowledgeCandidateReviewDecision.RETURN,
-                request.reason(),
-                feedbackType,
-                followupAction,
-                actor,
-                now));
             return new KnowledgeCandidateResponse(
                 classification.identityId(),
                 candidatePage(List.of(savedDraft)),
@@ -517,8 +584,23 @@ public class KnowledgeVersionService {
                 "RETURNED",
                 "候选已退修，退回生产者修订重提");
         }
-        KnowledgeAssetVersion candidate = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
-            .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+        ReviewAssignment rejectedAssignment = decidedAssignment(
+            selectedAssignment,
+            CandidateReviewStatus.REJECTED,
+            KnowledgeCandidateReviewDecision.REJECT,
+            request.reason(),
+            feedbackType,
+            followupAction,
+            actor,
+            now);
+        reviewAssignmentRepository.save(rejectedAssignment);
+        closeRemainingAssignments(
+            assignments,
+            rejectedAssignment.id(),
+            CandidateReviewStatus.REJECTED,
+            "同一候选已由分派审核人拒绝，当前席位关闭",
+            actor,
+            now);
         KnowledgeAssetVersion rejected = new KnowledgeAssetVersion(
             candidate.id(), candidate.tenantId(), candidate.identityId(),
             candidate.versionNo(), candidate.versionLabel(),
@@ -543,15 +625,6 @@ public class KnowledgeVersionService {
             appendReason(classification.basis(), request.reason()),
             now,
             actor));
-        reviewAssignmentRepository.save(reviewAssignment(
-            rejectedClassification,
-            CandidateReviewStatus.REJECTED,
-            KnowledgeCandidateReviewDecision.REJECT,
-            request.reason(),
-            feedbackType,
-            followupAction,
-            actor,
-            now));
         return new KnowledgeCandidateResponse(
             classification.identityId(),
             candidatePage(List.of(saved)),
@@ -883,17 +956,23 @@ public class KnowledgeVersionService {
             actor);
     }
 
-    private ReviewAssignment reviewAssignment(CandidateClassification classification, CandidateReviewStatus status,
-            KnowledgeCandidateReviewDecision decision, String reason, KnowledgeReviewFeedbackType feedbackType,
-            KnowledgeReviewFollowupAction followupAction, String actor, Instant now) {
+    private ReviewAssignment decidedAssignment(
+            ReviewAssignment assignment,
+            CandidateReviewStatus status,
+            KnowledgeCandidateReviewDecision decision,
+            String reason,
+            KnowledgeReviewFeedbackType feedbackType,
+            KnowledgeReviewFollowupAction followupAction,
+            String actor,
+            Instant now) {
         return new ReviewAssignment(
-            null,
-            classification.tenantId(),
-            classification.orgPath(),
-            classification.id(),
-            classification.identityId(),
-            classification.candidateVersionId(),
-            actor,
+            assignment.id(),
+            assignment.tenantId(),
+            assignment.orgPath(),
+            assignment.candidateClassificationId(),
+            assignment.identityId(),
+            assignment.candidateVersionId(),
+            assignment.assignedTo(),
             status,
             decision,
             reason == null ? null : reason.trim(),
@@ -901,8 +980,69 @@ public class KnowledgeVersionService {
             followupAction,
             actor,
             now,
+            assignment.createdAt(),
+            assignment.createdBy(),
             now,
-            actor,
+            actor);
+    }
+
+    private boolean matchesAssignment(ReviewAssignment assignment, String actor) {
+        return RoleCode.fromCode(assignment.assignedTo())
+            .map(AuthenticatedRoleGuard::has)
+            .orElseGet(() -> actor.equals(assignment.assignedTo()));
+    }
+
+    private boolean dualSignComplete(List<ReviewAssignment> assignments) {
+        if (assignments.size() < 2 || assignments.stream()
+            .anyMatch(assignment -> assignment.reviewStatus() != CandidateReviewStatus.APPROVED
+                || assignment.decision() != KnowledgeCandidateReviewDecision.APPROVE
+                || assignment.decidedBy() == null
+                || assignment.decidedBy().isBlank())) {
+            return false;
+        }
+        return assignments.stream()
+            .map(ReviewAssignment::decidedBy)
+            .distinct()
+            .count() == assignments.size();
+    }
+
+    private void closeRemainingAssignments(
+            List<ReviewAssignment> assignments,
+            Long decidedAssignmentId,
+            CandidateReviewStatus terminalStatus,
+            String reason,
+            String actor,
+            Instant now) {
+        assignments.stream()
+            .filter(assignment -> !assignment.id().equals(decidedAssignmentId))
+            .filter(assignment -> assignment.reviewStatus() == CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW)
+            .map(assignment -> closedAssignment(assignment, terminalStatus, reason, actor, now))
+            .forEach(reviewAssignmentRepository::save);
+    }
+
+    private ReviewAssignment closedAssignment(
+            ReviewAssignment assignment,
+            CandidateReviewStatus status,
+            String reason,
+            String actor,
+            Instant now) {
+        return new ReviewAssignment(
+            assignment.id(),
+            assignment.tenantId(),
+            assignment.orgPath(),
+            assignment.candidateClassificationId(),
+            assignment.identityId(),
+            assignment.candidateVersionId(),
+            assignment.assignedTo(),
+            status,
+            null,
+            reason,
+            null,
+            null,
+            null,
+            now,
+            assignment.createdAt(),
+            assignment.createdBy(),
             now,
             actor);
     }
