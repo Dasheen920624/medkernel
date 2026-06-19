@@ -221,6 +221,10 @@ class CandidateGenerationOrchestrationServiceTest {
     @Test
     void duplicateTriageIsSkippedAndNotSubmitted() {
         seedVersionAndDocument();
+        when(identities.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(new KnowledgeIdentity(
+            10L, "t-1", "RULE-EXISTING-10", com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
+            "既有规则", null, null, KnowledgeIdentityStatus.ACTIVE, null,
+            Instant.EPOCH, "sys", Instant.EPOCH, "sys")));
         when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
             new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
                 Instant.EPOCH)));
@@ -273,7 +277,8 @@ class CandidateGenerationOrchestrationServiceTest {
         assertThat(summary.candidates()).hasSize(1);
         verify(identities).findByTenantIdAndId("t-1", 10L);
         verify(production).submitCandidate(eq("job-x"), org.mockito.ArgumentMatchers.argThat(
-            envelope -> envelope.payload().contains("\"template\":\"DRUG\"")), any());
+            envelope -> envelope.payload().contains("\"template\":\"DRUG\"")
+                && envelope.assetIdentity().equals("DRUG-1")), any());
     }
 
     @Test

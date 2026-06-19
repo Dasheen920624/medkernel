@@ -11,19 +11,42 @@ async function write(root, file, content) {
   await writeFile(join(root, file), content);
 }
 
-function approvedClinicalContent() {
+function approvedClinicalContent({
+  triggerPoint = "order-sign",
+  riskLevel = "HIGH",
+  actionCode = "REMIND",
+} = {}) {
   return {
     dsl: {
+      trigger: triggerPoint,
+      when: {
+        all: [
+          {
+            expr: { field: "patient.ageYears" },
+            operator: "gte",
+            value: 18,
+          },
+        ],
+      },
       then: [
         {
-          actionCode: "STRONG_REMINDER",
+          actionCode,
+          indicator: "warning",
+          atSeverity: riskLevel,
+          detail: "仅向演练人员展示提示，不自动执行任何临床动作。",
           requiresPhysicianConfirmation: true,
         },
       ],
     },
-    testCases: ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"].map(
-      (caseType) => ({
+    testCases: ["POSITIVE", "NEGATIVE", "BOUNDARY", "MISSING_FIELD"].map(
+      (caseType, index) => ({
         caseType,
+        patientId: `SBX-PATIENT-${index + 1}`,
+        encounterId: `SBX-ENCOUNTER-${index + 1}`,
+        facts: {
+          patient: { ageYears: caseType === "MISSING_FIELD" ? null : 18 },
+        },
+        expectedHit: caseType === "POSITIVE" || caseType === "BOUNDARY",
       }),
     ),
   };
@@ -32,29 +55,35 @@ function approvedClinicalContent() {
 function sandboxScenario(index, overrides = {}) {
   const base = {
     id: `sbx-test-${index}`,
-    ruleCode: index === 1 ? "SBX.LAB.CRITICAL.K" : `SBX.TEST.${index}`,
-    ruleType: index === 1 ? "LAB" : "ORDER",
-    triggerPoint: index === 1 ? "result-review" : "order-sign",
-    riskLevel: index === 1 ? "CRITICAL" : "HIGH",
-    actionCode: index === 1 ? "STRONG_REMINDER" : "REMIND",
-    reviewStatus: "CLINICAL_REVIEW_REQUIRED",
-    reviewEvidence: null,
+    ruleCode: `SBX.TEST.${index}`,
+    ruleType: "ORDER",
+    triggerPoint: "order-sign",
+    riskLevel: "HIGH",
+    actionCode: "REMIND",
+    reviewStatus: "SANDBOX_READY",
+    reviewEvidence: "沙盘工程规则已完成结构、安全边界和四类样例校验",
     name: `沙盘测试场景 ${index}`,
-    sourceRef: null,
-    changeSummary: null,
-    clinicalContent: null,
+    sourceRef: "测试用权威来源",
+    changeSummary: "提供完整演练链路，不作为生产医学规则",
+    institution: {
+      tenantId: "pilot-hospital",
+      scope: "SANDBOX_INSTITUTION",
+      customRule: true,
+    },
+    disclaimer: "仅限演练机构沙盘验证，不构成真实患者诊疗依据。",
+    sources: [
+      {
+        sourceType: "GOVERNMENT_POLICY",
+        title: "测试用权威来源",
+        issuingBody: "测试发布机构",
+        documentNumber: `TEST-${index}`,
+        url: "https://example.com/authority",
+        retrievedAt: "2026-06-19",
+        applicability: "仅用于门禁夹具验证",
+      },
+    ],
+    clinicalContent: approvedClinicalContent(),
   };
-  if (index === 1) {
-    return {
-      ...base,
-      reviewStatus: "APPROVED_FOR_SANDBOX",
-      reviewEvidence: "工程金样已验证",
-      sourceRef: "检验危急值管理制度",
-      changeSummary: "仅开放高钾金样",
-      clinicalContent: approvedClinicalContent(),
-      ...overrides,
-    };
-  }
   return { ...base, ...overrides };
 }
 
@@ -68,7 +97,22 @@ function sandboxManifest(overrides = {}) {
       scenarioOverride,
     );
   }
-  return JSON.stringify({ schemaVersion: 1, scenarios }, null, 2);
+  return JSON.stringify(
+    {
+      schemaVersion: 2,
+      dependencies: [
+        {
+          assetType: "TERMINOLOGY",
+          assetCode: "SBX.TEST.DEPENDENCY",
+          assetVersion: "1.0.0",
+          purpose: "门禁夹具外圈资产版本依赖",
+        },
+      ],
+      scenarios,
+    },
+    null,
+    2,
+  );
 }
 
 function screenshotChainSpecContent() {
@@ -3286,15 +3330,20 @@ test("B0 门禁识别 Prettier 多行分页 hook 签名", async () => {
   assert.deepEqual(report.violations, []);
 });
 
-test("B0 门禁阻断未评审沙盘场景提前开放", async () => {
+test("B0 门禁接受 10 条演练机构规则全部达到沙盘就绪", async () => {
+  const root = await fixtureRoot();
+
+  const report = await scanRepository(root);
+
+  assert.equal(hasBlockingViolations(report), false);
+  assert.deepEqual(report.violations, []);
+});
+
+test("B0 门禁阻断未达到沙盘就绪的演练机构规则", async () => {
   const root = await fixtureRoot({
     "scripts/sandbox/scenario-rules.json": sandboxManifest({
       1: {
-        reviewStatus: "APPROVED_FOR_SANDBOX",
-        reviewEvidence: "尚未纳入 B0 当前验收口径的临床评审",
-        sourceRef: "测试来源",
-        changeSummary: "测试提前开放第二条场景",
-        clinicalContent: approvedClinicalContent(),
+        reviewStatus: "CLINICAL_REVIEW_REQUIRED",
       },
     }),
   });
@@ -3304,7 +3353,7 @@ test("B0 门禁阻断未评审沙盘场景提前开放", async () => {
   assert.equal(hasBlockingViolations(report), true);
   assert.deepEqual(
     report.violations.map((item) => item.ruleId),
-    ["b0.sandbox.approved-scope-drift"],
+    ["b0.sandbox.scenario-rules-invalid"],
   );
 });
 

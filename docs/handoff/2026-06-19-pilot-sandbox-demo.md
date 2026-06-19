@@ -21,7 +21,7 @@
 - 已存在演练租户 `pilot-hospital` 和 12 个机构/临床角色账号。
 - API 已验证租户、角色绑定和登录；`clinical-decision-user` 持 `sandbox.run`，`quality-governor` 不是沙盘运行者。
 - 跨租户同名账号的 `credential_id` 全局唯一问题已收敛：内部 `userId` 使用租户前缀，登录用户名保持角色名。
-- 134 已上线库不再清库。本工作线当前只做本地代码和文档，未经明确授权不得部署或写 134。
+- 134 已上线库不再清库。用户已授权本工作线在全量验证、审查和本地冻结提交后，对 134 做 V152→V155 的前向部署，并在受控账号下生成 B0 基础知识候选；仍禁止擅自 push、远程 PR/合并、Provider 启用、P6 放行或自动代签医学评测。
 
 ## 正确的运行与版本口径
 
@@ -64,19 +64,19 @@ CURRENT、HISTORICAL_EXACT、COMPARE 均须覆盖：
 - `scripts/drill/p9-pilot-tenant-provision.py`：幂等准备试点租户与账号，失败关闭。
 - `scripts/drill/p9-gen-seed-creds.py`：从受控总表生成最小铺底凭据，输出恒为 `0600`。
 - `scripts/drill/p9-pilot-verify.py`：只读核验租户、12 账号、角色、登录和沙盘权限。
-- `scripts/sandbox/seed-scenarios.mjs`：后续改为创建 10 条机构规则、演练包、运行绑定并执行动态 readiness。
-- `scripts/drill/sandbox-fulltruth-run.mjs`：后续覆盖三模式与全流程证据。
+- `scripts/sandbox/seed-scenarios.mjs`：创建 10 条机构规则、演练包、运行绑定并执行动态 readiness。
+- `scripts/drill/sandbox-fulltruth-run.mjs`：覆盖三模式与全流程证据。
+- `scripts/knowledge/foundation-initialization.mjs`：从受控权威来源注册表生成 8 个无模型 B0 基础候选并冻结 F8 `IN_REVIEW` 批次；请求白名单不包含批审、双签、Provider、P6 或激活动作。
 
 所有工具禁止输出密码、MFA、恢复码、Cookie 或患者明文。历史一次性撞名修补脚本已合并进 provisioner，不再保留独立修补路径。
 
 ## 下一步
 
-1. 本地实现不可变运行绑定和基线，移除场景静态阻断与固定版本。
-2. 补齐 10 条真实演练规则及来源、参数和测试。
-3. 实现历史重放清单、显式版本执行端口和新旧对比。
-4. 补齐前端三模式、动态准备度、规则来源和副作用抑制展示。
-5. 完成本地全量测试、代码评审和接力同步。
-6. 只有在用户明确授权部署后，才前向更新 134；更新后必须在最终制品上重建 Provider 医学评测和真人签署证据。
+1. 完成本地全量测试、代码评审和冻结提交。
+2. 从精确提交构建发布字节并记录 JAR、前端归档和迁移清单哈希。
+3. 前向更新 134 至 V155，不清库；核验运行制品、readiness、服务状态、Provider 停用和 P6=false。
+4. 受控生成 8 个 B0 基础知识候选与 F8 `IN_REVIEW` 批次，不自动批准或激活。
+5. 在最终制品上重建 Provider 医学评测，由真人独立专家逐例签署后再进入正式放行。
 
 ## 红线
 

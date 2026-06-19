@@ -9,7 +9,11 @@ CJK_HELPER="$ROOT/scripts/check-comment-zh/cjk-detect.pl"
 javadoc_has_chinese() {
   awk '
     BEGIN { in_doc=0; doc=""; pending=""; printed=0 }
-    /^[[:space:]]*\/\*\*/ { in_doc=1; doc=$0; next }
+    /^[[:space:]]*\/\*\*/ {
+      doc=$0
+      if (/\*\//) { in_doc=0; pending=doc } else { in_doc=1 }
+      next
+    }
     in_doc && /\*\// { doc=doc"\n"$0; in_doc=0; pending=doc; next }
     in_doc { doc=doc"\n"$0; next }
     /^[[:space:]]*(@[A-Za-z]+(\([^)]*\))?[[:space:]]*)*((public|protected|private)[[:space:]]+)?(abstract[[:space:]]+|final[[:space:]]+|sealed[[:space:]]+|non-sealed[[:space:]]+)*(class|record|interface|enum|@interface)/ && !printed {
@@ -45,6 +49,7 @@ check() {
 a=""
 javadoc_has_chinese "$FIX/good-class.java"      && a=yes || a=no; check good-class yes "$a"
 javadoc_has_chinese "$FIX/good-package-record.java" && a=yes || a=no; check good-package-record yes "$a"
+javadoc_has_chinese "$FIX/good-single-line-record.java" && a=yes || a=no; check good-single-line-record yes "$a"
 javadoc_has_chinese "$FIX/missing-javadoc.java" && a=yes || a=no; check missing-javadoc no "$a"
 javadoc_has_chinese "$FIX/english-only.java"    && a=yes || a=no; check english-only no "$a"
 sql_table_has_comment "$FIX/good-table.sql"     && a=yes || a=no; check good-table yes "$a"

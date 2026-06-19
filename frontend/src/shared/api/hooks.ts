@@ -956,6 +956,7 @@ function compactOneBasedPageParams<T extends { page?: number }>(params: T): Part
 
 const KNOWLEDGE_API_ROOT = "/engine/knowledge";
 const KNOWLEDGE_PRODUCTION_API_ROOT = "/engine/knowledge-production";
+const KNOWLEDGE_INITIALIZATION_API_ROOT = `${KNOWLEDGE_PRODUCTION_API_ROOT}/initialization`;
 const KNOWLEDGE_ACQUISITION_API_ROOT = "/engine/knowledge/acquisition";
 
 export interface KnowledgeAcquisitionSource {
@@ -1682,6 +1683,52 @@ export interface CandidateCoexistenceView {
   safetyNotice?: string | null;
 }
 
+export type KnowledgeInitializationReleaseType = "FOUNDATION" | "CLINICAL_CONTENT" | "COMPOSITE";
+export type KnowledgeInitializationBatchStatus = "VALIDATED" | "IN_REVIEW" | "COMPLETE" | "BLOCKED";
+
+export interface KnowledgeInitializationBatch {
+  id: number;
+  tenantId: string;
+  batchCode: string;
+  releaseType: KnowledgeInitializationReleaseType;
+  releaseVersion: string;
+  foundationReleaseVersion?: string | null;
+  phase: string;
+  status: KnowledgeInitializationBatchStatus;
+  sourceManifestHash: string;
+  candidateManifestHash: string;
+  overallHash: string;
+  sourceCount: number;
+  candidateCount: number;
+  lowCount: number;
+  mediumCount: number;
+  highCount: number;
+  templateVersion: string;
+  modelVersion?: string | null;
+  summary: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface KnowledgeInitializationItem {
+  id: number;
+  batchId: number;
+  sequenceNo: number;
+  catalogCode: string;
+  assetType: string;
+  canonicalId: string;
+  assetVersion: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  status: "PENDING_REVIEW" | "APPROVED" | "BLOCKED";
+}
+
+export interface KnowledgeInitializationBatchView {
+  batch: KnowledgeInitializationBatch;
+  items: KnowledgeInitializationItem[];
+}
+
 export function useKnowledgeProductionReadiness(
   params: KnowledgeProductionReadinessParams = {},
   enabled = true,
@@ -1831,6 +1878,60 @@ export function useCandidateCoexistence(candidateRef?: string | null) {
         { params: { candidateRef } },
       );
       return data.data;
+    },
+  });
+}
+
+export function useKnowledgeInitializationBatches(enabled = true) {
+  return useQuery({
+    queryKey: ["knowledge-production", "initialization-batches"],
+    enabled,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeInitializationBatch[] }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useApproveLowKnowledgeInitializationBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      batchCode: string;
+      expectedOverallHash: string;
+      idempotencyKey: string;
+      reason: string;
+    }) => {
+      const { batchCode, ...request } = payload;
+      const { data } = await apiClient.post<{ data: KnowledgeInitializationBatchView }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches/${encodeURIComponent(batchCode)}/approve-low`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["knowledge-production", "initialization-batches"],
+      });
+    },
+  });
+}
+
+export function useRefreshKnowledgeInitializationBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (batchCode: string) => {
+      const { data } = await apiClient.post<{ data: KnowledgeInitializationBatchView }>(
+        `${KNOWLEDGE_INITIALIZATION_API_ROOT}/batches/${encodeURIComponent(batchCode)}/refresh`,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["knowledge-production", "initialization-batches"],
+      });
     },
   });
 }

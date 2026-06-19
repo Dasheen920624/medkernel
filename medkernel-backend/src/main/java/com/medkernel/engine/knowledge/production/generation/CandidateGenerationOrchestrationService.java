@@ -99,12 +99,14 @@ public class CandidateGenerationOrchestrationService {
 
         for (GenerationItem item : request.items()) {
             item.target().validate();
+            KnowledgeIdentity targetIdentity = resolveTargetIdentity(tenantId, item.target());
             ProductionJobResponse job = production.createJob(new ProductionJobRequest(
                 "source-version:" + version.id(), item.assetType(), KnowledgeProducer.MANUAL,
                 request.targetPipeline(), request.domain(), null));
             KnowledgeAssetEnvelope envelope = generator.generate(
                 tenantId, document, version, sourceFragments, item.assetType(),
-                resolveKnowledgeDomain(tenantId, item), deriveIdentity(item.target()));
+                resolveKnowledgeDomain(item, targetIdentity),
+                deriveIdentity(item.target(), targetIdentity));
             // AIK-STD-05：候选须过安全门禁才提审；不过即拦截、诚实报因、不静默放行（铁律 #1）。
             GateOutcome outcome = gateService.evaluate(
                 envelope,
@@ -134,28 +136,34 @@ public class CandidateGenerationOrchestrationService {
         return new GenerationSummary(generated, skipped, blocked);
     }
 
-    private String deriveIdentity(MaterializationTarget target) {
-        return target.targetIdentityId() != null
-            ? "identity:" + target.targetIdentityId()
-            : target.newIdentity().identityCode();
+    private String deriveIdentity(MaterializationTarget target, KnowledgeIdentity targetIdentity) {
+        return targetIdentity != null ? targetIdentity.identityCode() : target.newIdentity().identityCode();
     }
 
-    private KnowledgeDomain resolveKnowledgeDomain(String tenantId, GenerationItem item) {
+    private KnowledgeDomain resolveKnowledgeDomain(
+            GenerationItem item,
+            KnowledgeIdentity targetIdentity) {
         if (item.assetType() != com.medkernel.engine.versioning.VersionedAssetType.KNOWLEDGE) {
             return null;
         }
-        MaterializationTarget target = item.target();
-        if (target.targetIdentityId() != null) {
-            KnowledgeIdentity identity = identities.findByTenantIdAndId(tenantId, target.targetIdentityId())
-                .orElseThrow(() -> ApiException.notFound("知识身份 id=" + target.targetIdentityId()));
-            return identity.domain();
+        if (targetIdentity != null) {
+            return targetIdentity.domain();
         }
+        MaterializationTarget target = item.target();
         if (target.newIdentity() == null || target.newIdentity().domain() == null) {
             throw new ApiException(
                 com.medkernel.shared.api.error.ErrorCode.BAD_REQUEST,
                 "新知识身份必须声明知识领域");
         }
         return target.newIdentity().domain();
+    }
+
+    private KnowledgeIdentity resolveTargetIdentity(String tenantId, MaterializationTarget target) {
+        if (target.targetIdentityId() == null) {
+            return null;
+        }
+        return identities.findByTenantIdAndId(tenantId, target.targetIdentityId())
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + target.targetIdentityId()));
     }
 
     private String requireCurrentTenant() {

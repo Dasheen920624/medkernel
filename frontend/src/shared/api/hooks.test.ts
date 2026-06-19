@@ -101,6 +101,9 @@ import {
   useKnowledgeProductionReadiness,
   useKnowledgeProductionShadowRuns,
   useKnowledgeProductionTriageResults,
+  useKnowledgeInitializationBatches,
+  useApproveLowKnowledgeInitializationBatch,
+  useRefreshKnowledgeInitializationBatch,
   useKnowledgeVersions,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
@@ -4159,6 +4162,60 @@ describe("knowledge review api helpers", () => {
     expect(response).toBe(cancelledJob);
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/knowledge-production/jobs/job-ai-1/cancel",
+    );
+  });
+
+  it("lists, approves LOW, and refreshes knowledge initialization batches", async () => {
+    const batch = {
+      id: 10,
+      batchCode: "foundation-f1-1.0.0",
+      releaseType: "FOUNDATION",
+      releaseVersion: "1.0.0",
+      phase: "F8",
+      status: "IN_REVIEW",
+      overallHash: "e".repeat(64),
+      candidateCount: 3,
+      lowCount: 1,
+      mediumCount: 1,
+      highCount: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [batch] } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { batch, items: [] } } })
+      .mockResolvedValueOnce({
+        data: { data: { batch: { ...batch, status: "COMPLETE" }, items: [] } },
+      });
+
+    const listHook = renderApiHook(() => useKnowledgeInitializationBatches());
+    await waitFor(() => expect(listHook.result.current.data).toEqual([batch]));
+
+    const approveHook = renderApiHook(() => useApproveLowKnowledgeInitializationBatch());
+    const refreshHook = renderApiHook(() => useRefreshKnowledgeInitializationBatch());
+    await act(async () => {
+      await approveHook.result.current.mutateAsync({
+        batchCode: "foundation-f1-1.0.0",
+        expectedOverallHash: "e".repeat(64),
+        idempotencyKey: "bulk-low-1",
+        reason: "批准低风险候选",
+      });
+      await refreshHook.result.current.mutateAsync("foundation-f1-1.0.0");
+    });
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/knowledge-production/initialization/batches",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/knowledge-production/initialization/batches/foundation-f1-1.0.0/approve-low",
+      {
+        expectedOverallHash: "e".repeat(64),
+        idempotencyKey: "bulk-low-1",
+        reason: "批准低风险候选",
+      },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/knowledge-production/initialization/batches/foundation-f1-1.0.0/refresh",
     );
   });
 

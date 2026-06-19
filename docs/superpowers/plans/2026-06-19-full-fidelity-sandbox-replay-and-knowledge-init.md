@@ -329,7 +329,7 @@ Expected: 全部 exit 0；当前沙盘脚本无旧固定版本和单规则口径
 - Modify: `frontend/src/pages/sandbox/SandboxHost.tsx`
 - Modify: `frontend/src/pages/sandbox/SandboxHost.test.tsx`
 
-- [ ] **Step 1: 写迁移、脱敏、哈希和精确版本红测**
+- [x] **Step 1: 写迁移、脱敏、哈希和精确版本红测**
 
 断言：
 
@@ -339,15 +339,15 @@ Expected: 全部 exit 0；当前沙盘脚本无旧固定版本和单规则口径
 - 历史运行不调用当前有效规则解析器；
 - 归档/下线版本只读执行，不重新激活。
 
-- [ ] **Step 2: 实现 V154 与清单导入**
+- [x] **Step 2: 实现 V154 与清单导入**
 
 导入使用标准 Record DTO + Bean Validation + 审计；清单和资产绑定不可变，只允许撤销整案，不允许原地覆盖。
 
-- [ ] **Step 3: 实现 `HISTORICAL_EXACT`**
+- [x] **Step 3: 实现 `HISTORICAL_EXACT`**
 
 以 `replayCaseId` 为唯一业务输入，按清单装载上下文和历史规则版本。若现有规则执行接口只能按当前规则取数，先抽取“显式版本集合评估端口”，正式 CURRENT 适配器与历史适配器共享执行内核。
 
-- [ ] **Step 4: 后端与前端目标测试转绿**
+- [x] **Step 4: 后端与前端目标测试转绿**
 
 Run:
 
@@ -370,19 +370,19 @@ Expected: 全部 exit 0。
 - Modify: `frontend/src/pages/sandbox/SandboxHost.tsx`
 - Modify: `frontend/src/pages/sandbox/SandboxHost.test.tsx`
 
-- [ ] **Step 1: 写对比红测**
+- [x] **Step 1: 写对比红测**
 
 覆盖新增命中、取消命中、严重度变化、动作变化、规则来源变化、版本/hash 变化、缺资产不可比较；历史 A 与当前 B 共享同一脱敏上下文，任何一侧不得触发外部副作用。
 
-- [ ] **Step 2: 实现 `COMPARE`**
+- [x] **Step 2: 实现 `COMPARE`**
 
 对历史和当前分别构建冻结执行计划，执行后按稳定业务键比较，不按数组位置比较。
 
-- [ ] **Step 3: UI 展示差异而非原始 JSON**
+- [x] **Step 3: UI 展示差异而非原始 JSON**
 
 默认折叠无变化项；高风险变化置顶；缺资产显示诚实原因。
 
-- [ ] **Step 4: 目标测试转绿**
+- [x] **Step 4: 目标测试转绿**
 
 Run:
 
@@ -407,11 +407,11 @@ Expected: 全部 exit 0。
 - Modify: `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/ReviewAssignmentRepository.java`
 - Test: 对应 registry、generator、orchestration 和 version service 测试
 
-- [ ] **Step 1: 写模板覆盖与知识领域选择红测**
+- [x] **Step 1: 写模板覆盖与知识领域选择红测**
 
 断言：除由专用服务装配的 `PACKAGE` 外，每个可独立生产的 `VersionedAssetType` 都有一个确定性结构模板；生成 `KNOWLEDGE` 时必须显式使用目标身份的 `KnowledgeDomain`，不得按 `null` 查模板；现有身份须从仓储加载领域，新身份使用 `NewIdentitySpec.domain`。
 
-- [ ] **Step 2: 补齐现有资产类型模板并修复生成器选择**
+- [x] **Step 2: 补齐现有资产类型模板并修复生成器选择**
 
 至少覆盖当前缺口：
 
@@ -421,15 +421,15 @@ Expected: 全部 exit 0。
 
 模板只定义结构和来源要求；不得用模型或种子编造官方编码、医学常量、单位换算、器械注册或兼容事实。
 
-- [ ] **Step 3: 写 HIGH 双签强制红测**
+- [x] **Step 3: 写 HIGH 双签强制红测**
 
 覆盖未分派操作者拒绝、首签保持待审、同一人员不能完成两签、全部不同分派签署完成后才激活，以及任一 RETURN/REJECT 终止候选。LOW/MEDIUM 仍须命中自己的分派。
 
-- [ ] **Step 4: 最小实现真实分派审核状态机**
+- [x] **Step 4: 最小实现真实分派审核状态机**
 
 复用 `mk_knowledge_review_assignment`，按 candidate classification 查询全部分派；更新当前操作者命中的待办。只有全部必需分派均 APPROVE 时调用 `activate`。不得增加第二套签署表。
 
-- [ ] **Step 5: 目标测试转绿**
+- [x] **Step 5: 目标测试转绿**
 
 Run:
 
@@ -452,7 +452,7 @@ Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIG
 - Modify: `frontend/src/pages/quality/KnowledgeGovernance.test.tsx`
 - Create: `medkernel-backend/src/test/java/com/medkernel/engine/knowledge/production/initialization/` 下测试
 
-- [ ] **Step 1: 建立基础发行版清单与依赖拓扑红测**
+- [x] **Step 1: 建立基础发行版清单与依赖拓扑红测**
 
 初始化批次必须区分：
 
@@ -486,7 +486,7 @@ Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIG
 - 临床包不能引用未激活或版本范围不兼容的基础包。
 - 六维覆盖矩阵任一必需单元没有责任资产、来源策略、审核策略或测试时不能通过首发总验收。
 
-- [ ] **Step 2: 写初始化与审核状态机红测**
+- [x] **Step 2: 写初始化与审核状态机红测**
 
 断言：
 
@@ -499,7 +499,7 @@ Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIG
 7. HIGH 必须两个不同角色/人员完成会签后才可发布；
 8. 任一驳回或来源漂移阻断整批激活。
 
-- [ ] **Step 3: 实现稳定 canonical ID 与语义版本策略**
+- [x] **Step 3: 实现稳定 canonical ID 与语义版本策略**
 
 要求：
 
@@ -509,19 +509,19 @@ Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIG
 - 废止资产保留历史，必须声明 replacement、effectiveTo 和迁移影响；
 - 基础发行版生成 coverage matrix、dependency graph、manifest hash 和 compatibility report。
 
-- [ ] **Step 4: 修复当前 HIGH 双签只路由、不强制的问题**
+- [x] **Step 4: 修复当前 HIGH 双签只路由、不强制的问题**
 
 `reviewCandidate(APPROVE)` 先核验当前操作者是否命中待办分派；HIGH 首签只更新分派，不发布，第二个不同签署人完成后才调用发布端口。LOW/MEDIUM 也必须核验分派与职责分离。
 
-- [ ] **Step 5: 实现初始化批次与 LOW 批审**
+- [x] **Step 5: 实现初始化批次与 LOW 批审**
 
 批次保存来源集合、候选集合、风险统计、模型/模板版本、整体摘要、创建者和状态。批审 API 只接收批次 ID、预期 hash、决定和理由；服务端重新加载候选并校验，不信任前端 ID 列表。
 
-- [ ] **Step 6: 实现候选正文补全边界**
+- [x] **Step 6: 实现候选正文补全边界**
 
 保持 `SourceCandidateGenerator` 的 B0 安全骨架；新增受控“正文补全”步骤，仅在正式知识生产 readiness 通过后调用已放行 Provider。模型输出经 schema、来源锚点、隐私、安全门和 shadow evaluation 后才进入人工审核。
 
-- [ ] **Step 7: 固化最优生产顺序**
+- [x] **Step 7: 固化最优生产顺序**
 
 初始化调度按依赖拓扑执行：
 
@@ -537,11 +537,11 @@ Expected: 全部 exit 0；后续医学内容可通过统一资产链生产，HIG
 
 同层可并行，不得越过未满足的依赖。基础发行版对选定官方版本必须全量，不允许以 Top-N 标记完成；Top-N 只可作为临床内容灰度批次。
 
-- [ ] **Step 8: UI 提供分风险审核**
+- [x] **Step 8: UI 提供分风险审核**
 
 LOW：批次预览 + 二次确认；MEDIUM：逐条；HIGH：双签进度与待签角色。禁止把批量按钮用于 MEDIUM/HIGH。
 
-- [ ] **Step 9: 目标测试转绿**
+- [x] **Step 9: 目标测试转绿**
 
 Run:
 
@@ -562,7 +562,7 @@ Expected: 全部 exit 0。
 - Modify: `docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`
 - Modify: `docs/audit/deferred-issues.md`（仅记录真人/现场外部事项）
 
-- [ ] **Step 1: 后端全量验证**
+- [x] **Step 1: 后端全量验证**
 
 Run:
 
@@ -573,7 +573,9 @@ MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test
 
 Expected: exit 0。
 
-- [ ] **Step 2: 前端全量验证**
+Evidence（2026-06-19）: 本轮生成 481 份 Surefire XML，共 3085 tests、0 failures、0 errors；7 项按环境条件跳过，无崩溃或超时转储。
+
+- [x] **Step 2: 前端全量验证**
 
 Run:
 
@@ -588,7 +590,9 @@ npm run build
 
 Expected: 全部 exit 0，零 warning。
 
-- [ ] **Step 3: 脚本与 T-GATE**
+Evidence（2026-06-19）: `npm run verify && npm run build` 退出 0；100 个测试文件、804 tests 全绿，lint、stylelint、格式、typecheck 与生产构建通过。
+
+- [x] **Step 3: 脚本与 T-GATE**
 
 Run:
 
@@ -609,7 +613,9 @@ git diff --check
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 4: 运行时与文档旧口径扫描**
+Evidence（2026-06-19）: 演练/初始化/B0 合并 109 tests、真实性/配置边界/迁移规约 38 tests、Python 演练工具 7 tests 全绿；changed 三门禁、B0、中文注释、产品目录和 `git diff --check` 均通过。
+
+- [x] **Step 4: 运行时与文档旧口径扫描**
 
 Run:
 
@@ -623,7 +629,9 @@ rg -n "2026\\.06\\.1|CLINICAL_REVIEW_REQUIRED|待用户决策|平台主源一律
 
 Expected: 无命中。历史 P5 演练证据脚本不在本扫描范围，保留其历史可追溯性。
 
-- [ ] **Step 5: 冻结生产操作顺序**
+Evidence（2026-06-19）: 指定范围零命中；部署发布、前向部署与 fresh-deploy 三套合同脚本均通过。
+
+- [x] **Step 5: 冻结生产操作顺序**
 
 文档明确：
 
@@ -638,4 +646,34 @@ Expected: 无命中。历史 P5 演练证据脚本不在本扫描范围，保留
 
 - [ ] **Step 6: 代码评审与本地提交**
 
-先完成独立代码审查并修复高/中风险问题，再按逻辑单元本地提交。未经用户明确授权不 push、不部署 134、不创建或合并远程 PR。
+先完成独立代码审查并修复高/中风险问题，再按逻辑单元本地提交。用户已授权完成本地提交后前向部署 134；仍不 push、不创建或合并远程 PR。
+
+## Task 10：精确制品冻结、134 前向部署与基础候选生成
+
+**Files:**
+- Read: `deploy/onprem/mk-publish.sh`
+- Read: `deploy/onprem/medkernel-deploy.sh`
+- Create ignored runtime evidence: `runtime/release-freeze/<commit>/`
+- Copy controlled registry: `/zoesoft/medkernel/conf/knowledge-init/foundation-authority-registry-1.0.0.json`
+- Modify after runtime verification: `docs/_HANDOFF.md`
+- Modify after runtime verification: `docs/handoff/2026-06-19-pilot-sandbox-demo.md`
+
+- [ ] **Step 1: 从干净本地提交构建并冻结精确字节**
+
+记录提交 SHA、JAR SHA-256、前端归档 SHA-256、五方言迁移清单 SHA-256；后续部署只允许使用这组冻结字节，不从文档提交后的 HEAD 临时重建。
+
+- [ ] **Step 2: 对 134 执行不清库的前向部署**
+
+使用现有部署器完成备份、替换、重启、健康检查和失败回滚；Flyway 只允许从 V152 前向迁移到 V155，不执行 fresh-deploy 或清库。
+
+- [ ] **Step 3: 部署后验证运行真相**
+
+验证 source commit、JAR hash、前端清单、Flyway V155、readiness 200、服务 active/enabled、`NRestarts`、Provider 全停用和 P6=false。部署前的模型评测证据一律视为对旧制品的历史证据，不可用于新制品放行。
+
+- [ ] **Step 4: 受控生成稳定 B0 基础知识候选**
+
+把权威来源注册表复制到受控只读路径；通过 SSH 隧道和临时 `0600` 凭据文件运行 `foundation-initialization.mjs`。只允许生成 8 个 `generatedByModel=false`、`PENDING_AUTHORING`、`MEDIUM` 候选和一个 F8 `IN_REVIEW` 批次，不执行批审、双签、Provider、P6 或知识激活。
+
+- [ ] **Step 5: 部署后证据与接力收尾**
+
+记录来源版本/片段批准、候选数、批次风险统计、批次状态、零自动激活、Provider/P6 状态和运行制品哈希；文档收尾可形成独立本地提交，但不因此重建或重部署代码制品。

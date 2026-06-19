@@ -113,3 +113,5 @@ COMMENT ON TABLE mk_sandbox_replay_asset_binding IS '历史重放精确资产版
 COMMENT ON COLUMN mk_sandbox_replay_asset_binding.content_json IS '历史资产只读内容快照';
 COMMENT ON COLUMN mk_sandbox_replay_asset_binding.content_hash IS '历史资产规范 JSON 的 SHA-256 摘要';
 COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识';
+
+-- ROLLBACK: 如需回滚，先导出并校验历史重放清单，再删除新增关联列与沙盘重放表；不得将快照回写生产主源。

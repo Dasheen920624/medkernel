@@ -202,8 +202,45 @@ class MigrationBaselineContractTest {
         "V151__model_eval_review_evidence.sql",
         "V152__model_provider_lock_version.sql",
         "V153__sandbox_runtime_baseline.sql",
-        "V154__sandbox_replay_manifest.sql"
+        "V154__sandbox_replay_manifest.sql",
+        "V155__knowledge_initialization_batch.sql"
     );
+
+    @Test
+    void knowledgeInitializationBatchPersistsStableManifestsAndReviewStateAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V155__knowledge_initialization_batch.sql");
+            assertThat(ddl)
+                .as("%s 知识初始化批次必须固定来源、候选、风险和审核状态", dialect)
+                .contains(
+                    "mk_knowledge_source_version_approval",
+                    "mk_knowledge_initialization_batch",
+                    "mk_knowledge_initialization_item",
+                    "source_version_id",
+                    "source_hash",
+                    "batch_code",
+                    "release_type",
+                    "release_version",
+                    "foundation_release_version",
+                    "phase_code",
+                    "source_manifest_hash",
+                    "candidate_manifest_hash",
+                    "overall_hash",
+                    "candidate_classification_id",
+                    "risk_level",
+                    "generated_by_model_flag",
+                    "idempotency_key",
+                    "uk_mk_knowledge_source_approval",
+                    "uk_mk_knowledge_init_batch_code",
+                    "uk_mk_knowledge_init_idempotency",
+                    "uk_mk_knowledge_init_item_candidate",
+                    "ck_mk_knowledge_init_batch_status",
+                    "ck_mk_knowledge_init_item_status",
+                    "初始化发行",
+                    "独立批准",
+                    "候选");
+        }
+    }
 
     @Test
     void sandboxReplayManifestIsImmutableAndHashedAcrossAllDialects() {
@@ -685,6 +722,8 @@ class MigrationBaselineContractTest {
         "mk_version_asset_dependency",
         "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_sandbox_replay_case", "mk_sandbox_replay_asset_binding",
+        "mk_knowledge_source_version_approval", "mk_knowledge_initialization_batch",
+        "mk_knowledge_initialization_item",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
         "mk_context_field_catalog",
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
@@ -890,6 +929,9 @@ class MigrationBaselineContractTest {
         "idx_mk_sandbox_runtime_binding_tenant", "idx_mk_sandbox_run_tenant_status",
         "idx_mk_sandbox_run_scenario", "idx_mk_sandbox_replay_case_status",
         "idx_mk_sandbox_replay_asset_case", "idx_mk_sandbox_run_replay_case",
+        "idx_mk_knowledge_source_approval_status",
+        "idx_mk_knowledge_init_batch_status", "idx_mk_knowledge_init_batch_release",
+        "idx_mk_knowledge_init_item_batch", "idx_mk_knowledge_init_item_source",
         "idx_package_entitlement_package_status",
         "idx_package_entitlement_tenant_status",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
@@ -903,6 +945,18 @@ class MigrationBaselineContractTest {
         "idx_person_import_row_job", "idx_compliance_data_permission_ward"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
+        "uk_mk_knowledge_source_approval", "ck_mk_knowledge_source_approval_status",
+        "fk_mk_knowledge_source_approval_version",
+        "uk_mk_knowledge_init_batch_code", "uk_mk_knowledge_init_idempotency",
+        "ck_mk_knowledge_init_release_type", "ck_mk_knowledge_init_phase",
+        "ck_mk_knowledge_init_batch_status", "ck_mk_knowledge_init_batch_counts",
+        "ck_mk_knowledge_init_foundation_ref",
+        "uk_mk_knowledge_init_item_sequence", "uk_mk_knowledge_init_item_canonical",
+        "uk_mk_knowledge_init_item_candidate", "fk_mk_knowledge_init_item_batch",
+        "fk_mk_knowledge_init_item_source", "fk_mk_knowledge_init_item_classification",
+        "ck_mk_knowledge_init_item_risk", "ck_mk_knowledge_init_item_model",
+        "ck_mk_knowledge_init_item_change", "ck_mk_knowledge_init_item_status",
+        "ck_mk_knowledge_init_item_replacement",
         "ck_knowledge_package_access_policy",
         "uk_package_entitlement_id",
         "uk_package_entitlement_tenant_package",

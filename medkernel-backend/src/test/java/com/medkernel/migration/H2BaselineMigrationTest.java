@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 154;
+    private static final int LATEST_MIGRATION_VERSION = 155;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -122,6 +122,16 @@ class H2BaselineMigrationTest {
             WHERE TABLE_NAME IN ('MK_SANDBOX_REPLAY_CASE', 'MK_SANDBOX_REPLAY_ASSET_BINDING')
             """, Integer.class);
         assertThat(sandboxReplayTables).as("沙盘历史原样重放清单与精确资产绑定").isEqualTo(2);
+
+        Integer knowledgeInitializationTables = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME IN (
+                'MK_KNOWLEDGE_SOURCE_VERSION_APPROVAL',
+                'MK_KNOWLEDGE_INITIALIZATION_BATCH',
+                'MK_KNOWLEDGE_INITIALIZATION_ITEM'
+            )
+            """, Integer.class);
+        assertThat(knowledgeInitializationTables).as("知识来源独立批准与初始化发行批次").isEqualTo(3);
 
         String now = LocalDateTime.now().toString();
         jdbc.update("""

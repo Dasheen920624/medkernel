@@ -62,7 +62,13 @@ class SourceCandidateGeneratorTest {
         assertThat(envelope.sources().get(0).sourceRef()).isEqualTo("GL-2024:v1:section-1");
         assertThat(envelope.sources().get(0).authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
         // 逻辑字段留白不伪造；来源摘要真实
-        assertThat(envelope.payload()).contains("待编著").contains("血压≥140/90");
+        assertThat(envelope.payload())
+            .contains("待编著")
+            .contains("血压≥140/90")
+            .contains("\"generationMode\":\"B0_TEMPLATE\"")
+            .contains("\"medicalContentStatus\":\"PENDING_AUTHORING\"")
+            .contains("\"generatedByModel\":false")
+            .contains("\"contentHash\":\"" + "b".repeat(64) + "\"");
         // contentHash 真实等于 sha256(payload)
         assertThat(envelope.contentHash()).matches("^[0-9a-f]{64}$");
         assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());

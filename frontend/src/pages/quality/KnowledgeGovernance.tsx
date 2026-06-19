@@ -47,6 +47,9 @@ import {
   useKnowledgeProductionReadiness,
   useKnowledgeProductionShadowRuns,
   useKnowledgeProductionTriageResults,
+  useKnowledgeInitializationBatches,
+  useApproveLowKnowledgeInitializationBatch,
+  useRefreshKnowledgeInitializationBatch,
   useCandidateProvenance,
   useCandidateCoexistence,
   useAssetTemplates,
@@ -65,6 +68,7 @@ import {
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
   type KnowledgeProductionJob,
+  type KnowledgeInitializationBatch,
   type KnowledgeShadowRun,
   type KnowledgeAssetVersion,
   type KnowledgeCandidateReviewDecision,
@@ -395,6 +399,59 @@ function customizationStatusColor(status: string) {
   return "default";
 }
 
+function candidateReviewRouteDescription(riskLevel?: string | null, requiresDualSign = false) {
+  if (riskLevel === "HIGH" || requiresDualSign) {
+    return "高风险必须由两名不同签署人完成双签";
+  }
+  if (riskLevel === "MEDIUM") {
+    return "中风险必须逐条审核";
+  }
+  if (riskLevel === "LOW") {
+    return "低风险可纳入初始化批次原子批审";
+  }
+  return "风险分级缺失，必须逐条审核";
+}
+
+function candidateReviewRouteColor(candidate?: KnowledgeProductionCandidateView) {
+  if (!candidate) return "default";
+  return candidate.riskLevel === "LOW" ? "success" : "warning";
+}
+
+function initializationBatchStatusLabel(status: KnowledgeInitializationBatch["status"]) {
+  if (status === "VALIDATED") return "已校验";
+  if (status === "IN_REVIEW") return "审核中";
+  if (status === "COMPLETE") return "已完成";
+  return "已阻断";
+}
+
+function initializationBatchStatusColor(status: KnowledgeInitializationBatch["status"]) {
+  if (status === "COMPLETE") return "success";
+  if (status === "IN_REVIEW") return "processing";
+  if (status === "BLOCKED") return "error";
+  return "default";
+}
+
+function initializationReleaseTypeLabel(type: KnowledgeInitializationBatch["releaseType"]) {
+  if (type === "FOUNDATION") return "基础知识发行";
+  if (type === "CLINICAL_CONTENT") return "临床内容发行";
+  return "组合资产发行";
+}
+
+function initializationPhaseLabel(phase: KnowledgeInitializationBatch["phase"]) {
+  const labels: Record<KnowledgeInitializationBatch["phase"], string> = {
+    F0: "来源与许可",
+    F1: "基础目录",
+    F2: "证据分级",
+    F3: "原始医学事实",
+    F4: "确定性构件",
+    F5: "高风险派生",
+    F6: "组合资产",
+    F7: "机构本地化",
+    F8: "总验收与发行证据",
+  };
+  return labels[phase];
+}
+
 export function InstitutionKnowledge() {
   return <KnowledgeGovernance mode="institution" />;
 }
@@ -512,8 +569,8 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     security.data?.permissions.some(
       (permission) => permission.code === "knowledge.acquisition.approve",
     ) ?? false;
-  const canPublishKnowledge =
-    security.data?.permissions.some((permission) => permission.code === "knowledge.publish") ??
+  const canReviewKnowledge =
+    security.data?.permissions.some((permission) => permission.code === "knowledge.review") ??
     false;
   const canPublishCustomization =
     security.data?.permissions.some((permission) => permission.code === "knowledge.publish") &&
@@ -536,6 +593,10 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const productionTriageResultsQuery =
     useKnowledgeProductionTriageResults(selectedProductionJobCode);
   const productionShadowRunsQuery = useKnowledgeProductionShadowRuns(selectedProductionJobCode);
+  const initializationBatchesQuery = useKnowledgeInitializationBatches(mode === "production");
+  const initializationBatches = initializationBatchesQuery.data ?? [];
+  const approveLowInitializationBatchMutation = useApproveLowKnowledgeInitializationBatch();
+  const refreshInitializationBatchMutation = useRefreshKnowledgeInitializationBatch();
   const firstProductionCandidateRef = (productionCandidatesQuery.data ?? [])[0]?.candidateRef;
   const selectedProductionCandidateRef = productionCandidateRef ?? firstProductionCandidateRef;
   const productionCoexistenceQuery = useCandidateCoexistence(selectedProductionCandidateRef);
@@ -766,6 +827,49 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       await productionReadinessQuery.refetch();
     } catch (error) {
       message.error(getApiErrorMessage(error, "创建生产任务失败"));
+    }
+  }
+
+  function requestApproveLowInitializationBatch(batch: KnowledgeInitializationBatch) {
+    modal.confirm({
+      title: "确认批量批准低风险候选",
+      content: (
+        <Space direction="vertical" size="small">
+          <Text>批次：{batch.batchCode}</Text>
+          <Text type="secondary">
+            发行摘要：{expertMode ? batch.overallHash : "已由服务端冻结并校验"}
+          </Text>
+          <Text>
+            仅处理服务端冻结清单中的低风险条目；中风险仍须逐条审核，高风险仍须由两名不同签署人完成双签。
+          </Text>
+        </Space>
+      ),
+      okText: "确认批准",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await approveLowInitializationBatchMutation.mutateAsync({
+            batchCode: batch.batchCode,
+            expectedOverallHash: batch.overallHash,
+            idempotencyKey: `knowledge-initialization-${batch.batchCode}-low-${Date.now()}`,
+            reason: "初始化发行清单低风险候选原子批审",
+          });
+          message.success("低风险候选批审完成，中高风险审核状态保持不变");
+          await initializationBatchesQuery.refetch();
+        } catch (error) {
+          message.error(getApiErrorMessage(error, "低风险候选批审失败"));
+        }
+      },
+    });
+  }
+
+  async function refreshInitializationBatch(batchCode: string) {
+    try {
+      await refreshInitializationBatchMutation.mutateAsync(batchCode);
+      message.success("初始化发行批次状态已按真实审核链刷新");
+      await initializationBatchesQuery.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "刷新初始化发行批次失败"));
     }
   }
 
@@ -1214,7 +1318,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
             {riskLabel(record.riskLevel)}
           </Tag>
           <Text type="secondary">
-            {record.routing?.requiresDualSign ? "高风险双签" : "单签审核"}
+            {candidateReviewRouteDescription(record.riskLevel, record.routing?.requiresDualSign)}
           </Text>
         </Space>
       ),
@@ -1298,6 +1402,111 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       ),
     },
   ];
+
+  const initializationBatchColumns: ColumnsType<KnowledgeInitializationBatch> = [
+    {
+      title: "发行批次",
+      key: "batch",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.batchCode}</Text>
+          <Text type="secondary">
+            {initializationReleaseTypeLabel(record.releaseType)} · {record.releaseVersion} ·{" "}
+            {initializationPhaseLabel(record.phase)}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "状态 / 冻结摘要",
+      key: "status",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color={initializationBatchStatusColor(record.status)}>
+            {initializationBatchStatusLabel(record.status)}
+          </Tag>
+          {expertMode ? (
+            <Text type="secondary" copyable>
+              {record.overallHash}
+            </Text>
+          ) : (
+            <Text type="secondary">发行摘要已冻结并校验</Text>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: "风险审核路由",
+      key: "risk",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>低风险 {record.lowCount} · 可原子批审</Text>
+          <Text>中风险 {record.mediumCount} · 必须逐条审核</Text>
+          <Text>高风险 {record.highCount} · 必须真实双签</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_, record) => (
+        <Space size="small" wrap>
+          <Button
+            type="primary"
+            disabled={!canReviewKnowledge || record.status !== "IN_REVIEW" || record.lowCount === 0}
+            loading={approveLowInitializationBatchMutation.isPending}
+            onClick={() => requestApproveLowInitializationBatch(record)}
+          >
+            批准低风险候选
+          </Button>
+          <Button
+            disabled={!canReviewKnowledge}
+            loading={refreshInitializationBatchMutation.isPending}
+            onClick={() => void refreshInitializationBatch(record.batchCode)}
+          >
+            刷新审核状态
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+  let initializationBatchContent: ReactNode;
+  if (initializationBatchesQuery.isLoading) {
+    initializationBatchContent = (
+      <PageState
+        state="loading"
+        title="正在读取初始化发行批次"
+        description="正在核对服务端冻结清单、摘要和审核分层。"
+      />
+    );
+  } else if (initializationBatchesQuery.isError) {
+    initializationBatchContent = (
+      <PageState
+        state="error"
+        title="初始化发行批次读取失败"
+        description={getApiErrorMessage(initializationBatchesQuery.error, "无法读取初始化发行批次")}
+        onRetry={() => void initializationBatchesQuery.refetch()}
+      />
+    );
+  } else if (initializationBatches.length === 0) {
+    initializationBatchContent = (
+      <PageState
+        state="empty"
+        title="暂无初始化发行批次"
+        description="先由服务端完成来源批准、候选解析和发行摘要冻结，再进入分层审核。"
+      />
+    );
+  } else {
+    initializationBatchContent = (
+      <Table
+        rowKey="batchCode"
+        columns={initializationBatchColumns}
+        dataSource={initializationBatches}
+        pagination={false}
+        size="small"
+      />
+    );
+  }
 
   let pageState: "loading" | "error" | "empty" | "ready" = "ready";
   if (identitiesQuery.isLoading) {
@@ -1478,6 +1687,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       canApprove={canApproveAcquisitionSource}
     />
   );
+  const initializationBatchCard = <Card title="初始化发行批次">{initializationBatchContent}</Card>;
 
   let productionCenterContent: ReactNode;
   if (productionReadinessQuery.isLoading || productionJobsQuery.isLoading) {
@@ -1486,6 +1696,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         {productionWorkbench}
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
+        {initializationBatchCard}
         <PageState state="loading" title="正在读取知识生产中心" />
       </Space>
     );
@@ -1495,6 +1706,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         {productionWorkbench}
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
+        {initializationBatchCard}
         <PageState
           state="error"
           title="知识生产中心读取失败"
@@ -1515,6 +1727,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         {productionWorkbench}
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
+        {initializationBatchCard}
         <Card title="模型生产 readiness">
           <Table
             rowKey="code"
@@ -1553,12 +1766,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
       productionCandidates.find(
         (candidate) => candidate.candidateRef === selectedProductionCandidateRef,
       ) ?? productionCandidates[0];
-    const selectedProductionBatch = selectedProductionCandidate
-      ? [selectedProductionCandidate]
-      : [];
-    const batchApprovalLocked = selectedProductionBatch.some(
-      (candidate) => candidate.riskLevel === "HIGH" || candidate.routing?.requiresDualSign,
-    );
     const productionEvidenceErrors = [
       productionCandidatesQuery.isError
         ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
@@ -1895,34 +2102,24 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
         <Card title="结论">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Space size="middle" wrap>
-              <Tag color={selectedProductionBatch.length > 0 ? "processing" : "default"}>
-                批处置候选 {selectedProductionBatch.length} 条
+              <Tag color={selectedProductionCandidate ? "processing" : "default"}>
+                当前候选 {selectedProductionCandidate ? 1 : 0} 条
               </Tag>
-              {batchApprovalLocked ? (
-                <Tag color="error">高风险或双签候选必须逐条进入审核台确认</Tag>
-              ) : (
-                <Tag color="success">低风险候选可进入批处置预备</Tag>
-              )}
-            </Space>
-            <Space size="small" wrap>
-              <Button
-                type="primary"
-                disabled={
-                  batchApprovalLocked ||
-                  selectedProductionBatch.length === 0 ||
-                  !canPublishKnowledge
-                }
-                aria-label={batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
-              >
-                {batchApprovalLocked ? "批量通过候选（高风险已锁定）" : "批量通过候选"}
-              </Button>
-              <Button disabled={selectedProductionBatch.length === 0}>转审核台逐条处理</Button>
+              <Tag color={candidateReviewRouteColor(selectedProductionCandidate)}>
+                {candidateReviewRouteDescription(
+                  selectedProductionCandidate?.riskLevel,
+                  selectedProductionCandidate?.routing?.requiresDualSign,
+                )}
+              </Tag>
             </Space>
             <Text type="secondary">
-              生产面只汇总候选批次、影响和处置预案；最终通过、退修、驳回仍由审核台按来源、双签和发布证据执行。
+              生产候选本身不提供临时批量通过；只有服务端冻结并校验过摘要的初始化发行批次，才允许对其中
+              低风险条目执行原子批审。
             </Text>
           </Space>
         </Card>
+
+        {initializationBatchCard}
       </Space>
     );
   }
@@ -2448,6 +2645,12 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
             anchors={candidateVersion?.anchors}
             reviewedBy={candidateVersion?.reviewedBy}
             reviewedAt={candidateVersion?.reviewedAt}
+          />
+          <Alert
+            type={candidateVersion?.riskLevel === "LOW" ? "info" : "warning"}
+            showIcon
+            message="审核路由"
+            description={candidateReviewRouteDescription(candidateVersion?.riskLevel)}
           />
 
           {(() => {

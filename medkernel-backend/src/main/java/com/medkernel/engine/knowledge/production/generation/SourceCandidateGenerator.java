@@ -85,6 +85,9 @@ public class SourceCandidateGenerator {
     /** 组确定性 payload：模板章节留白 + 来源锚点摘要（{@link LinkedHashMap} 保序，便于真实 hash 复算）。 */
     private String buildPayload(ProfessionalAssetTemplate template, List<SourceFragment> fragments) {
         Map<String, Object> root = new LinkedHashMap<>();
+        root.put("generationMode", "B0_TEMPLATE");
+        root.put("medicalContentStatus", "PENDING_AUTHORING");
+        root.put("generatedByModel", false);
         root.put("template", template.professionCode());
         Map<String, Object> sections = new LinkedHashMap<>();
         for (TemplateSection section : template.sections()) {
@@ -96,6 +99,7 @@ public class SourceCandidateGenerator {
             Map<String, Object> ref = new LinkedHashMap<>();
             ref.put("anchorPath", fragment.anchorPath());
             ref.put("excerpt", fragment.textExcerpt());
+            ref.put("contentHash", fragment.contentHash());
             evidence.add(ref);
         }
         root.put("sourceEvidence", evidence);
