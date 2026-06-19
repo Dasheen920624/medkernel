@@ -8461,15 +8461,25 @@ export interface SandboxStepTrace {
 
 export interface SandboxRunRequest {
   entryMode?: "SNAPSHOT";
+  mode?: SandboxRunMode;
   contextOverride?: unknown;
   occurredAt?: string;
   parentOrigin?: string;
   integrationMode?: "IFRAME" | "SDK" | "API";
 }
 
+export type SandboxRunMode = "CURRENT" | "HISTORICAL_EXACT" | "COMPARE";
+export type SandboxResolutionSource = "TENANT_PACKAGE" | "PLATFORM_PACKAGE";
+
 export interface SandboxRunResponse {
   scenarioId: string;
   traceId: string;
+  runId: string;
+  baselineId: string;
+  mode: SandboxRunMode;
+  resolvedPackageVersion: string;
+  resolutionSource: SandboxResolutionSource;
+  externalSideEffects: boolean;
   steps: SandboxStepTrace[];
   snapshotId?: string | null;
   triggerId?: string | null;
@@ -8482,6 +8492,23 @@ export interface SandboxRunResponse {
   evaluationRunId?: string | null;
   embedModes: Array<"IFRAME" | "SDK" | "API">;
   result: "PASS" | "FAIL";
+}
+
+export interface SandboxRuntimeStatus {
+  ready: boolean;
+  reasonCode?: string | null;
+  reason?: string | null;
+  targetOrgUnitId: string;
+  bindingId?: string | null;
+  packageOwnerTenantId?: string | null;
+  packageId?: string | null;
+  packageCode?: string | null;
+  packageVersion?: string | null;
+  resolutionSource?: SandboxResolutionSource | null;
+  assetCount: number;
+  warnings: string[];
+  resolvedAt?: string | null;
+  externalSideEffects: boolean;
 }
 
 export interface SandboxScenarioCatalogInput {
@@ -8513,7 +8540,7 @@ export interface SandboxScenarioCatalogItem {
   expectedAction: string;
   expectedSeverity: string;
   expectedAssetCode?: string | null;
-  status: "ready" | "clinical-review-required" | string;
+  status: "runtime-check" | "catalog-unavailable" | string;
   statusReason: string;
   input: SandboxScenarioCatalogInput;
 }
@@ -8526,6 +8553,18 @@ export function useSandboxScenarios() {
         "/engine/sandbox/scenarios",
       );
       return data.data ?? [];
+    },
+  });
+}
+
+export function useSandboxRuntimeStatus() {
+  return useQuery({
+    queryKey: ["sandbox", "runtime-binding"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: SandboxRuntimeStatus }>(
+        "/engine/sandbox/runtime-binding",
+      );
+      return data.data;
     },
   });
 }

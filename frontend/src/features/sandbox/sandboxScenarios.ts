@@ -1,4 +1,4 @@
-export type SandboxScenarioStatus = "ready" | "clinical-review-required";
+export type SandboxScenarioStatus = "runtime-check" | "catalog-unavailable";
 
 export type SandboxServicePackage =
   | "clinical-collaboration"
@@ -84,9 +84,6 @@ export interface SandboxCatalogScenario {
   };
 }
 
-const CLINICAL_REVIEW_REASON = "医学条件、阈值、动作和来源须完成临床评审通过后开放。";
-const OUTER_READY_REASON = "外圈引擎编排已就绪；若当前租户缺少依赖资产，将返回可核查的失败步骤。";
-
 export const SANDBOX_SCENARIOS: SandboxScenario[] = [
   {
     id: "backend-catalog-required",
@@ -100,7 +97,7 @@ export const SANDBOX_SCENARIOS: SandboxScenario[] = [
     expectedRuleCode: null,
     expectedAction: "CATALOG_REQUIRED",
     expectedSeverity: "LOW",
-    status: "clinical-review-required",
+    status: "catalog-unavailable",
     statusReason: "请恢复后端场景目录后再运行全真沙盘。",
     inputKind: "unavailable",
   } satisfies UnavailableSandboxScenario,
@@ -146,7 +143,7 @@ export function buildSandboxContextOverride(
       specialPopulations: [],
       sourceSystem: "MEDKERNEL_SANDBOX",
       sourceRecordId: scenario.patientId,
-      mappedVersion: "2026.06.1",
+      mappedVersion: "sandbox-context-v1",
       eventTime: occurredAt,
       receivedTime: occurredAt,
       qualityStatus: "VALID",
@@ -163,7 +160,7 @@ export function buildSandboxContextOverride(
         bedId: null,
         sourceSystem: "MEDKERNEL_SANDBOX",
         sourceRecordId: scenario.encounterId,
-        mappedVersion: "2026.06.1",
+        mappedVersion: "sandbox-context-v1",
         eventTime: occurredAt,
         receivedTime: occurredAt,
         qualityStatus: "VALID",
@@ -183,7 +180,7 @@ export function buildSandboxContextOverride(
         criticalFlag,
         sourceSystem: "MEDKERNEL_SANDBOX",
         sourceRecordId: "SBX-LAB-K-RESULT-001",
-        mappedVersion: "2026.06.1",
+        mappedVersion: "sandbox-context-v1",
         eventTime: occurredAt,
         receivedTime: occurredAt,
         qualityStatus: "VALID",
@@ -242,7 +239,7 @@ function mergeKnownScenario(
 }
 
 function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
-  const status = normalizeStatus(remote.status, "clinical-review-required");
+  const status = normalizeStatus(remote.status, "runtime-check");
   const servicePackage = normalizeServicePackage(remote.servicePackage, "clinical-collaboration");
   const base = {
     id: remote.id,
@@ -258,14 +255,13 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
     expectedSeverity: remote.expectedSeverity ?? "MEDIUM",
     expectedAssetCode: remote.expectedAssetCode ?? null,
     status,
-    statusReason:
-      remote.statusReason ?? (status === "ready" ? OUTER_READY_REASON : CLINICAL_REVIEW_REASON),
+    statusReason: remote.statusReason ?? "运行时按当前绑定解析规则与资产。",
   };
   if (remote.input?.kind === "numeric") {
     if (!hasNumericInputContract(remote)) {
       return {
         ...base,
-        status: "clinical-review-required",
+        status: "catalog-unavailable",
         statusReason: "后端场景目录缺少数值录入契约，已阻断运行。",
         inputKind: "unavailable",
       } satisfies UnavailableSandboxScenario;
@@ -288,7 +284,7 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
       upperReferenceValue: remote.input.upperReferenceValue,
     } satisfies NumericSandboxScenario;
   }
-  if (remote.input?.kind === "orchestration" || status === "ready") {
+  if (remote.input?.kind === "orchestration") {
     return {
       ...base,
       inputKind: "orchestration",
@@ -296,6 +292,8 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
   }
   return {
     ...base,
+    status: "catalog-unavailable",
+    statusReason: "后端场景目录缺少可执行输入契约，已阻断运行。",
     inputKind: "unavailable",
   } satisfies UnavailableSandboxScenario;
 }
@@ -333,11 +331,16 @@ function normalizeStatus(
   status: string | undefined,
   fallback: SandboxScenarioStatus,
 ): SandboxScenarioStatus {
-  if (status === "ready" || status === "READY") {
-    return "ready";
+  if (
+    status === "runtime-check" ||
+    status === "RUNTIME_CHECK" ||
+    status === "ready" ||
+    status === "READY"
+  ) {
+    return "runtime-check";
   }
-  if (status === "clinical-review-required" || status === "CLINICAL_REVIEW_REQUIRED") {
-    return "clinical-review-required";
+  if (status === "catalog-unavailable" || status === "CATALOG_UNAVAILABLE") {
+    return "catalog-unavailable";
   }
   return fallback;
 }

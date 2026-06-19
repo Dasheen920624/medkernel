@@ -18,7 +18,7 @@ const numericScenario: NumericSandboxScenario = {
   expectedRuleCode: "SBX.LAB.CRITICAL.K",
   expectedAction: "STRONG_REMINDER",
   expectedSeverity: "CRITICAL",
-  status: "ready",
+  status: "runtime-check",
   statusReason: "可运行",
   inputKind: "numeric",
   patientId: "patient-1",

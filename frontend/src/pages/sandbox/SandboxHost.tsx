@@ -21,8 +21,12 @@ import {
 } from "@/features/sandbox/sandboxScenarios";
 import type { SandboxScenario } from "@/features/sandbox/sandboxScenarios";
 import { getApiErrorMessage } from "@/shared/api/errors";
-import { useRunSandboxScenario, useSandboxScenarios } from "@/shared/api/hooks";
-import type { SandboxRunResponse } from "@/shared/api/hooks";
+import {
+  useRunSandboxScenario,
+  useSandboxRuntimeStatus,
+  useSandboxScenarios,
+} from "@/shared/api/hooks";
+import type { SandboxResolutionSource, SandboxRunResponse } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./SandboxHost.module.css";
@@ -33,14 +37,15 @@ const SERVICE_PACKAGE_LABELS = {
   "engine-orchestration": "引擎编排",
 } as const;
 
-const STATUS_LABELS = {
-  ready: "可运行",
-  "clinical-review-required": "待临床评审",
+const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
+  TENANT_PACKAGE: "演练机构规则",
+  PLATFORM_PACKAGE: "平台主源规则",
 } as const;
 
 export default function SandboxHost() {
   const { message } = App.useApp();
   const scenariosQuery = useSandboxScenarios();
+  const runtimeQuery = useSandboxRuntimeStatus();
   const runMutation = useRunSandboxScenario();
   const [selectedScenarioId, setSelectedScenarioId] = useState(SANDBOX_SCENARIOS[0].id);
   const [result, setResult] = useState<SandboxRunResponse | null>(null);
@@ -51,12 +56,25 @@ export default function SandboxHost() {
   const selectedScenario: SandboxScenario =
     scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
   const scenarioGroups = scenariosByServicePackage(scenarios);
+  const runtimeStatus = runtimeQuery.data;
+  const runtimeReady = runtimeStatus?.ready === true;
+  const scenarioRunnable = selectedScenario.status === "runtime-check" && runtimeReady;
+  const runtimeSourceLabel = runtimeStatus?.resolutionSource
+    ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
+    : "尚未解析";
+
+  const scenarioStatusLabel = (scenario: SandboxScenario) => {
+    if (scenario.status === "catalog-unavailable") return "目录不可用";
+    if (runtimeQuery.isLoading) return "校验中";
+    return runtimeReady ? "可运行" : "基线未就绪";
+  };
 
   const executeRun = async (body: {
     entryMode: "SNAPSHOT";
     occurredAt: string;
     parentOrigin: string;
     integrationMode: SandboxEmbedMode;
+    mode: "CURRENT";
     contextOverride?: unknown;
   }) => {
     setRunError(null);
@@ -79,12 +97,13 @@ export default function SandboxHost() {
   };
 
   const handleRun = async ({ numericValue, occurredAt }: SandboxDataInput) => {
-    if (!isNumericScenario(selectedScenario) || selectedScenario.status !== "ready") {
-      setRunError(selectedScenario.statusReason);
+    if (!isNumericScenario(selectedScenario) || !scenarioRunnable) {
+      setRunError(runtimeStatus?.reason || selectedScenario.statusReason);
       return;
     }
     await executeRun({
       entryMode: "SNAPSHOT",
+      mode: "CURRENT",
       occurredAt,
       parentOrigin: window.location.origin,
       integrationMode: embedMode,
@@ -93,12 +112,13 @@ export default function SandboxHost() {
   };
 
   const handleOrchestrationRun = async () => {
-    if (selectedScenario.status !== "ready") {
-      setRunError(selectedScenario.statusReason);
+    if (!scenarioRunnable) {
+      setRunError(runtimeStatus?.reason || selectedScenario.statusReason);
       return;
     }
     await executeRun({
       entryMode: "SNAPSHOT",
+      mode: "CURRENT",
       occurredAt: new Date().toISOString(),
       parentOrigin: window.location.origin,
       integrationMode: embedMode,
@@ -145,8 +165,12 @@ export default function SandboxHost() {
                     }}
                   >
                     <span>{scenario.title}</span>
-                    <Tag color={scenario.status === "ready" ? "success" : "default"}>
-                      {STATUS_LABELS[scenario.status]}
+                    <Tag
+                      color={
+                        scenario.status === "runtime-check" && runtimeReady ? "success" : "default"
+                      }
+                    >
+                      {scenarioStatusLabel(scenario)}
                     </Tag>
                   </Button>
                 ))}
@@ -159,6 +183,26 @@ export default function SandboxHost() {
         </aside>
 
         <main className={styles.mainArea}>
+          <section className={styles.runtimePanel} aria-label="当前沙盘运行基线">
+            <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 5 }}>
+              <Descriptions.Item label="运行模式">
+                <Tag color="processing">CURRENT</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="规则来源">{runtimeSourceLabel}</Descriptions.Item>
+              <Descriptions.Item label="当前绑定">
+                {runtimeStatus?.ready
+                  ? `${runtimeStatus.packageCode}@${runtimeStatus.packageVersion}`
+                  : "未就绪"}
+              </Descriptions.Item>
+              <Descriptions.Item label="有效资产">
+                {runtimeStatus?.assetCount ?? 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="安全边界">
+                <Tag color="success">外部副作用已关闭</Tag>
+              </Descriptions.Item>
+            </Descriptions>
+          </section>
+
           <section className={styles.statusStrip} aria-label="场景验收目标">
             <div>
               <Typography.Text type="secondary">预期规则</Typography.Text>
@@ -185,6 +229,22 @@ export default function SandboxHost() {
           </section>
 
           {runError && <Alert type="error" showIcon message={runError} />}
+          {runtimeQuery.isError && (
+            <Alert
+              type="warning"
+              showIcon
+              message="运行基线状态暂不可用"
+              description="当前不开放运行，避免在未冻结规则来源时产生误导结果。"
+            />
+          )}
+          {!runtimeQuery.isLoading && runtimeStatus && !runtimeStatus.ready && (
+            <Alert
+              type="warning"
+              showIcon
+              message="运行基线未就绪"
+              description={runtimeStatus.reason || "演练机构尚未建立可运行绑定。"}
+            />
+          )}
           {scenariosQuery.isError && (
             <Alert
               type="warning"
@@ -197,6 +257,18 @@ export default function SandboxHost() {
           {result && (
             <section className={styles.runSummary} aria-label="运行证据摘要">
               <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
+                <Descriptions.Item label="运行标识">{result.runId}</Descriptions.Item>
+                <Descriptions.Item label="冻结基线">{result.baselineId}</Descriptions.Item>
+                <Descriptions.Item label="运行模式">{result.mode}</Descriptions.Item>
+                <Descriptions.Item label="规则来源">
+                  {RESOLUTION_SOURCE_LABELS[result.resolutionSource]}
+                </Descriptions.Item>
+                <Descriptions.Item label="解析版本">
+                  {result.resolvedPackageVersion}
+                </Descriptions.Item>
+                <Descriptions.Item label="安全边界">
+                  {result.externalSideEffects ? "外部副作用未关闭" : "外部副作用已关闭"}
+                </Descriptions.Item>
                 <Descriptions.Item label="追踪链路">{result.traceId}</Descriptions.Item>
                 <Descriptions.Item label="上下文快照">
                   {result.snapshotId || "未生成"}
@@ -218,7 +290,7 @@ export default function SandboxHost() {
             </section>
           )}
 
-          {selectedScenario.status === "ready" ? (
+          {scenarioRunnable && (
             <div className={styles.hostGrid}>
               {isNumericScenario(selectedScenario) ? (
                 <SandboxDataEntry
@@ -262,11 +334,12 @@ export default function SandboxHost() {
                 onDecision={handleDecision}
               />
             </div>
-          ) : (
+          )}
+          {!scenarioRunnable && selectedScenario.status === "catalog-unavailable" && (
             <Alert
               type="warning"
               showIcon
-              message={STATUS_LABELS[selectedScenario.status]}
+              message="目录不可用"
               description={selectedScenario.statusReason}
             />
           )}

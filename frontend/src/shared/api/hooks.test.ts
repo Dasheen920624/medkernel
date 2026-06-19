@@ -77,6 +77,7 @@ import {
   useInsuranceIssues,
   useReplayDeadLetter,
   useRunSandboxScenario,
+  useSandboxRuntimeStatus,
   useSandboxScenarios,
   useImplementationSteps,
   useApplyOverrideBatch,
@@ -2772,10 +2773,39 @@ describe("sandbox orchestration api hook", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/scenarios");
   });
 
+  it("loads the runtime-resolved sandbox binding without a client package version", async () => {
+    const response = {
+      ready: true,
+      targetOrgUnitId: "hospital-sandbox-1",
+      bindingId: "binding-1",
+      packageOwnerTenantId: "tenant-sandbox-1",
+      packageId: "pkg-1",
+      packageCode: "PKG.SANDBOX",
+      packageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE",
+      assetCount: 10,
+      warnings: [],
+      resolvedAt: "2026-06-19T03:00:00Z",
+      externalSideEffects: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useSandboxRuntimeStatus());
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-binding");
+  });
+
   it("runs the selected scenario through the backend orchestration endpoint", async () => {
     const response = {
       scenarioId: "sbx-lab-critical-k",
       traceId: "trace-sandbox-1",
+      runId: "run-1",
+      baselineId: "baseline-1",
+      mode: "CURRENT" as const,
+      resolvedPackageVersion: "7.2.1",
+      resolutionSource: "TENANT_PACKAGE" as const,
+      externalSideEffects: false,
       steps: [],
       snapshotId: "snapshot-1",
       triggerId: "trigger-1",
@@ -2796,6 +2826,7 @@ describe("sandbox orchestration api hook", () => {
       scenarioId: "sbx-lab-critical-k",
       body: {
         entryMode: "SNAPSHOT",
+        mode: "CURRENT",
         parentOrigin: "https://his.hospital.com",
         integrationMode: "SDK",
       },
@@ -2806,6 +2837,7 @@ describe("sandbox orchestration api hook", () => {
       "/engine/sandbox/scenarios/sbx-lab-critical-k/run",
       {
         entryMode: "SNAPSHOT",
+        mode: "CURRENT",
         parentOrigin: "https://his.hospital.com",
         integrationMode: "SDK",
       },

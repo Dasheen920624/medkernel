@@ -217,15 +217,17 @@ Expected: 测试 exit 0；沙盘包无固定版本和场景取版本调用。
 - Modify: `frontend/src/shared/api/hooks.test.ts`
 - Modify: `frontend/src/features/sandbox/sandboxScenarios.ts`
 - Modify: `frontend/src/features/sandbox/sandboxScenarios.test.ts`
+- Modify: `frontend/src/features/sandbox/SandboxDataEntry.tsx`
+- Modify: `frontend/src/features/sandbox/SandboxDataEntry.test.tsx`
 - Modify: `frontend/src/pages/sandbox/SandboxHost.tsx`
 - Modify: `frontend/src/pages/sandbox/SandboxHost.test.tsx`
 - Modify: `frontend/src/pages/sandbox/SandboxHost.module.css`
 
-- [ ] **Step 1: 写 UI 红测**
+- [x] **Step 1: 写 UI 红测**
 
 覆盖默认 CURRENT、当前绑定、解析来源、机构/平台规则来源、缺资产诚实失败、运行证据和“外部副作用已关闭”标识；移除静态“待临床评审”阻断。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -236,11 +238,11 @@ npm test -- --run src/shared/api/hooks.test.ts src/features/sandbox/sandboxScena
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现页面与 API 类型**
+- [x] **Step 3: 实现页面与 API 类型**
 
 一页一目标：左侧场景，顶部基线，中央输入/运行，底部证据。普通操作者不手填 package version；缺绑定时只显示明确修复指引。
 
-- [ ] **Step 4: 测试、类型与样式门禁**
+- [x] **Step 4: 测试、类型与样式门禁**
 
 Run:
 
