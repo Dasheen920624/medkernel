@@ -4,8 +4,8 @@
 
 ## 当前真相
 
-- 最新主线：`origin/main=b1eb6de3b264ade02459e512465ef947de2ab75f`；[#638](https://github.com/Dasheen920624/medkernel/pull/638) 已于 `2026-06-20 01:44:33+08:00` squash 合并，远程功能分支已删除。
-- 当前实施分支：`codex/production-knowledge-evidence`，隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。`origin/main` 的精确提交 `b1eb6de3b264ade02459e512465ef947de2ab75f` 已于 `2026-06-20 01:45:32+08:00` 前向部署到 134；当前只补交部署与生产前置证据，不修改运行代码。任何工程完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
+- 最新运行代码主线为 `b1eb6de3b264ade02459e512465ef947de2ab75f`（[#638](https://github.com/Dasheen920624/medkernel/pull/638)）；部署与生产前置证据已由 [#639](https://github.com/Dasheen920624/medkernel/pull/639) 合入主线。后续文档提交不改变 134 运行制品，也不要求重复部署。
+- 当前没有未合并的运行代码分支；隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。`b1eb6de3b264ade02459e512465ef947de2ab75f` 已于 `2026-06-20 01:45:32+08:00` 精确前向部署到 134。任何工程或证据完成都不代表 `LIVE_ACCEPTED`，不得据此代签专家、启用 Provider 或放行 P6。
 - 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。
 - 基础知识初始化采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：134 已生成首批 8 个稳定基础条目，覆盖权威来源、术语、数据元、编码/值集/单位、主数据/互操作、证据分级、发行 BOM 和金标回归骨架；全部为 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING`，F8 批次保持 `IN_REVIEW`，知识激活数为 0，也不宣称基础发行版已完成。
 - #638 的源提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`、`65d164a7`、`b8f69103`、`ff4f04b6`、`9a567d27`、`a79434cb`、`21a1d401`，最终 squash 为 `b1eb6de3b264ade02459e512465ef947de2ab75f`；其中修复 Oracle V153/V154 的 LOB CHECK 与 `MODE` 保留字问题，并以五方言 V157 前向统一为 `run_mode`，不改 PostgreSQL 已执行历史迁移。最终独立后端验证为 481 份 Surefire XML / 3097 tests / 0 failures / 0 errors / 7 skipped；前端 `npm run verify` 为 101 个测试文件 / 810 tests，ESLint 零 warning、Stylelint、格式和类型检查均通过；B0、中文注释、产品目录、迁移规约、部署合同和 `git diff --check` 均通过。
