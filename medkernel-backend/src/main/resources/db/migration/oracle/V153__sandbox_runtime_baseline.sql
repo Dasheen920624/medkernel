@@ -70,13 +70,14 @@ CREATE TABLE mk_sandbox_run (
         mode <> 'CURRENT' OR binding_id IS NOT NULL
         OR (baseline_id IS NULL AND status IN ('PREPARING','FAILED'))
     ),
+    -- Oracle LOB 列不能参与 CHECK；资产快照完整性由沙盘服务与 baseline_hash 联合校验。
     CONSTRAINT ck_mk_sandbox_run_baseline_complete CHECK (
         (baseline_id IS NULL AND package_id IS NULL AND baseline_hash IS NULL
             AND status IN ('PREPARING','FAILED'))
         OR (baseline_id IS NOT NULL AND package_owner_tenant_id IS NOT NULL
             AND package_id IS NOT NULL AND package_code IS NOT NULL
             AND package_version IS NOT NULL AND resolution_source IS NOT NULL
-            AND asset_bindings_json IS NOT NULL AND baseline_hash IS NOT NULL)
+            AND baseline_hash IS NOT NULL)
     ),
     CONSTRAINT ck_mk_sandbox_run_resolution CHECK (
         resolution_source IS NULL

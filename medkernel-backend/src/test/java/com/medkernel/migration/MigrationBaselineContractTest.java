@@ -576,6 +576,27 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void oracleSandboxBaselineDoesNotReferenceClobInCheckConstraints() {
+        assertThat(readMigration("oracle", "V153__sandbox_runtime_baseline.sql"))
+            .as("Oracle 沙盘运行基线必须保留 CLOB 资产快照列")
+            .contains("asset_bindings_json          CLOB");
+
+        for (String migration : List.of(
+            "V153__sandbox_runtime_baseline.sql",
+            "V154__sandbox_replay_manifest.sql"
+        )) {
+            String ddl = readMigration("oracle", migration);
+            assertThat(ddl)
+                .as("%s 必须避开 Oracle LOB CHECK 限制", migration)
+                .contains("Oracle LOB 列不能参与 CHECK")
+                .doesNotContain(
+                    "asset_bindings_json IS NULL",
+                    "asset_bindings_json IS NOT NULL"
+                );
+        }
+    }
+
+    @Test
     void sandboxPermissionsArePersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
