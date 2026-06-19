@@ -98,6 +98,7 @@ medkernel:
     deployment-mode: ${MEDKERNEL_DEPLOYMENT_MODE:local}
     database-dialect: ${MEDKERNEL_DATABASE_DIALECT:h2}
     migration-location: ${MEDKERNEL_MIGRATION_LOCATION:classpath:db/migration/h2}
+    release-fingerprint: ${MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT:development}
     feature-flags:
       graph-projection:
         display-name: 知识图谱投影

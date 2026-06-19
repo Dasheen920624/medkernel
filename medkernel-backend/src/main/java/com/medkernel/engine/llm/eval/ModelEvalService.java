@@ -16,6 +16,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
+import com.medkernel.engine.llm.provider.DeploymentForm;
+import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
 import com.medkernel.engine.llm.provider.ProviderRequest;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
@@ -29,6 +31,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.runtime.RuntimeProperties;
 
 /**
  * 医学回归评测服务（LLM-07 T16/T17/T18）。
@@ -51,6 +54,8 @@ public class ModelEvalService {
     private final ModelProviderRegistry registry;
     private final AuditRecorder auditRecorder;
     private final HighRiskChangeGuard highRiskChangeGuard;
+    private final RuntimeProperties runtimeProperties;
+    private final DeploymentFormService deploymentFormService;
 
     public ModelEvalService(MedicalRegressionCaseRepository caseRepo,
                             ModelEvalRunRepository runRepo,
@@ -58,7 +63,9 @@ public class ModelEvalService {
                             MedicalRegressionEvaluator evaluator,
                             ModelProviderRegistry registry,
                             AuditRecorder auditRecorder,
-                            HighRiskChangeGuard highRiskChangeGuard) {
+                            HighRiskChangeGuard highRiskChangeGuard,
+                            RuntimeProperties runtimeProperties,
+                            DeploymentFormService deploymentFormService) {
         this.caseRepo = caseRepo;
         this.runRepo = runRepo;
         this.evidenceRepo = evidenceRepo;
@@ -66,6 +73,8 @@ public class ModelEvalService {
         this.registry = registry;
         this.auditRecorder = auditRecorder;
         this.highRiskChangeGuard = highRiskChangeGuard;
+        this.runtimeProperties = runtimeProperties;
+        this.deploymentFormService = deploymentFormService;
     }
 
     @Transactional
@@ -153,6 +162,11 @@ public class ModelEvalService {
             throw new ApiException(ErrorCode.ENG_LLM_008,
                 "仅待复核（PENDING_REVIEW）评测可签字放行，当前状态: " + run.status());
         }
+        if (!requireCurrentReleaseFingerprint().equals(run.releaseFingerprint())) {
+            throw new ApiException(
+                ErrorCode.ENG_LLM_008,
+                "该评测属于历史运行制品，必须在当前制品重新运行");
+        }
         String actor = RequestContext.currentUserId().orElse("system");
         if (actor.equals(run.createdBy())) {
             throw ApiException.conflict("专家签字人与评测执行人必须分离");
@@ -176,7 +190,7 @@ public class ModelEvalService {
         }
         ModelEvalRun signed = new ModelEvalRun(
             run.id(), run.tenantId(), run.providerCode(), run.modelVersion(),
-            run.capabilityCode(), run.promptVersion(), run.toolVersion(),
+            run.capabilityCode(), run.promptVersion(), run.toolVersion(), run.releaseFingerprint(),
             run.totalCases(), run.passedCases(), run.failedCases(),
             run.qualityScore(), run.terminologyScore(),
             run.fakeCitationDetected(), run.redLineBreach(), run.hallucinationDetected(),
@@ -244,6 +258,9 @@ public class ModelEvalService {
             .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
                 tenantId, providerCode, modelVersion, normalizedCapability, "PASSED");
         if (run.isEmpty()) {
+            return false;
+        }
+        if (!releaseMatchesCurrent(run.get())) {
             return false;
         }
         List<MedicalRegressionCase> currentCases = caseRepo
@@ -322,16 +339,19 @@ public class ModelEvalService {
         boolean baselineCurrent = !currentCases.isEmpty()
             && RegressionBaselineEvidence.matches(run.caseSummaryJson(), currentCases)
             && (evidence.isEmpty() || evidenceMatchesCurrentCases(evidence, currentCases));
+        boolean releaseCurrent = releaseMatchesCurrent(run);
         boolean reviewable = "PENDING_REVIEW".equals(run.status())
             && evidenceComplete
-            && baselineCurrent;
+            && baselineCurrent
+            && releaseCurrent;
         return new ModelEvalRunDetailResponse(
             toSummary(run),
             evidence.stream().map(this::toEvidenceResponse).toList(),
             evidenceComplete,
             baselineCurrent,
+            releaseCurrent,
             reviewable,
-            reviewBlockReason(run, evidenceComplete, baselineCurrent));
+            reviewBlockReason(run, evidenceComplete, baselineCurrent, releaseCurrent));
     }
 
     private ModelEvalRun requireTenantRun(Long runId, String tenantId) {
@@ -346,7 +366,8 @@ public class ModelEvalService {
     private ModelEvalRunSummaryResponse toSummary(ModelEvalRun run) {
         return new ModelEvalRunSummaryResponse(
             run.id(), run.providerCode(), run.modelVersion(), run.capabilityCode(),
-            run.promptVersion(), run.toolVersion(), run.totalCases(), run.passedCases(), run.failedCases(),
+            run.promptVersion(), run.toolVersion(), run.releaseFingerprint(),
+            run.totalCases(), run.passedCases(), run.failedCases(),
             "Y".equalsIgnoreCase(run.fakeCitationDetected()),
             "Y".equalsIgnoreCase(run.redLineBreach()),
             "Y".equalsIgnoreCase(run.hallucinationDetected()),
@@ -380,7 +401,11 @@ public class ModelEvalService {
     private String reviewBlockReason(
             ModelEvalRun run,
             boolean evidenceComplete,
-            boolean baselineCurrent) {
+            boolean baselineCurrent,
+            boolean releaseCurrent) {
+        if (!releaseCurrent) {
+            return "该评测属于历史运行制品，必须在当前制品重新运行";
+        }
         if (!"PENDING_REVIEW".equals(run.status())) {
             return "该运行当前不是待复核状态";
         }
@@ -401,6 +426,7 @@ public class ModelEvalService {
         String actor = RequestContext.currentUserId().orElse("system");
         ModelEvalRun saved = runRepo.save(new ModelEvalRun(
             null, tenantId, providerCode, modelVersion, capabilityCode, null, null,
+            requireCurrentReleaseFingerprint(),
             verdict.total(), verdict.passed(), verdict.failed(),
             null, null, verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
             "N", verdict.status(), RegressionBaselineEvidence.toJson(cases),
@@ -480,6 +506,7 @@ public class ModelEvalService {
         String actor = RequestContext.currentUserId().orElse("system");
         ModelEvalRun saved = runRepo.save(new ModelEvalRun(
             null, tenantId, providerCode, modelVersion, capabilityCode, promptVersion, toolVersion,
+            requireCurrentReleaseFingerprint(),
             verdict.total(), verdict.passed(), verdict.failed(),
             verdict.qualityScore(), verdict.terminologyScore(), "N", "N",
             verdict.hallucinationDetected() ? "Y" : "N", verdict.status(), verdict.caseSummaryJson(),
@@ -487,6 +514,31 @@ public class ModelEvalService {
         auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", capabilityCode + "/" + modelVersion,
             "运行 AI 质量评测 " + capabilityCode + "/" + modelVersion + " -> " + verdict.status());
         return saved;
+    }
+
+    private boolean releaseMatchesCurrent(ModelEvalRun run) {
+        if (run == null || run.releaseFingerprint() == null || run.releaseFingerprint().isBlank()) {
+            return false;
+        }
+        try {
+            return run.releaseFingerprint().equals(requireCurrentReleaseFingerprint());
+        } catch (ApiException invalidRuntimeFingerprint) {
+            return false;
+        }
+    }
+
+    private String requireCurrentReleaseFingerprint() {
+        String raw = runtimeProperties.getReleaseFingerprint();
+        String normalized = raw == null ? "" : raw.trim();
+        if (normalized.isEmpty() || normalized.length() > 128) {
+            throw new ApiException(ErrorCode.ENG_LLM_008, "当前运行制品指纹未正确配置");
+        }
+        if (deploymentFormService.currentForm() == DeploymentForm.PRODUCTION_CENTER
+            && Set.of("development", "dev", "unset", "unknown").contains(
+                normalized.toLowerCase(Locale.ROOT))) {
+            throw new ApiException(ErrorCode.ENG_LLM_008, "生产中心禁止使用占位运行制品指纹");
+        }
+        return normalized;
     }
 
     private Function<MedicalRegressionCase, ProviderCompletion> qualityRunner(

@@ -501,12 +501,17 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const mayUseExpertMode = canUseExpertMode(security.data);
   const expertMode = mayUseExpertMode && globalExpertMode;
-  const knowledgePackagesQuery = usePackages({
-    page: 1,
-    size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
-    assetType: "KNOWLEDGE",
-    keyword: reviewPackageSearch || undefined,
-  });
+  const canReadPackages =
+    security.data?.permissions.some((permission) => permission.code === "package.read") ?? false;
+  const knowledgePackagesQuery = usePackages(
+    {
+      page: 1,
+      size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
+      assetType: "KNOWLEDGE",
+      keyword: reviewPackageSearch || undefined,
+    },
+    { enabled: mode === "review" && Boolean(selectedCandidateId) && canReadPackages },
+  );
 
   const identitiesQuery = useKnowledgeIdentities({
     domain,
@@ -578,8 +583,12 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const canRestoreCustomization =
     security.data?.permissions.some((permission) => permission.code === "knowledge.withdraw") &&
     security.data?.permissions.some((permission) => permission.code === "tenant.override");
-  const productionReadinessQuery = useKnowledgeProductionReadiness({ producer: "API_MODEL" });
-  const productionJobsQuery = useKnowledgeProductionJobs({ page: 1, size: 20 });
+  const productionMode = mode === "production";
+  const productionReadinessQuery = useKnowledgeProductionReadiness(
+    { producer: "API_MODEL" },
+    productionMode,
+  );
+  const productionJobsQuery = useKnowledgeProductionJobs({ page: 1, size: 20 }, productionMode);
   const productionJobs = useMemo(
     () => productionJobsQuery.data?.items ?? [],
     [productionJobsQuery.data?.items],
@@ -597,7 +606,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const initializationBatches = initializationBatchesQuery.data ?? [];
   const approveLowInitializationBatchMutation = useApproveLowKnowledgeInitializationBatch();
   const refreshInitializationBatchMutation = useRefreshKnowledgeInitializationBatch();
-  const firstProductionCandidateRef = (productionCandidatesQuery.data ?? [])[0]?.candidateRef;
+  const firstProductionCandidateRef = productionCandidatesQuery.data?.items[0]?.candidateRef;
   const selectedProductionCandidateRef = productionCandidateRef ?? firstProductionCandidateRef;
   const productionCoexistenceQuery = useCandidateCoexistence(selectedProductionCandidateRef);
 
@@ -1757,7 +1766,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
     );
   } else {
     const readiness = productionReadinessQuery.data;
-    const productionCandidates = productionCandidatesQuery.data ?? [];
+    const productionCandidates = productionCandidatesQuery.data?.items ?? [];
     const productionGateResults = productionGateResultsQuery.data ?? [];
     const productionTriageResults = productionTriageResultsQuery.data ?? [];
     const productionShadowRuns = productionShadowRunsQuery.data ?? [];

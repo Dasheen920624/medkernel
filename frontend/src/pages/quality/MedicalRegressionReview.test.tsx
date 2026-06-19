@@ -45,6 +45,7 @@ const detail = {
   run,
   evidenceComplete: true,
   baselineCurrent: true,
+  releaseCurrent: true,
   reviewable: true,
   reviewBlockReason: null,
   cases: [
@@ -207,5 +208,64 @@ describe("MedicalRegressionReview", () => {
 
     expect(await screen.findByText("逐例证据不完整，请重新运行评测")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "专家复核签字" })).not.toBeInTheDocument();
+  });
+
+  it("shows a successful expert sign-off instead of treating PASSED as an error", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useModelEvaluationRunDetail).mockReturnValue(
+      query({
+        ...detail,
+        run: {
+          ...run,
+          status: "PASSED",
+          reviewer: "quality-governor",
+          signedAt: "2026-06-19T14:34:42Z",
+          reviewComment: "逐例核验完成，来源与红线结论均认可。",
+        },
+        reviewable: false,
+        reviewBlockReason: "该运行当前不是待复核状态",
+      }) as never,
+    );
+
+    render(
+      <ConfigProvider>
+        <MedicalRegressionReview />
+      </ConfigProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "核查证据" }));
+
+    expect(await screen.findByText("已由独立专家签署放行")).toBeInTheDocument();
+    expect(screen.getByText("quality-governor")).toBeInTheDocument();
+    expect(screen.getAllByText("逐例核验完成，来源与红线结论均认可。").length).toBeGreaterThan(0);
+    expect(screen.queryByText("当前运行不可签字")).not.toBeInTheDocument();
+  });
+
+  it("warns when a signed run belongs to a historical release", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useModelEvaluationRunDetail).mockReturnValue(
+      query({
+        ...detail,
+        run: {
+          ...run,
+          status: "PASSED",
+          reviewer: "quality-governor",
+          signedAt: "2026-06-19T14:34:42Z",
+          reviewComment: "逐例核验完成，来源与红线结论均认可。",
+        },
+        releaseCurrent: false,
+        reviewable: false,
+        reviewBlockReason: "该评测属于历史运行制品，必须在当前制品重新运行",
+      }) as never,
+    );
+
+    render(
+      <ConfigProvider>
+        <MedicalRegressionReview />
+      </ConfigProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "核查证据" }));
+
+    expect(await screen.findByText("历史制品签署仅保留审计，不可用于当前放行")).toBeInTheDocument();
+    expect(screen.getByText("该评测属于历史运行制品，必须在当前制品重新运行")).toBeInTheDocument();
   });
 });

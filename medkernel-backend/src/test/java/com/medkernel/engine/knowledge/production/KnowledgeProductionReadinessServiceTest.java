@@ -356,7 +356,7 @@ class KnowledgeProductionReadinessServiceTest {
         Instant now = Instant.now();
         return new ModelEvalRun(
             1L, TENANT, provider.providerCode(), provider.modelVersion(),
-            capabilityCode, "prompt:v1", "tool:v1",
+            capabilityCode, "prompt:v1", "tool:v1", "release-current",
             1, 1, 0, 100.0, 100.0, "N", "N", "N", "PASSED",
             RegressionBaselineEvidence.toJson(evaluatedCases),
             "逐例证据已核查并确认可放行。", "reviewer", now, now, "u", now, "u");

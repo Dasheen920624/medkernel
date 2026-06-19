@@ -203,8 +203,19 @@ class MigrationBaselineContractTest {
         "V152__model_provider_lock_version.sql",
         "V153__sandbox_runtime_baseline.sql",
         "V154__sandbox_replay_manifest.sql",
-        "V155__knowledge_initialization_batch.sql"
+        "V155__knowledge_initialization_batch.sql",
+        "V156__model_eval_release_fingerprint.sql"
     );
+
+    @Test
+    void modelEvaluationReleaseFingerprintInvalidatesHistoricalRunsAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V156__model_eval_release_fingerprint.sql");
+            assertThat(ddl)
+                .as("%s 医学评测必须冻结运行制品指纹", dialect)
+                .contains("mk_llm_eval_run", "release_fingerprint", "运行制品指纹");
+        }
+    }
 
     @Test
     void knowledgeInitializationBatchPersistsStableManifestsAndReviewStateAcrossAllDialects() {

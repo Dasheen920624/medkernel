@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider } from "antd";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ConfigProvider, message } from "antd";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useAdapterHubStatus,
@@ -510,6 +510,13 @@ function renderPage() {
 }
 
 describe("AdapterHub", () => {
+  afterEach(async () => {
+    await act(async () => {
+      message.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  });
+
   beforeEach(() => {
     window.localStorage.clear();
     useExpertModeStore.setState({ enabled: false });

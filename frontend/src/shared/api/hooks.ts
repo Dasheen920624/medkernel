@@ -1751,13 +1751,17 @@ export function useKnowledgeProductionReadiness(
   });
 }
 
-export function useKnowledgeProductionJobs(params: KnowledgeProductionJobsParams = {}) {
+export function useKnowledgeProductionJobs(
+  params: KnowledgeProductionJobsParams = {},
+  enabled = true,
+) {
   const requestParams = compactParams({
     page: params.page ?? 1,
     size: params.size ?? 20,
   });
   return useQuery({
     queryKey: ["knowledge-production", "jobs", requestParams],
+    enabled,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgeProductionJob> }>(
         `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
@@ -1821,9 +1825,11 @@ export function useKnowledgeProductionCandidates(jobCode?: string | null) {
     queryKey: ["knowledge-production", "job-candidates", jobCode],
     enabled: Boolean(jobCode),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: KnowledgeProductionCandidateView[] }>(
-        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/candidates`,
-      );
+      const { data } = await apiClient.get<{
+        data: PageResponse<KnowledgeProductionCandidateView>;
+      }>(`${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode ?? "")}/candidates`, {
+        params: { page: 1, size: 20 },
+      });
       return data.data;
     },
   });
@@ -7761,7 +7767,12 @@ export interface PackageListParams {
   assetType?: EngineAssetType;
 }
 
-export function usePackages(params: PackageListParams = {}) {
+export function usePackages(
+  params: PackageListParams = {},
+  options?: {
+    enabled?: boolean;
+  },
+) {
   const requestParams = {
     page: Math.max(params.page ?? 1, 1),
     size: Math.max(params.size ?? 10, 1),
@@ -7771,6 +7782,7 @@ export function usePackages(params: PackageListParams = {}) {
   };
   return useQuery({
     queryKey: ["packages", "list", requestParams],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
         PACKAGE_API_ROOT,
@@ -8762,6 +8774,7 @@ export interface ModelEvaluationRunSummary {
   capabilityCode: string;
   promptVersion: string;
   toolVersion: string;
+  releaseFingerprint?: string | null;
   totalCases: number;
   passedCases: number;
   failedCases: number;
@@ -8800,6 +8813,7 @@ export interface ModelEvaluationRunDetail {
   cases: ModelEvaluationCaseEvidence[];
   evidenceComplete: boolean;
   baselineCurrent: boolean;
+  releaseCurrent: boolean;
   reviewable: boolean;
   reviewBlockReason?: string | null;
 }

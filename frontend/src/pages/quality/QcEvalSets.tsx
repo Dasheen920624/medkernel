@@ -37,6 +37,7 @@ import {
   useOrgUnits,
   usePackages,
   usePublishEvaluationIndicator,
+  useSecurityProfile,
   useSubmitEvaluationIndicator,
   type EvaluationIndicator,
   type EvaluationIndicatorStatus,
@@ -177,6 +178,9 @@ function formatVersion(indicator: EvaluationIndicator) {
 
 export default function QcEvalSets() {
   const { message } = App.useApp();
+  const security = useSecurityProfile();
+  const canReadPackages =
+    security.data?.permissions.some((permission) => permission.code === "package.read") ?? false;
   const [form] = Form.useForm<IndicatorFormValues>();
   const [departmentSearch, setDepartmentSearch] = useState("");
   const [evaluationPackageSearch, setEvaluationPackageSearch] = useState("");
@@ -189,12 +193,15 @@ export default function QcEvalSets() {
     status: "ACTIVE",
     ...(departmentKeyword ? { keyword: departmentKeyword } : {}),
   });
-  const evaluationPackagesQuery = usePackages({
-    page: 1,
-    size: EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE,
-    assetType: "EVALUATION",
-    keyword: evaluationPackageSearch || undefined,
-  });
+  const evaluationPackagesQuery = usePackages(
+    {
+      page: 1,
+      size: EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE,
+      assetType: "EVALUATION",
+      keyword: evaluationPackageSearch || undefined,
+    },
+    { enabled: canReadPackages },
+  );
   const departmentOptions = (departmentsQuery.data?.items ?? [])
     .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
     .map((unit) => ({

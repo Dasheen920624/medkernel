@@ -115,6 +115,36 @@ MF
   chown "$APP_USER:$APP_GROUP" "$APP_HOME/manifest.properties"
 }
 
+update_runtime_release_fingerprint(){
+  local fingerprint="$1" tmp
+  [ -f "$ENV_FILE" ] || { err "未找到运行环境文件：$ENV_FILE"; return 1; }
+  [ -n "$fingerprint" ] && [ "${#fingerprint}" -le 128 ] \
+    || { err "运行制品指纹必须为 1–128 个字符"; return 1; }
+  printf '%s' "$fingerprint" | grep -Eq '^[A-Za-z0-9._:-]+$' \
+    || { err "运行制品指纹仅允许字母、数字、点、下划线、冒号和连字符"; return 1; }
+
+  tmp="$(mktemp "$APP_HOME/conf/.medkernel-env.XXXXXX")"
+  awk -v value="$fingerprint" '
+    BEGIN { replaced = 0 }
+    /^MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=/ {
+      if (!replaced) {
+        print "MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=" value
+        replaced = 1
+      }
+      next
+    }
+    { print }
+    END {
+      if (!replaced) {
+        print "MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=" value
+      }
+    }
+  ' "$ENV_FILE" > "$tmp" || { rm -f "$tmp"; return 1; }
+  install_for_app_user "$tmp" "$ENV_FILE" 600 || { rm -f "$tmp"; return 1; }
+  rm -f "$tmp"
+  ok "运行制品指纹已绑定本次发布来源"
+}
+
 install_for_app_user(){
   local src="$1" dst="$2" mode="$3"
   if [ "$(id -u)" -eq 0 ] && id -u "$APP_USER" >/dev/null 2>&1; then
@@ -177,6 +207,9 @@ do_rollback(){
     tar -xzf "$dir/dist.tar.gz" -C "$stage" && rm -rf "$FE_DIR/dist" && mv "$stage/dist" "$FE_DIR/dist" && chown -R "$APP_USER:$APP_GROUP" "$FE_DIR/dist" && ok "已恢复前端 dist"
     rm -rf "$stage"
   fi
+  [ -f "$dir/conf/medkernel.env" ] \
+    && install_for_app_user "$dir/conf/medkernel.env" "$ENV_FILE" 600 \
+    && ok "已恢复运行环境文件"
   [ -f "$dir/manifest.properties" ] && install -o "$APP_USER" -g "$APP_GROUP" -m 644 "$dir/manifest.properties" "$APP_HOME/manifest.properties" && ok "已恢复 manifest"
   restart_service
 }
@@ -239,7 +272,12 @@ sync_bootstrap_delivery_token || die "同步 bootstrap 接管码交付文件失�
 NEW_JAR=0
 [ -n "$JAR_SRC" ] && { swap_jar "$JAR_SRC" || die "替换 jar 失败"; NEW_JAR=1; }
 [ -n "$FE_SRC" ] && { swap_frontend "$FE_SRC" || die "替换前端失败"; }
-[ "$NEW_JAR" = 1 ] && update_manifest "$SRC_TXT"
+if [ "$NEW_JAR" = 1 ]; then
+  RELEASE_FINGERPRINT="${SRC_TXT:-sha256:$(sha256sum "$LIB" | awk '{print $1}')}"
+  update_runtime_release_fingerprint "$RELEASE_FINGERPRINT" \
+    || { do_rollback "$BK"; die "写入运行制品指纹失败，已回滚"; }
+  update_manifest "$SRC_TXT"
+fi
 
 [ "$DO_RESTART" = 0 ] && { warn "按 --no-restart 跳过重启；稍后手动 systemctl restart $SVC"; exit 0; }
 restart_service || die "重启失败"

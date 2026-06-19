@@ -57,6 +57,8 @@ if ! test -f "$ENV_FILE"; then
 fi
 replace_setting "MEDKERNEL_RUNTIME_ROOT" "$RUNTIME_ROOT" "$ENV_FILE"
 ensure_setting "MEDKERNEL_NEO4J_HEALTH_ENABLED" "${MEDKERNEL_NEO4J_HEALTH_ENABLED:-false}"
+ensure_setting "MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT" \
+  "${MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT:-development}"
 ensure_setting "DIFY_GIT_REF" "$DIFY_GIT_REF"
 ensure_setting "DIFY_HTTPS_PORT" "${DIFY_HTTPS_PORT:-8443}"
 generate_if_placeholder "MEDKERNEL_DB_PASSWORD"

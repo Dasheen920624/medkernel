@@ -1229,6 +1229,7 @@ describe("package export api helpers", () => {
       useRuleDefinitions({ size: 100 }, { enabled: false });
       usePathwayTemplates({ size: 100 }, { enabled: false });
       useEvaluationIndicators({ size: 100 }, { enabled: false });
+      usePackages({ size: 20, assetType: "EVALUATION" }, { enabled: false });
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
@@ -4013,7 +4014,14 @@ describe("knowledge review api helpers", () => {
       hasNext: false,
       totalEstimated: false,
     };
-    const candidates = [{ jobCode: "job-ai-1", candidateRef: "kv:42:2026.06" }];
+    const candidates = {
+      items: [{ jobCode: "job-ai-1", candidateRef: "kv:42:2026.06" }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
     const gateResults = [{ jobCode: "job-ai-1", gateCode: "SOURCE_ANCHOR", passed: true }];
     const triageResults = [{ jobCode: "job-ai-1", triageState: "CONFLICT", action: "REVIEW" }];
     const shadowRuns = [{ jobCode: "job-ai-1", status: "PASSED", readyForReview: true }];
@@ -4067,6 +4075,7 @@ describe("knowledge review api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(
       3,
       "/engine/knowledge-production/jobs/job-ai-1/candidates",
+      { params: { page: 1, size: 20 } },
     );
     expect(apiClient.get).toHaveBeenNthCalledWith(
       4,

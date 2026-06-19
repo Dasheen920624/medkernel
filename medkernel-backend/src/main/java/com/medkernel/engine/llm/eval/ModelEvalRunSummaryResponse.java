@@ -12,6 +12,7 @@ public record ModelEvalRunSummaryResponse(
     String capabilityCode,
     String promptVersion,
     String toolVersion,
+    String releaseFingerprint,
     int totalCases,
     int passedCases,
     int failedCases,

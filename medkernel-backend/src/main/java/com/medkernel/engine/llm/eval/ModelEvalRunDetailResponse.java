@@ -10,6 +10,7 @@ public record ModelEvalRunDetailResponse(
     List<ModelEvalCaseEvidenceResponse> cases,
     boolean evidenceComplete,
     boolean baselineCurrent,
+    boolean releaseCurrent,
     boolean reviewable,
     String reviewBlockReason
 ) {

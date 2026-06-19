@@ -28,6 +28,7 @@ const apiMocks = vi.hoisted(() => ({
     total: 1,
   } as unknown,
   packageRequests: [] as Array<Record<string, unknown> | undefined>,
+  packageRequestOptions: [] as Array<{ enabled?: boolean } | undefined>,
   impactData: null as unknown,
   shadowStatsData: null as unknown,
   backtestData: null as unknown,
@@ -134,6 +135,13 @@ const apiMocks = vi.hoisted(() => ({
         displayName: "发布规则",
         risk: "HIGH",
       },
+      {
+        code: "package.read",
+        dimension: "ACTION",
+        target: "package.read",
+        displayName: "读取配置包",
+        risk: "LOW",
+      },
     ],
     menuKeys: ["rule-definitions"],
     environmentKeys: ["production"],
@@ -191,8 +199,14 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
-  usePackages: (params?: Record<string, unknown>) => {
+  usePackages: (
+    params?: Record<string, unknown>,
+    options?: {
+      enabled?: boolean;
+    },
+  ) => {
     apiMocks.packageRequests.push(params);
+    apiMocks.packageRequestOptions.push(options);
     return { data: apiMocks.packagesData, isLoading: false, isError: false };
   },
   useConditionFragments: (params?: Record<string, unknown>) => {
@@ -468,6 +482,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
     apiMocks.packageRequests = [];
+    apiMocks.packageRequestOptions = [];
     apiMocks.conditionFragmentRequests = [];
     apiMocks.conditionFragmentImpactRequests = [];
     apiMocks.refetchList.mockReset();
@@ -518,6 +533,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+    expect(apiMocks.packageRequestOptions).toContainEqual({ enabled: true });
     expect(apiMocks.packageRequests).toContainEqual({
       page: 1,
       size: 20,
@@ -542,6 +558,19 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       size: 100,
       assetType: "RULE",
     });
+  });
+
+  it("无配置包读取权限时禁用规则包查询", () => {
+    apiMocks.securityData = {
+      ...DEFAULT_SECURITY_DATA,
+      permissions: DEFAULT_SECURITY_DATA.permissions.filter(
+        (permission) => permission.code !== "package.read",
+      ),
+    };
+
+    renderRuleDefinitions();
+
+    expect(apiMocks.packageRequestOptions).toContainEqual({ enabled: false });
   });
 
   it("条件片段库通过小页服务端搜索加载", async () => {

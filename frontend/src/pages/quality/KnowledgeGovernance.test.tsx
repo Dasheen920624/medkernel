@@ -60,9 +60,11 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateKnowledgeCustomization: () => mockUseCreateKnowledgeCustomization(),
   usePublishKnowledgeCustomization: () => mockUsePublishKnowledgeCustomization(),
   useRestorePlatformKnowledge: () => mockUseRestorePlatformKnowledge(),
-  usePackages: (params: unknown) => mockUsePackages(params),
-  useKnowledgeProductionReadiness: (params: unknown) => mockUseKnowledgeProductionReadiness(params),
-  useKnowledgeProductionJobs: (params: unknown) => mockUseKnowledgeProductionJobs(params),
+  usePackages: (params: unknown, options?: unknown) => mockUsePackages(params, options),
+  useKnowledgeProductionReadiness: (params: unknown, enabled?: boolean) =>
+    mockUseKnowledgeProductionReadiness(params, enabled),
+  useKnowledgeProductionJobs: (params: unknown, enabled?: boolean) =>
+    mockUseKnowledgeProductionJobs(params, enabled),
   useKnowledgeProductionCandidates: (jobCode?: string) =>
     mockUseKnowledgeProductionCandidates(jobCode),
   useKnowledgeProductionGateResults: (jobCode?: string) =>
@@ -413,7 +415,7 @@ beforeEach(() => {
     refetch: vi.fn(),
   });
   mockUseKnowledgeProductionCandidates.mockReturnValue({
-    data: [
+    data: pageResponse([
       {
         jobCode: "job-ai-1",
         assetIdentity: "rule:ai:vte",
@@ -428,7 +430,7 @@ beforeEach(() => {
           domain: "GUIDELINE",
         },
       },
-    ],
+    ]),
     isLoading: false,
     isError: false,
     error: undefined,
@@ -995,8 +997,11 @@ describe("KnowledgeGovernance", () => {
   it("renders the knowledge production center as a standalone production entry", async () => {
     renderPage(<KnowledgeProduction />);
 
-    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith({ producer: "API_MODEL" });
-    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
+      { producer: "API_MODEL" },
+      true,
+    );
+    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
     expect(mockUseKnowledgeProductionCandidates).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionGateResults).toHaveBeenCalledWith("job-ai-1");
     expect(mockUseKnowledgeProductionTriageResults).toHaveBeenCalledWith("job-ai-1");
@@ -1176,7 +1181,7 @@ describe("KnowledgeGovernance", () => {
       refetch: vi.fn(),
     });
     mockUseKnowledgeProductionCandidates.mockReturnValue({
-      data: [
+      data: pageResponse([
         {
           jobCode: "job-agent-7",
           assetIdentity: "rule:agent:vte",
@@ -1184,7 +1189,7 @@ describe("KnowledgeGovernance", () => {
           candidateRef: "kv:42:2026.07",
           riskLevel: "HIGH",
         },
-      ],
+      ]),
       isLoading: false,
       isError: false,
       error: undefined,
@@ -1482,21 +1487,49 @@ describe("KnowledgeGovernance", () => {
 
   it("loads knowledge review package selector through small server-side search pages", async () => {
     const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "t-1" },
+        permissions: [{ code: "knowledge.publish" }, { code: "package.read" }],
+      },
+    });
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
-    expect(mockUsePackages).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      assetType: "KNOWLEDGE",
-      keyword: undefined,
-    });
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "KNOWLEDGE",
+        keyword: undefined,
+      },
+      { enabled: true },
+    );
     expect(mockUsePackages).not.toHaveBeenCalledWith({
       page: 1,
       size: 100,
       assetType: "KNOWLEDGE",
     });
+  });
+
+  it("does not load production evidence or packages from the review workspace before needed", () => {
+    renderPage();
+
+    expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
+      { producer: "API_MODEL" },
+      false,
+    );
+    expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 }, false);
+    expect(mockUsePackages).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        assetType: "KNOWLEDGE",
+        keyword: undefined,
+      },
+      { enabled: false },
+    );
   });
 
   it("returns a candidate for revision through the RETURN review decision with a mandatory reason", async () => {

@@ -55,6 +55,12 @@ grep -q 'classpath:db/migration/postgres' "$ROOT/medkernel-backend/src/main/reso
 grep -q 'postgres:16.14-bookworm' "$ROOT/deploy/docker/compose.yml"
 grep -q 'neo4j:5.23.0-community' "$ROOT/deploy/docker/compose.yml"
 grep -q 'MEDKERNEL_RUNTIME_ROOT' "$ROOT/deploy/docker/compose.yml"
+grep -q 'MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT' "$ROOT/deploy/docker/compose.yml"
+grep -q '^MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT=development$' "$ROOT/deploy/docker/.env.example"
+grep -q 'ensure_setting "MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT"' \
+  "$ROOT/deploy/docker/scripts/bootstrap-runtime.sh"
+grep -q 'release-fingerprint: ${MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT:development}' \
+  "$ROOT/medkernel-backend/src/main/resources/application.yml"
 grep -q 'SPRING_NEO4J_URI: bolt://neo4j:7687' "$ROOT/deploy/docker/compose.yml"
 ! grep -q '^      NEO4J_PASSWORD:' "$ROOT/deploy/docker/compose.yml"
 grep -q 'MEDKERNEL_NEO4J_PASSWORD' "$ROOT/medkernel-backend/src/main/resources/application-container.yml"
