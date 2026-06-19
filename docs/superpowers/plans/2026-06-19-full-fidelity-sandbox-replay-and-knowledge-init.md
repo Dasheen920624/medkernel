@@ -70,7 +70,7 @@ Run:
 ```bash
 python3 -m unittest discover -s scripts/drill/tests -p 'test_p9_pilot_tools.py'
 python3 -m py_compile scripts/drill/p9-pilot-tenant-provision.py scripts/drill/p9-gen-seed-creds.py scripts/drill/p9-pilot-verify.py
-rg -n "print\\(.*password|print\\(.*mfa|print\\(.*recovery|平台主源零改动|2026\\.06\\.1" scripts/drill/p9-*.py
+rg -n "print\\(.*password|print\\(.*mfa|print\\(.*recovery|平台主源零改动|场景固定配置包版本" scripts/drill/p9-*.py
 ```
 
 Expected: 测试和编译 exit 0；敏感输出与错误沙盘口径无命中。
@@ -88,7 +88,7 @@ Expected: 测试和编译 exit 0；敏感输出与错误沙盘口径无命中。
 Run:
 
 ```bash
-rg -n "2026\\.06\\.1|平台主源一律不碰|平台主源零改动|待用户决策|仅.*1.*可运行|其余 9.*阻断" \
+rg -n "场景固定配置包版本|平台主源一律不碰|平台主源零改动|待用户决策|仅.*1.*可运行|其余 9.*阻断" \
   docs/_HANDOFF.md docs/handoff/2026-06-19-pilot-sandbox-demo.md
 git diff --check
 ```
@@ -620,7 +620,7 @@ Evidence（2026-06-19）: 演练/初始化/B0 合并 109 tests、真实性/配�
 Run:
 
 ```bash
-rg -n "2026\\.06\\.1|CLINICAL_REVIEW_REQUIRED|待用户决策|平台主源一律不碰|平台主源零改动" \
+rg -n "场景固定配置包版本|CLINICAL_REVIEW_REQUIRED|待用户决策|平台主源一律不碰|平台主源零改动" \
   medkernel-backend/src/main/java/com/medkernel/engine/sandbox \
   frontend/src/features/sandbox frontend/src/pages/sandbox \
   scripts/sandbox scripts/drill/sandbox-fulltruth-run.mjs \

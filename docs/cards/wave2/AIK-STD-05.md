@@ -19,7 +19,7 @@ PR1 已建候选门禁框架、结果留痕和 6 项确定性信封门禁；PR2 
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 11 项门禁：逐条校验（来源真实性/锚点完整/红线不冲突/高危近似/剂量边界/适用域/可信级/去重/许可/格式/审核要素），列举可测。PR1/PR2/当前分支已覆盖 10 项门禁或 readiness；去重按 AIK-STD-10 的 `DUPLICATE/SKIP_DUPLICATE` 记录并跳过入审，属于生成期分流控制，不另造重复 gate。
-- [x] FR-2 红线拦截：越 [OPT-04](../D3/OPT-04.md) 禁忌/剂量/危急值候选拦截。已接 `engine.safety.ClinicalRedlineService` 确认五类 ACTIVE 红线目录就绪；若候选 payload 声明结构化红线检查，必须匹配 ACTIVE 红线并带证据，`VIOLATION/BREACH/BLOCK/FAIL/HIT/EXCEEDED` 或布尔命中均阻断。B0 模板无结构化检查时不伪造逐条命中结论。
+- [x] FR-2 红线拦截：越 [OPT-04](../D3/OPT-04.md) 禁忌/剂量/危急值候选拦截。已接 `engine.safety.ClinicalRedlineService` 确认五类 ACTIVE 红线目录就绪；若候选 payload 声明结构化红线检查，必须匹配 ACTIVE 红线并带证据，`VIOLATION/BREACH/BLOCK/FAIL/HIT/EXCEEDED` 或布尔命中均阻断。仅严格匹配 `B0_TEMPLATE + PENDING_AUTHORING + generatedByModel=false`、章节全为精确待编著结构标记、只有确定性来源证据且无额外字段/结构化红线检查的基础结构候选，可在 OPT-04 目录尚未上线时先进入人工编著审核，解除基础知识与红线目录的启动环依赖；它不代表红线深判通过，任何医学逻辑在场后仍须完整红线目录。
 - [x] FR-3 冲突仲裁：与现行权威冲突的候选标记 + 按 [OPT-07](../D2/OPT-07.md) 来源级仲裁。低阶覆盖高阶由 `AUTHORITY_CONFLICT` 阻断；冲突/升级/降级分流由 AIK-STD-10 留痕，审核通过后走 AIK-STD-09 原子替换、影响任务和回滚链。
 - [x] FR-4 不过不提审：任一门禁 FAIL 即拦截、诚实报因，不静默放行（`CandidateSafetyGateService` + 接入 AIK-STD-04 `GenerationSummary.blocked`）。
 - [x] FR-5 门禁可审计：每候选门禁结果留痕（`mk_aik_gate_result` V136 + `GET .../jobs/{jobCode}/gate-results`）。
@@ -31,7 +31,7 @@ PR1 已建候选门禁框架、结果留痕和 6 项确定性信封门禁；PR2 
 
 ## 实现进度（PR2 本地分支，许可 + 红线 readiness + 权威冲突第一刀）
 - 新增 `SOURCE_LICENSE`：每条 `sourceRef` 必须可经 `SourceReferenceResolver` 回查受控来源，且 `source_document.license` 非空；解析失败/许可缺失即拒收。
-- 新增 `CLINICAL_REDLINE`：复用 `ClinicalRedlineService.activeCatalog`，要求 OPT-04 五类必需红线均有 ACTIVE 配置；空库或缺类目即拒收。
+- 新增 `CLINICAL_REDLINE`：复用 `ClinicalRedlineService.activeCatalog`，要求包含医学逻辑的候选在 OPT-04 五类必需红线均有 ACTIVE 配置后才可提审；空库或缺类目即拒收。唯一引导态例外是由 `SourceCandidateGenerator` 生成、结构严格封闭且无医学逻辑的 B0 待编著候选，此类候选只进入人工编著审核，不发布、不执行。
 - 新增 `AUTHORITY_CONFLICT`：候选指向已有 `targetIdentityId` 时，按归一化组织作用域查现行 ACTIVE 版本，低阶来源不得覆盖高阶来源；新身份或无现行版本继续进入审核链。
 - 生成链路把 `targetIdentityId` 传入 `GateContext`，门禁结果仍按 `mk_aik_gate_result` append-only 留痕；去重按 AIK-STD-10 的 `mk_knowledge_generation_triage` append-only 留痕。
 
