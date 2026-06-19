@@ -71,8 +71,8 @@
 - Modify: `docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`
 
 - [x] 运行后端全量、前端 `npm run verify`、B0、中文注释、产品目录、迁移规约和 `git diff --check`。
-- [ ] 更新接力：记录 2026-06-19 现场根因、旧签署仅保留历史审计、新制品须重跑评测。
-- [ ] 本地提交，不 push、不创建 PR。
+- [x] 更新接力：记录 2026-06-19 现场根因、旧签署仅保留历史审计、新制品须重跑评测。
+- [x] 本地提交，不 push、不创建 PR。
 
 ### Task 6: 134 前向部署与现场核验
 
@@ -80,7 +80,7 @@
 - Modify: 134 `/zoesoft/medkernel/conf/medkernel.env`
 - Create: `runtime/release-freeze/<commit>/`
 
-- [ ] 将 `MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT` 设置为最终部署提交 SHA，构建并冻结制品。
-- [ ] 不清库前向部署至 134，核验 Flyway V156、JAR/hash、readiness、服务 active/enabled 和 `NRestarts=0`。
-- [ ] 只读核验旧运行 1、2不再满足当前放行门禁，页面显示历史签署警告。
-- [ ] 重新生成当前制品评测，等待真人专家逐例签署；不得自动代签。
+- [x] 将 `MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT` 设置为最终部署提交 SHA，构建并冻结制品。
+- [x] 不清库前向部署至 134，核验 Flyway V156、JAR/hash、readiness、服务 active/enabled 和 `NRestarts=0`。
+- [x] 只读核验旧运行 1、2不再满足当前放行门禁，页面显示历史签署警告。
+- [ ] 由真人专家接手后重新生成当前制品评测并逐例签署；不得自动代签或在无人接管时主动外调模型。
