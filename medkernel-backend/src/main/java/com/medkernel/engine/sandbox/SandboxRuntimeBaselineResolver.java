@@ -8,9 +8,12 @@ import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.pkg.EffectiveKnowledgePackageResolver;
 import com.medkernel.engine.pkg.EffectiveKnowledgePackageResponse;
+import com.medkernel.engine.pkg.EffectivePackageItem;
 import com.medkernel.engine.pkg.KnowledgePackage;
 import com.medkernel.engine.pkg.KnowledgePackageRepository;
 import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.sandbox.replay.SandboxReplayResolvedCase;
+import com.medkernel.engine.sandbox.replay.SandboxReplayService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.PlatformTenant;
@@ -22,14 +25,17 @@ public class SandboxRuntimeBaselineResolver {
     private final SandboxRuntimeBindingRepository bindings;
     private final KnowledgePackageRepository packages;
     private final EffectiveKnowledgePackageResolver effectivePackages;
+    private final SandboxReplayService replayCases;
 
     public SandboxRuntimeBaselineResolver(
             SandboxRuntimeBindingRepository bindings,
             KnowledgePackageRepository packages,
-            EffectiveKnowledgePackageResolver effectivePackages) {
+            EffectiveKnowledgePackageResolver effectivePackages,
+            SandboxReplayService replayCases) {
         this.bindings = bindings;
         this.packages = packages;
         this.effectivePackages = effectivePackages;
+        this.replayCases = replayCases;
     }
 
     public SandboxRuntimeBaseline resolveCurrent(String tenantId, String targetOrgUnitId) {
@@ -68,7 +74,36 @@ public class SandboxRuntimeBaselineResolver {
             "baseline-" + UUID.randomUUID(), SandboxRunMode.CURRENT, binding.tenantId(),
             binding.targetOrgUnitId(), binding.bindingId(), binding.packageOwnerTenantId(),
             binding.packageId(), binding.packageCode(), binding.packageVersion(), source,
-            Instant.now(), effective);
+            Instant.now(), effective, null, null);
+    }
+
+    /** 只从演练机构持有的不可变清单解析历史基线，不读取当前绑定或当前配置包。 */
+    public SandboxRuntimeBaseline resolveHistorical(
+            String tenantId,
+            String targetOrgUnitId,
+            String replayCaseId) {
+        String tenant = required(tenantId, "租户 ID");
+        String target = required(targetOrgUnitId, "目标组织 ID");
+        SandboxReplayResolvedCase replay = replayCases.resolve(required(replayCaseId, "replayCaseId"));
+        if (!tenant.equals(replay.replayCase().sandboxTenantId())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "历史重放清单不属于当前演练机构");
+        }
+        List<EffectivePackageItem> items = replay.assets().stream()
+            .map(asset -> new EffectivePackageItem(
+                asset.assetType(), asset.assetIdentity(), asset.assetVersion(), asset.assetVersion(),
+                asset.sourceOrgRef(), null, asset.sourceTier(),
+                asset.sourceTier() == com.medkernel.engine.versioning.SourceTier.PLATFORM,
+                false, false, asset.versionId(), asset.contentHash()))
+            .toList();
+        EffectiveKnowledgePackageResponse effective = new EffectiveKnowledgePackageResponse(
+            tenant, target, null, replay.replayCase().packageCode(),
+            replay.replayCase().packageVersion(), items, List.of(),
+            List.of("历史原样重放只读基线，不代表当前激活知识"));
+        return new SandboxRuntimeBaseline(
+            "baseline-" + UUID.randomUUID(), SandboxRunMode.HISTORICAL_EXACT, tenant, target,
+            null, null, null, replay.replayCase().packageCode(),
+            replay.replayCase().packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST,
+            Instant.now(), effective, replay.replayCase().replayCaseId(), replay);
     }
 
     private static void assertBindingMatchesPackage(SandboxRuntimeBinding binding, KnowledgePackage pack) {

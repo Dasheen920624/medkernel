@@ -201,8 +201,36 @@ class MigrationBaselineContractTest {
         "V150__model_version_active_scope_unique.sql",
         "V151__model_eval_review_evidence.sql",
         "V152__model_provider_lock_version.sql",
-        "V153__sandbox_runtime_baseline.sql"
+        "V153__sandbox_runtime_baseline.sql",
+        "V154__sandbox_replay_manifest.sql"
     );
+
+    @Test
+    void sandboxReplayManifestIsImmutableAndHashedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V154__sandbox_replay_manifest.sql");
+            assertThat(ddl)
+                .as("%s 沙盘历史重放必须保存脱敏上下文与精确资产摘要", dialect)
+                .contains(
+                    "mk_sandbox_replay_case",
+                    "mk_sandbox_replay_asset_binding",
+                    "source_tenant_ref",
+                    "source_context_ref",
+                    "context_snapshot_json",
+                    "context_snapshot_hash",
+                    "deidentification_profile",
+                    "manifest_hash",
+                    "asset_identity",
+                    "version_id",
+                    "content_json",
+                    "content_hash",
+                    "historical_status",
+                    "replay_case_id",
+                    "REVOKED",
+                    "历史重放",
+                    "脱敏");
+        }
+    }
 
     @Test
     void modelVersionActiveScopeIsUniqueAcrossAllDialects() {
@@ -656,6 +684,7 @@ class MigrationBaselineContractTest {
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
         "mk_sandbox_runtime_binding", "mk_sandbox_run",
+        "mk_sandbox_replay_case", "mk_sandbox_replay_asset_binding",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
         "mk_context_field_catalog",
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
@@ -859,7 +888,8 @@ class MigrationBaselineContractTest {
         "idx_mk_version_override_template_tenant",
         "idx_mk_version_override_operation_tenant",
         "idx_mk_sandbox_runtime_binding_tenant", "idx_mk_sandbox_run_tenant_status",
-        "idx_mk_sandbox_run_scenario",
+        "idx_mk_sandbox_run_scenario", "idx_mk_sandbox_replay_case_status",
+        "idx_mk_sandbox_replay_asset_case", "idx_mk_sandbox_run_replay_case",
         "idx_package_entitlement_package_status",
         "idx_package_entitlement_tenant_status",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
@@ -1183,6 +1213,12 @@ class MigrationBaselineContractTest {
         "uk_mk_sandbox_run_baseline", "fk_mk_sandbox_run_binding",
         "fk_mk_sandbox_run_package", "ck_mk_sandbox_run_mode",
         "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_baseline_complete",
+        "uk_mk_sandbox_replay_case", "uk_mk_sandbox_replay_manifest",
+        "ck_mk_sandbox_replay_case_status", "ck_mk_sandbox_replay_case_revoke",
+        "uk_mk_sandbox_replay_asset_id", "uk_mk_sandbox_replay_asset_version",
+        "fk_mk_sandbox_replay_asset_case", "ck_mk_sandbox_replay_asset_source",
+        "ck_mk_sandbox_replay_asset_status", "fk_mk_sandbox_run_replay_case",
+        "ck_mk_sandbox_run_replay_case",
         "ck_mk_sandbox_run_resolution",
         "ck_mk_sandbox_run_side_effect", "ck_mk_sandbox_run_status"
     );

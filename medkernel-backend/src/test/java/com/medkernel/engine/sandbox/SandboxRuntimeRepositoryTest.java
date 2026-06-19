@@ -17,6 +17,14 @@ import org.h2.jdbc.JdbcSQLIntegrityConstraintViolationException;
 import com.medkernel.engine.pkg.KnowledgePackage;
 import com.medkernel.engine.pkg.KnowledgePackageRepository;
 import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.sandbox.replay.SandboxReplayAssetBinding;
+import com.medkernel.engine.sandbox.replay.SandboxReplayAssetBindingRepository;
+import com.medkernel.engine.sandbox.replay.SandboxReplayCase;
+import com.medkernel.engine.sandbox.replay.SandboxReplayCaseRepository;
+import com.medkernel.engine.sandbox.replay.SandboxReplayStatus;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,12 +45,46 @@ class SandboxRuntimeRepositoryTest {
     @Autowired SandboxRuntimeBindingRepository bindings;
     @Autowired SandboxRunRepository runs;
     @Autowired KnowledgePackageRepository packages;
+    @Autowired SandboxReplayAssetBindingRepository replayAssets;
+    @Autowired SandboxReplayCaseRepository replayCases;
 
     @AfterEach
     void wipe() {
         runs.deleteAll();
+        replayAssets.deleteAll();
+        replayCases.deleteAll();
         bindings.deleteAll();
         packages.deleteAll();
+    }
+
+    @Test
+    void persistsHistoricalRunAgainstReplayCaseWithoutCurrentPackageForeignKey() {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        replayCases.save(new SandboxReplayCase(
+            null, "replay-1", "tenant-A", "sha256:" + "1".repeat(64),
+            "sha256:" + "2".repeat(64), "sha256:" + "3".repeat(64),
+            "sha256:" + "4".repeat(64), "{\"resources\":{}}", "a".repeat(64),
+            "PKG.OLD", "old-1", now, "b".repeat(64), "MEDKERNEL_D4_STRICT_V1",
+            SandboxReplayStatus.IMPORTED, now, "governor-1", null, null, null,
+            now, now, "trace-1"));
+        replayAssets.save(new SandboxReplayAssetBinding(
+            null, "replay-binding-1", "tenant-A", "replay-1", VersionedAssetType.RULE,
+            "RULE.OLD", "rv-old-1", "1", SourceTier.ORG,
+            "sha256:" + "5".repeat(64), "{\"dsl\":{}}", "c".repeat(64),
+            AssetVersionStatus.RETIRED, now, "governor-1", "trace-1"));
+
+        SandboxRun saved = runs.save(new SandboxRun(
+            null, "run-history-1", "tenant-A", "sbx-lab-critical-k",
+            SandboxRunMode.HISTORICAL_EXACT, "replay-1", null, "baseline-history-1",
+            null, null, "PKG.OLD", "old-1", SandboxResolutionSource.REPLAY_MANIFEST,
+            "{\"items\":[]}", "d".repeat(64), SandboxExternalSideEffectStatus.SUPPRESSED,
+            SandboxRunStatus.RUNNING, null, null, now, null, "trace-1",
+            now, "doctor-1", now, "doctor-1"));
+
+        assertThat(saved.id()).isNotNull();
+        assertThat(saved.replayCaseId()).isEqualTo("replay-1");
+        assertThat(saved.packageId()).isNull();
+        assertThat(saved.resolutionSource()).isEqualTo(SandboxResolutionSource.REPLAY_MANIFEST);
     }
 
     @Test
@@ -53,7 +95,7 @@ class SandboxRuntimeRepositoryTest {
 
         SandboxRun savedRun = runs.save(new SandboxRun(
             null, "run-1", "tenant-A", "sbx-lab-critical-k", SandboxRunMode.CURRENT,
-            savedBinding.bindingId(), "baseline-1", "tenant-A", "pkg-1", "PKG.SANDBOX", "1.0.0",
+            null, savedBinding.bindingId(), "baseline-1", "tenant-A", "pkg-1", "PKG.SANDBOX", "1.0.0",
             SandboxResolutionSource.TENANT_PACKAGE, "{\"items\":[]}", "a".repeat(64),
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.RUNNING,
             null, null, now, null, "trace-1", now, "doctor-1", now, "doctor-1"));
@@ -75,13 +117,13 @@ class SandboxRuntimeRepositoryTest {
         Instant now = Instant.parse("2026-06-19T00:00:00Z");
         SandboxRun preparing = runs.save(new SandboxRun(
             null, "run-missing-baseline", "tenant-A", "sbx-lab-critical-k",
-            SandboxRunMode.CURRENT, null, null, null, null, null, null, null, null, null,
+            SandboxRunMode.CURRENT, null, null, null, null, null, null, null, null, null, null,
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.PREPARING,
             null, null, now, null, "trace-missing", now, "doctor-1", now, "doctor-1"));
 
         SandboxRun failed = runs.save(new SandboxRun(
             preparing.id(), preparing.runId(), preparing.tenantId(), preparing.scenarioId(),
-            preparing.mode(), null, null, null, null, null, null, null, null, null,
+            preparing.mode(), null, null, null, null, null, null, null, null, null, null,
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.FAILED,
             "SANDBOX_RUNTIME_BASELINE_MISSING", "演练机构未激活沙盘运行绑定",
             now, now, preparing.traceId(), preparing.createdAt(), preparing.createdBy(),

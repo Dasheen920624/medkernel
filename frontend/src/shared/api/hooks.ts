@@ -8462,6 +8462,7 @@ export interface SandboxStepTrace {
 export interface SandboxRunRequest {
   entryMode?: "SNAPSHOT";
   mode?: SandboxRunMode;
+  replayCaseId?: string;
   contextOverride?: unknown;
   occurredAt?: string;
   parentOrigin?: string;
@@ -8469,7 +8470,26 @@ export interface SandboxRunRequest {
 }
 
 export type SandboxRunMode = "CURRENT" | "HISTORICAL_EXACT" | "COMPARE";
-export type SandboxResolutionSource = "TENANT_PACKAGE" | "PLATFORM_PACKAGE";
+export type SandboxResolutionSource = "TENANT_PACKAGE" | "PLATFORM_PACKAGE" | "REPLAY_MANIFEST";
+
+export interface SandboxReplayRuleResult {
+  ruleCode: string;
+  ruleName: string;
+  versionId: string;
+  assetVersion: string;
+  historicalStatus: "PUBLISHED" | "DEPRECATED" | "RETIRED";
+  contentHash: string;
+  hit: boolean;
+  severity?: string | null;
+  actions: Array<{
+    actionCode?: string;
+    severity?: string;
+    summary: string;
+    detail?: string;
+    requiresPhysicianConfirmation?: boolean;
+  }>;
+  explanation: unknown;
+}
 
 export interface SandboxRunResponse {
   scenarioId: string;
@@ -8492,6 +8512,8 @@ export interface SandboxRunResponse {
   evaluationRunId?: string | null;
   embedModes: Array<"IFRAME" | "SDK" | "API">;
   result: "PASS" | "FAIL";
+  replayCaseId?: string | null;
+  replayRuleResults?: SandboxReplayRuleResult[];
 }
 
 export interface SandboxRuntimeStatus {

@@ -316,4 +316,59 @@ describe("SandboxHost", () => {
     );
     expect(await screen.findByText("trace-outer-1")).toBeInTheDocument();
   });
+
+  it("runs an immutable historical manifest without current context overrides", async () => {
+    sandboxHookMocks.run.mockResolvedValue({
+      scenarioId: "sbx-lab-critical-k",
+      traceId: "trace-history-1",
+      runId: "run-history-1",
+      baselineId: "baseline-history-1",
+      mode: "HISTORICAL_EXACT",
+      replayCaseId: "replay-2025-001",
+      resolvedPackageVersion: "old-7",
+      resolutionSource: "REPLAY_MANIFEST",
+      externalSideEffects: false,
+      steps: [],
+      cardCount: 0,
+      embedModes: [],
+      replayRuleResults: [
+        {
+          ruleCode: "RULE.OLD.K",
+          ruleName: "历史高钾规则",
+          versionId: "rv-old-7",
+          assetVersion: "7",
+          historicalStatus: "RETIRED",
+          contentHash: "a".repeat(64),
+          hit: true,
+          severity: "CRITICAL",
+          actions: [{ summary: "历史高钾红线" }],
+          explanation: {},
+        },
+      ],
+      result: "PASS",
+    });
+
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("radio", { name: "历史原样重放" }));
+    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+      target: { value: "replay-2025-001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "按清单原样重放" }));
+
+    await waitFor(() =>
+      expect(sandboxHookMocks.run).toHaveBeenCalledWith({
+        scenarioId: "sbx-lab-critical-k",
+        body: {
+          entryMode: "SNAPSHOT",
+          mode: "HISTORICAL_EXACT",
+          replayCaseId: "replay-2025-001",
+        },
+      }),
+    );
+    expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
+    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史高钾红线")).toBeInTheDocument();
+    expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
+    expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
+  });
 });

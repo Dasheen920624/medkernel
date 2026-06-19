@@ -36,6 +36,8 @@ import com.medkernel.engine.pathway.PatientPathwayEnterRequest;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
+import com.medkernel.engine.sandbox.replay.SandboxReplayRuleExecutor;
+import com.medkernel.engine.sandbox.replay.SandboxReplayRuleResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -74,6 +76,7 @@ public class SandboxOrchestrationService {
     private final AuditRecorder audit;
     private final SandboxRuntimeBaselineResolver baselines;
     private final SandboxRunRepository runs;
+    private final SandboxReplayRuleExecutor replayRules;
 
     public SandboxOrchestrationService(
             SandboxScenarioCatalog catalog,
@@ -86,7 +89,8 @@ public class SandboxOrchestrationService {
             ObjectMapper json,
             AuditRecorder audit,
             SandboxRuntimeBaselineResolver baselines,
-            SandboxRunRepository runs) {
+            SandboxRunRepository runs,
+            SandboxReplayRuleExecutor replayRules) {
         this.catalog = catalog;
         this.snapshots = snapshots;
         this.recommendations = recommendations;
@@ -98,6 +102,7 @@ public class SandboxOrchestrationService {
         this.audit = audit;
         this.baselines = baselines;
         this.runs = runs;
+        this.replayRules = replayRules;
     }
 
     public SandboxRunResponse run(String scenarioId, SandboxRunRequest request) {
@@ -105,10 +110,10 @@ public class SandboxOrchestrationService {
         SandboxRunRequest effectiveRequest = request == null
             ? new SandboxRunRequest(null, null, null, null)
             : request;
-        if (effectiveRequest.mode() != SandboxRunMode.CURRENT) {
+        if (effectiveRequest.mode() == SandboxRunMode.COMPARE) {
             throw new ApiException(
                 ErrorCode.BAD_REQUEST,
-                "当前接口阶段仅支持 CURRENT；历史原样重放和对比必须使用重放清单入口");
+                "COMPARE 将在历史原样重放基线完成后启用");
         }
         String traceId = currentTraceId();
         OrgScope scope = RequestContext.currentOrgScope();
@@ -125,7 +130,10 @@ public class SandboxOrchestrationService {
 
         SandboxRuntimeBaseline baseline;
         try {
-            baseline = baselines.resolveCurrent(tenantId, targetOrgUnitId);
+            baseline = effectiveRequest.mode() == SandboxRunMode.CURRENT
+                ? baselines.resolveCurrent(tenantId, targetOrgUnitId)
+                : baselines.resolveHistorical(
+                    tenantId, targetOrgUnitId, effectiveRequest.replayCaseId());
             ledger = runs.save(resolvedRun(ledger, baseline, actor));
         } catch (RuntimeException exception) {
             runs.save(failedRun(ledger, exception, actor));
@@ -133,13 +141,64 @@ public class SandboxOrchestrationService {
         }
 
         try {
-            SandboxRunResponse response = execute(
-                scenario, effectiveRequest, traceId, baseline).withRuntime(runId, baseline);
+            SandboxRunResponse response = (baseline.mode() == SandboxRunMode.HISTORICAL_EXACT
+                ? executeHistorical(scenario, traceId, baseline)
+                : execute(scenario, effectiveRequest, traceId, baseline))
+                .withRuntime(runId, baseline);
             runs.save(completedRun(ledger, response, actor));
             return response;
         } catch (RuntimeException exception) {
             runs.save(failedRun(ledger, exception, actor));
             throw exception;
+        }
+    }
+
+    private SandboxRunResponse executeHistorical(
+            SandboxScenario scenario,
+            String traceId,
+            SandboxRuntimeBaseline baseline) {
+        List<SandboxStepTrace> steps = new ArrayList<>();
+        steps.add(SandboxStepTrace.ok(
+            "REPLAY_MANIFEST",
+            "/api/v1/engine/sandbox/replay-cases/" + baseline.replayCaseId(),
+            json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+            json.valueToTree(Map.of(
+                "packageCode", baseline.packageCode(),
+                "packageVersion", baseline.packageVersion(),
+                "assetCount", baseline.historicalReplay().assets().size(),
+                "deidentificationProfile",
+                baseline.historicalReplay().replayCase().deidentificationProfile())),
+            facts(
+                "resolutionSource", SandboxResolutionSource.REPLAY_MANIFEST,
+                "manifestHash", baseline.historicalReplay().replayCase().manifestHash(),
+                "externalSideEffects", false)));
+        try {
+            List<SandboxReplayRuleResult> results = replayRules.execute(baseline.historicalReplay());
+            long hitCount = results.stream().filter(SandboxReplayRuleResult::hit).count();
+            steps.add(SandboxStepTrace.ok(
+                "HISTORICAL_RULES",
+                "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of(
+                    "replayCaseId", baseline.replayCaseId(),
+                    "ruleCount", results.size())),
+                json.valueToTree(results),
+                facts("ruleCount", results.size(), "hitCount", hitCount, "writeBack", false)));
+            return audited(new SandboxRunResponse(
+                scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
+                baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
+                steps, null, null, 0, null, null, null, null, null, null, List.of(),
+                "PASS", baseline.replayCaseId(), results));
+        } catch (RuntimeException exception) {
+            steps.add(SandboxStepTrace.fail(
+                "HISTORICAL_RULES",
+                "/internal/engine/rules/dsl-evaluator",
+                json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
+                messageOf(exception)));
+            return audited(new SandboxRunResponse(
+                scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
+                baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
+                steps, null, null, 0, null, null, null, null, null, null, List.of(),
+                "FAIL", baseline.replayCaseId(), List.of()));
         }
     }
 
@@ -432,7 +491,7 @@ public class SandboxOrchestrationService {
             String actor,
             Instant startedAt) {
         return new SandboxRun(
-            null, runId, tenantId, scenarioId, mode, null, null, null, null, null, null,
+            null, runId, tenantId, scenarioId, mode, null, null, null, null, null, null, null,
             null, null, null, SandboxExternalSideEffectStatus.SUPPRESSED,
             SandboxRunStatus.PREPARING, null, null, startedAt, null, traceId,
             startedAt, actor, startedAt, actor);
@@ -445,6 +504,12 @@ public class SandboxOrchestrationService {
         String assetBindingsJson = writeJson(baseline.effectivePackage());
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("mode", baseline.mode());
+        fingerprint.put("replayCaseId", baseline.replayCaseId());
+        fingerprint.put(
+            "replayManifestHash",
+            baseline.historicalReplay() == null
+                ? null
+                : baseline.historicalReplay().replayCase().manifestHash());
         fingerprint.put("tenantId", baseline.tenantId());
         fingerprint.put("targetOrgUnitId", baseline.targetOrgUnitId());
         fingerprint.put("bindingId", baseline.bindingId());
@@ -459,7 +524,7 @@ public class SandboxOrchestrationService {
         Instant now = Instant.now();
         return new SandboxRun(
             ledger.id(), ledger.runId(), ledger.tenantId(), ledger.scenarioId(), baseline.mode(),
-            baseline.bindingId(), baseline.baselineId(), baseline.packageOwnerTenantId(),
+            baseline.replayCaseId(), baseline.bindingId(), baseline.baselineId(), baseline.packageOwnerTenantId(),
             baseline.packageId(), baseline.packageCode(), baseline.packageVersion(),
             baseline.resolutionSource(), assetBindingsJson, baselineHash,
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.RUNNING,
@@ -508,7 +573,7 @@ public class SandboxOrchestrationService {
             String actor) {
         return new SandboxRun(
             ledger.id(), ledger.runId(), ledger.tenantId(), ledger.scenarioId(), ledger.mode(),
-            ledger.bindingId(), ledger.baselineId(), ledger.packageOwnerTenantId(), ledger.packageId(),
+            ledger.replayCaseId(), ledger.bindingId(), ledger.baselineId(), ledger.packageOwnerTenantId(), ledger.packageId(),
             ledger.packageCode(), ledger.packageVersion(), ledger.resolutionSource(),
             ledger.assetBindingsJson(), ledger.baselineHash(), ledger.externalSideEffectStatus(),
             status, failureCode, truncate(failureMessage, 1024), ledger.startedAt(), completedAt,

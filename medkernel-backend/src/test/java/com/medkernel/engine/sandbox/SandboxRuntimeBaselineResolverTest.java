@@ -6,11 +6,21 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.pkg.EffectiveKnowledgePackageResolver;
 import com.medkernel.engine.pkg.EffectiveKnowledgePackageResponse;
 import com.medkernel.engine.pkg.KnowledgePackage;
 import com.medkernel.engine.pkg.KnowledgePackageRepository;
 import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.sandbox.replay.SandboxReplayAssetBinding;
+import com.medkernel.engine.sandbox.replay.SandboxReplayCase;
+import com.medkernel.engine.sandbox.replay.SandboxReplayDeidentificationValidator;
+import com.medkernel.engine.sandbox.replay.SandboxReplayResolvedCase;
+import com.medkernel.engine.sandbox.replay.SandboxReplayService;
+import com.medkernel.engine.sandbox.replay.SandboxReplayStatus;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.PlatformTenant;
 
@@ -27,8 +37,9 @@ class SandboxRuntimeBaselineResolverTest {
     private final SandboxRuntimeBindingRepository bindings = mock(SandboxRuntimeBindingRepository.class);
     private final KnowledgePackageRepository packages = mock(KnowledgePackageRepository.class);
     private final EffectiveKnowledgePackageResolver effectivePackages = mock(EffectiveKnowledgePackageResolver.class);
+    private final SandboxReplayService replayCases = mock(SandboxReplayService.class);
     private final SandboxRuntimeBaselineResolver resolver =
-        new SandboxRuntimeBaselineResolver(bindings, packages, effectivePackages);
+        new SandboxRuntimeBaselineResolver(bindings, packages, effectivePackages, replayCases);
 
     @Test
     void resolvesCurrentFromTheOnlyExplicitActiveBindingAndFreezesEffectivePackage() {
@@ -109,6 +120,26 @@ class SandboxRuntimeBaselineResolverTest {
         verifyNoInteractions(effectivePackages);
     }
 
+    @Test
+    void resolvesHistoricalOnlyFromImmutableReplayManifestWithoutCurrentPackageLookup() {
+        var resolved = historicalReplay();
+        when(replayCases.resolve("replay-1")).thenReturn(resolved);
+
+        SandboxRuntimeBaseline baseline = resolver.resolveHistorical(
+            "tenant-A", "hospital-A", "replay-1");
+
+        assertThat(baseline.mode()).isEqualTo(SandboxRunMode.HISTORICAL_EXACT);
+        assertThat(baseline.replayCaseId()).isEqualTo("replay-1");
+        assertThat(baseline.packageCode()).isEqualTo("PKG.OLD");
+        assertThat(baseline.packageVersion()).isEqualTo("old-1");
+        assertThat(baseline.resolutionSource()).isEqualTo(SandboxResolutionSource.REPLAY_MANIFEST);
+        assertThat(baseline.historicalReplay()).isSameAs(resolved);
+        assertThat(baseline.effectivePackage().items()).singleElement()
+            .satisfies(item -> assertThat(item.sourceVersionId()).isEqualTo("rv-old-1"));
+        verify(replayCases).resolve("replay-1");
+        verifyNoInteractions(bindings, packages, effectivePackages);
+    }
+
     private static SandboxRuntimeBinding binding(
             String tenantId, String ownerTenantId, String packageId, String version) {
         Instant now = Instant.parse("2026-06-19T00:00:00Z");
@@ -131,5 +162,22 @@ class SandboxRuntimeBaselineResolverTest {
         return new EffectiveKnowledgePackageResponse(
             tenantId, "hospital-A", packageId, "PKG.SANDBOX", version,
             List.of(), List.of(), List.of());
+    }
+
+    private static SandboxReplayResolvedCase historicalReplay() {
+        Instant now = Instant.parse("2025-01-01T00:00:00Z");
+        SandboxReplayCase replayCase = new SandboxReplayCase(
+            1L, "replay-1", "tenant-A", "sha256:" + "1".repeat(64),
+            "sha256:" + "2".repeat(64), "sha256:" + "3".repeat(64),
+            "sha256:" + "4".repeat(64), "{}", "a".repeat(64), "PKG.OLD", "old-1",
+            now, "b".repeat(64), SandboxReplayDeidentificationValidator.PROFILE,
+            SandboxReplayStatus.IMPORTED, now, "governor-1", null, null, null,
+            now, now, "trace-1");
+        SandboxReplayAssetBinding rule = new SandboxReplayAssetBinding(
+            1L, "binding-old-1", "tenant-A", "replay-1", VersionedAssetType.RULE,
+            "RULE.OLD", "rv-old-1", "1", SourceTier.ORG,
+            "sha256:" + "5".repeat(64), "{}", "c".repeat(64),
+            AssetVersionStatus.RETIRED, now, "governor-1", "trace-1");
+        return new SandboxReplayResolvedCase(replayCase, new ObjectMapper().createObjectNode(), List.of(rule));
     }
 }

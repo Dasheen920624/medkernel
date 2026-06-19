@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, App, Button, Descriptions, Space, Tag, Typography } from "antd";
+import { Alert, App, Button, Descriptions, Input, Radio, Space, Tag, Typography } from "antd";
 import {
   CheckCircleOutlined,
   ExperimentOutlined,
@@ -26,7 +26,12 @@ import {
   useSandboxRuntimeStatus,
   useSandboxScenarios,
 } from "@/shared/api/hooks";
-import type { SandboxResolutionSource, SandboxRunResponse } from "@/shared/api/hooks";
+import type {
+  SandboxResolutionSource,
+  SandboxRunMode,
+  SandboxRunRequest,
+  SandboxRunResponse,
+} from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./SandboxHost.module.css";
@@ -40,6 +45,7 @@ const SERVICE_PACKAGE_LABELS = {
 const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
   TENANT_PACKAGE: "演练机构规则",
   PLATFORM_PACKAGE: "平台主源规则",
+  REPLAY_MANIFEST: "历史重放清单",
 } as const;
 
 export default function SandboxHost() {
@@ -52,31 +58,35 @@ export default function SandboxHost() {
   const [runError, setRunError] = useState<string | null>(null);
   const [latestDecision, setLatestDecision] = useState<SandboxEmbedDecision | null>(null);
   const [embedMode, setEmbedMode] = useState<SandboxEmbedMode>("IFRAME");
+  const [runMode, setRunMode] = useState<SandboxRunMode>("CURRENT");
+  const [replayCaseId, setReplayCaseId] = useState("");
   const scenarios = useMemo(() => mergeSandboxCatalog(scenariosQuery.data), [scenariosQuery.data]);
   const selectedScenario: SandboxScenario =
     scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
   const scenarioGroups = scenariosByServicePackage(scenarios);
   const runtimeStatus = runtimeQuery.data;
   const runtimeReady = runtimeStatus?.ready === true;
-  const scenarioRunnable = selectedScenario.status === "runtime-check" && runtimeReady;
+  const replayReady = replayCaseId.trim().length > 0;
+  const scenarioRunnable =
+    selectedScenario.status === "runtime-check" &&
+    (runMode === "CURRENT" ? runtimeReady : replayReady);
   const runtimeSourceLabel = runtimeStatus?.resolutionSource
     ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
     : "尚未解析";
+  const currentBindingLabel = runtimeStatus?.ready
+    ? `${runtimeStatus.packageCode}@${runtimeStatus.packageVersion}`
+    : "未就绪";
+  const selectedBindingLabel =
+    runMode === "CURRENT" ? currentBindingLabel : replayCaseId.trim() || "待输入";
 
   const scenarioStatusLabel = (scenario: SandboxScenario) => {
     if (scenario.status === "catalog-unavailable") return "目录不可用";
+    if (runMode !== "CURRENT") return replayReady ? "可重放" : "待选清单";
     if (runtimeQuery.isLoading) return "校验中";
     return runtimeReady ? "可运行" : "基线未就绪";
   };
 
-  const executeRun = async (body: {
-    entryMode: "SNAPSHOT";
-    occurredAt: string;
-    parentOrigin: string;
-    integrationMode: SandboxEmbedMode;
-    mode: "CURRENT";
-    contextOverride?: unknown;
-  }) => {
+  const executeRun = async (body: SandboxRunRequest) => {
     setRunError(null);
     setLatestDecision(null);
     setResult(null);
@@ -94,6 +104,26 @@ export default function SandboxHost() {
     } catch (error) {
       setRunError(getApiErrorMessage(error, "沙盘编排失败，请稍后重试"));
     }
+  };
+
+  const handleHistoricalRun = async () => {
+    const normalizedReplayCaseId = replayCaseId.trim();
+    if (!normalizedReplayCaseId) {
+      setRunError("请输入历史重放清单标识");
+      return;
+    }
+    await executeRun({
+      entryMode: "SNAPSHOT",
+      mode: runMode,
+      replayCaseId: normalizedReplayCaseId,
+    });
+  };
+
+  const handleRunModeChange = (mode: SandboxRunMode) => {
+    setRunMode(mode);
+    setResult(null);
+    setRunError(null);
+    setLatestDecision(null);
   };
 
   const handleRun = async ({ numericValue, occurredAt }: SandboxDataInput) => {
@@ -162,6 +192,7 @@ export default function SandboxHost() {
                       setRunError(null);
                       setLatestDecision(null);
                       setEmbedMode("IFRAME");
+                      setReplayCaseId("");
                     }}
                   >
                     <span>{scenario.title}</span>
@@ -183,19 +214,34 @@ export default function SandboxHost() {
         </aside>
 
         <main className={styles.mainArea}>
-          <section className={styles.runtimePanel} aria-label="当前沙盘运行基线">
+          <section className={styles.runtimePanel} aria-label="沙盘运行基线">
+            <Space direction="vertical" size="small">
+              <Typography.Text strong>运行口径</Typography.Text>
+              <Radio.Group
+                aria-label="沙盘运行模式"
+                optionType="button"
+                buttonStyle="solid"
+                value={runMode}
+                onChange={(event) => handleRunModeChange(event.target.value as SandboxRunMode)}
+                options={[
+                  { label: "当前规则", value: "CURRENT" },
+                  { label: "历史原样重放", value: "HISTORICAL_EXACT" },
+                  { label: "新旧对比", value: "COMPARE", disabled: true },
+                ]}
+              />
+            </Space>
             <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 5 }}>
               <Descriptions.Item label="运行模式">
-                <Tag color="processing">CURRENT</Tag>
+                <Tag color="processing">{runMode}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="规则来源">{runtimeSourceLabel}</Descriptions.Item>
-              <Descriptions.Item label="当前绑定">
-                {runtimeStatus?.ready
-                  ? `${runtimeStatus.packageCode}@${runtimeStatus.packageVersion}`
-                  : "未就绪"}
+              <Descriptions.Item label="规则来源">
+                {runMode === "CURRENT" ? runtimeSourceLabel : "历史重放清单"}
+              </Descriptions.Item>
+              <Descriptions.Item label={runMode === "CURRENT" ? "当前绑定" : "重放清单"}>
+                {selectedBindingLabel}
               </Descriptions.Item>
               <Descriptions.Item label="有效资产">
-                {runtimeStatus?.assetCount ?? 0}
+                {runMode === "CURRENT" ? (runtimeStatus?.assetCount ?? 0) : "运行时验真"}
               </Descriptions.Item>
               <Descriptions.Item label="安全边界">
                 <Tag color="success">外部副作用已关闭</Tag>
@@ -229,7 +275,7 @@ export default function SandboxHost() {
           </section>
 
           {runError && <Alert type="error" showIcon message={runError} />}
-          {runtimeQuery.isError && (
+          {runMode === "CURRENT" && runtimeQuery.isError && (
             <Alert
               type="warning"
               showIcon
@@ -237,14 +283,17 @@ export default function SandboxHost() {
               description="当前不开放运行，避免在未冻结规则来源时产生误导结果。"
             />
           )}
-          {!runtimeQuery.isLoading && runtimeStatus && !runtimeStatus.ready && (
-            <Alert
-              type="warning"
-              showIcon
-              message="运行基线未就绪"
-              description={runtimeStatus.reason || "演练机构尚未建立可运行绑定。"}
-            />
-          )}
+          {runMode === "CURRENT" &&
+            !runtimeQuery.isLoading &&
+            runtimeStatus &&
+            !runtimeStatus.ready && (
+              <Alert
+                type="warning"
+                showIcon
+                message="运行基线未就绪"
+                description={runtimeStatus.reason || "演练机构尚未建立可运行绑定。"}
+              />
+            )}
           {scenariosQuery.isError && (
             <Alert
               type="warning"
@@ -263,6 +312,9 @@ export default function SandboxHost() {
                 <Descriptions.Item label="规则来源">
                   {RESOLUTION_SOURCE_LABELS[result.resolutionSource]}
                 </Descriptions.Item>
+                {result.replayCaseId && (
+                  <Descriptions.Item label="重放清单">{result.replayCaseId}</Descriptions.Item>
+                )}
                 <Descriptions.Item label="解析版本">
                   {result.resolvedPackageVersion}
                 </Descriptions.Item>
@@ -290,7 +342,64 @@ export default function SandboxHost() {
             </section>
           )}
 
-          {scenarioRunnable && (
+          {result?.replayRuleResults && result.replayRuleResults.length > 0 && (
+            <section className={styles.runSummary} aria-label="历史规则结果">
+              <Typography.Title level={5}>历史规则结果</Typography.Title>
+              <Space direction="vertical" size="middle">
+                {result.replayRuleResults.map((rule) => (
+                  <div key={`${rule.ruleCode}:${rule.versionId}`}>
+                    <Space wrap>
+                      <Typography.Text strong>{rule.ruleName}</Typography.Text>
+                      <Typography.Text code>
+                        {rule.ruleCode}@{rule.assetVersion}
+                      </Typography.Text>
+                      <Tag>{rule.historicalStatus}</Tag>
+                      <Tag color={rule.hit ? "error" : "default"}>
+                        {rule.hit ? "命中" : "未命中"}
+                      </Tag>
+                      {rule.severity && <Tag color="warning">{rule.severity}</Tag>}
+                    </Space>
+                    {rule.actions.map((action, index) => (
+                      <Typography.Paragraph key={`${rule.versionId}:action:${index}`}>
+                        {action.summary}
+                      </Typography.Paragraph>
+                    ))}
+                  </div>
+                ))}
+              </Space>
+            </section>
+          )}
+
+          {selectedScenario.status === "runtime-check" && runMode !== "CURRENT" && (
+            <section className={styles.orchestrationPanel} aria-labelledby="sandbox-replay-title">
+              <Typography.Title id="sandbox-replay-title" level={5}>
+                历史重放清单
+              </Typography.Title>
+              <Typography.Paragraph type="secondary">
+                按不可变清单装载 D4 脱敏上下文与精确历史规则版本；不读取当前规则，不产生业务写回。
+              </Typography.Paragraph>
+              <Space direction="vertical">
+                <Input
+                  aria-label="历史重放清单标识"
+                  placeholder="例如 replay-2025-001"
+                  value={replayCaseId}
+                  onChange={(event) => setReplayCaseId(event.target.value)}
+                />
+                <Button
+                  type="primary"
+                  icon={<PlayCircleOutlined />}
+                  aria-label="按清单原样重放"
+                  loading={runMutation.isPending}
+                  disabled={!scenarioRunnable || runMode === "COMPARE"}
+                  onClick={handleHistoricalRun}
+                >
+                  按清单原样重放
+                </Button>
+              </Space>
+            </section>
+          )}
+
+          {scenarioRunnable && runMode === "CURRENT" && (
             <div className={styles.hostGrid}>
               {isNumericScenario(selectedScenario) ? (
                 <SandboxDataEntry

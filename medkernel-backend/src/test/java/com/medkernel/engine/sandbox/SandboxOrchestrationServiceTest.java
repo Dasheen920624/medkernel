@@ -47,6 +47,9 @@ import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
 import com.medkernel.engine.recommendation.RecommendationModelStatus;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
+import com.medkernel.engine.sandbox.replay.SandboxReplayRuleExecutor;
+import com.medkernel.engine.sandbox.replay.SandboxReplayResolvedCase;
+import com.medkernel.engine.sandbox.replay.SandboxReplayCase;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
@@ -75,9 +78,10 @@ class SandboxOrchestrationServiceTest {
     private final AuditRecorder audit = mock(AuditRecorder.class);
     private final SandboxRuntimeBaselineResolver baselines = mock(SandboxRuntimeBaselineResolver.class);
     private final SandboxRunRepository runs = mock(SandboxRunRepository.class);
+    private final SandboxReplayRuleExecutor replayRules = mock(SandboxReplayRuleExecutor.class);
     private final SandboxOrchestrationService service = new SandboxOrchestrationService(
         new SandboxScenarioCatalog(), snapshots, recommendations, pathways, followups, evaluations, embed,
-        new ObjectMapper().findAndRegisterModules(), audit, baselines, runs);
+        new ObjectMapper().findAndRegisterModules(), audit, baselines, runs, replayRules);
 
     @BeforeEach
     void setUpContext() {
@@ -147,7 +151,7 @@ class SandboxOrchestrationServiceTest {
     @Test
     void recommendationFailureShortCircuitsAndRetainsCompletedSnapshotEvidence() {
         when(snapshots.create(any(), anyString())).thenReturn(new ContextSnapshotResponse(
-            "ctx-x", ContextSnapshotStatus.ACTIVE, null, "2026.06.1", QualityStatus.VALID,
+            "ctx-x", ContextSnapshotStatus.ACTIVE, null, "runtime-failure-test", QualityStatus.VALID,
             List.of(), Map.of(), Instant.now(), "trace-sandbox"));
         when(recommendations.evaluate(any())).thenThrow(new IllegalStateException("规则资产未发布"));
 
@@ -186,6 +190,33 @@ class SandboxOrchestrationServiceTest {
         assertThat(runCaptor.getAllValues().get(1).failureMessage())
             .contains("SANDBOX_RUNTIME_BASELINE_MISSING");
         verifyNoInteractions(snapshots, recommendations, pathways, followups, evaluations, embed, audit);
+    }
+
+    @Test
+    void historicalExactUsesReplayManifestAndSuppressesEveryWritableDomainService() {
+        SandboxRuntimeBaseline historical = historicalBaseline();
+        when(baselines.resolveHistorical("tenant-1", "dept-ed", "replay-1"))
+            .thenReturn(historical);
+        when(replayRules.execute(historical.historicalReplay())).thenReturn(List.of());
+
+        SandboxRunResponse response = service.run(
+            "sbx-lab-critical-k",
+            new SandboxRunRequest(
+                "SNAPSHOT", null, null, null, EmbedIntegrationMode.IFRAME,
+                SandboxRunMode.HISTORICAL_EXACT, "replay-1"));
+
+        assertThat(response.result()).isEqualTo("PASS");
+        assertThat(response.mode()).isEqualTo(SandboxRunMode.HISTORICAL_EXACT);
+        assertThat(response.replayCaseId()).isEqualTo("replay-1");
+        assertThat(response.resolutionSource()).isEqualTo(SandboxResolutionSource.REPLAY_MANIFEST);
+        assertThat(response.steps()).extracting(SandboxStepTrace::stage)
+            .containsExactly("REPLAY_MANIFEST", "HISTORICAL_RULES");
+        assertThat(response.snapshotId()).isNull();
+        assertThat(response.embedToken()).isNull();
+        assertThat(response.externalSideEffects()).isFalse();
+        verify(baselines).resolveHistorical("tenant-1", "dept-ed", "replay-1");
+        verify(replayRules).execute(historical.historicalReplay());
+        verifyNoInteractions(snapshots, recommendations, pathways, followups, evaluations, embed);
     }
 
     @Test
@@ -355,7 +386,23 @@ class SandboxOrchestrationServiceTest {
             Instant.parse("2026-06-19T00:00:00Z"),
             new EffectiveKnowledgePackageResponse(
                 "tenant-1", "dept-ed", "package-runtime-1", "PKG.SANDBOX.RUNTIME",
-                "runtime-7", List.of(), List.of(), List.of()));
+                "runtime-7", List.of(), List.of(), List.of()), null, null);
+    }
+
+    private static SandboxRuntimeBaseline historicalBaseline() {
+        var replay = mock(SandboxReplayResolvedCase.class);
+        var replayCase = mock(SandboxReplayCase.class);
+        when(replay.replayCase()).thenReturn(replayCase);
+        when(replay.assets()).thenReturn(List.of());
+        when(replayCase.deidentificationProfile()).thenReturn("MEDKERNEL_D4_STRICT_V1");
+        when(replayCase.manifestHash()).thenReturn("a".repeat(64));
+        return new SandboxRuntimeBaseline(
+            "baseline-history-1", SandboxRunMode.HISTORICAL_EXACT, "tenant-1", "dept-ed",
+            null, null, null, "PKG.OLD", "old-1", SandboxResolutionSource.REPLAY_MANIFEST,
+            Instant.parse("2026-06-19T00:00:00Z"),
+            new EffectiveKnowledgePackageResponse(
+                "tenant-1", "dept-ed", null, "PKG.OLD", "old-1",
+                List.of(), List.of(), List.of()), "replay-1", replay);
     }
 
     private static PathwayTemplate pathwayTemplate() {
