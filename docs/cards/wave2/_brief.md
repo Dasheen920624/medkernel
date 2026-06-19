@@ -144,7 +144,7 @@
 | 营养心理疼痛安宁 | 营养支持/心理/疼痛/安宁照护 | △ALLIED-CARE 门面 |
 | 预防保健 | 疫苗/健康管理/慢病/筛查 | △PRIMARY-CARE 门面 |
 
-**已新增首发资产卡（✚，归 X-KNOWGEN，已回填索引 KNOWGEN 15→25、wave2 58→68）**：[KNOWGEN-16](KNOWGEN-16.md) 医学评分量表与计算器(全量) · [KNOWGEN-17](KNOWGEN-17.md) 鉴别诊断知识库 · [KNOWGEN-18](KNOWGEN-18.md) 检查检验适当性 · [KNOWGEN-19](KNOWGEN-19.md) 特殊人群剂量+药物基因组 · [KNOWGEN-20](KNOWGEN-20.md) 18 项医疗核心制度核查 · [KNOWGEN-21](KNOWGEN-21.md) 罕见病知识库 · [KNOWGEN-22](KNOWGEN-22.md) 急救与生命支持 · [KNOWGEN-23](KNOWGEN-23.md) 围术期/麻醉/输血 · [KNOWGEN-24](KNOWGEN-24.md) 患教与知情同意 · [KNOWGEN-25](KNOWGEN-25.md) 临床证据分级库(GRADE)。现有 KNOWGEN-01~14 的 Top-N 同步标注「起步量→全量」扩充目标；KNOWGEN-15 总验收口径升级为「全景分类全覆盖 + 全专科深度」。
+**已新增首发资产卡（✚，归 X-KNOWGEN，已回填索引 KNOWGEN 15→28、wave2 58→71）**：[KNOWGEN-16](KNOWGEN-16.md) 医学评分量表与计算器(全量) · [KNOWGEN-17](KNOWGEN-17.md) 鉴别诊断知识库 · [KNOWGEN-18](KNOWGEN-18.md) 检查检验适当性 · [KNOWGEN-19](KNOWGEN-19.md) 特殊人群剂量+药物基因组 · [KNOWGEN-20](KNOWGEN-20.md) 18 项医疗核心制度核查 · [KNOWGEN-21](KNOWGEN-21.md) 罕见病知识库 · [KNOWGEN-22](KNOWGEN-22.md) 急救与生命支持 · [KNOWGEN-23](KNOWGEN-23.md) 围术期/麻醉/输血 · [KNOWGEN-24](KNOWGEN-24.md) 患教与知情同意 · [KNOWGEN-25](KNOWGEN-25.md) 临床证据分级库(GRADE) · [KNOWGEN-26](KNOWGEN-26.md) 医疗数据元与上下文字段目录 · [KNOWGEN-27](KNOWGEN-27.md) 基础编码系统/值集/单位/系统字典 · [KNOWGEN-28](KNOWGEN-28.md) 医疗主数据与互操作基线。基础类对选定官方发行版须全量导入并对账；KNOWGEN-15 总验收口径升级为「稳定基础发行版 + 全景分类全覆盖 + 全专科深度」。
 
 ---
 
@@ -154,7 +154,7 @@
 
 - **X-LLM 模型网关与真实接入**（[API-12](API-12.md) · LLM-01~08 · [OPT-06](OPT-06.md)/[OPT-09](OPT-09.md)）：provider 无关网关 + 真实接入 + 降级矩阵 + 数据最小化 + 评测。
 - **X-AIK AI 工厂**（AIK-STD-01~12）：来源→解析→候选生成→安全校验→静默评测→包同步→替换处置的知识自动生产线（批 2）。
-- **X-KNOWGEN 首发知识资产**（KNOWGEN-01~15）：14 类首发资产 →「试点医院首发知识包 v1.0」（批 3）。
+- **X-KNOWGEN 首发知识资产**（KNOWGEN-01~28）：27 类资产 + 1 张总验收卡 →“基础知识包 v1.0 + 临床知识包 v1.0”（批 3）。
 - **X-DOMAIN 15 领域门面**（NURSING/REPORT/…/SVC-DOMAIN-01/02）：领域专精组合，复用同一引擎链路（批 4）。
 
 ## 现状（搬迁时核查 2026-05-31；后端以 `medkernel-backend` 真实包为准复核）
