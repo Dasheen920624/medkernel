@@ -127,6 +127,22 @@ class EffectiveKnowledgePackageResolverTest {
     }
 
     @Test
+    void explicitRuntimeSelectionDoesNotFallBackToTenantPackageWithSameCodeAndVersion() {
+        KnowledgePackage selectedPlatform = platformPackage(
+            "pkg-platform-explicit", KnowledgePackageStatus.ACTIVE);
+        when(itemRepository.findByTenantIdAndPackageId(
+            PlatformTenant.ID, "pkg-platform-explicit")).thenReturn(List.of());
+
+        EffectiveKnowledgePackageResponse response = resolver.resolveExplicitPackage(
+            "tenant-A", selectedPlatform, "dept-1");
+
+        assertThat(response.packageId()).isEqualTo("pkg-platform-explicit");
+        verify(entitlementService).assertUsable("tenant-A", selectedPlatform);
+        verify(packageRepository, never()).findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", selectedPlatform.packageCode(), selectedPlatform.packageVersion());
+    }
+
+    @Test
     void resolvesDeclaredItemsAndTenantAddsThroughOneBatchResolution() {
         KnowledgePackage pack = platformPackage("pkg-platform", KnowledgePackageStatus.ACTIVE);
         PackageItem declaredRule = platformItem(VersionedAssetType.RULE, "RULE.BASELINE", "1");

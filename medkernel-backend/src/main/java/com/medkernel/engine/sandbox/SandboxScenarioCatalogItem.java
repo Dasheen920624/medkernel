@@ -26,9 +26,7 @@ public record SandboxScenarioCatalogItem(
         boolean potassium = "sbx-lab-critical-k".equals(scenario.id());
         SandboxScenarioInput input = potassium
             ? SandboxScenarioInput.potassium()
-            : scenario.status() == SandboxScenarioStatus.READY
-                ? SandboxScenarioInput.orchestration()
-                : SandboxScenarioInput.unavailable();
+            : SandboxScenarioInput.orchestration();
         return new SandboxScenarioCatalogItem(
             scenario.id(),
             scenario.servicePackage(),
@@ -44,22 +42,15 @@ public record SandboxScenarioCatalogItem(
             scenario.expectedAction(),
             scenario.expectedSeverity(),
             scenario.expectedAssetCode(),
-            statusCode(scenario.status()),
-            scenario.statusReason(),
+            "runtime-check",
+            "运行时按演练机构绑定解析并校验资产；目录不固化配置包版本",
             input
         );
-    }
-
-    private static String statusCode(SandboxScenarioStatus status) {
-        return status == SandboxScenarioStatus.READY ? "ready" : "clinical-review-required";
     }
 
     private static String narrativeFor(SandboxScenario scenario) {
         if ("sbx-lab-critical-k".equals(scenario.id())) {
             return "急诊检验复核，血清钾达到危急值，需医师确认处置。";
-        }
-        if (scenario.status() == SandboxScenarioStatus.CLINICAL_REVIEW_REQUIRED) {
-            return scenario.title() + "的工程契约已登记，临床内容未定稿前不进入真实引擎。";
         }
         return scenario.title() + "复用既有引擎主链，并保留每一步真实请求、响应与业务事实。";
     }
@@ -67,9 +58,6 @@ public record SandboxScenarioCatalogItem(
     private static String hostSummaryFor(SandboxScenario scenario) {
         if ("sbx-lab-critical-k".equals(scenario.id())) {
             return "沙盘患者 · 男 · 急诊 · 检验结果复核";
-        }
-        if (scenario.status() == SandboxScenarioStatus.CLINICAL_REVIEW_REQUIRED) {
-            return "院内业务系统模拟场景";
         }
         return "院内业务系统编排场景";
     }
@@ -101,11 +89,6 @@ public record SandboxScenarioCatalogItem(
                 5.5,
                 "ED"
             );
-        }
-
-        static SandboxScenarioInput unavailable() {
-            return new SandboxScenarioInput(
-                "unavailable", null, null, null, null, null, null, null, null, null, null);
         }
 
         static SandboxScenarioInput orchestration() {

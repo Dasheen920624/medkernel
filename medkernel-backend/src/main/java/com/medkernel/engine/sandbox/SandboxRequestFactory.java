@@ -49,13 +49,14 @@ final class SandboxRequestFactory {
             SandboxScenario scenario,
             SandboxRunRequest request,
             String traceId,
-            ObjectMapper json) {
+            ObjectMapper json,
+            String packageVersion) {
         OrgScope scope = RequestContext.currentOrgScope();
         String tenantId = requireTenant(scope);
         String orgUnitId = scope.nearestOrgUnitIdOrTenant(tenantId);
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
         ContextSnapshotResources resources = request.contextOverride() == null
-            ? defaultResources(scenario, occurredAt)
+            ? defaultResources(scenario, occurredAt, packageVersion)
             : json.convertValue(request.contextOverride(), ContextSnapshotResources.class);
 
         return new ContextSnapshotRequest(
@@ -74,7 +75,7 @@ final class SandboxRequestFactory {
             scenario.patientId(),
             scenario.encounterId(),
             orgUnitId,
-            scenario.packageVersion(),
+            packageVersion,
             resources);
     }
 
@@ -83,7 +84,8 @@ final class SandboxRequestFactory {
             String snapshotId,
             SandboxRunRequest request,
             String traceId,
-            String patientPathwayId) {
+            String patientPathwayId,
+            String packageVersion) {
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
         String runSuffix = traceSuffix(traceId);
         return new RecommendationTriggerRequest(
@@ -95,10 +97,10 @@ final class SandboxRequestFactory {
             scenario.encounterId(),
             patientPathwayId,
             scenario.id(),
-            scenario.packageVersion(),
+            packageVersion,
             "sandbox:" + scenario.expectedRuleCode() + ":" + snapshotId,
             occurredAt,
-            recommendationCandidates(scenario, patientPathwayId),
+            recommendationCandidates(scenario, patientPathwayId, packageVersion),
             Boolean.FALSE);
     }
 
@@ -137,7 +139,8 @@ final class SandboxRequestFactory {
 
     private static List<RecommendationCardRequest> recommendationCandidates(
             SandboxScenario scenario,
-            String patientPathwayId) {
+            String patientPathwayId,
+            String packageVersion) {
         if ("RULE_ONLY".equals(scenario.playbook())) {
             return List.of();
         }
@@ -175,7 +178,7 @@ final class SandboxRequestFactory {
                     ? RecommendationSourceType.PATHWAY
                     : RecommendationSourceType.CONTEXT,
                 sourceRefId,
-                scenario.packageVersion(),
+                packageVersion,
                 "全真体验沙盘标准上下文",
                 "sandbox:" + scenario.id(),
                 null,
@@ -184,7 +187,8 @@ final class SandboxRequestFactory {
 
     private static ContextSnapshotResources defaultResources(
             SandboxScenario scenario,
-            Instant occurredAt) {
+            Instant occurredAt,
+            String packageVersion) {
         CanonicalPatient patient = new CanonicalPatient(
             scenario.patientId(),
             "沙盘患者",
@@ -193,7 +197,7 @@ final class SandboxRequestFactory {
             List.of(),
             SOURCE_SYSTEM,
             scenario.patientId(),
-            scenario.packageVersion(),
+            packageVersion,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);
@@ -207,7 +211,7 @@ final class SandboxRequestFactory {
             null,
             SOURCE_SYSTEM,
             scenario.encounterId(),
-            scenario.packageVersion(),
+            packageVersion,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);
@@ -222,7 +226,7 @@ final class SandboxRequestFactory {
             "HIGH",
             SOURCE_SYSTEM,
             "SBX-LAB-K-RESULT-001",
-            scenario.packageVersion(),
+            packageVersion,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);

@@ -494,6 +494,7 @@ class MigrationBaselineContractTest {
                     "package_owner_tenant_id", "package_version", "baseline_hash",
                     "asset_bindings_json", "external_side_effect_status")
                 .contains("uk_mk_sandbox_runtime_binding_active", "SUPPRESSED", "CURRENT")
+                .contains("ck_mk_sandbox_run_baseline_complete", "PREPARING", "FAILED")
                 .contains("沙盘运行绑定", "不可变运行基线", "外部副作用");
         }
     }
@@ -1181,7 +1182,8 @@ class MigrationBaselineContractTest {
         "ck_mk_sandbox_runtime_binding_active", "uk_mk_sandbox_run_id",
         "uk_mk_sandbox_run_baseline", "fk_mk_sandbox_run_binding",
         "fk_mk_sandbox_run_package", "ck_mk_sandbox_run_mode",
-        "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_resolution",
+        "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_baseline_complete",
+        "ck_mk_sandbox_run_resolution",
         "ck_mk_sandbox_run_side_effect", "ck_mk_sandbox_run_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(

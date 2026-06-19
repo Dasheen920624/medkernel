@@ -38,14 +38,14 @@ CREATE TABLE IF NOT EXISTS mk_sandbox_run (
     scenario_id                  VARCHAR(128)  NOT NULL,
     mode                         VARCHAR(32)   NOT NULL,
     binding_id                   VARCHAR(64)   NULL,
-    baseline_id                  VARCHAR(64)   NOT NULL,
-    package_owner_tenant_id      VARCHAR(64)   NOT NULL,
-    package_id                   VARCHAR(64)   NOT NULL,
-    package_code                 VARCHAR(128)  NOT NULL,
-    package_version              VARCHAR(64)   NOT NULL,
-    resolution_source            VARCHAR(32)   NOT NULL,
-    asset_bindings_json          TEXT          NOT NULL,
-    baseline_hash                VARCHAR(64)   NOT NULL,
+    baseline_id                  VARCHAR(64)   NULL,
+    package_owner_tenant_id      VARCHAR(64)   NULL,
+    package_id                   VARCHAR(64)   NULL,
+    package_code                 VARCHAR(128)  NULL,
+    package_version              VARCHAR(64)   NULL,
+    resolution_source            VARCHAR(32)   NULL,
+    asset_bindings_json          TEXT          NULL,
+    baseline_hash                VARCHAR(64)   NULL,
     external_side_effect_status  VARCHAR(24)   NOT NULL,
     status                       VARCHAR(24)   NOT NULL,
     failure_code                 VARCHAR(64)   NULL,
@@ -66,9 +66,21 @@ CREATE TABLE IF NOT EXISTS mk_sandbox_run (
         FOREIGN KEY (package_owner_tenant_id, package_id)
         REFERENCES knowledge_package (tenant_id, package_id),
     CONSTRAINT ck_mk_sandbox_run_mode CHECK (mode IN ('CURRENT','HISTORICAL_EXACT','COMPARE')),
-    CONSTRAINT ck_mk_sandbox_run_current_binding CHECK (mode <> 'CURRENT' OR binding_id IS NOT NULL),
+    CONSTRAINT ck_mk_sandbox_run_current_binding CHECK (
+        mode <> 'CURRENT' OR binding_id IS NOT NULL
+        OR (baseline_id IS NULL AND status IN ('PREPARING','FAILED'))
+    ),
+    CONSTRAINT ck_mk_sandbox_run_baseline_complete CHECK (
+        (baseline_id IS NULL AND package_id IS NULL AND baseline_hash IS NULL
+            AND status IN ('PREPARING','FAILED'))
+        OR (baseline_id IS NOT NULL AND package_owner_tenant_id IS NOT NULL
+            AND package_id IS NOT NULL AND package_code IS NOT NULL
+            AND package_version IS NOT NULL AND resolution_source IS NOT NULL
+            AND asset_bindings_json IS NOT NULL AND baseline_hash IS NOT NULL)
+    ),
     CONSTRAINT ck_mk_sandbox_run_resolution CHECK (
-        resolution_source IN ('TENANT_PACKAGE','PLATFORM_PACKAGE','REPLAY_MANIFEST')
+        resolution_source IS NULL
+        OR resolution_source IN ('TENANT_PACKAGE','PLATFORM_PACKAGE','REPLAY_MANIFEST')
     ),
     CONSTRAINT ck_mk_sandbox_run_side_effect CHECK (external_side_effect_status = 'SUPPRESSED'),
     CONSTRAINT ck_mk_sandbox_run_status CHECK (status IN ('PREPARING','RUNNING','PASSED','FAILED'))

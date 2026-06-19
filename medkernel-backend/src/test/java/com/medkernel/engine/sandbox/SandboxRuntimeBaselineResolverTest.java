@@ -37,7 +37,7 @@ class SandboxRuntimeBaselineResolverTest {
         when(bindings.findByTenantIdAndStatusOrderByActivatedAtDescIdDesc(
             "tenant-A", SandboxRuntimeBindingStatus.ACTIVE)).thenReturn(List.of(binding));
         when(packages.findByPackageIdAndTenantId("pkg-local", "tenant-A")).thenReturn(Optional.of(pack));
-        when(effectivePackages.resolve("tenant-A", "PKG.SANDBOX", "1.2.0", "hospital-A"))
+        when(effectivePackages.resolveExplicitPackage("tenant-A", pack, "hospital-A"))
             .thenReturn(effective("tenant-A", "pkg-local", "1.2.0"));
 
         SandboxRuntimeBaseline baseline = resolver.resolveCurrent("tenant-A", "hospital-A");
@@ -48,7 +48,7 @@ class SandboxRuntimeBaselineResolverTest {
         assertThat(baseline.packageVersion()).isEqualTo("1.2.0");
         assertThat(baseline.resolutionSource()).isEqualTo(SandboxResolutionSource.TENANT_PACKAGE);
         assertThat(baseline.effectivePackage()).isNotNull();
-        verify(effectivePackages).resolve("tenant-A", "PKG.SANDBOX", "1.2.0", "hospital-A");
+        verify(effectivePackages).resolveExplicitPackage("tenant-A", pack, "hospital-A");
     }
 
     @Test
@@ -58,7 +58,7 @@ class SandboxRuntimeBaselineResolverTest {
         when(bindings.findByTenantIdAndStatusOrderByActivatedAtDescIdDesc(
             "tenant-A", SandboxRuntimeBindingStatus.ACTIVE)).thenReturn(List.of(binding));
         when(packages.findByPackageIdAndTenantId("pkg-platform", PlatformTenant.ID)).thenReturn(Optional.of(pack));
-        when(effectivePackages.resolve("tenant-A", "PKG.SANDBOX", "3.0.0", "hospital-A"))
+        when(effectivePackages.resolveExplicitPackage("tenant-A", pack, "hospital-A"))
             .thenReturn(effective("tenant-A", "pkg-platform", "3.0.0"));
 
         SandboxRuntimeBaseline baseline = resolver.resolveCurrent("tenant-A", "hospital-A");

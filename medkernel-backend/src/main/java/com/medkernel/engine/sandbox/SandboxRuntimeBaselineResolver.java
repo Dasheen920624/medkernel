@@ -55,8 +55,8 @@ public class SandboxRuntimeBaselineResolver {
             throw conflict("SANDBOX_RUNTIME_PACKAGE_NOT_RELEASED：绑定的配置包不是可运行状态");
         }
 
-        EffectiveKnowledgePackageResponse effective = effectivePackages.resolve(
-            binding.tenantId(), binding.packageCode(), binding.packageVersion(), binding.targetOrgUnitId());
+        EffectiveKnowledgePackageResponse effective = effectivePackages.resolveExplicitPackage(
+            binding.tenantId(), pack, binding.targetOrgUnitId());
         if (!binding.packageId().equals(effective.packageId())
                 || !binding.packageVersion().equals(effective.packageVersion())) {
             throw conflict("SANDBOX_RUNTIME_PACKAGE_DRIFT：有效包解析结果与明确绑定不一致");

@@ -71,6 +71,28 @@ class SandboxRuntimeRepositoryTest {
     }
 
     @Test
+    void persistsFailedAttemptEvenWhenRuntimeBaselineCannotBeResolved() {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        SandboxRun preparing = runs.save(new SandboxRun(
+            null, "run-missing-baseline", "tenant-A", "sbx-lab-critical-k",
+            SandboxRunMode.CURRENT, null, null, null, null, null, null, null, null, null,
+            SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.PREPARING,
+            null, null, now, null, "trace-missing", now, "doctor-1", now, "doctor-1"));
+
+        SandboxRun failed = runs.save(new SandboxRun(
+            preparing.id(), preparing.runId(), preparing.tenantId(), preparing.scenarioId(),
+            preparing.mode(), null, null, null, null, null, null, null, null, null,
+            SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.FAILED,
+            "SANDBOX_RUNTIME_BASELINE_MISSING", "演练机构未激活沙盘运行绑定",
+            now, now, preparing.traceId(), preparing.createdAt(), preparing.createdBy(),
+            now, "doctor-1"));
+
+        assertThat(failed.status()).isEqualTo(SandboxRunStatus.FAILED);
+        assertThat(failed.baselineId()).isNull();
+        assertThat(failed.failureCode()).isEqualTo("SANDBOX_RUNTIME_BASELINE_MISSING");
+    }
+
+    @Test
     void databaseRejectsSecondActiveBindingButAllowsInactiveHistory() {
         Instant now = Instant.parse("2026-06-19T00:00:00Z");
         packages.save(pack("pkg-1", "1.0.0"));

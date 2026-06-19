@@ -14,7 +14,8 @@ public record SandboxRunRequest(
     JsonNode contextOverride,
     Instant occurredAt,
     String parentOrigin,
-    EmbedIntegrationMode integrationMode
+    EmbedIntegrationMode integrationMode,
+    SandboxRunMode mode
 ) {
 
     public SandboxRunRequest {
@@ -26,6 +27,16 @@ public record SandboxRunRequest(
         }
         parentOrigin = parentOrigin == null || parentOrigin.isBlank() ? null : parentOrigin.trim();
         integrationMode = EmbedIntegrationMode.defaultIfNull(integrationMode);
+        mode = mode == null ? SandboxRunMode.CURRENT : mode;
+    }
+
+    public SandboxRunRequest(
+            String entryMode,
+            JsonNode contextOverride,
+            Instant occurredAt,
+            String parentOrigin,
+            EmbedIntegrationMode integrationMode) {
+        this(entryMode, contextOverride, occurredAt, parentOrigin, integrationMode, SandboxRunMode.CURRENT);
     }
 
     public SandboxRunRequest(
@@ -33,6 +44,8 @@ public record SandboxRunRequest(
             JsonNode contextOverride,
             Instant occurredAt,
             String parentOrigin) {
-        this(entryMode, contextOverride, occurredAt, parentOrigin, EmbedIntegrationMode.IFRAME);
+        this(
+            entryMode, contextOverride, occurredAt, parentOrigin,
+            EmbedIntegrationMode.IFRAME, SandboxRunMode.CURRENT);
     }
 }

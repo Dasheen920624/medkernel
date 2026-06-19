@@ -497,8 +497,10 @@ public final class ServiceContractCatalog {
         contract("sandbox", "全真体验沙盘编排服务",
             "com.medkernel.engine.sandbox.SandboxScenarioController",
             "/api/v1/engine/sandbox",
-            permissions("sandbox.run"),
-            audits(audit(AuditAction.EXECUTE, "sandbox_scenario", "编排真实引擎链路并记录复演轨迹"))),
+            permissions("sandbox.run", "package.publish"),
+            audits(
+                audit(AuditAction.EXECUTE, "sandbox_scenario", "编排真实引擎链路并记录复演轨迹"),
+                audit(AuditAction.PUBLISH, "sandbox_runtime_binding", "激活演练机构沙盘运行绑定"))),
         contract("realtime-cds-hook", "实时 CDS Hook 评估服务",
             "com.medkernel.engine.cdshook.RealtimeCdsHookController",
             "/api/v1/engine/cds-hooks:evaluate",

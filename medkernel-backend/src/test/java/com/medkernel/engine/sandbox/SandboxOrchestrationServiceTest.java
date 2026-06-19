@@ -13,6 +13,7 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
@@ -22,6 +23,7 @@ import com.medkernel.engine.embed.EmbedIntegrationMode;
 import com.medkernel.engine.embed.EmbedLaunchTokenRequest;
 import com.medkernel.engine.embed.EmbedLaunchTokenResponse;
 import com.medkernel.engine.evaluation.EvaluationEngineService;
+import com.medkernel.engine.evaluation.EvaluationEvaluateSnapshotRequest;
 import com.medkernel.engine.evaluation.EvaluationRunResponse;
 import com.medkernel.engine.evaluation.EvaluationRunStatus;
 import com.medkernel.engine.followup.FollowupEngineService;
@@ -38,6 +40,8 @@ import com.medkernel.engine.pathway.PathwayTemplateStatus;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayDetailResponse;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
+import com.medkernel.engine.pathway.PatientPathwayEnterRequest;
+import com.medkernel.engine.pkg.EffectiveKnowledgePackageResponse;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
 import com.medkernel.engine.recommendation.RecommendationModelStatus;
@@ -57,6 +61,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 class SandboxOrchestrationServiceTest {
@@ -68,9 +73,11 @@ class SandboxOrchestrationServiceTest {
     private final EvaluationEngineService evaluations = mock(EvaluationEngineService.class);
     private final EmbedEngineService embed = mock(EmbedEngineService.class);
     private final AuditRecorder audit = mock(AuditRecorder.class);
+    private final SandboxRuntimeBaselineResolver baselines = mock(SandboxRuntimeBaselineResolver.class);
+    private final SandboxRunRepository runs = mock(SandboxRunRepository.class);
     private final SandboxOrchestrationService service = new SandboxOrchestrationService(
         new SandboxScenarioCatalog(), snapshots, recommendations, pathways, followups, evaluations, embed,
-        new ObjectMapper().findAndRegisterModules(), audit);
+        new ObjectMapper().findAndRegisterModules(), audit, baselines, runs);
 
     @BeforeEach
     void setUpContext() {
@@ -80,6 +87,8 @@ class SandboxOrchestrationServiceTest {
             "doctor-1"));
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
             "doctor-1", null, "ROLE_CLINICAL_DECISION_USER"));
+        when(baselines.resolveCurrent("tenant-1", "dept-ed")).thenReturn(runtimeBaseline());
+        when(runs.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @AfterEach
@@ -107,6 +116,22 @@ class SandboxOrchestrationServiceTest {
         assertThat(response.embedUrl()).isEqualTo("/embed/launch?token=token-x");
         assertThat(response.hookInstance()).isEqualTo("hook-sandbox-x");
         assertThat(response.embedModes()).containsExactly("IFRAME");
+        assertThat(response.runId()).isNotBlank();
+        assertThat(response.baselineId()).isEqualTo("baseline-runtime-1");
+        assertThat(response.mode()).isEqualTo(SandboxRunMode.CURRENT);
+        assertThat(response.resolvedPackageVersion()).isEqualTo("runtime-7");
+        assertThat(response.resolutionSource()).isEqualTo(SandboxResolutionSource.TENANT_PACKAGE);
+        assertThat(response.externalSideEffects()).isFalse();
+
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCaptor =
+            ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(snapshots).create(snapshotCaptor.capture(), anyString());
+        assertThat(snapshotCaptor.getValue().packageVersion()).isEqualTo("runtime-7");
+        ArgumentCaptor<RecommendationTriggerRequest> recommendationCaptor =
+            ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
+        verify(recommendations).evaluate(recommendationCaptor.capture());
+        assertThat(recommendationCaptor.getValue().packageVersion()).isEqualTo("runtime-7");
+        verify(baselines, times(1)).resolveCurrent("tenant-1", "dept-ed");
 
         InOrder calls = inOrder(snapshots, recommendations, embed);
         calls.verify(snapshots).create(any(), anyString());
@@ -145,15 +170,21 @@ class SandboxOrchestrationServiceTest {
     }
 
     @Test
-    void clinicalReviewScenarioIsRejectedBeforeAnyEngineSideEffect() {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.run(
-                "sbx-med-warfarin-asa",
-                new SandboxRunRequest(
-                    "SNAPSHOT", null, Instant.parse("2026-06-14T00:00:00Z"),
-                    "https://his.hospital.com")))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("临床评审");
+    void runtimeBaselineFailureIsRecordedBeforeAnyDomainServiceCall() {
+        when(baselines.resolveCurrent("tenant-1", "dept-ed"))
+            .thenThrow(new IllegalStateException("SANDBOX_RUNTIME_BASELINE_MISSING"));
 
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.run(
+            "sbx-med-warfarin-asa", request()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("SANDBOX_RUNTIME_BASELINE_MISSING");
+
+        ArgumentCaptor<SandboxRun> runCaptor = ArgumentCaptor.forClass(SandboxRun.class);
+        verify(runs, times(2)).save(runCaptor.capture());
+        assertThat(runCaptor.getAllValues().get(0).status()).isEqualTo(SandboxRunStatus.PREPARING);
+        assertThat(runCaptor.getAllValues().get(1).status()).isEqualTo(SandboxRunStatus.FAILED);
+        assertThat(runCaptor.getAllValues().get(1).failureMessage())
+            .contains("SANDBOX_RUNTIME_BASELINE_MISSING");
         verifyNoInteractions(snapshots, recommendations, pathways, followups, evaluations, embed, audit);
     }
 
@@ -198,6 +229,10 @@ class SandboxOrchestrationServiceTest {
         assertThat(response.patientPathwayId()).isEqualTo("pp-sandbox-1");
         verify(pathways).listTemplates(any(), any());
         verify(pathways).enterPatientPathway(any());
+        ArgumentCaptor<PatientPathwayEnterRequest> enterCaptor =
+            ArgumentCaptor.forClass(PatientPathwayEnterRequest.class);
+        verify(pathways).enterPatientPathway(enterCaptor.capture());
+        assertThat(enterCaptor.getValue().packageVersion()).isEqualTo("runtime-7");
         ArgumentCaptor<PathwayAdvanceRequest> advanceCaptor =
             ArgumentCaptor.forClass(PathwayAdvanceRequest.class);
         verify(pathways).advance(advanceCaptor.capture());
@@ -235,7 +270,10 @@ class SandboxOrchestrationServiceTest {
         assertThat(response.steps()).extracting(SandboxStepTrace::stage)
             .containsExactly("CONTEXT", "EVALUATION", "RECOMMENDATION", "TOKEN");
         assertThat(response.evaluationRunId()).isEqualTo("er-sandbox-1");
-        verify(evaluations).evaluateSnapshot(any());
+        ArgumentCaptor<EvaluationEvaluateSnapshotRequest> evaluationCaptor =
+            ArgumentCaptor.forClass(EvaluationEvaluateSnapshotRequest.class);
+        verify(evaluations).evaluateSnapshot(evaluationCaptor.capture());
+        assertThat(evaluationCaptor.getValue().packageVersion()).isEqualTo("runtime-7");
     }
 
     @Test
@@ -285,7 +323,7 @@ class SandboxOrchestrationServiceTest {
 
     private void stubCommonChain() {
         when(snapshots.create(any(), anyString())).thenReturn(new ContextSnapshotResponse(
-            "ctx-x", ContextSnapshotStatus.ACTIVE, null, "2026.06.1", QualityStatus.VALID,
+            "ctx-x", ContextSnapshotStatus.ACTIVE, null, "runtime-7", QualityStatus.VALID,
             List.of(), Map.of(), Instant.now(), "trace-sandbox"));
         when(recommendations.evaluate(any())).thenReturn(new RecommendationEvaluationResponse(
             "trigger-x", RecommendationTriggerStatus.EVALUATED, 1, 1, 0,
@@ -300,6 +338,24 @@ class SandboxOrchestrationServiceTest {
         return new SandboxRunRequest(
             "SNAPSHOT", null, Instant.parse("2026-06-14T00:00:00Z"),
             "https://his.hospital.com");
+    }
+
+    private static SandboxRuntimeBaseline runtimeBaseline() {
+        return new SandboxRuntimeBaseline(
+            "baseline-runtime-1",
+            SandboxRunMode.CURRENT,
+            "tenant-1",
+            "dept-ed",
+            "binding-runtime-1",
+            "tenant-1",
+            "package-runtime-1",
+            "PKG.SANDBOX.RUNTIME",
+            "runtime-7",
+            SandboxResolutionSource.TENANT_PACKAGE,
+            Instant.parse("2026-06-19T00:00:00Z"),
+            new EffectiveKnowledgePackageResponse(
+                "tenant-1", "dept-ed", "package-runtime-1", "PKG.SANDBOX.RUNTIME",
+                "runtime-7", List.of(), List.of(), List.of()));
     }
 
     private static PathwayTemplate pathwayTemplate() {

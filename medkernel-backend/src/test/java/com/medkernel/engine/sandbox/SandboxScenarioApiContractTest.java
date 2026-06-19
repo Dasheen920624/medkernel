@@ -17,10 +17,16 @@ class SandboxScenarioApiContractTest {
 
         assertThat(contract.basePath()).isEqualTo("/api/v1/engine/sandbox");
         assertThat(contract.declaresPermission("sandbox.run")).isTrue();
+        assertThat(contract.declaresPermission("package.publish")).isTrue();
         assertThat(contract.auditPoints())
             .anySatisfy(point -> {
                 assertThat(point.action()).isEqualTo(AuditAction.EXECUTE);
                 assertThat(point.targetType()).isEqualTo("sandbox_scenario");
+            });
+        assertThat(contract.auditPoints())
+            .anySatisfy(point -> {
+                assertThat(point.action()).isEqualTo(AuditAction.PUBLISH);
+                assertThat(point.targetType()).isEqualTo("sandbox_runtime_binding");
             });
     }
 }

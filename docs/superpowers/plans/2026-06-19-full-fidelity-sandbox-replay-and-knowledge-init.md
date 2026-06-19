@@ -159,12 +159,18 @@ Expected: exit 0。
 - Modify: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxRequestFactory.java`
 - Modify: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxOrchestrationService.java`
 - Modify: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxScenarioController.java`
+- Create: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxRuntimeBindingRequest.java`
+- Create: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxRuntimeBindingService.java`
+- Create: `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxRuntimeStatusResponse.java`
+- Modify: `medkernel-backend/src/main/java/com/medkernel/engine/pkg/EffectiveKnowledgePackageResolver.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxScenarioCatalogTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxOrchestrationServiceTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxScenarioApiContractTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxScenarioControllerSecurityTest.java`
+- Create: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxRuntimeBindingServiceTest.java`
+- Modify: `medkernel-backend/src/test/java/com/medkernel/engine/pkg/EffectiveKnowledgePackageResolverTest.java`
 
-- [ ] **Step 1: 写固定版本移除与运行冻结红测**
+- [x] **Step 1: 写固定版本移除与运行冻结红测**
 
 断言：
 
@@ -175,7 +181,7 @@ Expected: exit 0。
 5. 基线缺失时在调用任何领域服务前失败并保存可审计运行记录；
 6. 现有正式规则继承服务不修改。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -186,11 +192,11 @@ mvn -q -Dtest=SandboxScenarioCatalogTest,SandboxOrchestrationServiceTest,Sandbox
 
 Expected: FAIL，命中固定常量、静态状态和缺少基线字段。
 
-- [ ] **Step 3: 最小实现 CURRENT 模式**
+- [x] **Step 3: 最小实现 CURRENT 模式**
 
 默认请求 mode=`CURRENT`。编排器用基线中的版本构造所有下游请求；保留真实领域服务，不复制规则判断。新增绑定读取/激活 API，写操作使用治理权限和审计，高危操作不得下放给普通沙盘运行者。
 
-- [ ] **Step 4: 目标测试转绿与固定值扫描**
+- [x] **Step 4: 目标测试转绿与固定值扫描**
 
 Run:
 

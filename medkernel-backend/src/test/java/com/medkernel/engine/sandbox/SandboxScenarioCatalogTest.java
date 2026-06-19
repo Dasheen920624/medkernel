@@ -16,7 +16,9 @@ class SandboxScenarioCatalogTest {
         assertThat(scenario.triggerPoint()).isEqualTo("result-review");
         assertThat(scenario.expectedRuleCode()).isEqualTo("SBX.LAB.CRITICAL.K");
         assertThat(scenario.patientId()).isNotBlank();
-        assertThat(scenario.status()).isEqualTo(SandboxScenarioStatus.READY);
+        assertThat(SandboxScenario.class.getRecordComponents())
+            .extracting(java.lang.reflect.RecordComponent::getName)
+            .doesNotContain("packageVersion", "status", "statusReason");
     }
 
     @Test
@@ -27,24 +29,33 @@ class SandboxScenarioCatalogTest {
     }
 
     @Test
-    void registersTheCompleteScenarioMatrixWithRunnableOuterEngines() {
+    void registersTheCompleteScenarioMatrixAndAllTenRuleScenariosReachRuntimeResolution() {
         assertThat(catalog.all()).hasSize(15);
         assertThat(catalog.all())
-            .filteredOn(scenario -> scenario.status() == SandboxScenarioStatus.READY)
+            .filteredOn(scenario -> "rule".equals(scenario.engine()))
             .extracting(SandboxScenario::id)
             .containsExactly(
                 "sbx-lab-critical-k",
+                "sbx-med-warfarin-asa",
+                "sbx-order-contrast-ckd",
+                "sbx-dx-acs",
+                "sbx-report-critical",
+                "sbx-discharge-check",
+                "sbx-followup-inr",
+                "sbx-insurance-drg",
+                "sbx-quality-record",
+                "sbx-record-completeness");
+        assertThat(catalog.all())
+            .filteredOn(scenario -> !"rule".equals(scenario.engine()))
+            .extracting(SandboxScenario::id)
+            .containsExactly(
                 "sbx-pathway-ed",
                 "sbx-recommendation-composite",
                 "sbx-followup-closed-loop",
                 "sbx-evaluation-closed-loop",
                 "sbx-embed-modes");
-        assertThat(catalog.all())
-            .filteredOn(scenario ->
-                scenario.status() == SandboxScenarioStatus.CLINICAL_REVIEW_REQUIRED)
-            .hasSize(9)
-            .allSatisfy(scenario ->
-                assertThat(scenario.statusReason()).contains("临床评审"));
+        assertThat(catalog.all()).allSatisfy(scenario ->
+            assertThat(catalog.requireRunnable(scenario.id())).isSameAs(scenario));
         assertThat(catalog.require("sbx-pathway-ed").expectedAssetCode())
             .isEqualTo("PATH.ED.DISPOSITION");
         assertThat(catalog.require("sbx-recommendation-composite").expectedAction())
@@ -52,9 +63,8 @@ class SandboxScenarioCatalogTest {
     }
 
     @Test
-    void blockedScenarioCannotEnterOrchestration() {
-        assertThatThrownBy(() -> catalog.requireRunnable("sbx-med-warfarin-asa"))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("临床评审");
+    void scenarioCatalogDoesNotCarryAStaticClinicalReviewBlock() {
+        assertThat(catalog.requireRunnable("sbx-med-warfarin-asa").expectedRuleCode())
+            .isEqualTo("SBX.MED.WARFARIN.ASA");
     }
 }
