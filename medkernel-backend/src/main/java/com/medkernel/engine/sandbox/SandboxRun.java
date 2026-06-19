@@ -13,7 +13,7 @@ public record SandboxRun(
     @Column("run_id") String runId,
     @Column("tenant_id") String tenantId,
     @Column("scenario_id") String scenarioId,
-    SandboxRunMode mode,
+    @Column("run_mode") SandboxRunMode mode,
     @Column("replay_case_id") String replayCaseId,
     @Column("binding_id") String bindingId,
     @Column("baseline_id") String baselineId,

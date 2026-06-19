@@ -204,7 +204,8 @@ class MigrationBaselineContractTest {
         "V153__sandbox_runtime_baseline.sql",
         "V154__sandbox_replay_manifest.sql",
         "V155__knowledge_initialization_batch.sql",
-        "V156__model_eval_release_fingerprint.sql"
+        "V156__model_eval_release_fingerprint.sql",
+        "V157__sandbox_run_mode_reserved_word.sql"
     );
 
     @Test
@@ -593,6 +594,32 @@ class MigrationBaselineContractTest {
                     "asset_bindings_json IS NULL",
                     "asset_bindings_json IS NOT NULL"
                 );
+        }
+    }
+
+    @Test
+    void sandboxRunModeAvoidsOracleReservedWordAcrossAllDialects() {
+        String oracleBaseline = readMigration("oracle", "V153__sandbox_runtime_baseline.sql");
+        String oracleReplay = readMigration("oracle", "V154__sandbox_replay_manifest.sql");
+        assertThat(oracleBaseline)
+            .as("Oracle 新装基线不得声明 MODE 保留字列")
+            .contains("run_mode")
+            .doesNotContainPattern("(?m)^\\s*mode\\s+VARCHAR2");
+        assertThat(oracleReplay)
+            .as("Oracle 重放约束必须引用 run_mode")
+            .contains("run_mode")
+            .doesNotContainPattern("(?m)\\bmode\\s*(?:=|<>|NOT IN)");
+
+        for (String dialect : DIALECTS) {
+            String migration = readMigration(
+                dialect, "V157__sandbox_run_mode_reserved_word.sql");
+            assertThat(migration)
+                .as("%s 最终沙盘运行模式列必须统一为 run_mode", dialect)
+                .contains("mk_sandbox_run", "run_mode", "沙盘运行模式");
+            if (!"oracle".equals(dialect)) {
+                assertThat(migration)
+                    .containsIgnoringCase("RENAME COLUMN mode TO run_mode");
+            }
         }
     }
 
@@ -1586,6 +1613,9 @@ class MigrationBaselineContractTest {
         "(?is)CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)\\s*\\((.*?)\\);");
     private static final Pattern INDEX_PATTERN = Pattern.compile(
         "(?i)CREATE\\s+(?:UNIQUE\\s+)?INDEX(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
+    private static final Pattern RENAME_COLUMN_PATTERN = Pattern.compile(
+        "(?i)ALTER\\s+TABLE\\s+([a-z0-9_]+)\\s+RENAME\\s+COLUMN\\s+"
+            + "([a-z0-9_]+)\\s+TO\\s+([a-z0-9_]+)");
     // 只匹配独立的 CONSTRAINT 关键字声明：前置 (?<![a-z0-9_]) 排除把列名后缀（如 value_constraint / temporal_constraint）误当约束名；
     // (?<!DROP\s) 排除 DROP CONSTRAINT 回退语句。
     private static final Pattern CONSTRAINT_PATTERN =
@@ -2143,6 +2173,20 @@ class MigrationBaselineContractTest {
         }
 
         assertThat(diffs).as("五方言表/列一致性差异清单").isEmpty();
+    }
+
+    @Test
+    void tableColumnSnapshotAppliesForwardColumnRenames() {
+        String ddl = """
+            CREATE TABLE mk_example (
+                id BIGINT PRIMARY KEY,
+                mode VARCHAR(32) NOT NULL
+            );
+            ALTER TABLE mk_example RENAME COLUMN mode TO run_mode;
+            """;
+
+        assertThat(tableColumns(ddl).get("mk_example"))
+            .containsExactlyInAnyOrder("id", "run_mode");
     }
 
     @Test
@@ -3465,6 +3509,19 @@ class MigrationBaselineContractTest {
     private Map<String, Set<String>> tableColumns(String ddl) {
         Map<String, Set<String>> columns = new LinkedHashMap<>();
         tableBlocks(ddl).forEach((table, block) -> columns.put(table, columnNames(block)));
+        var renameMatcher = RENAME_COLUMN_PATTERN.matcher(ddl);
+        while (renameMatcher.find()) {
+            String table = renameMatcher.group(1).toLowerCase(Locale.ROOT);
+            String oldColumn = renameMatcher.group(2).toLowerCase(Locale.ROOT);
+            String newColumn = renameMatcher.group(3).toLowerCase(Locale.ROOT);
+            Set<String> current = columns.get(table);
+            if (current != null && current.contains(oldColumn)) {
+                LinkedHashSet<String> renamed = new LinkedHashSet<>(current);
+                renamed.remove(oldColumn);
+                renamed.add(newColumn);
+                columns.put(table, renamed);
+            }
+        }
         return columns;
     }
 

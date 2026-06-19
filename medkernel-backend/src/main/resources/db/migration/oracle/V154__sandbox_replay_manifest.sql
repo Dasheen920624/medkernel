@@ -71,11 +71,11 @@ ALTER TABLE mk_sandbox_run ADD CONSTRAINT fk_mk_sandbox_run_replay_case
     FOREIGN KEY (tenant_id, replay_case_id)
     REFERENCES mk_sandbox_replay_case (sandbox_tenant_id, replay_case_id);
 ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_current_binding CHECK (
-    mode <> 'CURRENT' OR binding_id IS NOT NULL
+    run_mode <> 'CURRENT' OR binding_id IS NOT NULL
     OR (baseline_id IS NULL AND status IN ('PREPARING','FAILED'))
 );
 ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_replay_case CHECK (
-    mode NOT IN ('HISTORICAL_EXACT','COMPARE') OR replay_case_id IS NOT NULL
+    run_mode NOT IN ('HISTORICAL_EXACT','COMPARE') OR replay_case_id IS NOT NULL
     OR (baseline_id IS NULL AND status IN ('PREPARING','FAILED'))
 );
 -- Oracle LOB 列不能参与 CHECK；资产快照完整性由沙盘服务与 baseline_hash 联合校验。
@@ -86,12 +86,12 @@ ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_baseline_complete CH
         AND status IN ('PREPARING','FAILED'))
     OR (baseline_id IS NOT NULL AND package_code IS NOT NULL AND package_version IS NOT NULL
         AND resolution_source IS NOT NULL AND baseline_hash IS NOT NULL AND (
-            (mode = 'CURRENT' AND binding_id IS NOT NULL AND package_owner_tenant_id IS NOT NULL
+            (run_mode = 'CURRENT' AND binding_id IS NOT NULL AND package_owner_tenant_id IS NOT NULL
                 AND package_id IS NOT NULL AND replay_case_id IS NULL)
-            OR (mode = 'HISTORICAL_EXACT' AND binding_id IS NULL
+            OR (run_mode = 'HISTORICAL_EXACT' AND binding_id IS NULL
                 AND package_owner_tenant_id IS NULL AND package_id IS NULL
                 AND replay_case_id IS NOT NULL AND resolution_source = 'REPLAY_MANIFEST')
-            OR (mode = 'COMPARE' AND binding_id IS NOT NULL
+            OR (run_mode = 'COMPARE' AND binding_id IS NOT NULL
                 AND package_owner_tenant_id IS NOT NULL AND package_id IS NOT NULL
                 AND replay_case_id IS NOT NULL)
         ))

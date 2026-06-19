@@ -36,7 +36,7 @@ CREATE TABLE mk_sandbox_run (
     run_id                       VARCHAR2(64)   NOT NULL,
     tenant_id                    VARCHAR2(64)   NOT NULL,
     scenario_id                  VARCHAR2(128)  NOT NULL,
-    mode                         VARCHAR2(32)   NOT NULL,
+    run_mode                     VARCHAR2(32)   NOT NULL,
     binding_id                   VARCHAR2(64)   NULL,
     baseline_id                  VARCHAR2(64)   NULL,
     package_owner_tenant_id      VARCHAR2(64)   NULL,
@@ -65,9 +65,9 @@ CREATE TABLE mk_sandbox_run (
     CONSTRAINT fk_mk_sandbox_run_package
         FOREIGN KEY (package_owner_tenant_id, package_id)
         REFERENCES knowledge_package (tenant_id, package_id),
-    CONSTRAINT ck_mk_sandbox_run_mode CHECK (mode IN ('CURRENT','HISTORICAL_EXACT','COMPARE')),
+    CONSTRAINT ck_mk_sandbox_run_mode CHECK (run_mode IN ('CURRENT','HISTORICAL_EXACT','COMPARE')),
     CONSTRAINT ck_mk_sandbox_run_current_binding CHECK (
-        mode <> 'CURRENT' OR binding_id IS NOT NULL
+        run_mode <> 'CURRENT' OR binding_id IS NOT NULL
         OR (baseline_id IS NULL AND status IN ('PREPARING','FAILED'))
     ),
     -- Oracle LOB 列不能参与 CHECK；资产快照完整性由沙盘服务与 baseline_hash 联合校验。
@@ -97,6 +97,7 @@ CREATE INDEX idx_mk_sandbox_run_scenario
 COMMENT ON TABLE mk_sandbox_runtime_binding IS '演练机构沙盘运行绑定：唯一 ACTIVE 记录明确指向可运行配置包';
 COMMENT ON COLUMN mk_sandbox_runtime_binding.active_scope_key IS 'ACTIVE 绑定的租户唯一键；历史 INACTIVE 绑定必须为空';
 COMMENT ON TABLE mk_sandbox_run IS '沙盘运行账本：保存不可变运行基线、解析来源、资产快照和执行状态';
+COMMENT ON COLUMN mk_sandbox_run.run_mode IS '沙盘运行模式：CURRENT、HISTORICAL_EXACT 或 COMPARE；避免 Oracle MODE 保留字';
 COMMENT ON COLUMN mk_sandbox_run.asset_bindings_json IS '本次解析出的资产版本快照，不得在执行中重新解析';
 COMMENT ON COLUMN mk_sandbox_run.baseline_hash IS '不可变运行基线 SHA-256';
 COMMENT ON COLUMN mk_sandbox_run.external_side_effect_status IS '外部副作用必须为 SUPPRESSED，禁止现场写回';
