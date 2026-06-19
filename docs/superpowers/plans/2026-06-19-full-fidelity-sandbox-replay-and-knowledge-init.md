@@ -111,7 +111,7 @@ Expected: 无旧口径命中；diff 检查通过。
 - Create: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxRuntimeBaselineResolverTest.java`
 - Create: `medkernel-backend/src/test/java/com/medkernel/engine/sandbox/SandboxRuntimeRepositoryTest.java`
 
-- [ ] **Step 1: 写五方言迁移与解析器红测**
+- [x] **Step 1: 写五方言迁移与解析器红测**
 
 断言：
 
@@ -121,7 +121,7 @@ Expected: 无旧口径命中；diff 检查通过。
 - 无绑定、多个激活绑定、非可运行包或跨租户包均明确失败；
 - 解析器不得用“更新时间最新”替代明确绑定。
 
-- [ ] **Step 2: 运行红测**
+- [x] **Step 2: 运行红测**
 
 Run:
 
@@ -132,11 +132,11 @@ mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,SandboxRunti
 
 Expected: FAIL，原因是 V153 和领域对象尚不存在。
 
-- [ ] **Step 3: 实现 V153、仓储和 CURRENT 解析器**
+- [x] **Step 3: 实现 V153、仓储和 CURRENT 解析器**
 
 复用 `KnowledgePackageRepository` / `EffectiveKnowledgePackageResolver` 校验包归属和可运行状态；解析结果一次生成后不得在单次运行中重新查询。
 
-- [ ] **Step 4: 目标测试转绿**
+- [x] **Step 4: 目标测试转绿**
 
 Run:
 

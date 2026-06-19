@@ -200,7 +200,8 @@ class MigrationBaselineContractTest {
         "V149__knowledge_acquisition_source_lock.sql",
         "V150__model_version_active_scope_unique.sql",
         "V151__model_eval_review_evidence.sql",
-        "V152__model_provider_lock_version.sql"
+        "V152__model_provider_lock_version.sql",
+        "V153__sandbox_runtime_baseline.sql"
     );
 
     @Test
@@ -484,6 +485,20 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void sandboxRuntimeBaselineIsPersistedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V153__sandbox_runtime_baseline.sql");
+            assertThat(ddl)
+                .as("%s 沙盘 CURRENT 必须由明确绑定解析并冻结不可变运行基线", dialect)
+                .contains("mk_sandbox_runtime_binding", "mk_sandbox_run", "active_scope_key",
+                    "package_owner_tenant_id", "package_version", "baseline_hash",
+                    "asset_bindings_json", "external_side_effect_status")
+                .contains("uk_mk_sandbox_runtime_binding_active", "SUPPRESSED", "CURRENT")
+                .contains("沙盘运行绑定", "不可变运行基线", "外部副作用");
+        }
+    }
+
+    @Test
     void sandboxPermissionsArePersistedAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
@@ -639,6 +654,7 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
         "mk_context_field_catalog",
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
@@ -841,6 +857,8 @@ class MigrationBaselineContractTest {
         "idx_mk_version_rollout_plan",
         "idx_mk_version_override_template_tenant",
         "idx_mk_version_override_operation_tenant",
+        "idx_mk_sandbox_runtime_binding_tenant", "idx_mk_sandbox_run_tenant_status",
+        "idx_mk_sandbox_run_scenario",
         "idx_package_entitlement_package_status",
         "idx_package_entitlement_tenant_status",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
@@ -1157,7 +1175,14 @@ class MigrationBaselineContractTest {
         "uk_person_import_digest", "ck_person_import_status",
         "ck_person_import_version", "fk_person_import_row_job",
         "uk_person_import_row_no", "ck_person_import_row_action",
-        "ck_person_import_row_status"
+        "ck_person_import_row_status",
+        "uk_mk_sandbox_runtime_binding_id", "uk_mk_sandbox_runtime_binding_active",
+        "fk_mk_sandbox_runtime_binding_package", "ck_mk_sandbox_runtime_binding_status",
+        "ck_mk_sandbox_runtime_binding_active", "uk_mk_sandbox_run_id",
+        "uk_mk_sandbox_run_baseline", "fk_mk_sandbox_run_binding",
+        "fk_mk_sandbox_run_package", "ck_mk_sandbox_run_mode",
+        "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_resolution",
+        "ck_mk_sandbox_run_side_effect", "ck_mk_sandbox_run_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -1220,6 +1245,7 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
@@ -1269,6 +1295,7 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_version_asset_dependency",
+        "mk_sandbox_runtime_binding", "mk_sandbox_run",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
