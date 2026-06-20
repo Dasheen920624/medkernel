@@ -254,6 +254,15 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void oracleModelProviderCredentialCiphertextUsesClob() {
+        String ddl = readMigration("oracle", "V158__llm_provider_credential_vault.sql");
+        assertThat(ddl)
+            .as("Oracle 模型凭据密文必须使用 CLOB，避免 VARCHAR2 4000 字节上限截断加密载荷")
+            .contains("credential_ciphertext  CLOB")
+            .doesNotContain("credential_ciphertext  VARCHAR2");
+    }
+
+    @Test
     void modelEvaluationReleaseFingerprintInvalidatesHistoricalRunsAcrossAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V156__model_eval_release_fingerprint.sql");
