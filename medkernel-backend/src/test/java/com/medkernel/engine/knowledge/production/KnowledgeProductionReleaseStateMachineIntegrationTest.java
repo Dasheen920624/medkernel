@@ -171,6 +171,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             providerCredentialRepository,
             caseRepository,
             evalRunRepository,
+            evalService,
             whitelistRepository,
             policyRepository,
             versionBundleRepository);
