@@ -1044,6 +1044,8 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
     expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
     expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue("API 大模型（正式生产固定）")).toBeDisabled();
+    expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("来源范围"));
     await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");
@@ -1053,7 +1055,6 @@ describe("KnowledgeGovernance", () => {
       expect(createProductionJob).toHaveBeenCalledWith({
         sourceScope: "acquisition-run:guideline-2026",
         assetType: "KNOWLEDGE",
-        producer: "API_MODEL",
         targetPipeline: "TENANT_OVERLAY",
         domain: "GUIDELINE",
         modelStrategy: "gpt-pipeline",

@@ -53,6 +53,7 @@ public class KnowledgeProductionController {
     private final CandidateCoexistenceService coexistenceService;
     private final KnowledgeProductionReadinessService readinessService;
     private final ModelKnowledgeProducer modelKnowledgeProducer;
+    private final FormalKnowledgeProductionPolicy formalProductionPolicy;
 
     public KnowledgeProductionController(KnowledgeProductionOrchestrationService service,
                                          CandidateProvenanceService provenanceService,
@@ -63,7 +64,8 @@ public class KnowledgeProductionController {
                                          KnowledgeShadowEvaluationService shadowService,
                                          CandidateCoexistenceService coexistenceService,
                                          KnowledgeProductionReadinessService readinessService,
-                                         ModelKnowledgeProducer modelKnowledgeProducer) {
+                                         ModelKnowledgeProducer modelKnowledgeProducer,
+                                         FormalKnowledgeProductionPolicy formalProductionPolicy) {
         this.service = service;
         this.provenanceService = provenanceService;
         this.templateRegistry = templateRegistry;
@@ -74,11 +76,13 @@ public class KnowledgeProductionController {
         this.coexistenceService = coexistenceService;
         this.readinessService = readinessService;
         this.modelKnowledgeProducer = modelKnowledgeProducer;
+        this.formalProductionPolicy = formalProductionPolicy;
     }
 
     @PostMapping("/jobs")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<ProductionJobResponse> createJob(@Valid @RequestBody ProductionJobRequest request) {
+        formalProductionPolicy.requireApiModel(request);
         return ApiResult.ok(service.createJob(request));
     }
 
@@ -170,6 +174,7 @@ public class KnowledgeProductionController {
     @PostMapping("/generate")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
+        formalProductionPolicy.rejectB0Generation();
         return ApiResult.ok(generationService.generate(request));
     }
 

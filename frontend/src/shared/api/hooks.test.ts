@@ -4132,7 +4132,6 @@ describe("knowledge review api helpers", () => {
       response = await result.current.mutateAsync({
         sourceScope: "acquisition-run:guideline-2026",
         assetType: "KNOWLEDGE",
-        producer: "API_MODEL",
         targetPipeline: "TENANT_OVERLAY",
         domain: "GUIDELINE",
         modelStrategy: "gpt-pipeline",

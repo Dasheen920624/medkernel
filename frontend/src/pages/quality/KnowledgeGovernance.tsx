@@ -1607,7 +1607,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
           initialValues={{
             sourceScope: "",
             assetType: "KNOWLEDGE",
-            producer: "API_MODEL",
             targetPipeline: defaultProductionTargetPipeline,
             domain: "GUIDELINE",
             modelStrategy: "gpt-pipeline",
@@ -1639,18 +1638,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
-              <Form.Item label="生产器" name="producer">
-                <Select
-                  options={[
-                    { value: "API_MODEL", label: "API 大模型" },
-                    { value: "AGENT_TOOL", label: "Agent 工具" },
-                    { value: "LOCAL_MODEL", label: "本地模型" },
-                    { value: "MANUAL", label: "人工录入" },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={4}>
               <Form.Item label="目标管道" name="targetPipeline">
                 <Select
                   options={[
@@ -1661,13 +1648,18 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="生产方式">
+                <Input value="API 大模型（正式生产固定）" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
               <Form.Item label="领域" name="domain">
                 <Select options={KNOWLEDGE_DOMAIN_OPTIONS} />
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
               <Form.Item label="模型策略" name="modelStrategy">
-                <Input placeholder="B0 / 本地 / 外部策略标识" />
+                <Input placeholder="例如 gpt-pipeline / 外部模型策略标识" />
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
