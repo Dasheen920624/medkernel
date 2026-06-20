@@ -1,23 +1,27 @@
 package com.medkernel.engine.llm.provider;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
  * 模型 provider 接入治理控制器（LLM-08）。
  *
- * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行侧内网禁启外部 provider（ENG-LLM-009）。
- * 全线 {@link DataScope} 强多租户隔离。
+ * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；质量治理员（{@code llm.eval.manage}）
+ * 可读取脱敏快照完成医学评测。运行侧内网禁启外部 provider（ENG-LLM-009）。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController
 @RequestMapping("/api/v1/model-providers")
@@ -31,6 +35,17 @@ public class ModelProviderController {
     }
 
     /**
+     * 分页读取当前租户的 Provider 脱敏治理快照。
+     */
+    @GetMapping
+    @PreAuthorize("@perm.has('llm.provider.manage') or @perm.has('llm.eval.manage')")
+    public ApiResult<PageResponse<ModelProviderGovernanceView>> listProviders(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
+        return ApiResult.ok(service.listProviders(new PageRequest(page, size, null)));
+    }
+
+    /**
      * 新增或更新指定 provider 接入配置。
      */
     @PutMapping("/{providerCode}")
@@ -38,17 +53,39 @@ public class ModelProviderController {
     public ApiResult<ModelProviderGovernanceView> upsertProvider(
             @PathVariable String providerCode,
             @Valid @RequestBody ModelProviderUpsertRequest request) {
-        return ApiResult.ok(ModelProviderGovernanceView.from(
-            service.upsertProvider(providerCode, request)));
+        service.upsertProvider(providerCode, request);
+        return ApiResult.ok(service.getProvider(providerCode));
     }
 
     /**
      * 读取指定 provider 的脱敏治理快照。
      */
     @GetMapping("/{providerCode}")
-    @PreAuthorize("@perm.has('llm.provider.manage')")
+    @PreAuthorize("@perm.has('llm.provider.manage') or @perm.has('llm.eval.manage')")
     public ApiResult<ModelProviderGovernanceView> getProvider(@PathVariable String providerCode) {
         return ApiResult.ok(service.getProvider(providerCode));
+    }
+
+    /**
+     * 高危登记或轮换指定 Provider 的加密凭据。
+     */
+    @PutMapping("/{providerCode}/credential")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderGovernanceView> saveCredential(
+            @PathVariable String providerCode,
+            @Valid @RequestBody ModelProviderCredentialUpsertRequest request) {
+        return ApiResult.ok(service.saveCredential(providerCode, request));
+    }
+
+    /**
+     * 高危移除指定 Provider 的租户加密凭据。
+     */
+    @DeleteMapping("/{providerCode}/credential")
+    @PreAuthorize("@perm.has('llm.provider.manage')")
+    public ApiResult<ModelProviderGovernanceView> removeCredential(
+            @PathVariable String providerCode,
+            @Valid @RequestBody ModelProviderCredentialRemovalRequest request) {
+        return ApiResult.ok(service.removeCredential(providerCode, request));
     }
 
     /**
@@ -79,6 +116,7 @@ public class ModelProviderController {
     @PostMapping("/{providerCode}/health-check")
     @PreAuthorize("@perm.has('llm.provider.manage')")
     public ApiResult<ModelProviderGovernanceView> checkHealth(@PathVariable String providerCode) {
-        return ApiResult.ok(ModelProviderGovernanceView.from(service.checkHealth(providerCode)));
+        service.checkHealth(providerCode);
+        return ApiResult.ok(service.getProvider(providerCode));
     }
 }

@@ -15,7 +15,7 @@ import jakarta.validation.constraints.Size;
  */
 public record ModelProviderActivationRequest(
     @Size(max = 64) String capabilityCode,
-    @NotBlank @Size(max = 500) String reason,
+    @NotBlank @Size(min = 8, max = 500) String reason,
     @NotNull @PositiveOrZero Long expectedVersion,
     @NotNull Boolean confirmedHighRisk
 ) {}

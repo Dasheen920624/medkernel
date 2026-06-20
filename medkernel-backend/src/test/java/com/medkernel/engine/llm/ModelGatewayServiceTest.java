@@ -491,7 +491,7 @@ class ModelGatewayServiceTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         com.medkernel.engine.llm.provider.ModelProviderConfig config =
             new com.medkernel.engine.llm.provider.ModelProviderConfig(1L, "tenant-1", "p1",
-                adapter.type().name(), "http://x", null, modelVersion, "Y", "HEALTHY",
+                adapter.type().name(), "http://x", modelVersion, "Y", "HEALTHY",
                 now, "s", now, "s", 0L);
         when(providerRegistry.resolve("tenant-1", strategy)).thenReturn(Optional.of(
             new com.medkernel.engine.llm.provider.ModelProviderRegistry.ResolvedProvider(adapter, config)));

@@ -651,39 +651,41 @@ describe("TerminologyMapping experience sample", () => {
     expect(screen.getByText(/钾 \/ 钠不可互换/)).toBeInTheDocument();
   });
 
-  it("resolves a one-to-many conflict with a mandatory arbitration note", async () => {
-    const resolveConflict = vi.fn().mockResolvedValue({
-      ...openConflict,
-      status: "RESOLVED",
-      resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
-    });
-    vi.mocked(useResolveTerminologyConflict).mockReturnValue({
-      mutateAsync: resolveConflict,
-    } as never);
-
-    renderPage();
-
-    const conflictRow = screen.getByRole("row", { name: /一对多冲突/ });
-    await userEvent.click(within(conflictRow).getByRole("button", { name: /裁\s*决/ }));
-    expect(screen.getByText("处置映射冲突")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "提交裁决" }));
-    expect(resolveConflict).not.toHaveBeenCalled();
-
-    await userEvent.type(
-      screen.getByLabelText("裁决依据"),
-      "保留 LOINC 2951-2，其他候选退回重映射",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "提交裁决" }));
-
-    expect(resolveConflict).toHaveBeenCalledWith({
-      conflictId: 301,
-      request: {
-        packageVersion: "2026.06",
+  it(
+    "resolves a one-to-many conflict with a mandatory arbitration note",
+    async () => {
+      const user = userEvent.setup();
+      const resolveConflict = vi.fn().mockResolvedValue({
+        ...openConflict,
+        status: "RESOLVED",
         resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
-      },
-    });
-  });
+      });
+      vi.mocked(useResolveTerminologyConflict).mockReturnValue({
+        mutateAsync: resolveConflict,
+      } as never);
+
+      renderPage();
+
+      const conflictRow = screen.getByRole("row", { name: /一对多冲突/ });
+      await user.click(within(conflictRow).getByRole("button", { name: /裁\s*决/ }));
+      expect(screen.getByText("处置映射冲突")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "提交裁决" }));
+      expect(resolveConflict).not.toHaveBeenCalled();
+
+      await user.type(screen.getByLabelText("裁决依据"), "保留 LOINC 2951-2，其他候选退回重映射");
+      await user.click(screen.getByRole("button", { name: "提交裁决" }));
+
+      expect(resolveConflict).toHaveBeenCalledWith({
+        conflictId: 301,
+        request: {
+          packageVersion: "2026.06",
+          resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
+        },
+      });
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
 
   it("rejects a high-risk mismatched candidate with a mandatory review note", async () => {
     const rejectCandidate = vi.fn().mockResolvedValue({

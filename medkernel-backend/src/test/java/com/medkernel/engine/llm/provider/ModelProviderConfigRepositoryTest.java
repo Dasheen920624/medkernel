@@ -38,7 +38,7 @@ class ModelProviderConfigRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "Y", "HEALTHY",
             now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndProviderCode("tenant-1", "ollama-local"))
@@ -47,7 +47,6 @@ class ModelProviderConfigRepositoryTest {
             .satisfies(p -> {
                 assertThat(p.providerType()).isEqualTo("OLLAMA");
                 assertThat(p.endpointUri()).isEqualTo("http://127.0.0.1:11434");
-                assertThat(p.credentialRef()).isNull();
             });
     }
 
@@ -56,11 +55,11 @@ class ModelProviderConfigRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "Y", "HEALTHY",
             now, "system", now, "system", null));
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "claude-prod", "CLAUDE",
-            "https://api.anthropic.com", "cred-ref-1", "claude-opus-4-8", "N", "NOT_CONNECTED",
+            "https://api.anthropic.com", "claude-opus-4-8", "N", "NOT_CONNECTED",
             now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndEnabledFlag("tenant-1", "Y"))
@@ -71,11 +70,30 @@ class ModelProviderConfigRepositoryTest {
     }
 
     @Test
+    void countsAndPagesProvidersWithinTenantOnly() {
+        Instant older = Instant.parse("2026-06-14T00:00:00Z");
+        Instant newer = Instant.parse("2026-06-14T00:01:00Z");
+        repository.save(provider("tenant-1", "older", older));
+        repository.save(provider("tenant-1", "newer", newer));
+        repository.save(provider("tenant-2", "other-tenant", newer));
+
+        assertThat(repository.countByTenantId("tenant-1")).isEqualTo(2);
+        assertThat(repository.pageByTenantId("tenant-1", 0, 1))
+            .singleElement()
+            .extracting(ModelProviderConfig::providerCode)
+            .isEqualTo("newer");
+        assertThat(repository.pageByTenantId("tenant-1", 1, 1))
+            .singleElement()
+            .extracting(ModelProviderConfig::providerCode)
+            .isEqualTo("older");
+    }
+
+    @Test
     void rejectsStaleProviderSnapshotWithOptimisticLock() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "N", "NOT_CONNECTED",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "N", "NOT_CONNECTED",
             now, "system", now, "system", null));
 
         ModelProviderConfig first = repository
@@ -101,7 +119,6 @@ class ModelProviderConfigRepositoryTest {
             config.providerCode(),
             config.providerType(),
             config.endpointUri(),
-            config.credentialRef(),
             config.modelVersion(),
             config.enabledFlag(),
             status,
@@ -110,5 +127,25 @@ class ModelProviderConfigRepositoryTest {
             Instant.parse("2026-06-14T00:01:00Z"),
             "system",
             config.version());
+    }
+
+    private static ModelProviderConfig provider(
+            String tenantId,
+            String providerCode,
+            Instant updatedAt) {
+        return new ModelProviderConfig(
+            null,
+            tenantId,
+            providerCode,
+            "OLLAMA",
+            "http://127.0.0.1:11434",
+            "qwen2.5:7b",
+            "N",
+            "NOT_CONNECTED",
+            updatedAt,
+            "system",
+            updatedAt,
+            "system",
+            null);
     }
 }

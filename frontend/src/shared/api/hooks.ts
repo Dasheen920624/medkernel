@@ -1569,7 +1569,6 @@ export interface KnowledgeProductionJobsParams {
 export interface CreateKnowledgeProductionJobRequest {
   sourceScope: string;
   assetType: string;
-  producer: KnowledgeProducer;
   targetPipeline: KnowledgeProductionJob["targetPipeline"];
   domain: string;
   modelStrategy?: string;
@@ -1778,7 +1777,7 @@ export function useCreateKnowledgeProductionJob() {
     mutationFn: async (request: CreateKnowledgeProductionJobRequest) => {
       const { data } = await apiClient.post<{ data: KnowledgeProductionJobResponse }>(
         `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs`,
-        compactParams(request),
+        compactParams({ ...request, producer: "API_MODEL" }),
       );
       return data.data;
     },
@@ -8822,6 +8821,28 @@ export interface ModelEvaluationRunsParams {
   status: ModelEvaluationStatus;
   page: number;
   size: number;
+}
+
+export interface RunModelEvaluationRequest {
+  providerCode: string;
+  modelVersion: string;
+  capabilityCode: string;
+}
+
+export function useRunModelEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: RunModelEvaluationRequest) => {
+      const { data } = await apiClient.post<{ data: ModelEvaluationRunSummary }>(
+        "/model-evaluations",
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["model-evaluations", "runs"] });
+    },
+  });
 }
 
 export function useModelEvaluationRuns(params: ModelEvaluationRunsParams, enabled = true) {

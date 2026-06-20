@@ -205,8 +205,62 @@ class MigrationBaselineContractTest {
         "V154__sandbox_replay_manifest.sql",
         "V155__knowledge_initialization_batch.sql",
         "V156__model_eval_release_fingerprint.sql",
-        "V157__sandbox_run_mode_reserved_word.sql"
+        "V157__sandbox_run_mode_reserved_word.sql",
+        "V158__llm_provider_credential_vault.sql",
+        "V159__remove_legacy_model_controls.sql"
     );
+
+    @Test
+    void legacyModelEvaluationMenuPermissionIsRemovedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V159__remove_legacy_model_controls.sql");
+            assertThat(ddl)
+                .as("%s 旧医学回归复核菜单权限必须彻底移除且不保留兼容入口", dialect)
+                .contains(
+                    "DELETE FROM role_permission",
+                    "DELETE FROM sys_permission",
+                    "DROP COLUMN credential_ref",
+                    "'menu.model-evaluation-review'",
+                    "旧医学回归复核菜单权限")
+                .doesNotContain("INSERT INTO");
+        }
+    }
+
+    @Test
+    void modelProviderCredentialVaultIsEncryptedTenantScopedAndAuditedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V158__llm_provider_credential_vault.sql");
+            assertThat(ddl)
+                .as("%s 模型凭据必须以租户加密库保存并支持轮换审计", dialect)
+                .contains(
+                    "mk_llm_provider_credential",
+                    "tenant_id",
+                    "provider_code",
+                    "credential_ciphertext",
+                    "credential_fingerprint",
+                    "credential_last4",
+                    "lock_version",
+                    "created_at",
+                    "created_by",
+                    "updated_at",
+                    "updated_by",
+                    "trace_id",
+                    "uk_mk_llm_provider_credential_tenant",
+                    "idx_mk_llm_provider_credential_tenant",
+                    "模型 Provider 凭据加密库",
+                    "只保存密文",
+                    "乐观锁");
+        }
+    }
+
+    @Test
+    void oracleModelProviderCredentialCiphertextUsesClob() {
+        String ddl = readMigration("oracle", "V158__llm_provider_credential_vault.sql");
+        assertThat(ddl)
+            .as("Oracle 模型凭据密文必须使用 CLOB，避免 VARCHAR2 4000 字节上限截断加密载荷")
+            .contains("credential_ciphertext  CLOB")
+            .doesNotContain("credential_ciphertext  VARCHAR2");
+    }
 
     @Test
     void modelEvaluationReleaseFingerprintInvalidatesHistoricalRunsAcrossAllDialects() {
@@ -753,6 +807,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
+        "mk_llm_provider_credential",
         "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
         "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
@@ -920,6 +975,7 @@ class MigrationBaselineContractTest {
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
+        "idx_mk_llm_provider_credential_tenant",
         "idx_mk_llm_regression_case_tenant", "idx_mk_llm_regression_case_domain",
         "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability",
         "idx_mk_llm_eval_case_evidence_run", "idx_mk_llm_enhancement_matrix_status",
@@ -1201,6 +1257,7 @@ class MigrationBaselineContractTest {
         "ck_model_policy_timeout_ms", "ck_model_policy_rate_limit", "uk_model_policy_scope",
         "uk_mk_llm_egress_whitelist", "ck_mk_llm_egress_whitelist_sensitivity", "ck_mk_llm_egress_approval_status",
         "uk_mk_llm_provider_tenant_code", "ck_mk_llm_provider_type", "ck_mk_llm_provider_enabled",
+        "uk_mk_llm_provider_credential_tenant",
         "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled",
         "ck_mk_llm_regression_case_score", "ck_mk_llm_eval_run_status",
         "ck_mk_llm_eval_run_hallucination", "ck_mk_llm_eval_run_quality_score",
@@ -1374,6 +1431,7 @@ class MigrationBaselineContractTest {
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
+        "mk_llm_provider_credential",
         "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
@@ -1427,6 +1485,7 @@ class MigrationBaselineContractTest {
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
+        "mk_llm_provider_credential",
         "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",

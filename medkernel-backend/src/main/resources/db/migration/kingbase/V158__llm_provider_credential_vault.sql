@@ -1,0 +1,30 @@
+-- MedKernel 模型生产控制台 · 模型 Provider 凭据加密库（KingbaseES）
+-- 只保存 SM4 密文、不可逆指纹与尾标，禁止保存或回显明文 Key。
+
+CREATE TABLE IF NOT EXISTS mk_llm_provider_credential (
+    id                     BIGSERIAL     PRIMARY KEY,
+    tenant_id              VARCHAR(64)   NOT NULL,
+    provider_code          VARCHAR(64)   NOT NULL,
+    credential_ciphertext  VARCHAR(4096) NOT NULL,
+    credential_fingerprint VARCHAR(64)   NOT NULL,
+    credential_last4       VARCHAR(8)    NOT NULL,
+    lock_version           BIGINT        NOT NULL DEFAULT 0,
+    created_at             TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by             VARCHAR(64)   NOT NULL,
+    updated_at             TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by             VARCHAR(64)   NOT NULL,
+    trace_id               VARCHAR(128)  NULL,
+    CONSTRAINT uk_mk_llm_provider_credential_tenant UNIQUE (tenant_id, provider_code)
+);
+
+CREATE INDEX idx_mk_llm_provider_credential_tenant
+    ON mk_llm_provider_credential (tenant_id, updated_at);
+
+COMMENT ON TABLE mk_llm_provider_credential IS '模型 Provider 凭据加密库：只保存密文、不可逆指纹、尾标与轮换审计，不保存明文 Key';
+COMMENT ON COLUMN mk_llm_provider_credential.tenant_id IS '凭据所属租户，任何读取和轮换必须按租户隔离';
+COMMENT ON COLUMN mk_llm_provider_credential.provider_code IS '模型 Provider 编码，与租户共同唯一';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_ciphertext IS '使用模型凭据独立用途密钥加密的 SM4 密文';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_fingerprint IS '凭据 SHA-256 不可逆指纹，用于变更识别，不得反推明文';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_last4 IS '凭据尾标，仅用于前台帮助授权人员识别当前 Key';
+COMMENT ON COLUMN mk_llm_provider_credential.lock_version IS '模型凭据轮换乐观锁版本号，防止并发覆盖';
+COMMENT ON COLUMN mk_llm_provider_credential.trace_id IS '凭据创建或最近轮换请求的审计追踪标识';

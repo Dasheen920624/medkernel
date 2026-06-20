@@ -103,6 +103,10 @@ class KnowledgeProductionControllerSecurityTest {
         + "\"target\":{\"targetIdentityId\":5}}";
 
     private static final String JOB_BODY =
+        "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"API_MODEL\","
+        + "\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\"}";
+
+    private static final String NON_MODEL_JOB_BODY =
         "{\"sourceScope\":\"run-1\",\"assetType\":\"KNOWLEDGE\",\"producer\":\"MANUAL\","
         + "\"targetPipeline\":\"TENANT_OVERLAY\",\"domain\":\"GENERAL\"}";
 
@@ -115,7 +119,7 @@ class KnowledgeProductionControllerSecurityTest {
 
     private ProductionJobResponse jobResponse() {
         return new ProductionJobResponse("job-1", "tenant-1", "run-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            KnowledgeProducer.API_MODEL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
             ProductionJobStatus.PENDING, 0, Instant.now());
     }
 
@@ -148,6 +152,19 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
+    void knowledgeGovernorCannotCreateNonModelJobThroughFormalEndpoint() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs")
+                .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("knowledge-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(NON_MODEL_JOB_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许 API_MODEL 大模型生产器"));
+
+        verify(service, never()).createJob(any());
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
     void clinicalUserCannotGenerateCandidates() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
@@ -164,16 +181,17 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanGenerateCandidates() throws Exception {
-        when(generationService.generate(any()))
-            .thenReturn(new GenerationSummary(List.of(), List.of(), List.of()));
-
+    void knowledgeGovernorCannotGenerateB0CandidatesThroughFormalEndpoint() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("knowledge-governor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
-            .andExpect(status().isOk());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail")
+                .value("正式知识生产不再接受 B0 候选生成，请使用 API_MODEL 模型生产任务"));
+
+        verify(generationService, never()).generate(any());
     }
 
     @Test

@@ -1,0 +1,66 @@
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useKnowledgeProductionReadiness } from "@/shared/api/hooks";
+
+import ProductionReadinessPanel from "./ProductionReadinessPanel";
+
+vi.mock("@/shared/api/hooks", () => ({
+  useKnowledgeProductionReadiness: vi.fn(),
+}));
+
+const GATE_CODES = [
+  "LITERATURE_ROOT",
+  "DEPLOYMENT_FORM",
+  "MODEL_PROVIDER",
+  "REGRESSION_BASELINE",
+  "MODEL_EVALUATION",
+  "EGRESS_GOVERNANCE",
+  "MODEL_POLICY",
+  "VERSION_TRIPLE",
+  "P6_ACCEPTANCE",
+];
+
+describe("ProductionReadinessPanel", () => {
+  beforeEach(() => {
+    vi.mocked(useKnowledgeProductionReadiness).mockReturnValue({
+      data: {
+        ready: false,
+        modelInvocationAllowed: false,
+        items: GATE_CODES.map((code) => ({
+          code,
+          ready: code === "LITERATURE_ROOT",
+          message: code === "LITERATURE_ROOT" ? "文献根已配置" : `${code} 尚未满足`,
+          evidence: code === "LITERATURE_ROOT" ? "file:///medkernel-data/" : null,
+        })),
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+  });
+
+  it("renders all nine server-backed gates in production order", () => {
+    render(<ProductionReadinessPanel />);
+
+    const labels = [
+      "1. 文献资料库",
+      "2. 部署形态",
+      "3. 模型服务",
+      "4. 医学回归基准",
+      "5. 医学评测",
+      "6. 出域治理",
+      "7. 模型策略",
+      "8. 版本三元组",
+      "9. P6 独立验收",
+    ];
+    labels.forEach((label) => expect(screen.getByText(label)).toBeInTheDocument());
+    expect(screen.getByText(/file:\/\/\/medkernel-data\//)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "前往处理" })).toHaveLength(8);
+    expect(
+      screen
+        .getAllByRole("link", { name: "前往处理" })
+        .some((link) => link.getAttribute("href") === "/knowledge/production?step=provider"),
+    ).toBe(true);
+  });
+});

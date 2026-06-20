@@ -42,9 +42,11 @@ import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ModelProviderActivationRequest;
 import com.medkernel.engine.llm.provider.ModelProviderConfig;
 import com.medkernel.engine.llm.provider.ModelProviderConfigRepository;
+import com.medkernel.engine.llm.provider.ModelProviderCredentialRepository;
 import com.medkernel.engine.llm.provider.ModelProviderGovernanceService;
 import com.medkernel.engine.llm.provider.ModelProviderGovernanceView;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
+import com.medkernel.engine.llm.provider.ProviderCredentialCodec;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.SpringSecurityPrivilegedConfigChangeGuard;
 import com.medkernel.shared.api.error.ApiException;
@@ -101,6 +103,9 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
     private ModelProviderConfigRepository providerRepository;
 
     @Autowired
+    private ModelProviderCredentialRepository providerCredentialRepository;
+
+    @Autowired
     private ModelCapabilityPolicyRepository policyRepository;
 
     @Autowired
@@ -145,6 +150,8 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             deploymentFormService,
             evalService,
             providerRegistry,
+            providerCredentialRepository,
+            mock(ProviderCredentialCodec.class),
             auditRecorder,
             highRiskChangeGuard);
 
@@ -161,6 +168,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             configService,
             deploymentFormService,
             providerRepository,
+            providerCredentialRepository,
             caseRepository,
             evalRunRepository,
             whitelistRepository,
@@ -426,7 +434,6 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             PROVIDER,
             "OLLAMA",
             "http://127.0.0.1:11434",
-            null,
             MODEL_VERSION,
             "N",
             "HEALTHY",

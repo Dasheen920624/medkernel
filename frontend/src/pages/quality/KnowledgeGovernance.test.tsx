@@ -1027,6 +1027,20 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
+  it("blocks production job creation until all nine readiness gates pass", () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("九项生产闸尚未全部满足，暂不能创建正式生产任务")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "创建生产任务" })).toBeDisabled();
+  });
+
   it("creates production jobs and exposes only persisted initialization batches for bulk approval", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({
@@ -1034,6 +1048,22 @@ describe("KnowledgeGovernance", () => {
         dataScope: { tenantId: "tenant-A" },
         permissions: [{ code: "knowledge.write" }, { code: "knowledge.review" }],
       },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge-generation",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: true,
+        modelInvocationAllowed: true,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
     });
 
     renderPage(<KnowledgeProduction />);
@@ -1044,6 +1074,8 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
     expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
     expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue("API 大模型（正式生产固定）")).toBeDisabled();
+    expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("来源范围"));
     await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");
@@ -1053,7 +1085,6 @@ describe("KnowledgeGovernance", () => {
       expect(createProductionJob).toHaveBeenCalledWith({
         sourceScope: "acquisition-run:guideline-2026",
         assetType: "KNOWLEDGE",
-        producer: "API_MODEL",
         targetPipeline: "TENANT_OVERLAY",
         domain: "GUIDELINE",
         modelStrategy: "gpt-pipeline",

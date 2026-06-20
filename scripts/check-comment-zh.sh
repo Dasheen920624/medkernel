@@ -98,6 +98,7 @@ case "$MODE" in
     if [ -n "$NEW_JAVA" ]; then
       while IFS= read -r f; do
         [ -z "$f" ] && continue
+        [ -f "$f" ] || continue
         if ! javadoc_has_chinese "$f"; then
           echo "  ✗ $f 类级 Javadoc 缺中文"
           fail=$((fail + 1))
@@ -116,6 +117,7 @@ case "$MODE" in
     if [ -n "$NEW_SQL" ]; then
       while IFS= read -r f; do
         [ -z "$f" ] && continue
+        [ -f "$f" ] || continue
         if ! sql_table_has_comment "$f"; then
           fail=$((fail + 1))
         fi
@@ -134,6 +136,7 @@ case "$MODE" in
     if [ -n "$MOD_JAVA" ]; then
       while IFS= read -r f; do
         [ -z "$f" ] && continue
+        [ -f "$f" ] || continue
         if ! javadoc_has_chinese "$f"; then
           echo "  ⚠ $f 类级 Javadoc 缺中文（修改文件，仅警告）"
           warn=$((warn + 1))
@@ -149,6 +152,7 @@ case "$MODE" in
     if [ -n "$MOD_SQL" ]; then
       while IFS= read -r f; do
         [ -z "$f" ] && continue
+        [ -f "$f" ] || continue
         if ! sql_table_has_comment "$f" 2>/dev/null; then
           echo "  ⚠ $f SQL COMMENT 缺口（修改文件，仅警告）"
           warn=$((warn + 1))

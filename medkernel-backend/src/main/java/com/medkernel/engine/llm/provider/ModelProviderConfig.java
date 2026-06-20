@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * 模型 provider 接入配置实体（LLM-08）。
  *
  * <p>登记租户可用的真实模型 provider：类型（B1 本地 OLLAMA / B2 外部 OPENAI_COMPATIBLE·CLAUDE / DIFY）、
- * 端点、凭据引用（{@code credentialRef} 仅存密钥管理引用，绝不落明文）、服务的模型版本、启停与健康状态。
+ * 端点、服务的模型版本、启停与健康状态。凭据由租户加密凭据库独立维护。
  */
 @Table("mk_llm_provider")
 public record ModelProviderConfig(
@@ -19,7 +19,6 @@ public record ModelProviderConfig(
     @Column("provider_code") String providerCode,
     @Column("provider_type") String providerType, // OLLAMA, OPENAI_COMPATIBLE, CLAUDE, DIFY
     @Column("endpoint_uri") String endpointUri,
-    @Column("credential_ref") String credentialRef,
     @Column("model_version") String modelVersion,
     @Column("enabled_flag") String enabledFlag,
     @Column("status") String status, // NOT_CONNECTED, HEALTHY, UNHEALTHY

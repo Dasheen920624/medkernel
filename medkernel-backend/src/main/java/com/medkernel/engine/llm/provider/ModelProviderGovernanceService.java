@@ -5,13 +5,14 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.llm.eval.ModelEvalService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -25,19 +26,23 @@ import com.medkernel.shared.context.RequestContext;
  *
  * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行时解析在 {@link ModelProviderRegistry}。
  * 配置写入与高危启停相互分离：本服务的配置入口始终保存为停用，避免编辑连接参数时意外上线。
- * {@code credential_ref} 仅存环境变量键名，密钥不落库；关系库乐观锁防止配置、探活与启停相互覆盖。
+ * 前台凭据使用独立用途密钥加密入库，模型调用只读取租户凭据库；配置与凭据分别使用
+ * 关系库乐观锁，防止配置、轮换、探活与启停相互覆盖。
  */
 @Service
 public class ModelProviderGovernanceService {
 
     private static final Set<String> HTTP_SCHEMES = Set.of("http", "https");
-    private static final Pattern ENV_KEY = Pattern.compile("[A-Z][A-Z0-9_]{2,127}");
     private static final String HIGH_RISK_RESOURCE_TYPE = "model_provider";
+    private static final String CREDENTIAL_HIGH_RISK_RESOURCE_TYPE =
+        "model_provider_credential";
 
     private final ModelProviderConfigRepository repository;
     private final DeploymentFormService deploymentForm;
     private final ModelEvalService evalService;
     private final ModelProviderRegistry registry;
+    private final ModelProviderCredentialRepository credentialRepository;
+    private final ProviderCredentialCodec credentialCodec;
     private final AuditRecorder auditRecorder;
     private final HighRiskChangeGuard highRiskGuard;
 
@@ -45,12 +50,16 @@ public class ModelProviderGovernanceService {
                                           DeploymentFormService deploymentForm,
                                           ModelEvalService evalService,
                                           ModelProviderRegistry registry,
+                                          ModelProviderCredentialRepository credentialRepository,
+                                          ProviderCredentialCodec credentialCodec,
                                           AuditRecorder auditRecorder,
                                           HighRiskChangeGuard highRiskGuard) {
         this.repository = repository;
         this.deploymentForm = deploymentForm;
         this.evalService = evalService;
         this.registry = registry;
+        this.credentialRepository = credentialRepository;
+        this.credentialCodec = credentialCodec;
         this.auditRecorder = auditRecorder;
         this.highRiskGuard = highRiskGuard;
     }
@@ -65,10 +74,9 @@ public class ModelProviderGovernanceService {
 
         ProviderType type = parseType(request.providerType());
         String endpointUri = normalizeEndpoint(type, request.endpointUri());
-        String credentialRef = normalizeCredentialRef(type, request.credentialRef());
         String modelVersion = requireText(request.modelVersion(), "模型版本");
         boolean changed = current == null || connectionMaterialChanged(
-            current, type, endpointUri, credentialRef, modelVersion);
+            current, type, endpointUri, modelVersion);
 
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
@@ -78,7 +86,6 @@ public class ModelProviderGovernanceService {
             code,
             type.name(),
             endpointUri,
-            credentialRef,
             modelVersion,
             "N",
             changed ? "NOT_CONNECTED" : current.status(),
@@ -100,7 +107,113 @@ public class ModelProviderGovernanceService {
         String code = requireText(providerCode, "provider 编码");
         ModelProviderConfig config = repository.findByTenantIdAndProviderCode(tenantId, code)
             .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
-        return ModelProviderGovernanceView.from(config);
+        return toView(config);
+    }
+
+    /**
+     * 返回当前租户 Provider 的服务端分页脱敏列表。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ModelProviderGovernanceView> listProviders(PageRequest pageRequest) {
+        String tenantId = requireCurrentTenant();
+        PageRequest safePage = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        long total = repository.countByTenantId(tenantId);
+        var items = repository.pageByTenantId(
+                tenantId,
+                safePage.offset(),
+                safePage.safeSize())
+            .stream()
+            .map(this::toView)
+            .toList();
+        return PageResponse.of(items, safePage, total);
+    }
+
+    /**
+     * 登记或轮换租户 Provider 凭据，并使连接状态重新进入待验证。
+     */
+    @Transactional
+    public ModelProviderGovernanceView saveCredential(
+            String providerCode,
+            ModelProviderCredentialUpsertRequest request) {
+        String reason = assertCredentialChangeConfirmed(
+            request == null ? null : request.reason(),
+            request != null && request.confirmedHighRisk());
+        String tenantId = requireCurrentTenant();
+        String code = requireText(providerCode, "provider 编码");
+        highRiskGuard.assertHighRiskAllowed(CREDENTIAL_HIGH_RISK_RESOURCE_TYPE, code);
+        ModelProviderConfig current = requireProvider(tenantId, code);
+        ModelProviderCredential existing = credentialRepository
+            .findByTenantIdAndProviderCode(tenantId, code)
+            .orElse(null);
+        assertExpectedCredentialVersion(existing, request.expectedVersion());
+        ProviderCredentialCodec.EncodedCredential encoded =
+            credentialCodec.encode(request.credential());
+
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        ModelProviderCredential savedCredential = saveCredentialWithConflictTranslation(
+            new ModelProviderCredential(
+                existing == null ? null : existing.id(),
+                tenantId,
+                code,
+                encoded.ciphertext(),
+                encoded.fingerprint(),
+                encoded.last4(),
+                existing == null ? now : existing.createdAt(),
+                existing == null ? actor : existing.createdBy(),
+                now,
+                actor,
+                RequestContext.currentTraceId(),
+                existing == null ? null : existing.version()));
+        ModelProviderConfig disconnected = saveWithConflictTranslation(
+            disconnectedProvider(current, now, actor));
+        auditRecorder.record(
+            AuditAction.UPDATE,
+            "mk_llm_provider_credential",
+            code,
+            "保存模型 provider 凭据 " + code
+                + "（尾标=" + savedCredential.credentialLast4()
+                + "，版本=" + savedCredential.version() + "）：" + reason);
+        return ModelProviderGovernanceView.from(disconnected, savedCredential);
+    }
+
+    /**
+     * 移除租户 Provider 凭据并强制断开连接。
+     */
+    @Transactional
+    public ModelProviderGovernanceView removeCredential(
+            String providerCode,
+            ModelProviderCredentialRemovalRequest request) {
+        String reason = assertCredentialChangeConfirmed(
+            request == null ? null : request.reason(),
+            request != null && request.confirmedHighRisk());
+        String tenantId = requireCurrentTenant();
+        String code = requireText(providerCode, "provider 编码");
+        highRiskGuard.assertHighRiskAllowed(CREDENTIAL_HIGH_RISK_RESOURCE_TYPE, code);
+        ModelProviderConfig current = requireProvider(tenantId, code);
+        ModelProviderCredential existing = credentialRepository
+            .findByTenantIdAndProviderCode(tenantId, code)
+            .orElseThrow(() -> ApiException.notFound("模型 provider 凭据 " + code));
+        assertExpectedCredentialVersion(existing, request.expectedVersion());
+
+        try {
+            credentialRepository.delete(existing);
+        } catch (OptimisticLockingFailureException conflict) {
+            throw new ApiException(
+                ErrorCode.CONFLICT, "provider 凭据版本已变化，请刷新后重试", conflict);
+        }
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        ModelProviderConfig disconnected = saveWithConflictTranslation(
+            disconnectedProvider(current, now, actor));
+        auditRecorder.record(
+            AuditAction.DELETE,
+            "mk_llm_provider_credential",
+            code,
+            "移除模型 provider 凭据 " + code
+                + "（原尾标=" + existing.credentialLast4()
+                + "，版本=" + existing.version() + "）：" + reason);
+        return ModelProviderGovernanceView.from(disconnected, null);
     }
 
     /**
@@ -147,7 +260,6 @@ public class ModelProviderGovernanceService {
             current.providerCode(),
             current.providerType(),
             current.endpointUri(),
-            current.credentialRef(),
             current.modelVersion(),
             current.enabledFlag(),
             health.name(),
@@ -175,7 +287,7 @@ public class ModelProviderGovernanceService {
         assertExpectedVersion(current, request.expectedVersion());
 
         if (current.enabled() == enabled) {
-            return ModelProviderGovernanceView.from(current);
+            return toView(current);
         }
         if (enabled) {
             assertProviderCanBeEnabled(tenantId, code, current, capabilityCode);
@@ -189,7 +301,6 @@ public class ModelProviderGovernanceService {
             current.providerCode(),
             current.providerType(),
             current.endpointUri(),
-            current.credentialRef(),
             current.modelVersion(),
             enabled ? "Y" : "N",
             current.status(),
@@ -205,7 +316,7 @@ public class ModelProviderGovernanceService {
             (enabled ? "启用" : "停用") + "模型 provider " + code
                 + (enabled ? "（capability=" + capabilityCode + "）" : "")
                 + "：" + reason);
-        return ModelProviderGovernanceView.from(saved);
+        return toView(saved);
     }
 
     private String assertActivationConfirmed(ModelProviderActivationRequest request) {
@@ -216,6 +327,11 @@ public class ModelProviderGovernanceService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "启停原因不能为空");
         }
         String reason = request.reason().trim();
+        if (reason.length() < 8) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "启停原因至少需要 8 个字符，以便形成可核查审计证据");
+        }
         if (reason.length() > 500) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "启停原因不能超过 500 字");
         }
@@ -255,11 +371,9 @@ public class ModelProviderGovernanceService {
     private boolean connectionMaterialChanged(ModelProviderConfig current,
                                               ProviderType type,
                                               String endpointUri,
-                                              String credentialRef,
                                               String modelVersion) {
         return !type.name().equals(current.providerType())
             || !endpointUri.equals(current.endpointUri())
-            || !Objects.equals(credentialRef, current.credentialRef())
             || !modelVersion.equals(current.modelVersion());
     }
 
@@ -294,22 +408,6 @@ public class ModelProviderGovernanceService {
         }
     }
 
-    private String normalizeCredentialRef(ProviderType type, String raw) {
-        String credentialRef = normalizeOptional(raw);
-        if (credentialRef == null) {
-            if (type.external()) {
-                throw new ApiException(
-                    ErrorCode.BAD_REQUEST, "外部 provider 必须配置凭据环境变量引用");
-            }
-            return null;
-        }
-        if (!ENV_KEY.matcher(credentialRef).matches()) {
-            throw new ApiException(
-                ErrorCode.BAD_REQUEST, "provider 凭据引用必须是合法的环境变量键名");
-        }
-        return credentialRef;
-    }
-
     private void assertExpectedVersion(ModelProviderConfig current, Long expectedVersion) {
         if (current == null && expectedVersion != null) {
             throw ApiException.conflict("新建 provider 不能携带 expectedVersion");
@@ -319,12 +417,86 @@ public class ModelProviderGovernanceService {
         }
     }
 
+    private String assertCredentialChangeConfirmed(String rawReason, boolean confirmed) {
+        if (!confirmed) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "必须明确确认模型 provider 凭据变更的高危影响");
+        }
+        if (rawReason == null || rawReason.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "凭据变更原因不能为空");
+        }
+        String reason = rawReason.trim();
+        if (reason.length() < 8) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "凭据变更原因至少需要 8 个字符，以便形成可核查审计证据");
+        }
+        if (reason.length() > 500) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "凭据变更原因不能超过 500 字");
+        }
+        return reason;
+    }
+
+    private void assertExpectedCredentialVersion(
+            ModelProviderCredential current,
+            Long expectedVersion) {
+        if (current == null && expectedVersion != null) {
+            throw ApiException.conflict("新建 provider 凭据不能携带 expectedVersion");
+        }
+        if (current != null && !Objects.equals(current.version(), expectedVersion)) {
+            throw ApiException.conflict("provider 凭据版本已变化，请刷新后重试");
+        }
+    }
+
+    private ModelProviderConfig requireProvider(String tenantId, String code) {
+        return repository.findByTenantIdAndProviderCode(tenantId, code)
+            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+    }
+
+    private ModelProviderConfig disconnectedProvider(
+            ModelProviderConfig current,
+            Instant now,
+            String actor) {
+        return new ModelProviderConfig(
+            current.id(),
+            current.tenantId(),
+            current.providerCode(),
+            current.providerType(),
+            current.endpointUri(),
+            current.modelVersion(),
+            "N",
+            ProviderHealth.NOT_CONNECTED.name(),
+            current.createdAt(),
+            current.createdBy(),
+            now,
+            actor,
+            current.version());
+    }
+
+    private ModelProviderGovernanceView toView(ModelProviderConfig config) {
+        ModelProviderCredential credential = credentialRepository
+            .findByTenantIdAndProviderCode(config.tenantId(), config.providerCode())
+            .orElse(null);
+        return ModelProviderGovernanceView.from(config, credential);
+    }
+
     private ModelProviderConfig saveWithConflictTranslation(ModelProviderConfig config) {
         try {
             return repository.save(config);
         } catch (OptimisticLockingFailureException conflict) {
             throw new ApiException(
                 ErrorCode.CONFLICT, "provider 配置版本已变化，请刷新后重试", conflict);
+        }
+    }
+
+    private ModelProviderCredential saveCredentialWithConflictTranslation(
+            ModelProviderCredential credential) {
+        try {
+            return credentialRepository.save(credential);
+        } catch (OptimisticLockingFailureException conflict) {
+            throw new ApiException(
+                ErrorCode.CONFLICT, "provider 凭据版本已变化，请刷新后重试", conflict);
         }
     }
 
@@ -348,7 +520,4 @@ public class ModelProviderGovernanceService {
         return value.trim();
     }
 
-    private static String normalizeOptional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

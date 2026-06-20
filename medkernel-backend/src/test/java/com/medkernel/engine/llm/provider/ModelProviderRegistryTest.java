@@ -40,7 +40,7 @@ class ModelProviderRegistryTest {
     private ModelProviderConfig cfg(String code, String type) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new ModelProviderConfig(1L, "tenant-1", code, type,
-            "http://x", type.equals("OLLAMA") ? null : "KEY", "v1", "Y", "HEALTHY",
+            "http://x", "v1", "Y", "HEALTHY",
             now, "s", now, "s", 0L);
     }
 

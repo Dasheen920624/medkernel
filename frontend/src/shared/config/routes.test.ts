@@ -56,7 +56,7 @@ describe("route metadata", () => {
       }, {});
 
     expect(placementCounts).toEqual({
-      primary: 33,
+      primary: 32,
       header: 1,
       profile: 1,
     });
@@ -199,16 +199,8 @@ describe("route metadata", () => {
     });
   });
 
-  it("limits medical regression review to the quality governor", () => {
-    const route = findRouteByPath("/qc/model-evaluations");
-
-    expect(route).toMatchObject({
-      menuKey: "model-evaluation-review",
-      sectionKey: "quality-management",
-      requiredPermissions: ["menu.model-evaluation-review", "llm.eval.manage"],
-      requiredRoles: ["quality-governor"],
-      pageType: "review",
-    });
+  it("does not retain the retired standalone medical regression review route", () => {
+    expect(findRouteByPath("/qc/model-evaluations")).toBeUndefined();
   });
 
   it("requires audit read permission for the audit workspace", () => {
@@ -764,7 +756,7 @@ describe("route metadata", () => {
       pageType: "configuration",
     });
     expect(findRouteByPath("/knowledge/production")).toMatchObject({
-      title: "知识生产",
+      title: "模型生产控制台",
       sectionKey: "knowledge-production",
       menuKey: "knowledge-production",
       requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
@@ -779,6 +771,7 @@ describe("route metadata", () => {
       "platform-governance-admin",
       "platform-knowledge-governor",
       "knowledge-governor",
+      "quality-governor",
       "implementation-operator",
       "integration-operator",
     ]);

@@ -364,6 +364,7 @@ type KnowledgeGovernanceMode = "review" | "institution" | "production";
 
 interface KnowledgeGovernanceProps {
   mode?: KnowledgeGovernanceMode;
+  embedded?: boolean;
 }
 
 function versionTitle(version?: KnowledgeAssetVersion) {
@@ -460,7 +461,14 @@ export function KnowledgeProduction() {
   return <KnowledgeGovernance mode="production" />;
 }
 
-export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovernanceProps) {
+export function KnowledgeProductionWorkspace() {
+  return <KnowledgeGovernance mode="production" embedded />;
+}
+
+export default function KnowledgeGovernance({
+  mode = "review",
+  embedded = false,
+}: KnowledgeGovernanceProps) {
   const { message, modal } = AntdApp.useApp();
   const [domain, setDomain] = useState<KnowledgeDomain>("GUIDELINE");
   const [status, setStatus] = useState<KnowledgeIdentityStatus>("ACTIVE");
@@ -1587,6 +1595,14 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
   const productionWorkbench = (
     <Card>
       <Space direction="vertical" size="middle" className="mk-full-width">
+        {productionReadinessQuery.data && !productionReadinessQuery.data.ready ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="九项生产闸尚未全部满足，暂不能创建正式生产任务"
+            description="请先在模型生产控制台处理服务、医学评测、独立复核和其余阻断项。"
+          />
+        ) : null}
         <Space direction="vertical" size={4}>
           <Title level={4} className="mk-title-tight">
             生产者工作台
@@ -1607,7 +1623,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
           initialValues={{
             sourceScope: "",
             assetType: "KNOWLEDGE",
-            producer: "API_MODEL",
             targetPipeline: defaultProductionTargetPipeline,
             domain: "GUIDELINE",
             modelStrategy: "gpt-pipeline",
@@ -1639,18 +1654,6 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
-              <Form.Item label="生产器" name="producer">
-                <Select
-                  options={[
-                    { value: "API_MODEL", label: "API 大模型" },
-                    { value: "AGENT_TOOL", label: "Agent 工具" },
-                    { value: "LOCAL_MODEL", label: "本地模型" },
-                    { value: "MANUAL", label: "人工录入" },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={4}>
               <Form.Item label="目标管道" name="targetPipeline">
                 <Select
                   options={[
@@ -1661,13 +1664,18 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
+              <Form.Item label="生产方式">
+                <Input value="API 大模型（正式生产固定）" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={4}>
               <Form.Item label="领域" name="domain">
                 <Select options={KNOWLEDGE_DOMAIN_OPTIONS} />
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
               <Form.Item label="模型策略" name="modelStrategy">
-                <Input placeholder="B0 / 本地 / 外部策略标识" />
+                <Input placeholder="例如 gpt-pipeline / 外部模型策略标识" />
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
@@ -1677,7 +1685,7 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
                   htmlType="submit"
                   icon={<PlusOutlined />}
                   aria-label="创建生产任务"
-                  disabled={!canWriteKnowledge}
+                  disabled={!canWriteKnowledge || !productionReadinessQuery.data?.ready}
                   loading={createProductionJobMutation.isPending}
                 >
                   创建生产任务
@@ -2443,13 +2451,17 @@ export default function KnowledgeGovernance({ mode = "review" }: KnowledgeGovern
 
   return (
     <>
-      <PageShell
-        title={pageMeta.title}
-        description={pageMeta.description}
-        extras={pageExtrasWithExpertMode}
-      >
-        {pageContent}
-      </PageShell>
+      {embedded ? (
+        pageContent
+      ) : (
+        <PageShell
+          title={pageMeta.title}
+          description={pageMeta.description}
+          extras={pageExtrasWithExpertMode}
+        >
+          {pageContent}
+        </PageShell>
+      )}
 
       <Modal
         title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
