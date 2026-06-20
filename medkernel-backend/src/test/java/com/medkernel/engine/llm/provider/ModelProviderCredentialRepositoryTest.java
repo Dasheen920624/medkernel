@@ -42,6 +42,9 @@ class ModelProviderCredentialRepositoryTest {
                 assertThat(saved.credentialFingerprint()).hasSize(64);
                 assertThat(saved.credentialLast4()).isEqualTo("1234");
                 assertThat(saved.version()).isZero();
+                assertThat(saved.toString())
+                    .contains("last4=1234")
+                    .doesNotContain(saved.credentialCiphertext(), saved.credentialFingerprint());
             });
         assertThat(repository.findByTenantIdAndProviderCode("tenant-b", "provider-a")).isEmpty();
     }

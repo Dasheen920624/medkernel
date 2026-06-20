@@ -85,7 +85,7 @@ public class ProviderCredentialCodec {
     ) {
         @Override
         public String toString() {
-            return "EncodedCredential[fingerprint=" + fingerprint + ", last4=" + last4 + "]";
+            return "EncodedCredential[last4=" + last4 + "]";
         }
     }
 }

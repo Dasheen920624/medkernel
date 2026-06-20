@@ -27,4 +27,12 @@ public record ModelProviderCredential(
     @Column("trace_id") String traceId,
     @Version @Column("lock_version") Long version
 ) {
+    @Override
+    public String toString() {
+        return "ModelProviderCredential[id=" + id
+            + ", tenantId=" + tenantId
+            + ", providerCode=" + providerCode
+            + ", last4=" + credentialLast4
+            + ", version=" + version + "]";
+    }
 }

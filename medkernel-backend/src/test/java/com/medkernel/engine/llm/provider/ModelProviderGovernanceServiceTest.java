@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.engine.llm.eval.ModelEvalService;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -35,6 +39,8 @@ class ModelProviderGovernanceServiceTest {
     private DeploymentFormService deploymentForm;
     private ModelEvalService evalService;
     private ModelProviderRegistry registry;
+    private ModelProviderCredentialRepository credentialRepo;
+    private ProviderCredentialCodec credentialCodec;
     private AuditRecorder auditRecorder;
     private HighRiskChangeGuard highRiskGuard;
     private ModelProviderGovernanceService service;
@@ -45,10 +51,13 @@ class ModelProviderGovernanceServiceTest {
         deploymentForm = mock(DeploymentFormService.class);
         evalService = mock(ModelEvalService.class);
         registry = mock(ModelProviderRegistry.class);
+        credentialRepo = mock(ModelProviderCredentialRepository.class);
+        credentialCodec = mock(ProviderCredentialCodec.class);
         auditRecorder = mock(AuditRecorder.class);
         highRiskGuard = mock(HighRiskChangeGuard.class);
         service = new ModelProviderGovernanceService(
-            repo, deploymentForm, evalService, registry, auditRecorder, highRiskGuard);
+            repo, deploymentForm, evalService, registry, credentialRepo, credentialCodec,
+            auditRecorder, highRiskGuard);
         RequestContext.restore(new RequestContext.Snapshot("t", OrgScope.tenant("tenant-1"), "ops-001"));
         when(repo.save(any(ModelProviderConfig.class))).thenAnswer(i -> i.getArgument(0));
     }
@@ -140,12 +149,22 @@ class ModelProviderGovernanceServiceTest {
     }
 
     @Test
-    void externalProviderRequiresEnvironmentCredentialReference() {
+    void externalProviderCanBeRegisteredBeforeCredentialIsConfigured() {
         when(repo.findByTenantIdAndProviderCode("tenant-1", "claude-prod")).thenReturn(Optional.empty());
 
-        assertBadRequest(() -> service.upsertProvider("claude-prod",
+        ModelProviderConfig saved = service.upsertProvider("claude-prod",
             new ModelProviderUpsertRequest(
-                "CLAUDE", "https://api.anthropic.com", null, "claude-opus-4-8", null)));
+                "CLAUDE", "https://api.anthropic.com", null, "claude-opus-4-8", null));
+
+        assertThat(saved.credentialRef()).isNull();
+        assertThat(saved.enabled()).isFalse();
+        assertThat(saved.status()).isEqualTo("NOT_CONNECTED");
+    }
+
+    @Test
+    void credentialReferenceStillRejectsNonEnvironmentKeySyntax() {
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "claude-prod")).thenReturn(Optional.empty());
+
         assertBadRequest(() -> service.upsertProvider("claude-prod",
             new ModelProviderUpsertRequest(
                 "CLAUDE", "https://api.anthropic.com", "env:MODEL_API_KEY", "claude-opus-4-8", null)));
@@ -188,6 +207,119 @@ class ModelProviderGovernanceServiceTest {
         assertThat(view.credentialConfigured()).isTrue();
         assertThat(view.version()).isEqualTo(7L);
         assertThat(view.toString()).doesNotContain("MODEL_API_KEY");
+    }
+
+    @Test
+    void listProvidersUsesTenantScopedServerPaginationAndSanitizedCredentialMetadata() {
+        PageRequest page = new PageRequest(2, 20, null);
+        ModelProviderConfig config = providerWithCredential(null, 7L);
+        ModelProviderCredential credential = credential(9L, "ciphertext", "fingerprint", "7xyz", 3L);
+        when(repo.countByTenantId("tenant-1")).thenReturn(21L);
+        when(repo.pageByTenantId("tenant-1", 20, 20)).thenReturn(List.of(config));
+        when(credentialRepo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(credential));
+
+        PageResponse<ModelProviderGovernanceView> result = service.listProviders(page);
+
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.total()).isEqualTo(21);
+        assertThat(result.items()).singleElement().satisfies(view -> {
+            assertThat(view.credentialConfigured()).isTrue();
+            assertThat(view.credentialSource()).isEqualTo("VAULT");
+            assertThat(view.credentialLast4()).isEqualTo("7xyz");
+            assertThat(view.credentialVersion()).isEqualTo(3L);
+            assertThat(view.toString()).doesNotContain("ciphertext", "fingerprint");
+        });
+    }
+
+    @Test
+    void savingCredentialRequiresConfirmationBeforeMfaOrRepositoryAccess() {
+        assertError(ErrorCode.VALIDATION_FAILED, () -> service.saveCredential(
+            "external",
+            new ModelProviderCredentialUpsertRequest(
+                "sk-fake-key-1234", "轮换生产模型凭据", null, false)));
+
+        verify(highRiskGuard, never()).assertHighRiskAllowed(any(), any());
+        verify(repo, never()).findByTenantIdAndProviderCode(any(), any());
+        verify(credentialRepo, never()).findByTenantIdAndProviderCode(any(), any());
+    }
+
+    @Test
+    void savingNewCredentialEncryptsItAndForcesProviderDisabledAndDisconnected() {
+        ModelProviderConfig current = externalProvider("Y", "HEALTHY", 5L);
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(current));
+        when(credentialRepo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.empty());
+        when(credentialCodec.encode("sk-fake-key-1234")).thenReturn(
+            new ProviderCredentialCodec.EncodedCredential(
+                "sm4:v1:cipher", "sha256-fingerprint", "1234"));
+        when(credentialRepo.save(any(ModelProviderCredential.class))).thenAnswer(invocation ->
+            withCredentialVersion(invocation.getArgument(0), 0L));
+
+        ModelProviderGovernanceView view = service.saveCredential(
+            "external",
+            new ModelProviderCredentialUpsertRequest(
+                "sk-fake-key-1234", "登记生产模型凭据", null, true));
+
+        assertThat(view.enabled()).isFalse();
+        assertThat(view.status()).isEqualTo("NOT_CONNECTED");
+        assertThat(view.credentialConfigured()).isTrue();
+        assertThat(view.credentialLast4()).isEqualTo("1234");
+        assertThat(view.credentialVersion()).isZero();
+        assertThat(view.toString())
+            .doesNotContain("sk-fake-key-1234", "sm4:v1:cipher", "sha256-fingerprint");
+        verify(highRiskGuard).assertHighRiskAllowed("model_provider_credential", "external");
+        verify(auditRecorder).record(
+            AuditAction.UPDATE,
+            "mk_llm_provider_credential",
+            "external",
+            "保存模型 provider 凭据 external（尾标=1234，版本=0）：登记生产模型凭据");
+    }
+
+    @Test
+    void rotatingCredentialRequiresCurrentCredentialVersion() {
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(externalProvider("N", "NOT_CONNECTED", 5L)));
+        when(credentialRepo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(credential(9L, "old", "old-fingerprint", "0000", 3L)));
+
+        assertConflict(() -> service.saveCredential(
+            "external",
+            new ModelProviderCredentialUpsertRequest(
+                "sk-fake-key-5678", "轮换生产模型凭据", 2L, true)));
+
+        verify(credentialCodec, never()).encode(any());
+        verify(credentialRepo, never()).save(any());
+    }
+
+    @Test
+    void removingCredentialClearsEnvironmentFallbackAndForcesDisconnect() {
+        ModelProviderConfig current = externalProvider("Y", "HEALTHY", 5L);
+        ModelProviderCredential credential = credential(9L, "cipher", "fingerprint", "1234", 3L);
+        when(repo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(current));
+        when(credentialRepo.findByTenantIdAndProviderCode("tenant-1", "external"))
+            .thenReturn(Optional.of(credential));
+
+        ModelProviderGovernanceView view = service.removeCredential(
+            "external",
+            new ModelProviderCredentialRemovalRequest("撤销失效的生产模型凭据", 3L, true));
+
+        assertThat(view.credentialConfigured()).isFalse();
+        assertThat(view.credentialSource()).isEqualTo("NONE");
+        assertThat(view.enabled()).isFalse();
+        assertThat(view.status()).isEqualTo("NOT_CONNECTED");
+        verify(credentialRepo).delete(credential);
+        verify(repo).save(org.mockito.ArgumentMatchers.argThat(saved ->
+            saved.credentialRef() == null
+                && !saved.enabled()
+                && "NOT_CONNECTED".equals(saved.status())));
+        verify(auditRecorder).record(
+            AuditAction.DELETE,
+            "mk_llm_provider_credential",
+            "external",
+            "移除模型 provider 凭据 external（原尾标=1234，版本=3）：撤销失效的生产模型凭据");
     }
 
     @Test
@@ -423,6 +555,28 @@ class ModelProviderGovernanceServiceTest {
             config.id(), config.tenantId(), config.providerCode(), config.providerType(),
             config.endpointUri(), config.credentialRef(), config.modelVersion(), config.enabledFlag(),
             config.status(), config.createdAt(), config.createdBy(), config.updatedAt(), config.updatedBy(), version);
+    }
+
+    private ModelProviderCredential credential(
+            Long id,
+            String ciphertext,
+            String fingerprint,
+            String last4,
+            Long version) {
+        Instant now = Instant.parse("2026-06-20T05:00:00Z");
+        return new ModelProviderCredential(
+            id, "tenant-1", "external", ciphertext, fingerprint, last4,
+            now, "ops-001", now, "ops-001", "trace-1", version);
+    }
+
+    private ModelProviderCredential withCredentialVersion(
+            ModelProviderCredential credential,
+            Long version) {
+        return new ModelProviderCredential(
+            credential.id(), credential.tenantId(), credential.providerCode(),
+            credential.credentialCiphertext(), credential.credentialFingerprint(),
+            credential.credentialLast4(), credential.createdAt(), credential.createdBy(),
+            credential.updatedAt(), credential.updatedBy(), credential.traceId(), version);
     }
 
     private void assertConflict(Runnable action) {

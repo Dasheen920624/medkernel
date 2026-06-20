@@ -71,6 +71,25 @@ class ModelProviderConfigRepositoryTest {
     }
 
     @Test
+    void countsAndPagesProvidersWithinTenantOnly() {
+        Instant older = Instant.parse("2026-06-14T00:00:00Z");
+        Instant newer = Instant.parse("2026-06-14T00:01:00Z");
+        repository.save(provider("tenant-1", "older", older));
+        repository.save(provider("tenant-1", "newer", newer));
+        repository.save(provider("tenant-2", "other-tenant", newer));
+
+        assertThat(repository.countByTenantId("tenant-1")).isEqualTo(2);
+        assertThat(repository.pageByTenantId("tenant-1", 0, 1))
+            .singleElement()
+            .extracting(ModelProviderConfig::providerCode)
+            .isEqualTo("newer");
+        assertThat(repository.pageByTenantId("tenant-1", 1, 1))
+            .singleElement()
+            .extracting(ModelProviderConfig::providerCode)
+            .isEqualTo("older");
+    }
+
+    @Test
     void rejectsStaleProviderSnapshotWithOptimisticLock() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
@@ -110,5 +129,26 @@ class ModelProviderConfigRepositoryTest {
             Instant.parse("2026-06-14T00:01:00Z"),
             "system",
             config.version());
+    }
+
+    private static ModelProviderConfig provider(
+            String tenantId,
+            String providerCode,
+            Instant updatedAt) {
+        return new ModelProviderConfig(
+            null,
+            tenantId,
+            providerCode,
+            "OLLAMA",
+            "http://127.0.0.1:11434",
+            null,
+            "qwen2.5:7b",
+            "N",
+            "NOT_CONNECTED",
+            updatedAt,
+            "system",
+            updatedAt,
+            "system",
+            null);
     }
 }

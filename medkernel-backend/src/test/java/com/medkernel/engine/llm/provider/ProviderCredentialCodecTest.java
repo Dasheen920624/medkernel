@@ -30,7 +30,9 @@ class ProviderCredentialCodecTest {
             .doesNotContain(plaintext);
         assertThat(encoded.fingerprint()).matches("[0-9a-f]{64}");
         assertThat(encoded.last4()).isEqualTo("1234");
-        assertThat(encoded.toString()).doesNotContain(plaintext);
+        assertThat(encoded.toString())
+            .contains("last4=1234")
+            .doesNotContain(plaintext, encoded.ciphertext(), encoded.fingerprint());
         assertThat(codec.decode(encoded.ciphertext())).isEqualTo(plaintext);
     }
 
