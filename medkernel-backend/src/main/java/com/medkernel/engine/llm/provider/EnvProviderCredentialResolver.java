@@ -11,9 +11,8 @@ import org.springframework.stereotype.Component;
  * 数据库只存引用名，满足「凭证走密钥管理不落明文」。缺失返回空 → provider 不可用 → 诚实降级 B0。
  */
 @Component
-public class EnvProviderCredentialResolver implements ProviderCredentialResolver {
+public class EnvProviderCredentialResolver {
 
-    @Override
     public Optional<String> resolveSecret(String credentialRef) {
         if (credentialRef == null || credentialRef.isBlank()) {
             return Optional.empty();
