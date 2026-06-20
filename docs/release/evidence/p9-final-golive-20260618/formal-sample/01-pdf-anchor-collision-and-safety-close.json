@@ -1,0 +1,118 @@
+{
+  "status": "BLOCKED_FIX_PENDING_DEPLOY",
+  "observedAt": "2026-06-20T10:18:10+08:00",
+  "environment": {
+    "host": "193.112.107.134",
+    "runtimeReleaseFingerprint": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+    "literatureMaterialRootUri": "file:///medkernel-data/platform-knowledge/t-1/literature-materials/"
+  },
+  "precondition": {
+    "historicalEvidence": "../formal-pre-signoff/09-live-readiness-after-signoff.json",
+    "knowledgeReadiness": "9/9",
+    "provider": {
+      "providerCode": "external-mimo-v25",
+      "modelVersion": "mimo-v2.5",
+      "enabled": true,
+      "status": "HEALTHY",
+      "lockVersion": 6
+    },
+    "p6IndependentAcceptance": {
+      "value": true,
+      "version": 4
+    },
+    "note": "该状态只证明修复前制品曾满足九闸，不代表小样本闭环完成；后续缺陷修复会改变发布指纹。"
+  },
+  "sample": {
+    "sourceCode": "WHO-CHB-GUIDELINE-2024",
+    "url": "https://iris.who.int/server/api/core/bitstreams/34470cc8-af90-4d7b-a949-ef27e5d0726f/content",
+    "expectedSha256": "e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c",
+    "byteSize": 3515427,
+    "result": "FAILED",
+    "httpStatus": 500
+  },
+  "rootCause": {
+    "exception": "DuplicateKeyException",
+    "constraint": "uk_source_fragment_version_anchor",
+    "conflictingAnchor": "p46/§3/¶1",
+    "callChain": [
+      "ParsedDocumentMaterializer.upsertFragment",
+      "ParsedDocumentMaterializer.materialize",
+      "DocumentParseOrchestrationService.submit",
+      "AcquisitionOrchestrationService"
+    ],
+    "analysis": "同一 PDF 页出现两个相同编号的章节时，每个章节的段落序号都从 1 重新开始，生成重复 anchor_path。"
+  },
+  "transactionAndStorageCheck": {
+    "materialObjectRowsForSha256": 0,
+    "acquisitionRunRowsForSha256": 0,
+    "databaseHalfState": false,
+    "orphanFile": {
+      "path": "/medkernel-data/platform-knowledge/t-1/literature-materials/t-1/e4/e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c/who-chb-guideline-2024-2024.03.28-formal-sample-20260620.pdf",
+      "sha256VerifiedBeforeRemoval": true,
+      "removed": true
+    }
+  },
+  "safetyClose": {
+    "provider": {
+      "providerCode": "external-mimo-v25",
+      "enabled": false,
+      "status": "HEALTHY",
+      "lockVersion": 7
+    },
+    "p6IndependentAcceptance": {
+      "value": false,
+      "version": 5,
+      "updatedBy": "platform-owner",
+      "updatedAt": "2026-06-20T10:23:01.545727+08:00"
+    },
+    "knowledgeReadiness": {
+      "status": "BLOCKED",
+      "passed": 5,
+      "total": 9,
+      "blockedCodes": [
+        "MODEL_PROVIDER",
+        "MODEL_EVALUATION",
+        "VERSION_TRIPLE",
+        "P6_ACCEPTANCE"
+      ],
+      "checkedAt": "2026-06-20T10:27:54.822+08:00"
+    }
+  },
+  "fixVerification": {
+    "test": "ParsedDocumentMaterializerTest#keepsParagraphAnchorsUniqueWhenPdfRepeatsSameNumberedHeadingOnOnePage",
+    "red": {
+      "actual": [
+        "p46/§3/¶1",
+        "p46/§3/¶1"
+      ],
+      "expected": [
+        "p46/§3/¶1",
+        "p46/§3/¶2"
+      ]
+    },
+    "green": true,
+    "focusedSuite": [
+      "ParsedDocumentMaterializerTest",
+      "PdfDocumentParserTest",
+      "DocumentParseOrchestrationServiceTest",
+      "AcquisitionOrchestrationServiceTest"
+    ],
+    "focusedSuitePassed": true,
+    "backendFull": {
+      "reportFiles": 481,
+      "tests": 3098,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7
+    },
+    "frontendFull": {
+      "testFiles": 101,
+      "tests": 810,
+      "passed": true
+    }
+  },
+  "releaseDecision": {
+    "deployOldRuntimeAgain": false,
+    "next": "合并锚点修复并前向部署新制品；在新发布指纹上重新获取 PDF、重跑医学评测和技术审查。真人专家身份签署不得由自动化冒用，候选生产可继续推进到独立审核边界。"
+  }
+}

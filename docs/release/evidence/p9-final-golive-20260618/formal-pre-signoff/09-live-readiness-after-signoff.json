@@ -1,0 +1,135 @@
+{
+  "status": "PASSED",
+  "startedAt": "2026-06-20T02:15:26.299Z",
+  "finishedAt": "2026-06-20T02:15:26.668Z",
+  "target": {
+    "apiBaseUrl": "http://127.0.0.1:28180/medkernel/api/v1",
+    "healthUrl": "http://127.0.0.1:28180/medkernel/actuator/health/readiness",
+    "producer": "API_MODEL",
+    "providerCode": "external-mimo-v25",
+    "capabilityCode": "rule.draft",
+    "sourceCode": "WHO-CHB-GUIDELINE-2024"
+  },
+  "session": {
+    "userId": "platform-owner",
+    "tenantId": "t-1",
+    "roles": [
+      "system-superadmin"
+    ],
+    "mfaRequired": "[REDACTED]",
+    "mfaBound": "[REDACTED]"
+  },
+  "health": {
+    "status": "UP",
+    "ready": true
+  },
+  "knowledgeReadiness": {
+    "ready": true,
+    "passedCount": 9,
+    "total": 9,
+    "items": [
+      {
+        "code": "LITERATURE_ROOT",
+        "ready": true,
+        "required": true,
+        "message": "平台知识文献资料库根地址已配置",
+        "evidence": "file:///medkernel-data/platform-knowledge/t-1/literature-materials/"
+      },
+      {
+        "code": "DEPLOYMENT_FORM",
+        "ready": true,
+        "required": true,
+        "message": "外部 API 模型生产仅在知识生产中心形态启用",
+        "evidence": "deploymentForm=PRODUCTION_CENTER"
+      },
+      {
+        "code": "MODEL_PROVIDER",
+        "ready": true,
+        "required": true,
+        "message": "模型 provider 已启用且健康",
+        "evidence": "external-mimo-v25/mimo-v2.5"
+      },
+      {
+        "code": "REGRESSION_BASELINE",
+        "ready": true,
+        "required": true,
+        "message": "医学回归基准集已配置",
+        "evidence": "caseCount=1"
+      },
+      {
+        "code": "MODEL_EVALUATION",
+        "ready": true,
+        "required": true,
+        "message": "provider/模型版本已通过医学回归评测",
+        "evidence": "runId=4"
+      },
+      {
+        "code": "EGRESS_GOVERNANCE",
+        "ready": true,
+        "required": true,
+        "message": "外部模型出域白名单已配置；高敏 payload 审批将由运行时逐次判定",
+        "evidence": "capabilityCode=rule.draft"
+      },
+      {
+        "code": "MODEL_POLICY",
+        "ready": true,
+        "required": true,
+        "message": "模型能力策略与生产器匹配",
+        "evidence": "routeStrategy=EXTERNAL_MODEL, scope=TENANT:t-1"
+      },
+      {
+        "code": "VERSION_TRIPLE",
+        "ready": true,
+        "required": true,
+        "message": "当前能力的 ACTIVE prompt/tool/model 版本包与 provider 一致",
+        "evidence": "bundleId=1, prompt=rule-draft-production-v1, tool=knowledge-governance-tool-v1, model=mimo-v2.5"
+      },
+      {
+        "code": "P6_ACCEPTANCE",
+        "ready": true,
+        "required": true,
+        "message": "P6 独立验收已放行",
+        "evidence": "medkernel.knowledge.production.p6-independent-acceptance=true"
+      }
+    ]
+  },
+  "sourceReadiness": {
+    "ready": true,
+    "source": {
+      "sourceCode": "WHO-CHB-GUIDELINE-2024",
+      "enabledFlag": "Y",
+      "approvedBy": "platform-owner",
+      "approvedAt": "2026-06-18T15:18:26.455180Z",
+      "licensePolicy": "PERMITTED",
+      "robotsPolicy": "ALLOW_FETCH"
+    }
+  },
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/medkernel/api/v1/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/medkernel/api/v1/security/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/medkernel/actuator/health/readiness",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/medkernel/api/v1/engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=rule.draft&providerCode=external-mimo-v25",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/medkernel/api/v1/engine/knowledge/acquisition/sources?page=1&size=100",
+      "status": 200
+    }
+  ],
+  "failures": []
+}

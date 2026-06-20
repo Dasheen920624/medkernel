@@ -99,6 +99,35 @@ class ParsedDocumentMaterializerTest {
     }
 
     @Test
+    void keepsParagraphAnchorsUniqueWhenPdfRepeatsSameNumberedHeadingOnOnePage() {
+        when(versionRepository.findBySourceDocumentIdAndContentHash(anyLong(), anyString()))
+            .thenReturn(Optional.empty());
+        when(versionRepository.save(any())).thenAnswer(i -> {
+            SourceVersion v = i.getArgument(0);
+            return new SourceVersion(88L, v.tenantId(), v.sourceDocumentId(), v.versionNo(),
+                v.publishedAt(), v.contentHash(), v.fileUri(), v.language(), v.createdAt(), v.createdBy());
+        });
+        when(fragmentRepository.findBySourceVersionIdAndContentHash(anyLong(), anyString()))
+            .thenReturn(Optional.empty());
+        when(fragmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        ParsedDocument repeatedHeading = new ParsedDocument(List.of(
+            new ParsedSection("3", 1, "Recommendations", List.of(
+                new ParsedParagraph("First recommendation.", 46))),
+            new ParsedSection("3", 1, "Implementation considerations", List.of(
+                new ParsedParagraph("Second recommendation.", 46)))), List.of());
+
+        materializer.materialize(
+            "t-1", 5L, "v1", "file:/who.pdf", "e".repeat(64), repeatedHeading, "tester");
+
+        ArgumentCaptor<SourceFragment> cap = ArgumentCaptor.forClass(SourceFragment.class);
+        verify(fragmentRepository, times(2)).save(cap.capture());
+        assertThat(cap.getAllValues()).extracting(SourceFragment::anchorPath)
+            .containsExactly("p46/§3/¶1", "p46/§3/¶2")
+            .doesNotHaveDuplicates();
+    }
+
+    @Test
     void materializesTableCellsWithTableAnchorsSkippingBlankCells() {
         when(versionRepository.findBySourceDocumentIdAndContentHash(anyLong(), anyString()))
             .thenReturn(Optional.empty());
