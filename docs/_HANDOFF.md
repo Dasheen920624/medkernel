@@ -15,11 +15,11 @@
 - 角色 15→**5 预设**（内置超管 / 运营管理 / 知识生产 / 独立医学专家 / 合规审计）× 范围(平台 t-1/客户) × 环境(内/外网)。
 - **能力封顶 11**，新需求挂为「内容」复用既有引擎，不开第 12 个引擎。要改宪法 **§0/§2/§6/§8/§15**（见 spec §15）。
 
-**当前状态**：spec 已写入工作树**但尚未提交**（当前分支 `main`，禁直推）；**尚无代码改动、134 未动**。Claude Code 记忆已存。
+**当前状态**：spec + 本接力段已提交分支 `claude/engine-core-repositioning`，PR [#648](https://github.com/Dasheen920624/medkernel/pull/648) 待合并；**尚无代码改动、134 未动**。Claude Code 记忆已存。
 
 **下一步（精确 · 无缝接力）**：
-1. 起 `claude/engine-core-repositioning` 分支，提交该 spec（禁直推 `main` → PR）。
-2. 按 spec §15 修订宪法 §0/§2/§6/§8/§15（同 PR 或紧随）。
+1. 确认 PR [#648](https://github.com/Dasheen920624/medkernel/pull/648) CI 绿 → 合并 → `origin/main` 含该提交。
+2. 按 spec §15 修订宪法 §0/§2/§6/§8/§15。
 3. 用 `writing-plans` 写 **S0（清库重建 + 全仓瘦身）** 与 **S1（止血：自动编译一条真实知识 → 演示台看见）** 实现计划。
 4. 按计划执行；每片过 spec §16 验收门 + 真实性 T-GATE，并回写本文件。
 
