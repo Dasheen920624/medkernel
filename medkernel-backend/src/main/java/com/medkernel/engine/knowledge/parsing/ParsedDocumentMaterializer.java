@@ -1,7 +1,9 @@
 package com.medkernel.engine.knowledge.parsing;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -40,12 +42,18 @@ public class ParsedDocumentMaterializer {
                 sourceHash, fileUri, "zh-CN", Instant.now(), actor)));
 
         int fragmentCount = 0;
+        Set<String> paragraphAnchors = new HashSet<>();
         for (ParsedSection section : doc.sections()) {
             int paraIndex = 0;
             for (ParsedParagraph paragraph : section.paragraphs()) {
                 paraIndex++;
                 String pagePrefix = paragraph.page() == null ? "" : "p" + paragraph.page() + "/";
-                String anchorPath = pagePrefix + "§" + section.numberPath() + "/¶" + paraIndex;
+                String anchorBase = pagePrefix + "§" + section.numberPath();
+                String anchorPath = anchorBase + "/¶" + paraIndex;
+                while (!paragraphAnchors.add(anchorPath)) {
+                    paraIndex++;
+                    anchorPath = anchorBase + "/¶" + paraIndex;
+                }
                 fragmentCount += upsertFragment(tenantId, version.id(), anchorPath,
                     section.title(), paragraph.text());
             }
