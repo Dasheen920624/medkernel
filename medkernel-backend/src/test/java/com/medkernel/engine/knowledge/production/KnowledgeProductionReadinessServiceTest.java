@@ -22,6 +22,7 @@ import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.ModelEvalRun;
 import com.medkernel.engine.llm.eval.ModelEvalRunRepository;
+import com.medkernel.engine.llm.eval.ModelEvalService;
 import com.medkernel.engine.llm.eval.RegressionBaselineEvidence;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
@@ -49,6 +50,7 @@ class KnowledgeProductionReadinessServiceTest {
     private ModelProviderCredentialRepository credentialRepository;
     private MedicalRegressionCaseRepository caseRepository;
     private ModelEvalRunRepository evalRunRepository;
+    private ModelEvalService evalService;
     private ModelEgressWhitelistRepository whitelistRepository;
     private ModelCapabilityPolicyRepository policyRepository;
     private ModelVersionBundleRepository versionBundleRepository;
@@ -62,6 +64,7 @@ class KnowledgeProductionReadinessServiceTest {
         credentialRepository = mock(ModelProviderCredentialRepository.class);
         caseRepository = mock(MedicalRegressionCaseRepository.class);
         evalRunRepository = mock(ModelEvalRunRepository.class);
+        evalService = mock(ModelEvalService.class);
         whitelistRepository = mock(ModelEgressWhitelistRepository.class);
         policyRepository = mock(ModelCapabilityPolicyRepository.class);
         versionBundleRepository = mock(ModelVersionBundleRepository.class);
@@ -72,6 +75,7 @@ class KnowledgeProductionReadinessServiceTest {
             credentialRepository,
             caseRepository,
             evalRunRepository,
+            evalService,
             whitelistRepository,
             policyRepository,
             versionBundleRepository);
@@ -223,6 +227,8 @@ class KnowledgeProductionReadinessServiceTest {
             .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
                 TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY, "PASSED"))
             .thenReturn(Optional.of(evalRun(provider)));
+        when(evalService.isClearedForGoLive(
+            TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY)).thenReturn(true);
         when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
             TENANT, CAPABILITY, "TENANT", TENANT))
             .thenReturn(Optional.of(policy("LOCAL_MODEL")));
@@ -267,6 +273,40 @@ class KnowledgeProductionReadinessServiceTest {
         assertThat(response.items()).filteredOn(item -> "MODEL_EVALUATION".equals(item.code()))
             .singleElement()
             .satisfies(item -> assertThat(item.ready()).isFalse());
+    }
+
+    @Test
+    void blocksPassedEvaluationFromHistoricalRelease() {
+        ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
+        when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
+            .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
+        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
+        when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
+        when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local"))
+            .thenReturn(Optional.of(provider));
+        when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
+            .thenReturn(List.of(regressionCase()));
+        when(evalRunRepository
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY, "PASSED"))
+            .thenReturn(Optional.of(evalRun(provider, CAPABILITY, List.of(regressionCase()), "historical-release")));
+        when(evalService.isClearedForGoLive(
+            TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY)).thenReturn(false);
+        when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            TENANT, CAPABILITY, "TENANT", TENANT))
+            .thenReturn(Optional.of(policy("LOCAL_MODEL")));
+
+        KnowledgeProductionReadinessResponse response = service.evaluate(
+            KnowledgeProducer.LOCAL_MODEL,
+            CAPABILITY,
+            "ollama-local");
+
+        assertThat(response.items()).filteredOn(item -> "MODEL_EVALUATION".equals(item.code()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.ready()).isFalse();
+                assertThat(item.message()).contains("当前制品");
+            });
     }
 
     @Test
@@ -381,6 +421,8 @@ class KnowledgeProductionReadinessServiceTest {
             .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
                 TENANT, provider.providerCode(), provider.modelVersion(), CAPABILITY, "PASSED"))
             .thenReturn(Optional.of(evalRun(provider)));
+        when(evalService.isClearedForGoLive(
+            TENANT, provider.providerCode(), provider.modelVersion(), CAPABILITY)).thenReturn(true);
         when(whitelistRepository.findByTenantIdAndCapabilityCode(TENANT, CAPABILITY))
             .thenReturn(Optional.of(whitelist));
         when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
@@ -430,10 +472,17 @@ class KnowledgeProductionReadinessServiceTest {
     private ModelEvalRun evalRun(ModelProviderConfig provider,
                                  String capabilityCode,
                                  List<MedicalRegressionCase> evaluatedCases) {
+        return evalRun(provider, capabilityCode, evaluatedCases, "release-current");
+    }
+
+    private ModelEvalRun evalRun(ModelProviderConfig provider,
+                                 String capabilityCode,
+                                 List<MedicalRegressionCase> evaluatedCases,
+                                 String releaseFingerprint) {
         Instant now = Instant.now();
         return new ModelEvalRun(
             1L, TENANT, provider.providerCode(), provider.modelVersion(),
-            capabilityCode, "prompt:v1", "tool:v1", "release-current",
+            capabilityCode, "prompt:v1", "tool:v1", releaseFingerprint,
             1, 1, 0, 100.0, 100.0, "N", "N", "N", "PASSED",
             RegressionBaselineEvidence.toJson(evaluatedCases),
             "逐例证据已核查并确认可放行。", "reviewer", now, now, "u", now, "u");

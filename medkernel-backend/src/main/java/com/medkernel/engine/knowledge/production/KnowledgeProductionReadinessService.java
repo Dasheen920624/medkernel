@@ -21,6 +21,7 @@ import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.ModelEvalRun;
 import com.medkernel.engine.llm.eval.ModelEvalRunRepository;
+import com.medkernel.engine.llm.eval.ModelEvalService;
 import com.medkernel.engine.llm.eval.RegressionBaselineEvidence;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
@@ -50,6 +51,7 @@ public class KnowledgeProductionReadinessService {
     private final ModelProviderCredentialRepository credentialRepository;
     private final MedicalRegressionCaseRepository regressionCaseRepository;
     private final ModelEvalRunRepository evalRunRepository;
+    private final ModelEvalService evalService;
     private final ModelEgressWhitelistRepository egressWhitelistRepository;
     private final ModelCapabilityPolicyRepository policyRepository;
     private final ModelVersionBundleRepository versionBundleRepository;
@@ -60,6 +62,7 @@ public class KnowledgeProductionReadinessService {
                                                ModelProviderCredentialRepository credentialRepository,
                                                MedicalRegressionCaseRepository regressionCaseRepository,
                                                ModelEvalRunRepository evalRunRepository,
+                                               ModelEvalService evalService,
                                                ModelEgressWhitelistRepository egressWhitelistRepository,
                                                ModelCapabilityPolicyRepository policyRepository,
                                                ModelVersionBundleRepository versionBundleRepository) {
@@ -69,6 +72,7 @@ public class KnowledgeProductionReadinessService {
         this.credentialRepository = credentialRepository;
         this.regressionCaseRepository = regressionCaseRepository;
         this.evalRunRepository = evalRunRepository;
+        this.evalService = evalService;
         this.egressWhitelistRepository = egressWhitelistRepository;
         this.policyRepository = policyRepository;
         this.versionBundleRepository = versionBundleRepository;
@@ -237,6 +241,18 @@ public class KnowledgeProductionReadinessService {
                 "MODEL_EVALUATION",
                 "最近 PASSED 评测绑定的医学基准集已变化，必须重新评测",
                 "runId=" + run.get().id() + ", currentCases=" + expectedCases);
+        }
+        if (!evalService.isClearedForGoLive(
+                tenantId,
+                config.providerCode(),
+                config.modelVersion(),
+                capability)) {
+            return KnowledgeProductionReadinessItem.block(
+                "MODEL_EVALUATION",
+                "当前制品尚无完整、有效且按需独立签署的医学回归评测",
+                "provider=" + config.providerCode()
+                    + ", model=" + config.modelVersion()
+                    + ", capability=" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_EVALUATION",
