@@ -4,16 +4,16 @@
 
 ## 当前真相
 
-- 134 当前运行代码为 `7573284bf1348fb8f437107e4c67ed626d2f3424`（[#641](https://github.com/Dasheen920624/medkernel/pull/641)），真实 WHO PDF 已重新获取并解析成功。后续 B0 候选生成暴露第二个定义错位：严格非模型待编著骨架仍被要求配置模型影子基准，当前分支 `codex/b0-shadow-gate-fix` 正按 TDD 修复；修复合并部署前不得把候选生产写成已闭环。
-- 隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。修复前运行 `3`、`4` 已由 `quality-governor` 账号签为 `PASSED`，外部 MIMO Provider 与 P6 曾按正式治理 API 打开并使 readiness 达到 9/9；真实 PDF 获取随后因 `uk_source_fragment_version_anchor` 冲突失败。Provider 已恢复停用（版本 7）、P6 已恢复 `false`（版本 5），readiness 当前 5/9。签署账号的真实身份与岗位后续统一核查；自动化不得冒用真人专家身份。
+- 134 当前运行代码为 `1074f2bbf927654961953d73f67f35a89810e1bc`（[#642](https://github.com/Dasheen920624/medkernel/pull/642)）。严格 B0 影子门禁定义错位已按 TDD 修复并部署；真实 WHO 来源版本 `11` 已通过重复复用生成一个待编著候选：获取运行 `acq:e6ff8e9b-27eb-4eb3-bced-4d070d39265d`、生产 job `c1358725-501f-4df4-8036-a4a489542716`、候选 `kv:9:draft-from-2024.03.28-formal-sample-20260620`。job 为 `COMPLETED`、9/9 安全门通过、影子为零用例 `PENDING_REVIEW` 且 `ready_for_review=true`，候选版本仍为 `PENDING_REPLACEMENT_REVIEW`，ACTIVE=0。
+- 隔离 worktree 为 `.worktrees/full-fidelity-sandbox`。修复前运行 `3`、`4` 已由 `quality-governor` 账号签为 `PASSED`，但其发布指纹为旧制品 `b1eb6de3b264ade02459e512465ef947de2ab75f`，不得用于当前 `1074f2bb`。Provider 保持 2 个 HEALTHY、启用 0 个，P6 保持 `false`（版本 5）；自动化技术复核已留证，但不得冒用真人医学专家身份或激活待编著候选。
 - 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。
 - 基础知识初始化采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：134 已生成首批 8 个稳定基础条目，覆盖权威来源、术语、数据元、编码/值集/单位、主数据/互操作、证据分级、发行 BOM 和金标回归骨架；全部为 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING`，F8 批次保持 `IN_REVIEW`，知识激活数为 0，也不宣称基础发行版已完成。
 - #638 的源提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`、`65d164a7`、`b8f69103`、`ff4f04b6`、`9a567d27`、`a79434cb`、`21a1d401`，最终 squash 为 `b1eb6de3b264ade02459e512465ef947de2ab75f`；其中修复 Oracle V153/V154 的 LOB CHECK 与 `MODE` 保留字问题，并以五方言 V157 前向统一为 `run_mode`，不改 PostgreSQL 已执行历史迁移。最终独立后端验证为 481 份 Surefire XML / 3097 tests / 0 failures / 0 errors / 7 skipped；前端 `npm run verify` 为 101 个测试文件 / 810 tests，ESLint 零 warning、Stylelint、格式和类型检查均通过；B0、中文注释、产品目录、迁移规约、部署合同和 `git diff --check` 均通过。
 - 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
 - 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
-- 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，随后仅执行不清库前向迁移。当前运行提交为 `7573284bf1348fb8f437107e4c67ed626d2f3424`、JAR SHA-256=`3cfe658cf36d0dab679801938b472aaf5685f5ac161f7ced9bb3517ef6eb7cc3`、Flyway V157；`medkernel.service` active/enabled、MainPID=`3666533`、`NRestarts=0`，内部与 nginx HTTPS 健康检查均为 200。上线后不再清库。
+- 134 发布口径：已按全新项目执行最终清库；数据库、旧制品和旧运行数据未回灌，随后仅执行不清库前向发布。当前运行提交为 `1074f2bbf927654961953d73f67f35a89810e1bc`、JAR SHA-256=`84f6786608fd28f3e096ec450f0534bd3a2962f208e43c350762f1dcc8136601`，部署时间 `2026-06-20 11:28:08+08:00`，备份 `/zoesoft/medkernel/backups/deploy-20260620-112807`；Flyway V157，`medkernel.service` active/enabled、MainPID=`3740051`、`NRestarts=0`，内部与 nginx HTTPS 健康检查均为 200。上线后不再清库。
 - 资料库口径：134 正式文献根已于 `2026-06-20 00:32:37+08:00` 从系统盘迁移为大容量 COSFS 挂载 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`，配置版本 3；目标目录 `0750 medkernel:medkernel`、WHO PDF `0640 medkernel:medkernel`，源/目标 SHA-256 一致且服务账号读写探针通过。旧目录暂只作回滚副本，不再承接新写入。受管 `file://`、对象存储或 HTTPS 网关均是正式后端，不得把任一种资料后端写成唯一选项。
-- 小样本缺陷与重跑：`2026-06-20 10:18+08:00` 首次获取 WHO PDF 时，同页重复编号章节生成两个 `p46/§3/¶1`，触发唯一约束并完整回滚；孤儿文件已按 SHA 精确删除。`7573284b` 部署后同一 PDF 重跑成功，获取运行 `acq:4c3701be-eba4-4651-af08-032806e9e333`、解析 job `dpj:6aa4acc7-652f-4c72-98ad-b1bdcce12212`、来源版本 `11`，共 8141 个片段且 8141 个唯一锚点，资料 SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`。随后 B0 生成 job `f85a1842-7bb0-4b24-a7df-568d24ec8331` 因错误要求模型影子基准而取消，未创建候选或身份；证据见 `formal-sample/01-*`、`formal-sample/02-*`。
+- 小样本缺陷与重跑：`2026-06-20 10:18+08:00` 首次获取 WHO PDF 时，同页重复编号章节生成两个 `p46/§3/¶1`，触发唯一约束并完整回滚；孤儿文件已按 SHA 精确删除。`7573284b` 部署后同一 PDF 重跑成功，获取运行 `acq:4c3701be-eba4-4651-af08-032806e9e333`、解析 job `dpj:6aa4acc7-652f-4c72-98ad-b1bdcce12212`、来源版本 `11`，共 8141 个片段且 8141 个唯一锚点，资料 SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`。旧 B0 job `f85a1842-7bb0-4b24-a7df-568d24ec8331` 因错误要求模型影子基准而取消；`1074f2bb` 修复部署后，新 job `c1358725-501f-4df4-8036-a4a489542716` 已生成身份/版本 `9` 并进入 `platform-knowledge-governor` 待编著审核席位，未批准、未激活。证据见 `formal-sample/01-*` 至 `formal-sample/03-*`。
 - 安全纠偏：现场核查发现 P6 曾于 `2026-06-20 00:18:05+08:00` 被 `platform-owner` 从 `false` 改为 `true`，但当前两条 `PASSED` 运行均为 V156 前历史签署、`release_fingerprint=NULL`，不满足当前制品放行条件；已于 `00:32:37+08:00` 经正式配置 API 恢复 `false`（版本 3）并保留审计。Provider 仍为 2 个、启用 0 个；不得依据曾短暂打开的 P6 冒领正式生产开放。
 - 浏览器 TLS 边界：134 当前证书为自签 `CN=193.112.107.134`，issuer 与 subject 相同且无 Subject Alternative Name；in-app Chromium 真实访问 `/login` 返回 `ERR_CERT_AUTHORITY_INVALID`。内部/脚本健康检查可通过固定证书或受控校验继续执行，但普通浏览器信任链未通过，已登记 `DEFER-026`，不得据此宣称公网浏览器正式验收完成。
 - 当前执行清单：[`docs/superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md`](superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md)；沙盘与初始化切片见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
@@ -165,26 +165,27 @@
 - 沙盘正确口径：演练定制规则归属演练机构；CURRENT 运行继续复用正式“机构优先、平台补充、同编码机构覆盖平台”解析逻辑。平台主源规则可以参与沙盘，但不得复制成机构规则或被机构静默修改。场景模板不再固定配置包版本，每次运行从机构明确绑定解析并冻结真实基线；第三方显式版本合同和历史重放清单仍保存精确版本。
 - 10 条规则场景已补成真实、可执行、可测试、可审计的演练机构资产；不再用静态目录状态长期阻断。医学阈值来自权威来源或机构参数边界，无法证明的值不伪装为全国统一标准。沙盘已支持 CURRENT、HISTORICAL_EXACT 和 COMPARE，路径、推荐、随访、评估和嵌入继续调用正式领域服务，外部副作用一律抑制。专项计划见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)。
 - 生产知识首发范围已扩展为 KNOWGEN-01～35：34 类资产分装为稳定基础包与临床包，另由 KNOWGEN-15 总验收。KNOWGEN-33～35 是后续知识内容，不新增专用引擎；统一复用现有资产信封、版本、来源、审核、包和运行服务。模板覆盖、候选领域选择、高风险真实双签和初始化发行清单四个通用断点已补齐；后续只生产真实内容，不为每个医学领域复制状态机、表或页面。
-- 134 当前最终运行制品为 `origin/main=7573284bf1348fb8f437107e4c67ed626d2f3424`：部署清单与运行环境指纹均精确匹配，实际 JAR SHA-256 为 `3cfe658cf36d0dab679801938b472aaf5685f5ac161f7ced9bb3517ef6eb7cc3`，部署完成时间 `2026-06-20 10:50:12+08:00`，自动备份为 `/zoesoft/medkernel/backups/deploy-20260620-104945`；Flyway V157，服务 active/enabled、`NRestarts=0`、MainPID `3666533`，内部和 nginx HTTPS 健康检查均为 200。对应主分支 CI 运行 `27857913500` 已全部通过。
+- 134 当前最终运行制品为 `origin/main=1074f2bbf927654961953d73f67f35a89810e1bc`：部署清单与运行环境指纹均精确匹配，实际 JAR SHA-256 为 `84f6786608fd28f3e096ec450f0534bd3a2962f208e43c350762f1dcc8136601`，部署完成时间 `2026-06-20 11:28:08+08:00`，自动备份为 `/zoesoft/medkernel/backups/deploy-20260620-112807`；Flyway V157，服务 active/enabled、`NRestarts=0`、MainPID `3740051`，内部和 nginx HTTPS 健康检查均为 200。对应主分支 CI 运行 `27858796681` 已全部通过。
 - 基础知识运行事实：`f8567116` 首次创建 `MK-FND-B0-1.0.0`，`3fc3795d` 部署后幂等复跑返回 `REUSED`。数据库有 8 个来源文档、9 个来源版本与 9 条 `APPROVED` 来源批准；8 个候选/分类/审核任务均待逐条审核，8 个初始化条目均 `PENDING_REVIEW`，0 个模型生成、0 个 ACTIVE、8 个 identity 的 `current_version_id` 均为空。当前 8 个成功 job 已 `COMPLETED` 且门禁 72/72 通过；早先失败尝试保留为 1 个 `CANCELLED` job 和 9 条门禁历史留痕（8 通过、1 失败），不得把全历史 81 条误写为全部通过。
-- 最终安全边界：Provider 共 2 个且均 `HEALTHY`、启用 0 个；外部 MIMO 当前 `lock_version=7`。P6 独立验收为 `false`（SYSTEM 版本 5）。运行 `3`、`4` 在旧指纹 `b1eb6de3...` 上已有签署事件，当前 `7573284b` 及后续 B0 修复制品均不得复用旧签署。自动化可登记技术审查和工程放行，不得冒充真人医学专家。
+- 最终安全边界：Provider 共 2 个且均 `HEALTHY`、启用 0 个；外部 MIMO 当前 `lock_version=7`。P6 独立验收为 `false`（SYSTEM 版本 5）。运行 `3`、`4` 在旧指纹 `b1eb6de3...` 上已有签署事件，当前 `1074f2bb` 不得复用旧签署。自动化可登记技术审查和工程放行，不得冒充真人医学专家。
 - 2026-06-20 当前即时复核：知识生产 readiness 为 5/9，仅通过 `LITERATURE_ROOT`、`DEPLOYMENT_FORM`、`REGRESSION_BASELINE`、`EGRESS_GOVERNANCE`、`MODEL_POLICY`；`MODEL_PROVIDER`、`MODEL_EVALUATION`、`VERSION_TRIPLE`、`P6_ACCEPTANCE` 失败关闭。Provider/P6 保持关闭不影响严格 B0 候选生产到独立审核边界。
-- 当前 B0 影子门禁修复验证：失败测试先复现严格 B0 被错误返回 `NOT_READY`；修复后统一 `StrictB0TemplatePolicy` 供临床红线与影子门禁复用，严格 B0 以零用例 `PENDING_REVIEW` 留痕并进入人工编著审核，模型标记或非严格 payload 仍要求真实基准。定向单元与真实 H2 集成通过；后端全量 481 份报告 / 3100 tests / 0 failures / 0 errors / 7 skipped，前端 `npm run verify` 101 files / 810 tests，B0、产品能力目录、中文注释、证据 JSON 和 `git diff --check` 均通过。Codex 技术审查见 `expert-signoff/02-b0-shadow-gate-technical-review.json`，不是医学专家签署。
+- 当前 B0 影子门禁修复验证：失败测试先复现严格 B0 被错误返回 `NOT_READY`；修复后统一 `StrictB0TemplatePolicy` 供临床红线与影子门禁复用，严格 B0 以零用例 `PENDING_REVIEW` 留痕并进入人工编著审核，模型标记或非严格 payload 仍要求真实基准。定向单元与真实 H2 集成通过；后端全量 481 份报告 / 3100 tests / 0 failures / 0 errors / 7 skipped，前端 `npm run verify` 101 files / 810 tests，B0、产品能力目录、中文注释、证据 JSON 和 `git diff --check` 均通过。生产重跑进一步确认 job `c1358725-501f-4df4-8036-a4a489542716` 为 `COMPLETED`、9/9 门禁通过、候选审核 API 可用且 ACTIVE=0；Codex 技术审查见 `expert-signoff/02-*` 与 `03-*`，均不是医学专家签署。
 
 ## 仍不可宣称
 
-- 不得宣称正式知识生产已开放：P6 独立验收、真实 provider/凭据、真实医学基准评测、出域白名单、版本三元组和专家验收未全部现场闭环前，只能产受控候选和工程证据。
+- 不得宣称正式知识发布已开放：当前发布指纹的医学基准评测、真人专家签署、Provider 启用、P6 独立验收和 9/9 readiness 未全部现场闭环前，只能产受控候选和工程证据。
 - 不得宣称医学回归已经对修复后制品正式放行：旧制品运行 `3`、`4` 的签署事件只作历史审计；修复部署后必须按新发布指纹重跑，自动化技术审查不得冒充真人医学签署。
 - 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
 - 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
 
 ## 下一步
 
-1. 完成 `codex/b0-shadow-gate-fix` 的 PR、CI、合并和 134 不清库前向部署。
-2. 在修复制品上重跑来源版本 `11` 的 B0 候选生成，核验身份、候选、分流、影子运行和审核任务均真实落库，停在独立审核边界。
-3. 在最终新发布指纹上重跑医学评测；Codex 记录自动化技术审查，真人专家签署留后续统一核查。
-4. 补齐新制品签署后再精确启用一个 Provider、放行 P6，并重跑 9/9 与小样本闭环；未经真实审核不得激活知识。
+1. 合并当前生产证据 PR，确认 `origin/main` 含 `formal-sample/03-*`、`expert-signoff/03-*` 与本接力更新。
+2. 由真实独立专业人员对候选版本 `9` 完成医学内容编著、逐条来源复核与审核；当前严格 B0 骨架不得直接批准或激活。
+3. 在当前发布指纹 `1074f2bb...` 上重跑医学评测；Codex 只记录自动化技术审查，真人专家完成真实签署。
+4. 新制品签署后再精确启用一个 Provider、放行 P6，并重跑 9/9 与小样本审核→激活闭环；未经真实审核不得激活知识。
 5. 处理 `DEFER-026`：为公网浏览器配置可验证的证书信任链与 SAN，并完成真实浏览器复验。
+6. 按 `DEFER-027` 补完整模型 Provider/版本/凭据引用的可视化维护入口；密钥继续只在受控环境或密钥库维护，禁止回显。
 
 ## 常用指针
 

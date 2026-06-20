@@ -1,0 +1,129 @@
+{
+  "status": "B0_CANDIDATE_PENDING_HUMAN_AUTHORING_REVIEW",
+  "capturedAt": "2026-06-20T11:34:00+08:00",
+  "deployedRelease": {
+    "sourceCommit": "1074f2bbf927654961953d73f67f35a89810e1bc",
+    "pullRequest": 642,
+    "deployedAt": "2026-06-20T11:28:08+08:00",
+    "jarSha256": "84f6786608fd28f3e096ec450f0534bd3a2962f208e43c350762f1dcc8136601",
+    "backupPath": "/zoesoft/medkernel/backups/deploy-20260620-112807",
+    "serviceActive": true,
+    "serviceEnabled": true,
+    "mainPid": 3740051,
+    "restartCount": 0,
+    "readinessHttpStatus": 200
+  },
+  "managedLiteratureStorage": {
+    "configKey": "medkernel.knowledge.literature.material-root-uri",
+    "configVersion": 3,
+    "rootUri": "file:///medkernel-data/platform-knowledge/t-1/literature-materials/",
+    "filesystem": "fuse.cosfs",
+    "reportedCapacity": "256T",
+    "sourceFile": "/medkernel-data/platform-knowledge/t-1/literature-materials/WHO-CHB-GUIDELINE-2024-9789240090903-eng.pdf",
+    "sourceFileMode": "0640",
+    "sourceFileOwner": "medkernel:medkernel",
+    "sourceFileBytes": 3515427,
+    "sourceFileSha256": "e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c"
+  },
+  "sourceReuse": {
+    "sourceCode": "WHO-CHB-GUIDELINE-2024",
+    "runCode": "acq:e6ff8e9b-27eb-4eb3-bced-4d070d39265d",
+    "status": "DUPLICATE",
+    "sourceDocumentId": 10,
+    "sourceVersionId": 11,
+    "parseJobCode": null,
+    "fragmentCount": 8141,
+    "distinctAnchorCount": 8141
+  },
+  "candidateProduction": {
+    "jobCode": "c1358725-501f-4df4-8036-a4a489542716",
+    "jobStatus": "COMPLETED",
+    "producer": "MANUAL",
+    "pipeline": "PLATFORM_SOURCE",
+    "domain": "CLINICAL",
+    "assetType": "KNOWLEDGE",
+    "candidateCount": 1,
+    "skippedCount": 0,
+    "blockedCount": 0,
+    "candidateRef": "kv:9:draft-from-2024.03.28-formal-sample-20260620",
+    "identityId": 9,
+    "identityCode": "GUIDELINE-WHO-CHB-2024",
+    "identityDomain": "GUIDELINE",
+    "subject": "WHO 2024慢性乙型肝炎指南",
+    "candidateVersionId": 9,
+    "candidateVersionStatus": "PENDING_REPLACEMENT_REVIEW",
+    "riskLevel": "MEDIUM",
+    "classification": "NEW_ASSET",
+    "reviewStatus": "PENDING_REPLACEMENT_REVIEW",
+    "assignedTo": "platform-knowledge-governor",
+    "reviewApi": {
+      "httpStatus": 200,
+      "available": true,
+      "message": "知识候选审核工作流已可用",
+      "candidateTotal": 1
+    },
+    "routing": {
+      "ownerReviewerRole": "PLATFORM_KNOWLEDGE_GOVERNOR",
+      "domainReviewerRole": "CLINICAL_GOVERNOR",
+      "requiresDualSign": false
+    }
+  },
+  "safetyGates": {
+    "passedCount": 9,
+    "totalCount": 9,
+    "failedCount": 0,
+    "passed": [
+      "ANCHOR_COMPLETE",
+      "APPLICABLE_SCOPE",
+      "AUTHORITY_CONFLICT",
+      "AUTHORITY_LEVEL",
+      "CLINICAL_REDLINE",
+      "CONTENT_FORMAT",
+      "REVIEW_ELEMENTS",
+      "SOURCE_LICENSE",
+      "SOURCE_PRESENT"
+    ]
+  },
+  "triage": {
+    "state": "NEW_ASSET",
+    "action": "SUBMIT_REVIEW",
+    "basis": "未指定现有知识身份，按新知识身份候选进入审核"
+  },
+  "shadowEvaluation": {
+    "status": "PENDING_REVIEW",
+    "totalCases": 0,
+    "hitCount": 0,
+    "falsePositiveCount": 0,
+    "missCount": 0,
+    "degradationDetected": false,
+    "readyForReview": true,
+    "basis": "严格 B0 非模型待编著骨架不执行模型影子评测，进入人工编著审核"
+  },
+  "releaseBoundary": {
+    "activeVersionCount": 0,
+    "approvedReviewAssignmentCount": 0,
+    "providerEnabledCount": 0,
+    "providers": [
+      {
+        "providerCode": "external-mimo-v25",
+        "status": "HEALTHY",
+        "enabled": false,
+        "lockVersion": 7
+      },
+      {
+        "providerCode": "ollama-qwen25-15b",
+        "status": "HEALTHY",
+        "enabled": false,
+        "lockVersion": 2
+      }
+    ],
+    "p6IndependentAcceptance": false,
+    "p6ConfigVersion": 5,
+    "historicalSignedEvalFingerprint": "b1eb6de3b264ade02459e512465ef947de2ab75f",
+    "currentReleaseFingerprint": "1074f2bbf927654961953d73f67f35a89810e1bc",
+    "historicalEvalReusable": false,
+    "medicalContentAuthored": false,
+    "medicalActivationPerformed": false,
+    "nextRequiredAction": "由真实独立专业人员完成内容编著、来源逐条复核与审核签署；当前候选不得激活"
+  }
+}
