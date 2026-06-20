@@ -3,6 +3,7 @@ package com.medkernel.engine.knowledge.production.shadow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -13,12 +14,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
 import com.medkernel.engine.knowledge.GradeRecommendationStrength;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.knowledge.production.generation.StrictB0TemplatePolicy;
 import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.MedicalRegressionEvaluator;
@@ -30,10 +33,12 @@ import com.medkernel.shared.context.RequestContext;
 /** AIK-STD-06 生成期影子评测服务单元测试。 */
 class KnowledgeShadowEvaluationServiceTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final MedicalRegressionCaseRepository cases = mock(MedicalRegressionCaseRepository.class);
     private final KnowledgeShadowRunRepository runs = mock(KnowledgeShadowRunRepository.class);
     private final KnowledgeShadowEvaluationService service =
-        new KnowledgeShadowEvaluationService(cases, new MedicalRegressionEvaluator(), runs);
+        new KnowledgeShadowEvaluationService(
+            cases, new MedicalRegressionEvaluator(), runs, new StrictB0TemplatePolicy(OBJECT_MAPPER));
 
     @BeforeEach
     void bindTenant() {
@@ -60,6 +65,68 @@ class KnowledgeShadowEvaluationServiceTest {
         assertThat(saved.totalCases()).isZero();
         assertThat(saved.readyForReview()).isFalse();
         assertThat(saved.basis()).contains("未配置");
+    }
+
+    @Test
+    void strictB0NonModelTemplateSkipsModelBenchmarkAndEntersAuthoringReview() {
+        KnowledgeShadowDecision decision = service.evaluate(candidate(VersionedAssetType.KNOWLEDGE, """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": false,
+              "template": "KNOWLEDGE",
+              "sections": {
+                "scope": "待编著（结构：适用范围）",
+                "content": "待编著（结构：知识正文）"
+              },
+              "sourceEvidence": [
+                {
+                  "anchorPath": "p46/§3/¶1",
+                  "excerpt": "WHO 指南来源片段",
+                  "contentHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                }
+              ]
+            }
+            """), new KnowledgeShadowContext(
+                "tenant-a", "job-b0", null, VersionedAssetType.KNOWLEDGE));
+
+        assertThat(decision.readyForReview()).isTrue();
+        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.PENDING_REVIEW);
+        KnowledgeShadowRun saved = savedRun();
+        assertThat(saved.totalCases()).isZero();
+        assertThat(saved.degradationDetected()).isFalse();
+        assertThat(saved.basis()).contains("B0").contains("非模型").contains("人工编著审核");
+        verifyNoInteractions(cases);
+    }
+
+    @Test
+    void modelMarkedB0TemplateStillRequiresRealBenchmark() {
+        when(cases.findByTenantIdAndCapabilityCodeAndEnabledFlag(
+            "tenant-a", "knowledge.production.knowledge", "Y")).thenReturn(List.of());
+
+        KnowledgeShadowDecision decision = service.evaluate(candidate(VersionedAssetType.KNOWLEDGE, """
+            {
+              "generationMode": "B0_TEMPLATE",
+              "medicalContentStatus": "PENDING_AUTHORING",
+              "generatedByModel": true,
+              "template": "KNOWLEDGE",
+              "sections": {
+                "scope": "待编著（结构：适用范围）"
+              },
+              "sourceEvidence": [
+                {
+                  "anchorPath": "p46/§3/¶1",
+                  "excerpt": "WHO 指南来源片段",
+                  "contentHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                }
+              ]
+            }
+            """), new KnowledgeShadowContext(
+                "tenant-a", "job-model-b0", null, VersionedAssetType.KNOWLEDGE));
+
+        assertThat(decision.readyForReview()).isFalse();
+        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.NOT_READY);
+        assertThat(savedRun().basis()).contains("未配置真实影子评测基准集");
     }
 
     @Test
@@ -133,8 +200,12 @@ class KnowledgeShadowEvaluationServiceTest {
     }
 
     private KnowledgeAssetEnvelope candidate(String payload) {
+        return candidate(VersionedAssetType.RULE, payload);
+    }
+
+    private KnowledgeAssetEnvelope candidate(VersionedAssetType assetType, String payload) {
         return new KnowledgeAssetEnvelope(
-            VersionedAssetType.RULE, "RULE-HTN", "高血压诊断规则", "draft-v1",
+            assetType, assetType.name() + "-HTN", "高血压诊断规则", "draft-v1",
             List.of(new AssetSourceRef("SRC:v1:section-1", SourceAuthorityLevel.B_GUIDELINE)),
             SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE,
             GradeRecommendationStrength.STRONG, KnowledgeRiskLevel.MEDIUM, "tenant-a",

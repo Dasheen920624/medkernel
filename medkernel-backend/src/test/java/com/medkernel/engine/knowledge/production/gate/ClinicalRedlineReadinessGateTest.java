@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.knowledge.production.generation.StrictB0TemplatePolicy;
 import com.medkernel.engine.safety.ClinicalRedlineCatalogResponse;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
 import com.medkernel.engine.safety.ClinicalRedlineContentStatus;
@@ -34,7 +35,9 @@ class ClinicalRedlineReadinessGateTest {
     @BeforeEach
     void setUp() {
         redlineService = mock(ClinicalRedlineService.class);
-        gate = new ClinicalRedlineReadinessGate(redlineService, new ObjectMapper());
+        ObjectMapper objectMapper = new ObjectMapper();
+        gate = new ClinicalRedlineReadinessGate(
+            redlineService, objectMapper, new StrictB0TemplatePolicy(objectMapper));
     }
 
     private KnowledgeAssetEnvelope envelope() {
