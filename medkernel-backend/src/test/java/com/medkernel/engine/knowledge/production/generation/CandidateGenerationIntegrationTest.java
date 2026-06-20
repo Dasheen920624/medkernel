@@ -35,8 +35,6 @@ import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRunStatus
 import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageRepository;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
-import com.medkernel.engine.llm.eval.MedicalRegressionCase;
-import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
 import com.medkernel.engine.safety.ClinicalRedlineRepository;
@@ -76,8 +74,6 @@ class CandidateGenerationIntegrationTest {
     @Autowired
     private GenerationTriageRepository triages;
     @Autowired
-    private MedicalRegressionCaseRepository regressionCases;
-    @Autowired
     private KnowledgeShadowRunRepository shadowRuns;
 
     @AfterEach
@@ -99,8 +95,6 @@ class CandidateGenerationIntegrationTest {
         sourceFragments.save(new SourceFragment(null, TENANT, version.id(), "section-2", "用药",
             "首选 CCB 或 ACEI。", "c".repeat(64), now));
         seedRedlines(now);
-        seedRegressionCase(now, VersionedAssetType.RULE, "血压≥140/90");
-        seedRegressionCase(now, VersionedAssetType.PATHWAY, "首选 CCB");
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             version.id(), TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
@@ -137,9 +131,10 @@ class CandidateGenerationIntegrationTest {
             .toList();
         assertThat(firstShadowRuns).hasSize(2);
         assertThat(firstShadowRuns).allSatisfy(run -> {
-            assertThat(run.status()).isEqualTo(KnowledgeShadowRunStatus.PASSED);
+            assertThat(run.status()).isEqualTo(KnowledgeShadowRunStatus.PENDING_REVIEW);
             assertThat(run.readyForReview()).isTrue();
-            assertThat(run.totalCases()).isEqualTo(1);
+            assertThat(run.totalCases()).isZero();
+            assertThat(run.basis()).contains("B0").contains("人工编著审核");
         });
 
         GenerationSummary duplicate = service.generate(new CandidateGenerationRequest(
@@ -170,11 +165,4 @@ class CandidateGenerationIntegrationTest {
         }
     }
 
-    private void seedRegressionCase(Instant now, VersionedAssetType assetType, String expectedPhrase) {
-        regressionCases.save(new MedicalRegressionCase(null, TENANT,
-            "knowledge.production." + assetType.name().toLowerCase(java.util.Locale.ROOT),
-            "general", "候选影子评测", expectedPhrase, "[]", "[]", 100,
-            null, "SRC-AIK04:v1:section-1", "Y", "v1", "Y",
-            now, "tester", now, "tester"));
-    }
 }

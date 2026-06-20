@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.production.generation.StrictB0TemplatePolicy;
 import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.MedicalRegressionEvaluator;
@@ -19,9 +20,10 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 生成期影子评测服务（AIK-STD-06 + OPT-06）。
  *
- * <p>候选进入人工审核前，复用 LLM-07 医学回归基准集与评测器跑 B0 影子评测：无真实基准集则
- * {@code NOT_READY} 并阻断，评测失败则阻断，只有达标结果才允许继续提审。服务只记录影子证据，
- * 不触发临床提醒、不写病历或医嘱。
+ * <p>候选进入人工审核前，复用 LLM-07 医学回归基准集与评测器跑影子评测：无真实基准集则
+ * {@code NOT_READY} 并阻断，评测失败则阻断，只有达标结果才允许继续提审。严格符合生成契约的 B0
+ * 非模型待编著骨架不包含医学逻辑，不执行模型基准评测，以 {@code PENDING_REVIEW} 留痕后进入人工编著审核；
+ * 任一非严格 B0 候选仍执行完整影子门禁。服务不触发临床提醒、不写病历或医嘱。
  */
 @Service
 public class KnowledgeShadowEvaluationService {
@@ -33,18 +35,27 @@ public class KnowledgeShadowEvaluationService {
     private final MedicalRegressionCaseRepository caseRepository;
     private final MedicalRegressionEvaluator evaluator;
     private final KnowledgeShadowRunRepository runRepository;
+    private final StrictB0TemplatePolicy strictB0TemplatePolicy;
 
     public KnowledgeShadowEvaluationService(MedicalRegressionCaseRepository caseRepository,
                                             MedicalRegressionEvaluator evaluator,
-                                            KnowledgeShadowRunRepository runRepository) {
+                                            KnowledgeShadowRunRepository runRepository,
+                                            StrictB0TemplatePolicy strictB0TemplatePolicy) {
         this.caseRepository = caseRepository;
         this.evaluator = evaluator;
         this.runRepository = runRepository;
+        this.strictB0TemplatePolicy = strictB0TemplatePolicy;
     }
 
     @Transactional
     public KnowledgeShadowDecision evaluate(KnowledgeAssetEnvelope candidate, KnowledgeShadowContext context) {
         String capabilityCode = capabilityCode(context);
+        if (strictB0TemplatePolicy.matches(candidate.payload())) {
+            KnowledgeShadowRun saved = persist(candidate, context, capabilityCode,
+                KnowledgeShadowRunStatus.PENDING_REVIEW, 0, 0, 0, 0, false, true,
+                "严格 B0 非模型待编著骨架不执行模型影子评测，进入人工编著审核");
+            return toDecision(saved);
+        }
         List<MedicalRegressionCase> cases = caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             context.tenantId(), capabilityCode, ENABLED);
         if (cases.isEmpty()) {
