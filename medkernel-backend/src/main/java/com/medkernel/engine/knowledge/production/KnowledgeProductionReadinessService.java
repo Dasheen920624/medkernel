@@ -26,6 +26,7 @@ import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ModelProviderConfig;
 import com.medkernel.engine.llm.provider.ModelProviderConfigRepository;
+import com.medkernel.engine.llm.provider.ModelProviderCredentialRepository;
 import com.medkernel.engine.llm.provider.ProviderType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
@@ -36,7 +37,7 @@ import com.medkernel.shared.config.SystemConfigService;
  * 正式模型生成知识前置 readiness 闸（AIK-STD-13/LLM-01/02/04）。
  *
  * <p>本服务只聚合关系库和配置中心事实，不调用模型、不创建候选。任一强前置缺失时返回结构化阻断，
- * 模型生产器必须据此停止真实模型调用并回到 B0/人工路径。
+ * 模型生产器必须据此停止真实模型调用并返回诚实阻断，禁止静默回退为非模型候选。
  */
 @Service
 public class KnowledgeProductionReadinessService {
@@ -46,6 +47,7 @@ public class KnowledgeProductionReadinessService {
     private final SystemConfigService configService;
     private final DeploymentFormService deploymentFormService;
     private final ModelProviderConfigRepository providerRepository;
+    private final ModelProviderCredentialRepository credentialRepository;
     private final MedicalRegressionCaseRepository regressionCaseRepository;
     private final ModelEvalRunRepository evalRunRepository;
     private final ModelEgressWhitelistRepository egressWhitelistRepository;
@@ -55,6 +57,7 @@ public class KnowledgeProductionReadinessService {
     public KnowledgeProductionReadinessService(SystemConfigService configService,
                                                DeploymentFormService deploymentFormService,
                                                ModelProviderConfigRepository providerRepository,
+                                               ModelProviderCredentialRepository credentialRepository,
                                                MedicalRegressionCaseRepository regressionCaseRepository,
                                                ModelEvalRunRepository evalRunRepository,
                                                ModelEgressWhitelistRepository egressWhitelistRepository,
@@ -63,6 +66,7 @@ public class KnowledgeProductionReadinessService {
         this.configService = configService;
         this.deploymentFormService = deploymentFormService;
         this.providerRepository = providerRepository;
+        this.credentialRepository = credentialRepository;
         this.regressionCaseRepository = regressionCaseRepository;
         this.evalRunRepository = evalRunRepository;
         this.egressWhitelistRepository = egressWhitelistRepository;
@@ -83,7 +87,7 @@ public class KnowledgeProductionReadinessService {
         List<KnowledgeProductionReadinessItem> items = new ArrayList<>();
         items.add(literatureRootItem());
         items.add(deploymentItem(targetProducer, deploymentForm));
-        items.add(providerItem(targetProducer, provider));
+        items.add(providerItem(tenantId, targetProducer, provider));
         List<MedicalRegressionCase> cases =
             regressionCaseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capability, "Y");
         items.add(regressionBaselineItem(capability, cases));
@@ -136,12 +140,13 @@ public class KnowledgeProductionReadinessService {
             "deploymentForm=" + form);
     }
 
-    private KnowledgeProductionReadinessItem providerItem(KnowledgeProducer producer,
+    private KnowledgeProductionReadinessItem providerItem(String tenantId,
+                                                          KnowledgeProducer producer,
                                                           Optional<ModelProviderConfig> provider) {
         if (provider.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "未找到匹配且启用的模型 provider",
+                "未找到匹配的模型 provider",
                 "producer=" + producer);
         }
         ModelProviderConfig config = provider.get();
@@ -166,12 +171,15 @@ public class KnowledgeProductionReadinessService {
                 "模型 provider 未启用或健康状态不是 HEALTHY",
                 config.providerCode() + " status=" + config.status());
         }
-        boolean credentialMissing = providerType.external() && blank(config.credentialRef());
+        boolean vaultCredentialConfigured = credentialRepository
+            .findByTenantIdAndProviderCode(tenantId, config.providerCode())
+            .isPresent();
+        boolean credentialMissing = providerType.external() && !vaultCredentialConfigured;
         if (blank(config.endpointUri()) || credentialMissing || blank(config.modelVersion())) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
                 providerType.external()
-                    ? "外部模型 provider 缺端点、凭据引用或模型版本"
+                    ? "外部模型 provider 缺端点、租户凭据或模型版本"
                     : "本地模型 provider 缺端点或模型版本",
                 config.providerCode());
         }
@@ -346,8 +354,7 @@ public class KnowledgeProductionReadinessService {
 
     private Optional<ModelProviderConfig> resolveProvider(String tenantId, KnowledgeProducer producer, String providerCode) {
         if (providerCode != null && !providerCode.isBlank()) {
-            return providerRepository.findByTenantIdAndProviderCode(tenantId, providerCode.trim())
-                .filter(ModelProviderConfig::enabled);
+            return providerRepository.findByTenantIdAndProviderCode(tenantId, providerCode.trim());
         }
         return providerRepository.findByTenantIdAndEnabledFlag(tenantId, "Y").stream()
             .filter(provider -> providerMatchesProducer(provider, producer))

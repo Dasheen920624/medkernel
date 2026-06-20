@@ -56,7 +56,7 @@
 
 1. 为凭据加载器补测试，支持主账号文件中的 `username` 覆盖和只读会话模式；禁止自动改密码、自动绑定 MFA 或写回账号状态。
 2. 运行测试，确认现有“用户名等于角色”假设在平台临时账号上失败。
-3. 实现兼容旧格式和主账号格式的只读凭据解析，日志仅输出角色和账号别名。
+3. 只解析唯一主账号格式，删除旧格式分支和兼容测试，日志仅输出角色和账号别名。
 4. 为 14 个职责角色定义一个主任务：入口、准备条件、主动作、成功证据、诚实空态、无权限边界和接力角色。
 5. 新增主任务 E2E；不得只断言标题，必须断言动作、HTTP 结果和页面反馈。
 6. 对当前无法安全写入生产数据的角色使用只读证据路径，明确记录待部署后执行的写入验收。
@@ -94,7 +94,7 @@
 - 新建：`medkernel-backend/src/main/java/com/medkernel/engine/llm/provider/ProviderCredentialCodec.java`
 - 新建：`medkernel-backend/src/main/java/com/medkernel/engine/llm/provider/VaultProviderCredentialResolver.java`
 - 修改：`medkernel-backend/src/main/java/com/medkernel/engine/llm/provider/ProviderCredentialResolver.java`
-- 修改：`medkernel-backend/src/main/java/com/medkernel/engine/llm/provider/EnvProviderCredentialResolver.java`
+- 删除：`medkernel-backend/src/main/java/com/medkernel/engine/llm/provider/EnvProviderCredentialResolver.java`
 - 修改：调用 `ProviderCredentialResolver` 的模型 Provider 适配器
 - 测试：`medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/ProviderCredentialCodecTest.java`
 - 测试：`medkernel-backend/src/test/java/com/medkernel/engine/llm/provider/VaultProviderCredentialResolverTest.java`
@@ -102,10 +102,10 @@
 **步骤：**
 
 1. 写失败测试证明：相同明文在模型凭据上下文中可往返，但不能被字段级 D3/D4 上下文解密；API 对象和异常不得包含明文。
-2. 写失败测试证明解析顺序为“租户凭据库 → 环境变量引用”，缺失时返回结构化未配置状态。
+2. 写失败测试证明模型调用只读取租户凭据库，缺失时返回结构化未配置状态，不读取环境变量。
 3. 使用 `MEDKERNEL_FIELD_ENCRYPTION_KEY` 派生 `medkernel:llm:provider-credential:` 独立 SM4 密钥，不复用 JWT 或 MFA 密钥。
-4. 将 resolver 签名改为显式接收 `tenantId` 和 `credentialRef`，逐个更新 Provider 适配器，禁止从线程外隐式猜租户。
-5. 对解密、环境变量和 HTTP 认证异常做脱敏；日志仅允许 providerCode、credentialLast4、traceId。
+4. 将 resolver 签名改为显式接收 `tenantId` 和 `providerCode`，逐个更新 Provider 适配器，禁止从线程外隐式猜租户。
+5. 对解密和 HTTP 认证异常做脱敏；日志仅允许 providerCode、credentialLast4、traceId。
 6. 运行 provider、加密和日志泄漏目标测试。
 7. 提交：`feat: 实现租户级模型凭据安全解析`。
 
@@ -168,7 +168,7 @@
 - 新建：`frontend/src/shared/api/modelProviders.ts`
 - 修改：`frontend/src/shared/api/modelEvaluation.ts`
 - 修改：`frontend/src/shared/api/knowledgeProduction.ts`
-- 修改：`frontend/src/pages/quality/MedicalRegressionReview.tsx`
+- 新建：`frontend/src/pages/knowledge-production/IndependentMedicalReviewPanel.tsx`
 - 修改：`frontend/src/shared/config/routes.ts`
 - 修改：`frontend/src/shared/config/productRoleJourneys.ts`
 - 修改：`frontend/src/pages/workbench/ReadinessValidation.tsx`
@@ -182,7 +182,7 @@
 4. 写 readiness 测试：九闸按依赖顺序展示，修复链接统一指向 `/knowledge/production?step=provider|evaluation|readiness`，不再误指 `/system/providers` 或 `/advanced/ai-workflows`。
 5. 写生产测试：页面无生产者选择；未全绿时主按钮禁用并展示阻断；提交固定 `API_MODEL`；失败不显示“已产生候选”。
 6. 实现 Provider hooks、凭据轮换表单、高危确认、探活和启停。
-7. 把医学回归复核抽成可复用面板，保留 `/qc/model-evaluations` 兼容路由并引导到控制台，避免两套状态逻辑。
+7. 把医学回归复核收敛为控制台内置步骤，删除 `/qc/model-evaluations` 旧路由、旧菜单权限和独立页面包装，只保留一套状态逻辑。
 8. 把现有任务、候选、11 门禁、8 态分流和影子证据移入生产任务区域；技术字段进入专家模式。
 9. 更新工作台角色旅程：集成运维员、质量治理专家、平台知识治理员和系统超级管理员从同一控制台接力。
 10. 运行组件、hooks、路由、角色旅程、可访问性和 390px 测试。
@@ -277,8 +277,7 @@
 7. 请求独立代码评审，逐条核实意见并修复 P0/P1。
 8. 更新 `_HANDOFF.md`，明确本地、PR、合并、部署和生产数据各自状态，禁止把任一阶段提前写成完成。
 9. 推送 `codex/model-production-console`，创建中文 PR；CI 全绿后 squash 合并，确认 `origin/main` 含合并提交。
-10. 从最新 `origin/main` 构建并部署 134，核对 commit、JAR SHA、Flyway V158、服务健康和发布指纹。
+10. 从最新 `origin/main` 构建并部署 134，核对 commit、JAR SHA、Flyway V159、服务健康和发布指纹。
 11. 先对非模型候选执行 dry-run，核对 8 个基础 B0 候选和 WHO B0 样本；摘要一致后执行受控退出，复核 ACTIVE=0 未改变、模型候选未受影响。
 12. 在前台录入真实 Provider Key，探活、运行当前制品医学评测、由独立专家签署、复核九闸，再创建第一条 `API_MODEL` 正式生产任务。
 13. 保存脱敏证据，更新问题账本；只有全部完成判据满足后才能声明系统可正常使用。
-

@@ -20,8 +20,8 @@ import jakarta.validation.Valid;
 /**
  * 模型 provider 接入治理控制器（LLM-08）。
  *
- * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行侧内网禁启外部 provider（ENG-LLM-009）。
- * 全线 {@link DataScope} 强多租户隔离。
+ * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；质量治理员（{@code llm.eval.manage}）
+ * 可读取脱敏快照完成医学评测。运行侧内网禁启外部 provider（ENG-LLM-009）。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController
 @RequestMapping("/api/v1/model-providers")
@@ -38,7 +38,7 @@ public class ModelProviderController {
      * 分页读取当前租户的 Provider 脱敏治理快照。
      */
     @GetMapping
-    @PreAuthorize("@perm.has('llm.provider.manage')")
+    @PreAuthorize("@perm.has('llm.provider.manage') or @perm.has('llm.eval.manage')")
     public ApiResult<PageResponse<ModelProviderGovernanceView>> listProviders(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer size) {
@@ -61,7 +61,7 @@ public class ModelProviderController {
      * 读取指定 provider 的脱敏治理快照。
      */
     @GetMapping("/{providerCode}")
-    @PreAuthorize("@perm.has('llm.provider.manage')")
+    @PreAuthorize("@perm.has('llm.provider.manage') or @perm.has('llm.eval.manage')")
     public ApiResult<ModelProviderGovernanceView> getProvider(@PathVariable String providerCode) {
         return ApiResult.ok(service.getProvider(providerCode));
     }
@@ -78,7 +78,7 @@ public class ModelProviderController {
     }
 
     /**
-     * 高危移除指定 Provider 的凭据与环境变量回退引用。
+     * 高危移除指定 Provider 的租户加密凭据。
      */
     @DeleteMapping("/{providerCode}/credential")
     @PreAuthorize("@perm.has('llm.provider.manage')")

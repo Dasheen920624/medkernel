@@ -39,7 +39,7 @@ class ExternalProviderTest {
     private ModelProviderConfig config(String type, String version) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new ModelProviderConfig(1L, "tenant-1", type.toLowerCase() + "-prod", type,
-            "https://api.example.com", "MODEL_API_KEY", version, "Y", "HEALTHY",
+            "https://api.example.com", version, "Y", "HEALTHY",
             now, "system", now, "system", 0L);
     }
 
@@ -53,7 +53,7 @@ class ExternalProviderTest {
 
     @Test
     void openAiParsesRealCompletion() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.of("sk-secret"));
         when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), contains("gpt-4o"), eq(45_000)))
             .thenReturn("{\"model\":\"gpt-4o\",\"choices\":[{\"message\":{\"content\":\"候选内容\"}}]}");
@@ -67,7 +67,7 @@ class ExternalProviderTest {
 
     @Test
     void claudeParsesRealCompletion() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.of("sk-ant"));
         when(http.post(eq("https://api.example.com/v1/messages"), any(), contains("claude-opus-4-8"), eq(45_000)))
             .thenReturn("{\"model\":\"claude-opus-4-8\",\"content\":[{\"type\":\"text\",\"text\":\"候选内容\"}]}");
@@ -81,7 +81,7 @@ class ExternalProviderTest {
 
     @Test
     void externalProvidersRejectResponseWithoutActualModelVersion() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.of("secret"));
         when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
             .thenReturn("{\"choices\":[{\"message\":{\"content\":\"候选内容\"}}]}");
@@ -102,7 +102,7 @@ class ExternalProviderTest {
 
     @Test
     void externalProvidersRejectEmptyCompletionContent() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.of("secret"));
         when(http.post(eq("https://api.example.com/v1/chat/completions"), any(), anyString(), eq(45_000)))
             .thenReturn("{\"model\":\"gpt-4o\",\"choices\":[{\"message\":{\"content\":\"  \"}}]}");
@@ -123,7 +123,7 @@ class ExternalProviderTest {
 
     @Test
     void missingCredentialIsNotConnectedAndCompleteFails() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.empty());
 
         assertThat(claude.checkHealth(config("CLAUDE", "claude-opus-4-8"))).isEqualTo(ProviderHealth.NOT_CONNECTED);
@@ -134,7 +134,7 @@ class ExternalProviderTest {
 
     @Test
     void healthNotConnectedOnTransportError() {
-        when(credentials.resolveSecret(eq("tenant-1"), anyString(), eq("MODEL_API_KEY")))
+        when(credentials.resolveSecret(eq("tenant-1"), anyString()))
             .thenReturn(Optional.of("sk"));
         when(http.get(anyString(), any(), eq(5_000))).thenThrow(new RuntimeException("timeout"));
         assertThat(openai.checkHealth(config("OPENAI_COMPATIBLE", "gpt-4o"))).isEqualTo(ProviderHealth.NOT_CONNECTED);

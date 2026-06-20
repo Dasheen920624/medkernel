@@ -136,11 +136,11 @@ class DefaultPermissionPolicyTest {
             "knowledge-governance",
             "rule-definitions",
             "provenance",
+            "knowledge-production",
             "qc-dashboard",
             "qc-alerts",
             "insurance-audit",
             "qc-eval-sets",
-            "model-evaluation-review",
             "admin-audit")),
         Map.entry(RoleCode.COMPLIANCE_AUDITOR, List.of(
             "workbench",
@@ -479,7 +479,9 @@ class DefaultPermissionPolicyTest {
             .contains(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE)
             .doesNotContain(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QUALITY_GOVERNOR))
-            .contains(PermissionCode.LLM_EVAL_MANAGE, PermissionCode.MENU_MODEL_EVALUATION_REVIEW)
+            .contains(
+                PermissionCode.LLM_EVAL_MANAGE,
+                PermissionCode.MENU_KNOWLEDGE_PRODUCTION)
             .doesNotContain(PermissionCode.LLM_PROVIDER_MANAGE, PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_ENHANCEMENT_MANAGE);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
@@ -490,8 +492,7 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.LLM_PROVIDER_MANAGE,
                 PermissionCode.LLM_EGRESS_MANAGE,
                 PermissionCode.LLM_EVAL_MANAGE,
-                PermissionCode.LLM_ENHANCEMENT_MANAGE,
-                PermissionCode.MENU_MODEL_EVALUATION_REVIEW);
+                PermissionCode.LLM_ENHANCEMENT_MANAGE);
     }
 
     @Test

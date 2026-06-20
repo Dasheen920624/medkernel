@@ -94,7 +94,7 @@ public enum PermissionCode {
     LLM_EXECUTE("llm.execute", Risk.MEDIUM, "提交和重试模型任务"),
     LLM_MANAGE("llm.manage", Risk.HIGH, "管理租户模型路由、脱敏和输出结构策略"),
     LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调出域字段白名单与高敏出域审批"),
-    LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/凭据引用/启停）"),
+    LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/加密凭据/启停）"),
     LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学回归基准集、运行评测与专家复核签字"),
     LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点↔能力码↔B0 路径↔接入状态）"),
     KNOWLEDGE_ACQUISITION_APPROVE("knowledge.acquisition.approve", Risk.HIGH, "独立审批、启用或停用公域资料来源"),
@@ -136,7 +136,7 @@ public enum PermissionCode {
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
     ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
 
-    // ─── INFRA-05 入口维度：33 主导航 + 1 页头 + 1 个人入口 ─────────
+    // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
     MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
@@ -155,8 +155,6 @@ public enum PermissionCode {
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
-    MENU_MODEL_EVALUATION_REVIEW(
-        "menu.model-evaluation-review", PermissionDimension.MENU, Risk.LOW, "查看医学回归复核"),
     MENU_KNOWLEDGE_GOVERNANCE(
         "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
     MENU_INSTITUTION_KNOWLEDGE(

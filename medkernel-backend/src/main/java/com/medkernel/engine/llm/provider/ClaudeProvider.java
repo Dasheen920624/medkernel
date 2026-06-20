@@ -43,7 +43,7 @@ public class ClaudeProvider implements ModelProvider {
     @Override
     public ProviderHealth checkHealth(ModelProviderConfig config) {
         Optional<String> secret = credentials.resolveSecret(
-            config.tenantId(), config.providerCode(), config.credentialRef());
+            config.tenantId(), config.providerCode());
         if (secret.isEmpty()) {
             return ProviderHealth.NOT_CONNECTED;
         }
@@ -61,7 +61,7 @@ public class ClaudeProvider implements ModelProvider {
     @Override
     public ProviderCompletion complete(ModelProviderConfig config, ProviderRequest request) {
         String secret = credentials.resolveSecret(
-                config.tenantId(), config.providerCode(), config.credentialRef())
+                config.tenantId(), config.providerCode())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_003,
                 "Claude provider 凭据未配置 code=" + config.providerCode()));
 

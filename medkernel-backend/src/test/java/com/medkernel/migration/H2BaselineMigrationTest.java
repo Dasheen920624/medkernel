@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 158;
+    private static final int LATEST_MIGRATION_VERSION = 159;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -84,6 +84,23 @@ class H2BaselineMigrationTest {
             "SELECT COUNT(*) FROM sys_permission WHERE permission_code = 'workbench:readiness:view'",
             Integer.class);
         assertThat(readinessPermissionCount).as("WORKBENCH-02 动作权限目录").isEqualTo(1);
+
+        Integer legacyModelEvaluationMenuPermissionCount = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM sys_permission
+            WHERE permission_code = 'menu.model-evaluation-review'
+            """, Integer.class);
+        assertThat(legacyModelEvaluationMenuPermissionCount)
+            .as("旧医学回归复核菜单权限不保留兼容数据")
+            .isZero();
+
+        Integer legacyProviderCredentialReferenceColumns = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MK_LLM_PROVIDER'
+              AND COLUMN_NAME = 'CREDENTIAL_REF'
+            """, Integer.class);
+        assertThat(legacyProviderCredentialReferenceColumns)
+            .as("旧环境变量凭据引用列不保留")
+            .isZero();
 
         Integer governancePermissionCount = jdbc.queryForObject("""
             SELECT COUNT(*) FROM sys_permission

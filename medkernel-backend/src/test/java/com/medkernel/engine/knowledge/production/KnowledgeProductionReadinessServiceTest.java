@@ -27,6 +27,8 @@ import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ModelProviderConfig;
 import com.medkernel.engine.llm.provider.ModelProviderConfigRepository;
+import com.medkernel.engine.llm.provider.ModelProviderCredential;
+import com.medkernel.engine.llm.provider.ModelProviderCredentialRepository;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -44,6 +46,7 @@ class KnowledgeProductionReadinessServiceTest {
     private SystemConfigService configService;
     private DeploymentFormService deploymentFormService;
     private ModelProviderConfigRepository providerRepository;
+    private ModelProviderCredentialRepository credentialRepository;
     private MedicalRegressionCaseRepository caseRepository;
     private ModelEvalRunRepository evalRunRepository;
     private ModelEgressWhitelistRepository whitelistRepository;
@@ -56,6 +59,7 @@ class KnowledgeProductionReadinessServiceTest {
         configService = mock(SystemConfigService.class);
         deploymentFormService = mock(DeploymentFormService.class);
         providerRepository = mock(ModelProviderConfigRepository.class);
+        credentialRepository = mock(ModelProviderCredentialRepository.class);
         caseRepository = mock(MedicalRegressionCaseRepository.class);
         evalRunRepository = mock(ModelEvalRunRepository.class);
         whitelistRepository = mock(ModelEgressWhitelistRepository.class);
@@ -65,6 +69,7 @@ class KnowledgeProductionReadinessServiceTest {
             configService,
             deploymentFormService,
             providerRepository,
+            credentialRepository,
             caseRepository,
             evalRunRepository,
             whitelistRepository,
@@ -114,6 +119,52 @@ class KnowledgeProductionReadinessServiceTest {
         assertThat(response.modelInvocationAllowed()).isTrue();
         assertThat(response.providerCode()).isEqualTo("claude-prod");
         assertThat(response.items()).allSatisfy(item -> assertThat(item.ready()).isTrue());
+    }
+
+    @Test
+    void acceptsTenantVaultCredentialForExternalProvider() {
+        ModelProviderConfig provider = externalProvider(
+            "claude-prod", "CLAUDE", "claude-opus-4");
+        stubExternalPrerequisites(provider, whitelist());
+        when(credentialRepository.findByTenantIdAndProviderCode(TENANT, "claude-prod"))
+            .thenReturn(Optional.of(credential("claude-prod")));
+
+        KnowledgeProductionReadinessResponse response = service.evaluate(
+            KnowledgeProducer.API_MODEL,
+            CAPABILITY,
+            "claude-prod");
+
+        assertThat(response.items()).filteredOn(item -> "MODEL_PROVIDER".equals(item.code()))
+            .singleElement()
+            .satisfies(item -> assertThat(item.ready()).isTrue());
+        assertThat(response.ready()).isTrue();
+    }
+
+    @Test
+    void reportsExplicitDisabledProviderAsDisabledInsteadOfMissing() {
+        ModelProviderConfig provider = disabledProvider("claude-prod", "CLAUDE", "claude-opus-4");
+        when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
+            .thenReturn("file:///medkernel-data/platform-knowledge/t-1/literature-materials/");
+        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
+        when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
+        when(providerRepository.findByTenantIdAndProviderCode(TENANT, "claude-prod"))
+            .thenReturn(Optional.of(provider));
+        when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
+            .thenReturn(List.of());
+
+        KnowledgeProductionReadinessResponse response = service.evaluate(
+            KnowledgeProducer.API_MODEL,
+            CAPABILITY,
+            "claude-prod");
+
+        assertThat(response.providerCode()).isEqualTo("claude-prod");
+        assertThat(response.items()).filteredOn(item -> "MODEL_PROVIDER".equals(item.code()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.ready()).isFalse();
+                assertThat(item.message()).contains("未启用");
+                assertThat(item.evidence()).contains("claude-prod");
+            });
     }
 
     @Test
@@ -287,8 +338,32 @@ class KnowledgeProductionReadinessServiceTest {
     private ModelProviderConfig provider(String code, String type, String modelVersion) {
         Instant now = Instant.now();
         return new ModelProviderConfig(
-            1L, TENANT, code, type, "https://model.example/v1", "secret-ref",
+            1L, TENANT, code, type, "https://model.example/v1",
             modelVersion, "Y", "HEALTHY", now, "u", now, "u", 0L);
+    }
+
+    private ModelProviderConfig disabledProvider(String code, String type, String modelVersion) {
+        Instant now = Instant.now();
+        return new ModelProviderConfig(
+            1L, TENANT, code, type, "https://model.example/v1",
+            modelVersion, "N", "NOT_CONNECTED", now, "u", now, "u", 0L);
+    }
+
+    private ModelProviderConfig externalProvider(
+            String code,
+            String type,
+            String modelVersion) {
+        Instant now = Instant.now();
+        return new ModelProviderConfig(
+            1L, TENANT, code, type, "https://model.example/v1",
+            modelVersion, "Y", "HEALTHY", now, "u", now, "u", 0L);
+    }
+
+    private ModelProviderCredential credential(String providerCode) {
+        Instant now = Instant.now();
+        return new ModelProviderCredential(
+            1L, TENANT, providerCode, "sm4:v1:cipher", "f".repeat(64), "1234",
+            now, "u", now, "u", "trace-ready", 0L);
     }
 
     private void stubExternalPrerequisites(ModelProviderConfig provider, ModelEgressWhitelist whitelist) {
@@ -298,6 +373,8 @@ class KnowledgeProductionReadinessServiceTest {
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, provider.providerCode()))
             .thenReturn(Optional.of(provider));
+        when(credentialRepository.findByTenantIdAndProviderCode(TENANT, provider.providerCode()))
+            .thenReturn(Optional.of(credential(provider.providerCode())));
         when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
             .thenReturn(List.of(regressionCase()));
         when(evalRunRepository
@@ -316,7 +393,7 @@ class KnowledgeProductionReadinessServiceTest {
     private ModelProviderConfig localProvider(String code, String modelVersion) {
         Instant now = Instant.now();
         return new ModelProviderConfig(
-            1L, TENANT, code, "OLLAMA", "http://127.0.0.1:11434", null,
+            1L, TENANT, code, "OLLAMA", "http://127.0.0.1:11434",
             modelVersion, "Y", "HEALTHY", now, "u", now, "u", 0L);
     }
 

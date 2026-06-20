@@ -8823,6 +8823,28 @@ export interface ModelEvaluationRunsParams {
   size: number;
 }
 
+export interface RunModelEvaluationRequest {
+  providerCode: string;
+  modelVersion: string;
+  capabilityCode: string;
+}
+
+export function useRunModelEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: RunModelEvaluationRequest) => {
+      const { data } = await apiClient.post<{ data: ModelEvaluationRunSummary }>(
+        "/model-evaluations",
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["model-evaluations", "runs"] });
+    },
+  });
+}
+
 export function useModelEvaluationRuns(params: ModelEvaluationRunsParams, enabled = true) {
   return useQuery({
     queryKey: ["model-evaluations", "runs", params],

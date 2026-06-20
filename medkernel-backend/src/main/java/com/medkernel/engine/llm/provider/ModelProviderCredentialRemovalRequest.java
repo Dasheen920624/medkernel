@@ -8,10 +8,10 @@ import jakarta.validation.constraints.Size;
 /**
  * 模型 Provider 凭据移除请求。
  *
- * <p>移除凭据会同步清除环境变量回退引用，并强制停用 Provider、重置为未连接状态。
+ * <p>移除凭据会强制停用 Provider，并把健康状态重置为未连接。
  */
 public record ModelProviderCredentialRemovalRequest(
-    @NotBlank @Size(max = 500) String reason,
+    @NotBlank @Size(min = 8, max = 500) String reason,
     @NotNull @PositiveOrZero Long expectedVersion,
     boolean confirmedHighRisk
 ) {}

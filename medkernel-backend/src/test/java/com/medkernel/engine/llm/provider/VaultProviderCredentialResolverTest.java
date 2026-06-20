@@ -1,7 +1,6 @@
 package com.medkernel.engine.llm.provider;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,50 +21,43 @@ class VaultProviderCredentialResolverTest {
     @Mock
     private ProviderCredentialCodec codec;
 
-    @Mock
-    private EnvProviderCredentialResolver environment;
-
     @Test
-    void tenantVaultWinsOverEnvironmentReference() {
+    void resolvesTenantVaultCredential() {
         ModelProviderCredential row = credential("tenant-a", "provider-a", "sm4:v1:cipher-a");
         when(repository.findByTenantIdAndProviderCode("tenant-a", "provider-a"))
             .thenReturn(Optional.of(row));
         when(codec.decode("sm4:v1:cipher-a")).thenReturn("vault-secret");
         VaultProviderCredentialResolver resolver =
-            new VaultProviderCredentialResolver(repository, codec, environment);
+            new VaultProviderCredentialResolver(repository, codec);
 
-        Optional<String> secret = resolver.resolveSecret("tenant-a", "provider-a", "MODEL_API_KEY");
+        Optional<String> secret = resolver.resolveSecret("tenant-a", "provider-a");
 
         assertThat(secret).contains("vault-secret");
-        verify(environment, never()).resolveSecret("MODEL_API_KEY");
     }
 
     @Test
-    void fallsBackToEnvironmentWhenTenantVaultHasNoCredential() {
+    void returnsEmptyWhenTenantVaultHasNoCredential() {
         when(repository.findByTenantIdAndProviderCode("tenant-a", "provider-a"))
             .thenReturn(Optional.empty());
-        when(environment.resolveSecret("MODEL_API_KEY")).thenReturn(Optional.of("environment-secret"));
         VaultProviderCredentialResolver resolver =
-            new VaultProviderCredentialResolver(repository, codec, environment);
+            new VaultProviderCredentialResolver(repository, codec);
 
-        Optional<String> secret = resolver.resolveSecret("tenant-a", "provider-a", "MODEL_API_KEY");
+        Optional<String> secret = resolver.resolveSecret("tenant-a", "provider-a");
 
-        assertThat(secret).contains("environment-secret");
+        assertThat(secret).isEmpty();
     }
 
     @Test
     void neverReadsAnotherTenantsCredential() {
         when(repository.findByTenantIdAndProviderCode("tenant-b", "provider-a"))
             .thenReturn(Optional.empty());
-        when(environment.resolveSecret(null)).thenReturn(Optional.empty());
         VaultProviderCredentialResolver resolver =
-            new VaultProviderCredentialResolver(repository, codec, environment);
+            new VaultProviderCredentialResolver(repository, codec);
 
-        Optional<String> secret = resolver.resolveSecret("tenant-b", "provider-a", null);
+        Optional<String> secret = resolver.resolveSecret("tenant-b", "provider-a");
 
         assertThat(secret).isEmpty();
         verify(repository).findByTenantIdAndProviderCode("tenant-b", "provider-a");
-        verify(repository, never()).findByTenantIdAndProviderCode("tenant-a", "provider-a");
     }
 
     private ModelProviderCredential credential(String tenantId, String providerCode, String ciphertext) {

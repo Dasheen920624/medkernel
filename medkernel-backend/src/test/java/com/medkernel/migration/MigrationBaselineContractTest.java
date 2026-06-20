@@ -206,8 +206,25 @@ class MigrationBaselineContractTest {
         "V155__knowledge_initialization_batch.sql",
         "V156__model_eval_release_fingerprint.sql",
         "V157__sandbox_run_mode_reserved_word.sql",
-        "V158__llm_provider_credential_vault.sql"
+        "V158__llm_provider_credential_vault.sql",
+        "V159__remove_legacy_model_controls.sql"
     );
+
+    @Test
+    void legacyModelEvaluationMenuPermissionIsRemovedAcrossAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V159__remove_legacy_model_controls.sql");
+            assertThat(ddl)
+                .as("%s 旧医学回归复核菜单权限必须彻底移除且不保留兼容入口", dialect)
+                .contains(
+                    "DELETE FROM role_permission",
+                    "DELETE FROM sys_permission",
+                    "DROP COLUMN credential_ref",
+                    "'menu.model-evaluation-review'",
+                    "旧医学回归复核菜单权限")
+                .doesNotContain("INSERT INTO");
+        }
+    }
 
     @Test
     void modelProviderCredentialVaultIsEncryptedTenantScopedAndAuditedAcrossAllDialects() {

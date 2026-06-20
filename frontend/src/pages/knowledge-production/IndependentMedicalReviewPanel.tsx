@@ -28,20 +28,12 @@ import {
   useSecurityProfile,
   useSignOffModelEvaluation,
 } from "@/shared/api/hooks";
-import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { useExpertModeStore } from "@/shared/lib/expertModeStore";
-import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
-import { PageShell } from "@/shared/ui/PageShell";
+import { ExpertModeToggle } from "@/shared/ui/ExpertModeToggle";
 import { PageState } from "@/shared/ui/PageState";
 import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
 
 const { Paragraph, Text } = Typography;
-
-const route = findRouteByPath("/qc/model-evaluations");
-if (!route?.experience) {
-  throw new Error("医学回归复核页面缺少体验声明");
-}
-const PAGE_META = { title: route.title, experience: route.experience };
 
 const STATUS_META: Record<ModelEvaluationStatus, { label: string; color: string }> = {
   PENDING_REVIEW: { label: "待复核", color: "processing" },
@@ -121,9 +113,10 @@ function redLineReviewLabel(evidence: ModelEvaluationCaseEvidence) {
   return evidence.redLineBreach ? "已突破" : "未突破";
 }
 
-export default function MedicalRegressionReview() {
+export default function IndependentMedicalReviewPanel() {
   const security = useSecurityProfile();
-  const allowed = Boolean(security.data && canAccessRoute(route, security.data));
+  const allowed =
+    security.data?.permissions.some((permission) => permission.code === "llm.eval.manage") ?? false;
   const [status, setStatus] = useState<ModelEvaluationStatus>("PENDING_REVIEW");
   const [page, setPage] = useState(1);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
@@ -138,41 +131,44 @@ export default function MedicalRegressionReview() {
 
   if (security.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在核对医学回归复核权限">
+      <Card title="独立复核">
         <PageState state="loading" />
-      </PageShell>
+      </Card>
     );
   }
   if (security.isError) {
     return (
-      <PageShell title={PAGE_META.title} description="权限信息读取失败">
+      <Card title="独立复核">
         <PageState state="error" onRetry={() => void security.refetch()} />
-      </PageShell>
+      </Card>
     );
   }
   if (!allowed) {
     return (
-      <PageShell title={PAGE_META.title} description="医学回归证据仅限质量治理职责复核">
-        <PageState state="forbidden" />
-      </PageShell>
+      <Card title="独立复核">
+        <PageState
+          state="forbidden"
+          description="由质量治理专家逐例核查并独立签署；当前职责可继续查看其他生产步骤。"
+        />
+      </Card>
     );
   }
   if (runs.isLoading) {
     return (
-      <PageShell title={PAGE_META.title} description="正在读取医学回归运行">
+      <Card title="独立复核">
         <PageState state="loading" />
-      </PageShell>
+      </Card>
     );
   }
   if (runs.isError) {
     return (
-      <PageShell title={PAGE_META.title} description="医学回归运行读取失败">
+      <Card title="独立复核">
         <PageState
           state="error"
           description={getApiErrorMessage(runs.error, "请稍后重试，或凭追踪号联系信息科。")}
           onRetry={() => void runs.refetch()}
         />
-      </PageShell>
+      </Card>
     );
   }
 
@@ -199,7 +195,7 @@ export default function MedicalRegressionReview() {
         reviewComment: trimmedComment,
       });
       resetSignModal();
-      message.success("医学回归复核已签字留痕");
+      message.success("独立医学复核已签字留痕");
     } catch (error) {
       message.error(getApiErrorMessage(error, "专家复核签字失败，请重新核查运行状态。"));
     }
@@ -261,20 +257,8 @@ export default function MedicalRegressionReview() {
     },
   ];
 
-  return (
-    <PageExperienceShell
-      meta={PAGE_META}
-      securityProfile={security.data}
-      extras={
-        <Button
-          icon={<ReloadOutlined />}
-          loading={runs.isFetching}
-          onClick={() => void runs.refetch()}
-        >
-          刷新
-        </Button>
-      }
-    >
+  const reviewContent = (
+    <>
       <Space direction="vertical" size="large" className="mk-full-width">
         <Alert
           type="info"
@@ -480,11 +464,11 @@ export default function MedicalRegressionReview() {
           >
             我已逐例核对模型输出、来源引用与医学红线判定
           </Checkbox>
-          <label htmlFor="model-evaluation-review-comment">
+          <label htmlFor="model-independent-review-comment">
             <Text strong>复核意见</Text>
           </label>
           <Input.TextArea
-            id="model-evaluation-review-comment"
+            id="model-independent-review-comment"
             aria-label="复核意见"
             value={reviewComment}
             rows={4}
@@ -495,6 +479,26 @@ export default function MedicalRegressionReview() {
           />
         </Space>
       </Modal>
-    </PageExperienceShell>
+    </>
+  );
+
+  return (
+    <Card
+      title="独立复核"
+      extra={
+        <Space wrap>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={runs.isFetching}
+            onClick={() => void runs.refetch()}
+          >
+            刷新
+          </Button>
+          <ExpertModeToggle securityProfile={security.data} />
+        </Space>
+      }
+    >
+      {reviewContent}
+    </Card>
   );
 }

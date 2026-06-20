@@ -411,7 +411,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.UPDATE, "mk_llm_egress_approval", "裁定模型高敏出域审批"))),
         contract("model-providers", "模型 provider 接入治理服务",
             "com.medkernel.engine.llm.provider.ModelProviderController", "/api/v1/model-providers",
-            permissions("llm.provider.manage"),
+            permissions("llm.provider.manage", "llm.eval.manage"),
             audits(audit(AuditAction.UPDATE, "mk_llm_provider", "配置模型 provider 接入并执行健康探测"))),
         contract("model-evaluations", "模型医学回归评测服务",
             "com.medkernel.engine.llm.eval.ModelEvalController", "/api/v1/model-evaluations",

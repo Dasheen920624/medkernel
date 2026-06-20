@@ -97,7 +97,7 @@
 | 来源追溯 | 跨域专业能力 | 来源与血缘 | 知识治理 | 普通功能分类 | `/advanced/provenance` | `MENU_PROVENANCE` |
 | 图谱查询 | 跨域专业能力 | 知识关系 | 知识治理 | 普通功能分类 | `/advanced/graph` | `MENU_GRAPH_EXPLORE` |
 | AI 工作流 | 跨域专业能力 | 模型能力 | 知识生产 | 普通功能分类，随知识生产面展示 readiness 与降级 | `/advanced/ai-workflows` | `MENU_AI_WORKFLOWS` |
-| 医学回归评测 | 质量治理 | 医学回归复核 | 质量管理 | 独立任务页，逐例证据核查后签字 | `/qc/model-evaluations` | `MENU_MODEL_EVALUATION_REVIEW` |
+| 医学回归评测 | 知识生产 | 模型生产控制台 · 医学评测与独立复核 | 知识生产 | 统一控制台内逐例证据核查后签字 | `/knowledge/production` | `MENU_KNOWLEDGE_PRODUCTION` + `LLM_EVAL_MANAGE` |
 | 国产化自检 | 跨域专业能力 | 国产化核验 | 系统运维 | 普通功能分类 | `/advanced/domestic` | `MENU_DOMESTIC_CHECK` |
 | 开发者控制台 | 跨域专业能力 | 诊断工具 | 系统运维 | 普通功能分类 | `/advanced/dev-console` | `MENU_DEV_CONSOLE` |
 

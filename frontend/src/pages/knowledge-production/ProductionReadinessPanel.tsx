@@ -1,0 +1,90 @@
+import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from "antd";
+
+import { getApiErrorMessage } from "@/shared/api/errors";
+import { useKnowledgeProductionReadiness } from "@/shared/api/hooks";
+import { PageState } from "@/shared/ui/PageState";
+
+const { Text } = Typography;
+
+const GATES = [
+  { code: "LITERATURE_ROOT", label: "文献资料库", step: "readiness", owner: "系统超级管理员" },
+  { code: "DEPLOYMENT_FORM", label: "部署形态", step: "readiness", owner: "实施运维员" },
+  { code: "MODEL_PROVIDER", label: "模型服务", step: "provider", owner: "集成运维员" },
+  {
+    code: "REGRESSION_BASELINE",
+    label: "医学回归基准",
+    step: "evaluation",
+    owner: "质量治理专家",
+  },
+  {
+    code: "MODEL_EVALUATION",
+    label: "医学评测",
+    step: "evaluation",
+    owner: "质量治理专家",
+  },
+  { code: "EGRESS_GOVERNANCE", label: "出域治理", step: "readiness", owner: "系统超级管理员" },
+  { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "平台治理管理员" },
+  { code: "VERSION_TRIPLE", label: "版本三元组", step: "readiness", owner: "平台治理管理员" },
+  { code: "P6_ACCEPTANCE", label: "P6 独立验收", step: "readiness", owner: "系统超级管理员" },
+] as const;
+
+export default function ProductionReadinessPanel() {
+  const readiness = useKnowledgeProductionReadiness({ producer: "API_MODEL" });
+  const itemByCode = new Map(readiness.data?.items.map((item) => [item.code, item]) ?? []);
+
+  let content;
+  if (readiness.isLoading) {
+    content = <PageState state="loading" title="正在核查九项生产闸" />;
+  } else if (readiness.isError) {
+    content = (
+      <PageState
+        state="error"
+        title="生产闸读取失败"
+        description={getApiErrorMessage(readiness.error, "请重试，或凭追踪号联系系统管理员。")}
+        onRetry={() => void readiness.refetch()}
+      />
+    );
+  } else {
+    content = (
+      <Descriptions bordered column={1} size="small">
+        {GATES.map((gate, index) => {
+          const item = itemByCode.get(gate.code);
+          const ready = Boolean(item?.ready);
+          return (
+            <Descriptions.Item key={gate.code} label={`${index + 1}. ${gate.label}`}>
+              <Space direction="vertical" size={0}>
+                <Space>
+                  <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
+                  <Text>{item?.message ?? "服务端尚未返回该项状态"}</Text>
+                  {!ready ? (
+                    <Button type="link" href={`/knowledge/production?step=${gate.step}`}>
+                      前往处理
+                    </Button>
+                  ) : null}
+                </Space>
+                <Text type="secondary">
+                  责任角色：{gate.owner}
+                  {item?.evidence ? ` · 证据：${item.evidence}` : ""}
+                </Text>
+              </Space>
+            </Descriptions.Item>
+          );
+        })}
+      </Descriptions>
+    );
+  }
+
+  return (
+    <Card title="九项生产闸">
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Alert
+          type={readiness.data?.ready ? "success" : "warning"}
+          showIcon
+          message={readiness.data?.ready ? "九项生产闸已满足" : "正式生产仍有阻断项"}
+          description="所有门禁均读取关系库真实状态；历史评测、仅有前端勾选或脚本输出不能代替当前证据。"
+        />
+        {content}
+      </Space>
+    </Card>
+  );
+}

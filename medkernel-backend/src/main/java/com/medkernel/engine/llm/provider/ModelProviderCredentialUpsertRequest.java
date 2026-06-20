@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
  */
 public record ModelProviderCredentialUpsertRequest(
     @NotBlank @Size(min = 8, max = 2048) String credential,
-    @NotBlank @Size(max = 500) String reason,
+    @NotBlank @Size(min = 8, max = 500) String reason,
     @PositiveOrZero Long expectedVersion,
     boolean confirmedHighRisk
 ) {}

@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -27,14 +26,13 @@ import com.medkernel.shared.context.RequestContext;
  *
  * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行时解析在 {@link ModelProviderRegistry}。
  * 配置写入与高危启停相互分离：本服务的配置入口始终保存为停用，避免编辑连接参数时意外上线。
- * 前台凭据使用独立用途密钥加密入库，{@code credential_ref} 仅作为环境变量回退；配置与凭据分别使用
+ * 前台凭据使用独立用途密钥加密入库，模型调用只读取租户凭据库；配置与凭据分别使用
  * 关系库乐观锁，防止配置、轮换、探活与启停相互覆盖。
  */
 @Service
 public class ModelProviderGovernanceService {
 
     private static final Set<String> HTTP_SCHEMES = Set.of("http", "https");
-    private static final Pattern ENV_KEY = Pattern.compile("[A-Z][A-Z0-9_]{2,127}");
     private static final String HIGH_RISK_RESOURCE_TYPE = "model_provider";
     private static final String CREDENTIAL_HIGH_RISK_RESOURCE_TYPE =
         "model_provider_credential";
@@ -76,10 +74,9 @@ public class ModelProviderGovernanceService {
 
         ProviderType type = parseType(request.providerType());
         String endpointUri = normalizeEndpoint(type, request.endpointUri());
-        String credentialRef = normalizeCredentialRef(request.credentialRef());
         String modelVersion = requireText(request.modelVersion(), "模型版本");
         boolean changed = current == null || connectionMaterialChanged(
-            current, type, endpointUri, credentialRef, modelVersion);
+            current, type, endpointUri, modelVersion);
 
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
@@ -89,7 +86,6 @@ public class ModelProviderGovernanceService {
             code,
             type.name(),
             endpointUri,
-            credentialRef,
             modelVersion,
             "N",
             changed ? "NOT_CONNECTED" : current.status(),
@@ -170,7 +166,7 @@ public class ModelProviderGovernanceService {
                 RequestContext.currentTraceId(),
                 existing == null ? null : existing.version()));
         ModelProviderConfig disconnected = saveWithConflictTranslation(
-            disconnectedProvider(current, current.credentialRef(), now, actor));
+            disconnectedProvider(current, now, actor));
         auditRecorder.record(
             AuditAction.UPDATE,
             "mk_llm_provider_credential",
@@ -182,7 +178,7 @@ public class ModelProviderGovernanceService {
     }
 
     /**
-     * 移除租户 Provider 凭据及环境变量回退引用，并强制断开连接。
+     * 移除租户 Provider 凭据并强制断开连接。
      */
     @Transactional
     public ModelProviderGovernanceView removeCredential(
@@ -209,7 +205,7 @@ public class ModelProviderGovernanceService {
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
         ModelProviderConfig disconnected = saveWithConflictTranslation(
-            disconnectedProvider(current, null, now, actor));
+            disconnectedProvider(current, now, actor));
         auditRecorder.record(
             AuditAction.DELETE,
             "mk_llm_provider_credential",
@@ -264,7 +260,6 @@ public class ModelProviderGovernanceService {
             current.providerCode(),
             current.providerType(),
             current.endpointUri(),
-            current.credentialRef(),
             current.modelVersion(),
             current.enabledFlag(),
             health.name(),
@@ -306,7 +301,6 @@ public class ModelProviderGovernanceService {
             current.providerCode(),
             current.providerType(),
             current.endpointUri(),
-            current.credentialRef(),
             current.modelVersion(),
             enabled ? "Y" : "N",
             current.status(),
@@ -333,6 +327,11 @@ public class ModelProviderGovernanceService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "启停原因不能为空");
         }
         String reason = request.reason().trim();
+        if (reason.length() < 8) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "启停原因至少需要 8 个字符，以便形成可核查审计证据");
+        }
         if (reason.length() > 500) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "启停原因不能超过 500 字");
         }
@@ -372,11 +371,9 @@ public class ModelProviderGovernanceService {
     private boolean connectionMaterialChanged(ModelProviderConfig current,
                                               ProviderType type,
                                               String endpointUri,
-                                              String credentialRef,
                                               String modelVersion) {
         return !type.name().equals(current.providerType())
             || !endpointUri.equals(current.endpointUri())
-            || !Objects.equals(credentialRef, current.credentialRef())
             || !modelVersion.equals(current.modelVersion());
     }
 
@@ -411,18 +408,6 @@ public class ModelProviderGovernanceService {
         }
     }
 
-    private String normalizeCredentialRef(String raw) {
-        String credentialRef = normalizeOptional(raw);
-        if (credentialRef == null) {
-            return null;
-        }
-        if (!ENV_KEY.matcher(credentialRef).matches()) {
-            throw new ApiException(
-                ErrorCode.BAD_REQUEST, "provider 凭据引用必须是合法的环境变量键名");
-        }
-        return credentialRef;
-    }
-
     private void assertExpectedVersion(ModelProviderConfig current, Long expectedVersion) {
         if (current == null && expectedVersion != null) {
             throw ApiException.conflict("新建 provider 不能携带 expectedVersion");
@@ -442,6 +427,11 @@ public class ModelProviderGovernanceService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "凭据变更原因不能为空");
         }
         String reason = rawReason.trim();
+        if (reason.length() < 8) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "凭据变更原因至少需要 8 个字符，以便形成可核查审计证据");
+        }
         if (reason.length() > 500) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "凭据变更原因不能超过 500 字");
         }
@@ -466,7 +456,6 @@ public class ModelProviderGovernanceService {
 
     private ModelProviderConfig disconnectedProvider(
             ModelProviderConfig current,
-            String credentialRef,
             Instant now,
             String actor) {
         return new ModelProviderConfig(
@@ -475,7 +464,6 @@ public class ModelProviderGovernanceService {
             current.providerCode(),
             current.providerType(),
             current.endpointUri(),
-            credentialRef,
             current.modelVersion(),
             "N",
             ProviderHealth.NOT_CONNECTED.name(),
@@ -532,7 +520,4 @@ public class ModelProviderGovernanceService {
         return value.trim();
     }
 
-    private static String normalizeOptional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

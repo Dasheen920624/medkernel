@@ -38,7 +38,7 @@ class ModelProviderConfigRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "Y", "HEALTHY",
             now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndProviderCode("tenant-1", "ollama-local"))
@@ -47,7 +47,6 @@ class ModelProviderConfigRepositoryTest {
             .satisfies(p -> {
                 assertThat(p.providerType()).isEqualTo("OLLAMA");
                 assertThat(p.endpointUri()).isEqualTo("http://127.0.0.1:11434");
-                assertThat(p.credentialRef()).isNull();
             });
     }
 
@@ -56,11 +55,11 @@ class ModelProviderConfigRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "Y", "HEALTHY",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "Y", "HEALTHY",
             now, "system", now, "system", null));
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "claude-prod", "CLAUDE",
-            "https://api.anthropic.com", "cred-ref-1", "claude-opus-4-8", "N", "NOT_CONNECTED",
+            "https://api.anthropic.com", "claude-opus-4-8", "N", "NOT_CONNECTED",
             now, "system", now, "system", null));
 
         assertThat(repository.findByTenantIdAndEnabledFlag("tenant-1", "Y"))
@@ -94,7 +93,7 @@ class ModelProviderConfigRepositoryTest {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         repository.save(new ModelProviderConfig(
             null, "tenant-1", "ollama-local", "OLLAMA",
-            "http://127.0.0.1:11434", null, "qwen2.5:7b", "N", "NOT_CONNECTED",
+            "http://127.0.0.1:11434", "qwen2.5:7b", "N", "NOT_CONNECTED",
             now, "system", now, "system", null));
 
         ModelProviderConfig first = repository
@@ -120,7 +119,6 @@ class ModelProviderConfigRepositoryTest {
             config.providerCode(),
             config.providerType(),
             config.endpointUri(),
-            config.credentialRef(),
             config.modelVersion(),
             config.enabledFlag(),
             status,
@@ -141,7 +139,6 @@ class ModelProviderConfigRepositoryTest {
             providerCode,
             "OLLAMA",
             "http://127.0.0.1:11434",
-            null,
             "qwen2.5:7b",
             "N",
             "NOT_CONNECTED",

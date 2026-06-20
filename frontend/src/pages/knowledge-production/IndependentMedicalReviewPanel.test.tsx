@@ -11,7 +11,7 @@ import {
 } from "@/shared/api/hooks";
 import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
-import MedicalRegressionReview from "./MedicalRegressionReview";
+import IndependentMedicalReviewPanel from "./IndependentMedicalReviewPanel";
 
 vi.mock("@/shared/api/hooks", () => ({
   useModelEvaluationRunDetail: vi.fn(),
@@ -82,7 +82,7 @@ function query<T>(data: T) {
   };
 }
 
-describe("MedicalRegressionReview", () => {
+describe("IndependentMedicalReviewPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
@@ -94,14 +94,8 @@ describe("MedicalRegressionReview", () => {
         roles: [{ code: "quality-governor" }],
         permissions: [
           { code: "llm.eval.manage", dimension: "ACTION", target: "llm.eval", risk: "HIGH" },
-          {
-            code: "menu.model-evaluation-review",
-            dimension: "MENU",
-            target: "model-evaluation-review",
-            risk: "LOW",
-          },
         ],
-        menuKeys: ["model-evaluation-review"],
+        menuKeys: ["knowledge-production"],
         environmentKeys: ["production"],
         dataScope: { tenantId: "tenant-1" },
         mustChangePwd: false,
@@ -131,7 +125,7 @@ describe("MedicalRegressionReview", () => {
     const user = userEvent.setup();
     render(
       <ConfigProvider>
-        <MedicalRegressionReview />
+        <IndependentMedicalReviewPanel />
       </ConfigProvider>,
     );
 
@@ -139,7 +133,8 @@ describe("MedicalRegressionReview", () => {
       { status: "PENDING_REVIEW", page: 1, size: 20 },
       true,
     );
-    expect(screen.getByRole("heading", { name: "医学回归复核" })).toBeInTheDocument();
+    expect(screen.getByText("独立复核")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "前往模型生产控制台" })).not.toBeInTheDocument();
     expect(screen.getByText("mimo-v2.5")).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
     expect(screen.queryByText("mimo-external")).not.toBeInTheDocument();
@@ -162,7 +157,7 @@ describe("MedicalRegressionReview", () => {
     const user = userEvent.setup();
     render(
       <ConfigProvider>
-        <MedicalRegressionReview />
+        <IndependentMedicalReviewPanel />
       </ConfigProvider>,
     );
 
@@ -201,7 +196,7 @@ describe("MedicalRegressionReview", () => {
 
     render(
       <ConfigProvider>
-        <MedicalRegressionReview />
+        <IndependentMedicalReviewPanel />
       </ConfigProvider>,
     );
     await user.click(screen.getByRole("button", { name: "核查证据" }));
@@ -229,7 +224,7 @@ describe("MedicalRegressionReview", () => {
 
     render(
       <ConfigProvider>
-        <MedicalRegressionReview />
+        <IndependentMedicalReviewPanel />
       </ConfigProvider>,
     );
     await user.click(screen.getByRole("button", { name: "核查证据" }));
@@ -260,12 +255,23 @@ describe("MedicalRegressionReview", () => {
 
     render(
       <ConfigProvider>
-        <MedicalRegressionReview />
+        <IndependentMedicalReviewPanel />
       </ConfigProvider>,
     );
     await user.click(screen.getByRole("button", { name: "核查证据" }));
 
     expect(await screen.findByText("历史制品签署仅保留审计，不可用于当前放行")).toBeInTheDocument();
     expect(screen.getByText("该评测属于历史运行制品，必须在当前制品重新运行")).toBeInTheDocument();
+  });
+
+  it("can render as the independent review step inside the production console", () => {
+    render(
+      <ConfigProvider>
+        <IndependentMedicalReviewPanel />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("独立复核")).toBeInTheDocument();
+    expect(screen.getByText("签字只放行当前基准集与本次逐例证据")).toBeInTheDocument();
   });
 });

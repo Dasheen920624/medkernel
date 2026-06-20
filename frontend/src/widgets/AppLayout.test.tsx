@@ -234,7 +234,6 @@ const allMenuKeys = [
   "qc-alerts",
   "insurance-audit",
   "qc-eval-sets",
-  "model-evaluation-review",
   "knowledge-governance",
   "institution-knowledge",
   "diagnosis-knowledge",

@@ -1,3 +1,3 @@
-import { KnowledgeProduction } from "./KnowledgeGovernance";
+import ModelProductionConsole from "@/pages/knowledge-production/ModelProductionConsole";
 
-export default KnowledgeProduction;
+export default ModelProductionConsole;

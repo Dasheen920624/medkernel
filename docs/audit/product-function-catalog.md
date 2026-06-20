@@ -6,9 +6,9 @@
 
 ## 1. 库存结论
 
-- 前端路由：45 项。
-- 后端菜单：35 项。
-- 页面与页内组件：50 项。
+- 前端路由：44 项。
+- 后端菜单：34 项。
+- 页面与页内组件：54 项。
 - 后端控制器：93 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
@@ -17,8 +17,8 @@
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 87 |
-| MERGE | 49 |
+| KEEP | 84 |
+| MERGE | 54 |
 | MOVE | 63 |
 | REMOVE | 1 |
 | RENAME | 24 |
@@ -106,9 +106,6 @@
 <!-- capability:route:route@%2Fqc%2Feval%2Fsets decision=RENAME -->
 <!-- route:/qc/eval/sets -->
 | `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 维护评价指标、影响分析和发布状态 |
-<!-- capability:route:route@%2Fqc%2Fmodel-evaluations decision=KEEP -->
-<!-- route:/qc/model-evaluations -->
-| `/qc/model-evaluations` | 医学回归复核 | quality-management | model-evaluation-review | primary | KEEP | 质量管理 | 医学回归复核 | 逐例核查模型医学回归证据，并由独立医学专家留痕签字 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fresults decision=MERGE -->
 <!-- route:/qc/eval/results -->
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |
@@ -123,7 +120,7 @@
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
-| `/knowledge/production` | 知识生产 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据 |
+| `/knowledge/production` | 模型生产控制台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -209,7 +206,7 @@
 | `graph-explore` | 知识关系 | `knowledge-governance` | primary | `MENU_GRAPH_EXPLORE` | MOVE | 知识治理 | 知识关系 |
 <!-- capability:menu:menu@knowledge-production decision=SPLIT -->
 <!-- menu:knowledge-production -->
-| `knowledge-production` | 知识生产 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
+| `knowledge-production` | 模型生产控制台 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
 <!-- capability:menu:menu@ai-workflows decision=MOVE -->
 <!-- menu:ai-workflows -->
 | `ai-workflows` | 模型能力 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力 |
@@ -243,9 +240,6 @@
 <!-- capability:menu:menu@qc-eval-sets decision=RENAME -->
 <!-- menu:qc-eval-sets -->
 | `qc-eval-sets` | 评价指标 | `quality-management` | primary | `MENU_QC_EVAL_SETS` | RENAME | 质量管理 | 评价指标 |
-<!-- capability:menu:menu@model-evaluation-review decision=KEEP -->
-<!-- menu:model-evaluation-review -->
-| `model-evaluation-review` | 医学回归复核 | `quality-management` | primary | `MENU_MODEL_EVALUATION_REVIEW` | KEEP | 质量管理 | 医学回归复核 |
 <!-- capability:menu:menu@admin-audit decision=MOVE -->
 <!-- menu:admin-audit -->
 | `admin-audit` | 审计与证据 | `compliance-security` | primary | `MENU_ADMIN_AUDIT` | MOVE | 合规安全 | 审计与证据 |
@@ -328,6 +322,16 @@
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
 | `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FIndependentMedicalReviewPanel.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/IndependentMedicalReviewPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FMedicalEvaluationPanel.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/MedicalEvaluationPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FModelProductionConsole.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/ModelProductionConsole.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FProductionReadinessPanel.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/ProductionReadinessPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FProviderSetupPanel.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/ProviderSetupPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FAcquisitionSourceGovernancePanel.tsx decision=MERGE -->
 | `frontend/src/pages/quality/AcquisitionSourceGovernancePanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FDiagnosisKnowledgeMaintenance.tsx decision=MERGE -->
@@ -342,8 +346,6 @@
 | `frontend/src/pages/quality/KnowledgeGovernance.tsx` | `/knowledge/governance` | MOVE | 知识治理 | 知识审核与发布 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FKnowledgeProduction.tsx decision=SPLIT -->
 | `frontend/src/pages/quality/KnowledgeProduction.tsx` | `/knowledge/production` | SPLIT | 知识生产 | 知识生产 |
-<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FMedicalRegressionReview.tsx decision=KEEP -->
-| `frontend/src/pages/quality/MedicalRegressionReview.tsx` | `/qc/model-evaluations` | KEEP | 质量管理 | 医学回归复核 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcAlerts.tsx decision=RENAME -->
 | `frontend/src/pages/quality/QcAlerts.tsx` | `/qc/alerts` | RENAME | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcDashboard.tsx decision=RENAME -->
@@ -504,7 +506,7 @@
 <!-- capability:controller:controller@ModelEvalController decision=KEEP -->
 | `ModelEvalController` | GET /api/v1/model-evaluations/runs<br>GET /api/v1/model-evaluations/runs/{runId}<br>POST /api/v1/model-evaluations<br>POST /api/v1/model-evaluations/{runId}/sign-off<br>GET /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases:bulk-import<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:enable<br>其余 1 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@ModelProviderController decision=KEEP -->
-| `ModelProviderController` | PUT /api/v1/model-providers/{providerCode}<br>GET /api/v1/model-providers/{providerCode}<br>POST /api/v1/model-providers/{providerCode}/enable<br>POST /api/v1/model-providers/{providerCode}/disable<br>POST /api/v1/model-providers/{providerCode}/health-check | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelProviderController` | GET /api/v1/model-providers<br>PUT /api/v1/model-providers/{providerCode}<br>GET /api/v1/model-providers/{providerCode}<br>PUT /api/v1/model-providers/{providerCode}/credential<br>DELETE /api/v1/model-providers/{providerCode}/credential<br>POST /api/v1/model-providers/{providerCode}/enable<br>POST /api/v1/model-providers/{providerCode}/disable<br>POST /api/v1/model-providers/{providerCode}/health-check | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@MpiController decision=KEEP -->
 | `MpiController` | GET /api/v1/engine/mpi/patients<br>POST /api/v1/engine/mpi/patients<br>GET /api/v1/engine/mpi/patients/{mpiId}<br>GET /api/v1/engine/mpi/stats<br>POST /api/v1/engine/mpi/patients:merge<br>POST /api/v1/engine/mpi/patients/{sourceMpiId}:split<br>GET /api/v1/engine/mpi/merge-reviews<br>POST /api/v1/engine/mpi/merge-reviews/{reviewId}/confirm | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@OrgUnitController decision=KEEP -->

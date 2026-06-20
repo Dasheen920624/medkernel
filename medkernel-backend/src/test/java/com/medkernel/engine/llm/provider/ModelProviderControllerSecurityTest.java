@@ -156,6 +156,34 @@ class ModelProviderControllerSecurityTest {
     }
 
     @Test
+    void qualityGovernorCanReadSanitizedProvidersForMedicalEvaluation() throws Exception {
+        when(service.listProviders(any(PageRequest.class))).thenReturn(PageResponse.of(
+            List.of(sanitizedView()), new PageRequest(1, 20, null), 1));
+
+        mockMvc.perform(get("/api/v1/model-providers?page=1&size=20")
+                .with(jwt().jwt(token -> token
+                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].providerCode").value("ollama-local"))
+                .andExpect(jsonPath("$.data.items[0].credentialConfigured").value(true))
+                .andExpect(content().string(not(containsString("credentialRef"))))
+                .andExpect(content().string(not(containsString("MODEL_API_KEY"))));
+    }
+
+    @Test
+    void qualityGovernorCannotMutateProviderConfiguration() throws Exception {
+        mockMvc.perform(put("/api/v1/model-providers/ollama-local")
+                .with(jwt().jwt(token -> token
+                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("quality-governor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void clinicalUserCannotManageProviderCredential() throws Exception {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local/credential")
                 .with(jwt().jwt(token -> token
@@ -193,6 +221,25 @@ class ModelProviderControllerSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON).content(CREDENTIAL_REMOVAL_BODY))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("credentialRef"))));
+    }
+
+    @Test
+    void credentialMutationRejectsSuperficialReasonAtApiBoundary() throws Exception {
+        String superficialReason = """
+            {
+              "credential": "sk-fake-provider-key-1234",
+              "reason": "轮换",
+              "confirmedHighRisk": true
+            }
+            """;
+
+        mockMvc.perform(put("/api/v1/model-providers/ollama-local/credential")
+                .with(jwt().jwt(token -> token
+                    .subject("u").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("integration-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                .contentType(MediaType.APPLICATION_JSON).content(superficialReason))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -265,7 +312,7 @@ class ModelProviderControllerSecurityTest {
     private ModelProviderConfig providerWithCredential() {
         return new ModelProviderConfig(
             1L, "tenant-1", "ollama-local", "OLLAMA", "http://127.0.0.1:11434",
-            "MODEL_API_KEY", "qwen2.5:7b", "N", "HEALTHY",
+            "qwen2.5:7b", "N", "HEALTHY",
             null, "ops-001", null, "ops-001", 7L);
     }
 

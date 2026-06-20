@@ -32,14 +32,12 @@ public record ModelProviderGovernanceView(
             ModelProviderConfig config,
             ModelProviderCredential credential) {
         boolean vaultConfigured = credential != null;
-        boolean environmentConfigured =
-            config.credentialRef() != null && !config.credentialRef().isBlank();
         return new ModelProviderGovernanceView(
             config.providerCode(),
             config.providerType(),
             config.endpointUri(),
-            vaultConfigured || environmentConfigured,
-            vaultConfigured ? "VAULT" : environmentConfigured ? "ENVIRONMENT" : "NONE",
+            vaultConfigured,
+            vaultConfigured ? "VAULT" : "NONE",
             vaultConfigured ? credential.credentialLast4() : null,
             vaultConfigured ? credential.version() : null,
             vaultConfigured ? credential.updatedAt() : null,

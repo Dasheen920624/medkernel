@@ -164,7 +164,7 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     showLifecycle: false,
     primaryAction: { label: "处理质量问题与整改", path: "/qc/alerts" },
     highFrequencyActions: [
-      { label: "质量管理概览", path: "/qc/dashboard" },
+      { label: "模型生产控制台", path: "/knowledge/production" },
       { label: "医保审核", path: "/qc/insurance" },
       { label: "评价指标", path: "/qc/eval/sets" },
     ],
@@ -182,9 +182,9 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     showLifecycle: false,
     primaryAction: { label: "维护系统接入", path: "/adapter/hub" },
     highFrequencyActions: [
+      { label: "模型生产控制台", path: "/knowledge/production" },
       { label: "运行保障", path: "/system/providers" },
       { label: "身份来源", path: "/security/identity-binding" },
-      { label: "安全与配置", path: "/security/baseline" },
     ],
   }),
   journey("implementation-operator", {
@@ -194,7 +194,7 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
     primaryAction: { label: "继续实施与验收", path: "/onboarding/guide" },
     highFrequencyActions: [
       { label: "服务机构", path: "/tenant/onboarding" },
-      { label: "知识生产", path: "/knowledge/production" },
+      { label: "模型生产控制台", path: "/knowledge/production" },
       { label: "系统接入", path: "/adapter/hub" },
     ],
   }),

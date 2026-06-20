@@ -109,6 +109,7 @@ import {
   useKnowledgeReviewQueue,
   useModelEvaluationRunDetail,
   useModelEvaluationRuns,
+  useRunModelEvaluation,
   useSignOffModelEvaluation,
   useModelTask,
   useReplayModelTask,
@@ -499,7 +500,7 @@ describe("model gateway api hooks", () => {
   });
 });
 
-describe("medical regression review api hooks", () => {
+describe("independent medical review api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
@@ -556,6 +557,27 @@ describe("medical regression review api hooks", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/model-evaluations/42/sign-off", {
       evidenceAcknowledged: true,
       reviewComment: "逐例证据已核查并确认可放行。",
+    });
+  });
+
+  it("runs the current provider model against a governed medical capability", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { runId: 43, status: "PENDING_REVIEW" } },
+    });
+    const hook = renderApiHook(() => useRunModelEvaluation());
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        providerCode: "medical-model",
+        modelVersion: "medical-v1",
+        capabilityCode: "rule.draft",
+      });
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/model-evaluations", {
+      providerCode: "medical-model",
+      modelVersion: "medical-v1",
+      capabilityCode: "rule.draft",
     });
   });
 });
