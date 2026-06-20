@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 157;
+    private static final int LATEST_MIGRATION_VERSION = 158;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -110,6 +110,25 @@ class H2BaselineMigrationTest {
               AND IS_NULLABLE = 'NO'
             """, Integer.class);
         assertThat(providerLockVersionColumns).as("模型 provider 乐观锁列").isEqualTo(1);
+
+        Integer providerCredentialColumns = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'MK_LLM_PROVIDER_CREDENTIAL'
+              AND COLUMN_NAME IN (
+                'TENANT_ID',
+                'PROVIDER_CODE',
+                'CREDENTIAL_CIPHERTEXT',
+                'CREDENTIAL_FINGERPRINT',
+                'CREDENTIAL_LAST4',
+                'LOCK_VERSION',
+                'CREATED_AT',
+                'CREATED_BY',
+                'UPDATED_AT',
+                'UPDATED_BY',
+                'TRACE_ID'
+              )
+            """, Integer.class);
+        assertThat(providerCredentialColumns).as("模型凭据租户加密库字段").isEqualTo(11);
 
         Integer sandboxRuntimeTables = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
