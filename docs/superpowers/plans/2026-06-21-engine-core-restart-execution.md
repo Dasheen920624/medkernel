@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现。步骤用 `- [ ]` 勾选跟踪。
 > **唯一设计锚点**：[2026-06-21 引擎核心从零重启总设计 v3](../specs/2026-06-21-engine-core-restart-design.md)。本计划只把 spec 落成可执行任务，不新增设计决策；冲突以 spec 为准。
 
-**Goal:** 用全新轻量代码（零历史技术债、借鉴现有逻辑不搬代码）从零重启 **MedKernel 集团医疗智能中枢**（核心=规则引擎+赋能，**不是 SaaS 平台**）：一条全自动管道探索生成全领域医疗知识与规则，以规则引擎为核心的能力经 API+嵌入+知识包赋能业务系统（HIS/EMR/CDSS），唯一人工是上线旁路审批。
+**Goal:** 用全新轻量代码（零历史技术债、借鉴现有逻辑不搬代码）从零重启 **MedKernel 集团医疗智能中枢**（核心=规则引擎+赋能，**不是 SaaS 平台**）：一条全自动管道探索生成全领域医疗知识与规则，以规则引擎为核心的能力经 API+嵌入+知识包赋能业务系统（HIS/EMR/CDSS），唯一人工是上线旁路审批；平台自带**完整演示台**（核心功能）无真实患者也能演示全部能力。
 
 **Architecture:** 单一关系库权威（图库仅投影）；知识资产唯一信封 + 单主版本 + 多层级机构覆盖；生产全自动（探索→候选→确定性自动闸→ACTIVE）；上线旁路审批异步不阻塞；极简底座（密码+SSO、5 预设角色×范围×环境、国产 DB/服务器）。
 
@@ -38,14 +38,14 @@
 | `runtime.alerting` | 运行期 5 档打扰梯度（L0–L4）渲染 | 旧 `cdshook`·`safety` |
 | `approval` | 上线旁路审批（异步、`expertReviewed` 门、不阻塞管道）| —（新写）|
 | `platform.auth` | 密码 + OIDC SSO 登录 | 旧 `security/auth`（去 MFA/bootstrap）|
-| `platform.rbac` | 5 预设角色 × 范围(平台/机构) × 环境(内/外网)；内置超管 | 旧 `security`·`shared/datascope` |
+| `platform.rbac` | 5 预设角色 × 范围(平台/机构) × 环境(内/外网)；超级管理员(内置) | 旧 `security`·`shared/datascope` |
 | `platform.tenant` | 平台主租户 t-1 + 机构组织树（集团→医院→院区→科室）| 旧 `tenant`·`org` |
 | `platform.config` | 配置中心（外置、可审计、高危护栏）| 旧 `shared/config` |
 | `platform.audit` | 审计链（写时即留证 + 兜底）| 旧 `shared/audit`（学做法）|
 | `platform.crypto` | 国密 SM2/3/4 + 字段级加密 | 旧 `shared/crypto`（学做法）|
 | `shared` | hash(可复现) · idempotency · 标准临床上下文 · 可观测 trace · 统一 API 错误/分页 | 旧 `shared` 对应件 |
 
-新前端 `engine-console/`（FSD），**4 一级入口**：工作台 / 知识生产 / 引擎能力 / 系统治理。
+新前端 `engine-console/`（FSD），**4 一级入口**：工作台 / 知识生产 / 引擎能力（含**完整演示台**，核心功能）/ 系统治理。
 
 ---
 
@@ -77,6 +77,7 @@
 | X2 | 膨胀期定位混乱收口 | 旧文档定位(中枢)本就对；清理"中枢/引擎两头摇"表述，顶部加横幅「范围有效·核心=规则引擎+赋能、非 SaaS、以 v3 为准」 | 无"引擎核心=产品名"或"SaaS 平台"误导新 AI | S0 同期 |
 | X3 | 旧库退役 | 新库达 S3 parity 后，归档/移除旧 `medkernel-backend`·`frontend`；134 旧实例按授权停服（先备份） | 仓库只剩新库；134 决策留痕 | S3 后 |
 | X4 | 国产化基线 | dm/kingbase 方言 + 国密 smoke + 国产服务器(麒麟/统信/openEuler)部署核验 | 国产 DB 迁移一致、国密 smoke 过 | S0 起持续 |
+| X5 | **演示台（核心功能·完整）** | 每片新增能力**同步进演示台**；S5 完成覆盖全部能力的场景库 + 并排三视图(API↔医生可读提醒↔嵌入预览) + 沙盘抑副作用(CURRENT/HISTORICAL_EXACT/COMPARE) + parity 断言(演=供、不造数) | 演示台完整演示全部能力、能力覆盖清单全绿、演=供 | S1 起持续，S5 完成 |
 
 ---
 
@@ -98,10 +99,10 @@
 - [ ] **Step 4: 跑测试确认通过 + 应用启动到 h2**（`mvn -pl medkernel-engine spring-boot:run` readiness 200）。
 - [ ] **Step 5: 提交**。
 
-### Task S0-2：内置超管 + 5 预设角色 × 范围 × 环境
+### Task S0-2：超级管理员(内置) + 5 预设角色 × 范围 × 环境
 
 **Files:**
-- Create: `platform/rbac/Role.java`(枚举：SUPERADMIN/OPERATIONS/KNOWLEDGE_PRODUCER/MEDICAL_EXPERT/COMPLIANCE_AUDITOR)、`Scope.java`(PLATFORM/INSTITUTION)、`Environment.java`(INTRANET/EXTRANET)、`RbacService.java`
+- Create: `platform/rbac/Role.java`(枚举：SUPERADMIN/KNOWLEDGE_ENGINEER/MEDICAL_EXPERT/OPERATIONS/AUDITOR — 中文名：超级管理员/知识工程师/医学专家/运维工程师/审计员)、`Scope.java`(PLATFORM/INSTITUTION)、`Environment.java`(INTRANET/EXTRANET)、`RbacService.java`
 - Test: `platform/rbac/RbacServiceTest.java`、`platform/rbac/SuperadminInvariantTest.java`
 
 - [ ] **Step 1: 写失败测试**——超管不可降权/旁路、独立审计；非超管跨范围/跨环境访问被拒。
