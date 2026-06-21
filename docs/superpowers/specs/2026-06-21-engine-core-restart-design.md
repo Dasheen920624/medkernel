@@ -12,7 +12,9 @@
 
 - 真实需求早就有：`FOUNDATION` 定了"先引擎全能力、后业务包装 + 十大引擎"；`业务场景 spec` 的 **S3 AI 知识工厂**主流程就是"探索→来源发现→存证→解析→新旧识别→候选→校验→审核→入包"；**S0–S40 已铺满全领域**（辅助诊疗/质控/随访/护理/医技报告/床旁/中医药…）。
 - 病根是**过度实现**：95 控制器 / 795 迁移 / 15 角色 / 九闸+双签+逐条审 / 五处看知识页 / 临床 SaaS 终端页 / MFA·bootstrap 复杂登录 —— 复杂到无法正常上线。
-- 重启动作：① S3 的"候选→人工逐条审"改成"候选→**全自动闸**→直接 ACTIVE"；② 人工只剩"上线时一个**旁路审批**，不卡管道"；③ 留十大引擎当地基（借鉴移植），全领域知识靠 S0–S40 覆盖矩阵当"内容"逐格灌，**绝不为每个场景另起引擎/页面/状态机**。
+- 重启动作：① S3 的"候选→人工逐条审"改成"候选→**全自动闸**→直接 ACTIVE"；② 人工只剩"上线时一个**旁路审批**，不卡管道"；③ 十大引擎**只借鉴逻辑、全新轻量重写**（不搬旧代码），全领域知识靠 S0–S40 覆盖矩阵当"内容"逐格灌，**绝不为每个场景另起引擎/页面/状态机**。
+
+> **口径（贯穿全文）：全新代码、轻量化、零历史技术债。** 现有代码**只读作借鉴参考**（学清楚需要的逻辑、安全边界、不变量、别再踩的坑），然后**全部用新代码干净轻量重写**——不复制文件、不带旧依赖、不复刻旧分层/旧债。原样搬 = 把旧重量和技术债又拖回来，禁止。
 
 **权威关系**：本文一经确认即为重构顶层目标，要求同步修订 [CONSTITUTION](../../CONSTITUTION.md) §0/§2/§6/§8/§15（见 §13）。与旧卡/旧文档冲突，以"本文 + 修订后宪法"为准。
 
@@ -166,37 +168,24 @@
 
 ---
 
-## 11. 精华保留清单（决策 A：全新代码库 · 借鉴现有 · 已逐域实读核过质量）
+## 11. 借鉴参考清单（决策 A：全新轻量代码 · 零历史技术债 · 只借鉴不搬代码）
 
-> 全新代码库 + 干净结构。下表经**实读核过质量**（文件·行数·测试为证），按移植力度分级；旧壳/旧债即便在保留域内也一并剥掉。
+> **不搬任何旧代码。** 下列现有内核已**实读核过质量**（文件·行数·测试为证），价值在于**当参考**：读它学清楚"新代码要复现的逻辑、不能丢的安全边界/不变量、别再踩的坑"，然后**用新代码干净轻量重写**——不复制文件、不带旧依赖、不复刻旧分层。
 
-**A 级 · 算法内核近乎原样移植**（质量已验证，重写风险高、价值大）
+**值得借鉴其逻辑的内核**（学算法与边界，新写）
 
-| 内核 | 位置 · 行数 | 为什么是精华 |
-|---|---|---|
-| **多层级机构覆盖解析** | `versioning/InheritanceResolver`(921) + `InheritanceOverride`/`SafetyMonotonicityCheck` | **就是 §4 要的模型**：override 按 `orgPath` 叠加、就近回落主版本、批量解析查询数不随资产膨胀、安全单调检查（覆盖不削弱安全）。现成，省掉重写多层级的大风险 |
-| **引用真实性/假引用判别** | `llm/eval/MedicalRegressionEvaluator`(365) | 引用真实性校验 + 红线用例 + 期望短语回归，**正好做 §5 自动闸的"引用真实性"机器项**，不引人工 |
-| **规则 DSL 求值** | `rule/ConditionEvaluator`(924) + `ClinicalRuleOperatorSupport`(938) | 真操作符（比较/in/between/参考范围 within_ref/above_ref + 临床操作符特性门控） |
-| **字典语义映射核** | `terminology/TerminologyService`(1094) | 高危近似（钾/钠）强制 HIGH、批量含高危整批拒、禁自动确认、同义/编码族幂等——守"禁字符 LCS + 高危强制 HIGH"不变量 |
-| **CDSS B0 确定性命中** | `recommendation/RecommendationDeterministicMatcher`(448) | 无模型可追溯推荐，守 R6（B0 先于模型） |
+| 现有内核（只读参考） | 新代码要复现的逻辑 / 边界（借鉴点） |
+|---|---|
+| `versioning/InheritanceResolver`(921) | **§4 多层级机构覆盖的解析规则**：override 按组织路径就近叠加、逐级回落主版本、批量解析查询数不随资产膨胀、覆盖不削弱安全（安全单调）。学这套规则，新写干净实现 |
+| `llm/eval/MedicalRegressionEvaluator`(365) | 引用真实性/假引用判别 + 红线用例的判定逻辑 → 新写成 §5 自动闸的机器项 |
+| `rule/ConditionEvaluator`(924) + `ClinicalRuleOperatorSupport`(938) | DSL 操作符语义与求值边界（比较/in/between/参考范围 within_ref/above_ref）→ 新写求值器 |
+| `terminology/TerminologyService`(1094) | 高危近似（钾/钠）强制 HIGH、批量含高危整批拒、禁字符 LCS、禁自动确认——这些安全裁决规则照搬"语义"、代码新写 |
+| `recommendation/RecommendationDeterministicMatcher`(448) | CDSS B0 无模型确定性命中的思路 → 新写 |
+| `knowledge` 获取/解析 + `versioning` 原子替换 + `pkg` 有效包解析 | 获取编排（白名单/HTTPS/许可/robots/拒私网）、解析锚定、原子替换、有效包解析的**做法**——学逻辑，新写轻量版 |
 
-**B 级 · 移植内核、剥离旧壳**（成熟引擎，但要切掉旧闸/旧角色耦合）
+**底座按标准能力借鉴、新写轻量版**（不搬旧文件）：国密 SM2/3/4、审计链（写时即留证 + 兜底）、数据范围切面、可复现 hash、幂等、可观测 trace、标准临床上下文——都是必备能力，借鉴现有做法、**新代码精简实现**。
 
-| 域 | 移植什么 | 剥掉什么 |
-|---|---|---|
-| knowledge | 资产信封 + 身份/版本 · acquisition 获取编排（白名单/HTTPS/许可/robots/拒私网）· parsing 解析锚定 · diagnosis 引用校验 | `KnowledgeProductionReadinessService`(416) 里的九闸/签字 → 改 §5 自动闸 |
-| versioning | `VersionReleaseService` 原子替换 · `OverrideTemplateService` 覆盖模板 | provider 签字门 / release-freeze |
-| pkg | `EffectiveKnowledgePackageResolver`(421) 有效包解析 | `PackageEngineService`(4934 单文件过载) 移植时拆 |
-| pathway / evaluation / followup | 引擎核 + 模板 | 单文件过大（3529/1368/1013）移植时拆 |
-| llm | `ModelGatewayService`(1140) 路由/降级 | provider 签字门 |
-
-**C 级 · 底座横切原样移植**
-
-`shared/crypto SmCryptoService`（国密 SM2/3/4）· `shared/audit`（17 文件：审计链 AuditChainWriter + 兜底 AuditFallbackStore + AuditSafetyGuard）· `shared/datascope`（DataScopeAspect 数据范围切面）· `shared/hash`（Sha256ContentHash 可复现）· `shared/idempotency`（6 文件 幂等）· `shared/observability`（19 文件：trace/MDC/状态流转/payload）· `context` 标准临床上下文（引擎统一输入）
-
-**舍弃**（不进新库）
-
-九闸/双签/逐条审/医学激活闸 · release-freeze/provider 签字证据/兼容迁移/`credential_ref` · 15 角色矩阵 · MFA/bootstrap 复杂登录 · 临床 SaaS 终端页（患者索引/提醒/待办/驾驶舱）· 五处看知识页 · 浏览器内核仿真国产化 · 过载单文件原样照搬（必拆）· 历史死测试/计划/总结/审计副本
+**彻底不进新库**（连参考价值都低）：九闸/双签/逐条审/医学激活闸 · release-freeze/provider 签字证据/`credential_ref` · 15 角色矩阵 · MFA/bootstrap 复杂登录 · 临床 SaaS 终端页（患者索引/提醒/待办/驾驶舱）· 五处看知识页 · 浏览器内核仿真国产化 · 过载单文件（`PackageEngineService` 4934 / `PathwayEngineService` 3529 等，新写时按职责拆小）· 历史死测试/计划/总结/审计副本。
 
 ---
 
@@ -237,4 +226,4 @@
 
 ## 15. 一句话本质（贴墙上防跑偏）
 
-> MedKernel 是**医疗引擎核心**：一条**全自动**管道从公域网+权威医疗网探索，生成覆盖全领域的医疗知识（**单一平台主版本权威 + 多层级机构覆盖 overlay、不派生独立副本**），用十大引擎能力经 **API + 页面嵌入**供业务系统，并用同一套 API/嵌入在演示台演示。生产全自动（探索→候选→自动闸→ACTIVE），**唯一人工是真实上线前一次旁路审批、不卡管道**；运行期纯辅助、默认不打扰、命中规则 5 档渲染。角色靠`权限×范围×环境`（5 预设），登录只密码+SSO。**全新代码库、借鉴现有、留十大引擎当地基。**
+> MedKernel 是**医疗引擎核心**：一条**全自动**管道从公域网+权威医疗网探索，生成覆盖全领域的医疗知识（**单一平台主版本权威 + 多层级机构覆盖 overlay、不派生独立副本**），用十大引擎能力经 **API + 页面嵌入**供业务系统，并用同一套 API/嵌入在演示台演示。生产全自动（探索→候选→自动闸→ACTIVE），**唯一人工是真实上线前一次旁路审批、不卡管道**；运行期纯辅助、默认不打扰、命中规则 5 档渲染。角色靠`权限×范围×环境`（5 预设），登录只密码+SSO。**全新轻量代码、零历史技术债；现有代码只借鉴逻辑、不搬文件。**
