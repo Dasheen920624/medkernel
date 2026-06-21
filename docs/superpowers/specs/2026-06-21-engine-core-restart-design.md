@@ -166,15 +166,37 @@
 
 ---
 
-## 11. 借鉴 / 重建 / 舍弃（决策 A：全新代码库、借鉴现有）
+## 11. 精华保留清单（决策 A：全新代码库 · 借鉴现有 · 已逐域实读核过质量）
 
-> 全新代码库 + 干净结构；现有代码只作**借鉴素材**（移植已验证逻辑，不搬旧结构/旧债）。
+> 全新代码库 + 干净结构。下表经**实读核过质量**（文件·行数·测试为证），按移植力度分级；旧壳/旧债即便在保留域内也一并剥掉。
 
-| 处置 | 对象 |
-|---|---|
-| **借鉴移植**（把逻辑搬进新库，去旧壳） | 十大引擎：knowledge 资产模型 · terminology（语义映射+高危近似）· rule+DSL · pathway · recommendation/cdss · evaluation/quality · followup · pkg · embed · llm 模型网关 · acquisition 获取 · 来源追溯 · projection 图投影 · datascope · audit · crypto 国密 |
-| **干净重建** | 知识状态机（简化为 §4 一套）· 角色权限（15→5 预设）· 登录（密码+SSO）· 迁移 V1 基线 · IA（4 一级入口）· 工作台 · 自动质量闸（取代九闸） |
-| **舍弃**（不进新库） | 九闸/双签/逐条审/医学激活闸 · release-freeze/provider 签字证据/兼容迁移/`credential_ref` · 临床 SaaS 终端页（患者索引/提醒/待办/驾驶舱…）· 五处看知识页 · MFA/bootstrap 复杂登录 · 浏览器内核仿真国产化 · 15 角色矩阵 · 历史死测试/计划/总结/审计副本 |
+**A 级 · 算法内核近乎原样移植**（质量已验证，重写风险高、价值大）
+
+| 内核 | 位置 · 行数 | 为什么是精华 |
+|---|---|---|
+| **多层级机构覆盖解析** | `versioning/InheritanceResolver`(921) + `InheritanceOverride`/`SafetyMonotonicityCheck` | **就是 §4 要的模型**：override 按 `orgPath` 叠加、就近回落主版本、批量解析查询数不随资产膨胀、安全单调检查（覆盖不削弱安全）。现成，省掉重写多层级的大风险 |
+| **引用真实性/假引用判别** | `llm/eval/MedicalRegressionEvaluator`(365) | 引用真实性校验 + 红线用例 + 期望短语回归，**正好做 §5 自动闸的"引用真实性"机器项**，不引人工 |
+| **规则 DSL 求值** | `rule/ConditionEvaluator`(924) + `ClinicalRuleOperatorSupport`(938) | 真操作符（比较/in/between/参考范围 within_ref/above_ref + 临床操作符特性门控） |
+| **字典语义映射核** | `terminology/TerminologyService`(1094) | 高危近似（钾/钠）强制 HIGH、批量含高危整批拒、禁自动确认、同义/编码族幂等——守"禁字符 LCS + 高危强制 HIGH"不变量 |
+| **CDSS B0 确定性命中** | `recommendation/RecommendationDeterministicMatcher`(448) | 无模型可追溯推荐，守 R6（B0 先于模型） |
+
+**B 级 · 移植内核、剥离旧壳**（成熟引擎，但要切掉旧闸/旧角色耦合）
+
+| 域 | 移植什么 | 剥掉什么 |
+|---|---|---|
+| knowledge | 资产信封 + 身份/版本 · acquisition 获取编排（白名单/HTTPS/许可/robots/拒私网）· parsing 解析锚定 · diagnosis 引用校验 | `KnowledgeProductionReadinessService`(416) 里的九闸/签字 → 改 §5 自动闸 |
+| versioning | `VersionReleaseService` 原子替换 · `OverrideTemplateService` 覆盖模板 | provider 签字门 / release-freeze |
+| pkg | `EffectiveKnowledgePackageResolver`(421) 有效包解析 | `PackageEngineService`(4934 单文件过载) 移植时拆 |
+| pathway / evaluation / followup | 引擎核 + 模板 | 单文件过大（3529/1368/1013）移植时拆 |
+| llm | `ModelGatewayService`(1140) 路由/降级 | provider 签字门 |
+
+**C 级 · 底座横切原样移植**
+
+`shared/crypto SmCryptoService`（国密 SM2/3/4）· `shared/audit`（17 文件：审计链 AuditChainWriter + 兜底 AuditFallbackStore + AuditSafetyGuard）· `shared/datascope`（DataScopeAspect 数据范围切面）· `shared/hash`（Sha256ContentHash 可复现）· `shared/idempotency`（6 文件 幂等）· `shared/observability`（19 文件：trace/MDC/状态流转/payload）· `context` 标准临床上下文（引擎统一输入）
+
+**舍弃**（不进新库）
+
+九闸/双签/逐条审/医学激活闸 · release-freeze/provider 签字证据/兼容迁移/`credential_ref` · 15 角色矩阵 · MFA/bootstrap 复杂登录 · 临床 SaaS 终端页（患者索引/提醒/待办/驾驶舱）· 五处看知识页 · 浏览器内核仿真国产化 · 过载单文件原样照搬（必拆）· 历史死测试/计划/总结/审计副本
 
 ---
 
