@@ -1,9 +1,9 @@
-# 引擎核心从零重启 · 执行总计划
+# MedKernel 集团医疗智能中枢从零重启 · 执行总计划（规则引擎为核心）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现。步骤用 `- [ ]` 勾选跟踪。
 > **唯一设计锚点**：[2026-06-21 引擎核心从零重启总设计 v3](../specs/2026-06-21-engine-core-restart-design.md)。本计划只把 spec 落成可执行任务，不新增设计决策；冲突以 spec 为准。
 
-**Goal:** 用全新轻量代码（零历史技术债、借鉴现有逻辑不搬代码）重建 MedKernel 为「医疗引擎核心」：一条全自动管道探索生成全领域医疗知识，经十大能力 API+嵌入供业务系统，唯一人工是上线旁路审批。
+**Goal:** 用全新轻量代码（零历史技术债、借鉴现有逻辑不搬代码）从零重启 **MedKernel 集团医疗智能中枢**（核心=规则引擎+赋能，**不是 SaaS 平台**）：一条全自动管道探索生成全领域医疗知识与规则，以规则引擎为核心的能力经 API+嵌入+知识包赋能业务系统（HIS/EMR/CDSS），唯一人工是上线旁路审批。
 
 **Architecture:** 单一关系库权威（图库仅投影）；知识资产唯一信封 + 单主版本 + 多层级机构覆盖；生产全自动（探索→候选→确定性自动闸→ACTIVE）；上线旁路审批异步不阻塞；极简底座（密码+SSO、5 预设角色×范围×环境、国产 DB/服务器）。
 
@@ -33,7 +33,7 @@
 | `knowledge.store` | 关系库权威读写 + 图投影（可重建）| 旧 `projection` |
 | `production` | 自动生产线：explore→acquire→parse→anchor→candidate→**auto-gate**→activate | 旧 `knowledge/acquisition`·`parsing`（学边界）|
 | `production.gate` | 确定性自动质量闸（schema/红线结构/来源齐/去重/可复现 hash/引用真实性）| 旧 `llm/eval/MedicalRegressionEvaluator`（引用真实性逻辑）|
-| `capability.query` `capability.terminology` `capability.rule` `capability.pathway` `capability.recommendation` `capability.quality` `capability.followup` `capability.report` `capability.provenance` `capability.pkg` | 十大服务能力，统一输出契约（结果+来源+AI标识+状态）| 旧对应域 + `rule/ConditionEvaluator`·`terminology`·`recommendation` 内核逻辑 |
+| `capability.rule`（**核心**）`capability.query` `capability.terminology` `capability.pathway` `capability.recommendation` `capability.quality` `capability.followup` `capability.report` `capability.provenance` `capability.pkg` | **规则引擎为核心 + 赋能延伸服务**，统一输出契约（结果+来源+AI标识+状态）| 旧对应域 + `rule/ConditionEvaluator`·`terminology`·`recommendation` 内核逻辑 |
 | `capability.embed` | 页面嵌入契约（iframe/Web 组件/CDS Hooks 卡片）| 旧 `embed` |
 | `runtime.alerting` | 运行期 5 档打扰梯度（L0–L4）渲染 | 旧 `cdshook`·`safety` |
 | `approval` | 上线旁路审批（异步、`expertReviewed` 门、不阻塞管道）| —（新写）|
@@ -73,8 +73,8 @@
 
 | # | 目标 | 任务 | 验收 | 时点 |
 |---|---|---|---|---|
-| X1 | 宪法收口 | 按 spec §13 改宪法 §0(定位)/§2(IA 4 入口)/§6(单旁路审批+5 档)/§8·§11(自动闸)/§15(5 预设+密码SSO) | 宪法与 v3 一致、无旧口径残留 | S0 同期 |
-| X2 | 旧文档定位收口 | LANDING_PLAN/FOUNDATION/业务场景 spec 顶部加横幅「范围有效·定位以 v3 为准」；范围仍作 §8 全领域参考 | 无"中枢=产品名"误导新 AI | S0 同期 |
+| X1 | 宪法收口 | 按 spec §13：§0 **内补核心澄清(定位不改、仍中枢)** / §2 IA 收为操作者 4 入口 / §6 单旁路审批+5 档 / §8·§11 自动闸 / §15 5 预设+密码SSO | 宪法与 v3 一致、无旧口径残留、**§0 仍中枢** | S0 同期 |
+| X2 | 膨胀期定位混乱收口 | 旧文档定位(中枢)本就对；清理"中枢/引擎两头摇"表述，顶部加横幅「范围有效·核心=规则引擎+赋能、非 SaaS、以 v3 为准」 | 无"引擎核心=产品名"或"SaaS 平台"误导新 AI | S0 同期 |
 | X3 | 旧库退役 | 新库达 S3 parity 后，归档/移除旧 `medkernel-backend`·`frontend`；134 旧实例按授权停服（先备份） | 仓库只剩新库；134 决策留痕 | S3 后 |
 | X4 | 国产化基线 | dm/kingbase 方言 + 国密 smoke + 国产服务器(麒麟/统信/openEuler)部署核验 | 国产 DB 迁移一致、国密 smoke 过 | S0 起持续 |
 
