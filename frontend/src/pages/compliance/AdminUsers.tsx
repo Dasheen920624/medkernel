@@ -456,7 +456,7 @@ export default function AdminUsers() {
             appointmentType: "INTERNAL",
             openAccount: true,
             bindIdentity: false,
-            roleCode: "clinical-decision-user",
+            roleCode: "platform-knowledge-governor",
             providerType: "EMPLOYEE_NO",
           }}
           onFinish={submitCreate}
@@ -806,7 +806,7 @@ export default function AdminUsers() {
                   <Form<RoleFormValues>
                     form={roleForm}
                     layout="vertical"
-                    initialValues={{ roleCode: "clinical-decision-user" }}
+                    initialValues={{ roleCode: "platform-knowledge-governor" }}
                     onFinish={assignRole}
                   >
                     <Space align="start" wrap>

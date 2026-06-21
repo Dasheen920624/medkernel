@@ -10,9 +10,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RoleArchitectureCleanlinessTest {
 
-    private static final Set<String> CUSTOMER_ROLES = Set.of(
+    private static final Set<String> LAUNCH_ROLES = Set.of(
         "platform-governance-admin",
         "platform-knowledge-governor",
+        "compliance-auditor",
+        "integration-operator"
+    );
+
+    private static final Set<String> COMPATIBILITY_ROLES = Set.of(
         "organization-admin",
         "identity-access-admin",
         "knowledge-governor",
@@ -22,8 +27,6 @@ class RoleArchitectureCleanlinessTest {
         "medication-safety-user",
         "diagnostic-service-user",
         "quality-governor",
-        "compliance-auditor",
-        "integration-operator",
         "implementation-operator"
     );
 
@@ -46,14 +49,23 @@ class RoleArchitectureCleanlinessTest {
     );
 
     @Test
-    void roleCatalogContainsOnlyCurrentResponsibilityRolesAndInternalSuperadmin() {
+    void roleCatalogExposesOnlyFourLaunchResponsibilitiesAndInternalSuperadmin() {
         Set<String> actualCustomerRoles = Stream.of(RoleCode.values())
             .filter(RoleCode::customerAssignable)
             .map(RoleCode::code)
             .collect(Collectors.toSet());
 
-        assertThat(actualCustomerRoles).containsExactlyInAnyOrderElementsOf(CUSTOMER_ROLES);
+        assertThat(actualCustomerRoles).containsExactlyInAnyOrderElementsOf(LAUNCH_ROLES);
         assertThat(RoleCode.fromCode("system-superadmin")).contains(RoleCode.SYSTEM_SUPERADMIN);
+    }
+
+    @Test
+    void compatibilityRolesRemainReadableButCannotBeNewlyAssigned() {
+        assertThat(COMPATIBILITY_ROLES)
+            .allSatisfy(code -> {
+                RoleCode role = RoleCode.fromCode(code).orElseThrow();
+                assertThat(role.customerAssignable()).as(code).isFalse();
+            });
     }
 
     @Test

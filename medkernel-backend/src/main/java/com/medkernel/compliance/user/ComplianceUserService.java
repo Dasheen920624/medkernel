@@ -507,8 +507,13 @@ public class ComplianceUserService {
     }
 
     private RoleCode requireRole(String roleCode) {
-        return RoleCode.fromCode(roleCode)
+        RoleCode role = RoleCode.fromCode(roleCode)
             .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + roleCode));
+        SystemSuperAdminGuard.assertTenantManagedRole(role.code());
+        if (!role.customerAssignable()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "该角色仅用于兼容，不属于首发职责: " + role.code());
+        }
+        return role;
     }
 
     private void assertRoleGrantAllowed(Authentication authentication, RoleCode targetRole) {

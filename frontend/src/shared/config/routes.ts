@@ -3,7 +3,7 @@
  * AppLayout + router + 菜单 + 面包屑 + 权限元数据全部读这里。
  */
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
-import { ROLE_OPTIONS } from "./roleCatalog";
+import { KNOWN_ROLE_CODES } from "./roleCatalog";
 
 export type RouteSectionKey =
   | "workbench"
@@ -90,7 +90,7 @@ export const routeSections: RouteSectionMeta[] = [
   { key: "system-operations", label: "系统运维" },
 ];
 
-const CUSTOMER_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
+const CUSTOMER_ROLE_CODES = [...KNOWN_ROLE_CODES];
 const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
 const GOVERNANCE_ADMIN_ROLE_CODES = new Set([
   SYSTEM_SUPERADMIN_ROLE,

@@ -19,8 +19,8 @@ import java.util.Optional;
 public enum RoleCode {
 
     SYSTEM_SUPERADMIN("system-superadmin", "内置超级管理员"),
-    PLATFORM_GOVERNANCE_ADMIN("platform-governance-admin", "平台治理管理员"),
-    PLATFORM_KNOWLEDGE_GOVERNOR("platform-knowledge-governor", "平台知识治理员"),
+    PLATFORM_GOVERNANCE_ADMIN("platform-governance-admin", "平台管理员"),
+    PLATFORM_KNOWLEDGE_GOVERNOR("platform-knowledge-governor", "知识运营员"),
     ORGANIZATION_ADMIN("organization-admin", "机构管理员"),
     IDENTITY_ACCESS_ADMIN("identity-access-admin", "人员与访问管理员"),
     KNOWLEDGE_GOVERNOR("knowledge-governor", "机构知识治理员"),
@@ -30,8 +30,8 @@ public enum RoleCode {
     MEDICATION_SAFETY_USER("medication-safety-user", "药事安全人员"),
     DIAGNOSTIC_SERVICE_USER("diagnostic-service-user", "医技协同人员"),
     QUALITY_GOVERNOR("quality-governor", "质量与医保治理员"),
-    COMPLIANCE_AUDITOR("compliance-auditor", "合规审计员"),
-    INTEGRATION_OPERATOR("integration-operator", "集成运维员"),
+    COMPLIANCE_AUDITOR("compliance-auditor", "审计查看员"),
+    INTEGRATION_OPERATOR("integration-operator", "接入运维员"),
     IMPLEMENTATION_OPERATOR("implementation-operator", "实施运维员");
 
     private final String code;
@@ -62,9 +62,19 @@ public enum RoleCode {
         return this == SYSTEM_SUPERADMIN;
     }
 
-    /** 是否属于客户可分配职责角色。 */
+    /**
+     * 是否属于首发客户可分配职责。
+     *
+     * <p>其他角色编码继续用于历史令牌、审计与隐藏应用面兼容，但不再允许新账号分配。
+     */
     public boolean customerAssignable() {
-        return !systemSuperAdmin();
+        return switch (this) {
+            case PLATFORM_GOVERNANCE_ADMIN,
+                 PLATFORM_KNOWLEDGE_GOVERNOR,
+                 COMPLIANCE_AUDITOR,
+                 INTEGRATION_OPERATOR -> true;
+            default -> false;
+        };
     }
 
     public static Optional<RoleCode> fromCode(String code) {

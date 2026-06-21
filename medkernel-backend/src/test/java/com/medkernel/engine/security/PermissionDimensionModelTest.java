@@ -37,11 +37,11 @@ class PermissionDimensionModelTest {
     }
 
     @Test
-    void allFourteenCustomerRolesReceiveApplicableBaselinePermissions() throws Exception {
+    void allFourLaunchRolesReceiveApplicableBaselinePermissions() throws Exception {
         Method dimensionMethod = PermissionCode.class.getMethod("dimension");
 
         var customerRoles = Arrays.stream(RoleCode.values()).filter(RoleCode::customerAssignable).toList();
-        assertThat(customerRoles).hasSize(14);
+        assertThat(customerRoles).hasSize(4);
         for (RoleCode role : customerRoles) {
             Set<String> dimensions = DefaultPermissionPolicy.permissionsOf(role).stream()
                 .map(permission -> invokeDimension(dimensionMethod, permission))
@@ -58,7 +58,7 @@ class PermissionDimensionModelTest {
     }
 
     @Test
-    void systemSuperAdminIsSeparateFromFourteenCustomerAssignableRoles() {
+    void systemSuperAdminIsSeparateFromCompatibilityRoleCatalog() {
         assertThat(RoleCode.fromCode("system-superadmin"))
             .as("内置超级管理员必须是系统内置角色，而不是手工配置出来的普通角色")
             .isPresent();
@@ -66,7 +66,7 @@ class PermissionDimensionModelTest {
         assertThat(Arrays.stream(RoleCode.values())
                 .filter(role -> !"system-superadmin".equals(role.code()))
                 .toList())
-            .as("14 个客户可分配职责角色矩阵不能被超管挤占")
+            .as("兼容角色枚举不能被超管挤占")
             .hasSize(14);
     }
 

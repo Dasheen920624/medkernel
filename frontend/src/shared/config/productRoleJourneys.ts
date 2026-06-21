@@ -1,4 +1,4 @@
-import { ROLE_OPTIONS } from "./roleCatalog";
+import { ROLE_OPTIONS, roleLabel } from "./roleCatalog";
 
 export type ProductRoleCode = (typeof ROLE_OPTIONS)[number]["code"];
 
@@ -20,7 +20,7 @@ export type ProductRoleAction = {
 };
 
 export type ProductRoleJourney = {
-  roleCode: ProductRoleCode;
+  roleCode: string;
   roleName: string;
   title: string;
   summary: string;
@@ -30,12 +30,12 @@ export type ProductRoleJourney = {
   highFrequencyActions: ProductRoleAction[];
 };
 
-function roleName(roleCode: ProductRoleCode): string {
-  return ROLE_OPTIONS.find((role) => role.code === roleCode)?.name ?? "未识别角色";
+function roleName(roleCode: string): string {
+  return roleLabel(roleCode);
 }
 
 function journey(
-  roleCode: ProductRoleCode,
+  roleCode: string,
   config: Omit<ProductRoleJourney, "roleCode" | "roleName" | "title">,
 ): ProductRoleJourney {
   const name = roleName(roleCode);
@@ -49,27 +49,48 @@ function journey(
 
 export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
   journey("platform-governance-admin", {
-    summary: "治理平台空间、服务机构、安全基线与运行证据。",
+    summary: "管理中枢账号、运行配置、部署验收和关键证据。",
     kind: "tenant",
     showLifecycle: true,
-    primaryAction: { label: "管理服务机构", path: "/tenant/onboarding" },
+    primaryAction: { label: "管理账号", path: "/admin/users" },
     highFrequencyActions: [
-      { label: "人员与账号", path: "/admin/users" },
-      { label: "安全与配置", path: "/security/baseline" },
+      { label: "安全与运行配置", path: "/security/baseline" },
+      { label: "实施与验收", path: "/onboarding/guide" },
       { label: "审计与证据", path: "/admin/audit" },
     ],
   }),
   journey("platform-knowledge-governor", {
-    summary: "维护平台医疗知识主源，审核发布标准资产并评估机构派生影响。",
+    summary: "维护受控来源和医疗知识，完成低中风险审核、发布与追溯。",
     kind: "knowledge",
     showLifecycle: false,
-    primaryAction: { label: "审核发布平台知识", path: "/knowledge/governance" },
+    primaryAction: { label: "审核发布知识", path: "/knowledge/governance" },
     highFrequencyActions: [
-      { label: "知识生产", path: "/knowledge/production" },
+      { label: "知识生产与发布", path: "/knowledge/production" },
       { label: "配置包与发布", path: "/config/packages" },
-      { label: "规则配置", path: "/rule/definitions" },
+      { label: "来源与血缘", path: "/advanced/provenance" },
     ],
   }),
+  journey("integration-operator", {
+    summary: "维护系统接入、运行依赖、模型增强和失败恢复。",
+    kind: "operations",
+    showLifecycle: false,
+    primaryAction: { label: "维护接入", path: "/adapter/hub" },
+    highFrequencyActions: [
+      { label: "运行保障", path: "/system/providers" },
+      { label: "安全与运行配置", path: "/security/baseline" },
+      { label: "实施与验收", path: "/onboarding/guide" },
+    ],
+  }),
+  journey("compliance-auditor", {
+    summary: "只读复核对象、动作、来源、发布时间和导出证据。",
+    kind: "audit",
+    showLifecycle: false,
+    primaryAction: { label: "查看审计证据", path: "/admin/audit" },
+    highFrequencyActions: [{ label: "查看来源血缘", path: "/advanced/provenance" }],
+  }),
+];
+
+const COMPATIBILITY_ROLE_JOURNEYS: ProductRoleJourney[] = [
   journey("organization-admin", {
     summary: "治理本机构、组织、人员与机构级安全策略。",
     kind: "tenant",
@@ -169,24 +190,6 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
       { label: "评价指标", path: "/qc/eval/sets" },
     ],
   }),
-  journey("compliance-auditor", {
-    summary: "独立复核人员、对象、动作、时间和受控导出证据。",
-    kind: "audit",
-    showLifecycle: false,
-    primaryAction: { label: "查看审计与证据", path: "/admin/audit" },
-    highFrequencyActions: [],
-  }),
-  journey("integration-operator", {
-    summary: "维护外部系统接入、身份来源、运行连通和失败补偿。",
-    kind: "operations",
-    showLifecycle: false,
-    primaryAction: { label: "维护系统接入", path: "/adapter/hub" },
-    highFrequencyActions: [
-      { label: "模型生产控制台", path: "/knowledge/production" },
-      { label: "运行保障", path: "/system/providers" },
-      { label: "身份来源", path: "/security/identity-binding" },
-    ],
-  }),
   journey("implementation-operator", {
     summary: "完成机构开通、批量初始化、联调和交付验收。",
     kind: "tenant",
@@ -201,5 +204,7 @@ export const PRODUCT_ROLE_JOURNEYS: ProductRoleJourney[] = [
 ];
 
 export function findProductRoleJourney(roleCode?: string | null): ProductRoleJourney | undefined {
-  return PRODUCT_ROLE_JOURNEYS.find((journey) => journey.roleCode === roleCode);
+  return [...PRODUCT_ROLE_JOURNEYS, ...COMPATIBILITY_ROLE_JOURNEYS].find(
+    (journey) => journey.roleCode === roleCode,
+  );
 }

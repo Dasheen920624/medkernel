@@ -304,7 +304,7 @@ describe("WorkbenchPanel", () => {
   it("renders the integration operations view without customer-visible technical English", () => {
     renderWorkbench();
 
-    expect(screen.getByRole("heading", { name: "集成运维员工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "接入运维员工作台" })).toBeInTheDocument();
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
@@ -313,7 +313,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.queryByText("等待真实聚合 API")).not.toBeInTheDocument();
   });
 
-  it("renders an explicit responsibility-specific landing view for all 14 customer roles", () => {
+  it("renders an explicit responsibility-specific landing view for all four launch roles", () => {
     ROLE_OPTIONS.forEach(({ code, name }) => {
       setLoadedState(code, name);
 
@@ -331,11 +331,11 @@ describe("WorkbenchPanel", () => {
   });
 
   it("separates knowledge governance and personnel access from clinical and quality work", () => {
-    setLoadedState("platform-knowledge-governor", "平台知识治理员");
+    setLoadedState("platform-knowledge-governor", "知识运营员");
     const knowledge = renderWorkbench();
-    expect(screen.getByRole("heading", { name: "平台知识治理员工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识运营员工作台" })).toBeInTheDocument();
     expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /审核发布平台知识/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /审核发布知识/ })).toBeInTheDocument();
     expect(screen.queryByText("质量问题与整改")).not.toBeInTheDocument();
     knowledge.unmount();
 
@@ -466,7 +466,7 @@ describe("WorkbenchPanel", () => {
   it("renders one role-specific primary action and three default filters", () => {
     renderWorkbench();
 
-    expect(screen.getByRole("button", { name: /维护系统接入/ })).toHaveClass("ant-btn-primary");
+    expect(screen.getByRole("button", { name: /维护接入/ })).toHaveClass("ant-btn-primary");
     expect(document.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
     expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
     expect(screen.getByText("组织范围")).toBeInTheDocument();
@@ -525,11 +525,11 @@ describe("WorkbenchPanel", () => {
   });
 
   it("shows lifecycle governance slices and weekly suggestions for platform users", () => {
-    setLoadedState("platform-governance-admin", "平台治理管理员");
+    setLoadedState("platform-governance-admin", "平台管理员");
 
     renderWorkbench();
 
-    expect(screen.getByRole("heading", { name: "平台治理管理员工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
     expect(screen.getByText("治理切片")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^workbench-governance-slice-/)).toHaveLength(3);
     expect(screen.getByText("本周建议动作")).toBeInTheDocument();

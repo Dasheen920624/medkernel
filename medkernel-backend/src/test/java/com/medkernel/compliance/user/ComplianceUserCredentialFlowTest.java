@@ -79,7 +79,7 @@ class ComplianceUserCredentialFlowTest {
     void createMember_generatesTempPassword_andListsWithoutHash() throws Exception {
         mvc.perform(post("/api/v1/compliance/users").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"clinical-decision-user\"}"))
+                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"integration-operator\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.user.username").value("drwang"))
             .andExpect(jsonPath("$.data.user.userId").value("drwang"))
@@ -95,7 +95,7 @@ class ComplianceUserCredentialFlowTest {
 
     @Test
     void createMember_duplicateUsername_conflict() throws Exception {
-        String body = "{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"clinical-decision-user\"}";
+        String body = "{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"integration-operator\"}";
         mvc.perform(post("/api/v1/compliance/users").with(admin())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isOk());
@@ -255,6 +255,21 @@ class ComplianceUserCredentialFlowTest {
                 .content("{\"credentialManaged\":true,\"username\":\"ops\",\"roleCode\":\"system-superadmin\"}"))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
+    }
+
+    @Test
+    void createMemberCannotAssignCompatibilityOnlyRole() throws Exception {
+        mvc.perform(post("/api/v1/compliance/users").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "credentialManaged": true,
+                      "username": "legacy-doctor",
+                      "roleCode": "clinical-decision-user"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("首发职责")));
     }
 
     @Test

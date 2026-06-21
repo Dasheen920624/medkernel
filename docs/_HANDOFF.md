@@ -5,6 +5,7 @@
 ## 当前真相
 
 - 当前新主线在 PR #647 合并提交 `acd511c0` 上建立隔离分支 `codex/647-launch-simplification`，执行医疗引擎中枢上线收缩；设计见 [`2026-06-21-647-launch-core-contraction-design.md`](superpowers/specs/2026-06-21-647-launch-core-contraction-design.md)，计划见 [`2026-06-21-647-launch-core-contraction.md`](superpowers/plans/2026-06-21-647-launch-core-contraction.md)，审计账本见 [`647-launch-functional-audit.md`](audit/647-launch-functional-audit.md)。本轮完成前只做本地提交；目标是 4 个首发职责、5 个中枢域、普通职责 MFA 默认关闭、LOW/MEDIUM 知识单签、高风险继续双签、模型作为可选增强，并在 134 清库后生成最多 3 条来自 WHO 受控原件的正式 LOW 权威知识完成全链演练。
+- `647-01` 角色收缩已完成：账号新增、批量导入和角色分配只暴露平台管理员、知识运营员、接入运维员、审计查看员；历史角色仍可识别和登录，但不可再分配；内置超级管理员不可变语义保持。验证为后端定向 23 项、前端定向 74 项和 TypeScript 类型检查通过。
 - 134 当前运行代码为 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`（[#645](https://github.com/Dasheen920624/medkernel/pull/645)）。统一模型生产控制台、租户级 Provider 加密凭据库和“模型服务与 Key → 医学评测 → 独立复核 → 九项生产闸 → 正式生产”已上线；旧医学回归复核路由/权限/页面、环境变量凭据回退及 `credential_ref` 列均已删除，不保留兼容入口。P6 保持 `true`，Provider 共 2 个且均停用，尚未发生正式模型知识生产。
 - 隔离 worktree 为 `.worktrees/full-fidelity-sandbox`，部署证据 PR 合并后回到 `main`。既有 MiMo Key 只保存在租户加密凭据库，真实健康检查为 `VAULT / HEALTHY / enabled=false`，环境文件和当前进程环境无旧 Key。PR #645 已把 readiness 改为与 Provider 启用共用 `ModelEvalService.isClearedForGoLive` 唯一门禁；新制品现场复核为 7/9，明确阻断 `MODEL_PROVIDER` 与 `MODEL_EVALUATION`，不再复用历史制品的 `PASSED` 运行。
 - 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。

@@ -6,7 +6,7 @@ import { PRODUCT_ROLE_JOURNEYS } from "./productRoleJourneys";
 import { findRouteByPath } from "./routes";
 
 describe("product role journeys", () => {
-  it("defines one explicit default workbench journey for all 14 customer roles", () => {
+  it("defines one explicit default workbench journey for all four launch roles", () => {
     expect(PRODUCT_ROLE_JOURNEYS.map((journey) => journey.roleCode)).toEqual(
       ROLE_OPTIONS.map((role) => role.code),
     );
@@ -17,6 +17,18 @@ describe("product role journeys", () => {
       expect(journey.primaryAction.label).toBeTruthy();
       expect(journey.highFrequencyActions.length).toBeLessThanOrEqual(3);
     });
+
+    expect(
+      PRODUCT_ROLE_JOURNEYS.map(({ roleCode, primaryAction }) => [
+        roleCode,
+        primaryAction.path,
+      ]),
+    ).toEqual([
+      ["platform-governance-admin", "/admin/users"],
+      ["platform-knowledge-governor", "/knowledge/governance"],
+      ["integration-operator", "/adapter/hub"],
+      ["compliance-auditor", "/admin/audit"],
+    ]);
   });
 
   it("keeps every role task on a customer entry instead of hidden or expert routes", () => {

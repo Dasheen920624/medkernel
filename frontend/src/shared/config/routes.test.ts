@@ -9,7 +9,7 @@ import {
   routeSections,
   customerRouteMetas,
 } from "./routes";
-import { ROLE_OPTIONS } from "./roleCatalog";
+import { KNOWN_ROLE_CODES } from "./roleCatalog";
 
 function backendDefaultMenuSnapshots(): Map<string, string[]> {
   const source = readFileSync(
@@ -116,10 +116,7 @@ describe("route metadata", () => {
   });
 
   it("uses only canonical role codes in route access rules", () => {
-    const canonicalRoleCodes = new Set<string>([
-      ...ROLE_OPTIONS.map((role) => role.code),
-      "system-superadmin",
-    ]);
+    const canonicalRoleCodes = new Set<string>([...KNOWN_ROLE_CODES, "system-superadmin"]);
 
     routeMetas.forEach((route) => {
       expect(new Set(route.requiredRoles).size, `${route.path} 不得重复登记职责角色`).toBe(
@@ -161,7 +158,7 @@ describe("route metadata", () => {
 
   it("makes the dashboard an explicit default landing route for customer roles and system superadmin", () => {
     const route = findRouteByPath("/dashboard");
-    const customerRoleCodes = ROLE_OPTIONS.map((role) => role.code);
+    const customerRoleCodes = [...KNOWN_ROLE_CODES];
     const dashboardRoleCodes = [...customerRoleCodes, "system-superadmin"];
 
     expect(route?.requiredPermissions).toEqual(["menu.workbench"]);
