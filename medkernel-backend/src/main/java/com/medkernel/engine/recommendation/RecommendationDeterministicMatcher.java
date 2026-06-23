@@ -102,7 +102,8 @@ public class RecommendationDeterministicMatcher {
                     dsl, context, RequestContext.currentOrgScope(), version.versionId()).applicable()) {
                 continue;
             }
-            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(dsl, context);
+            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(
+                dsl, context, tenantId, snapshot.runtimeReleaseId());
             if (evaluation.hit()) {
                 matched.add(toCard(
                     request, snapshot, rule, version, evaluation, tenantId, candidate.resolution()));

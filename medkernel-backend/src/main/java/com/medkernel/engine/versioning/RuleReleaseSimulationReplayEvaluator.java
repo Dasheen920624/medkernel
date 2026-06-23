@@ -92,8 +92,10 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
             }
             JsonNode contextJson = json.valueToTree(context.resources());
             OrgScope orgScope = orgScope(snapshot);
-            RuleDslEvaluation before = evaluate(currentRule, currentDsl, contextJson, orgScope);
-            RuleDslEvaluation after = evaluate(candidateRule, candidateDsl, contextJson, orgScope);
+            RuleDslEvaluation before = evaluate(
+                currentRule, currentDsl, contextJson, orgScope, context.runtimeReleaseId());
+            RuleDslEvaluation after = evaluate(
+                candidateRule, candidateDsl, contextJson, orgScope, context.runtimeReleaseId());
             boolean caseChanged = before.hit() != after.hit()
                 || before.severity() != after.severity()
                 || !actionSignature(before).equals(actionSignature(after));
@@ -154,7 +156,8 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
             RuleVersion version,
             JsonNode dsl,
             JsonNode context,
-            OrgScope orgScope) {
+            OrgScope orgScope,
+            String runtimeReleaseId) {
         if (version == null || dsl == null) {
             return new RuleDslEvaluation(false, null, List.of(), json.createObjectNode());
         }
@@ -167,7 +170,7 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
         if (!decision.applicable()) {
             return new RuleDslEvaluation(false, null, List.of(), decision.details());
         }
-        return evaluator.evaluate(dsl, context);
+        return evaluator.evaluate(dsl, context, version.tenantId(), runtimeReleaseId);
     }
 
     private OrgScope orgScope(ContextSnapshot snapshot) {

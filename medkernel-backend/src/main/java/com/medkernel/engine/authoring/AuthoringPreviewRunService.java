@@ -78,7 +78,8 @@ public class AuthoringPreviewRunService {
             AuthoringPreviewRunRequest request,
             ContextSnapshotResponse snapshot,
             JsonNode context) {
-        RuleDslEvaluation evaluation = ruleEvaluator.evaluate(request.dsl(), context);
+        RuleDslEvaluation evaluation = ruleEvaluator.evaluate(
+            request.dsl(), context, request.tenantId(), snapshot.runtimeReleaseId());
         List<ConditionEvidence> conditionEvidence = readConditionEvidence(evaluation.explanation());
         String severity = evaluation.severity() == null ? null : evaluation.severity().name();
         return new AuthoringPreviewRunResponse(

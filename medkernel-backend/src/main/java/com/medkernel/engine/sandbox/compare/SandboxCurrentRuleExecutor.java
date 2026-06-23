@@ -78,7 +78,8 @@ public class SandboxCurrentRuleExecutor {
                     && immutableContext.path("resources").isObject()
                 ? immutableContext.path("resources")
                 : immutableContext;
-            RuleDslEvaluation evaluation = evaluator.evaluate(dsl, canonicalContext);
+            RuleDslEvaluation evaluation = evaluator.evaluate(
+                dsl, canonicalContext, asset.tenantId(), runtimeContent.release().releaseId());
             results.add(new SandboxComparableRuleResult(
                 rule.ruleCode(), rule.name(), asset.versionId(), asset.versionNo(),
                 sourceTier(item.sourceLayer()), asset.tenantId(), asset.contentHash(), evaluation.hit(),

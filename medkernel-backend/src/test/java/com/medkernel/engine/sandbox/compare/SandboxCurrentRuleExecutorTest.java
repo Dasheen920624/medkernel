@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ClinicalRuntimeRelease;
@@ -12,10 +13,12 @@ import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
 import com.medkernel.engine.release.ReleaseEntryState;
 import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
+import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluator;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
@@ -25,6 +28,7 @@ import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
@@ -81,6 +85,35 @@ class SandboxCurrentRuleExecutorTest {
             .hasMessageContaining("摘要漂移");
     }
 
+    @Test
+    void materializesActionCardReferenceFromTheFrozenRuntimeRelease() throws Exception {
+        SandboxCurrentRuleExecutor materializingExecutor = new SandboxCurrentRuleExecutor(
+            json, materializingEvaluator(), assets, definitions, versions);
+        ClinicalRuntimeReleaseItem item = item("hash-2");
+        when(assets.findByVersionIdAndTenantId("asset-version-2", "tenant-A"))
+            .thenReturn(Optional.of(asset("hash-2")));
+        when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.K"))
+            .thenReturn(Optional.of(rule()));
+        when(versions.findByRuleIdAndTenantIdAndVersionNo("rule-id", "tenant-A", 2))
+            .thenReturn(Optional.of(versionWithActionCardRef()));
+        var context = json.readTree("""
+            {"resources":{"patient":{"mpi":"DEID-P-1"},
+             "observations":[{"code":"K","value":6.8}]}}
+            """);
+
+        List<SandboxComparableRuleResult> results = materializingExecutor.execute(
+            effective(item), context);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.hit()).isTrue();
+            assertThat(result.severity()).isEqualTo("HIGH");
+            assertThat(result.actions()).singleElement().satisfies(action -> {
+                assertThat(action.summary()).isEqualTo("高钾复核提醒");
+                assertThat(action.requiresPhysicianConfirmation()).isTrue();
+            });
+        });
+    }
+
     private static ClinicalRuntimeReleaseContent effective(ClinicalRuntimeReleaseItem item) {
         Instant now = Instant.parse("2026-06-19T00:00:00Z");
         return new ClinicalRuntimeReleaseContent(new ClinicalRuntimeRelease(
@@ -126,5 +159,39 @@ class SandboxCurrentRuleExecutorTest {
             """,
             "{}", RuleVersionStatus.PUBLISHED, now, "governor", null,
             now, "governor", now, "governor", "trace");
+    }
+
+    private static RuleVersion versionWithActionCardRef() {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        return new RuleVersion(
+            1L, "rule-version-2", "tenant-A", "rule-id", 2, "src", "调整阈值",
+            """
+            {"when":{"all":[{"expr":{"field":"observations[].value"},"operator":"gte","value":6.5}]},
+             "then":[{"actionCardRef":"CARD.K.RECHECK"}]}
+            """,
+            "{}", RuleVersionStatus.PUBLISHED, now, "governor", null,
+            now, "governor", now, "governor", "trace");
+    }
+
+    @SuppressWarnings("unchecked")
+    private RuleDslEvaluator materializingEvaluator() {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> Optional.of(new ResolvedDeclarativeAsset(
+                VersionedAssetType.ACTION_CARD,
+                assetIdentity,
+                "3",
+                runtimeReleaseId,
+                """
+                {"actionCode":"REMIND","atSeverity":"HIGH","indicator":"warning",
+                 "summary":"高钾复核提醒","detail":"请结合标本状态和心电图复核。",
+                 "source":{"label":"检验危急值制度","evidenceLevel":"院内制度"},
+                 "suggestions":[],"overrideReasons":["已复核标本"],"requiresPhysicianConfirmation":true}
+                """,
+                "hash-card"
+            )));
+        ObjectProvider<RuleDslAssetMaterializer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(materializer);
+        return new RuleDslEvaluator(json, new ConditionEvaluator(json), provider);
     }
 }

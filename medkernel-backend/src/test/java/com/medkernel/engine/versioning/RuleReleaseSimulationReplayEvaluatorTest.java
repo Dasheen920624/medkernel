@@ -65,7 +65,7 @@ class RuleReleaseSimulationReplayEvaluatorTest {
         when(contextSnapshots.findById("ctx-3")).thenReturn(snapshotResponse("p3"));
         when(applicability.evaluate(any(), any(), any(), any()))
             .thenReturn(new RuleApplicabilityDecision(true, "APPLICABLE", "适用", json.createObjectNode()));
-        when(dslEvaluator.evaluate(any(), any())).thenAnswer(invocation -> {
+        when(dslEvaluator.evaluate(any(), any(), eq("tenant-A"), eq("runtime-release-test"))).thenAnswer(invocation -> {
             JsonNode dsl = invocation.getArgument(0);
             JsonNode context = invocation.getArgument(1);
             String marker = dsl.path("marker").asText();

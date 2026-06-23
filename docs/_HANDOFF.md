@@ -45,6 +45,39 @@
 - 当前模式模型为 208 张表；H2、PostgreSQL 和 Oracle 迁移验证曾通过，最终结构变更后必须重跑；
 - 前端与后端多组定向测试曾通过，具体结果只作为阶段证据，不能代替最终全量门禁。
 
+## 2026-06-24 阶段检查点
+
+本阶段是本地检查点，不是上线完成声明；长任务目标继续保持 active，下一会话从本文件续接即可。
+
+已完成的新增收口：
+
+- `SandboxCurrentRuleExecutor` 已按冻结医院运行修订 `releaseId` 物化规则 DSL 中的
+  `VALUE_SET` / `FORMULA` / `ACTION_CARD` 引用；
+- `SandboxReplayRuleExecutor` 已改为只从不可变历史重放清单的资产绑定快照物化引用，缺失资产或重复资产
+  诚实报错，不查询当前激活资产；
+- `RuleReleaseSimulationReplayEvaluator` 已按每个真实上下文快照的 `runtimeReleaseId` 做发布模拟回放；
+- `AuthoringPreviewRunService` 已按请求租户 + 所选真实快照 `runtimeReleaseId` 做草稿规则即配即试；
+- `RecommendationDeterministicMatcher` 已按请求租户 + 快照 `runtimeReleaseId` 生成确定性推荐卡，平台主源规则也
+  通过医院当前运行修订叠层解析动作卡；
+- 复扫生产代码后，正式运行入口已不再裸跑 `RuleDslEvaluator.evaluate(dsl, context)`；剩余两参调用仅用于
+  规则测试/回放样例和静态 DSL 校验，不代表临床运行链路。
+
+本阶段新鲜验证证据：
+
+- 红灯已分别复现动作卡引用未物化时的 `规则 DSL 缺少字段: atSeverity`：
+  `SandboxCurrentRuleExecutorTest#materializesActionCardReferenceFromTheFrozenRuntimeRelease`、
+  `SandboxReplayRuleExecutorTest#materializesActionCardReferenceFromHistoricalReplayAssetSnapshot`、
+  `AuthoringPreviewRunServiceTest#previewRunsDraftRuleWithActionCardFromSnapshotRuntimeRelease`、
+  `RecommendationDeterministicMatcherTest#materializesActionCardFromSnapshotRuntimeReleaseWhenBuildingRecommendation`；
+- 发布模拟护栏先改为只接受
+  `evaluate(dsl, context, "tenant-A", "runtime-release-test")`，旧实现红灯为空评估结果；
+- 后端消费者闭环：
+  `mvn -q -Dtest=SandboxCurrentRuleExecutorTest,SandboxReplayRuleExecutorTest,RuleReleaseSimulationReplayEvaluatorTest,AuthoringPreviewRunServiceTest,RecommendationDeterministicMatcherTest test`
+  通过；
+- 规则服务相关回归：
+  `mvn -q -Dtest=RuleEngineServiceTest,RuleDslAssetMaterializerTest,RuleDslEvaluatorTest,RecommendationDeterministicMatcherTest,SandboxCurrentRuleExecutorTest,SandboxReplayRuleExecutorTest,RuleReleaseSimulationReplayEvaluatorTest,AuthoringPreviewRunServiceTest test`
+  通过。
+
 ## 2026-06-23 阶段检查点
 
 本阶段是本地检查点，不是上线完成声明；长任务目标继续保持 active，下一会话从本文件续接即可。
@@ -99,22 +132,20 @@ Package 词。它们不是目标产品模型，不能继续扩展。下一轮清
 
 ## 当前最高优先级
 
-1. 先核查并修复仍直接调用 `RuleDslEvaluator.evaluate(dsl, context)` 的运行消费者，重点是
-   `RuleReleaseSimulationReplayEvaluator`、`SandboxCurrentRuleExecutor`、`SandboxReplayRuleExecutor` 和
-   `AuthoringPreviewRunService`，确保需要运行修订的值集/公式/动作卡都能物化或诚实降级；
-2. 继续完成 13 类资产“身份—版本—正文—校验—发布—运行—证据—撤回/回滚”闭环；
-3. 复扫生产代码和前端页面，继续消除旧发布容器 Package 命名、包选择器和接口残留；
-4. 只保留 `runtimeReleaseId`、精确资产版本和内容摘要作为运行事实；
-5. 重写全系统演练脚本，使其覆盖六层、13 类资源、13 类资产、11 个知识分类、完整医疗语义、
+1. 继续完成 13 类资产“身份—版本—正文—校验—发布—运行—证据—撤回/回滚”闭环，优先从仍缺完整运行
+   消费证据的患者报告解读、术语、字段目录、评价、随访、质量和知识开始；
+2. 复扫生产代码和前端页面，继续消除旧发布容器 Package 命名、包选择器和接口残留；
+3. 只保留 `runtimeReleaseId`、精确资产版本和内容摘要作为运行事实；
+4. 重写全系统演练脚本，使其覆盖六层、13 类资源、13 类资产、11 个知识分类、完整医疗语义、
    专病十阶段、全专业领域、S0–S40、五种交付形态和七类业务组合；
-6. 完成前后端、CLI、MCP、T-GATE、构建和部署资产全量验证；
-7. 在 134 完成备份恢复预演、清库 V1、重部署、八段全系统演练、重启和再次恢复。
+5. 完成前后端、CLI、MCP、T-GATE、构建和部署资产全量验证；
+6. 在 134 完成备份恢复预演、清库 V1、重部署、八段全系统演练、重启和再次恢复。
 
 ## 已知阻断或缺口
 
 - 生产代码仍有个别旧 Package 命名残留，需要按真实消费者逐项改名并验证；
-- 值集、公式、医嘱套餐和动作卡已有规则/路径运行消费者，但仍需把发布模拟、沙箱和历史回放链路
-  逐项核查到同一运行修订语义；
+- 值集、公式、医嘱套餐和动作卡的规则/路径核心运行消费者已切到运行修订语义，但更多资产类型的真实
+  消费者闭环仍需逐项补证；
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
 - 术语、字段目录、评价、随访、质量和知识仍需全部按医院运行修订复核；
 - 发布制品、前端发布页、集成契约、CLI 和 MCP 尚未完全切换到新模型；

@@ -39,6 +39,7 @@ import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
+import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleApplicabilityEvaluator;
 import com.medkernel.engine.rule.RuleApplicabilityRepository;
@@ -46,6 +47,7 @@ import com.medkernel.engine.rule.RuleApplicabilityService;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
+import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluator;
 import com.medkernel.engine.rule.RuleEffectiveVersionResolver;
 import com.medkernel.engine.rule.RuleRiskLevel;
@@ -58,6 +60,7 @@ import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
@@ -65,6 +68,7 @@ import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class RecommendationDeterministicMatcherTest {
 
@@ -281,6 +285,27 @@ class RecommendationDeterministicMatcherTest {
             .containsExactly(RecommendationSourceType.REDLINE, RecommendationSourceType.KNOWLEDGE);
     }
 
+    @Test
+    void materializesActionCardFromSnapshotRuntimeReleaseWhenBuildingRecommendation() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
+        stubRuleResolution(ruleDefinition(), actionCardRuleVersion(), null);
+        RecommendationDeterministicMatcher materializingMatcher = matcherWith(materializingRuleEvaluator());
+
+        List<RecommendationCardRequest> matches = materializingMatcher.match(triggerRequestWithoutPathway());
+
+        assertThat(matches).singleElement().satisfies(card -> {
+            assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.HIGH);
+            assertThat(card.summary()).isEqualTo("请结合标本状态复核。");
+            assertThat(card.requiresPhysicianConfirmation()).isTrue();
+            assertThat(card.sources())
+                .extracting(RecommendationSourceRequest::sourceType)
+                .containsExactly(RecommendationSourceType.RULE, RecommendationSourceType.CONTEXT);
+        });
+    }
+
     private RecommendationTriggerRequest triggerRequest() {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
@@ -478,6 +503,35 @@ class RecommendationDeterministicMatcherTest {
             now, "tester", now, "tester", "trace-cdss");
     }
 
+    private RuleVersion actionCardRuleVersion() {
+        Instant now = Instant.now();
+        String dsl = """
+            {
+              "trigger": "order-sign",
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["INPATIENT"],
+                "effective": {"rolloutPercent": 100}
+              },
+              "when": {
+                "fact": "patient.gender",
+                "operator": "equals",
+                "value": "FEMALE"
+              },
+              "then": [{"actionCardRef": "CARD.K.RECHECK"}],
+              "explain": {
+                "summary": "规则命中动作卡引用"
+              }
+            }
+            """;
+        return new RuleVersion(
+            12L, "rv-risk-action-card", "tenant-A", "rule-risk", 1,
+            "manual:action-card", "发布动作卡引用规则", dsl, "{\"summary\":\"规则解释\"}",
+            RuleVersionStatus.PUBLISHED, now, "reviewer", null,
+            now, "tester", now, "tester", "trace-cdss");
+    }
+
     private RuleDefinition platformRuleDefinition() {
         Instant now = Instant.now();
         return new RuleDefinition(
@@ -565,5 +619,49 @@ class RecommendationDeterministicMatcherTest {
             "RISK", 3, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "START", "source:pathway", "路径说明", "{}", "{}",
             now, "tester", now, "tester", "trace-cdss");
+    }
+
+    private RecommendationDeterministicMatcher matcherWith(RuleDslEvaluator evaluator) {
+        return new RecommendationDeterministicMatcher(
+            snapshots,
+            ruleDefinitions,
+            effectiveRuleVersions,
+            evaluator,
+            new RuleApplicabilityService(
+                ruleApplicabilities, new RuleApplicabilityEvaluator(json), json),
+            patientPathways,
+            pathwayTemplates,
+            effectiveKnowledgeVersions,
+            redlineMatcher,
+            json
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private RuleDslEvaluator materializingRuleEvaluator() {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+                assertThat(tenantId).isEqualTo("tenant-A");
+                assertThat(runtimeReleaseId).isEqualTo("runtime-release-test");
+                assertThat(assetType).isEqualTo(VersionedAssetType.ACTION_CARD);
+                assertThat(assetIdentity).isEqualTo("CARD.K.RECHECK");
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    VersionedAssetType.ACTION_CARD,
+                    assetIdentity,
+                    "4",
+                    runtimeReleaseId,
+                    """
+                    {"actionCode":"REMIND","atSeverity":"HIGH","indicator":"warning",
+                     "summary":"推荐高钾复核提醒","detail":"请结合标本状态复核。",
+                     "source":{"label":"检验危急值制度","evidenceLevel":"院内制度"},
+                     "suggestions":[],"overrideReasons":["已复核标本"],"requiresPhysicianConfirmation":true}
+                    """,
+                    "hash-card"
+                ));
+            });
+        ObjectProvider<RuleDslAssetMaterializer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(materializer);
+        return new RuleDslEvaluator(json, new ConditionEvaluator(json), provider);
     }
 }
