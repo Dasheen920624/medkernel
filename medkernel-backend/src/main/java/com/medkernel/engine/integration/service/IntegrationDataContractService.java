@@ -7,10 +7,10 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import com.medkernel.engine.context.ContextFieldCatalogService;
 import com.medkernel.engine.context.ContextFieldDescriptor;
 import com.medkernel.engine.context.ClinicalRuntimeRelease;
 import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.context.RuntimeReleaseFieldCatalogResolver;
 import com.medkernel.engine.integration.dto.IntegrationDataContractField;
 import com.medkernel.engine.integration.dto.IntegrationDataContractFieldSchema;
 import com.medkernel.engine.integration.dto.IntegrationDataContractJsonSchema;
@@ -19,28 +19,30 @@ import com.medkernel.engine.integration.dto.IntegrationDataContractResponse;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 第三方数据接入契约生成器。字段只从 {@link ContextFieldCatalogService} 派生，避免规则、
- * 路径和集成各维护一套字段定义。
+ * 第三方数据接入契约生成器。
+ *
+ * <p>字段只从医院当前运行修订中的字段目录资产恢复，避免当前工作区草稿污染已发布契约。
  */
 @Service
 public class IntegrationDataContractService {
 
     private static final String SCHEMA_VERSION = "medkernel.context-field-contract.v1";
 
-    private final ContextFieldCatalogService fieldCatalogService;
+    private final RuntimeReleaseFieldCatalogResolver fieldCatalog;
     private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
 
     public IntegrationDataContractService(
-            ContextFieldCatalogService fieldCatalogService,
+            RuntimeReleaseFieldCatalogResolver fieldCatalog,
             CurrentClinicalRuntimeReleaseResolver runtimeReleases) {
-        this.fieldCatalogService = fieldCatalogService;
+        this.fieldCatalog = fieldCatalog;
         this.runtimeReleases = runtimeReleases;
     }
 
     public IntegrationDataContractResponse generate() {
         ClinicalRuntimeRelease release =
             runtimeReleases.resolve(RequestContext.currentOrgScope());
-        List<ContextFieldDescriptor> descriptors = fieldCatalogService.query(null, null);
+        List<ContextFieldDescriptor> descriptors =
+            fieldCatalog.resolve(release.tenantId(), release.releaseId());
         List<IntegrationDataContractField> fields = descriptors.stream()
             .map(this::toContractField)
             .toList();

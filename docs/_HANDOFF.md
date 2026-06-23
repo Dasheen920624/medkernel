@@ -67,6 +67,9 @@
 - 审计导出、质控导出和产品范围里的用户可见“证据包”口径已收敛为“证据导出”；
 - 复扫生产源码、前端源码、脚本和契约文档后，旧 `packageId/packageVersion`、旧 `/engine/pkg/packages`
   路径和“运行包/证据包”词只剩测试护栏命中。
+- `ClinicalRuntimeDeclarativeAssetResolver` 已允许 `FIELD_CATALOG` 按医院运行修订解析不可变正文；
+- 新增 `RuntimeReleaseFieldCatalogResolver`，将字段目录资产正文恢复为 `ContextFieldDescriptor`；
+- 第三方数据接入契约已改为只从医院当前运行修订的字段目录资产生成，不再读取当前字段目录工作区。
 
 本阶段新鲜验证证据：
 
@@ -92,6 +95,12 @@
 - 审计权限“证据包”红灯：
   `PermissionCodeTest` 先失败于显示名 `导出审计快照 / 证据包`，修复后
   `mvn -q -Dtest=PermissionCodeTest test` 通过。
+- 字段目录运行正文红灯：
+  `mvn -q -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest,RuntimeReleaseFieldCatalogResolverTest,IntegrationDataContractServiceTest test`
+  先失败于缺少 `RuntimeReleaseFieldCatalogResolver`；修复后通过；
+- 字段目录相关回归：
+  `mvn -q -Dtest=ContextFieldCatalogDraftServiceTest,ContextFieldCatalogServiceMergeTest,ContextFieldCatalogControllerTest,ClinicalRuntimeReleaseServiceTest,ClinicalRuntimeDeclarativeAssetResolverTest,RuntimeReleaseFieldCatalogResolverTest,IntegrationDataContractServiceTest,TerminologyCoverageGateTest,RuleDslAssetMaterializerTest test`
+  通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -163,7 +172,8 @@
 - 值集、公式、医嘱套餐和动作卡的规则/路径核心运行消费者已切到运行修订语义，但更多资产类型的真实
   消费者闭环仍需逐项补证；
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
-- 术语、字段目录、评价、随访、质量和知识仍需全部按医院运行修订复核；
+- 字段目录已补第三方接入契约的运行修订消费证据，但术语、规则/路径字段校验、评价、随访、质量和知识
+  仍需继续按医院运行修订复核；
 - 发布制品、前端发布页、集成契约、CLI 和 MCP 尚未完全切换到新模型；
 - 最终五方言 V1、全量测试和 134 演练尚未完成。
 

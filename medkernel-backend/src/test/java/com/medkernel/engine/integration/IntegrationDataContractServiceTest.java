@@ -11,20 +11,21 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.engine.context.ClinicalRuntimeRelease;
-import com.medkernel.engine.context.ContextFieldCatalogService;
 import com.medkernel.engine.context.ContextFieldDescriptor;
 import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.context.RuntimeReleaseFieldCatalogResolver;
 import com.medkernel.engine.integration.service.IntegrationDataContractService;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 class IntegrationDataContractServiceTest {
 
-    private final ContextFieldCatalogService catalog = mock(ContextFieldCatalogService.class);
+    private final RuntimeReleaseFieldCatalogResolver runtimeCatalog =
+        mock(RuntimeReleaseFieldCatalogResolver.class);
     private final CurrentClinicalRuntimeReleaseResolver releases =
         mock(CurrentClinicalRuntimeReleaseResolver.class);
     private final IntegrationDataContractService service =
-        new IntegrationDataContractService(catalog, releases);
+        new IntegrationDataContractService(runtimeCatalog, releases);
 
     @Test
     void generatesContractForCurrentHospitalRuntimeWithoutCallerSelectedVersion() throws Exception {
@@ -45,7 +46,7 @@ class IntegrationDataContractServiceTest {
             "operator-1",
             "trace-1"
         ));
-        when(catalog.query(null, null)).thenReturn(List.of(
+        when(runtimeCatalog.resolve("tenant-A", "runtime-H7")).thenReturn(List.of(
             field("Observation", "observations[].code", "检验编码", "code", null, "LOINC", false),
             field("Observation", "observations[].valueNumeric", "数值结果", "number", "mg/dL", null, false),
             field("Patient", "patient.age", "年龄", "number", "岁", null, true),
@@ -87,7 +88,7 @@ class IntegrationDataContractServiceTest {
             .singleElement()
             .satisfies(field -> assertThat(field.externalWritable()).isFalse());
         verify(releases).resolve(scope);
-        verify(catalog).query(null, null);
+        verify(runtimeCatalog).resolve("tenant-A", "runtime-H7");
     }
 
     private static ContextFieldDescriptor field(

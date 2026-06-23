@@ -44,8 +44,7 @@ public class ClinicalRuntimeDeclarativeAssetResolver implements DeclarativeAsset
         String tenant = required(tenantId, "租户");
         String releaseId = required(runtimeReleaseId, "医院运行发布 ID");
         String identity = required(assetIdentity, "资产编码");
-        if (assetType == null || !assetType.usesUnifiedContentStore()
-                || assetType == VersionedAssetType.FIELD_CATALOG) {
+        if (assetType == null || !assetType.usesUnifiedContentStore()) {
             throw new ApiException(
                 ErrorCode.ENG_ASSET_002,
                 "运行解析器不支持该声明式资产类型：" + assetType

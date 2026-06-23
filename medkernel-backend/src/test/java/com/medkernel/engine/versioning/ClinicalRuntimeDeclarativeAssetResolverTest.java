@@ -62,6 +62,45 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
     }
 
     @Test
+    void resolvesFieldCatalogBodyFromTheHospitalRuntimeRelease() throws Exception {
+        String body = """
+            {"schemaVersion":"1.0","fields":[{"category":"检验检查","group":"检验","resourceType":"Observation","fieldPath":"observations[].code","displayName":"检验编码","dataType":"code","unit":null,"codeSystem":"LOINC","description":"检验标准编码","derived":false}]}
+            """.trim();
+        String hash = sha256(body);
+        ClinicalRuntimeReleaseItem item = item(
+            VersionedAssetType.FIELD_CATALOG,
+            "tenant-A",
+            "FIELD.CATALOG.CLINICAL_CONTEXT",
+            "av-field-3",
+            "V3",
+            hash);
+        when(runtime.resolve("tenant-A", "release-4")).thenReturn(content(item));
+        when(versions.findByVersionIdAndTenantId("av-field-3", "tenant-A"))
+            .thenReturn(Optional.of(version(
+                VersionedAssetType.FIELD_CATALOG,
+                "tenant-A",
+                "av-field-3",
+                "FIELD.CATALOG.CLINICAL_CONTEXT",
+                "V3",
+                hash,
+                AssetVersionStatus.PUBLISHED)));
+        when(contents.findByTenantIdAndVersionId("tenant-A", "av-field-3"))
+            .thenReturn(Optional.of(new AssetVersionContent(
+                2L, "av-field-3", "tenant-A", body, hash,
+                NOW, "operator", NOW, "operator", "trace")));
+
+        ResolvedDeclarativeAsset resolved = resolver.resolve(
+            "tenant-A",
+            "release-4",
+            VersionedAssetType.FIELD_CATALOG,
+            "FIELD.CATALOG.CLINICAL_CONTEXT").orElseThrow();
+
+        assertThat(resolved.assetType()).isEqualTo(VersionedAssetType.FIELD_CATALOG);
+        assertThat(resolved.assetVersion()).isEqualTo("V3");
+        assertThat(resolved.contentJson()).isEqualTo(body);
+    }
+
+    @Test
     void returnsEmptyForAssetOutsideReleaseAndRejectsNonPublishedBody() {
         ClinicalRuntimeReleaseItem item =
             item("tenant-A", "VS.DRAFT", "av-draft", "V1", "a".repeat(64));
@@ -94,11 +133,21 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
             String versionId,
             String versionNo,
             String hash) {
+        return item(VersionedAssetType.VALUE_SET, tenantId, identity, versionId, versionNo, hash);
+    }
+
+    private ClinicalRuntimeReleaseItem item(
+            VersionedAssetType assetType,
+            String tenantId,
+            String identity,
+            String versionId,
+            String versionNo,
+            String hash) {
         return new ClinicalRuntimeReleaseItem(
             1L, "release-4", tenantId,
             PlatformTenant.isPlatformTenant(tenantId)
                 ? ReleaseSourceLayer.PLATFORM : ReleaseSourceLayer.HOSPITAL,
-            VersionedAssetType.VALUE_SET, identity, ReleaseEntryState.ACTIVE,
+            assetType, identity, ReleaseEntryState.ACTIVE,
             versionId, versionNo, hash, NOW, "operator", "trace");
     }
 
@@ -109,8 +158,19 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
             String versionNo,
             String hash,
             AssetVersionStatus status) {
+        return version(VersionedAssetType.VALUE_SET, tenantId, versionId, identity, versionNo, hash, status);
+    }
+
+    private AssetVersion version(
+            VersionedAssetType assetType,
+            String tenantId,
+            String versionId,
+            String identity,
+            String versionNo,
+            String hash,
+            AssetVersionStatus status) {
         return new AssetVersion(
-            1L, versionId, tenantId, VersionedAssetType.VALUE_SET, identity, versionNo,
+            1L, versionId, tenantId, assetType, identity, versionNo,
             "tenant:" + tenantId, "ALL", hash,
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
             status, "version:" + versionId, "来源", null, null,
