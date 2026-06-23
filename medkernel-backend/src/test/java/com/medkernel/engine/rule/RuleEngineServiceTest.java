@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ContextFieldCatalogAssets;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
@@ -29,6 +30,8 @@ import com.medkernel.engine.terminology.MappingCoverageItem;
 import com.medkernel.engine.terminology.TerminologyCoverageGate;
 import com.medkernel.engine.terminology.TerminologyCoverageIssue;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetDependencyDeclaration;
+import com.medkernel.engine.versioning.AssetDependencyKind;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.engine.versioning.AssetVersionDraftUpdateCommand;
@@ -227,7 +230,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void createRuleRegistersStablePackageAssetDependenciesFromDsl() {
+    void createRuleRegistersStableRuntimeAssetDependenciesFromDsl() {
         JsonNode referencedDsl = dslWithValueSetReference("VS.ANTICOAGULANT");
 
         service.createRule(new RuleCreateRequest(
@@ -237,11 +240,10 @@ class RuleEngineServiceTest {
             "初始版本", referencedDsl, referencedDsl.path("explain")));
 
         verify(versionedAssets).registerDraft(org.mockito.Mockito.argThat(command ->
-            command.dependencies().size() == 1
-                && command.dependencies().get(0).dependsOnAssetType() == VersionedAssetType.VALUE_SET
-                && command.dependencies().get(0).dependsOnIdentity().equals("VS.ANTICOAGULANT")
-                && command.dependencies().get(0).kind()
-                    == com.medkernel.engine.versioning.AssetDependencyKind.RUNTIME_ASSET
+            hasDependency(command.dependencies(), VersionedAssetType.FIELD_CATALOG,
+                ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY, AssetDependencyKind.FIELD)
+                && hasDependency(command.dependencies(), VersionedAssetType.VALUE_SET,
+                    "VS.ANTICOAGULANT", AssetDependencyKind.RUNTIME_ASSET)
         ));
     }
 
@@ -256,11 +258,10 @@ class RuleEngineServiceTest {
             "初始版本", referencedDsl, referencedDsl.path("explain")));
 
         verify(versionedAssets).registerDraft(org.mockito.Mockito.argThat(command ->
-            command.dependencies().size() == 1
-                && command.dependencies().get(0).dependsOnAssetType() == VersionedAssetType.ACTION_CARD
-                && command.dependencies().get(0).dependsOnIdentity().equals("ACTION.CKD.DOSE_REVIEW")
-                && command.dependencies().get(0).kind()
-                    == com.medkernel.engine.versioning.AssetDependencyKind.RUNTIME_ASSET
+            hasDependency(command.dependencies(), VersionedAssetType.FIELD_CATALOG,
+                ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY, AssetDependencyKind.FIELD)
+                && hasDependency(command.dependencies(), VersionedAssetType.ACTION_CARD,
+                    "ACTION.CKD.DOSE_REVIEW", AssetDependencyKind.RUNTIME_ASSET)
         ));
     }
 
@@ -2429,6 +2430,17 @@ class RuleEngineServiceTest {
             source.path("when").path("all").get(1).path("value"))
             .put("packageVersion", runtimeVersion);
         return source;
+    }
+
+    private boolean hasDependency(
+            List<AssetDependencyDeclaration> dependencies,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            AssetDependencyKind kind) {
+        return dependencies.stream().anyMatch(dependency ->
+            dependency.dependsOnAssetType() == assetType
+                && dependency.dependsOnIdentity().equals(assetIdentity)
+                && dependency.kind() == kind);
     }
 
     private JsonNode hitContext() {

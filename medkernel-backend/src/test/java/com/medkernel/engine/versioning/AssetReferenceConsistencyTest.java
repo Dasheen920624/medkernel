@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ContextFieldCatalogAssets;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,11 @@ class AssetReferenceConsistencyTest {
         assertThat(AssetReferenceConsistency.assetReferences(definition))
             .containsExactlyInAnyOrder(
                 new AssetReferenceConsistency.AssetReference(
+                    VersionedAssetType.FIELD_CATALOG,
+                    ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY,
+                    null,
+                    "$.when.all[0]"),
+                new AssetReferenceConsistency.AssetReference(
                     VersionedAssetType.VALUE_SET, "VS.LAB.CREATININE", null, "$.when.all[0]"),
                 new AssetReferenceConsistency.AssetReference(
                     VersionedAssetType.FORMULA, "FORMULA.EGFR", null, "$.when.all[1]"),
@@ -122,5 +128,25 @@ class AssetReferenceConsistencyTest {
                     null,
                     AssetDependencyKind.RULE)
             );
+    }
+
+    @Test
+    void convertsFieldReferencesIntoTheUnifiedFieldCatalogDependency() throws Exception {
+        JsonNode definition = json.readTree("""
+            {
+              "when": {"all": [
+                {"field": "observations[].code", "operator": "equals", "value": "718-7"},
+                {"fact": "context.conditions[].code", "operator": "in", "value": ["I10"]}
+              ]}
+            }
+            """);
+
+        assertThat(AssetReferenceConsistency.dependencyDeclarations(definition))
+            .containsExactly(new AssetDependencyDeclaration(
+                VersionedAssetType.FIELD_CATALOG,
+                ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY,
+                null,
+                null,
+                AssetDependencyKind.FIELD));
     }
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.medkernel.engine.context.ContextFieldCatalogAssets;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
@@ -62,7 +63,8 @@ public final class AssetReferenceConsistency {
     /**
      * 提取必须由当前运行修订锁定版本的稳定资产引用。
      *
-     * <p>字段路径和编码体系分别由字段目录与术语门禁校验，不伪装成独立资产身份。
+     * <p>字段路径统一折叠到临床上下文字段目录资产；单个字段路径不是独立资产身份。
+     * 编码体系由术语门禁校验，不伪装成独立资产身份。
      */
     public static List<AssetReference> assetReferences(JsonNode root) {
         return references(root).stream()
@@ -71,6 +73,11 @@ public final class AssetReferenceConsistency {
                     VersionedAssetType.RULE,
                     reference.label(),
                     reference.ruleAssetId(),
+                    reference.path());
+                case "FIELD_CATALOG" -> new AssetReference(
+                    VersionedAssetType.FIELD_CATALOG,
+                    ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY,
+                    null,
                     reference.path());
                 case "VALUE_SET" -> directReference(VersionedAssetType.VALUE_SET, reference);
                 case "FORMULA" -> directReference(VersionedAssetType.FORMULA, reference);
@@ -91,12 +98,20 @@ public final class AssetReferenceConsistency {
                 reference.assetIdentity(),
                 null,
                 null,
-                reference.assetType() == VersionedAssetType.RULE
-                    ? AssetDependencyKind.RULE
-                    : AssetDependencyKind.RUNTIME_ASSET
+                dependencyKind(reference.assetType())
             ));
         }
         return List.copyOf(declarations);
+    }
+
+    private static AssetDependencyKind dependencyKind(VersionedAssetType assetType) {
+        if (assetType == VersionedAssetType.RULE) {
+            return AssetDependencyKind.RULE;
+        }
+        if (assetType == VersionedAssetType.FIELD_CATALOG) {
+            return AssetDependencyKind.FIELD;
+        }
+        return AssetDependencyKind.RUNTIME_ASSET;
     }
 
     private static AssetReference directReference(
@@ -133,7 +148,7 @@ public final class AssetReferenceConsistency {
         if (!node.isObject()) {
             return;
         }
-        referenceType(node).ifPresent(type -> result.add(new AuthoredAssetReference(
+        referenceTypes(node).forEach(type -> result.add(new AuthoredAssetReference(
             type,
             referenceLabel(node, type),
             text(node, "ruleAssetId"),
@@ -144,32 +159,33 @@ public final class AssetReferenceConsistency {
             collectReferences(entry.getValue(), path + "." + entry.getKey(), result));
     }
 
-    private static java.util.Optional<String> referenceType(JsonNode node) {
+    private static List<String> referenceTypes(JsonNode node) {
+        ArrayList<String> types = new ArrayList<>();
         if (text(node, "valueSet") != null) {
-            return java.util.Optional.of("VALUE_SET");
+            types.add("VALUE_SET");
         }
         if (text(node, "codeSystem") != null) {
-            return java.util.Optional.of("CODE_SYSTEM");
+            types.add("CODE_SYSTEM");
         }
         if (text(node, "formula") != null) {
-            return java.util.Optional.of("FORMULA");
+            types.add("FORMULA");
         }
         if (text(node, "field") != null || text(node, "fact") != null) {
-            return java.util.Optional.of("FIELD_CATALOG");
+            types.add("FIELD_CATALOG");
         }
         if (text(node, "orderSetRef") != null) {
-            return java.util.Optional.of("ORDER_SET");
+            types.add("ORDER_SET");
         }
         if (text(node, "actionCardRef") != null) {
-            return java.util.Optional.of("ACTION_CARD");
+            types.add("ACTION_CARD");
         }
         if (text(node, "ruleRef") != null) {
-            return java.util.Optional.of("RULE");
+            types.add("RULE");
         }
         if (text(node, "indicatorCode") != null) {
-            return java.util.Optional.of("EVALUATION");
+            types.add("EVALUATION");
         }
-        return java.util.Optional.empty();
+        return List.copyOf(types);
     }
 
     private static String referenceLabel(JsonNode node, String type) {

@@ -70,6 +70,9 @@
 - `ClinicalRuntimeDeclarativeAssetResolver` 已允许 `FIELD_CATALOG` 按医院运行修订解析不可变正文；
 - 新增 `RuntimeReleaseFieldCatalogResolver`，将字段目录资产正文恢复为 `ContextFieldDescriptor`；
 - 第三方数据接入契约已改为只从医院当前运行修订的字段目录资产生成，不再读取当前字段目录工作区。
+- 手工规则/路径 DSL 中的 `field` / `fact` 引用已统一折叠为
+  `FIELD.CATALOG.CLINICAL_CONTEXT` 资产依赖；同一条件对象同时引用字段和值集/公式时会同时登记字段目录与
+  对应运行资产依赖，避免医院运行修订装配时漏激活字段目录。
 
 本阶段新鲜验证证据：
 
@@ -100,6 +103,15 @@
   先失败于缺少 `RuntimeReleaseFieldCatalogResolver`；修复后通过；
 - 字段目录相关回归：
   `mvn -q -Dtest=ContextFieldCatalogDraftServiceTest,ContextFieldCatalogServiceMergeTest,ContextFieldCatalogControllerTest,ClinicalRuntimeReleaseServiceTest,ClinicalRuntimeDeclarativeAssetResolverTest,RuntimeReleaseFieldCatalogResolverTest,IntegrationDataContractServiceTest,TerminologyCoverageGateTest,RuleDslAssetMaterializerTest test`
+  通过。
+- 手工规则字段目录依赖红灯：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest,RuleEngineServiceTest#createRuleRegistersStableRuntimeAssetDependenciesFromDsl+createRuleAcceptsActionCardReferenceAndRegistersRuntimeDependency test`
+  先失败于规则资产只登记 `VALUE_SET` / `ACTION_CARD`、未登记字段目录；修复后通过；
+- 同节点字段 + 值集引用红灯：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest#extractsTypedRuntimeAssetReferencesFromNestedDefinitions test`
+  先失败于只抽取 `VALUE_SET`、未抽取 `FIELD_CATALOG`；修复后通过；
+- 资产依赖与运行修订装配回归：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest,RuleEngineServiceTest,AssetDependencyServiceTest,RuleVersionedAssetAdapterTest,PathwayVersionedAssetAdapterTest,ClinicalRuntimeReleaseServiceTest,AssetAuthoringRegistryTest test`
   通过。
 
 ## 2026-06-23 阶段检查点
@@ -172,8 +184,8 @@
 - 值集、公式、医嘱套餐和动作卡的规则/路径核心运行消费者已切到运行修订语义，但更多资产类型的真实
   消费者闭环仍需逐项补证；
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
-- 字段目录已补第三方接入契约的运行修订消费证据，但术语、规则/路径字段校验、评价、随访、质量和知识
-  仍需继续按医院运行修订复核；
+- 字段目录已补第三方接入契约的运行修订消费证据，规则/路径字段引用也已登记字段目录资产依赖；但术语
+  覆盖门禁、评价、随访、质量和知识仍需继续按医院运行修订复核；
 - 发布制品、前端发布页、集成契约、CLI 和 MCP 尚未完全切换到新模型；
 - 最终五方言 V1、全量测试和 134 演练尚未完成。
 
