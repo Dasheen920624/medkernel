@@ -61,6 +61,12 @@
   通过医院当前运行修订叠层解析动作卡；
 - 复扫生产代码后，正式运行入口已不再裸跑 `RuleDslEvaluator.evaluate(dsl, context)`；剩余两参调用仅用于
   规则测试/回放样例和静态 DSL 校验，不代表临床运行链路。
+- 灰度暂停通知深链已从旧 `/tenant/packages` 切到运行发布页 `/config/releases`；
+- 整套上线演练沙盘阶段已从“运行包”改为“运行修订”，全知识演练夹具同步到当前 11 个知识域
+  `DIAGNOSTIC_ITEM`；
+- 审计导出、质控导出和产品范围里的用户可见“证据包”口径已收敛为“证据导出”；
+- 复扫生产源码、前端源码、脚本和契约文档后，旧 `packageId/packageVersion`、旧 `/engine/pkg/packages`
+  路径和“运行包/证据包”词只剩测试护栏命中。
 
 本阶段新鲜验证证据：
 
@@ -77,6 +83,15 @@
 - 规则服务相关回归：
   `mvn -q -Dtest=RuleEngineServiceTest,RuleDslAssetMaterializerTest,RuleDslEvaluatorTest,RecommendationDeterministicMatcherTest,SandboxCurrentRuleExecutorTest,SandboxReplayRuleExecutorTest,RuleReleaseSimulationReplayEvaluatorTest,AuthoringPreviewRunServiceTest test`
   通过。
+- 灰度通知旧深链红灯：
+  `RolloutWorkflowNotificationAdapterTest` 先失败于实际值 `/tenant/packages?releasePlanId=vrl-1`，修复后
+  `mvn -q -Dtest=RolloutWorkflowNotificationAdapterTest test` 通过；
+- 上线演练“运行包”红灯：
+  `node --test scripts/release/full-system-rehearsal.test.mjs` 先失败于沙盘阶段标签
+  `演练机构十规则四十用例与运行包`，修复后 5 个测试通过；
+- 审计权限“证据包”红灯：
+  `PermissionCodeTest` 先失败于显示名 `导出审计快照 / 证据包`，修复后
+  `mvn -q -Dtest=PermissionCodeTest test` 通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -116,9 +131,10 @@
 
 ## 正在迁移的旧实现
 
-旧发布容器表、领域模型、临床包三元组和主要包选择器已删除或切到运行修订；当前剩余风险集中在：
-负向测试护栏里的旧字段字面量、少量泛化“证据包”命名、沙箱服务组合字段，以及个别方法/文案仍沿用
-Package 词。它们不是目标产品模型，不能继续扩展。下一轮清理顺序固定为：
+旧发布容器表、领域模型、临床包三元组和主要包选择器已删除或切到运行修订；生产用户可见的旧包深链、
+运行包文案和证据包文案已清一轮。当前剩余风险集中在：负向测试护栏里的旧字段字面量、类名级历史
+命名、沙箱服务组合字段，以及尚未逐项补证的资产运行消费者。它们不是目标产品模型，不能继续扩展。
+下一轮清理顺序固定为：
 
 ```text
 13 类资产真实消费者闭环
@@ -143,7 +159,7 @@ Package 词。它们不是目标产品模型，不能继续扩展。下一轮清
 
 ## 已知阻断或缺口
 
-- 生产代码仍有个别旧 Package 命名残留，需要按真实消费者逐项改名并验证；
+- 生产用户可见旧 Package 文案/深链已清一轮，但类名级历史命名仍需结合证据导出边界逐项评估；
 - 值集、公式、医嘱套餐和动作卡的规则/路径核心运行消费者已切到运行修订语义，但更多资产类型的真实
   消费者闭环仍需逐项补证；
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；

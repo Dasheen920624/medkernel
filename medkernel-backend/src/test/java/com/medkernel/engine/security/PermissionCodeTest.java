@@ -16,4 +16,11 @@ class PermissionCodeTest {
         assertThat(manage.code()).isEqualTo("sandbox.manage");
         assertThat(manage.risk()).isEqualTo(PermissionCode.Risk.MEDIUM);
     }
+
+    @Test
+    void auditExportPermissionUsesEvidenceExportWording() {
+        assertThat(PermissionCode.AUDIT_EXPORT.displayName())
+            .contains("证据导出")
+            .doesNotContain("证据包");
+    }
 }

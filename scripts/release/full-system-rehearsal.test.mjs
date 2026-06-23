@@ -31,6 +31,7 @@ test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运
   assert.equal(plan[0].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[1].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
   assert.equal(plan[2].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[2].label, "演练机构十规则四十用例与运行修订");
   assert.equal(plan[3].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[4].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
@@ -113,11 +114,11 @@ test("六阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
       status: "PASSED",
       coverage: {
         expectedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "REPORT", "TCM",
+          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
           "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
         ],
         publishedDomains: [
-          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "REPORT", "TCM",
+          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
           "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
         ],
       },

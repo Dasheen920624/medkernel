@@ -43,7 +43,8 @@ class RolloutWorkflowNotificationAdapterTest {
         assertThat(saved.level()).isEqualTo(WorkflowNotificationLevel.HIGH);
         assertThat(saved.status()).isEqualTo(WorkflowNotificationStatus.UNREAD);
         assertThat(saved.recipientRole()).isEqualTo("ENGINE_OPERATOR");
-        assertThat(saved.deepLink()).contains("releasePlanId=vrl-1");
+        assertThat(saved.deepLink()).isEqualTo("/config/releases?releasePlanId=vrl-1");
+        assertThat(saved.deepLink()).doesNotContain("/tenant/packages");
     }
 
     private VersionReleasePlan pausedPlan() {

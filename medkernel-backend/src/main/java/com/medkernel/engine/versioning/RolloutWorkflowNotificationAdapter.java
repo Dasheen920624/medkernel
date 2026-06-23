@@ -59,7 +59,7 @@ public class RolloutWorkflowNotificationAdapter implements RolloutPauseNotifier 
             "ENGINE_OPERATOR",
             null,
             null,
-            "/tenant/packages?releasePlanId=" + plan.planId(),
+            "/config/releases?releasePlanId=" + plan.planId(),
             null,
             null,
             plan.traceId(),

@@ -97,7 +97,7 @@ public class RuleDslEvaluator {
     }
 
     /**
-     * 使用指定运行包物化值集和公式后执行规则。
+     * 使用指定医院运行修订物化值集和公式后执行规则。
      */
     public RuleDslEvaluation evaluate(
         JsonNode dsl,

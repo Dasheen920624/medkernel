@@ -68,7 +68,7 @@ public enum PermissionCode {
 
     // ─── 审计与证据（GA-ENG-EVID-01）──────────────────────────
     AUDIT_READ("audit.read", Risk.LOW, "查看审计日志"),
-    AUDIT_EXPORT("audit.export", Risk.MEDIUM, "导出审计快照 / 证据包"),
+    AUDIT_EXPORT("audit.export", Risk.MEDIUM, "导出审计快照 / 证据导出"),
 
     // ─── 标准上下文（GA-ENG-API-01）────────────────────────────
     CONTEXT_READ("context.read", Risk.LOW, "查看标准上下文 snapshot"),

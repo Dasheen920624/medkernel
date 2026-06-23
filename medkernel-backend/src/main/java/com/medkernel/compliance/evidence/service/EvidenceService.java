@@ -280,11 +280,11 @@ public class EvidenceService {
     }
 
     /**
-     * 读取导出的证据包文件。
+     * 读取导出的证据文件。
      */
     @Transactional(readOnly = true)
     public byte[] readExportFile(String tenantId, String archiveDigestHex) {
-        return readFile(exportFilePath(tenantId, archiveDigestHex), "证据包文件不存在: " + archiveDigestHex);
+        return readFile(exportFilePath(tenantId, archiveDigestHex), "证据导出文件不存在: " + archiveDigestHex);
     }
 
     private SignatureMaterial sign(EvidenceSnapshot entity) {
